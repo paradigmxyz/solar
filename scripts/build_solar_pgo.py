@@ -1,5 +1,10 @@
 """Build Solar with profile-guided optimization using the benchmark corpus."""
 
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+
 from __future__ import annotations
 
 import argparse
@@ -15,8 +20,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 RUNTIME_BENCHMARK = REPOSITORY_ROOT / "benches" / "runtime" / "benchmark.py"
 SYNTHETIC_CORPUS = REPOSITORY_ROOT / "testdata" / "repros"
 
-# Keep several large projects out of the training corpus so they can be used as
-# hold-outs when evaluating changes to the profile.
+# Train on inline cases and selected project slices. The evaluation workloads
+# below share no identical source files with these cases.
 TRAINING_TESTS = (
     "factorial",
     "counter",
@@ -27,7 +32,19 @@ TRAINING_TESTS = (
     "aave-l2-encoder",
     "lilweb3-fractional",
     "maple-erc20",
-    "openzeppelin-governor",
+)
+
+# Keep these source-file-disjoint from every training input. The comparison
+# script checks the split before measuring PGO changes.
+EVALUATION_TESTS = (
+    "solady-lib-string",
+    "seaport-1.6-project",
+    "v4-core-project",
+    "morpho-blue-project",
+    "forge-std-1.16.1-project",
+    "prb-math-4.1.1-project",
+    "solmate-6-project",
+    "solarray-a547630-project",
 )
 
 DEBUG_TRAINING_TESTS = (
@@ -59,10 +76,16 @@ def main() -> None:
         type=Path,
         help="Override the active Rust toolchain's llvm-profdata executable",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--train-only",
         action="store_true",
         help="Only produce <target-dir>/solar.profdata for a release build",
+    )
+    mode.add_argument(
+        "--baseline-only",
+        action="store_true",
+        help="Only build an unprofiled binary with the release target flags",
     )
     args = parser.parse_args()
 
@@ -77,22 +100,40 @@ def main() -> None:
 
     host = rustc_host()
     target = args.target or host
-    if target != host:
+    if target != host and not args.baseline_only:
         parser.error(
             f"PGO training requires the host-native target {host}, got {target}"
         )
 
-    profiler = find_llvm_profdata(host, args.llvm_profdata)
     environment = os.environ.copy()
     environment["CARGO_INCREMENTAL"] = "0"
     environment["RUSTFLAGS"] = target_rustflags(target, environment.get("RUSTFLAGS"))
+    if target.endswith("-apple-darwin"):
+        for variable in ("CFLAGS", "CXXFLAGS"):
+            environment[variable] = append_flags(
+                environment.get(variable), "-fno-profile-generate -fno-profile-use"
+            )
+
+    profile = "dev" if args.debug else "dist"
+    profile_directory = "debug" if profile == "dev" else profile
+    binary_name = "solar.exe" if "windows" in target else "solar"
+
+    if args.baseline_only:
+        baseline_environment = environment | {"CARGO_TARGET_DIR": str(target_dir)}
+        print(f"Building baseline {profile} Solar", flush=True)
+        run(cargo_command(target, profile), environment=baseline_environment)
+        print(
+            f"Baseline Solar: {target_dir / target / profile_directory / binary_name}",
+            flush=True,
+        )
+        return
+
+    profiler = find_llvm_profdata(host, args.llvm_profdata)
 
     profile_dir.mkdir(parents=True, exist_ok=True)
     for profile in profile_dir.glob("solar-*.profraw"):
         profile.unlink()
 
-    profile = "dev" if args.debug else "dist"
-    profile_directory = "debug" if profile == "dev" else profile
     instrumented_target_dir = target_dir / "instrumented"
     instrumented_environment = environment | {
         "CARGO_TARGET_DIR": str(instrumented_target_dir),
@@ -106,7 +147,6 @@ def main() -> None:
         environment=instrumented_environment,
     )
 
-    binary_name = "solar.exe" if "windows" in target else "solar"
     instrumented_binary = (
         instrumented_target_dir / target / profile_directory / binary_name
     )
@@ -155,10 +195,6 @@ def train_solar(
     debug: bool,
     environment: dict[str, str],
 ) -> list[Path]:
-    training_environment = environment | {
-        "LLVM_PROFILE_FILE": str(profile_dir / "solar-%m-%p.profraw")
-    }
-
     sizes = ("small",) if debug else ("small", "medium", "large")
     synthetic_sources = [
         source
@@ -176,12 +212,12 @@ def train_solar(
         # deliberately reaches the parser recursion limit.
         run(
             [str(binary), str(source), "--stop-after=parsing"],
-            environment=training_environment,
+            environment=profile_environment(environment, profile_dir, "parse"),
             allowed_exit_codes=(0, 1),
         )
         run(
             [str(binary), str(source), "--stop-after=analysis"],
-            environment=training_environment,
+            environment=profile_environment(environment, profile_dir, "analysis"),
             allowed_exit_codes=(0, 1),
         )
 
@@ -197,19 +233,30 @@ def train_solar(
             "--solar-only",
             "--mode",
             "runtime",
-            "compile-time",
             "--tests",
             *tests,
             "--output",
             str(benchmark_output),
         ],
-        environment=training_environment,
+        environment=profile_environment(environment, profile_dir, "standard-json"),
     )
 
     profiles = sorted(profile_dir.glob("solar-*.profraw"))
-    if not profiles or any(profile.stat().st_size == 0 for profile in profiles):
-        raise RuntimeError(f"No complete Solar profiling data found in {profile_dir}")
+    for group in ("parse", "analysis", "standard-json"):
+        group_profiles = list(profile_dir.glob(f"solar-{group}-*.profraw"))
+        if not group_profiles or any(
+            profile.stat().st_size == 0 for profile in group_profiles
+        ):
+            raise RuntimeError(f"No complete Solar profiling data for {group!r}")
     return profiles
+
+
+def profile_environment(
+    environment: dict[str, str], profile_dir: Path, group: str
+) -> dict[str, str]:
+    return environment | {
+        "LLVM_PROFILE_FILE": str(profile_dir / f"solar-{group}-%m.profraw")
+    }
 
 
 def merge_profiles(
@@ -333,9 +380,18 @@ def cargo_command(target: str, profile: str) -> list[str]:
 
 
 def target_rustflags(target: str, flags: str | None) -> str:
-    if target == "x86_64-pc-windows-msvc" and "/STACK:10000000" not in (flags or ""):
-        return append_flags(flags, "-Clink-arg=/STACK:10000000")
-    return flags or ""
+    flags = flags or ""
+    if target.endswith("-pc-windows-msvc"):
+        if "+crt-static" not in flags:
+            flags = append_flags(flags, "-C target-feature=+crt-static")
+        if "/STACK:10000000" not in flags:
+            flags = append_flags(flags, "-C link-arg=/STACK:10000000")
+    elif target.endswith("-unknown-linux-musl"):
+        if "+crt-static" not in flags:
+            flags = append_flags(flags, "-C target-feature=+crt-static")
+        if "link-self-contained" not in flags:
+            flags = append_flags(flags, "-C link-self-contained=yes")
+    return flags
 
 
 def append_flags(current: str | None, addition: str) -> str:

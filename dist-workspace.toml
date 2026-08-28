@@ -19,6 +19,10 @@ unix-archive = ".tar.gz"
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
 # Build only the required packages, and individually
 precise-builds = true
+# Build release archives in a native PGO workflow.
+build-local-artifacts = false
+# Supply the release archives to cargo-dist.
+local-artifacts-jobs = ["./build-release-binaries"]
 # Features to pass to cargo build
 features = ["cli", "asm", "mimalloc"]
 # Whether dist should create a Github Release or use an existing draft
@@ -35,5 +39,8 @@ install-updater = false
 install-path = ["$XDG_BIN_HOME/", "$XDG_DATA_HOME/../bin", "~/.local/bin"]
 # The preferred Rust toolchain to use in CI (rustup toolchain syntax)
 rust-toolchain-version = "stable"
-# Build native release binaries with profile-guided optimization before dist packages them.
-github-build-setup = "../build-setup.yml"
+
+[dist.github-action-commits]
+"actions/checkout" = "3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1
+"actions/download-artifact" = "70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3" # v8.0.0
+"actions/upload-artifact" = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" # v7.0.1
