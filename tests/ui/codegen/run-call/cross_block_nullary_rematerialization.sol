@@ -6,6 +6,8 @@
 //@ run-call: testCallValue 1; value=7 => 7
 //@ run-call: testCaller 0 => true
 //@ run-call: testCaller 1 => true
+//@ run-call: testBlockNumber 0 => true
+//@ run-call: testBlockNumber 1 => true
 
 contract C {
     function testAddress(uint256 x) external view returns (bool) {
@@ -50,5 +52,16 @@ contract C {
             y = x + 2;
         }
         return y != 0 && caller == msg.sender;
+    }
+
+    function testBlockNumber(uint256 x) external view returns (bool) {
+        uint256 number = block.number;
+        uint256 y;
+        if ((x ^ number) & 1 == 0) {
+            y = x + 1;
+        } else {
+            y = x + 2;
+        }
+        return y != 0 && number == block.number;
     }
 }

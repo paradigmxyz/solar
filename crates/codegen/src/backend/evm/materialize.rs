@@ -22,7 +22,7 @@ pub(super) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u
         InstKind::GasPrice => op::GASPRICE,
         InstKind::Coinbase => op::COINBASE,
         InstKind::Timestamp => op::TIMESTAMP,
-        // Instrumented EVMs can change the block number across a call.
+        InstKind::BlockNumber => op::NUMBER,
         InstKind::PrevRandao => op::PREVRANDAO,
         InstKind::GasLimit => op::GASLIMIT,
         InstKind::SlotNum => op::SLOTNUM,
@@ -122,7 +122,7 @@ mod tests {
             Some(op::CALLDATASIZE)
         );
         assert_eq!(rematerializable_nullary_opcode(&InstKind::SlotNum), Some(op::SLOTNUM));
-        assert_eq!(rematerializable_nullary_opcode(&InstKind::BlockNumber), None);
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::BlockNumber), Some(op::NUMBER));
         assert_eq!(rematerializable_nullary_opcode(&InstKind::ReturnDataSize), None);
     }
 

@@ -11146,6 +11146,7 @@ mod tests {
             (InstKind::GasPrice, op::GASPRICE),
             (InstKind::Coinbase, op::COINBASE),
             (InstKind::Timestamp, op::TIMESTAMP),
+            (InstKind::BlockNumber, op::NUMBER),
             (InstKind::PrevRandao, op::PREVRANDAO),
             (InstKind::GasLimit, op::GASLIMIT),
             (InstKind::SlotNum, op::SLOTNUM),
@@ -11159,13 +11160,9 @@ mod tests {
             assert!(!EvmCodegen::can_own_spill_slot(&function, value));
         }
 
-        for kind in [
-            InstKind::BlockNumber,
-            InstKind::MSize,
-            InstKind::ReturnDataSize,
-            InstKind::SelfBalance,
-            InstKind::Gas,
-        ] {
+        for kind in
+            [InstKind::MSize, InstKind::ReturnDataSize, InstKind::SelfBalance, InstKind::Gas]
+        {
             let (_, value) =
                 function.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())));
             assert_eq!(EvmCodegen::always_rematerializable_op(&function, value), None);
