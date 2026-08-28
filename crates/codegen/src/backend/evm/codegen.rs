@@ -1905,12 +1905,14 @@ impl<'gcx> EvmCodegen<'gcx> {
             let mut preserve_caller_stack =
                 !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
             let mut runtime_stack_args = true;
+            let mut stack_returns_enabled = true;
             self.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
             loop {
                 let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
                 self.reset_runtime_codegen(module);
                 self.preserve_caller_stack = preserve_caller_stack;
                 self.runtime_stack_args = runtime_stack_args;
+                self.stack_returns_enabled = stack_returns_enabled;
 
                 if !module.functions.is_empty() {
                     self.emit_runtime(module, call_graph);
@@ -1929,8 +1931,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                         runtime_stack_args = false;
                         continue;
                     }
-                    if self.stack_returns_enabled {
-                        self.stack_returns_enabled = false;
+                    if stack_returns_enabled {
+                        stack_returns_enabled = false;
                         continue;
                     }
                 }
@@ -10824,6 +10826,31 @@ mod tests {
             };
             codegen.function_stack_peaks.insert(callee, MAX_STACK_DEPTH - 1);
             assert!(!codegen.stack_prefixes_fit_from(&module, constructor, MAX_STACK_DEPTH));
+        });
+    }
+
+    #[test]
+    fn irreducible_runtime_stack_overflow_terminates() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut module = Module::new(Ident::DUMMY);
+            for index in 0..=MAX_STACK_DEPTH {
+                let mut function = Function::new(Ident::DUMMY);
+                function.attributes.is_dispatch_entry = index == 0;
+                let mut builder = FunctionBuilder::new(&mut function);
+                if index < MAX_STACK_DEPTH {
+                    builder.internal_call_void(FunctionId::from_usize(index + 1), Vec::new(), 0);
+                }
+                builder.stop();
+                module.add_function(function);
+            }
+            module.advance_phase(MirPhase::EvmShaped);
+            let call_graph = CallGraphInfo::new(&module);
+            codegen.cold_functions = DenseBitSet::new_empty(module.functions.len());
+
+            let _ = codegen.generate_runtime_code(&module, &call_graph);
+
+            assert!(!codegen.stack_returns_enabled);
+            assert!(codegen.gcx.dcx().has_errors().is_err());
         });
     }
 
