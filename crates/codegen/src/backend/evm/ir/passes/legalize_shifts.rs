@@ -41,7 +41,7 @@ pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module
     for block in &mut module.blocks {
         let mut instructions = Vec::with_capacity(block.instructions.len());
         for inst in std::mem::take(&mut block.instructions) {
-            let metadata = inst.metadata;
+            let metadata = inst.metadata.clone();
             let start = instructions.len();
             match inst.opcode {
                 op::SHL if legalize_shifts => {
@@ -69,7 +69,7 @@ pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module
             }
             if instructions.len() > start + 1 {
                 for replacement in &mut instructions[start..] {
-                    replacement.metadata.set_source_span(metadata.source_span());
+                    replacement.metadata.set_source_spans(metadata.source_spans().iter().copied());
                 }
             }
         }

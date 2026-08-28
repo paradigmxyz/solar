@@ -7,7 +7,7 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    DebugInstruction,
+    DebugFunction, DebugFunctionExit, DebugInstruction,
     assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
         PreparedAssembly,
@@ -2286,6 +2286,8 @@ pub struct EvmCodegen<'gcx> {
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
+    /// Source identities for MIR functions that survive lowering.
+    debug_functions: IndexVec<FunctionId, Option<DebugFunction>>,
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
@@ -2439,6 +2441,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
+            debug_functions: IndexVec::new(),
             cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
@@ -2808,6 +2811,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .emit();
             return EvmArtifact::default();
         }
+        self.debug_functions = module
+            .functions
+            .iter()
+            .map(|func| {
+                (self.capture_debug_info && !func.declaration_span.is_dummy())
+                    .then_some(func.debug_identifier)
+                    .flatten()
+                    .map(|identifier| DebugFunction {
+                        identifier,
+                        declaration: func.declaration_span,
+                    })
+            })
+            .collect();
         self.immutable_staging_base = immutable_staging_base(module);
         self.immutable_encodings.clear();
         for (id, immutable) in module.iter_immutables() {
@@ -3175,6 +3191,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     let label = self.function_labels[&func_id];
                     self.asm.define_label(label);
+                    self.mark_debug_function_invoke(func);
                     self.in_internal_function = true;
                     self.generate_function_body(func_id, func);
                     self.in_internal_function = false;
@@ -3190,6 +3207,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // non-final STOP.
             let constructor_exit = self.asm.new_label();
             self.constructor_exit = Some(constructor_exit);
+            self.mark_debug_function_invoke(ctor);
             self.generate_function_body(ctor_id, ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
             self.asm.set_deferred_const(
@@ -3625,6 +3643,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
+            self.mark_debug_function_invoke(func);
             self.in_internal_function = false;
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.generate_function_body(func_id, func);
@@ -3642,6 +3661,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
+            self.mark_debug_function_invoke(func);
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
             self.current_internal_function = Some(func_id);
@@ -3660,6 +3680,33 @@ impl<'gcx> EvmCodegen<'gcx> {
         let spill_size = u64::from(self.scheduler.spills.spill_area_size());
         self.function_spill_sizes.insert(func_id, spill_size);
         spill_size
+    }
+
+    fn mark_debug_function_invoke(&mut self, func: &Function) {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && let Some(identifier) = func.debug_identifier
+        {
+            self.asm.mark_function_invoke(DebugFunction {
+                identifier,
+                declaration: func.declaration_span,
+            });
+        }
+    }
+
+    fn mark_debug_function_invoke_id(&mut self, func_id: FunctionId) {
+        if let Some(&Some(function)) = self.debug_functions.get(func_id) {
+            self.asm.mark_last_function_invoke(function);
+        }
+    }
+
+    fn mark_debug_function_exit(&mut self, func: &Function, exit: DebugFunctionExit) {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && func.debug_identifier.is_some()
+        {
+            self.asm.mark_function_exit(exit);
+        }
     }
 
     /// Returns the exact spill area recorded for `func_id` after emission.
@@ -9905,6 +9952,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
+        self.mark_debug_function_invoke_id(callee);
 
         self.asm.define_label(return_label);
         if let Some(caller_stack) = caller_stack {
@@ -10532,6 +10580,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
+        self.mark_debug_function_invoke_id(callee);
 
         self.asm.define_label(return_label);
         if let Some(caller_stack) = caller_stack {
@@ -11823,6 +11872,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.asm.emit_op(op::JUMP);
+            self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             self.scheduler.clear_stack();
             return;
         }
@@ -11840,15 +11890,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The caller's return address is the untracked value at the bottom of
         // the stack; after popping every tracked value it is on top.
         self.asm.emit_op(op::JUMP);
+        self.mark_debug_function_exit(func, DebugFunctionExit::Return);
     }
 
-    fn emit_external_stop(&mut self) {
+    fn emit_external_stop(&mut self, func: &Function) {
         if let Some(exit) = self.constructor_exit {
             self.emit_push_label(exit);
             self.asm.emit_op(op::JUMP);
         } else {
             self.asm.emit_op(op::STOP);
         }
+        self.mark_debug_function_exit(func, DebugFunctionExit::Return);
     }
 
     fn emit_revert_returndata(&mut self) {
@@ -11988,6 +12040,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let label = self.function_labels[function];
                 self.emit_push_label(label);
                 self.asm.emit_op(op::JUMP);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
+                self.mark_debug_function_invoke_id(*function);
             }
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
@@ -12078,13 +12132,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
 
                 assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
-                self.emit_external_stop();
+                self.emit_external_stop(func);
             }
 
             Terminator::Revert { offset, size } => {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.asm.emit_op(op::REVERT);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Revert);
             }
 
             Terminator::RevertReturndata => self.emit_revert_returndata(),
@@ -12096,19 +12151,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.asm.emit_op(op::RETURN);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 
             Terminator::Stop => {
                 if self.in_internal_function {
                     self.emit_internal_return(func, &[]);
                 } else {
-                    self.emit_external_stop();
+                    self.emit_external_stop(func);
                 }
             }
 
             Terminator::SelfDestruct { recipient } => {
                 self.emit_value(func, *recipient);
                 self.asm.emit_op(op::SELFDESTRUCT);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 
             Terminator::Invalid => {

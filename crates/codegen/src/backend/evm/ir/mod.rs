@@ -11,7 +11,10 @@
 //! stream. The parser/printer at the bottom of the file provide a text format for
 //! tests and debugging; the IR itself is not defined by that serialization.
 
-use super::op::{self, StackOp};
+use super::{
+    DebugFunction, DebugFunctionExit, DebugSpans,
+    op::{self, StackOp},
+};
 use crate::mir::{ImmutableId, TypeSize};
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
@@ -199,6 +202,8 @@ pub(crate) struct BlockMetadata {
     pub(crate) hotness: Hotness,
     /// Whether the block belongs to a natural loop.
     pub(crate) in_loop: bool,
+    /// Source function entered by this block's leading `JUMPDEST`.
+    pub(crate) function_invoke: Option<DebugFunction>,
 }
 
 /// Block hotness metadata.
@@ -246,7 +251,7 @@ impl Instruction {
         if let Some(stack_op) = StackOp::from_single_byte_evm_opcode(opcode) {
             return Self::stack_op(stack_op);
         }
-        Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::EMPTY }
+        Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::default() }
     }
 
     /// Creates a logical stack operation.
@@ -257,7 +262,7 @@ impl Instruction {
             encoding: 0,
             value: None,
             stack_op: Some(stack_op),
-            metadata: Metadata::EMPTY,
+            metadata: Metadata::default(),
         }
     }
 
@@ -306,7 +311,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::EMPTY },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
         }
     }
 
@@ -340,7 +345,7 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::EMPTY },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
         }
     }
 
@@ -501,14 +506,18 @@ pub(crate) struct Terminator {
 impl Terminator {
     /// Creates a terminator without metadata.
     #[must_use]
-    pub(crate) const fn new(kind: TerminatorKind) -> Self {
-        Self { kind, metadata: Metadata::EMPTY, implicit_stop: false }
+    pub(crate) fn new(kind: TerminatorKind) -> Self {
+        Self { kind, metadata: Metadata::default(), implicit_stop: false }
     }
 
     /// Creates the artificial `STOP` that closes a raw assembler fragment.
     #[must_use]
-    pub(in crate::backend::evm) const fn implicit_stop() -> Self {
-        Self { kind: TerminatorKind::Op(op::STOP), metadata: Metadata::EMPTY, implicit_stop: true }
+    pub(in crate::backend::evm) fn implicit_stop() -> Self {
+        Self {
+            kind: TerminatorKind::Op(op::STOP),
+            metadata: Metadata::default(),
+            implicit_stop: true,
+        }
     }
 
     /// Marks this synthetic terminator as intentionally having no source location.
@@ -628,30 +637,107 @@ enum PushValue {
 }
 
 /// Metadata carried by instructions and terminators.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Metadata {
     /// Optional stack effect.
     pub(crate) stack: Option<StackEffect>,
     /// Solidity source span associated with this machine operation.
-    source_span: Span,
+    source_spans: DebugSpans,
+    /// Function activation entered after this operation.
+    function_invoke: Option<DebugFunction>,
+    /// Function activation closed after this operation.
+    function_exit: Option<DebugFunctionExit>,
     /// Whether the source location was preserved or intentionally dropped.
     debug_info_handled: bool,
 }
 
 impl Metadata {
-    /// Empty metadata value.
-    pub(crate) const EMPTY: Self =
-        Self { stack: None, source_span: Span::DUMMY, debug_info_handled: false };
-
     /// Returns the source span associated with this operation.
     #[must_use]
-    pub(crate) fn source_span(self) -> Option<Span> {
-        (!self.source_span.is_dummy()).then_some(self.source_span)
+    pub(crate) fn source_span(&self) -> Option<Span> {
+        self.source_spans.first().copied()
+    }
+
+    /// Returns every source origin associated with this operation.
+    #[must_use]
+    pub(crate) fn source_spans(&self) -> &[Span] {
+        &self.source_spans
     }
 
     /// Sets the source span associated with this operation.
     pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
-        self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
+        self.source_spans.clear();
+        self.source_spans.extend(span.filter(|span| !span.is_dummy()));
+        self.debug_info_handled = true;
+    }
+
+    /// Sets all source origins associated with this operation.
+    pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
+        self.source_spans.clear();
+        for span in spans {
+            if !span.is_dummy() && !self.source_spans.contains(&span) {
+                self.source_spans.push(span);
+            }
+        }
+        self.debug_info_handled = true;
+    }
+
+    /// Adds origins from another operation without changing machine semantics.
+    pub(crate) fn merge_source_spans(&mut self, other: &Self) {
+        for &span in other.source_spans() {
+            if !self.source_spans.contains(&span) {
+                self.source_spans.push(span);
+            }
+        }
+        self.debug_info_handled |= other.debug_info_handled;
+    }
+
+    /// Merges all compatible debug information from an equivalent operation.
+    pub(crate) fn merge_equivalent_debug_info(&mut self, other: &Self) {
+        self.merge_source_spans(other);
+        debug_assert!(
+            self.function_invoke.is_none()
+                || other.function_invoke.is_none()
+                || self.function_invoke == other.function_invoke,
+            "cannot merge different function invocations"
+        );
+        debug_assert!(
+            self.function_exit.is_none()
+                || other.function_exit.is_none()
+                || self.function_exit == other.function_exit,
+            "cannot merge different function exits"
+        );
+        self.function_invoke = self.function_invoke.or(other.function_invoke);
+        self.function_exit = self.function_exit.or(other.function_exit);
+    }
+
+    /// Returns the function entered after this operation.
+    #[must_use]
+    pub(crate) const fn function_invoke(&self) -> Option<DebugFunction> {
+        self.function_invoke
+    }
+
+    /// Marks this operation as entering a function.
+    pub(crate) fn set_function_invoke(&mut self, function: DebugFunction) {
+        self.function_invoke = Some(function);
+        self.debug_info_handled = true;
+    }
+
+    /// Removes and returns the function entered after this operation.
+    pub(crate) fn take_function_invoke(&mut self) -> Option<DebugFunction> {
+        self.debug_info_handled = true;
+        self.function_invoke.take()
+    }
+
+    /// Returns the function activation transition on this operation.
+    #[must_use]
+    pub(crate) const fn function_exit(&self) -> Option<DebugFunctionExit> {
+        self.function_exit
+    }
+
+    /// Marks this operation as closing the active function.
+    pub(crate) fn set_function_exit(&mut self, exit: DebugFunctionExit) {
+        self.function_exit = Some(exit);
         self.debug_info_handled = true;
     }
 
@@ -662,7 +748,7 @@ impl Metadata {
 
     /// Returns whether source debug information was preserved or intentionally dropped.
     #[must_use]
-    pub(crate) const fn debug_info_is_handled(self) -> bool {
+    pub(crate) const fn debug_info_is_handled(&self) -> bool {
         self.debug_info_handled
     }
 }

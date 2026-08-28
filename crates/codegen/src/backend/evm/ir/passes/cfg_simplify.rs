@@ -104,7 +104,7 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
                 (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((
                     at,
                     inst.opcode,
-                    inst.metadata,
+                    inst.metadata.clone(),
                 ))
             })
         else {
@@ -130,9 +130,9 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && then_block == else_block
         {
             let target = *then_block;
-            let metadata = *metadata;
+            let metadata = metadata.clone();
             let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.set_source_span(metadata.source_span());
+            pop.metadata.set_source_spans(metadata.source_spans().iter().copied());
             block.instructions.push(pop);
             let mut terminator = Terminator::new(TerminatorKind::Jump(target));
             terminator.metadata = metadata;
@@ -149,10 +149,10 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && jumpi.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
         {
-            let source_span = jumpi.metadata.source_span();
+            let source_spans = jumpi.metadata.source_spans().to_vec();
             block.instructions.truncate(block.instructions.len() - 2);
             let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.set_source_span(source_span);
+            pop.metadata.set_source_spans(source_spans);
             block.instructions.push(pop);
             changed = true;
         }
@@ -320,7 +320,14 @@ fn coalesce_blocks(
             }
 
             let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
-            let terminator = module.blocks[target].terminator.take();
+            let mut terminator = module.blocks[target].terminator.take();
+            if let Some(function) = module.blocks[target].metadata.function_invoke {
+                if let Some(instruction) = instructions.first_mut() {
+                    instruction.metadata.set_function_invoke(function);
+                } else if let Some(terminator) = &mut terminator {
+                    terminator.metadata.set_function_invoke(function);
+                }
+            }
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

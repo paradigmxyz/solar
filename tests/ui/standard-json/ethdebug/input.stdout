@@ -200,6 +200,21 @@
                     "arguments": [
                       "0x04"
                     ]
+                  },
+                  "context": {
+                    "invoke": {
+                      "identifier": "f",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 13,
+                          "length": 74
+                        }
+                      },
+                      "jump": true
+                    }
                   }
                 },
                 {
@@ -517,6 +532,9 @@
                   "offset": 54,
                   "operation": {
                     "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "return": {}
                   }
                 },
                 {
@@ -541,6 +559,9 @@
                   "offset": 58,
                   "operation": {
                     "mnemonic": "REVERT"
+                  },
+                  "context": {
+                    "revert": {}
                   }
                 },
                 {
@@ -748,7 +769,8 @@
                         "offset": 79,
                         "length": 5
                       }
-                    }
+                    },
+                    "revert": {}
                   }
                 }
               ]

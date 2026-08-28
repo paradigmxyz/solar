@@ -21,6 +21,7 @@ struct ParsedBlockHeader {
     label: Symbol,
     hotness: Hotness,
     in_loop: bool,
+    function_invoke: Option<DebugFunction>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -53,11 +54,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut module = Module::new(name);
         self.parse_program_body(&mut module)?;
         if module.blocks.iter().any(|block| {
-            block.instructions.iter().any(|inst| inst.metadata.source_span().is_some())
-                || block
-                    .terminator
-                    .as_ref()
-                    .is_some_and(|term| term.metadata.source_span().is_some())
+            block.metadata.function_invoke.is_some()
+                || block.instructions.iter().any(|inst| {
+                    inst.metadata.source_span().is_some()
+                        || inst.metadata.function_invoke().is_some()
+                        || inst.metadata.function_exit().is_some()
+                })
+                || block.terminator.as_ref().is_some_and(|term| {
+                    term.metadata.source_span().is_some()
+                        || term.metadata.function_invoke().is_some()
+                        || term.metadata.function_exit().is_some()
+                })
         }) {
             module.track_debug_info();
         }
@@ -76,6 +83,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
+                module.blocks[block_id].metadata.function_invoke = header.function_invoke;
                 current_block = Some(block_id);
                 continue;
             }
@@ -113,14 +121,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.bump();
         let mut hotness = Hotness::Hot;
         let mut in_loop = false;
-        if self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
+        let mut function_invoke = None;
+        while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
                 if self.parser.eat_keyword(sym::cold) {
                     hotness = Hotness::Cold;
                 } else if self.parser.eat_keyword(sym::Loop) {
                     in_loop = true;
+                } else if self.parser.eat_keyword(sym::invoke) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let identifier = self.parser.parse_ident()?;
+                    self.parser.expect(TokenKind::At)?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
+                    function_invoke = Some(DebugFunction {
+                        identifier,
+                        declaration: Span::new(BytePos(lo), BytePos(hi)),
+                    });
                 } else {
-                    return Err(self.parser.error("expected `cold` or `loop` block attribute"));
+                    return Err(self
+                        .parser
+                        .error("expected `cold`, `loop`, or `invoke` block attribute"));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
                     break;
@@ -131,7 +151,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, hotness, in_loop }))
+        Ok(Some(ParsedBlockHeader { label, hotness, in_loop, function_invoke }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
@@ -424,6 +444,39 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Eq)?;
                 let (lo, hi) = self.parser.parse_span_bounds()?;
                 metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
+            } else if key == sym::spans {
+                self.parser.expect(TokenKind::Eq)?;
+                self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                let mut spans = Vec::new();
+                loop {
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
+                    spans.push(Span::new(BytePos(lo), BytePos(hi)));
+                    if !self.parser.eat(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
+                metadata.set_source_spans(spans);
+            } else if key == sym::invoke {
+                self.parser.expect(TokenKind::Eq)?;
+                let identifier = self.parser.parse_ident()?;
+                self.parser.expect(TokenKind::At)?;
+                let (lo, hi) = self.parser.parse_span_bounds()?;
+                metadata.set_function_invoke(DebugFunction {
+                    identifier,
+                    declaration: Span::new(BytePos(lo), BytePos(hi)),
+                });
+            } else if key == sym::exit {
+                self.parser.expect(TokenKind::Eq)?;
+                let exit = self.parser.parse_ident()?;
+                let exit = if exit == kw::Return {
+                    DebugFunctionExit::Return
+                } else if exit == kw::Revert {
+                    DebugFunctionExit::Revert
+                } else {
+                    return Err(self.parser.error("expected `return` or `revert`"));
+                };
+                metadata.set_function_exit(exit);
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }

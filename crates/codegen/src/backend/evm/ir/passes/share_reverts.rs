@@ -43,7 +43,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         let block_id = BlockId::from_usize(index);
         let Some((revert, terminator_metadata)) =
             block.terminator.as_ref().and_then(|term| match term.kind {
-                TerminatorKind::Jump(target) => Some((target, term.metadata)),
+                TerminatorKind::Jump(target) => Some((target, term.metadata.clone())),
                 _ => None,
             })
         else {
@@ -56,7 +56,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         if jumpi.opcode != op::JUMPI || jumpi.is_encoded_push() {
             continue;
         }
-        let branch_metadata = jumpi.metadata;
+        let branch_metadata = jumpi.metadata.clone();
         let continuation = match &target.value {
             Some(PushValue::Block(continuation)) => *continuation,
             _ => continue,
@@ -67,11 +67,11 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         if revert.index() != block_id.index() + 1 || continuation.index() != revert.index() + 1 {
             continue;
         }
-        let target_metadata = target.metadata;
+        let target_metadata = target.metadata.clone();
         *target = Instruction::push_block(shared);
-        target.metadata.set_source_span(target_metadata.source_span());
+        target.metadata.set_source_spans(target_metadata.source_spans().iter().copied());
         let mut terminator = Terminator::new(TerminatorKind::Jump(continuation));
-        terminator.metadata.set_source_span(terminator_metadata.source_span());
+        terminator.metadata.set_source_spans(terminator_metadata.source_spans().iter().copied());
         block.terminator = Some(terminator);
         let condition_end = block.instructions.len() - 2;
         match block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode) {
@@ -81,7 +81,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
             Some(op::EQ) => block.instructions[condition_end - 1].opcode = op::SUB,
             _ => {
                 let mut iszero = Instruction::opcode(op::ISZERO);
-                iszero.metadata.set_source_span(branch_metadata.source_span());
+                iszero.metadata.set_source_spans(branch_metadata.source_spans().iter().copied());
                 block.instructions.insert(condition_end, iszero);
             }
         }

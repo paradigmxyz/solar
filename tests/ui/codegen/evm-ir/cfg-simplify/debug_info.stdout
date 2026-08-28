@@ -4,7 +4,8 @@
   bb0:
     push 1 !metadata(span=1..5)
 -   jumpi bb1, bb1 !metadata(span=10..20)
-- bb1:
+- bb1 [invoke=callee@30..50]:
+-   stop !metadata(span=30..40)
 +   pop !metadata(span=10..20)
-    stop !metadata(span=30..40)
++   stop !metadata(span=30..40, invoke=callee@30..50)
   

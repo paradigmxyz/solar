@@ -186,15 +186,18 @@ fn lower_evm_ir_once(
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
+            program.mark_last_function_invoke(block.metadata.function_invoke);
         }
 
         for inst in &block.instructions {
-            program.set_source_span(inst.metadata.source_span());
+            program.set_source_spans(inst.metadata.source_spans());
             lower_instruction(assembler, &mut program, inst, module, labels);
+            program.mark_last_function_invoke(inst.metadata.function_invoke());
+            program.mark_last_function_exit(inst.metadata.function_exit());
         }
 
         if let Some(terminator) = &block.terminator {
-            program.set_source_span(terminator.metadata.source_span());
+            program.set_source_spans(terminator.metadata.source_spans());
             lower_terminator(
                 assembler,
                 &mut program,
@@ -204,6 +207,15 @@ fn lower_evm_ir_once(
                 labels,
                 indexed_jump_lowerings[block_id],
             );
+            let function_invoke = terminator.metadata.function_invoke().filter(|&function| {
+                !matches!(
+                    &terminator.kind,
+                    ir::TerminatorKind::Jump(target)
+                        if module.blocks[*target].metadata.function_invoke == Some(function)
+                )
+            });
+            program.mark_last_function_invoke(function_invoke);
+            program.mark_last_function_exit(terminator.metadata.function_exit());
         }
     }
     // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
@@ -211,13 +223,12 @@ fn lower_evm_ir_once(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
     if !referenced_data.is_empty() && !ends_with_terminal {
-        program.set_source_span(
-            module
-                .blocks
-                .last()
-                .and_then(|block| block.terminator.as_ref())
-                .and_then(|term| term.metadata.source_span()),
-        );
+        let spans = module
+            .blocks
+            .last()
+            .and_then(|block| block.terminator.as_ref())
+            .map_or(&[][..], |term| term.metadata.source_spans());
+        program.set_source_spans(spans);
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);

@@ -5,9 +5,12 @@
     push 1 !metadata(span=1..5)
     jumpi bb1, bb2 !metadata(span=6..10)
   bb1:
-    push 0 !metadata(span=11..15)
-    dup 1 !metadata(span=16..19)
-    revert !metadata(span=20..25)
+-   push 0 !metadata(span=11..15)
+-   dup 1 !metadata(span=16..19)
+-   revert !metadata(span=20..25)
++   push 0 !metadata(spans=[11..15, 31..35])
++   dup 1 !metadata(spans=[16..19, 36..39])
++   revert !metadata(spans=[20..25, 40..45])
   bb2:
 -   push 0 !metadata(span=31..35)
 -   dup 1 !metadata(span=36..39)

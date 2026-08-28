@@ -181,8 +181,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             continue;
         }
         let first = free[0];
-        let body =
+        let mut body =
             module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
+        merge_site_source_spans(module, &mut body, &free);
+        clear_function_invokes(&mut body);
         let run_size = lower_bound(gcx, &body);
         let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
@@ -366,7 +368,10 @@ fn outline_parametric_machine_runs(
         if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
             continue;
         }
-        let Some(stub_body) = parameterize_body(first_body, &parameters) else { continue };
+        let mut merged_body = first_body.to_vec();
+        merge_param_site_source_spans(module, &mut merged_body, &free);
+        clear_function_invokes(&mut merged_body);
+        let Some(stub_body) = parameterize_body(&merged_body, &parameters) else { continue };
         let inline_size = free
             .iter()
             .map(|site| {
@@ -441,12 +446,13 @@ fn outline_parametric_machine_runs(
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
             let source = &module.blocks[site.block].instructions;
-            let prefix = group
+            let mut prefix = group
                 .parameters
                 .iter()
                 .rev()
                 .map(|&index| source[site.start + index].clone())
-                .collect();
+                .collect::<Vec<_>>();
+            clear_function_invokes(&mut prefix);
             edits.entry(site.block).or_default().push(ParamEdit {
                 start: site.start,
                 len: site.len,
@@ -523,6 +529,9 @@ fn split_parametric_outline_site(
     edit: &ParamEdit,
     continuation_label: u32,
 ) {
+    let function_invoke = range_function_invoke(
+        &module.blocks[block].instructions[edit.start..edit.start + edit.len],
+    );
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.instructions = module.blocks[block].instructions.split_off(edit.start + edit.len);
@@ -538,8 +547,11 @@ fn split_parametric_outline_site(
             .instructions
             .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
     }
-    module.blocks[block].terminator =
-        Some(Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped());
+    let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped();
+    if let Some(function) = function_invoke {
+        terminator.metadata.set_function_invoke(function);
+    }
+    module.blocks[block].terminator = Some(terminator);
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -587,20 +599,61 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
 
     let mut edits = OutlineEdits::default();
     for (value, _) in values {
+        let occurrences = &sites[&value];
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
-        stub.instructions.push(Instruction::push_value(value).with_debug_info_dropped());
+        let mut push = Instruction::push_value(value).with_debug_info_dropped();
+        for &(block, index) in occurrences {
+            push.metadata.merge_source_spans(&module.blocks[block].instructions[index].metadata);
+        }
+        stub.instructions.push(push);
         stub.instructions
             .push(Instruction::stack_op(op::StackOp::Swap(1)).with_debug_info_dropped());
         stub.terminator =
             Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
         let stub = module.add_block(stub);
-        for &(block, index) in &sites[&value] {
+        for &(block, index) in occurrences {
             edits.entry(block).or_default().push((index, 1, stub, 0));
         }
     }
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
+}
+
+fn merge_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[Site]) {
+    for site in sites {
+        let instructions =
+            &module.blocks[site.block].instructions[site.start..site.start + site.len];
+        for (body_instruction, site_instruction) in body.iter_mut().zip(instructions) {
+            body_instruction.metadata.merge_source_spans(&site_instruction.metadata);
+        }
+    }
+}
+
+fn merge_param_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[ParamSite]) {
+    for site in sites {
+        let instructions =
+            &module.blocks[site.block].instructions[site.start..site.start + site.len];
+        for (body_instruction, site_instruction) in body.iter_mut().zip(instructions) {
+            body_instruction.metadata.merge_source_spans(&site_instruction.metadata);
+        }
+    }
+}
+
+fn clear_function_invokes(instructions: &mut [Instruction]) {
+    for instruction in instructions {
+        instruction.metadata.take_function_invoke();
+    }
+}
+
+fn range_function_invoke(
+    instructions: &[Instruction],
+) -> Option<crate::backend::evm::DebugFunction> {
+    let mut functions =
+        instructions.iter().filter_map(|instruction| instruction.metadata.function_invoke());
+    let function = functions.next();
+    debug_assert!(functions.all(|other| Some(other) == function));
+    function
 }
 
 fn apply_outline_edits(
@@ -635,6 +688,8 @@ fn split_outline_site(
     inputs: u16,
     continuation_label: u32,
 ) {
+    let function_invoke =
+        range_function_invoke(&module.blocks[block].instructions[start..start + len]);
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
@@ -649,8 +704,11 @@ fn split_outline_site(
             .instructions
             .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
     }
-    module.blocks[block].terminator =
-        Some(Terminator::new(TerminatorKind::Jump(stub)).with_debug_info_dropped());
+    let mut terminator = Terminator::new(TerminatorKind::Jump(stub)).with_debug_info_dropped();
+    if let Some(function) = function_invoke {
+        terminator.metadata.set_function_invoke(function);
+    }
+    module.blocks[block].terminator = Some(terminator);
 }
 
 fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
