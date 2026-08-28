@@ -1,9 +1,30 @@
 //@ compile-flags: -Zevm-ir-pipeline=reorder-pushes,compact-pushes
+//@ filecheck:
 @module CompactedPush
 
+// Carry 1,022 words into bb1. Compacting before reordering would make the
+// original producer occupy one word below the two-word SHL recipe and overflow.
 bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push bb1
+  push 0
+  add
+  jump
+// CHECK-LABEL: after compact-pushes
+// CHECK: bb1:
+// CHECK: push 1
+// CHECK-NEXT: push 128
+// CHECK-NEXT: shl
+// CHECK-NEXT: calldatasize
+// CHECK-NEXT: sub
+bb1:
   calldatasize
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0x100000000000000000000000000000000
   swap 1
   sub
   stop
