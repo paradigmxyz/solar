@@ -4404,7 +4404,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .get_or_init(|| Self::cross_block_live_values(func, liveness))
                 .clone();
             if !colorable.is_empty() {
-                let ranges = Self::spill_live_ranges(func, liveness, &colorable);
+                let mut ranges = Self::spill_live_ranges(func, liveness, &colorable);
+                let recomputable = Self::cross_block_recomputable_values_with(func, |value| {
+                    !self.scheduler.is_stack_only_value(value)
+                });
+                Self::extend_rematerialization_ranges(
+                    func,
+                    &values,
+                    &colorable,
+                    &recomputable,
+                    &mut ranges,
+                );
                 let mut interferences = Self::parallel_phi_interferences(
                     func,
                     liveness,
@@ -4517,6 +4527,62 @@ impl<'gcx> EvmCodegen<'gcx> {
                 )
             {
                 self.scheduler.spills.require_store(val);
+            }
+        }
+    }
+
+    /// Extends spill live ranges over rematerialization inputs.
+    ///
+    /// A recomputable cross-block value is rebuilt from its operands instead of being stored,
+    /// and the rebuild reloads every operand that lives in a spill slot. Those reloads are not
+    /// MIR uses, so plain liveness ends an operand's range at the definition, and colouring
+    /// could hand its slot to another value — or to the result itself — before the rebuild
+    /// reads it. Every slot the rebuild may read must stay intact wherever the result is live.
+    fn extend_rematerialization_ranges(
+        func: &Function,
+        values: &DenseBitSet<ValueId>,
+        colorable: &DenseBitSet<ValueId>,
+        recomputable: &DenseBitSet<ValueId>,
+        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+    ) {
+        let mut visited = DenseBitSet::new_empty(func.num_values());
+        for value in values.iter() {
+            if !recomputable.contains(value) || !colorable.contains(value) {
+                continue;
+            }
+            visited.clear();
+            visited.insert(value);
+            let mut inputs = Vec::new();
+            let mut pending = vec![value];
+            while let Some(current) = pending.pop() {
+                let crate::mir::Value::Inst(inst_id) = func.value(current) else { continue };
+                for operand in func.inst(*inst_id).kind.operands() {
+                    if visited.insert(operand) {
+                        // Immediates, arguments, and always-rematerializable reads are
+                        // re-emitted, never reloaded, so only slot-owning inputs matter.
+                        if colorable.contains(operand)
+                            && !Self::is_rematerializable_value(func, operand)
+                        {
+                            inputs.push(operand);
+                        }
+                        pending.push(operand);
+                    }
+                }
+            }
+            if inputs.is_empty() {
+                continue;
+            }
+            let value_ranges = ranges[value].clone();
+            for input in inputs {
+                for (&block, &range) in &value_ranges {
+                    ranges[input]
+                        .entry(block)
+                        .and_modify(|existing| {
+                            existing.start = existing.start.min(range.start);
+                            existing.end = existing.end.max(range.end);
+                        })
+                        .or_insert(range);
+                }
             }
         }
     }
