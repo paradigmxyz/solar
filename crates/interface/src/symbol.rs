@@ -1056,6 +1056,7 @@ symbols! {
         encodePacked,
         encodeWithSelector,
         encodeWithSignature,
+        encode_abi_array,
         entry,
         environment_read,
         erc7201,

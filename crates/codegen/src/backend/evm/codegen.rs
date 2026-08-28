@@ -5272,9 +5272,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             let Some(operand) = inaccessible else { break };
-            let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
+            let Some(depth) = self.scheduler.stack.find(operand) else {
+                // An internal call between the operand's last copy and this call dropped the
+                // resident word; the frame-backed attempt that replaces this one reloads it.
+                if self.recover_lost_internal_stack_value(operand) {
+                    continue;
+                }
                 panic!("stack-only CALL operand {operand:?} was lost before its use")
-            });
+            };
             assert!(depth < stack_access_limit, "stack-only CALL operand exceeded DUP reach");
             self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
         }
@@ -9176,52 +9181,63 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Finds leaf helpers that return a pointer rooted at the free-memory pointer.
-    /// Calls through these helpers lose alias provenance in MIR, so remember the
-    /// narrow interprocedural fact needed by forwarding-buffer hazard analysis.
+    /// Finds helpers that return a pointer rooted at the free-memory pointer or at a
+    /// heap-rooted argument, possibly through another such helper. Calls through these
+    /// helpers lose alias provenance in MIR, so remember the narrow interprocedural fact
+    /// needed by forwarding-buffer hazard analysis.
     fn collect_heap_pointer_return_functions(module: &Module) -> DenseBitSet<FunctionId> {
         let mut functions = DenseBitSet::new_empty(module.functions.len());
-        let no_helpers = DenseBitSet::new_empty(module.functions.len());
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if func.instructions().any(|inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::InternalCall { .. } | InstKind::SetFmp(_)
-                ) || matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::MStore(address, _)
-                        if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                )
-            }) {
-                continue;
-            }
-
-            let aa = AliasAnalysis::new(func);
-            let mut saw_return = false;
-            let mut valid = true;
-            for block in &func.blocks {
-                let Some(Terminator::Return { values }) = &block.terminator else { continue };
-                saw_return = true;
-                if values.len() != 1 {
-                    valid = false;
-                    break;
-                }
-                let mut visiting = DenseBitSet::new_empty(func.num_values());
-                let mut memo = FxHashMap::default();
-                if Self::heap_pointer_provenance_with_helpers(
-                    func,
-                    &aa,
-                    values[0],
-                    &no_helpers,
-                    &mut visiting,
-                    &mut memo,
-                ) != Some(true)
+        // A helper may derive its pointer through another qualified helper, as a nested array
+        // encoder does, so keep qualifying until no function joins.
+        loop {
+            let mut joined = Vec::new();
+            for (func_id, func) in module.functions.iter_enumerated() {
+                if functions.contains(func_id)
+                    || func.instructions().any(|inst_id| match &func.inst(inst_id).kind {
+                        InstKind::InternalCall { function, .. } => !functions.contains(*function),
+                        InstKind::SetFmp(_) => true,
+                        InstKind::MStore(address, _) => {
+                            func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT)
+                        }
+                        _ => false,
+                    })
                 {
-                    valid = false;
-                    break;
+                    continue;
+                }
+
+                let aa = AliasAnalysis::new(func);
+                let mut saw_return = false;
+                let mut valid = true;
+                for block in &func.blocks {
+                    let Some(Terminator::Return { values }) = &block.terminator else { continue };
+                    saw_return = true;
+                    if values.len() != 1 {
+                        valid = false;
+                        break;
+                    }
+                    let mut visiting = DenseBitSet::new_empty(func.num_values());
+                    let mut memo = FxHashMap::default();
+                    if Self::heap_pointer_provenance_with_helpers(
+                        func,
+                        &aa,
+                        values[0],
+                        &functions,
+                        &mut visiting,
+                        &mut memo,
+                    ) != Some(true)
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+                if saw_return && valid {
+                    joined.push(func_id);
                 }
             }
-            if saw_return && valid {
+            if joined.is_empty() {
+                break;
+            }
+            for func_id in joined {
                 functions.insert(func_id);
             }
         }
