@@ -175,6 +175,8 @@ impl Block {
 pub(crate) struct BlockMetadata {
     /// Estimated block hotness for layout decisions.
     pub(crate) hotness: Hotness,
+    /// Whether the block belongs to a loop, so its code runs once per iteration.
+    pub(crate) in_loop: bool,
 }
 
 /// Block hotness metadata.

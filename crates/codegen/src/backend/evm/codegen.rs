@@ -1058,31 +1058,34 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
             for (&arm, &(pred, join)) in &arms {
-                // The join's words first, so the arm edge is the branch's identity edge, then
-                // whatever else the arm reads that the branch already holds.
-                let mut carried = layouts
+                // The join's words plus whatever else the arm reads that the branch already
+                // holds, in the order the predecessor is expected to hold them: the arm edge is
+                // the branch's identity edge, so this order is what the branch shuffles to, and
+                // matching the resident order keeps that shuffle empty on every execution. The
+                // join edge reorders on its own path only.
+                let sources = layouts
                     .get(&join)
                     .and_then(|layout| self.layout_sources(join, layout, pred))
                     .unwrap_or_default();
                 let live_in = liveness.live_in(arm);
-                let extras = resident_out
-                    .get(&pred)
-                    .into_iter()
-                    .flatten()
+                let resident = resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
+                let mut carried = resident
+                    .iter()
                     .copied()
                     .filter(|&value| {
-                        live_in.contains(value)
-                            && self.carriable(value)
-                            && wanted.get(&arm).is_some_and(|set| set.contains(&value))
-                            && !carried.contains(&value)
+                        sources.contains(&value)
+                            || (live_in.contains(value)
+                                && self.carriable(value)
+                                && wanted.get(&arm).is_some_and(|set| set.contains(&value)))
                     })
                     .collect::<Vec<_>>();
-                for value in extras {
-                    if carried.len() == LIVE_JOIN_LAYOUT_LIMIT {
-                        break;
+                // Join words the predecessor does not hold are materialized for the branch.
+                for &value in &sources {
+                    if !carried.contains(&value) {
+                        carried.push(value);
                     }
-                    carried.push(value);
                 }
+                carried.truncate(LIVE_JOIN_LAYOUT_LIMIT.max(sources.len()));
                 if layouts.get(&arm) != Some(&carried) {
                     layouts.insert(arm, carried);
                     changed = true;
@@ -1175,7 +1178,18 @@ impl<'a> StackPhiPlanner<'a> {
                             let then_edge = then_edge.unwrap_or_else(|| junk(&else_edge));
                             let else_edge =
                                 else_edge.unwrap_or_else(|| junk(&Some(then_edge.clone())));
-                            let union = union_values(&then_edge.sources, &else_edge.sources);
+                            // An arm holding every word of the other is the identity edge; its
+                            // order is the one the branch shuffles to, so keep it verbatim.
+                            let covers = |outer: &[ValueId], inner: &[ValueId]| {
+                                inner.iter().all(|value| outer.contains(value))
+                            };
+                            let union = if covers(&else_edge.sources, &then_edge.sources) {
+                                else_edge.sources.clone()
+                            } else if covers(&then_edge.sources, &else_edge.sources) {
+                                then_edge.sources.clone()
+                            } else {
+                                union_values(&then_edge.sources, &else_edge.sources)
+                            };
                             if union.is_empty() || union.len() > MAX_STACK_ACCESS {
                                 dropped.push(join);
                                 continue 'joins;
@@ -2126,6 +2140,11 @@ pub struct EvmCodegen<'gcx> {
     /// Cold blocks in the function currently being emitted, including blocks
     /// that only forward control to other cold blocks.
     cold_blocks: DenseBitSet<BlockId>,
+    /// MIR blocks inside a natural loop. Their labels are marked so EVM IR passes do not trade
+    /// a jump per iteration for bytes.
+    loop_blocks: DenseBitSet<BlockId>,
+    /// Whether the MIR block being emitted lies inside a loop.
+    emitting_loop_block: bool,
     /// Exact per-function spill area sizes, in bytes, recorded after emission.
     function_spill_sizes: FxHashMap<FunctionId, u64>,
     /// Internal-call frame-size constants waiting for exact callee spill sizes.
@@ -2291,6 +2310,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
+            loop_blocks: DenseBitSet::new_empty(0),
+            emitting_loop_block: false,
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
             static_call_abis: FxHashMap::default(),
@@ -3839,6 +3860,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         self.cold_blocks = self.collect_cold_blocks(func);
+        self.loop_blocks = Self::collect_loop_blocks(func);
 
         // Create labels for each block
         self.block_labels.clear();
@@ -3846,6 +3868,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let label = self.asm.new_label();
             if self.block_is_cold(block_id) {
                 self.asm.mark_label_cold(label);
+            }
+            if self.loop_blocks.contains(block_id) {
+                self.asm.mark_label_loop(label);
             }
             self.block_labels.insert(block_id, label);
         }
@@ -3870,6 +3895,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
+            self.emitting_loop_block = self.loop_blocks.contains(block_id);
             self.block_spill_stores.clear();
             self.block_reloaded_values.clear();
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
@@ -4702,6 +4728,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.cold_blocks.contains(block_id)
     }
 
+    /// Blocks inside a natural loop, whose code runs once per iteration.
+    fn collect_loop_blocks(func: &Function) -> DenseBitSet<BlockId> {
+        let mut blocks = DenseBitSet::new_empty(func.blocks.len());
+        for loop_info in LoopAnalyzer::new().analyze(func).all_loops() {
+            blocks.union(&loop_info.blocks);
+        }
+        blocks
+    }
+
+    /// A label for code emitted as part of the current block, such as a branch cleanup, which
+    /// runs as often as the block itself.
+    fn new_local_label(&mut self) -> Label {
+        let label = self.asm.new_label();
+        if self.emitting_loop_block {
+            self.asm.mark_label_loop(label);
+        }
+        label
+    }
+
     fn new_function_label(&mut self, function: FunctionId) -> Label {
         let label = self.asm.new_label();
         if self.cold_functions.contains(function) {
@@ -4930,7 +4975,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // Neither target wants the complete incoming union. Route one edge through a local
         // cleanup label and clean the fallthrough edge inline.
-        let then_cleanup = self.asm.new_label();
+        let then_cleanup = self.new_local_label();
         self.asm.emit_push_label(then_cleanup);
         self.asm.emit_op(op::JUMPI);
         self.scheduler.stack.pop();
@@ -4969,7 +5014,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             let actual = self.block_labels[target];
-            let trampoline = self.asm.new_label();
+            let trampoline = self.new_local_label();
             self.block_labels.insert(*target, trampoline);
             trampolines.push((*target, actual, trampoline, layout.clone()));
         }
@@ -5135,7 +5180,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         } else if is_identity(&branch.else_edge) {
             (&branch.then_edge, else_block, then_block, true)
         } else {
-            let then_cleanup = self.asm.new_label();
+            let then_cleanup = self.new_local_label();
             self.asm.emit_push_label(then_cleanup);
             self.asm.emit_op(op::JUMPI);
             self.scheduler.stack.pop();
@@ -5801,13 +5846,13 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Spills all live-out values that are currently on the stack to memory.
     /// This ensures values that need to be accessed in successor blocks can be reloaded.
     fn spill_live_out_values(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
-        let live_out = liveness.live_out(block_id);
-
-        for val in live_out {
-            self.spill_value_if_needed(func, val);
-        }
+        self.spill_live_out_values_except(func, liveness, block_id, &[]);
     }
 
+    /// Spills the stack-resident values a successor reads under their own
+    /// identity. A value live out only as a phi operand is consumed by the
+    /// edge itself — renamed on a carried stack layout or copied into the phi
+    /// result's slot before the terminator — so it needs no memory home.
     fn spill_live_out_values_except(
         &mut self,
         func: &Function,
@@ -5819,8 +5864,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         for &value in exempt {
             exempt_values.insert(value);
         }
+        let successors = func.blocks[block_id]
+            .terminator
+            .as_ref()
+            .map(Terminator::successors)
+            .unwrap_or_default();
         for val in liveness.live_out(block_id) {
-            if !exempt_values.contains(val) {
+            if !exempt_values.contains(val)
+                && successors.iter().any(|&succ| liveness.live_in(succ).contains(val))
+            {
                 self.spill_value_if_needed(func, val);
             }
         }

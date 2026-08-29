@@ -40,8 +40,8 @@ bb50 [cold]:
   push 0
   mstore
   push 65
-  jump bb53
-bb53 [cold]:
+  jump bb52
+bb52 [cold]:
   push 4
   mstore
   push 36
@@ -50,15 +50,15 @@ bb53 [cold]:
 bb7:
   push 0
   sload
-  jump bb52
-bb52:
+  jump bb53
+bb53:
   push 128
   mstore
   push 32
   push 128
   return
 bb8:
-  push 448
+  push 384
   push 64
   mstore
   push 36
@@ -158,7 +158,7 @@ bb8:
   swap 1
   exchange 2, 3
   jump bb17
-bb17:
+bb17 [loop]:
   dup 4
   mload
   dup 2
@@ -181,8 +181,12 @@ bb17:
   swap 2
   pop
   pop
-  jump bb52
-bb19:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb19 [loop]:
   push 1
   push 160
   mload
@@ -196,7 +200,7 @@ bb19:
   swap 3
   exchange 1, 2
   jump bb17
-bb20:
+bb20 [loop]:
   push 160
   mstore
   push 256
@@ -236,7 +240,7 @@ bb51 [cold]:
   push 0
   mstore
   push 17
-  jump bb53
+  jump bb52
 bb24:
   push 352
   push 64
@@ -325,7 +329,7 @@ bb24:
   swap 1
   pop
   mload
-  jump bb52
+  jump bb53
 bb33:
   push 544
   push 64
@@ -557,7 +561,7 @@ bb33:
   lt
   push bb51
   jumpi
-  jump bb52
+  jump bb53
 bb22 [cold]:
   push 0x4e487b71
   push 224
@@ -565,4 +569,4 @@ bb22 [cold]:
   push 0
   mstore
   push 50
-  jump bb53
+  jump bb52

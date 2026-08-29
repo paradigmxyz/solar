@@ -6,11 +6,12 @@
 //!
 //! The analysis uses dense bitsets indexed by `ValueId` for efficiency.
 //!
-//! Phi nodes are ordinary instructions (`InstKind::Phi`): their incoming operands are
-//! treated as uses at the phi instruction in the merge block, and the phi result is
-//! defined like any other instruction result.
+//! Phi nodes are ordinary instructions (`InstKind::Phi`) whose result is defined like
+//! any other instruction result, but their incoming operands are uses on the incoming
+//! edge: an operand is live out of the predecessor it flows from and is not live into
+//! the merge block, which only sees the phi result.
 
-use crate::mir::{BlockId, Function, Terminator, Value, ValueId};
+use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -75,6 +76,12 @@ impl Liveness {
             .map(|_| LiveSet::with_capacity(num_values))
             .collect::<IndexVec<BlockId, _>>();
 
+        // Phi operands are uses on the incoming edge, keyed by the merge block: each entry
+        // is live out of its predecessor and does not enter the merge block.
+        let mut phi_edge_uses = (0..num_blocks)
+            .map(|_| SmallVec::<[(BlockId, ValueId); 4]>::new())
+            .collect::<IndexVec<BlockId, _>>();
+
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -82,12 +89,16 @@ impl Liveness {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
 
-                // Collect uses (upward-exposed uses - used before defined in this block)
-                operand_buf.clear();
-                inst.kind.collect_operands(&mut operand_buf);
-                for &operand in &operand_buf {
-                    if !block_defs[block_id].contains(operand) {
-                        block_uses[block_id].insert(operand);
+                if let InstKind::Phi(incoming) = &inst.kind {
+                    phi_edge_uses[block_id].extend(incoming.iter().copied());
+                } else {
+                    // Collect uses (upward-exposed uses - used before defined in this block)
+                    operand_buf.clear();
+                    inst.kind.collect_operands(&mut operand_buf);
+                    for &operand in &operand_buf {
+                        if !block_defs[block_id].contains(operand) {
+                            block_uses[block_id].insert(operand);
+                        }
                     }
                 }
 
@@ -110,7 +121,7 @@ impl Liveness {
 
         // Worklist algorithm for computing live_in/live_out.
         //
-        // live_out(B) = union over S in succ(B) of live_in(S)
+        // live_out(B) = union over S in succ(B) of live_in(S) | phi operands S takes from B
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
         let mut worklist: VecDeque<BlockId> = func.blocks.indices().rev().collect();
         let mut queued = DenseBitSet::new_filled(num_blocks);
@@ -126,6 +137,11 @@ impl Liveness {
                 block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
             for succ in successors {
                 new_live_out.union(&block_liveness[succ].live_in);
+                for &(pred, value) in &phi_edge_uses[succ] {
+                    if pred == block_id {
+                        new_live_out.insert(value);
+                    }
+                }
             }
 
             // live_in = use ∪ (live_out - def)
@@ -152,6 +168,13 @@ impl Liveness {
         // For each value, track the last instruction index where it's used within each block.
         let mut last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>> =
             FxHashMap::default();
+        // A phi operand is used when its predecessor transfers control, so it
+        // must survive to that block's terminator.
+        for edge_uses in &phi_edge_uses {
+            for &(pred, value) in edge_uses {
+                last_use_in_block.insert((value, pred), None);
+            }
+        }
         for (block_id, block) in func.blocks.iter_enumerated() {
             // Check terminator uses - these are the last use in this block
             if let Some(term) = &block.terminator {
@@ -167,6 +190,9 @@ impl Liveness {
             // The first occurrence in reverse order is the last use in forward order
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
                 let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
                 operand_buf.clear();
                 inst.kind.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {

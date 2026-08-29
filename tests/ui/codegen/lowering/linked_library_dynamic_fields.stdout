@@ -33,7 +33,7 @@ bb22 [cold]:
   push 0
   revert
 bb4:
-  push 672
+  push 608
   push 64
   mstore
   push 68
@@ -54,7 +54,7 @@ bb4:
   push bb3
   jumpi
   dup 1
-  push 192
+  push 224
   mstore
   calldatasize
   sub
@@ -62,15 +62,15 @@ bb4:
   gt
   push bb3
   jumpi
-  push 512
-  push 192
+  push 448
+  push 224
   mload
   dup 1
   calldataload
   dup 3
   mstore
   dup 3
-  push 224
+  push 256
   mstore
   push 36
   dup 4
@@ -136,6 +136,9 @@ bb4:
   pop
   swap 1
   pop
+  dup 3
+  push 288
+  mstore
   push 32
   dup 4
   add
@@ -237,6 +240,9 @@ bb4:
   push 160
   mstore
   dup 2
+  dup 1
+  push 192
+  mstore
   dup 2
   mstore
   swap 1
@@ -246,7 +252,7 @@ bb4:
   add
   dup 4
   dup 1
-  push 192
+  push 224
   mstore
   swap 1
   mstore
@@ -257,13 +263,13 @@ bb4:
   push 0
   exchange 3, 4
   jump bb13
-bb13:
+bb13 [loop]:
   dup 5
   mload
   dup 1
   mload
   dup 3
-  push 224
+  push 256
   mstore
   dup 3
   lt
@@ -316,6 +322,9 @@ bb13:
   push 0
   keccak256
   dup 2
+  dup 1
+  push 192
+  mstore
   swap 1
   sstore
   push 128
@@ -323,14 +332,14 @@ bb13:
   push 32
   push 128
   return
-bb17:
+bb17 [loop]:
   dup 2
-  push 224
+  push 256
   mstore
   dup 3
-  push 192
+  push 224
   mstore
-  push 256
+  push 192
   mstore
   pop
   pop
@@ -343,10 +352,10 @@ bb17:
   push bb20
   jumpi
   push 32
-  push 256
+  push 192
   mload
   add
-  push 224
+  push 256
   mload
   push 32
   dup 2
@@ -359,7 +368,7 @@ bb17:
   push 1
   add
   dup 1
-  push 256
+  push 192
   mstore
   dup 1
   dup 3
@@ -378,7 +387,7 @@ bb17:
   iszero
   push bb21
   jumpi
-  push 192
+  push 224
   mload
   swap 2
   dup 3
@@ -386,9 +395,6 @@ bb17:
   swap 2
   dup 3
   lt
-  dup 3
-  push 288
-  mstore
   push 160
   mload
   push 320

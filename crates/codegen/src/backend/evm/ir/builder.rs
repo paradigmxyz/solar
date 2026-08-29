@@ -308,6 +308,9 @@ impl<'gcx> Assembler<'gcx> {
         if self.cold_labels.contains(label) {
             block.metadata.hotness = ir::Hotness::Cold;
         }
+        if self.loop_labels.contains(label) {
+            block.metadata.in_loop = true;
+        }
         let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(Some(label));
@@ -319,6 +322,14 @@ impl<'gcx> Assembler<'gcx> {
         self.cold_labels.insert(label);
         if let Some(&block) = self.label_blocks.get(&label) {
             self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
+        }
+    }
+
+    /// Marks a label-started block as running once per loop iteration.
+    pub(in crate::backend::evm) fn mark_label_loop(&mut self, label: Label) {
+        self.loop_labels.insert(label);
+        if let Some(&block) = self.label_blocks.get(&label) {
+            self.program.blocks[block].metadata.in_loop = true;
         }
     }
 
@@ -429,6 +440,7 @@ impl<'gcx> Assembler<'gcx> {
 
         self.label_blocks.clear();
         self.cold_labels.clear();
+        self.loop_labels.clear();
 
         Some((module, std::mem::take(&mut self.block_labels)))
     }

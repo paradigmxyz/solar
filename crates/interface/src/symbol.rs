@@ -994,6 +994,7 @@ symbols! {
     // nice to have.
     Symbols {
         Error,
+        Loop: "loop",
         Panic,
         Test,
         X,
