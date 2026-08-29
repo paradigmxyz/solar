@@ -1,0 +1,300 @@
+name: Cross-server LSP benchmark command
+run-name: Cross-server LSP benchmark for ${{ github.event.repository.full_name }}#${{ github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  resolve:
+    name: resolve cross-server request
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      github.event.comment.body == '/bench cross-server'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      repository: ${{ steps.resolve.outputs.repository }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
+      base_ref: ${{ steps.resolve.outputs.base_ref }}
+      head_repository: ${{ steps.resolve.outputs.head_repository }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      head_ref: ${{ steps.resolve.outputs.head_ref }}
+    steps:
+      - name: Validate request and freeze PR revision
+        id: resolve
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const SHA_RE = /^[0-9a-f]{40}$/;
+            const allowedAssociations = new Set([
+              "OWNER",
+              "MEMBER",
+              "COLLABORATOR",
+              "CONTRIBUTOR",
+            ]);
+            const comment = context.payload.comment;
+            if (
+              !context.payload.issue?.pull_request ||
+              comment?.body !== "/bench cross-server"
+            ) {
+              throw new Error("Expected an exact `/bench cross-server` pull request comment");
+            }
+            if (!allowedAssociations.has(comment.author_association)) {
+              throw new Error(
+                `Comment author association ${comment.author_association || "NONE"} is not allowed`,
+              );
+            }
+            const repository = context.payload.repository?.full_name;
+            const number = context.payload.issue?.number;
+            if (
+              !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository || "") ||
+              !Number.isSafeInteger(number) ||
+              number <= 0
+            ) {
+              throw new Error("Pull request identity is invalid");
+            }
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: number,
+            });
+            if (
+              pull.state !== "open" ||
+              pull.base?.repo?.full_name !== repository ||
+              !SHA_RE.test(pull.base?.sha || "") ||
+              !pull.base?.ref ||
+              !pull.head?.repo?.full_name ||
+              !pull.head?.ref ||
+              !SHA_RE.test(pull.head?.sha || "")
+            ) {
+              throw new Error("Pull request is closed or has incomplete revision provenance");
+            }
+            core.setOutput("repository", repository);
+            core.setOutput("pr_number", String(number));
+            core.setOutput("base_sha", pull.base.sha);
+            core.setOutput("base_ref", pull.base.ref);
+            core.setOutput("head_repository", pull.head.repo.full_name);
+            core.setOutput("head_sha", pull.head.sha);
+            core.setOutput("head_ref", pull.head.ref);
+
+  benchmark:
+    name: run cross-server PR smoke
+    needs: resolve
+    if: needs.resolve.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    concurrency:
+      group: >-
+        ${{ format('{0}-{1}', github.workflow,
+          needs.resolve.outputs.repository) }}-${{ needs.resolve.outputs.pr_number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.resolve.outputs.repository }}
+          ref: refs/pull/${{ needs.resolve.outputs.pr_number }}/head
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify checked out revision
+        shell: bash
+        env:
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
+      - name: Check runner prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = Linux
+          test "$(uname -m)" = x86_64
+          for command in cargo curl git lscpu node npm rustc sha256sum tar; do
+            command -v "$command"
+          done
+
+      - name: Build candidate and harness
+        run: |
+          cargo build --locked --release -p solar-lsp-bench
+          cargo build --locked --release -p solar-compiler --bin solar
+
+      - name: Prepare core4 and synthetic fixture
+        run: >-
+          target/release/solar-lsp-bench prepare --fixture synthetic --server solar --server asyncswap --server nomic-foundation --server solc
+
+      - name: Record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/lsp-bench/provenance
+          {
+            echo "repository=$(git rev-parse HEAD)"
+            echo "pr_number=${{ needs.resolve.outputs.pr_number }}"
+            echo "base_sha=${{ needs.resolve.outputs.base_sha }}"
+            echo "head_sha=${{ needs.resolve.outputs.head_sha }}"
+            echo "runner_name=$RUNNER_NAME"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "image_os=${ImageOS-}"
+            echo "image_version=${ImageVersion-}"
+            uname -a
+            lscpu
+            rustc --version --verbose
+            cargo --version --verbose
+            node --version
+            npm --version
+            sha256sum \
+              tools/lsp-bench/benchmark.yaml \
+              tools/lsp-bench/servers.lock.yaml \
+              tools/lsp-bench/fixtures.lock.yaml
+          } > target/lsp-bench/provenance/environment.txt
+          npm --prefix target/lsp-bench/servers/nomic-foundation ls --all --json \
+            > target/lsp-bench/provenance/nomic-foundation-npm-tree.json || true
+
+      - name: Run cross-server PR smoke comparison
+        shell: bash
+        env:
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          target/release/solar-lsp-bench run \
+            --profile pr-smoke \
+            --server solar --server asyncswap --server nomic-foundation --server solc \
+            --output target/lsp-bench/pr-smoke \
+            --allow-failures \
+            --solar-binary target/release/solar \
+            --solar-revision "$HEAD_SHA"
+
+      - name: Publish cross-server summary
+        if: always() && hashFiles('target/lsp-bench/pr-smoke/summary.md') != ''
+        run: cat target/lsp-bench/pr-smoke/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stage comment report
+        if: always() && hashFiles('target/lsp-bench/pr-smoke/summary.md') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/lsp-bench/manual-comment
+          cp -- target/lsp-bench/pr-smoke/summary.md target/lsp-bench/manual-comment/report.md
+
+      - name: Upload comment report
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cross-lsp-manual-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/lsp-bench/manual-comment/report.md
+          retention-days: 30
+          if-no-files-found: warn
+
+  comment:
+    name: publish cross-server PR comment
+    needs: [resolve, benchmark]
+    if: >-
+      !cancelled() &&
+      needs.resolve.result == 'success' &&
+      needs.benchmark.result == 'success' &&
+      needs.benchmark.outputs.artifact_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Download exact comment report
+        id: download
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.benchmark.outputs.artifact_id }}
+          path: ${{ runner.temp }}/cross-lsp-manual-comment
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+
+      # Artifact contents are data only; this write-permission job never
+      # checks out or executes pull request code.
+      - name: Isolate report file
+        id: report
+        shell: bash
+        env:
+          REPORT_ROOT: ${{ runner.temp }}/cross-lsp-manual-comment
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find -P "$REPORT_ROOT" -type f -name report.md -print)
+          if [[ "${#reports[@]}" -ne 1 ]]; then
+            echo "Expected one regular report.md, found ${#reports[@]}" >&2
+            exit 1
+          fi
+          report="${reports[0]}"
+          case "$report" in
+            "$REPORT_ROOT"/*) ;;
+            *) echo "Report escaped the artifact directory" >&2; exit 1 ;;
+          esac
+          test -s "$report"
+          destination="$RUNNER_TEMP/cross-lsp-manual-comment-final/report.md"
+          mkdir -p "$(dirname "$destination")"
+          cp -- "$report" "$destination"
+          echo "path=$destination" >> "$GITHUB_OUTPUT"
+
+      - name: Recheck pull request identity
+        id: recheck
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_REF: ${{ needs.resolve.outputs.base_ref }}
+          BASE_REPO: ${{ needs.resolve.outputs.repository }}
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+          HEAD_REF: ${{ needs.resolve.outputs.head_ref }}
+          HEAD_REPO: ${{ needs.resolve.outputs.head_repository }}
+          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        with:
+          script: |
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: Number(process.env.PR_NUMBER),
+            });
+            if (
+              pull.state !== "open" ||
+              pull.head?.sha !== process.env.HEAD_SHA ||
+              pull.head?.ref !== process.env.HEAD_REF ||
+              pull.head?.repo?.full_name !== process.env.HEAD_REPO ||
+              pull.base?.sha !== process.env.BASE_SHA ||
+              pull.base?.ref !== process.env.BASE_REF ||
+              pull.base?.repo?.full_name !== process.env.BASE_REPO
+            ) {
+              throw new Error("Pull request base or head changed before the benchmark comment was posted");
+            }
+
+      - name: Publish sticky cross-server comment
+        if: >-
+          steps.download.outcome == 'success' &&
+          steps.report.outcome == 'success' &&
+          steps.recheck.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: cross-lsp-command
+          path: ${{ runner.temp }}/cross-lsp-manual-comment-final/report.md
+          number_force: ${{ needs.resolve.outputs.pr_number }}

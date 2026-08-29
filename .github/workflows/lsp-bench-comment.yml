@@ -1,0 +1,203 @@
+name: cross-lsp-benchmark-comment
+
+permissions: {}
+
+on:
+  workflow_run:
+    workflows:
+      - Benchmark/Cross-server Solidity LSP benchmark
+    types: [completed]
+
+concurrency:
+  group: >-
+    ${{ format('{0}-{1}-{2}', github.workflow,
+      github.event.workflow_run.head_repository.full_name,
+      github.event.workflow_run.head_branch) }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    name: comment cross-server PR benchmark
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Find pull request and validate workflow run
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const SHA_RE = /^[0-9a-f]{40}$/;
+            const run = context.payload.workflow_run;
+            const repository = context.payload.repository?.full_name;
+            const workflowPath = ".github/workflows/lsp-bench.yml";
+            if (
+              run.repository?.full_name !== repository ||
+              !(run.path === workflowPath || run.path?.startsWith(`${workflowPath}@`))
+            ) {
+              throw new Error(`Unexpected source workflow for run ${run.id}`);
+            }
+            if (run.event !== "pull_request") {
+              throw new Error(`Unexpected source event for run ${run.id}`);
+            }
+            const headRepository = run.head_repository?.full_name;
+            const headOwner = run.head_repository?.owner?.login;
+            const headBranch = run.head_branch;
+            if (
+              !headRepository ||
+              !headOwner ||
+              !headBranch ||
+              !SHA_RE.test(run.head_sha || "") ||
+              !Number.isSafeInteger(Number(run.run_attempt)) ||
+              Number(run.run_attempt) <= 0
+            ) {
+              throw new Error(`Workflow run ${run.id} has incomplete pull request provenance`);
+            }
+            const { data: pulls } = await github.rest.pulls.list({
+              ...context.repo,
+              state: "open",
+              head: `${headOwner}:${headBranch}`,
+              per_page: 100,
+            });
+            const matches = pulls.filter(
+              (pull) =>
+                pull.head?.sha === run.head_sha &&
+                pull.head?.repo?.full_name === headRepository &&
+                pull.base?.repo?.full_name === repository,
+            );
+            if (matches.length !== 1) {
+              throw new Error(
+                `Expected one open pull request for ${headRepository}:${headBranch} at ${run.head_sha}`,
+              );
+            }
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: matches[0].number,
+            });
+            if (
+              pull.state !== "open" ||
+              pull.head?.sha !== run.head_sha ||
+              pull.head?.ref !== headBranch ||
+              pull.head?.repo?.full_name !== headRepository ||
+              pull.base?.repo?.full_name !== repository
+            ) {
+              throw new Error(`Pull request identity changed for workflow run ${run.id}`);
+            }
+            core.setOutput("number", String(pull.number));
+            core.setOutput("head_sha", pull.head.sha);
+            core.setOutput("head_ref", pull.head.ref);
+            core.setOutput("head_repo", pull.head.repo.full_name);
+            core.setOutput("base_sha", pull.base.sha);
+            core.setOutput("base_ref", pull.base.ref);
+            core.setOutput("base_repo", pull.base.repo.full_name);
+
+      - name: Find exact report artifact
+        id: artifact
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const expectedName = `cross-lsp-pr-comment-${run.id}-${run.run_attempt}`;
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              {
+                ...context.repo,
+                run_id: run.id,
+                per_page: 100,
+              },
+            );
+            const matches = artifacts.filter(
+              (artifact) =>
+                artifact.name === expectedName &&
+                artifact.workflow_run?.id === run.id &&
+                !artifact.expired &&
+                artifact.size_in_bytes > 0,
+            );
+            if (matches.length !== 1) {
+              throw new Error(`Expected one unexpired report artifact named ${expectedName}`);
+            }
+            core.setOutput("artifact_id", String(matches[0].id));
+
+      - name: Download exact report artifact
+        id: download
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ steps.artifact.outputs.artifact_id }}
+          path: ${{ runner.temp }}/cross-lsp-comment
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      # Artifact contents are treated as data. Nothing downloaded from the
+      # untrusted pull request is sourced, imported, or executed.
+      - name: Isolate report file
+        id: report
+        shell: bash
+        env:
+          REPORT_ROOT: ${{ runner.temp }}/cross-lsp-comment
+        run: |
+          set -euo pipefail
+          mapfile -t reports < <(find -P "$REPORT_ROOT" -type f -name report.md -print)
+          if [[ "${#reports[@]}" -ne 1 ]]; then
+            echo "Expected one regular report.md, found ${#reports[@]}" >&2
+            exit 1
+          fi
+          report="${reports[0]}"
+          case "$report" in
+            "$REPORT_ROOT"/*) ;;
+            *) echo "Report escaped the artifact directory" >&2; exit 1 ;;
+          esac
+          test -s "$report"
+          destination="$RUNNER_TEMP/cross-lsp-comment-final/report.md"
+          mkdir -p "$(dirname "$destination")"
+          cp -- "$report" "$destination"
+          echo "path=$destination" >> "$GITHUB_OUTPUT"
+
+      - name: Recheck pull request identity
+        id: recheck
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          BASE_REPO: ${{ steps.pr.outputs.base_repo }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        with:
+          script: |
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: Number(process.env.PR_NUMBER),
+            });
+            if (
+              pull.state !== "open" ||
+              pull.head?.sha !== process.env.HEAD_SHA ||
+              pull.head?.ref !== process.env.HEAD_REF ||
+              pull.head?.repo?.full_name !== process.env.HEAD_REPO ||
+              pull.base?.sha !== process.env.BASE_SHA ||
+              pull.base?.ref !== process.env.BASE_REF ||
+              pull.base?.repo?.full_name !== process.env.BASE_REPO
+            ) {
+              throw new Error("Pull request base or head changed before the benchmark comment was posted");
+            }
+
+      - name: Publish sticky benchmark comment
+        if: >-
+          steps.pr.outcome == 'success' &&
+          steps.artifact.outcome == 'success' &&
+          steps.download.outcome == 'success' &&
+          steps.report.outcome == 'success' &&
+          steps.recheck.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: cross-lsp-benchmark
+          path: ${{ runner.temp }}/cross-lsp-comment-final/report.md
+          number_force: ${{ steps.pr.outputs.number }}

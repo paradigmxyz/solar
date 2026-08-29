@@ -1239,7 +1239,13 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         }
 
         self.assertEqual(
-            workflow_names, {"lsp-bench-command.yml", "lsp-bench.yml"}
+            workflow_names,
+            {
+                "lsp-bench-command.yml",
+                "lsp-bench-comment.yml",
+                "lsp-bench-cross-server-command.yml",
+                "lsp-bench.yml",
+            },
         )
         self.assertTrue((ROOT / "tools/lsp-bench/Cargo.toml").is_file())
         self.assertFalse((ROOT / "LspBenchRunnerProbe.md").exists())

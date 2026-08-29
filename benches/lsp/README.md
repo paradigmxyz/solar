@@ -19,12 +19,18 @@ or `superseded`. A changed PR head takes precedence over a changed main tip.
 Stale measurements keep their original performance verdict and full table, but
 the report marks them as reference-only or historical and recommends rerunning.
 
-The GitHub workflow accepts only an exact `/bench lsp` comment on an ordinary
-pull request from an allowed association. It intentionally has no manual
-dispatch entry: a default-branch manual run that checks out and executes a
-PR revision would give untrusted build code access to the default branch's
-Actions cache authority. The comment-triggered path keeps every job that builds
-or executes PR code separate from the trusted renderer.
+The tip-base GitHub workflow accepts only an exact `/bench lsp` comment on an
+ordinary pull request from an allowed association. It intentionally has no
+manual dispatch entry: a default-branch manual run that checks out and
+executes a PR revision would give untrusted build code access to the default
+branch's Actions cache authority. The comment-triggered path keeps every job
+that builds or executes PR code separate from the trusted renderer.
+
+The cross-server workflow runs the `pr-smoke` core4/synthetic benchmark on every
+pull request. To rerun that benchmark manually, add an exact `/bench
+cross-server` comment to the pull request. Its read-only benchmark job checks
+out the frozen PR head, while a separate job with comment permissions publishes
+the report without checking out pull request content.
 
 The workflow downloads the source archive described in `upstream.json`, checks
 its SHA-256, checks the in-repository adapter SHA-256, applies that adapter, and
