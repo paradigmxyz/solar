@@ -4,11 +4,11 @@
 // printed in solc's textual form, never as a silently linked zero address.
 // CHECK-LABEL: "Parent": {
 // CHECK-LABEL: "deployedBytecode": {
+// CHECK-NEXT: "object": "{{[0-9a-f]*}}__${{[0-9a-f]{34}\$}}__{{[0-9a-f]*}}"
 // CHECK-NEXT: "linkReferences": {
 // CHECK-NEXT: "A.sol": {
 // CHECK-NEXT: "Lib": [
 // CHECK: "length": 20
-// CHECK: "object": "{{[0-9a-f]*}}__${{[0-9a-f]{34}}}$__{{[0-9a-f]*}}"
 {
   "language": "Solidity",
   "sources": {},
