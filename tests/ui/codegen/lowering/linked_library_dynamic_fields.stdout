@@ -139,6 +139,9 @@ bb4:
   push 32
   dup 4
   add
+  dup 1
+  push 352
+  mstore
   dup 2
   dup 2
   mstore
@@ -210,6 +213,9 @@ bb4:
   push 64
   dup 5
   add
+  dup 1
+  push 320
+  mstore
   dup 2
   dup 2
   mstore
@@ -248,21 +254,11 @@ bb4:
   pop
   swap 2
   mload
-  dup 3
-  push 352
-  mstore
-  dup 4
-  push 320
-  mstore
-  swap 3
-  pop
-  pop
-  pop
   push 0
+  exchange 3, 4
   jump bb13
 bb13:
-  push 352
-  mload
+  dup 5
   mload
   dup 1
   mload
@@ -276,12 +272,15 @@ bb13:
   mstore
   push bb17
   jumpi
-  push 320
+  swap 4
   mload
-  mload
-  swap 2
+  swap 1
   pop
+  swap 3
   pop
+  swap 3
+  pop
+  swap 1
   mload
   push 0x3e8
   dup 2
@@ -294,15 +293,13 @@ bb13:
   sub
   push bb21
   jumpi
-  dup 2
+  dup 3
   add
-  swap 1
-  dup 2
+  swap 2
+  dup 3
   lt
   push bb21
   jumpi
-  push 160
-  mload
   mload
   push 0
   not
@@ -335,6 +332,9 @@ bb17:
   mstore
   push 256
   mstore
+  pop
+  pop
+  pop
   pop
   pop
   push 288
@@ -389,6 +389,16 @@ bb17:
   dup 3
   push 288
   mstore
+  push 160
+  mload
+  push 320
+  mload
+  push 352
+  mload
+  swap 3
+  exchange 1, 4
+  exchange 2, 5
+  exchange 3, 5
   push bb21
   jumpi
   jump bb13

@@ -913,6 +913,7 @@ impl<'a> StackPhiPlanner<'a> {
 
     fn plan(&self, liveness: &Liveness) -> StackPhiPlan {
         let mut plan = StackPhiPlan::default();
+        self.plan_live_joins(liveness, &mut plan);
         for loop_info in &self.loops {
             self.plan_loop(loop_info, liveness, &mut plan);
         }
@@ -920,7 +921,6 @@ impl<'a> StackPhiPlanner<'a> {
         for block in self.func.blocks.indices() {
             self.plan_join(block, &mut plan);
         }
-        self.plan_live_joins(liveness, &mut plan);
         plan
     }
 
@@ -998,17 +998,31 @@ impl<'a> StackPhiPlanner<'a> {
             }
         }
 
+        // A loop invariant is resident at the latch only once the header carries it, so a
+        // header's layout is seeded from its forward predecessors alone; a word that then
+        // fails to reach a latch is banned and the fixpoint reruns.
+        let mut back_edges: FxHashMap<BlockId, Vec<BlockId>> = FxHashMap::default();
+        for loop_info in &self.loops {
+            back_edges
+                .entry(loop_info.header)
+                .or_default()
+                .extend(loop_info.back_edges.iter().copied());
+        }
+        let mut banned: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
         let mut layouts: FxHashMap<BlockId, Vec<ValueId>> = FxHashMap::default();
-        for _ in 0..16 {
+        for _ in 0..32 {
             let resident_out = self.resident_out_sets(liveness, plan, &layouts, &planned_branches);
             let wanted = self.wanted_sets(liveness, plan, &layouts, &planned_branches);
             let mut changed = false;
             for &join in &joins {
                 let block = &func.blocks[join];
                 let live_in = liveness.live_in(join);
-                // The first predecessor's stack order is the layout order, so that edge needs
-                // no shuffle and the others usually little.
-                let first = block.predecessors[0];
+                let latches = back_edges.get(&join).map(Vec::as_slice).unwrap_or(&[]);
+                let forward =
+                    block.predecessors.iter().copied().filter(|pred| !latches.contains(pred));
+                // The first forward predecessor's stack order is the layout order, so that
+                // edge needs no shuffle and the others usually little.
+                let Some(first) = forward.clone().next() else { continue };
                 let mut carried = resident_out
                     .get(&first)
                     .into_iter()
@@ -1017,9 +1031,10 @@ impl<'a> StackPhiPlanner<'a> {
                     .filter(|&value| {
                         live_in.contains(value)
                             && self.carriable(value)
+                            && !banned.get(&join).is_some_and(|set| set.contains(&value))
                             && wanted.get(&join).is_some_and(|set| set.contains(&value))
-                            && block.predecessors.iter().all(|pred| {
-                                resident_out.get(pred).is_some_and(|list| list.contains(&value))
+                            && forward.clone().all(|pred| {
+                                resident_out.get(&pred).is_some_and(|list| list.contains(&value))
                             })
                     })
                     .collect::<Vec<_>>();
@@ -1065,7 +1080,28 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
             if !changed {
-                break;
+                // Under the converged layouts, every latch must deliver the header's words.
+                let resident_out =
+                    self.resident_out_sets(liveness, plan, &layouts, &planned_branches);
+                for (&header, latches) in &back_edges {
+                    let Some(layout) = layouts.get(&header) else { continue };
+                    let phis = self
+                        .phi_result_values(&self.phi_insts(&func.blocks[header]))
+                        .unwrap_or_default();
+                    for &value in layout {
+                        if !phis.contains(&value)
+                            && !latches.iter().all(|latch| {
+                                resident_out.get(latch).is_some_and(|list| list.contains(&value))
+                            })
+                            && banned.entry(header).or_default().insert(value)
+                        {
+                            changed = true;
+                        }
+                    }
+                }
+                if !changed {
+                    break;
+                }
             }
         }
         layouts.retain(|_, layout| !layout.is_empty());
