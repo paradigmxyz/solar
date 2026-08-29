@@ -155,13 +155,13 @@ bb8:
   mstore
   push 256
   mload
+  swap 1
+  dup 2
   add
   dup 1
   push 224
   mstore
-  push 256
-  mload
-  gt
+  lt
   push bb18
   jumpi
   push 224

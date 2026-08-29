@@ -1605,6 +1605,9 @@ pub struct EvmCodegen<'gcx> {
     /// Spill stores emitted so far in the block being generated, so a store that a preserved
     /// exit makes dead can be removed again.
     block_spill_stores: Vec<BlockSpillStore>,
+    /// Values the current block reloaded from their spill slots. A store such a reload has
+    /// already read is not an early home a carried exit can drop.
+    block_reloaded_values: DenseBitSet<ValueId>,
     /// Gas operands emitted fresh right before their call, keyed by the operand value.
     late_gas_operands: FxHashMap<ValueId, LateGasOperand>,
     /// Values a planned stack layout carries or consumes: a planned edge skips their spill
@@ -1699,6 +1702,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_available: None,
             elided_insts: FxHashSet::default(),
             block_spill_stores: Vec::new(),
+            block_reloaded_values: DenseBitSet::new_empty(0),
             late_gas_operands: FxHashMap::default(),
             planned_stack_values: DenseBitSet::new_empty(0),
             removed_spill_stores: DenseBitSet::new_empty(0),
@@ -3182,6 +3186,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_sources = stack_phi_sources;
         self.planned_stack_values = DenseBitSet::new_empty(func.num_values());
         self.removed_spill_stores = DenseBitSet::new_empty(func.num_values());
+        self.block_reloaded_values = DenseBitSet::new_empty(func.num_values());
         for values in stack_phi_plan
             .edge_sources
             .values()
@@ -3246,6 +3251,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
             self.block_spill_stores.clear();
+            self.block_reloaded_values.clear();
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
             preserved_fallthrough = None;
             let label = self.block_labels[&block_id];
@@ -3830,7 +3836,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Removes the spill stores this block emitted for values it defined that its preserved
     /// exit carries into every arm reading them. Such a value reaches its readers on the stack,
     /// so the store was only ever an early home; the arm stores the value itself at its exit if
-    /// a later block still reloads the slot.
+    /// a later block still reloads the slot. A store this block itself reloaded from, after an
+    /// internal call drained the stack, has served a reader already and stays.
     fn remove_dead_carried_spill_stores(
         &mut self,
         func: &Function,
@@ -3859,6 +3866,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 value != *condition
                     && defined_here
                     && !self.planned_stack_values.contains(value)
+                    && !self.block_reloaded_values.contains(value)
                     && self.scheduler.stack.contains(value)
                     && successors.iter().all(|&succ| {
                         preserved.contains(&succ) || !liveness.live_in(succ).contains(value)
@@ -10646,10 +10654,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             let carried_arg_is_live = self.global_stack_active
                 && matches!(func.value(value), crate::mir::Value::Arg(_))
                 && !liveness.is_dead_after(value, block, inst_idx);
+            // A spilled operand that this block uses again is loaded once and kept: the copy
+            // costs one DUP per later use instead of a reload from its slot.
+            let reused_in_block = liveness.is_used_after_in_block(value, block, inst_idx);
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
                 && (!Self::is_rematerializable_value(func, value) || carried_arg_is_live)
-                && (scheduler.reloadable_spill(value).is_none() || scheduler.stack.contains(value))
+                && (scheduler.reloadable_spill(value).is_none()
+                    || scheduler.stack.contains(value)
+                    || reused_in_block)
             {
                 preserved.push(value);
             }
@@ -10671,7 +10684,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ScheduledOp::PushImmediate(imm) => {
                     self.asm.emit_push(imm);
                 }
-                ScheduledOp::LoadSpill(slot) => {
+                ScheduledOp::LoadSpill(slot, value) => {
+                    self.block_reloaded_values.insert(value);
                     // PUSH slot_offset, MLOAD
                     self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(op::MLOAD);

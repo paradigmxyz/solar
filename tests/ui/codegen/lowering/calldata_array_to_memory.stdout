@@ -222,13 +222,13 @@ bb20:
   mload
   push 192
   mload
+  swap 1
+  dup 2
   add
   dup 1
   push 224
   mstore
-  push 192
-  mload
-  gt
+  lt
   iszero
   push bb19
   jumpi
@@ -532,9 +532,10 @@ bb33:
   sgt
   push bb6
   jumpi
-  push 63
   push 224
   mload
+  push 63
+  dup 2
   add
   push 31
   not
@@ -549,37 +550,42 @@ bb33:
   add
   push 64
   mstore
+  dup 2
+  dup 1
   push 224
-  mload
+  mstore
   dup 2
   mstore
   push 32
   dup 2
   add
+  dup 3
+  dup 1
   push 224
-  mload
+  mstore
   push 320
   mload
   dup 3
   calldatacopy
   pop
-  push 64
+  swap 1
+  pop
   push 160
   mload
+  push 64
+  dup 2
   add
   dup 1
   push 256
   mstore
-  dup 2
+  dup 3
   dup 1
   push 352
   mstore
   dup 2
   mstore
-  swap 1
+  swap 2
   pop
-  push 160
-  mload
   mload
   push 160
   mstore
@@ -605,17 +611,16 @@ bb33:
   iszero
   push bb51
   jumpi
-  push 192
-  mload
   push 160
   mload
+  push 192
+  mload
+  dup 2
   add
   dup 1
   push 192
   mstore
-  push 160
-  mload
-  gt
+  lt
   push bb51
   jumpi
   push 256
@@ -639,17 +644,16 @@ bb33:
   iszero
   push bb51
   jumpi
-  push 160
-  mload
   push 192
   mload
+  push 160
+  mload
+  dup 2
   add
   dup 1
   push 160
   mstore
-  push 192
-  mload
-  gt
+  lt
   push bb51
   jumpi
   push 160

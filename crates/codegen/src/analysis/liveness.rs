@@ -320,6 +320,22 @@ impl Liveness {
         }
     }
 
+    /// Returns whether a value is used again in `block` after `inst_idx`, by a later
+    /// instruction or by the terminator; uses in successor blocks do not count.
+    #[must_use]
+    pub(crate) fn is_used_after_in_block(
+        &self,
+        val: ValueId,
+        block: BlockId,
+        inst_idx: usize,
+    ) -> bool {
+        match self.last_use_in_block.get(&(val, block)) {
+            Some(Some(last_idx)) => *last_idx > inst_idx,
+            Some(None) => true,
+            None => false,
+        }
+    }
+
     /// Returns true if the value is dead after the given instruction in the given block.
     ///
     /// A value is dead after an instruction if:
