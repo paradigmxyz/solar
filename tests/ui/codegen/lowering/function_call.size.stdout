@@ -23,6 +23,15 @@ bb4 [cold]:
   push 0
   dup 1
   revert
+bb8:
+  dup 1
+  push 160
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb5:
   push 36
   calldatasize
@@ -68,20 +77,9 @@ bb10:
   lt
   push bb19
   jumpi
-  push bb13
+  push bb8
   swap 1
   jump bb16
-bb13:
-  jump bb8
-bb8:
-  dup 1
-  push 160
-  mstore
-  push 128
-  mstore
-  push 32
-  push 128
-  return
 bb18 [cold]:
   pop
   jump bb19

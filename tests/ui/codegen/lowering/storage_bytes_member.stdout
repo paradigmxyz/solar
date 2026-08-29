@@ -12,6 +12,8 @@ bb0:
   push 15
   and
   indexed_jump bb2, bb38, bb38, bb38, bb38, bb3, bb4, bb5, bb38, bb38, bb6, bb38, bb38, bb7, bb38, bb38
+bb53:
+  stop
 bb140 [cold]:
   push bb144
   jump bb143
@@ -1399,7 +1401,7 @@ bb97:
   calldataload
   add
   mstore8
-  push bb99
+  push bb53
   push 192
   mload
   push 128
@@ -1467,10 +1469,6 @@ bb100:
   swap 1
   exchange 2, 3
   jump bb100
-bb99:
-  jump bb53
-bb53:
-  stop
 bb105:
   push 448
   push 64
@@ -1789,7 +1787,7 @@ bb128:
   mload
   push 928
   mstore
-  push bb129
+  push bb130
   dup 2
   push 0
   mstore
@@ -1825,8 +1823,6 @@ bb120:
   add
   swap 1
   jump bb120
-bb129:
-  jump bb130
 bb132:
   push 640
   mload
