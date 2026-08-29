@@ -35,41 +35,39 @@ fn @_anonymous() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 324, v1
+    v2 = and 316, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e576101138060125f395ff35b5f5ffd346028575f3560e01c8063b3de64
+    mstore v3, 0x34600e5761010b8060125f395ff35b5f5ffd346028575f3560e01c8063b3de64
     v4 = add v3, 32
-    mstore v4, 0x8b146020578063e420264a146024576028565b602c565b609c565b5f80fd5b60
+    mstore v4, 0x8b146020578063e420264a146024576028565b602c565b6098565b5f80fd5b60
     v5 = add v3, 64
-    mstore v5, 0x243610156098576094565b600260043502600215600282046004359014811790
+    mstore v5, 0x243610156094576090565b600260043502600215600282046004359014811790
     v6 = add v3, 96
     mstore v6, 0x5015156080577f4e487b71000000000000000000000000000000000000000000
     v7 = add v3, 128
-    mstore v7, 0x5f52601160045260245ffd5b8060a052608052602060800160
+    mstore v7, 0x5f52601160045260245ffd5b60805260206080016080900360
     v8 = add v3, 160
-    mstore v8, 0x8090036080f35b5f80fd5b6038565b60e0604052602436101561010f5761010b
+    mstore v8, 0x80f35b5f80fd5b6038565b60e0604052602436101561010757610103565b6001
     v9 = add v3, 192
-    mstore v9, 0x565b60016004350160043581101560eb577f4e487b7100000000000000000000
+    mstore v9, 0x6004350160043581101560e7577f4e487b710000000000000000000000000000
     v10 = add v3, 224
-    mstore v10, 0x5f52601160045260245ffd5b6004
+    mstore v10, 0x5f52601160045260245ffd5b600435608052
     v11 = add v3, 256
-    mstore v11, 0x356080526020608001818060c0528152905060209001608090036080f35b5f80
-    v12 = add v3, 288
-    mstore v12, 0xfd5b60af56000000000000000000000000000000000000000000000000000000
-    v13 = slice_ptr v0
-    v14 = add v3, 293
-    mcopy v14, v13, 0 !metadata(memory=heap)
-    v15 = create 0, v3, 293
-    jumpi v15, bb2, bb1
+    mstore v11, 0x6020608001818152905060209001608090036080f35b5f80fd5b60ab56000000
+    v12 = slice_ptr v0
+    v13 = add v3, 285
+    mcopy v13, v12, 0 !metadata(memory=heap)
+    v14 = create 0, v3, 285
+    jumpi v14, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = sload 0 !metadata(storage=slot(0))
-    v17 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = and v16, v17
-    v19 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = or v18, v19
-    sstore 0, v20 !metadata(storage=slot(0))
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v17 = and v15, v16
+    v18 = and v14, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = or v17, v18
+    sstore 0, v19 !metadata(storage=slot(0))
     stop
 }
 
@@ -522,66 +520,64 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v235 = phi [bb77: v211], [bb83: v233]
     v236 = abi_encode []
     v237 = not 31
-    v238 = and 324, v237
+    v238 = and 316, v237
     v239 = alloc raw, exact, uninitialized, infallible, v238
-    mstore v239, 0x34600e576101138060125f395ff35b5f5ffd346028575f3560e01c8063b3de64
+    mstore v239, 0x34600e5761010b8060125f395ff35b5f5ffd346028575f3560e01c8063b3de64
     v240 = add v239, 32
-    mstore v240, 0x8b146020578063e420264a146024576028565b602c565b609c565b5f80fd5b60
+    mstore v240, 0x8b146020578063e420264a146024576028565b602c565b6098565b5f80fd5b60
     v241 = add v239, 64
-    mstore v241, 0x243610156098576094565b600260043502600215600282046004359014811790
+    mstore v241, 0x243610156094576090565b600260043502600215600282046004359014811790
     v242 = add v239, 96
     mstore v242, 0x5015156080577f4e487b71000000000000000000000000000000000000000000
     v243 = add v239, 128
-    mstore v243, 0x5f52601160045260245ffd5b8060a052608052602060800160
+    mstore v243, 0x5f52601160045260245ffd5b60805260206080016080900360
     v244 = add v239, 160
-    mstore v244, 0x8090036080f35b5f80fd5b6038565b60e0604052602436101561010f5761010b
+    mstore v244, 0x80f35b5f80fd5b6038565b60e0604052602436101561010757610103565b6001
     v245 = add v239, 192
-    mstore v245, 0x565b60016004350160043581101560eb577f4e487b7100000000000000000000
+    mstore v245, 0x6004350160043581101560e7577f4e487b710000000000000000000000000000
     v246 = add v239, 224
-    mstore v246, 0x5f52601160045260245ffd5b6004
+    mstore v246, 0x5f52601160045260245ffd5b600435608052
     v247 = add v239, 256
-    mstore v247, 0x356080526020608001818060c0528152905060209001608090036080f35b5f80
-    v248 = add v239, 288
-    mstore v248, 0xfd5b60af56000000000000000000000000000000000000000000000000000000
-    v249 = slice_ptr v236
-    v250 = add v239, 293
-    mcopy v250, v249, 0 !metadata(memory=heap)
-    v251 = create 0, v239, 293
-    v252 = eq v251, 0
-    v253 = iszero v252
-    jumpi v253, bb84, bb85
+    mstore v247, 0x6020608001818152905060209001608090036080f35b5f80fd5b60ab56000000
+    v248 = slice_ptr v236
+    v249 = add v239, 285
+    mcopy v249, v248, 0 !metadata(memory=heap)
+    v250 = create 0, v239, 285
+    v251 = eq v250, 0
+    v252 = iszero v251
+    jumpi v252, bb84, bb85
   bb85:
-    v256 = returndatasize
-    v257 = add v256, 63
-    v258 = lt v257, v256
-    jumpi v258, bb89, bb90
+    v255 = returndatasize
+    v256 = add v255, 63
+    v257 = lt v256, v255
+    jumpi v257, bb89, bb90
   bb90:
-    v259 = not 31
-    v260 = and v257, v259
-    v261 = alloc memorybytes, exact, uninitialized, infallible, v260
-    set_memory_object_len memorybytes, v261, v256
-    v262 = make_returndata_slice 0, v256
-    memory_object_copy_from_slice memorybytes, v261, v262
-    v263 = memory_object_data memorybytes, v261
-    v264 = memory_object_len memorybytes, v261
-    v265 = make_memory_slice v263, v264
-    v266 = memory_slice_load_word memory, v265, 0
-    v267 = lt v264, 4
-    v268 = iszero v267
-    v269 = shr 224, v266
-    v270 = eq v269, 0x8c379a0
-    v271 = and v268, v270
-    v272 = lt v264, 36
-    v273 = iszero v272
-    v274 = eq v269, 0x4e487b71
-    v275 = and v273, v274
+    v258 = not 31
+    v259 = and v256, v258
+    v260 = alloc memorybytes, exact, uninitialized, infallible, v259
+    set_memory_object_len memorybytes, v260, v255
+    v261 = make_returndata_slice 0, v255
+    memory_object_copy_from_slice memorybytes, v260, v261
+    v262 = memory_object_data memorybytes, v260
+    v263 = memory_object_len memorybytes, v260
+    v264 = make_memory_slice v262, v263
+    v265 = memory_slice_load_word memory, v264, 0
+    v266 = lt v263, 4
+    v267 = iszero v266
+    v268 = shr 224, v265
+    v269 = eq v268, 0x8c379a0
+    v270 = and v267, v269
+    v271 = lt v263, 36
+    v272 = iszero v271
+    v273 = eq v268, 0x4e487b71
+    v274 = and v272, v273
     jumpi 1, bb91, bb92
   bb92:
-    revert v263, v264
+    revert v262, v263
   bb91:
-    v276 = add v235, 900
-    v277 = lt v276, v235
-    jumpi v277, bb93, bb94
+    v275 = add v235, 900
+    v276 = lt v275, v235
+    jumpi v276, bb93, bb94
   bb94:
     jump bb86
   bb93:
@@ -593,58 +589,58 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb84:
-    v254 = add v235, 800
-    v255 = lt v254, v235
-    jumpi v255, bb87, bb88
+    v253 = add v235, 800
+    v254 = lt v253, v235
+    jumpi v254, bb87, bb88
   bb88:
     jump bb86
   bb86:
-    v278 = phi [bb88: v254], [bb94: v276]
-    v279 = sload 0 !metadata(storage=slot(0))
-    v280 = and v279, 0xffffffffffffffffffffffffffffffffffffffff
-    v281 = shl 32, v280
-    v282 = or v281, 0xb3de648b
-    v283 = and v282, 0xffffffff
-    v284 = shl 224, v283
-    v285 = shr 32, v282
-    v286 = gas
-    v287 = abi_encode [word], selector v284, args 6
-    v288 = slice_ptr v287
-    v289 = slice_len v287
-    v290 = call v286, v285, 0, v288, v289, 0, 0
-    jumpi v290, bb95, bb96
+    v277 = phi [bb88: v253], [bb94: v275]
+    v278 = sload 0 !metadata(storage=slot(0))
+    v279 = and v278, 0xffffffffffffffffffffffffffffffffffffffff
+    v280 = shl 32, v279
+    v281 = or v280, 0xb3de648b
+    v282 = and v281, 0xffffffff
+    v283 = shl 224, v282
+    v284 = shr 32, v281
+    v285 = gas
+    v286 = abi_encode [word], selector v283, args 6
+    v287 = slice_ptr v286
+    v288 = slice_len v286
+    v289 = call v285, v284, 0, v287, v288, 0, 0
+    jumpi v289, bb95, bb96
   bb96:
-    v301 = returndatasize
-    v302 = add v301, 63
-    v303 = lt v302, v301
-    jumpi v303, bb102, bb103
+    v300 = returndatasize
+    v301 = add v300, 63
+    v302 = lt v301, v300
+    jumpi v302, bb102, bb103
   bb103:
-    v304 = not 31
-    v305 = and v302, v304
-    v306 = alloc memorybytes, exact, uninitialized, infallible, v305
-    set_memory_object_len memorybytes, v306, v301
-    v307 = make_returndata_slice 0, v301
-    memory_object_copy_from_slice memorybytes, v306, v307
-    v308 = memory_object_data memorybytes, v306
-    v309 = memory_object_len memorybytes, v306
-    v310 = make_memory_slice v308, v309
-    v311 = memory_slice_load_word memory, v310, 0
-    v312 = lt v309, 4
-    v313 = iszero v312
-    v314 = shr 224, v311
-    v315 = eq v314, 0x8c379a0
-    v316 = and v313, v315
-    v317 = lt v309, 36
-    v318 = iszero v317
-    v319 = eq v314, 0x4e487b71
-    v320 = and v318, v319
+    v303 = not 31
+    v304 = and v301, v303
+    v305 = alloc memorybytes, exact, uninitialized, infallible, v304
+    set_memory_object_len memorybytes, v305, v300
+    v306 = make_returndata_slice 0, v300
+    memory_object_copy_from_slice memorybytes, v305, v306
+    v307 = memory_object_data memorybytes, v305
+    v308 = memory_object_len memorybytes, v305
+    v309 = make_memory_slice v307, v308
+    v310 = memory_slice_load_word memory, v309, 0
+    v311 = lt v308, 4
+    v312 = iszero v311
+    v313 = shr 224, v310
+    v314 = eq v313, 0x8c379a0
+    v315 = and v312, v314
+    v316 = lt v308, 36
+    v317 = iszero v316
+    v318 = eq v313, 0x4e487b71
+    v319 = and v317, v318
     jumpi 1, bb104, bb105
   bb105:
-    revert v308, v309
+    revert v307, v308
   bb104:
-    v321 = add v278, 0x3e8
-    v322 = lt v321, v278
-    jumpi v322, bb106, bb107
+    v320 = add v277, 0x3e8
+    v321 = lt v320, v277
+    jumpi v321, bb106, bb107
   bb107:
     jump bb97
   bb106:
@@ -656,26 +652,26 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb95:
-    v291 = returndatasize
-    v292 = add v291, 63
-    v293 = lt v292, v291
-    jumpi v293, bb98, bb99
+    v290 = returndatasize
+    v291 = add v290, 63
+    v292 = lt v291, v290
+    jumpi v292, bb98, bb99
   bb99:
-    v294 = not 31
-    v295 = and v292, v294
-    v296 = alloc memorybytes, exact, uninitialized, infallible, v295
-    set_memory_object_len memorybytes, v296, v291
-    v297 = make_returndata_slice 0, v291
-    memory_object_copy_from_slice memorybytes, v296, v297
-    v298 = abi_decode [u256], v296
-    v299 = add v278, v298
-    v300 = lt v299, v278
-    jumpi v300, bb100, bb101
+    v293 = not 31
+    v294 = and v291, v293
+    v295 = alloc memorybytes, exact, uninitialized, infallible, v294
+    set_memory_object_len memorybytes, v295, v290
+    v296 = make_returndata_slice 0, v290
+    memory_object_copy_from_slice memorybytes, v295, v296
+    v297 = abi_decode [u256], v295
+    v298 = add v277, v297
+    v299 = lt v298, v277
+    jumpi v299, bb100, bb101
   bb101:
     jump bb97
   bb97:
-    v323 = phi [bb101: v299], [bb107: v321]
-    ret v323
+    v322 = phi [bb101: v298], [bb107: v320]
+    ret v322
   bb100:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -74,9 +74,6 @@ bb6:
   push bb5
   jumpi
   gas
-  dup 2
-  push 160
-  mstore
   push 0
   not
   push 192
@@ -89,9 +86,6 @@ bb6:
   calldatasize
   sub
   dup 4
-  push 192
-  mstore
-  dup 4
   sgt
   push bb5
   jumpi
@@ -103,9 +97,6 @@ bb6:
   and
   push 64
   mload
-  dup 1
-  push 256
-  mstore
   swap 1
   dup 2
   add
@@ -127,15 +118,6 @@ bb6:
   pop
   swap 2
   mload
-  dup 3
-  push 224
-  mstore
-  dup 2
-  push 288
-  mstore
-  dup 1
-  push 320
-  mstore
   push 0
   push 0
   dup 3

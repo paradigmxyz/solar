@@ -47,9 +47,6 @@ bb24:
   lt
   push bb10
   jumpi
-  dup 1
-  push 160
-  mstore
   jump bb23
 bb23:
   push 128

@@ -1,4 +1,4 @@
-{"contracts":{"ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop":{"abi":[{"type":"function","name":"loopCarried","inputs":[{"name":"n","type":"uint256","internalType":"uint256"},{"name":"flag","type":"bool","internalType":"bool"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"nested","inputs":[{"name":"outer","type":"uint256","internalType":"uint256"},{"name":"inner","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"sequential","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"storeAfterLoop","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"},{"name":"iterations","type":"uint256","internalType":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}],"bin":"34600e576102668060125f395ff35b5f5ffd346033575f3560e01c806350d1f0821461017257806371b76bb2146037578063d8c2ef0a1461020b578063fb08deb21460c7575b5f80fd5b6044361060335760243560021115603357600760c052602435605957600b60c0525b5f5f905b8160a0526004358210608657806101005b526080525060206080f35b600160a0510160e051605d565b8160a0526003820260038104830360b35760c051810190811060b35781018060e052908110915050156079575b634e487b7160e01b5f52601160045260245ffd5b604436106033575f60a0525f60c0525b60043560a051101561010e57600160a051018060e05260c05181810180610120529081108260a0528160c0529150501560d75760b3565b5f60c051905b8060a052602435811061014157818060e052608052505060206080f35b600160a051016101005190610114565b8060a0528060011b8060011c820360b3576003810190811060b35782018061010052918210915050156101315760b3565b604436106033575f5f905b8160a05260043582106101925780610120606e565b8060e0525f60c0526101205260a0525b60243560c051106101d557600160a0510160e05161017d565b600160c0510180610140526101005160e05260c0526101a2565b60a05160c051810181811060b3576001810190811060b35760e05190810180610100529081108260a052915050156101bb5760b3565b606436106033576004355f905b8160a052604435821061022d57806080525f55005b60243581026024351560243582049092149091171560b357600435810190811060b35760011c620f42409006600101906001019061021856"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop":{"abi":[{"type":"function","name":"loopCarried","inputs":[{"name":"n","type":"uint256","internalType":"uint256"},{"name":"flag","type":"bool","internalType":"bool"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"nested","inputs":[{"name":"outer","type":"uint256","internalType":"uint256"},{"name":"inner","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"sequential","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"storeAfterLoop","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"},{"name":"iterations","type":"uint256","internalType":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}],"bin":"34600e5761023a8060125f395ff35b5f5ffd346033575f3560e01c806350d1f0821461015d57806371b76bb2146037578063d8c2ef0a146101e7578063fb08deb21460c2575b5f80fd5b6044361060335760243560021115603357600760c052602435605957600b60c0525b5f5f905b8160a052600435821060815b576080525060206080f35b600160a0510160e051605d565b8160a0526003820260038104830360ae5760c051810190811060ae5781018060e052908110915050156074575b634e487b7160e01b5f52601160045260245ffd5b604436106033575f60a0525f60c0525b60043560a051101560ff57600160a0510160c0518181019081108260a0528160c0529150501560d25760ae565b5f60c051905b8060a052602435811061012d5781608052505060206080f35b600160a0510160e05190610105565b8060a0528060011b8060011c820360ae576003810190811060ae5782018060e0529182109150501561011e5760ae565b604436106033575f5f905b8160a05260043582106101786069565b60e0525f60c05260a0525b60243560c051106101b157600160a0510160e051610168565b600160c051016101005160e05260c052610183565b60a05160c051810181811060ae576001810190811060ae5760e05190810180610100529081108260a0529150501561019c5760ae565b606436106033576004355f905b6044358210610201575f55005b60243581026024351560243582049092149091171560ae57600435810190811060ae5760011c620f4240900660010190600101906101f456"}},"version":"VERSION"}
 
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
 @module runtime
@@ -73,12 +73,9 @@ bb12:
   dup 3
   lt
   push bb15
-  jumpi
-  dup 1
-  push 256
   jump bb56
 bb56:
-  mstore
+  jumpi
   push 128
   mstore
   pop
@@ -169,17 +166,11 @@ bb22:
   push 160
   mload
   add
-  dup 1
-  push 224
-  mstore
   push 192
   mload
   dup 2
   dup 2
   add
-  dup 1
-  push 288
-  mstore
   swap 1
   dup 2
   lt
@@ -213,9 +204,6 @@ bb26:
   push bb29
   jumpi
   dup 2
-  dup 1
-  push 224
-  mstore
   push 128
   mstore
   pop
@@ -228,7 +216,7 @@ bb28:
   push 160
   mload
   add
-  push 256
+  push 224
   mload
   swap 1
   jump bb26
@@ -257,7 +245,7 @@ bb29:
   dup 3
   add
   dup 1
-  push 256
+  push 224
   mstore
   swap 2
   dup 3
@@ -288,18 +276,12 @@ bb35:
   dup 3
   lt
   push bb38
-  jumpi
-  dup 1
-  push 288
   jump bb56
 bb38:
-  dup 1
   push 224
   mstore
   push 0
   push 192
-  mstore
-  push 288
   mstore
   push 160
   mstore
@@ -324,9 +306,6 @@ bb40:
   push 192
   mload
   add
-  dup 1
-  push 320
-  mstore
   push 256
   mload
   push 224
@@ -387,18 +366,12 @@ bb46:
   swap 1
   jump bb48
 bb48:
-  dup 2
-  push 160
-  mstore
   push 68
   calldataload
   dup 3
   lt
   push bb50
   jumpi
-  dup 1
-  push 128
-  mstore
   push 0
   sstore
   stop

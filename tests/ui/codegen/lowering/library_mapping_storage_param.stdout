@@ -66,9 +66,6 @@ bb3 [cold]:
   dup 1
   revert
 bb7:
-  dup 1
-  push 160
-  mstore
   push 128
   mstore
   push 32

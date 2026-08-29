@@ -69,13 +69,7 @@ bb4:
   lt
   push bb9
   jumpi
-  dup 1
-  push 160
-  mstore
   dup 2
-  dup 1
-  push 192
-  mstore
   sstore
   sload
   push 255
@@ -88,9 +82,6 @@ bb4:
   lt
   push bb9
   jumpi
-  dup 1
-  push 160
-  mstore
   push 128
   mstore
   push 32
@@ -127,9 +118,6 @@ bb0:
   jumpi
   push 64
   mload
-  dup 1
-  push 192
-  mstore
   push 128
   dup 2
   add
@@ -186,27 +174,18 @@ bb0:
   and
   push 64
   mload
-  dup 1
-  push 192
-  mstore
   swap 1
   dup 2
   add
   push 64
   mstore
   dup 2
-  dup 1
-  push 160
-  mstore
   dup 2
   mstore
   push 32
   dup 2
   add
   dup 3
-  dup 1
-  push 160
-  mstore
   push 0
   dup 3
   returndatacopy

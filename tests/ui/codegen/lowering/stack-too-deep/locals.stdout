@@ -5,7 +5,7 @@ bb0:
   callvalue
   push bb1
   jumpi
-  push 713
+  push 708
   dup 1
   push 18
   push 0
@@ -530,9 +530,6 @@ bb4:
   lt
   push bb48
   jumpi
-  dup 1
-  push 736
-  mstore
   push 128
   mstore
   push 32

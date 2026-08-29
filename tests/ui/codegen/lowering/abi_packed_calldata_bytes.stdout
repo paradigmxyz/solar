@@ -74,18 +74,12 @@ bb14:
   jump
 bb7:
   dup 1
-  push 160
-  mstore
-  dup 1
   calldataload
   swap 1
   push 32
   add
   push 64
   mload
-  dup 1
-  push 192
-  mstore
   dup 3
   dup 3
   dup 3
@@ -133,9 +127,6 @@ bb9:
   jump bb14
 bb12:
   dup 1
-  push 160
-  mstore
-  dup 1
   calldataload
   swap 1
   push 32
@@ -149,9 +140,6 @@ bb12:
   and
   push 64
   mload
-  dup 1
-  push 192
-  mstore
   push 0x707265
   push 232
   shl

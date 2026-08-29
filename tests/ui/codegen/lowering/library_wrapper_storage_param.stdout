@@ -57,13 +57,7 @@ bb4:
   lt
   push bb9
   jumpi
-  dup 1
-  push 192
-  mstore
   dup 2
-  dup 1
-  push 160
-  mstore
   sstore
   sload
   push 4
@@ -96,9 +90,6 @@ bb4:
   lt
   push bb9
   jumpi
-  dup 1
-  push 160
-  mstore
   push 128
   mstore
   push 32

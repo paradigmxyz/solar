@@ -1492,6 +1492,7 @@ struct LateGasOperand {
 
 /// A spill store emitted in the current block: the value, its slot, and the emitted
 /// `DUP`, address push, and `MSTORE`, which are stack-neutral as a whole.
+#[derive(Clone)]
 struct BlockSpillStore {
     value: ValueId,
     slot: SpillSlot,
@@ -1608,6 +1609,15 @@ pub struct EvmCodegen<'gcx> {
     /// Values the current block reloaded from their spill slots. A store such a reload has
     /// already read is not an early home a carried exit can drop.
     block_reloaded_values: DenseBitSet<ValueId>,
+    /// Every stack-neutral spill store the function emitted. A store whose slot the function
+    /// never loads is removed at the end: its value reached each reader on a carried stack.
+    function_spill_stores: Vec<BlockSpillStore>,
+    /// Spill slots the function loads from anywhere; every reload goes through
+    /// [`Self::emit_spill_reload`].
+    loaded_spill_slots: FxHashSet<u32>,
+    /// Stores the carried-exit removal decided to drop. They are removed together with the
+    /// never-loaded stores so the recorded instruction ranges stay valid until then.
+    deferred_spill_store_removals: Vec<BlockSpillStore>,
     /// Gas operands emitted fresh right before their call, keyed by the operand value.
     late_gas_operands: FxHashMap<ValueId, LateGasOperand>,
     /// Values a planned stack layout carries or consumes: a planned edge skips their spill
@@ -1703,6 +1713,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             elided_insts: FxHashSet::default(),
             block_spill_stores: Vec::new(),
             block_reloaded_values: DenseBitSet::new_empty(0),
+            function_spill_stores: Vec::new(),
+            loaded_spill_slots: FxHashSet::default(),
+            deferred_spill_store_removals: Vec::new(),
             late_gas_operands: FxHashMap::default(),
             planned_stack_values: DenseBitSet::new_empty(0),
             removed_spill_stores: DenseBitSet::new_empty(0),
@@ -3187,6 +3200,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.planned_stack_values = DenseBitSet::new_empty(func.num_values());
         self.removed_spill_stores = DenseBitSet::new_empty(func.num_values());
         self.block_reloaded_values = DenseBitSet::new_empty(func.num_values());
+        self.function_spill_stores.clear();
+        self.loaded_spill_slots.clear();
+        self.deferred_spill_store_removals.clear();
         for values in stack_phi_plan
             .edge_sources
             .values()
@@ -3714,6 +3730,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             peak = peak.saturating_add(ir::LEGACY_SHIFT_STACK_HEADROOM);
         }
         self.function_stack_peaks.insert(func_id, peak);
+        self.remove_unloaded_spill_stores();
         self.assign_ranked_spill_addrs(func_id);
     }
 
@@ -3852,7 +3869,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let successors = [*then_block, *else_block];
         let stores = std::mem::take(&mut self.block_spill_stores);
-        let mut removals = stores
+        let removals = stores
             .iter()
             .filter(|store| {
                 let value = store.value;
@@ -3873,10 +3890,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     })
             })
             .collect::<Vec<_>>();
-        // Later ranges first, so the earlier ones keep their indices.
-        removals.sort_by_key(|store| std::cmp::Reverse((store.block, store.range.start)));
         for store in removals {
-            self.asm.remove_instructions(store.block, store.range.clone());
+            self.deferred_spill_store_removals.push(store.clone());
             self.scheduler.spills.invalidate_stored(store.value);
             self.removed_spill_stores.insert(store.value);
             // The reloads that made the store mandatory now sit beyond the arm, which stores
@@ -3885,6 +3900,28 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(available) = &mut self.spill_available {
                 available.remove(&store.value);
             }
+        }
+    }
+
+    /// Drops the spill stores the function never reads back, together with the carried-exit
+    /// removals deferred to this point. Every load of a spill slot goes through
+    /// [`Self::emit_spill_reload`], so a slot without one only ever held values that reached
+    /// each of their readers on the stack, and the stores were dead weight on every path.
+    fn remove_unloaded_spill_stores(&mut self) {
+        let mut removals = std::mem::take(&mut self.deferred_spill_store_removals);
+        let mut seen =
+            removals.iter().map(|store| (store.block, store.range.start)).collect::<FxHashSet<_>>();
+        for store in std::mem::take(&mut self.function_spill_stores) {
+            if !self.loaded_spill_slots.contains(&store.slot.offset)
+                && seen.insert((store.block, store.range.start))
+            {
+                removals.push(store);
+            }
+        }
+        // Later ranges first, so the earlier ones keep their indices.
+        removals.sort_by_key(|store| std::cmp::Reverse((store.block, store.range.start)));
+        for store in removals {
+            self.asm.remove_instructions(store.block, store.range.clone());
             if let Some(entry) = self.spill_addr_consts.get_mut(&u64::from(store.slot.offset)) {
                 entry.1 = entry.1.saturating_sub(1);
             }
@@ -5396,12 +5433,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.store_stack_top_to_spill(func, val, slot);
         let (end_block, end) = self.asm.next_instruction_position();
         if end_block == block {
-            self.block_spill_stores.push(BlockSpillStore {
-                value: val,
-                slot,
-                block,
-                range: start..end,
-            });
+            let store = BlockSpillStore { value: val, slot, block, range: start..end };
+            self.function_spill_stores.push(store.clone());
+            self.block_spill_stores.push(store);
         }
     }
 
@@ -5435,8 +5469,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_accessible_stack_value(func, val, slot, accessible_depth);
 
         for (saved, saved_slot) in saved_above.into_iter().rev() {
-            self.emit_spill_slot_addr(func, saved_slot);
-            self.asm.emit_op(op::MLOAD);
+            self.emit_spill_reload(func, saved_slot);
             self.scheduler.stack.push(saved);
         }
     }
@@ -8128,8 +8161,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Inst(_) => {
                 let slot = spill_slot.expect("computed stack argument has a validated spill slot");
-                self.emit_spill_slot_addr(func, slot);
-                self.asm.emit_op(op::MLOAD);
+                self.emit_spill_reload(func, slot);
             }
             other => unreachable!("stack-arg mask admitted an unsupported value: {other:?}"),
         }
@@ -9452,6 +9484,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         offset.checked_add(size).is_none_or(|range_end| range_end > start)
     }
 
+    /// Reloads a spill slot; the only way a function reads one back.
+    fn emit_spill_reload(&mut self, func: &Function, slot: SpillSlot) {
+        self.loaded_spill_slots.insert(slot.offset);
+        self.emit_spill_slot_addr(func, slot);
+        self.asm.emit_op(op::MLOAD);
+    }
+
     fn emit_spill_slot_addr(&mut self, func: &Function, slot: SpillSlot) {
         if self.in_internal_function {
             let spill_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -10697,8 +10736,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 ScheduledOp::LoadSpill(slot, value) => {
                     self.block_reloaded_values.insert(value);
                     // PUSH slot_offset, MLOAD
-                    self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(op::MLOAD);
+                    self.emit_spill_reload(func, slot);
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
@@ -10913,8 +10951,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // Load from spill slot. Reloadable covers slots whose
                     // defining block is emitted later: the definition still
                     // executes before any use at runtime.
-                    self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(op::MLOAD);
+                    self.emit_spill_reload(func, slot);
                     self.scheduler.stack.push(val);
                 } else {
                     // Check if the instruction is one that we can "re-execute" to get a fresh value
@@ -10955,8 +10992,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // that still executes first at runtime.
                             if func.value_u64(*offset) == Some(EvmMemoryLayout::FMP_SLOT) {
                                 if let Some(slot) = self.scheduler.reloadable_spill(val) {
-                                    self.emit_spill_slot_addr(func, slot);
-                                    self.asm.emit_op(op::MLOAD);
+                                    self.emit_spill_reload(func, slot);
                                     self.scheduler.stack.push(val);
                                     return;
                                 }
@@ -11091,15 +11127,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 } else {
                                     let slot = self.scheduler.spills.allocate(val);
                                     self.spill_deep_stack_value(func, val, slot, depth);
-                                    self.emit_spill_slot_addr(func, slot);
-                                    self.asm.emit_op(op::MLOAD);
+                                    self.emit_spill_reload(func, slot);
                                     self.scheduler.stack.push(val);
                                 }
                             } else if let Some(slot) = self.scheduler.reloadable_spill(val) {
                                 // A defining block emitted later still stores
                                 // this slot before the load executes at runtime.
-                                self.emit_spill_slot_addr(func, slot);
-                                self.asm.emit_op(op::MLOAD);
+                                self.emit_spill_reload(func, slot);
                                 self.scheduler.stack.push(val);
                             } else {
                                 panic!(
