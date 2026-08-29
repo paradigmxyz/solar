@@ -70,7 +70,7 @@ bb4:
   dup 3
   mstore
   dup 3
-  push 256
+  push 288
   mstore
   push 36
   dup 4
@@ -137,7 +137,7 @@ bb4:
   swap 1
   pop
   dup 3
-  push 288
+  push 256
   mstore
   push 32
   dup 4
@@ -269,12 +269,12 @@ bb13 [loop]:
   dup 1
   mload
   dup 3
-  push 256
+  push 288
   mstore
   dup 3
   lt
   dup 1
-  push 288
+  push 256
   mstore
   push bb17
   jumpi
@@ -333,9 +333,6 @@ bb13 [loop]:
   push 128
   return
 bb17 [loop]:
-  dup 2
-  push 256
-  mstore
   dup 3
   push 224
   mstore
@@ -346,7 +343,7 @@ bb17 [loop]:
   pop
   pop
   pop
-  push 288
+  push 256
   mload
   iszero
   push bb20
@@ -355,7 +352,7 @@ bb17 [loop]:
   push 192
   mload
   add
-  push 256
+  push 288
   mload
   push 32
   dup 2

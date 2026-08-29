@@ -110,7 +110,7 @@ bb8:
   calldatasize
   sub
   dup 2
-  push 160
+  push 192
   mstore
   dup 2
   sgt
@@ -162,12 +162,12 @@ bb17 [loop]:
   dup 4
   mload
   dup 2
-  push 160
+  push 192
   mstore
   dup 2
   lt
   dup 1
-  push 192
+  push 160
   mstore
   push bb20
   jumpi
@@ -188,10 +188,10 @@ bb17 [loop]:
   return
 bb19 [loop]:
   push 1
-  push 160
+  push 192
   mload
   add
-  push 192
+  push 160
   mload
   push 224
   mload
@@ -201,19 +201,20 @@ bb19 [loop]:
   exchange 1, 2
   jump bb17
 bb20 [loop]:
-  push 160
-  mstore
+  dup 2
   push 256
   mstore
   pop
   pop
-  push 192
+  pop
+  pop
+  push 160
   mload
   iszero
   push bb22
   jumpi
   push 32
-  push 160
+  push 192
   mload
   mul
   push 224
@@ -226,7 +227,7 @@ bb20 [loop]:
   dup 2
   add
   dup 1
-  push 192
+  push 160
   mstore
   lt
   iszero

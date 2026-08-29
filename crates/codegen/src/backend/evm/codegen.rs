@@ -2232,6 +2232,15 @@ pub struct EvmCodegen<'gcx> {
     /// Spill stores emitted so far in the block being generated, so a store that a preserved
     /// exit makes dead can be removed again.
     block_spill_stores: Vec<BlockSpillStore>,
+    /// Values whose spill store the current block emitted and still holds.
+    block_stored_here: FxHashSet<ValueId>,
+    /// Per block, the values every execution path reaching its exit has
+    /// stored: the single predecessor's set, when the block has exactly one,
+    /// plus the block's own surviving spill stores. Unlike the function-wide
+    /// `stored` flag and the availability sets, which fall back to that flag
+    /// for blocks without predecessor information, this never claims a store
+    /// made on another path.
+    path_spill_stores: FxHashMap<BlockId, FxHashSet<ValueId>>,
     /// Values the current block reloaded from their spill slots. A store such a reload has
     /// already read is not an early home a carried exit can drop.
     block_reloaded_values: DenseBitSet<ValueId>,
@@ -2340,6 +2349,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_available: None,
             elided_insts: FxHashSet::default(),
             block_spill_stores: Vec::new(),
+            block_stored_here: FxHashSet::default(),
+            path_spill_stores: FxHashMap::default(),
             block_reloaded_values: DenseBitSet::new_empty(0),
             function_spill_stores: Vec::new(),
             loaded_spill_slots: FxHashSet::default(),
@@ -3826,6 +3837,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.removed_spill_stores = DenseBitSet::new_empty(func.num_values());
         self.block_reloaded_values = DenseBitSet::new_empty(func.num_values());
         self.function_spill_stores.clear();
+        self.path_spill_stores.clear();
         self.loaded_spill_slots.clear();
         self.deferred_spill_store_removals.clear();
         for values in stack_phi_plan
@@ -3897,8 +3909,15 @@ impl<'gcx> EvmCodegen<'gcx> {
             let fallthrough = block_order.get(pos + 1).copied();
             self.emitting_loop_block = self.loop_blocks.contains(block_id);
             self.block_spill_stores.clear();
+            self.block_stored_here.clear();
             self.block_reloaded_values.clear();
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
+            // A phi carried in from another block keeps its store only when this block's
+            // single predecessor is known to have made it on every path.
+            let trusted_stores = match block.predecessors.as_slice() {
+                [pred] => self.path_spill_stores.get(pred).cloned().unwrap_or_default(),
+                _ => FxHashSet::default(),
+            };
             preserved_fallthrough = None;
             let label = self.block_labels[&block_id];
             if !entered_by_preserved_fallthrough && !block.predecessors.is_empty() {
@@ -3915,16 +3934,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let max_depth = self.scheduler.stack.max_depth();
                     self.scheduler.stack = entry_stack;
                     self.scheduler.stack.inherit_max_depth(max_depth);
-                    self.invalidate_carried_phi_spills(func);
+                    self.invalidate_carried_phi_spills(func, block_id, &trusted_stores);
                     // Live-ins not on the carried stack still arrive in memory.
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else if let Some(entry) = stack_phi_plan.entries.get(&block_id) {
                     self.set_stack_to_values(entry);
-                    self.invalidate_carried_phi_spills(func);
+                    self.invalidate_carried_phi_spills(func, block_id, &trusted_stores);
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else if let Some(entry) = global_stack_plan.entry(block_id) {
                     self.set_stack_to_values(entry);
-                    self.invalidate_carried_phi_spills(func);
+                    self.invalidate_carried_phi_spills(func, block_id, &trusted_stores);
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else {
                     self.scheduler.clear_stack();
@@ -4356,6 +4375,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .clone()
                     .unwrap_or_else(|| self.scheduler.spills.stored_values().collect()),
             );
+            let mut path_stores = match block.predecessors.as_slice() {
+                [pred] => self.path_spill_stores.get(pred).cloned().unwrap_or_default(),
+                _ => FxHashSet::default(),
+            };
+            path_stores.extend(self.block_stored_here.iter().copied());
+            self.path_spill_stores.insert(block_id, path_stores);
         }
 
         if let Some(value) = self.scheduler.spills.unstored_required() {
@@ -4543,6 +4568,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.deferred_spill_store_removals.push(store.clone());
             self.scheduler.spills.invalidate_stored(store.value);
             self.removed_spill_stores.insert(store.value);
+            self.block_stored_here.remove(&store.value);
             // The reloads that made the store mandatory now sit beyond the arm, which stores
             // the value again at its exit when one remains.
             self.scheduler.spills.clear_store_requirement(store.value);
@@ -5908,20 +5934,34 @@ impl<'gcx> EvmCodegen<'gcx> {
         None
     }
 
-    /// Invalidates the spill bookkeeping of every phi result on a stack
-    /// restored from a carried edge. A loop-carried phi is redefined on every
-    /// re-entry without a store, so a slot stored during an earlier iteration
-    /// holds a stale definition: an exit-path use must spill the carried copy
-    /// again before anything reloads the slot. Other carried values are
-    /// immutable SSA definitions whose stored slots stay current, and
-    /// invalidating those would force later paths to recompute
+    /// Invalidates the spill bookkeeping of phi results arriving on a stack
+    /// restored from a carried edge. A phi this block defines is redefined on
+    /// every entry without a store, so a slot stored during an earlier
+    /// iteration holds a stale definition: an exit-path use must spill the
+    /// carried copy again before anything reloads the slot. A phi another
+    /// block defined is the same definition the predecessor held, but the
+    /// `stored` flag is function-wide: a store on a sibling or exit path
+    /// emitted earlier sets it without covering this path, and a carried copy
+    /// dropped on that promise would be reloaded from a slot this path never
+    /// wrote. Such a phi keeps its store only when it is in `trusted`, the
+    /// stores every path through the block's single predecessor made. Other
+    /// carried values are immutable SSA definitions whose stored slots stay
+    /// current, and invalidating those would force later paths to recompute
     /// memory-dependent definitions whose operands may have changed.
-    fn invalidate_carried_phi_spills(&mut self, func: &Function) {
+    fn invalidate_carried_phi_spills(
+        &mut self,
+        func: &Function,
+        block_id: BlockId,
+        trusted: &FxHashSet<ValueId>,
+    ) {
         let carried: Vec<ValueId> = self.scheduler.stack.iter().flatten().collect();
         for value in carried {
-            if let crate::mir::Value::Inst(inst_id) = func.value(value)
-                && matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
-            {
+            let crate::mir::Value::Inst(inst_id) = func.value(value) else { continue };
+            if !matches!(func.inst(*inst_id).kind, InstKind::Phi(_)) {
+                continue;
+            }
+            let defined_here = func.blocks[block_id].instructions.contains(inst_id);
+            if defined_here || !trusted.contains(&value) {
                 self.scheduler.spills.invalidate_stored(value);
             }
         }
@@ -6112,6 +6152,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let store = BlockSpillStore { value: val, slot, block, range: start..end };
             self.function_spill_stores.push(store.clone());
             self.block_spill_stores.push(store);
+            self.block_stored_here.insert(val);
         }
     }
 
