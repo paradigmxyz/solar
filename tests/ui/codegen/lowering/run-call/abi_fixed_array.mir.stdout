@@ -225,16 +225,23 @@ fn @readNestedList(arg0: memorystruct) -> u256 [selector=0x2fc71376, pure, abi_p
 fn @readEnumPair(arg0: memorystruct) -> u256 [selector=0xaea50307, pure, abi_params=[tuple<enum<2, u8>, u256>], abi_returns=[word]] {
   bb0:
     v0 = memory_object_load_field memorystruct<2>, arg0, 0
-    v1 = and v0, 1
-    v2 = memory_object_load_field memorystruct<2>, arg0, 1
-    v3 = add v1, v2
-    v4 = lt v3, v1
-    jumpi v4, bb1, bb2
+    v1 = lt v0, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
   bb2:
-    ret v3
-  bb1:
+    v3 = memory_object_load_field memorystruct<2>, arg0, 1
+    v4 = add v0, v3
+    v5 = lt v4, v0
+    jumpi v5, bb3, bb4
+  bb4:
+    ret v4
+  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
     revert 0, 36
 }
 
@@ -245,8 +252,15 @@ fn @readEnumArray(arg0: memoryfixedarray) -> u256 [selector=0xf8507bf5, pure, ab
     jumpi v1, bb1, bb2
   bb2:
     v2 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 0
-    v3 = and v2, 1
-    ret v3
+    v3 = lt v2, 2
+    v4 = iszero v3
+    jumpi v4, bb3, bb4
+  bb4:
+    ret v2
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
