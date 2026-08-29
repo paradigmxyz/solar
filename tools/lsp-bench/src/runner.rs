@@ -634,7 +634,8 @@ fn record_setup_phase(sample: &mut RunSample, outcome: PhaseOutcome) -> bool {
             let shutdown_failure = shutdown_error.map(classify_request_error);
             let kind =
                 shutdown_failure.as_ref().map_or(FailureKind::Crashed, |failure| failure.kind);
-            let (status, process_failure) = status_with_process_evidence(kind, None, &metrics);
+            let (status, process_failure) =
+                status_with_process_evidence(kind, shutdown_failure.as_ref(), &metrics);
             sample.status = status;
             let mut message = shutdown_failure.map_or_else(
                 || format!("cache setup server exited with {:?}", metrics.exit_code),
@@ -701,7 +702,8 @@ fn record_measured_phase(sample: &mut RunSample, outcome: PhaseOutcome) {
             let shutdown_failure = shutdown_error.map(classify_request_error);
             let kind =
                 shutdown_failure.as_ref().map_or(FailureKind::Crashed, |failure| failure.kind);
-            let (status, process_failure) = status_with_process_evidence(kind, None, &metrics);
+            let (status, process_failure) =
+                status_with_process_evidence(kind, shutdown_failure.as_ref(), &metrics);
             sample.status = status;
             let mut message = shutdown_failure.map_or_else(
                 || format!("server exited with {:?}", metrics.exit_code),
@@ -3234,6 +3236,76 @@ scenarios:
             &metrics,
         );
         assert!(matches!(status, RunStatus::HarnessError));
+    }
+
+    fn clean_phase_outcome_with_unsupported_shutdown() -> PhaseOutcome {
+        PhaseOutcome {
+            result: Ok(()),
+            process_result: Ok(FinishedProcess {
+                metrics: ProcessMetrics {
+                    wall_ms: 1.0,
+                    user_cpu_ms: Some(0.0),
+                    system_cpu_ms: Some(0.0),
+                    peak_memory_mib: Some(1.0),
+                    peak_process_tree_rss_mib: None,
+                    accounting: ProcessAccounting::RusageDirectChild,
+                    memory_accounting: MemoryAccounting::RusageMaxRssDirectChild,
+                    process_tree: false,
+                    network_isolated: false,
+                    cgroup_path: None,
+                    exit_code: Some(0),
+                    forced_kill: false,
+                    stderr: String::new(),
+                },
+                observations: Observations::default(),
+                shutdown_error: Some(anyhow::Error::new(RemoteError {
+                    method: "shutdown".into(),
+                    code: Some(-32601),
+                    message: "method not found".into(),
+                })),
+            }),
+            timings: BTreeMap::new(),
+            correctness: Vec::new(),
+            fallback_observations: Observations::default(),
+        }
+    }
+
+    #[test]
+    fn clean_setup_result_with_unsupported_shutdown_is_a_harness_error() {
+        let outcome = clean_phase_outcome_with_unsupported_shutdown();
+        let mut sample = unavailable_sample(
+            "server",
+            "fixture",
+            "workload",
+            0,
+            RunStatus::Unavailable,
+            "not run",
+        );
+
+        assert!(!record_setup_phase(&mut sample, outcome));
+        assert!(matches!(sample.status, RunStatus::HarnessError));
+        assert!(sample.error.as_deref().is_some_and(|error| {
+            error.contains("shutdown failed") && error.contains("method not found")
+        }));
+    }
+
+    #[test]
+    fn clean_measured_result_with_unsupported_shutdown_is_a_harness_error() {
+        let outcome = clean_phase_outcome_with_unsupported_shutdown();
+        let mut sample = unavailable_sample(
+            "server",
+            "fixture",
+            "workload",
+            0,
+            RunStatus::Unavailable,
+            "not run",
+        );
+
+        record_measured_phase(&mut sample, outcome);
+        assert!(matches!(sample.status, RunStatus::HarnessError));
+        assert!(sample.error.as_deref().is_some_and(|error| {
+            error.contains("shutdown failed") && error.contains("method not found")
+        }));
     }
 
     #[test]
