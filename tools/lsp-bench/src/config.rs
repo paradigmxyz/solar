@@ -984,23 +984,7 @@ fn validate_step_paths(step: &StepSpec) -> Result<()> {
             }
             Ok(())
         }
-        StepSpec::Probe { probe, .. } => match probe {
-            ProbeSpec::Definition { path, expected_path, .. } => {
-                validate_relative_path(path, "scenario path")?;
-                validate_relative_path(expected_path, "scenario expected path")
-            }
-            ProbeSpec::Completion { path, .. } | ProbeSpec::Hover { path, .. } => {
-                validate_relative_path(path, "scenario path")
-            }
-            ProbeSpec::References { path, expected_locations, .. } => {
-                validate_relative_path(path, "scenario path")?;
-                validate_expected_locations(expected_locations)
-            }
-            ProbeSpec::DocumentSymbol { path, .. } => validate_relative_path(path, "scenario path"),
-            ProbeSpec::WorkspaceSymbol { expected_path, .. } => {
-                validate_relative_path(expected_path, "scenario expected path")
-            }
-        },
+        StepSpec::Probe { probe, .. } => validate_probe_path(probe),
         StepSpec::Warm { probe, .. } => validate_probe_path(probe),
         StepSpec::Rename { path, expected_edits, probe, .. } => {
             validate_relative_path(path, "scenario path")?;
