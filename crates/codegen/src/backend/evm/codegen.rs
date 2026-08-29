@@ -941,15 +941,13 @@ impl<'a> StackPhiPlanner<'a> {
         let mut joins = Vec::new();
         for (block_id, block) in func.blocks.iter_enumerated() {
             if block.predecessors.len() < 2
-                || loop_headers.contains(block_id)
                 || plan.entries.contains_key(&block_id)
                 || GlobalStackPlan::is_terminal_block(func, block_id)
             {
                 continue;
             }
             let preds_ok = block.predecessors.iter().all(|&pred| {
-                pred != block_id
-                    && !plan.edges.contains_key(&pred)
+                !plan.edges.contains_key(&pred)
                     && !plan.branch_edges.contains_key(&pred)
                     && match func.blocks[pred].terminator.as_ref() {
                         Some(Terminator::Jump(_)) => true,

@@ -18,6 +18,20 @@ bb3 [cold]:
   push 0
   dup 1
   revert
+bb21 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  jump bb22
+bb22 [cold]:
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
 bb4:
   push 672
   push 64
@@ -234,20 +248,17 @@ bb4:
   pop
   swap 2
   mload
-  push 0
-  push 224
-  mstore
-  push 192
-  mstore
-  dup 2
+  dup 3
   push 352
   mstore
-  dup 3
+  dup 4
   push 320
   mstore
+  swap 3
   pop
   pop
   pop
+  push 0
   jump bb13
 bb13:
   push 352
@@ -255,18 +266,21 @@ bb13:
   mload
   dup 1
   mload
+  dup 3
   push 224
-  mload
+  mstore
+  dup 3
   lt
   dup 1
-  push 256
+  push 288
   mstore
   push bb17
   jumpi
   push 320
   mload
   mload
-  swap 1
+  swap 2
+  pop
   pop
   mload
   push 0x3e8
@@ -280,9 +294,6 @@ bb13:
   sub
   push bb21
   jumpi
-  push 192
-  mload
-  swap 1
   dup 2
   add
   swap 1
@@ -316,15 +327,23 @@ bb13:
   push 128
   return
 bb17:
-  push 288
+  dup 2
+  push 224
+  mstore
+  dup 3
+  push 192
   mstore
   push 256
+  mstore
+  pop
+  pop
+  push 288
   mload
   iszero
   push bb20
   jumpi
   push 32
-  push 288
+  push 256
   mload
   add
   push 224
@@ -339,6 +358,9 @@ bb17:
   swap 1
   push 1
   add
+  dup 1
+  push 256
+  mstore
   dup 1
   dup 3
   mul
@@ -361,42 +383,15 @@ bb17:
   swap 2
   dup 3
   add
-  dup 1
-  push 256
-  mstore
   swap 2
   dup 3
   lt
-  dup 2
-  push 224
-  mstore
   dup 3
-  push 192
-  mstore
-  dup 2
   push 288
   mstore
-  swap 2
-  pop
-  pop
-  iszero
-  push bb13
+  push bb21
   jumpi
-  jump bb21
-bb21 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 17
-  jump bb22
-bb22 [cold]:
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
+  jump bb13
 bb20 [cold]:
   push 0x4e487b71
   push 224

@@ -1,4 +1,4 @@
-{"contracts":{"ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop":{"abi":[{"type":"function","name":"loopCarried","inputs":[{"name":"n","type":"uint256","internalType":"uint256"},{"name":"flag","type":"bool","internalType":"bool"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"nested","inputs":[{"name":"outer","type":"uint256","internalType":"uint256"},{"name":"inner","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"sequential","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"storeAfterLoop","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"},{"name":"iterations","type":"uint256","internalType":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}],"bin":"34600e576102438060125f395ff35b5f5ffd346033575f3560e01c806350d1f0821461016257806371b76bb2146037578063d8c2ef0a146101f0578063fb08deb21460c6575b5f80fd5b6044361060335760243560021115603357602435600790156071575b60e0525f5f905b8160a052600435821060855b576080525060206080f35b50600b6053565b600160a0510160c051605a565b8160a0526003820260038104830360b25760e051810190811060b25781018060c052908110915050156078575b634e487b7160e01b5f52601160045260245ffd5b604436106033575f60a0525f60c0525b60043560a051101561010457600160a0510160c0518181019081108260a0528160c0529150501560d65760b2565b5f60c051905b8060a05260243581106101325781608052505060206080f35b600160a0510160e0519061010a565b8060a0528060011b8060011c820360b2576003810190811060b25782018060e052918210915050156101235760b2565b604436106033575f5f905b8160c052600435821061017d6066565b60e0525f60a05260c0525b60243560a051106101ba57600160c051018060a05260e05161016d565b600160a051016101005160e05260a052610188565b60c05160a051810181811060b2576001810190811060b25760e05190810180610100529081108260c052915050156101a55760b2565b606436106033576004355f905b604435821061020a575f55005b60243581026024351560243582049092149091171560b257600435810190811060b25760011c620f4240900660010190600101906101fd56"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop":{"abi":[{"type":"function","name":"loopCarried","inputs":[{"name":"n","type":"uint256","internalType":"uint256"},{"name":"flag","type":"bool","internalType":"bool"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"nested","inputs":[{"name":"outer","type":"uint256","internalType":"uint256"},{"name":"inner","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"sequential","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"}],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"},{"type":"function","name":"storeAfterLoop","inputs":[{"name":"a","type":"uint256","internalType":"uint256"},{"name":"b","type":"uint256","internalType":"uint256"},{"name":"iterations","type":"uint256","internalType":"uint256"}],"outputs":[],"stateMutability":"nonpayable"}],"bin":"34600e5761022a8060125f395ff35b5f5ffd346033575f3560e01c806350d1f0821461014857806371b76bb2146037578063d8c2ef0a146101d7578063fb08deb21460c6575b5f80fd5b6044361060335760243560021115603357602435600790156071575b60e0525f5f905b8160a052600435821060855b576080525060206080f35b50600b6053565b600160a0510160c051605a565b8160a0526003820260038104830360b25760e051810190811060b25781018060c052908110915050156078575b634e487b7160e01b5f52601160045260245ffd5b604436106033575f5f905b8060a05260043581101560ee5760010180820191821060b25760d1565b505f5b8060a05260243581106101185781608052505060206080f35b600160a0510160c0519060f1565b8060a0528060011b8060011c820360b2576003810190811060b25782018060c0529182109150501561010a5760b2565b604436106033575f5f905b8160a05260043582106101636066565b8160a05290505f905b8160c05260243582108160e0529150506101a157600160a051018060c05260e051610153565b600160c051016101005161016c565b60a05160c051810181811060b2576001810190811060b25760e05190810180610100529081108260a052915050156101925760b2565b606436106033576004355f905b60443582106101f1575f55005b60243581026024351560243582049092149091171560b257600435810190811060b25760011c620f4240900660010190600101906101e456"}},"version":"VERSION"}
 
 // === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
 @module runtime
@@ -150,51 +150,34 @@ bb20:
   push bb6
   jumpi
   push 0
-  push 160
-  mstore
   push 0
-  push 192
-  mstore
+  swap 1
   jump bb22
 bb22:
+  dup 1
+  push 160
+  mstore
   push 4
   calldataload
-  push 160
-  mload
+  dup 2
   lt
   iszero
   push bb24
   jumpi
   push 1
-  push 160
-  mload
   add
-  push 192
-  mload
-  dup 2
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
+  dup 1
   dup 3
-  push 160
-  mstore
-  dup 2
-  push 192
-  mstore
+  add
   swap 2
-  pop
-  pop
-  iszero
-  push bb22
+  dup 3
+  lt
+  push bb55
   jumpi
-  jump bb55
+  jump bb22
 bb24:
+  pop
   push 0
-  push 192
-  mload
-  swap 1
   jump bb26
 bb26:
   dup 1
@@ -219,7 +202,7 @@ bb28:
   push 160
   mload
   add
-  push 224
+  push 192
   mload
   swap 1
   jump bb26
@@ -248,7 +231,7 @@ bb29:
   dup 3
   add
   dup 1
-  push 224
+  push 192
   mstore
   swap 2
   dup 3
@@ -272,7 +255,7 @@ bb33:
   jump bb35
 bb35:
   dup 2
-  push 192
+  push 160
   mstore
   push 4
   calldataload
@@ -281,48 +264,52 @@ bb35:
   push bb38
   jump bb56
 bb38:
-  push 224
-  mstore
-  push 0
+  dup 2
   push 160
   mstore
-  push 192
-  mstore
+  swap 1
+  pop
+  push 0
+  swap 1
   jump bb39
 bb39:
+  dup 2
+  push 192
+  mstore
   push 36
   calldataload
-  push 160
-  mload
+  dup 3
   lt
+  dup 2
+  push 224
+  mstore
+  swap 2
+  pop
+  pop
   push bb41
   jumpi
   push 1
-  push 192
+  push 160
   mload
   add
   dup 1
-  push 160
+  push 192
   mstore
   push 224
   mload
   jump bb35
 bb40:
   push 1
-  push 160
+  push 192
   mload
   add
   push 256
   mload
-  push 224
-  mstore
-  push 160
-  mstore
   jump bb39
 bb41:
-  push 192
-  mload
   push 160
+  mload
+  push 192
   mload
   dup 2
   add
@@ -351,7 +338,7 @@ bb41:
   dup 2
   lt
   dup 3
-  push 192
+  push 160
   mstore
   swap 2
   pop
