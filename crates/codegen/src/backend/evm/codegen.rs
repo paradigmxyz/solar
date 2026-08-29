@@ -224,6 +224,11 @@ struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
     branch_edges: FxHashMap<BlockId, StackPhiBranch>,
+    /// For a live-join edge, the words that feed phis rather than ride through unchanged.
+    /// Only these skip their definition-time store: a carried live-in keeps its store, so a
+    /// later block that finds it dropped can still reload it. Edges without an entry count
+    /// every source, which is exact for the phi-only planners.
+    phi_edge_sources: FxHashMap<BlockId, Vec<ValueId>>,
 }
 
 #[derive(Clone, Debug)]
@@ -762,8 +767,12 @@ impl GlobalStackPlan {
 }
 
 impl StackPhiPlan {
-    fn analyze(func: &Function, liveness: &Liveness) -> Self {
-        StackPhiPlanner::new(func).plan(liveness)
+    fn analyze(
+        func: &Function,
+        liveness: &Liveness,
+        cold_functions: &DenseBitSet<FunctionId>,
+    ) -> Self {
+        StackPhiPlanner::new(func, cold_functions).plan(liveness)
     }
 
     fn edge_fits(edge: &StackPhiEdge, values: &[ValueId]) -> bool {
@@ -783,11 +792,16 @@ impl StackPhiPlan {
     }
 
     fn edge_sources(&self) -> FxHashMap<BlockId, Vec<ValueId>> {
-        self.edges
+        let mut sources: FxHashMap<BlockId, Vec<ValueId>> = self
+            .edges
             .iter()
             .map(|(&block, edge)| (block, edge.sources.clone()))
             .chain(self.branch_edges.iter().map(|(&block, branch)| (block, branch.union.clone())))
-            .collect()
+            .collect();
+        for (&block, phi_sources) in &self.phi_edge_sources {
+            sources.insert(block, phi_sources.clone());
+        }
+        sources
     }
 
     /// Extends planned phi edges with the resident argument prefix required by
@@ -869,10 +883,16 @@ struct StackPhiPlanner<'a> {
     loops: Vec<Loop>,
     header_results: FxHashMap<BlockId, Vec<ValueId>>,
     definitions: IndexVec<ValueId, Option<BlockId>>,
+    /// Functions whose every exit aborts; a tail call into one never returns to the words a
+    /// carried stack leaves beneath it.
+    cold_functions: &'a DenseBitSet<FunctionId>,
 }
 
+/// Longest entry layout `plan_live_joins` carries into a block.
+const LIVE_JOIN_LAYOUT_LIMIT: usize = 8;
+
 impl<'a> StackPhiPlanner<'a> {
-    fn new(func: &'a Function) -> Self {
+    fn new(func: &'a Function, cold_functions: &'a DenseBitSet<FunctionId>) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
         let loop_info = loop_analyzer.analyze(func);
         let loops = loop_info.all_loops().cloned().collect();
@@ -885,7 +905,8 @@ impl<'a> StackPhiPlanner<'a> {
                 }
             }
         }
-        let mut planner = Self { func, loops, header_results: FxHashMap::default(), definitions };
+        let mut planner =
+            Self { func, loops, header_results: FxHashMap::default(), definitions, cold_functions };
         planner.collect_header_results();
         planner
     }
@@ -899,7 +920,520 @@ impl<'a> StackPhiPlanner<'a> {
         for block in self.func.blocks.indices() {
             self.plan_join(block, &mut plan);
         }
+        self.plan_live_joins(liveness, &mut plan);
         plan
+    }
+
+    /// Plans entry layouts for the acyclic joins the phi planners left alone. A join keeps its
+    /// phi results and the live-in values that are already on the stack at the exit of every
+    /// predecessor, so a value defined before a diamond crosses it without a spill store and a
+    /// reload on the far side, and no edge has to load anything it did not have. Residency is a
+    /// static fixpoint over the planned layouts: a carried value stays resident through
+    /// single-predecessor chains and planned joins until a call drains the stack. The sibling
+    /// arm of a planned branch gets a layout of its own; a sibling that only aborts is entered
+    /// with the carried words beneath it, and any other sibling starts from an empty stack.
+    fn plan_live_joins(&self, liveness: &Liveness, plan: &mut StackPhiPlan) {
+        let func = self.func;
+        let mut loop_headers = DenseBitSet::new_empty(func.blocks.len());
+        for loop_info in &self.loops {
+            loop_headers.insert(loop_info.header);
+        }
+        let mut joins = Vec::new();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if block.predecessors.len() < 2
+                || loop_headers.contains(block_id)
+                || plan.entries.contains_key(&block_id)
+                || GlobalStackPlan::is_terminal_block(func, block_id)
+            {
+                continue;
+            }
+            let preds_ok = block.predecessors.iter().all(|&pred| {
+                pred != block_id
+                    && !plan.edges.contains_key(&pred)
+                    && !plan.branch_edges.contains_key(&pred)
+                    && match func.blocks[pred].terminator.as_ref() {
+                        Some(Terminator::Jump(_)) => true,
+                        Some(Terminator::Branch { then_block, else_block, .. }) => {
+                            then_block != else_block
+                        }
+                        _ => false,
+                    }
+            });
+            if preds_ok
+                && self.phi_insts(block).len() <= LIVE_JOIN_LAYOUT_LIMIT
+                && self.phi_result_values(&self.phi_insts(block)).is_some()
+            {
+                joins.push(block_id);
+            }
+        }
+        if joins.is_empty() {
+            return;
+        }
+        let is_join = joins.iter().copied().collect::<FxHashSet<_>>();
+
+        // Branches into a planned join carry into their sibling arm too when only that branch
+        // enters it.
+        // A sibling arm receives exactly the words its branch sends to the join, so the branch
+        // reaches it straight from the `JUMPI` with no cleanup of its own.
+        let mut arms = FxHashMap::default();
+        let mut planned_branches = DenseBitSet::new_empty(func.blocks.len());
+        for &join in &joins {
+            for &pred in func.blocks[join].predecessors.iter() {
+                let Some(Terminator::Branch { then_block, else_block, .. }) =
+                    func.blocks[pred].terminator.as_ref()
+                else {
+                    continue;
+                };
+                planned_branches.insert(pred);
+                for arm in [*then_block, *else_block] {
+                    if arm != join
+                        && !is_join.contains(&arm)
+                        && !loop_headers.contains(arm)
+                        && !plan.entries.contains_key(&arm)
+                        && func.blocks[arm].predecessors.as_slice() == [pred]
+                        && self.phi_insts(&func.blocks[arm]).is_empty()
+                        && !self.junk_tolerant_terminal(liveness, arm)
+                    {
+                        arms.insert(arm, (pred, join));
+                    }
+                }
+            }
+        }
+
+        let mut layouts: FxHashMap<BlockId, Vec<ValueId>> = FxHashMap::default();
+        for _ in 0..16 {
+            let resident_out = self.resident_out_sets(liveness, plan, &layouts, &planned_branches);
+            let wanted = self.wanted_sets(liveness, plan, &layouts, &planned_branches);
+            let mut changed = false;
+            for &join in &joins {
+                let block = &func.blocks[join];
+                let live_in = liveness.live_in(join);
+                // The first predecessor's stack order is the layout order, so that edge needs
+                // no shuffle and the others usually little.
+                let first = block.predecessors[0];
+                let mut carried = resident_out
+                    .get(&first)
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .filter(|&value| {
+                        live_in.contains(value)
+                            && self.carriable(value)
+                            && wanted.get(&join).is_some_and(|set| set.contains(&value))
+                            && block.predecessors.iter().all(|pred| {
+                                resident_out.get(pred).is_some_and(|list| list.contains(&value))
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                // Phi sources are the newest words of a predecessor, so the results ride on top.
+                let mut phis = self.phi_result_values(&self.phi_insts(block)).unwrap_or_default();
+                carried.truncate(LIVE_JOIN_LAYOUT_LIMIT - phis.len());
+                phis.extend(carried);
+                let carried = phis;
+                if layouts.get(&join) != Some(&carried) {
+                    layouts.insert(join, carried);
+                    changed = true;
+                }
+            }
+            for (&arm, &(pred, join)) in &arms {
+                // The join's words first, so the arm edge is the branch's identity edge, then
+                // whatever else the arm reads that the branch already holds.
+                let mut carried = layouts
+                    .get(&join)
+                    .and_then(|layout| self.layout_sources(join, layout, pred))
+                    .unwrap_or_default();
+                let live_in = liveness.live_in(arm);
+                let extras = resident_out
+                    .get(&pred)
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .filter(|&value| {
+                        live_in.contains(value)
+                            && self.carriable(value)
+                            && wanted.get(&arm).is_some_and(|set| set.contains(&value))
+                            && !carried.contains(&value)
+                    })
+                    .collect::<Vec<_>>();
+                for value in extras {
+                    if carried.len() == LIVE_JOIN_LAYOUT_LIMIT {
+                        break;
+                    }
+                    carried.push(value);
+                }
+                if layouts.get(&arm) != Some(&carried) {
+                    layouts.insert(arm, carried);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        layouts.retain(|_, layout| !layout.is_empty());
+        let mut join_layouts = layouts.clone();
+        join_layouts.retain(|block, _| is_join.contains(block));
+        let mut arm_layouts = layouts;
+        arm_layouts.retain(|block, _| arms.contains_key(block));
+        if join_layouts.is_empty() {
+            return;
+        }
+
+        // A predecessor that cannot produce a join's layout drops that join; dropping only
+        // shrinks the plan, so this converges.
+        loop {
+            let mut edges = FxHashMap::default();
+            let mut branches = FxHashMap::default();
+            let mut dropped = Vec::new();
+            let mut planned = join_layouts.keys().copied().collect::<Vec<_>>();
+            planned.sort_unstable_by_key(|block| block.index());
+            'joins: for join in planned {
+                let layout = &join_layouts[&join];
+                for &pred in func.blocks[join].predecessors.iter() {
+                    match func.blocks[pred].terminator.as_ref() {
+                        Some(Terminator::Jump(_)) => {
+                            let Some(sources) = self.layout_sources(join, layout, pred) else {
+                                dropped.push(join);
+                                continue 'joins;
+                            };
+                            edges.insert(pred, StackPhiEdge { sources, results: layout.clone() });
+                        }
+                        Some(Terminator::Branch { then_block, else_block, .. }) => {
+                            if branches.contains_key(&pred) {
+                                continue;
+                            }
+                            let mut planned_arms = [None, None];
+                            for (slot, &arm) in
+                                planned_arms.iter_mut().zip(&[*then_block, *else_block])
+                            {
+                                let Some(edge) =
+                                    self.arm_edge(liveness, pred, arm, &join_layouts, &arm_layouts)
+                                else {
+                                    dropped.push(join);
+                                    continue 'joins;
+                                };
+                                *slot = edge;
+                            }
+                            let [then_edge, else_edge] = planned_arms;
+                            let junk = |other: &Option<StackPhiEdge>| {
+                                let sources = other
+                                    .as_ref()
+                                    .map(|edge| edge.sources.clone())
+                                    .unwrap_or_default();
+                                StackPhiEdge { results: sources.clone(), sources }
+                            };
+                            let then_edge = then_edge.unwrap_or_else(|| junk(&else_edge));
+                            let else_edge =
+                                else_edge.unwrap_or_else(|| junk(&Some(then_edge.clone())));
+                            let union = union_values(&then_edge.sources, &else_edge.sources);
+                            if union.is_empty() || union.len() > MAX_STACK_ACCESS {
+                                dropped.push(join);
+                                continue 'joins;
+                            }
+                            branches.insert(pred, StackPhiBranch { then_edge, else_edge, union });
+                        }
+                        _ => {
+                            dropped.push(join);
+                            continue 'joins;
+                        }
+                    }
+                }
+            }
+            if !dropped.is_empty() {
+                for block in dropped {
+                    join_layouts.remove(&block);
+                }
+                if join_layouts.is_empty() {
+                    return;
+                }
+                continue;
+            }
+
+            for (join, layout) in join_layouts {
+                plan.entries.insert(join, layout);
+            }
+            for &pred in branches.keys() {
+                let Some(Terminator::Branch { then_block, else_block, .. }) =
+                    func.blocks[pred].terminator.as_ref()
+                else {
+                    continue;
+                };
+                for arm in [*then_block, *else_block] {
+                    if let Some(layout) = arm_layouts.get(&arm) {
+                        plan.entries.insert(arm, layout.clone());
+                    }
+                }
+            }
+            for (pred, edge) in edges {
+                plan.phi_edge_sources.insert(pred, Self::phi_sources_of(&edge));
+                plan.edges.insert(pred, edge);
+            }
+            for (pred, branch) in branches {
+                let mut sources = Self::phi_sources_of(&branch.then_edge);
+                for value in Self::phi_sources_of(&branch.else_edge) {
+                    if !sources.contains(&value) {
+                        sources.push(value);
+                    }
+                }
+                plan.phi_edge_sources.insert(pred, sources);
+                plan.branch_edges.insert(pred, branch);
+            }
+            return;
+        }
+    }
+
+    /// The live-in values a block reads itself or carries on to a successor that reads them,
+    /// so a layout never pays a shuffle for a word nothing downstream consumes on the stack.
+    fn wanted_sets(
+        &self,
+        liveness: &Liveness,
+        plan: &StackPhiPlan,
+        layouts: &FxHashMap<BlockId, Vec<ValueId>>,
+        planned_branches: &DenseBitSet<BlockId>,
+    ) -> FxHashMap<BlockId, FxHashSet<ValueId>> {
+        let func = self.func;
+        let carries_arm = |arm: BlockId| {
+            let block = &func.blocks[arm];
+            block.predecessors.len() == 1 && self.phi_insts(block).is_empty()
+                || self.junk_tolerant_terminal(liveness, arm)
+        };
+        let mut wanted: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
+        for _ in 0..8 {
+            let mut changed = false;
+            for (block_id, block) in func.blocks.iter_enumerated().rev() {
+                let live_in = liveness.live_in(block_id);
+                let mut set = FxHashSet::default();
+                for &inst in &block.instructions {
+                    let kind = &func.inst(inst).kind;
+                    if matches!(kind, InstKind::Phi(_)) {
+                        continue;
+                    }
+                    set.extend(
+                        kind.operands().into_iter().filter(|value| live_in.contains(*value)),
+                    );
+                }
+                if let Some(term) = &block.terminator {
+                    set.extend(
+                        term.operands().into_iter().filter(|value| live_in.contains(*value)),
+                    );
+                    let carried_succs: Vec<BlockId> = match term {
+                        Terminator::Jump(target) => {
+                            let target_block = &func.blocks[*target];
+                            (target_block.predecessors.len() == 1
+                                || layouts.contains_key(target)
+                                || plan.entries.contains_key(target))
+                            .then_some(*target)
+                            .into_iter()
+                            .collect()
+                        }
+                        Terminator::Branch { then_block, else_block, .. } => {
+                            let arms = [*then_block, *else_block];
+                            if planned_branches.contains(block_id) {
+                                arms.into_iter()
+                                    .filter(|arm| {
+                                        layouts.contains_key(arm) || plan.entries.contains_key(arm)
+                                    })
+                                    .collect()
+                            } else if arms.iter().all(|&arm| carries_arm(arm)) {
+                                arms.to_vec()
+                            } else {
+                                Vec::new()
+                            }
+                        }
+                        _ => Vec::new(),
+                    };
+                    let live_out = liveness.live_out(block_id);
+                    for succ in carried_succs {
+                        // A planned join carries exactly its layout; a chained block carries
+                        // whatever it wants.
+                        let onward: Vec<ValueId> = if let Some(layout) = layouts.get(&succ) {
+                            layout.clone()
+                        } else if let Some(entry) = plan.entries.get(&succ) {
+                            entry.clone()
+                        } else {
+                            wanted
+                                .get(&succ)
+                                .map(|set| set.iter().copied().collect())
+                                .unwrap_or_default()
+                        };
+                        set.extend(
+                            onward.into_iter().filter(|value| {
+                                live_in.contains(*value) && live_out.contains(*value)
+                            }),
+                        );
+                    }
+                }
+                if wanted.get(&block_id) != Some(&set) {
+                    wanted.insert(block_id, set);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        wanted
+    }
+
+    /// The values on the stack at every block's exit under the planned layouts: a block starts
+    /// from its planned entry, from what a single predecessor carries across a jump or a fully
+    /// preserved branch, or from nothing; keeps what it defines; and drains everything but its
+    /// later definitions at an internal call.
+    fn resident_out_sets(
+        &self,
+        liveness: &Liveness,
+        plan: &StackPhiPlan,
+        layouts: &FxHashMap<BlockId, Vec<ValueId>>,
+        planned_branches: &DenseBitSet<BlockId>,
+    ) -> FxHashMap<BlockId, Vec<ValueId>> {
+        let func = self.func;
+        let mut resident_out: FxHashMap<BlockId, Vec<ValueId>> = FxHashMap::default();
+        let carries_arm = |arm: BlockId| {
+            let block = &func.blocks[arm];
+            block.predecessors.len() == 1 && self.phi_insts(block).is_empty()
+                || self.junk_tolerant_terminal(liveness, arm)
+        };
+        for _ in 0..8 {
+            let mut changed = false;
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                let mut resident: Vec<ValueId> = if let Some(layout) = layouts.get(&block_id) {
+                    layout.clone()
+                } else if let Some(entry) = plan.entries.get(&block_id) {
+                    entry.clone()
+                } else if let [pred] = block.predecessors.as_slice()
+                    && let Some(term) = func.blocks[*pred].terminator.as_ref()
+                {
+                    let carried = match term {
+                        Terminator::Jump(_) => true,
+                        Terminator::Branch { then_block, else_block, .. } => {
+                            !planned_branches.contains(*pred)
+                                && carries_arm(*then_block)
+                                && carries_arm(*else_block)
+                        }
+                        _ => false,
+                    };
+                    if carried {
+                        resident_out.get(pred).cloned().unwrap_or_default()
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+                for &inst in &block.instructions {
+                    let kind = &func.inst(inst).kind;
+                    if matches!(kind, InstKind::InternalCall { .. }) {
+                        resident.clear();
+                    }
+                    // Layouts list the top of the stack first; a new definition lands on top.
+                    if let Some(result) = func.inst_result_value(inst)
+                        && self.carriable(result)
+                        && !resident.contains(&result)
+                    {
+                        resident.insert(0, result);
+                    }
+                }
+                let live_out = liveness.live_out(block_id);
+                resident.retain(|value| live_out.contains(*value));
+                if resident_out.get(&block_id) != Some(&resident) {
+                    resident_out.insert(block_id, resident);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        resident_out
+    }
+
+    /// The words of an edge that feed phis rather than ride through unchanged. Only these skip
+    /// their definition-time store: a carried live-in keeps its store, so a later block that
+    /// finds it dropped can still reload it.
+    fn phi_sources_of(edge: &StackPhiEdge) -> Vec<ValueId> {
+        edge.sources
+            .iter()
+            .zip(&edge.results)
+            .filter(|(source, result)| source != result)
+            .map(|(&source, _)| source)
+            .collect()
+    }
+
+    /// The edge a planned branch `pred` uses for one of its arms: the arm's join layout, the
+    /// arm's own layout when only `pred` enters it, `Some(None)` for an aborting arm that
+    /// tolerates the carried words, and an empty edge for anything else. A planned branch owns
+    /// the phi copies of both arms, so an arm with phis must be a planned join whose layout
+    /// this predecessor can produce; otherwise the branch cannot be planned.
+    fn arm_edge(
+        &self,
+        liveness: &Liveness,
+        pred: BlockId,
+        arm: BlockId,
+        join_layouts: &FxHashMap<BlockId, Vec<ValueId>>,
+        arm_layouts: &FxHashMap<BlockId, Vec<ValueId>>,
+    ) -> Option<Option<StackPhiEdge>> {
+        if let Some(layout) = join_layouts.get(&arm) {
+            let sources = self.layout_sources(arm, layout, pred)?;
+            return Some(Some(StackPhiEdge { sources, results: layout.clone() }));
+        }
+        if let Some(layout) = arm_layouts.get(&arm) {
+            return Some(Some(StackPhiEdge { sources: layout.clone(), results: layout.clone() }));
+        }
+        if self.junk_tolerant_terminal(liveness, arm) {
+            return Some(None);
+        }
+        if !self.phi_insts(&self.func.blocks[arm]).is_empty() {
+            return None;
+        }
+        Some(Some(StackPhiEdge { sources: Vec::new(), results: Vec::new() }))
+    }
+
+    /// Whether a block may be entered with arbitrary words beneath the stack it expects: it
+    /// reads no live-in value and aborts, directly or through a cold tail call.
+    fn junk_tolerant_terminal(&self, liveness: &Liveness, block: BlockId) -> bool {
+        liveness
+            .live_in(block)
+            .iter()
+            .all(|value| matches!(self.func.value(value), crate::mir::Value::Immediate(_)))
+            && match &self.func.blocks[block].terminator {
+                Some(
+                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid,
+                ) => true,
+                Some(Terminator::TailCall { function, .. }) => {
+                    self.cold_functions.contains(*function)
+                }
+                _ => false,
+            }
+    }
+
+    /// Whether a layout may carry `value`: an instruction result that is cheaper to keep than
+    /// to recompute.
+    fn carriable(&self, value: ValueId) -> bool {
+        matches!(
+            self.func.value(value),
+            crate::mir::Value::Inst(inst) if !self.func.inst(*inst).kind.is_always_rematerializable()
+        )
+    }
+
+    /// The words `pred` places for `block`'s layout: a phi result comes from its incoming
+    /// value for `pred`, every other value is itself.
+    fn layout_sources(
+        &self,
+        block_id: BlockId,
+        layout: &[ValueId],
+        pred: BlockId,
+    ) -> Option<Vec<ValueId>> {
+        let block = &self.func.blocks[block_id];
+        let phi_insts = self.phi_insts(block);
+        let results = self.phi_result_values(&phi_insts)?;
+        let incoming = self.phi_sources_for_pred(&phi_insts, pred)?;
+        layout
+            .iter()
+            .map(|&value| match results.iter().position(|&result| result == value) {
+                Some(index) => Some(incoming[index]),
+                None => Some(value),
+            })
+            .collect()
     }
 
     /// Plans branch edges whose two destinations are phi-only blocks in one loop-shaped CFG.
@@ -3030,15 +3564,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.elided_insts.clear();
         self.collect_late_gas_operands(func);
         let phi_result = PhiEliminator::analyze(func);
-        let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
         // Stack-phi planning starts with loop analysis, but cannot produce a
         // plan without a phi. Avoid that analysis for the overwhelmingly
         // common phi-free function.
-        let mut stack_phi_plan =
-            if has_phis { StackPhiPlan::analyze(func, liveness) } else { StackPhiPlan::default() };
+        let mut stack_phi_plan = StackPhiPlan::analyze(func, liveness, &self.cold_functions);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let existing_stack_only_values = self.stack_only_values(func_id, true);
         let hazard_recomputable = Self::cross_block_recomputable_values_with(func, |value| {
@@ -3110,7 +3642,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                     func,
                     liveness,
                     &cross_block_live,
-                    has_phis,
                 )
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.
@@ -3204,7 +3735,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.loaded_spill_slots.clear();
         self.deferred_spill_store_removals.clear();
         for values in stack_phi_plan
-            .edge_sources
+            .edge_sources()
             .values()
             .chain(stack_phi_plan.entries.values())
             .chain(global_stack_plan.entries.values())
@@ -3494,7 +4025,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if !self.can_prepare_stack_phi_edge(func, edge) {
                     return false;
                 }
-                self.spill_live_out_values_except(func, liveness, block_id, &edge.sources);
+                // A source that only feeds a phi becomes the phi result across the edge; it
+                // survives as itself only when the layout carries it too.
+                self.spill_live_out_values_except(func, liveness, block_id, &edge.results);
                 self.pop_stack_values_not_needed_by(&edge.sources);
                 self.try_emit_stack_phi_edge(func, edge)
             });
@@ -3560,6 +4093,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let preserve_branch_targets = if !has_edge_specific_global
                 && !preserve_stack_to_fallthrough
                 && preserve_jump_target.is_none()
+                && !stack_phi_branch_preserved
             {
                 self.branch_preserve_targets(func, liveness, block_id, pos, &block_pos)
             } else {
@@ -3637,8 +4171,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             // blocks. For a preserved edge, keep stack values live instead.
             if stack_phi_branch_preserved
                 && let Some(branch) = stack_phi_plan.branch_edges.get(&block_id)
+                && let Some(Terminator::Branch { then_block, else_block, .. }) =
+                    block.terminator.as_ref()
             {
-                self.spill_live_out_values_except(func, liveness, block_id, &branch.union);
+                // A carried word is exempt only where every arm that reads it still holds it
+                // after the edge: a source that only feeds a phi becomes the phi result there,
+                // and an arm that reloads the word from memory needs the store.
+                let arms = [(*then_block, &branch.then_edge), (*else_block, &branch.else_edge)];
+                let exempt = branch
+                    .union
+                    .iter()
+                    .copied()
+                    .filter(|value| {
+                        arms.iter().all(|(arm, edge)| {
+                            !liveness.live_in(*arm).contains(*value) || edge.results.contains(value)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                self.spill_live_out_values_except(func, liveness, block_id, &exempt);
             } else if !preserve_stack {
                 self.spill_live_out_values(func, liveness, block_id);
             }
@@ -4438,6 +4988,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn can_emit_stack_phi_value(&self, func: &Function, value: ValueId) -> bool {
         self.scheduler.can_emit_value(value, func)
             || self.scheduler.should_recompute_unstored_spill(value)
+            || Self::is_always_rematerializable_value(func, value)
     }
 
     fn can_prepare_stack_phi_branch(
@@ -7147,7 +7698,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
-        has_phis: bool,
+        cold_functions: &DenseBitSet<FunctionId>,
     ) -> ResidentSearchContext {
         let mut value_uses = FxHashMap::default();
         for block in &func.blocks {
@@ -7163,7 +7714,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         ResidentSearchContext {
-            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func, liveness)),
+            phi_plan: Some(StackPhiPlan::analyze(func, liveness, cold_functions)),
             cfg: CfgInfo::new(func),
             value_uses,
         }
@@ -7308,7 +7859,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-        has_phis: bool,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
         let mut use_counts = FxHashMap::default();
@@ -7347,7 +7897,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = Self::resident_search_context(func, liveness, values, has_phis);
+        let context = Self::resident_search_context(func, liveness, values, &self.cold_functions);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -7400,7 +7950,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
-        has_phis: bool,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !Self::is_external_entry(func)
@@ -7475,7 +8024,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .take(GLOBAL_STACK_LAYOUT_LIMIT)
             .map(|(value, _, _)| value)
             .collect::<Vec<_>>();
-        self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
+        self.select_cross_block_stack_layout(func, liveness, &values)
     }
 
     /// Keeps values that survive a low-memory calldata copy in a canonical
@@ -7600,7 +8149,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
-        has_phis: bool,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if values.is_empty() {
             return None;
@@ -7639,7 +8187,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = Self::resident_search_context(func, liveness, values, has_phis);
+        let context = Self::resident_search_context(func, liveness, values, &self.cold_functions);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -7818,7 +8366,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                let context = Self::resident_search_context(func, liveness, &values, has_phis);
+                let context =
+                    Self::resident_search_context(func, liveness, &values, &self.cold_functions);
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
@@ -7831,13 +8380,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // one difficult value would otherwise disable every independent resident
                     // argument.
                     plan
-                } else if let Some((subset, plan)) = self.select_resident_layout(
-                    func,
-                    liveness,
-                    &values,
-                    self.preserve_caller_stack,
-                    has_phis,
-                ) {
+                } else if let Some((subset, plan)) =
+                    self.select_resident_layout(func, liveness, &values, self.preserve_caller_stack)
+                {
                     values = subset;
                     mask.clear();
                     for &value in &values {
@@ -12343,7 +12888,7 @@ mod tests {
                 builder.ret([acc]);
                 let liveness = Liveness::compute(&function);
                 codegen
-                    .select_resident_layout(&function, &liveness, &[argument], false, false)
+                    .select_resident_layout(&function, &liveness, &[argument], false)
                     .map(|(values, _)| values)
             })
         };

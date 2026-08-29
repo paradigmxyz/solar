@@ -514,7 +514,7 @@ bb9:
   jumpi
   calldataload
   dup 2
-  push 256
+  push 224
   mstore
   dup 2
   calldatasize
@@ -556,7 +556,7 @@ bb9:
   push bb4
   jumpi
   dup 3
-  push 192
+  push 160
   mstore
   dup 3
   push 5
@@ -572,7 +572,7 @@ bb9:
   calldatasize
   sub
   dup 2
-  push 224
+  push 192
   mstore
   dup 2
   sgt
@@ -609,9 +609,6 @@ bb9:
   pop
   swap 3
   pop
-  dup 3
-  push 160
-  mstore
   push 0
   not
   push 192
@@ -623,9 +620,6 @@ bb9:
   dup 3
   calldatasize
   sub
-  dup 2
-  push 288
-  mstore
   dup 2
   sgt
   push bb4
@@ -650,13 +644,7 @@ bb9:
   dup 2
   add
   dup 5
-  dup 1
-  push 160
-  mstore
   dup 4
-  dup 1
-  push 288
-  mstore
   dup 3
   calldatacopy
   pop
@@ -680,7 +668,7 @@ bb9:
   add
   dup 3
   dup 1
-  push 320
+  push 256
   mstore
   dup 2
   mstore
@@ -712,7 +700,7 @@ bb9:
   push 64
   mload
   dup 1
-  push 224
+  push 192
   mstore
   push 0xfa06cb96
   push 224
@@ -723,13 +711,13 @@ bb9:
   dup 2
   add
   dup 1
-  push 352
+  push 288
   mstore
   push 68
   dup 3
   add
   dup 1
-  push 320
+  push 256
   mstore
   push 0
   dup 3
@@ -748,12 +736,12 @@ bb9:
   swap 6
   mload
   dup 1
-  push 384
+  push 320
   mstore
   swap 3
   mload
   dup 1
-  push 256
+  push 224
   mstore
   push 196
   dup 4
@@ -777,13 +765,13 @@ bb9:
   mload
   mul
   dup 1
-  push 416
+  push 352
   mstore
   dup 7
   mstore
   swap 5
   pop
-  push 416
+  push 352
   mload
   push 5
   shl
@@ -819,51 +807,42 @@ bb9:
   mload
   mul
   dup 1
-  push 192
+  push 160
   mstore
   dup 7
   mstore
   push 31
-  push 192
+  push 160
   mload
   add
   push 31
   not
   and
-  dup 1
-  push 288
-  mstore
   swap 6
   push 32
   add
-  push 160
-  mstore
+  swap 5
   pop
   pop
   pop
   pop
   pop
+  dup 2
   push bb26
   jumpi
   jump bb27
 bb27:
-  push 160
-  mload
-  push 288
-  mload
+  swap 1
   dup 2
   add
   push 32
-  push 384
+  push 320
   mload
   add
-  push 192
+  push 160
   mload
   dup 2
   dup 5
-  dup 1
-  push 160
-  mstore
   mcopy
   pop
   swap 1
@@ -872,21 +851,21 @@ bb27:
   not
   push 96
   shr
-  push 256
+  push 224
   mload
   and
   push 164
-  push 224
+  push 192
   mload
   add
   mstore
-  push 320
+  push 256
   mload
   dup 1
   swap 2
   sub
   add
-  push 352
+  push 288
   mload
   swap 1
   sub
@@ -947,7 +926,7 @@ bb23:
   mstore
   dup 2
   dup 1
-  push 224
+  push 192
   mstore
   dup 2
   mstore
@@ -956,7 +935,7 @@ bb23:
   add
   dup 3
   dup 1
-  push 224
+  push 192
   mstore
   push 0
   dup 3
@@ -979,11 +958,9 @@ bb23:
   jump bb28
 bb26:
   push 32
-  push 288
-  mload
+  dup 3
   sub
-  push 160
-  mload
+  dup 2
   add
   push 0
   swap 1
