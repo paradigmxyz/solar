@@ -1284,7 +1284,7 @@ async fn synchronous_discovery_refreshes_watched_file_specs_before_analysis() {
     state.config = Arc::new(config);
     *state.watched_file_registration.desired_specs.lock() = Some(initial_specs);
 
-    state.rediscover_workspaces();
+    state.rediscover_workspaces().unwrap();
 
     let specs = state.watched_file_registration.desired_specs.lock();
     assert!(

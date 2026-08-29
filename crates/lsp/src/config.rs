@@ -671,12 +671,22 @@ impl Config {
         self.flychecks.iter().map(FlycheckConfig::owner)
     }
 
+    #[cfg(test)]
     pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
-        let cancellation = IndexingCancellation::default();
-        let Some(result) = self.discover_workspaces(&cancellation) else { return Vec::new() };
-        self.apply_workspace_discovery(result)
+        self.try_rediscover_workspaces().unwrap_or_default()
     }
 
+    pub(crate) fn try_rediscover_workspaces(
+        &mut self,
+    ) -> Result<Vec<DiagnosticOwner>, WorkspaceError> {
+        let cancellation = IndexingCancellation::default();
+        let Some(result) = self.try_discover_workspaces(&cancellation)? else {
+            return Ok(Vec::new());
+        };
+        Ok(self.apply_workspace_discovery(result))
+    }
+
+    #[cfg(any(test, feature = "bench"))]
     pub(crate) fn discover_workspaces(
         &self,
         cancellation: &IndexingCancellation,
@@ -821,6 +831,10 @@ impl Config {
                 self.workspace_roots.push(path);
             }
         }
+    }
+
+    pub(crate) fn replace_workspace_roots(&mut self, roots: Vec<PathBuf>) {
+        self.workspace_roots = roots;
     }
 
     pub(crate) fn reconcile_workspace_roots(

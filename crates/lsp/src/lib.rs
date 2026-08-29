@@ -385,6 +385,7 @@ fn new_router_with_state(mut this: GlobalState) -> Router<GlobalState> {
         })
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .event::<global_state::WorkspaceDiscoveryReady>(GlobalState::on_workspace_discovery_ready)
+        .event::<global_state::WorkspaceDiscoveryFailed>(GlobalState::on_workspace_discovery_failed)
         .event::<global_state::DeferredSourceFileEventsReady>(
             GlobalState::on_deferred_source_file_events_ready,
         )

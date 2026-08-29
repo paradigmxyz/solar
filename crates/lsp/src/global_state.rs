@@ -167,6 +167,12 @@ pub(crate) struct WorkspaceDiscoveryReady {
     cancellation: IndexingCancellation,
 }
 
+pub(crate) struct WorkspaceDiscoveryFailed {
+    version: usize,
+    error: String,
+    progress: ProgressTicket,
+}
+
 pub(crate) struct DeferredSourceFileEventsReady {
     version: usize,
     events: Vec<(PathBuf, FileChangeType)>,
@@ -180,10 +186,7 @@ struct WorkspaceDiscoveryMonitor {
     progress: ProgressTicket,
     cancellation: IndexingCancellation,
     analysis_version: Arc<AtomicUsize>,
-    published_analysis_version: watch::Sender<usize>,
-    analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     client: ClientSocket,
-    config: Arc<Config>,
 }
 
 impl WorkspaceDiscoveryMonitor {
@@ -205,41 +208,19 @@ impl WorkspaceDiscoveryMonitor {
                 });
             }
             Ok(Err(error)) if !self.cancellation.is_cancelled() => {
-                if let Some(refresh_requests) = handle_analysis_failure(
-                    self.version,
-                    error,
-                    &self.analysis_version,
-                    &self.published_analysis_version,
-                    &self.analysis_commit,
-                ) {
-                    finish_analysis_progress_if_current(
-                        self.version,
-                        &self.analysis_version,
-                        &self.analysis_commit,
-                        &self.progress,
-                        "Workspace indexing failed",
-                    );
-                    request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
-                }
+                let _ = self.client.emit(WorkspaceDiscoveryFailed {
+                    version: self.version,
+                    error: error.to_string(),
+                    progress: self.progress,
+                });
             }
             Ok(_) => {}
             Err(error) => {
-                if let Some(refresh_requests) = handle_analysis_failure(
-                    self.version,
-                    error,
-                    &self.analysis_version,
-                    &self.published_analysis_version,
-                    &self.analysis_commit,
-                ) {
-                    finish_analysis_progress_if_current(
-                        self.version,
-                        &self.analysis_version,
-                        &self.analysis_commit,
-                        &self.progress,
-                        "Workspace indexing failed",
-                    );
-                    request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
-                }
+                let _ = self.client.emit(WorkspaceDiscoveryFailed {
+                    version: self.version,
+                    error: error.to_string(),
+                    progress: self.progress,
+                });
             }
         }
     }
@@ -261,6 +242,7 @@ struct PendingExternalRefresh {
 struct AnalysisCommitState {
     cache_invalidated: bool,
     discovery_pending: bool,
+    workspace_roots_before_change: Option<Vec<PathBuf>>,
     analysis_paths: AnalysisPathIndex,
     deferred_source_file_events: FxHashMap<PathBuf, FileChangeType>,
     external_refresh: Option<PendingExternalRefresh>,
@@ -794,6 +776,10 @@ impl GlobalState {
         );
     }
 
+    pub(crate) fn record_workspace_root_change(&mut self, previous_roots: Vec<PathBuf>) {
+        self.analysis_commit.lock().workspace_roots_before_change.get_or_insert(previous_roots);
+    }
+
     pub(crate) fn reindex_if_invalidated(&mut self) {
         self.request_analysis(
             AnalysisMode::IfInvalidated,
@@ -892,9 +878,18 @@ impl GlobalState {
             if self.background_discovery {
                 self.schedule_workspace_discovery(version, disk_paths, progress, delay);
             } else {
-                self.rediscover_workspaces();
-                self.analysis_commit.lock().discovery_pending = false;
-                self.schedule_analysis(version, disk_paths, progress, delay);
+                match self.rediscover_workspaces() {
+                    Ok(()) => {
+                        let mut commit = self.analysis_commit.lock();
+                        commit.discovery_pending = false;
+                        commit.workspace_roots_before_change = None;
+                        drop(commit);
+                        self.schedule_analysis(version, disk_paths, progress, delay);
+                    }
+                    Err(error) => {
+                        self.finish_workspace_discovery_failure(version, error, progress);
+                    }
+                }
             }
         } else {
             self.schedule_analysis(version, disk_paths, progress, delay);
@@ -930,8 +925,6 @@ impl GlobalState {
         let config = self.config.clone();
         let client = self.client.clone();
         let analysis_version = self.analysis_version.clone();
-        let published_analysis_version = self.published_analysis_version.clone();
-        let analysis_commit = self.analysis_commit.clone();
         let cancellation = IndexingCancellation::default();
         let task_key = AnalysisTaskKey { version, stage: AnalysisTaskStage::Discovery };
 
@@ -968,10 +961,7 @@ impl GlobalState {
                 progress,
                 cancellation,
                 analysis_version,
-                published_analysis_version,
-                analysis_commit,
                 client,
-                config,
             }
             .finish(worker)
             .await;
@@ -999,6 +989,7 @@ impl GlobalState {
         let deferred_source_file_events = {
             let mut commit = self.analysis_commit.lock();
             commit.discovery_pending = false;
+            commit.workspace_roots_before_change = None;
             mem::take(&mut commit.deferred_source_file_events)
         };
         let mut deferred_paths = Vec::new();
@@ -1034,6 +1025,17 @@ impl GlobalState {
             event.cancellation,
             false,
         );
+        ControlFlow::Continue(())
+    }
+
+    pub(crate) fn on_workspace_discovery_failed(
+        &mut self,
+        event: WorkspaceDiscoveryFailed,
+    ) -> NotifyResult {
+        if self.analysis_version.load(Ordering::Acquire) != event.version {
+            return ControlFlow::Continue(());
+        }
+        self.finish_workspace_discovery_failure(event.version, event.error, event.progress);
         ControlFlow::Continue(())
     }
 
@@ -1207,10 +1209,40 @@ impl GlobalState {
         self.analysis_version.load(Ordering::Relaxed).wrapping_add(1)
     }
 
-    fn rediscover_workspaces(&mut self) {
-        let removed_owners = Arc::make_mut(&mut self.config).rediscover_workspaces();
+    fn rediscover_workspaces(&mut self) -> Result<(), WorkspaceError> {
+        let removed_owners = Arc::make_mut(&mut self.config).try_rediscover_workspaces()?;
         self.clear_removed_flycheck_diagnostics(removed_owners);
         self.reregister_watched_files();
+        Ok(())
+    }
+
+    fn finish_workspace_discovery_failure(
+        &mut self,
+        version: usize,
+        error: impl std::fmt::Display,
+        progress: ProgressTicket,
+    ) {
+        let roots = self.analysis_commit.lock().workspace_roots_before_change.take();
+        if let Some(roots) = roots {
+            Arc::make_mut(&mut self.config).replace_workspace_roots(roots);
+            self.reregister_watched_files();
+        }
+        if let Some(refresh_requests) = handle_analysis_failure(
+            version,
+            error,
+            &self.analysis_version,
+            &self.published_analysis_version,
+            &self.analysis_commit,
+        ) {
+            finish_analysis_progress_if_current(
+                version,
+                &self.analysis_version,
+                &self.analysis_commit,
+                &progress,
+                "Workspace indexing failed",
+            );
+            request_pull_result_refreshes(&self.client, &self.config, refresh_requests);
+        }
     }
 
     #[cfg(test)]
