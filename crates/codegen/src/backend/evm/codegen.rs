@@ -1008,11 +1008,15 @@ impl<'a> StackPhiPlanner<'a> {
                 .or_default()
                 .extend(loop_info.back_edges.iter().copied());
         }
+        // Two phases: an optimistic one where a successor asks for everything it wants, so a
+        // word can enter a chain of layouts that each depend on the next, then a precise one
+        // where a successor asks only for its converged layout, pruning what nothing keeps.
         let mut banned: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
         let mut layouts: FxHashMap<BlockId, Vec<ValueId>> = FxHashMap::default();
-        for _ in 0..32 {
+        let mut precise = false;
+        for _ in 0..64 {
             let resident_out = self.resident_out_sets(liveness, plan, &layouts, &planned_branches);
-            let wanted = self.wanted_sets(liveness, plan, &layouts, &planned_branches);
+            let wanted = self.wanted_sets(liveness, plan, &layouts, &planned_branches, precise);
             let mut changed = false;
             for &join in &joins {
                 let block = &func.blocks[join];
@@ -1023,6 +1027,10 @@ impl<'a> StackPhiPlanner<'a> {
                 // The first forward predecessor's stack order is the layout order, so that
                 // edge needs no shuffle and the others usually little.
                 let Some(first) = forward.clone().next() else { continue };
+                // A wide join shuffles every predecessor into one order; a word the join only
+                // passes on rarely pays that there.
+                let wide = block.predecessors.len() > 2;
+                let used_here = self.block_uses(join);
                 let mut carried = resident_out
                     .get(&first)
                     .into_iter()
@@ -1033,6 +1041,7 @@ impl<'a> StackPhiPlanner<'a> {
                             && self.carriable(value)
                             && !banned.get(&join).is_some_and(|set| set.contains(&value))
                             && wanted.get(&join).is_some_and(|set| set.contains(&value))
+                            && (!precise || !wide || used_here.contains(&value))
                             && forward.clone().all(|pred| {
                                 resident_out.get(&pred).is_some_and(|list| list.contains(&value))
                             })
@@ -1100,8 +1109,15 @@ impl<'a> StackPhiPlanner<'a> {
                     }
                 }
                 if !changed {
-                    break;
+                    if precise {
+                        break;
+                    }
+                    precise = true;
+                    changed = true;
                 }
+            }
+            if !changed && precise {
+                break;
             }
         }
         layouts.retain(|_, layout| !layout.is_empty());
@@ -1224,6 +1240,7 @@ impl<'a> StackPhiPlanner<'a> {
         plan: &StackPhiPlan,
         layouts: &FxHashMap<BlockId, Vec<ValueId>>,
         planned_branches: &DenseBitSet<BlockId>,
+        precise: bool,
     ) -> FxHashMap<BlockId, FxHashSet<ValueId>> {
         let func = self.func;
         let carries_arm = |arm: BlockId| {
@@ -1280,7 +1297,13 @@ impl<'a> StackPhiPlanner<'a> {
                     for succ in carried_succs {
                         // A planned join carries exactly its layout; a chained block carries
                         // whatever it wants.
-                        let onward: Vec<ValueId> = if let Some(layout) = layouts.get(&succ) {
+                        // A loop header never asks optimistically: a word carried around a loop
+                        // pays its shuffle on every iteration.
+                        let loop_header =
+                            self.loops.iter().any(|loop_info| loop_info.header == succ);
+                        let onward: Vec<ValueId> = if let Some(layout) =
+                            layouts.get(&succ).filter(|_| precise || loop_header)
+                        {
                             layout.clone()
                         } else if let Some(entry) = plan.entries.get(&succ) {
                             entry.clone()
@@ -1438,6 +1461,22 @@ impl<'a> StackPhiPlanner<'a> {
                 }
                 _ => false,
             }
+    }
+
+    /// The values a block's own instructions and terminator read.
+    fn block_uses(&self, block_id: BlockId) -> FxHashSet<ValueId> {
+        let block = &self.func.blocks[block_id];
+        let mut uses = FxHashSet::default();
+        for &inst in &block.instructions {
+            let kind = &self.func.inst(inst).kind;
+            if !matches!(kind, InstKind::Phi(_)) {
+                uses.extend(kind.operands());
+            }
+        }
+        if let Some(term) = &block.terminator {
+            uses.extend(term.operands());
+        }
+        uses
     }
 
     /// Whether a layout may carry `value`: an instruction result that is cheaper to keep than
