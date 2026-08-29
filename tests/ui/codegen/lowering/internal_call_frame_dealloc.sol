@@ -20,7 +20,7 @@ contract InternalCallFrameDealloc {
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[SECOND_RET:bb[0-9]+]]
+    // CHECK: push [[SECOND_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
     // CHECK: [[SECOND_RET]]:
     // CHECK: push 64

@@ -28,10 +28,13 @@ contract SF {
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Runtime static frames omit the unused dynamic-frame header.
-    // CHECK: eq
-    // CHECK-NEXT: swap 1
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: iszero
+    // CHECK: mul
+    // CHECK-NEXT: push 3
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: div
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: sub
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
@@ -48,8 +51,7 @@ contract SF {
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
+    // CHECK: push [[TOP_REC_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
     // CHECK-NEXT: [[REC_ENTRY]]:
     // CHECK-NEXT: push 160

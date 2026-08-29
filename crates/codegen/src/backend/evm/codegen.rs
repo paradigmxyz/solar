@@ -3825,7 +3825,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // A shared terminal arm — typically the revert every check branches to — starts
             // from an empty model, never reads below the words it pushes itself, and ends the
             // execution path, so the carried words may stay beneath it as junk.
-            if !has_phi && Self::is_junk_tolerant_terminal(func, liveness, target) {
+            if !has_phi && self.is_junk_tolerant_terminal(func, liveness, target) {
                 continue;
             }
             return Vec::new();
@@ -3892,19 +3892,29 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Whether a block may be entered with arbitrary extra words beneath the stack it expects:
-    /// it consumes no live-in values and aborts. A `stop` is not enough — in an internal
-    /// function it is a return, and the caller's stack must not carry the junk.
-    fn is_junk_tolerant_terminal(func: &Function, liveness: &Liveness, block: BlockId) -> bool {
+    /// it consumes no live-in values and aborts, either directly or through a tail call into a
+    /// cold function, which never returns to the label the junk would bury. A `stop` is not
+    /// enough — in an internal function it is a return, and the caller's stack must not carry
+    /// the junk.
+    fn is_junk_tolerant_terminal(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        block: BlockId,
+    ) -> bool {
         liveness
             .live_in(block)
             .iter()
             .all(|value| matches!(func.value(value), crate::mir::Value::Immediate(_)))
-            && matches!(
-                func.blocks[block].terminator,
+            && match &func.blocks[block].terminator {
                 Some(
-                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid
-                )
-            )
+                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid,
+                ) => true,
+                Some(Terminator::TailCall { function, .. }) => {
+                    self.cold_functions.contains(*function)
+                }
+                _ => false,
+            }
     }
 
     /// Finds functions whose reachable exits all abort, including chains of
