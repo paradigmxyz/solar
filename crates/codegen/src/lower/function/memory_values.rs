@@ -40,6 +40,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = self.lower_expr(element)?;
             let value =
                 self.coerce_value(value, self.context.gcx.type_of_expr(element.id)?, element_ty);
+            let value = self.materialize_memory_argument(element_ty, value, element.span)?;
             let value = self.encode_memory_scalar(element_ty, value);
             let index = self.builder.imm_u64(index as u64);
             self.builder.memory_object_store_element(object, layout, index, value);
