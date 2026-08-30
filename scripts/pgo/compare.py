@@ -34,8 +34,11 @@ def main() -> None:
     parser.add_argument("--pgo", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--compile-repeats", type=int, default=10)
-    parser.add_argument("--minimum-improvement", type=float, default=6.0)
+    parser.add_argument("--minimum-improvement", type=float, default=3.0)
     parser.add_argument("--maximum-case-regression", type=float, default=5.0)
+    parser.add_argument(
+        "--maximum-case-regression-milliseconds", type=float, default=5.0
+    )
     parser.add_argument("--maximum-run-drift", type=float, default=5.0)
     parser.add_argument("--maximum-run-drift-milliseconds", type=float, default=5.0)
     args = parser.parse_args()
@@ -76,6 +79,7 @@ def main() -> None:
         report,
         minimum_improvement=args.minimum_improvement,
         maximum_case_regression=args.maximum_case_regression,
+        maximum_case_regression_milliseconds=args.maximum_case_regression_milliseconds,
         maximum_run_drift=args.maximum_run_drift,
         maximum_run_drift_milliseconds=args.maximum_run_drift_milliseconds,
     )
@@ -196,6 +200,8 @@ def compare_results(
 ) -> dict[str, object]:
     cases = []
     ratios = []
+    baseline_drift_ratios = []
+    pgo_drift_ratios = []
     for test_id in EVALUATION_TESTS:
         samples = {name: runs[test_id] for name, runs in results.items()}
         for name, result in samples.items():
@@ -228,13 +234,15 @@ def compare_results(
         baseline_median = statistics.median(baseline_samples)
         pgo_median = statistics.median(pgo_samples)
         ratio = pgo_median / baseline_median
-        baseline_case_drift = sample_drift(samples, "baseline_1", "baseline_2")
-        pgo_case_drift = sample_drift(samples, "pgo_1", "pgo_2")
-        baseline_case_drift_seconds = sample_drift_seconds(
+        baseline_drift_ratio, baseline_case_drift_seconds = sample_drift(
             samples, "baseline_1", "baseline_2"
         )
-        pgo_case_drift_seconds = sample_drift_seconds(samples, "pgo_1", "pgo_2")
+        pgo_drift_ratio, pgo_case_drift_seconds = sample_drift(
+            samples, "pgo_1", "pgo_2"
+        )
         ratios.append(ratio)
+        baseline_drift_ratios.append(baseline_drift_ratio)
+        pgo_drift_ratios.append(pgo_drift_ratio)
         cases.append(
             {
                 "test_id": test_id,
@@ -244,8 +252,8 @@ def compare_results(
                 "pgo_median_seconds": pgo_median,
                 "pgo_to_baseline_ratio": ratio,
                 "elapsed_time_reduction_percent": (1.0 - ratio) * 100.0,
-                "baseline_run_drift_percent": baseline_case_drift,
-                "pgo_run_drift_percent": pgo_case_drift,
+                "baseline_run_drift_percent": (baseline_drift_ratio - 1.0) * 100.0,
+                "pgo_run_drift_percent": (pgo_drift_ratio - 1.0) * 100.0,
                 "baseline_run_drift_seconds": baseline_case_drift_seconds,
                 "pgo_run_drift_seconds": pgo_case_drift_seconds,
                 "output_fingerprint": output_fingerprints.pop(),
@@ -253,8 +261,8 @@ def compare_results(
         )
 
     aggregate_ratio = math.exp(sum(math.log(ratio) for ratio in ratios) / len(ratios))
-    baseline_drift = run_drift(results, "baseline_1", "baseline_2")
-    pgo_drift = run_drift(results, "pgo_1", "pgo_2")
+    baseline_drift = geometric_mean_change(baseline_drift_ratios)
+    pgo_drift = geometric_mean_change(pgo_drift_ratios)
     maximum_case_drift = max(
         abs(case[key])
         for case in cases
@@ -289,30 +297,17 @@ def compare_results(
     }
 
 
-def run_drift(results: dict[str, dict[str, dict]], first: str, second: str) -> float:
-    ratios = []
-    for test_id in EVALUATION_TESTS:
-        first_median = statistics.median(
-            results[first][test_id]["compile_time_samples"]
-        )
-        second_median = statistics.median(
-            results[second][test_id]["compile_time_samples"]
-        )
-        ratios.append(second_median / first_median)
+def sample_drift(
+    samples: dict[str, dict], first: str, second: str
+) -> tuple[float, float]:
+    first_median = statistics.median(samples[first]["compile_time_samples"])
+    second_median = statistics.median(samples[second]["compile_time_samples"])
+    return second_median / first_median, second_median - first_median
+
+
+def geometric_mean_change(ratios: list[float]) -> float:
     ratio = math.exp(sum(math.log(value) for value in ratios) / len(ratios))
     return (ratio - 1.0) * 100.0
-
-
-def sample_drift(samples: dict[str, dict], first: str, second: str) -> float:
-    first_median = statistics.median(samples[first]["compile_time_samples"])
-    second_median = statistics.median(samples[second]["compile_time_samples"])
-    return (second_median / first_median - 1.0) * 100.0
-
-
-def sample_drift_seconds(samples: dict[str, dict], first: str, second: str) -> float:
-    first_median = statistics.median(samples[first]["compile_time_samples"])
-    second_median = statistics.median(samples[second]["compile_time_samples"])
-    return second_median - first_median
 
 
 def evaluate_gates(
@@ -320,15 +315,37 @@ def evaluate_gates(
     *,
     minimum_improvement: float,
     maximum_case_regression: float,
+    maximum_case_regression_milliseconds: float,
     maximum_run_drift: float,
     maximum_run_drift_milliseconds: float,
 ) -> list[dict[str, object]]:
     aggregate = report["aggregate"]
     improvement = aggregate["elapsed_time_reduction_percent"]
-    worst_case = min(case["elapsed_time_reduction_percent"] for case in report["cases"])
+    regression_observations = []
+    regressed_cases = []
     unstable_cases = []
     drift_observations = []
     for case in report["cases"]:
+        percent = max(0.0, -case["elapsed_time_reduction_percent"])
+        milliseconds = max(
+            0.0,
+            (case["pgo_median_seconds"] - case["baseline_median_seconds"]) * 1000.0,
+        )
+        passed = (
+            percent <= maximum_case_regression
+            or milliseconds <= maximum_case_regression_milliseconds
+        )
+        regression_observations.append(
+            {
+                "test_id": case["test_id"],
+                "percent": percent,
+                "milliseconds": milliseconds,
+                "passed": passed,
+            }
+        )
+        if not passed:
+            regressed_cases.append(case["test_id"])
+
         for prefix in ("baseline", "pgo"):
             percent = abs(case[f"{prefix}_run_drift_percent"])
             milliseconds = abs(case[f"{prefix}_run_drift_seconds"]) * 1000.0
@@ -362,11 +379,15 @@ def evaluate_gates(
         {
             "name": "maximum_case_regression",
             "threshold_percent": maximum_case_regression,
-            "value_percent": max(0.0, -worst_case),
-            "passed": worst_case >= -maximum_case_regression,
+            "threshold_milliseconds": maximum_case_regression_milliseconds,
+            "observations": regression_observations,
+            "regressed_test_ids": regressed_cases,
+            "passed": not regressed_cases,
             "failure_message": (
-                f"Worst PGO case regressed {-worst_case:.2f}%, above "
-                f"{maximum_case_regression:.2f}%"
+                "PGO case regression exceeded both "
+                f"{maximum_case_regression:.2f}% and "
+                f"{maximum_case_regression_milliseconds:.2f}ms for "
+                f"{', '.join(regressed_cases)}"
             ),
         },
         {

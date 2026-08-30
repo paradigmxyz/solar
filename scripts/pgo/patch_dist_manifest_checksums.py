@@ -20,8 +20,11 @@ def main() -> None:
 
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     artifacts = manifest["artifacts"]
-    patched = 0
-    for checksum_path in sorted(args.artifacts_dir.glob("*.sha256")):
+    checksum_paths = sorted(args.artifacts_dir.glob("*.sha256"))
+    if not checksum_paths:
+        raise RuntimeError(f"No checksums found in {args.artifacts_dir}")
+
+    for checksum_path in checksum_paths:
         artifact_name = checksum_path.name.removesuffix(".sha256")
         artifact = artifacts.get(artifact_name)
         if artifact is None:
@@ -29,12 +32,27 @@ def main() -> None:
                 f"Checksum {checksum_path.name} has no cargo-dist artifact"
             )
         artifact.setdefault("checksums", {})["sha256"] = read_sha256(checksum_path)
-        patched += 1
 
-    if patched == 0:
-        raise RuntimeError(f"No checksums found in {args.artifacts_dir}")
+    release_archives = {
+        name
+        for name, artifact in artifacts.items()
+        if artifact.get("target_triples") and artifact.get("checksum")
+    }
+    if not release_archives:
+        raise RuntimeError("cargo-dist manifest has no target release archives")
+
+    missing = sorted(
+        name
+        for name in release_archives
+        if "sha256" not in artifacts[name].get("checksums", {})
+    )
+    if missing:
+        raise RuntimeError(
+            "Missing checksums for cargo-dist artifacts: " + ", ".join(missing)
+        )
+
     args.manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"Patched {patched} artifact checksums in {args.manifest}")
+    print(f"Patched {len(checksum_paths)} artifact checksums in {args.manifest}")
 
 
 def read_sha256(path: Path) -> str:

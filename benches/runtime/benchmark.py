@@ -309,7 +309,8 @@ def compile_case(
     result["input_fingerprint"] = input_fingerprint
     cmd = [str(spec.path), "--standard-json"]
     samples = []
-    output_fingerprints = set()
+    reference_output = None
+    output_fingerprint = None
     proc = None
     for _ in range(max(1, compile_repeats)):
         started = time.monotonic()
@@ -322,7 +323,16 @@ def compile_case(
         samples.append(time.monotonic() - started)
         if proc.returncode != 0:
             break
-        output_fingerprints.add(compiler_output_fingerprint(proc.stdout))
+        if reference_output is None:
+            reference_output = proc.stdout
+        elif proc.stdout != reference_output:
+            output_fingerprint = output_fingerprint or compiler_output_fingerprint(
+                reference_output
+            )
+            if compiler_output_fingerprint(proc.stdout) != output_fingerprint:
+                result["status"] = "failed"
+                result["error"] = "compiler output changed across repeated runs"
+                return result
         # One sample is representative for long compiles; repeating a
         # minute-scale solc run per repeat would dominate the whole benchmark.
         if not repeat_long_compiles and samples[-1] >= LONG_COMPILE_CUTOFF_SECONDS:
@@ -336,11 +346,9 @@ def compile_case(
         result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
         return result
 
-    if len(output_fingerprints) != 1:
-        result["status"] = "failed"
-        result["error"] = "compiler output changed across repeated runs"
-        return result
-    result["output_fingerprint"] = output_fingerprints.pop()
+    result["output_fingerprint"] = output_fingerprint or compiler_output_fingerprint(
+        reference_output
+    )
 
     if test_case.whole_project:
         compiled, objects, error = parse_whole_project_output(proc.stdout)

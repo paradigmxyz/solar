@@ -37,8 +37,12 @@ github-release = "announce"
 install-updater = false
 # Path that installers should place binaries in
 install-path = ["$XDG_BIN_HOME/", "$XDG_DATA_HOME/../bin", "~/.local/bin"]
-# The preferred Rust toolchain to use in CI (rustup toolchain syntax)
-rust-toolchain-version = "stable"
+# Pin releases because PGO depends on the matching LLVM profiling tools.
+rust-toolchain-version = "1.98.0"
+
+[dist.min-glibc-version]
+aarch64-unknown-linux-gnu = "2.34"
+x86_64-unknown-linux-gnu = "2.34"
 
 [dist.github-action-commits]
 "actions/checkout" = "3d3c42e5aac5ba805825da76410c181273ba90b1" # v7.0.1

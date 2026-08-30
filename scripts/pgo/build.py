@@ -16,6 +16,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from dist_config import release_features
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_BENCHMARK = REPOSITORY_ROOT / "benches" / "runtime" / "benchmark.py"
 SYNTHETIC_CORPUS = REPOSITORY_ROOT / "testdata" / "repros"
@@ -76,13 +78,7 @@ def main() -> None:
         type=Path,
         help="Override the active Rust toolchain's llvm-profdata executable",
     )
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument(
-        "--train-only",
-        action="store_true",
-        help="Only produce <target-dir>/solar.profdata for a release build",
-    )
-    mode.add_argument(
+    parser.add_argument(
         "--baseline-only",
         action="store_true",
         help="Only build an unprofiled binary with the release target flags",
@@ -131,8 +127,8 @@ def main() -> None:
     profiler = find_llvm_profdata(host, args.llvm_profdata)
 
     profile_dir.mkdir(parents=True, exist_ok=True)
-    for profile in profile_dir.glob("solar-*.profraw"):
-        profile.unlink()
+    for raw_profile in profile_dir.glob("solar-*.profraw"):
+        raw_profile.unlink()
 
     instrumented_target_dir = target_dir / "instrumented"
     instrumented_environment = environment | {
@@ -164,12 +160,6 @@ def main() -> None:
     )
     merge_profiles(profiler, profiles, merged_profile, environment=environment)
     hot_count = profile_hot_count(profiler, merged_profile, environment=environment)
-    (target_dir / "solar.profile-hot-count").write_text(
-        f"{hot_count}\n", encoding="utf-8"
-    )
-
-    if args.train_only:
-        return
 
     optimized_environment = environment | {
         "CARGO_TARGET_DIR": str(target_dir),
@@ -375,7 +365,7 @@ def cargo_command(target: str, profile: str) -> list[str]:
         "--bin",
         "solar",
         "--features",
-        "cli,asm,mimalloc",
+        ",".join(release_features()),
     ]
 
 
