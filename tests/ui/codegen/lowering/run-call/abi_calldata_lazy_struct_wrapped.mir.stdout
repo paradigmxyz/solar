@@ -1,0 +1,134 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_wrapped.sol:AbiCalldataLazyStructWrapped ===
+@module AbiCalldataLazyStructWrapped
+fn @read(arg0: calldataslice) -> (u256, memorybytes) [selector=0x171e22c6, pure, abi_params=[array<_, tuple<u256, bytes>>], abi_returns=[word, memory_bytes]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 63
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb5, bb6
+  bb6:
+    v15 = make_calldata_slice v9, 32
+    v16 = slice_ptr v15
+    v17 = add v16, 0
+    v18 = calldataload v17
+    v19 = slice_len arg0
+    v20 = lt 0, v19
+    v21 = iszero v20
+    jumpi v21, bb7, bb8
+  bb8:
+    v22 = slice_ptr arg0
+    v23 = add v22, 0
+    v24 = calldatasize
+    v25 = sub v24, v23
+    v26 = slt v25, 32
+    jumpi v26, bb9, bb10
+  bb10:
+    v27 = calldataload v23
+    v28 = add v22, v27
+    v29 = calldatasize
+    v30 = sub v29, v22
+    v31 = sub v30, 63
+    v32 = slt v27, v31
+    v33 = iszero v32
+    jumpi v33, bb11, bb12
+  bb12:
+    v34 = make_calldata_slice v28, 32
+    v35 = slice_ptr v34
+    v36 = add v35, 32
+    v37 = calldatasize
+    v38 = sub v37, v36
+    v39 = slt v38, 32
+    jumpi v39, bb13, bb14
+  bb14:
+    v40 = calldataload v36
+    v41 = add v35, v40
+    v42 = calldatasize
+    v43 = sub v42, v35
+    v44 = sub v43, 31
+    v45 = slt v40, v44
+    v46 = iszero v45
+    jumpi v46, bb15, bb16
+  bb16:
+    v47 = calldataload v41
+    v48 = gt v47, 0xffffffffffffffff
+    jumpi v48, bb17, bb18
+  bb18:
+    v49 = mul v47, 1
+    v50 = add v41, 32
+    v51 = calldatasize
+    v52 = sub v51, v49
+    v53 = sgt v50, v52
+    jumpi v53, bb19, bb20
+  bb20:
+    v54 = add v41, 32
+    v55 = make_calldata_slice v54, v47
+    v56 = slice_ptr v55
+    v57 = slice_len v55
+    v58 = gt v57, 0xffffffffffffffff
+    jumpi v58, bb21, bb22
+  bb22:
+    v59 = calldatasize
+    v60 = sub v59, v57
+    v61 = sgt v56, v60
+    jumpi v61, bb23, bb24
+  bb24:
+    v62 = slice_len v55
+    v63 = add v62, 63
+    v64 = lt v63, v62
+    jumpi v64, bb25, bb26
+  bb26:
+    v65 = not 31
+    v66 = and v63, v65
+    v67 = alloc memorybytes, exact, uninitialized, infallible, v66
+    set_memory_object_len memorybytes, v67, v62
+    memory_object_copy_from_slice memorybytes, v67, v55
+    ret v18, v67
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb23:
+    revert 0, 0
+  bb21:
+    revert 0, 0
+  bb19:
+    revert 0, 0
+  bb17:
+    revert 0, 0
+  bb15:
+    revert 0, 0
+  bb13:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_staticcall_evm_version.sol:Caller ===
 @module Caller
-fn @probe(arg0: address) -> bool [selector=0x275e5da5, view, abi_params=[address], abi_returns=[word]] {
+fn @probe(arg0: address) -> bool [selector=0x275e5da5, view, abi_params=[address], abi_returns=[word<bool>]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32

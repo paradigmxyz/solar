@@ -627,20 +627,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns.into_iter().map(Self::internal_return_words).sum()
     }
 
-    pub(super) fn rebuild_first_internal_return(
-        &mut self,
-        value: ValueId,
-        ty: Ty<'gcx>,
-        returns: usize,
-    ) -> ValueId {
-        let MirType::Slice(location) = types::TypeLowerer::mir_return_type(ty) else {
-            return value;
-        };
-        let base = self.multi_return_buffer_base();
-        let length = self.load_multi_return_value(base, 1, returns);
-        self.builder.make_slice(value, length, location)
-    }
-
     pub(super) fn load_internal_return_values(
         &mut self,
         first: ValueId,

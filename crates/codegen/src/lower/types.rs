@@ -1,7 +1,8 @@
 //! Type-directed HIR to MIR and ABI shape conversion.
 
 use crate::mir::{
-    AbiParamType, AbiType, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
+    AbiParamType, AbiType, AbiWordValidator, MemoryObjectKind, MemoryObjectLayout, MirType,
+    SliceLocation,
 };
 use solar_ast::{DataLocation, TypeSize};
 use solar_data_structures::map::FxHashSet;
@@ -214,7 +215,7 @@ impl<'gcx> TypeLowerer<'gcx> {
         if param_ty.is_ref_at(DataLocation::Storage)
             || matches!(param_ty.peel_refs().kind, TyKind::Mapping(..))
         {
-            return Some((AbiType::Word, AbiParamType::Scalar(MirType::StoragePtr)));
+            return Some((AbiType::Word(None), AbiParamType::Scalar(MirType::StoragePtr)));
         }
 
         Some(match ty.peel_refs().kind {
@@ -222,22 +223,27 @@ impl<'gcx> TypeLowerer<'gcx> {
                 (AbiType::Bytes(Self::abi_slice_location(ty)), AbiParamType::Bytes)
             }
             TyKind::Elementary(_) => {
-                (AbiType::Word, AbiParamType::Scalar(Self::mir_type(param_ty)))
+                let mir_ty = Self::mir_type(param_ty);
+                (
+                    AbiType::Word(AbiWordValidator::from_mir_type(mir_ty)),
+                    AbiParamType::Scalar(mir_ty),
+                )
             }
             TyKind::Fn(function) => (
-                if function.is_external() { AbiType::Function } else { AbiType::Word },
+                if function.is_external() { AbiType::Function } else { AbiType::Word(None) },
                 AbiParamType::Scalar(Self::mir_type(param_ty)),
             ),
-            TyKind::Enum(id) => (
-                AbiType::Word,
-                AbiParamType::Enum {
-                    ty: Self::mir_type(param_ty),
-                    variants: self.gcx.hir.enumm(id).variants.len() as u64,
-                },
-            ),
-            TyKind::Contract(_) | TyKind::Super(_) => {
-                (AbiType::Word, AbiParamType::Scalar(MirType::Address))
+            TyKind::Enum(id) => {
+                let variants = self.gcx.hir.enumm(id).variants.len() as u64;
+                (
+                    AbiType::Word(Some(AbiWordValidator::EnumRange(variants))),
+                    AbiParamType::Enum { ty: Self::mir_type(param_ty), variants },
+                )
             }
+            TyKind::Contract(_) | TyKind::Super(_) => (
+                AbiType::Word(AbiWordValidator::from_mir_type(MirType::Address)),
+                AbiParamType::Scalar(MirType::Address),
+            ),
             TyKind::DynArray(element) => {
                 let (abi_element, param_element) = self.abi_return_shapes_inner(
                     element.with_loc_if_ref(self.gcx, location),
@@ -301,7 +307,7 @@ impl<'gcx> TypeLowerer<'gcx> {
             TyKind::Udvt(underlying, _) => {
                 return self.abi_return_shapes_inner(underlying, location);
             }
-            _ => (AbiType::Word, AbiParamType::Scalar(Self::mir_type(param_ty))),
+            _ => (AbiType::Word(None), AbiParamType::Scalar(Self::mir_type(param_ty))),
         })
     }
 
@@ -310,9 +316,16 @@ impl<'gcx> TypeLowerer<'gcx> {
             TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes) => {
                 AbiType::Bytes(Self::abi_slice_location(ty))
             }
-            TyKind::Elementary(_) => AbiType::Word,
+            TyKind::Elementary(_) => {
+                AbiType::Word(AbiWordValidator::from_mir_type(Self::mir_type(ty)))
+            }
             TyKind::Fn(function) if function.is_external() => AbiType::Function,
-            TyKind::Enum(_) | TyKind::Contract(_) | TyKind::Super(_) => AbiType::Word,
+            TyKind::Enum(id) => AbiType::Word(Some(AbiWordValidator::EnumRange(
+                self.gcx.hir.enumm(id).variants.len() as u64,
+            ))),
+            TyKind::Contract(_) | TyKind::Super(_) => {
+                AbiType::Word(AbiWordValidator::from_mir_type(MirType::Address))
+            }
             TyKind::DynArray(element) => AbiType::DynamicArray {
                 element: Box::new(
                     self.abi_type_inner(element.with_loc_if_ref(self.gcx, location), location)?,
@@ -352,7 +365,7 @@ impl<'gcx> TypeLowerer<'gcx> {
                 return self
                     .abi_type_inner(underlying.with_loc_if_ref(self.gcx, location), location);
             }
-            _ => AbiType::Word,
+            _ => AbiType::Word(None),
         })
     }
 }

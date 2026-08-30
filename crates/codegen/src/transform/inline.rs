@@ -8,9 +8,9 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId,
-        Immediate, ImmutableEncoding, InstId, InstKind, Instruction, MirType, Module, Terminator,
-        Value, ValueId,
+        AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
+        MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -173,11 +173,8 @@ impl MirInliner {
             max_single_call_sanity_instructions: 12,
             max_blocks: 1,
             max_shared_callee_blocks: 1,
-            inline_single_call: true,
-            max_caller_inlined_instructions: 64,
-            expected_executions_per_deployment: 200,
-            max_module_code_size: usize::MAX,
             mode: InlineMode::TinyLeaves,
+            ..Self::default()
         }
     }
 
@@ -621,20 +618,18 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            summary.instruction_count += match kind {
-                InstKind::MappingSlot(..) => 3,
-                InstKind::MappingSlotMemory(..) => 8,
-                InstKind::MappingSlotCalldata(..) => 9,
-                InstKind::StorageArrayDataSlot(..) => 3,
-                InstKind::StorageArrayElementSlot { .. } => 4,
-                _ => 1,
-            };
-            let inst_cost = estimate_inst_cost(gcx, module, kind);
+            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
+            summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
+                // Dynamic values encode through copy loops and padding branches once
+                // `lower-abi-encode` runs, so a leaf holding such an encode is not tiny.
+                InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
+                    summary.has_control_flow = true;
+                }
                 InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
@@ -746,13 +741,40 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
         && is_identity_function(func)
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+/// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
+///
+/// The placeholder is one MIR instruction, but words are loaded, cleaned, and stored one by
+/// one, dynamic values become copy loops, and aggregates encode field by field, so inlining
+/// decisions must see the expanded shape rather than the placeholder.
+fn abi_type_expansion(ty: &AbiType) -> usize {
+    match ty {
+        AbiType::Word(None) => 2,
+        AbiType::Word(Some(_)) | AbiType::Function => 3,
+        AbiType::Bytes(_) => 14,
+        AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
+        AbiType::FixedArray { element, len } => {
+            1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
+        }
+        AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),
+    }
+}
+
+fn abi_layout_expansion(layout: &AbiLayout) -> usize {
+    layout.types.iter().map(abi_type_expansion).sum()
+}
+
+/// Whether encoding the layout emits loops or branches: every dynamic value does.
+fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
+    layout.types.iter().any(AbiType::is_dynamic)
+}
+
+#[derive(Clone, Copy, Debug)]
 struct MirCost {
     runtime_gas: u64,
     code_size: usize,
 }
 
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
@@ -769,10 +791,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
             let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
             (8 + base_cost * 3, 2 + base_cost as usize)
         }
-        InstKind::MemoryObjectLoadField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
-        }
-        InstKind::MemoryObjectStoreField { layout, field, .. } => {
+        InstKind::MemoryObjectLoadField { layout, field, .. }
+        | InstKind::MemoryObjectStoreField { layout, field, .. } => {
             if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
         }
         InstKind::MemoryObjectLoadElement { layout, .. }
@@ -793,7 +813,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::Alloc { .. } => (9, 3),
         InstKind::AbiEncode { args, layout, .. } => {
             let words = layout.head_size() / 32;
-            (30 + words * 12, 8 + args.len() * 3)
+            (30 + words * 12, 8 + args.len() * 3 + abi_layout_expansion(layout))
         }
         InstKind::AbiDecode { layout, .. } => {
             let words = layout.checked_head_size().expect("ABI head size exceeds u64 range") / 32;
@@ -840,6 +860,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         | InstKind::BlockNumber
         | InstKind::PrevRandao
         | InstKind::GasLimit
+        | InstKind::SlotNum
         | InstKind::ChainId
         | InstKind::Address
         | InstKind::SelfBalance
@@ -921,7 +942,15 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::Log4(..) => (1_875, 1),
         InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
     };
-    MirCost { runtime_gas, code_size }
+    let instructions = match kind {
+        InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
+        InstKind::MappingSlotMemory(..) => 8,
+        InstKind::MappingSlotCalldata(..) => 9,
+        InstKind::StorageArrayElementSlot { .. } => 4,
+        InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
+        _ => 1,
+    };
+    (MirCost { runtime_gas, code_size }, instructions)
 }
 
 fn estimate_terminator_cost(term: &Terminator) -> MirCost {
@@ -1224,10 +1253,11 @@ fn inline_call_impl(
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
-        insert_extra_return_stores(
+        insert_return_buffer_stores(
             cloner.caller,
             continuation,
-            &return_values[1..],
+            &return_values,
+            &callee.returns,
             caller_is_external,
             caller_frame_prefix,
         )?;
@@ -1433,21 +1463,18 @@ fn build_return_values(
     Some(values)
 }
 
-fn insert_extra_return_stores(
+fn insert_return_buffer_stores(
     caller: &mut Function,
     continuation: BlockId,
     values: &[ValueId],
+    return_tys: &[MirType],
     caller_is_external: bool,
     caller_frame_prefix: u64,
 ) -> Option<()> {
-    if values.is_empty() {
+    debug_assert_eq!(values.len(), return_tys.len());
+    if values.len() < 2 {
         return Some(());
     }
-
-    let size = u64::try_from(values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-    let local_offset = caller.internal_frame_size;
-    caller.internal_frame_size = caller.internal_frame_size.checked_add(size)?;
-    let frame_offset = caller_frame_prefix.checked_add(local_offset)?;
 
     let phi_count = caller.blocks[continuation]
         .instructions
@@ -1458,7 +1485,25 @@ fn insert_extra_return_stores(
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);
         builder.switch_to_block(continuation);
-        for (index, &value) in values.iter().enumerate() {
+        let mut stored_values = Vec::with_capacity(return_tys.len());
+        for (index, (&value, &ty)) in values.iter().zip(return_tys).enumerate() {
+            if let MirType::Slice(_) = ty {
+                if index != 0 {
+                    stored_values.push(builder.slice_ptr(value));
+                }
+                stored_values.push(builder.slice_len(value));
+            } else if index != 0 {
+                stored_values.push(value);
+            }
+        }
+
+        let size =
+            u64::try_from(stored_values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let local_offset = builder.func().internal_frame_size;
+        builder.func_mut().internal_frame_size =
+            builder.func().internal_frame_size.checked_add(size)?;
+        let frame_offset = caller_frame_prefix.checked_add(local_offset)?;
+        for (index, value) in stored_values.into_iter().enumerate() {
             let offset = u64::try_from(index + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
             let offset = if caller_is_external {
                 builder.imm_u64(

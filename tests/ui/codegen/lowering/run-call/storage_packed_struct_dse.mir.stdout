@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_struct_dse.sol:PackedStructDse ===
 @module PackedStructDse
-fn @preservesRawNeighbors() -> bool [selector=0x56c38e53, abi_params=[], abi_returns=[word]] {
+fn @preservesRawNeighbors() -> bool [selector=0x56c38e53, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = not 0
     sstore 0, v0 !metadata(storage=slot(0))

@@ -3,14 +3,15 @@
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
-        InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation, Terminator,
-        Value, ValueId, utils::resolve_replacement,
+        FunctionId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation,
+        Terminator, Value, ValueId, utils::resolve_replacement,
     },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
 /// Lowers `abi_encode` after the main optimization pipeline.
@@ -31,11 +32,131 @@ impl MirPass for LowerAbiEncode {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let mut changed = false;
+        let helpers = synthesize_array_helpers(module);
+        let mut changed = !helpers.arrays.is_empty();
         for func in module.functions.iter_mut() {
-            changed |= lower_function(func);
+            changed |= lower_function(func, &helpers);
         }
         changed
+    }
+}
+
+/// A dynamic memory array layout whose element-wise encoding loop several sites share as one
+/// helper function, like solc's per-type `abi_encode_t_array` functions. The key carries the
+/// MIR type the sites pass so the helper's parameter matches it.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct ArrayHelperKey {
+    element: AbiType,
+    value_ty: MirType,
+}
+
+/// Shared encoder helpers available to every site in the module.
+#[derive(Default)]
+struct EncodeHelpers {
+    arrays: FxHashMap<ArrayHelperKey, FunctionId>,
+}
+
+/// Builds `encode_abi_array(value, dest) -> tail` for every memory array layout whose
+/// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
+/// first so an outer helper's element encoding calls the inner helper.
+fn synthesize_array_helpers(module: &mut Module) -> EncodeHelpers {
+    fn count_sites(
+        func: &Function,
+        ty: &AbiType,
+        value: Option<ValueId>,
+        counts: &mut FxHashMap<ArrayHelperKey, (usize, usize)>,
+    ) {
+        match ty {
+            AbiType::DynamicArray { element, location } => {
+                let location = value
+                    .map_or(*location, |value| effective_slice_location(func, value, *location));
+                if location == SliceLocation::Memory && array_loop_element(element).is_some() {
+                    let value_ty = value
+                        .and_then(|value| func.value_ty(value))
+                        .unwrap_or_else(MirType::uint256);
+                    let next = counts.len();
+                    counts
+                        .entry(ArrayHelperKey { element: element.as_ref().clone(), value_ty })
+                        .or_insert((0, next))
+                        .0 += 1;
+                }
+                count_sites(func, element, None, counts);
+            }
+            AbiType::FixedArray { element, .. } => count_sites(func, element, None, counts),
+            AbiType::Tuple(fields) => {
+                for field in fields {
+                    count_sites(func, field, None, counts);
+                }
+            }
+            AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_) => {}
+        }
+    }
+
+    let mut counts = FxHashMap::<ArrayHelperKey, (usize, usize)>::default();
+    for func in module.functions.iter() {
+        for inst in func.instructions() {
+            let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else { continue };
+            for (&arg, ty) in args.iter().zip(&layout.types) {
+                count_sites(func, ty, Some(arg), &mut counts);
+            }
+        }
+    }
+    let mut keys = counts
+        .into_iter()
+        .filter(|(_, (count, _))| *count >= 2)
+        .map(|(key, (_, first))| (first, key))
+        .collect::<Vec<_>>();
+    keys.sort_by_key(|(first, key)| (array_depth(&key.element), *first));
+
+    let mut helpers = EncodeHelpers::default();
+    for (_, key) in keys {
+        let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let value = builder.add_param(key.value_ty);
+            // The destination is a heap pointer, and typing it so lets the backend's
+            // provenance analysis see that the returned tail stays in the heap.
+            let dest = builder.add_param(MirType::MemPtr);
+            let tail = encode_memory_array(&mut builder, &key.element, value, dest, &helpers);
+            builder.add_return(MirType::uint256());
+            builder.ret([tail]);
+        }
+        let helper = module.add_function(function);
+        helpers.arrays.insert(key, helper);
+    }
+    helpers
+}
+
+/// Returns the shared helper encoding a memory array of `element`s passed as `value`.
+fn array_helper(
+    func: &Function,
+    helpers: &EncodeHelpers,
+    element: &AbiType,
+    value: ValueId,
+) -> Option<FunctionId> {
+    array_loop_element(element)?;
+    let value_ty = func.value_ty(value).unwrap_or_else(MirType::uint256);
+    helpers.arrays.get(&ArrayHelperKey { element: element.clone(), value_ty }).copied()
+}
+
+/// Classifies how a memory array's elements are encoded: `None` for full words, copied as one
+/// block; `Some(Some(cleanup))` for words cleaned one at a time; `Some(None)` for composite
+/// elements encoded one at a time.
+fn array_loop_element(element: &AbiType) -> Option<Option<AbiWordValidator>> {
+    match element {
+        AbiType::Word(cleanup) => cleanup.map(Some),
+        AbiType::Function => Some(AbiWordValidator::from_mir_type(MirType::Function)),
+        _ => Some(None),
+    }
+}
+
+/// Number of dynamic arrays nested inside an element layout.
+fn array_depth(ty: &AbiType) -> usize {
+    match ty {
+        AbiType::DynamicArray { element, .. } => 1 + array_depth(element),
+        AbiType::FixedArray { element, .. } => array_depth(element),
+        AbiType::Tuple(fields) => fields.iter().map(array_depth).max().unwrap_or(0),
+        AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_) => 0,
     }
 }
 
@@ -52,7 +173,7 @@ enum AbiValueSource {
     Memory,
 }
 
-fn lower_function(func: &mut Function) -> bool {
+fn lower_function(func: &mut Function, helpers: &EncodeHelpers) -> bool {
     let has_encodes =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
     if !has_encodes {
@@ -82,7 +203,7 @@ fn lower_function(func: &mut Function) -> bool {
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
             let mode = *mode;
-            let replacement = lower_encode(&mut builder, &layout, selector, &args, mode);
+            let replacement = lower_encode(&mut builder, &layout, selector, &args, mode, helpers);
             literal_objects.extend(args.iter().copied());
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
@@ -131,6 +252,7 @@ fn lower_encode(
     selector: Option<ValueId>,
     args: &[ValueId],
     mode: AbiEncodeMode,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
     debug_assert_eq!(layout.types.len(), args.len());
     let selector_size = if selector.is_some() { 4 } else { 0 };
@@ -151,7 +273,7 @@ fn lower_encode(
                 builder.mstore(buffer, selector);
             }
             let dest = offset_ptr(builder, buffer, selector_size);
-            encode_tuple(builder, args, &layout.types, dest);
+            encode_tuple(builder, args, &layout.types, dest, helpers);
             return object;
         }
         if mode == AbiEncodeMode::Slice && selector.is_none() {
@@ -180,7 +302,7 @@ fn lower_encode(
             builder.mstore(buffer, selector);
         }
         let dest = offset_ptr(builder, buffer, selector_size);
-        encode_tuple(builder, args, &layout.types, dest);
+        encode_tuple(builder, args, &layout.types, dest, helpers);
         let total = builder.imm_u64(total_size);
         return builder.make_slice(buffer, total, SliceLocation::Memory);
     }
@@ -197,7 +319,7 @@ fn lower_encode(
         builder.mstore(buffer, selector);
     }
     let dest = offset_ptr(builder, buffer, selector_size);
-    let encoded_size = encode_tuple(builder, args, &layout.types, dest);
+    let encoded_size = encode_tuple(builder, args, &layout.types, dest, helpers);
     let selector_size = builder.imm_u64(selector_size);
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
@@ -306,17 +428,27 @@ fn encode_static_impl(
             };
             builder.mstore(head_addr, value);
         }
-        _ => builder.mstore(head_addr, value),
+        AbiType::Word(cleanup) => {
+            let value = match (source, cleanup) {
+                (AbiValueSource::Memory, Some(cleanup)) => clean_word(builder, *cleanup, value),
+                _ => value,
+            };
+            builder.mstore(head_addr, value);
+        }
+        AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
+            unreachable!("dynamic ABI values are not static")
+        }
     }
 }
 
-pub(crate) fn encode_tuple(
+fn encode_tuple(
     builder: &mut FunctionBuilder<'_>,
     values: &[ValueId],
     types: &[AbiType],
     dest: ValueId,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
-    encode_tuple_impl(builder, values, types, dest, AbiValueSource::Scalar)
+    encode_tuple_impl(builder, values, types, dest, AbiValueSource::Scalar, helpers)
 }
 
 fn encode_tuple_impl(
@@ -325,6 +457,7 @@ fn encode_tuple_impl(
     types: &[AbiType],
     dest: ValueId,
     source: AbiValueSource,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
     let head_size: u64 = types.iter().map(AbiType::head_size).sum();
     if !types.iter().any(AbiType::is_dynamic) {
@@ -348,6 +481,7 @@ fn encode_tuple_impl(
             value,
             AbiValueDest { head_addr, tuple_base: dest, tail },
             source,
+            helpers,
         );
         head_offset += ty.head_size();
     }
@@ -360,11 +494,12 @@ fn encode_value(
     value: ValueId,
     dest: AbiValueDest,
     source: AbiValueSource,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
     if ty.is_dynamic() {
         let relative = builder.sub(dest.tail, dest.tuple_base);
         builder.mstore(dest.head_addr, relative);
-        encode_dynamic_body(builder, ty, value, dest.tail)
+        encode_dynamic_body(builder, ty, value, dest.tail, helpers)
     } else {
         encode_static_impl(builder, ty, value, dest.head_addr, true, source);
         dest.tail
@@ -410,13 +545,37 @@ fn encode_static_slice(
             };
             builder.mstore(head_addr, value);
         }
-        AbiType::Word => {
+        AbiType::Word(cleanup) => {
             let value = load_slice_word(builder, source, location);
+            let value = match cleanup {
+                Some(cleanup) if location == SliceLocation::Memory => {
+                    clean_word(builder, *cleanup, value)
+                }
+                _ => value,
+            };
             builder.mstore(head_addr, value);
         }
         AbiType::Bytes(_) | AbiType::DynamicArray { .. } => {
             unreachable!("dynamic ABI values are not static")
         }
+    }
+}
+
+/// Canonicalizes a word read from memory before it is encoded, like solc's per-type
+/// `cleanup` and `validator_assert` helpers: narrow values are masked or sign-extended and an
+/// out-of-range enum panics. Scalars arriving on the stack were already cleaned by the
+/// lowering, and calldata words were validated when decoded.
+fn clean_word(
+    builder: &mut FunctionBuilder<'_>,
+    cleanup: AbiWordValidator,
+    value: ValueId,
+) -> ValueId {
+    match cleanup {
+        AbiWordValidator::EnumRange(variants) => {
+            builder.validate_enum_value(variants, value);
+            value
+        }
+        _ => cleanup.cleanup(builder, value),
     }
 }
 
@@ -437,35 +596,40 @@ fn encode_dynamic_body(
     ty: &AbiType,
     value: ValueId,
     dest: ValueId,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
     match ty {
         AbiType::Bytes(location) => {
-            let location = effective_slice_location(builder, value, *location);
+            let location = effective_slice_location(builder.func(), value, *location);
             encode_bytes(builder, value, dest, location)
         }
         AbiType::DynamicArray { element, location } => {
-            let location = effective_slice_location(builder, value, *location);
-            if matches!(element.as_ref(), AbiType::Word | AbiType::Function) {
-                return encode_word_array(
-                    builder,
-                    value,
-                    dest,
-                    location,
-                    matches!(element.as_ref(), AbiType::Function),
-                );
+            let location = effective_slice_location(builder.func(), value, *location);
+            if location == SliceLocation::Memory {
+                if let Some(helper) = array_helper(builder.func(), helpers, element, value) {
+                    return builder.internal_call(helper, vec![value, dest], MirType::uint256(), 1);
+                }
+                return encode_memory_array(builder, element, value, dest, helpers);
+            }
+            let word_cleanup = match element.as_ref() {
+                AbiType::Word(cleanup) => Some(*cleanup),
+                AbiType::Function => Some(AbiWordValidator::from_mir_type(MirType::Function)),
+                _ => None,
+            };
+            if let Some(cleanup) = word_cleanup {
+                return encode_word_array(builder, value, dest, location, cleanup);
             }
             match location {
-                SliceLocation::Memory => encode_dynamic_array(builder, element, value, dest),
                 SliceLocation::Calldata => {
                     if matches!(element.as_ref(), AbiType::Bytes(_)) {
-                        encode_calldata_bytes_array(builder, element, value, dest)
+                        encode_calldata_bytes_array(builder, element, value, dest, helpers)
                     } else {
                         unreachable!(
                             "non-word calldata arrays are materialized before ABI encoding"
                         )
                     }
                 }
-                SliceLocation::Returndata => {
+                SliceLocation::Memory | SliceLocation::Returndata => {
                     unreachable!("returndata arrays are not ABI inputs")
                 }
             }
@@ -482,7 +646,8 @@ fn encode_dynamic_body(
                 values.push(element_value);
             }
             let types = vec![element.as_ref().clone(); *len as usize];
-            let size = encode_tuple_impl(builder, &values, &types, dest, AbiValueSource::Memory);
+            let size =
+                encode_tuple_impl(builder, &values, &types, dest, AbiValueSource::Memory, helpers);
             builder.add(dest, size)
         }
         AbiType::Tuple(fields) => {
@@ -495,23 +660,24 @@ fn encode_dynamic_body(
                 );
                 values.push(field_value);
             }
-            let size = encode_tuple_impl(builder, &values, fields, dest, AbiValueSource::Memory);
+            let size =
+                encode_tuple_impl(builder, &values, fields, dest, AbiValueSource::Memory, helpers);
             builder.add(dest, size)
         }
-        AbiType::Word | AbiType::Function => unreachable!("word ABI values are static"),
+        AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
     }
 }
 
 fn effective_slice_location(
-    builder: &FunctionBuilder<'_>,
+    func: &Function,
     value: ValueId,
     declared: SliceLocation,
 ) -> SliceLocation {
-    match builder.func().value_ty(value) {
+    match func.value_ty(value) {
         Some(MirType::Slice(location)) => location,
         Some(MirType::MemPtr | MirType::MemoryObject(_)) => SliceLocation::Memory,
-        _ if matches!(builder.func().value(value), Value::Inst(inst) if matches!(
-            builder.func().inst(*inst).kind,
+        _ if matches!(func.value(value), Value::Inst(inst) if matches!(
+            func.inst(*inst).kind,
             InstKind::MemoryObjectLoadField { .. } | InstKind::MemoryObjectLoadElement { .. }
         )) =>
         {
@@ -536,11 +702,29 @@ fn zero_padded_tail(builder: &mut FunctionBuilder<'_>, data: ValueId, padded: Va
     builder.switch_to_block(copy_block);
 }
 
+/// Encodes a memory array's elements: cleaned words and composite elements one at a time, full
+/// words as one copy.
+fn encode_memory_array(
+    builder: &mut FunctionBuilder<'_>,
+    element: &AbiType,
+    value: ValueId,
+    dest: ValueId,
+    helpers: &EncodeHelpers,
+) -> ValueId {
+    match array_loop_element(element) {
+        Some(None) => encode_dynamic_array(builder, element, value, dest, helpers),
+        cleanup => {
+            encode_word_array(builder, value, dest, SliceLocation::Memory, cleanup.flatten())
+        }
+    }
+}
+
 fn encode_dynamic_array(
     builder: &mut FunctionBuilder<'_>,
     element: &AbiType,
     value: ValueId,
     dest: ValueId,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
     let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
     builder.mstore(dest, len);
@@ -575,6 +759,7 @@ fn encode_dynamic_array(
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
         AbiValueSource::Memory,
+        helpers,
     );
 
     let one = builder.imm_u64(1);
@@ -597,6 +782,7 @@ fn encode_calldata_bytes_array(
     element: &AbiType,
     value: ValueId,
     dest: ValueId,
+    helpers: &EncodeHelpers,
 ) -> ValueId {
     let len = builder.slice_len(value);
     builder.mstore(dest, len);
@@ -623,16 +809,26 @@ fn encode_calldata_bytes_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
+    // Mirror solc's calldata tail access: the offset bound is signed, so a negative
+    // offset that wraps to a valid load is accepted and the tail checks decide whether
+    // the element is valid. Bytes past `calldatasize` read as zero.
     let offset = builder.calldataload(source_head);
     let calldata_size = builder.calldatasize();
     let available = builder.sub(calldata_size, source_base);
-    let invalid_offset = builder.gt(offset, available);
+    let thirty_one = builder.imm_u64(31);
+    let bound = builder.sub(available, thirty_one);
+    let valid_offset = builder.slt(offset, bound);
+    let invalid_offset = builder.iszero(valid_offset);
     revert_if_calldata_invalid(builder, invalid_offset);
     let element_base = builder.add(source_base, offset);
-    check_calldata_range(builder, element_base, word);
     let length = builder.calldataload(element_base);
+    let max_length = builder.imm_u64(u64::MAX);
+    let invalid_length = builder.gt(length, max_length);
+    revert_if_calldata_invalid(builder, invalid_length);
     let data = builder.add(element_base, word);
-    check_calldata_range(builder, data, length);
+    let limit = builder.sub(calldata_size, length);
+    let short_tail = builder.sgt(data, limit);
+    revert_if_calldata_invalid(builder, short_tail);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
     let new_tail = encode_value(
         builder,
@@ -640,6 +836,7 @@ fn encode_calldata_bytes_array(
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
         AbiValueSource::Scalar,
+        helpers,
     );
 
     let one = builder.imm_u64(1);
@@ -667,21 +864,12 @@ fn revert_if_calldata_invalid(builder: &mut FunctionBuilder<'_>, condition: Valu
     builder.switch_to_block(continue_block);
 }
 
-fn check_calldata_range(builder: &mut FunctionBuilder<'_>, start: ValueId, size: ValueId) {
-    let end = builder.add(start, size);
-    let overflow = builder.lt(end, start);
-    let calldata_size = builder.calldatasize();
-    let out_of_bounds = builder.gt(end, calldata_size);
-    let invalid = builder.or(overflow, out_of_bounds);
-    revert_if_calldata_invalid(builder, invalid);
-}
-
 fn encode_word_array(
     builder: &mut FunctionBuilder<'_>,
     value: ValueId,
     dest: ValueId,
     location: SliceLocation,
-    function_elements: bool,
+    cleanup: Option<AbiWordValidator>,
 ) -> ValueId {
     let len = match location {
         SliceLocation::Memory => memory_object_len(builder, value, MemoryObjectKind::DynamicArray),
@@ -696,7 +884,11 @@ fn encode_word_array(
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
-    if function_elements && location == SliceLocation::Memory {
+    // Memory elements that need cleanup are copied one word at a time, like solc's per-element
+    // array encoder; full words and calldata elements copy as one block.
+    if let Some(cleanup) = cleanup
+        && location == SliceLocation::Memory
+    {
         let preheader = builder.current_block();
         let cond = builder.create_block();
         let body = builder.create_block();
@@ -714,9 +906,7 @@ fn encode_word_array(
         let source = builder.add(data_source, offset);
         let destination = builder.add(data_dest, offset);
         let value = builder.mload(source);
-        let value = AbiWordValidator::from_mir_type(MirType::Function)
-            .expect("function words always require cleanup")
-            .cleanup(builder, value);
+        let value = clean_word(builder, cleanup, value);
         builder.mstore(destination, value);
         let next = builder.add_u64_offset(index, 1);
         let backedge = builder.current_block();

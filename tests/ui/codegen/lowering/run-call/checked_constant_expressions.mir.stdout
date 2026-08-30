@@ -13,7 +13,7 @@ fn @underflow() -> u256 [selector=0xdc75bec7, pure, abi_params=[], abi_returns=[
     revert 0, 36
 }
 
-fn @uncheckedNarrow() -> bool [selector=0x005e3fdf, pure, abi_params=[], abi_returns=[word]] {
+fn @uncheckedNarrow() -> bool [selector=0x005e3fdf, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = add 250, 10
     v1 = and v0, 255
@@ -21,7 +21,7 @@ fn @uncheckedNarrow() -> bool [selector=0x005e3fdf, pure, abi_params=[], abi_ret
     ret v2
 }
 
-fn @narrowShift() -> bool [selector=0xca932146, pure, abi_params=[], abi_returns=[word]] {
+fn @narrowShift() -> bool [selector=0xca932146, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = shl 8, 1
     v1 = and v0, 255

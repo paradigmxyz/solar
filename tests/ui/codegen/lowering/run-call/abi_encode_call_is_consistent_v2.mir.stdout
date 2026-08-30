@@ -19,7 +19,7 @@ fn @getExternalFunctionPointer() -> function [selector=0x0d5de1f2, abi_params=[]
     ret v7
 }
 
-fn @test() -> u8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+fn @test() -> u8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes], object, selector 0x33d8581000000000000000000000000000000000000000000000000000000000, args 1, v0

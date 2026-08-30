@@ -1,4 +1,4 @@
-//@ compile-flags: -Zevm-ir-pipeline=block-cse
+//@ compile-flags: --evm-version amsterdam -Zevm-ir-pipeline=block-cse
 //@ filecheck:
 @module module
 
@@ -137,8 +137,7 @@ bb8:
   add
   stop
 
-// EOF extended swaps rearrange value identities through an immediate operand that this IR does
-// not model. Keep computations on opposite sides of the instruction independent.
+// Extended swaps rearrange tracked value identities.
 // CHECK-LABEL: {{^[ +].*}}bb9:
 // CHECK-COUNT-2: add
 bb9:
@@ -146,7 +145,7 @@ bb9:
   push 3
   add
   push 7
-  swapn
+  swap 1
   pop
   push 2
   push 3
@@ -161,7 +160,9 @@ bb10:
   push 3
   add
   push 7
-  exchange
+  push 8
+  exchange 1, 2
+  pop
   pop
   push 2
   push 3

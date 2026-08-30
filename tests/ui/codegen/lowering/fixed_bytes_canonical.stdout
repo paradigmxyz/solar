@@ -1,17 +1,17 @@
 // === ROOT/tests/ui/codegen/lowering/fixed_bytes_canonical.sol:FixedBytesCanonical ===
 @module FixedBytesCanonical
-fn @fromUint(arg0: u8) -> bytes1 [selector=0x0b5b6892, pure, abi_params=[u8], abi_returns=[word]] {
+fn @fromUint(arg0: u8) -> bytes1 [selector=0x0b5b6892, pure, abi_params=[u8], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = shl 248, arg0
     ret v0
 }
 
-fn @fromHex() -> bytes1 [selector=0x7b05e034, pure, abi_params=[], abi_returns=[word]] {
+fn @fromHex() -> bytes1 [selector=0x7b05e034, pure, abi_params=[], abi_returns=[word<bytes1>]] {
   bb0:
     ret 0x100000000000000000000000000000000000000000000000000000000000000
 }
 
-fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, pure, abi_params=[bytes], abi_returns=[word<bool>]] {
   bb0:
     v0 = memory_object_len memorybytes, arg0
     v1 = lt 0, v0
@@ -29,7 +29,7 @@ fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, pure, abi_pa
     revert 0, 36
 }
 
-fn @narrow(arg0: bytes4) -> bytes2 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word]] {
+fn @narrow(arg0: bytes4) -> bytes2 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word<bytes2>]] {
   bb0:
     v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
     ret v0

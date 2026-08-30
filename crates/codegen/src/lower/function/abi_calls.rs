@@ -13,9 +13,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         match ty {
             AbiType::FixedArray { .. } | AbiType::Tuple(_) => ty.is_dynamic(),
-            AbiType::DynamicArray { element, .. } => {
-                !matches!(element.as_ref(), AbiType::Word | AbiType::Function | AbiType::Bytes(_))
-            }
+            AbiType::DynamicArray { element, .. } => !matches!(
+                element.as_ref(),
+                AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_)
+            ),
             _ => false,
         }
     }
@@ -27,7 +28,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 AbiType::DynamicArray {
                     element,
                     location: SliceLocation::Calldata,
-                } if matches!(element.as_ref(), AbiType::Word | AbiType::Bytes(_))
+                } if matches!(element.as_ref(), AbiType::Word(_) | AbiType::Bytes(_))
             )
     }
 
@@ -54,9 +55,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         needs_validation: bool,
     ) -> bool {
         // base = slice_ptr(value)
-        // len = slice_len(value)
         // head = abi_head(ty)
-        // if head > len { revert(0, 0) }
         // check_range(base, head)
         // validate_static(ty, base)
         if self.is_external_abi_argument(value) || !needs_validation {
@@ -68,10 +67,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let base = self.builder.slice_ptr(value);
-        let length = self.builder.slice_len(value);
         let size = self.builder.imm_u64(abi_type.head_size());
-        let too_short = self.builder.gt(size, length);
-        self.revert_if_invalid(too_short);
         self.check_calldata_range(base, size);
         self.validate_calldata_static_value(ty, base);
         true
@@ -173,11 +169,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn is_external_abi_argument(&self, value: ValueId) -> bool {
         self.builder.func().selector.is_some()
             && matches!(self.builder.func().value(value), Value::Arg(_))
-    }
-
-    pub(super) fn is_external_only_abi_argument(&self, value: ValueId) -> bool {
-        self.is_external_abi_argument(value)
-            && self.builder.func().attributes.visibility == solar_ast::Visibility::External
     }
 
     pub(super) fn calldata_aggregate_requires_validation(&self, ty: Ty<'gcx>) -> bool {
@@ -349,7 +340,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn abi_type_at_location(ty: AbiType, location: SliceLocation) -> AbiType {
         match ty {
-            AbiType::Word => AbiType::Word,
+            AbiType::Word(cleanup) => AbiType::Word(cleanup),
             AbiType::Function => AbiType::Function,
             AbiType::Bytes(_) => AbiType::Bytes(location),
             AbiType::DynamicArray { element, .. } => AbiType::DynamicArray {
@@ -417,7 +408,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let element_head_size = self.builder.imm_u64(element_type.head_size());
                 let head_size = self.builder.checked_mul(length, element_head_size);
                 self.check_calldata_tail_range(data, head_size);
-                if matches!(element_type, AbiType::Word)
+                if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
                     return Some(self.copy_calldata_word_array(data, length));
@@ -515,18 +506,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         validate_bounds: bool,
     ) -> Option<ValueId> {
         let base_ty = ty.peel_refs();
-        if let TyKind::Array(element, length) = base_ty.kind
+        if let TyKind::Array(_, length) = base_ty.kind
             && self.types.abi_type(base_ty)?.is_dynamic()
         {
             let value_pos =
                 self.calldata_value_position(base_ty, head, tuple_base, validate_bounds)?;
-            let length = u64::try_from(length).ok()?;
-            if validate_bounds {
-                let element_head_size = self.types.abi_type(element)?.head_size();
-                let size = self.builder.imm_u64(element_head_size.checked_mul(length)?);
-                self.check_calldata_tail_range(value_pos, size);
-            }
-            let length = self.builder.imm_u64(length);
+            let length = self.builder.imm_u64(u64::try_from(length).ok()?);
             return Some(self.builder.make_slice(value_pos, length, SliceLocation::Calldata));
         }
         let decode_ty = if ty.is_ref_at(DataLocation::Calldata)
@@ -599,7 +584,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.validate_calldata_dynamic_tail(value_pos, length, element_head_size);
                 }
                 let data = self.builder.add(value_pos, word);
-                if matches!(element_type, AbiType::Word)
+                if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
                     Some(self.copy_calldata_word_array(data, length))
@@ -616,12 +601,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Array(element, length) => {
                 let length = u64::try_from(length).ok()?;
                 if is_calldata {
-                    let element_head_size = self.types.abi_type(element)?.head_size();
-                    let head_size = length.checked_mul(element_head_size)?;
-                    if validate_bounds {
-                        let head_size = self.builder.imm_u64(head_size);
-                        self.check_calldata_tail_range(value_pos, head_size);
-                    }
                     let length = self.builder.imm_u64(length);
                     return Some(self.builder.make_slice(
                         value_pos,
@@ -639,10 +618,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Struct(id) => {
                 if is_calldata {
+                    // The tail offset check above already covers the whole head of an
+                    // in-range struct; a wrapped pointer keeps solc's lazy semantics, where
+                    // each selected field validates its own path and missing bytes read as
+                    // zero.
                     let head_size = self.builder.imm_u64(self.types.abi_type(ty)?.head_size());
-                    if validate_bounds {
-                        self.check_calldata_tail_range(value_pos, head_size);
-                    }
                     return Some(self.builder.make_slice(
                         value_pos,
                         head_size,
@@ -675,13 +655,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if dynamic {
         //     if validate_bounds { check_range(head, 32) }
         //     offset = calldataload(head)
-        //     if validate_bounds && !(offset <s calldatasize() - tuple_base - 31) {
+        //     if validate_bounds && !(offset <s calldatasize() - tuple_base - (needed - 1)) {
         //         revert(0, 0)
         //     }
         //     position = tuple_base + offset
         // }
         let word = self.builder.imm_u64(32);
-        if !self.types.abi_type(ty)?.is_dynamic() {
+        let abi_type = self.types.abi_type(ty)?;
+        if !abi_type.is_dynamic() {
             return Some(head);
         }
         if validate_bounds {
@@ -690,13 +671,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let offset = self.builder.calldataload(head);
         let value_pos = self.builder.add(tuple_base, offset);
         if validate_bounds {
-            // Solidity's calldata tail helper uses a signed offset bound. Negative ABI
-            // offsets may therefore wrap to a valid EVM calldata load, whose missing bytes
-            // read as zero; the tail checks below decide whether the resulting value is valid.
+            // Solidity's calldata tail helper uses a signed offset bound and requires the
+            // value's own tail size: its length word, or the whole head of a statically sized
+            // aggregate. Negative ABI offsets may therefore wrap to a valid EVM calldata load,
+            // whose missing bytes read as zero; the tail checks decide whether the resulting
+            // value is valid.
             let calldata_size = self.builder.calldatasize();
-            let thirty_one = self.builder.imm_u64(31);
+            let needed = self.builder.imm_u64(abi_type.tail_size() - 1);
             let available = self.builder.sub(calldata_size, tuple_base);
-            let bound = self.builder.sub(available, thirty_one);
+            let bound = self.builder.sub(available, needed);
             let valid = self.builder.slt(offset, bound);
             let invalid = self.builder.iszero(valid);
             self.revert_if_invalid(invalid);
@@ -704,22 +687,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(value_pos)
     }
 
+    /// Reverts unless `size` bytes at `start` lie inside calldata.
+    ///
+    /// The bound is solc's `slt(sub(calldatasize(), start), size)`: a pointer that wrapped
+    /// through an accepted negative tail offset compares as in range and reads zero-filled
+    /// calldata, exactly like solc's lazy calldata decoding.
     fn check_calldata_range(&mut self, start: ValueId, size: ValueId) {
-        // end = start + size
-        // invalid = overflow(end) || end > calldatasize()
-        let end = self.builder.add(start, size);
-        let overflow = self.builder.lt(end, start);
         let calldata_size = self.builder.calldatasize();
-        let out_of_bounds = self.builder.gt(end, calldata_size);
-        let invalid = self.builder.or(overflow, out_of_bounds);
+        let remaining = self.builder.sub(calldata_size, start);
+        let invalid = self.builder.slt(remaining, size);
         self.revert_if_invalid(invalid);
     }
 
     fn check_calldata_tail_range(&mut self, start: ValueId, size: ValueId) {
-        let end = self.builder.add(start, size);
-        let calldata_size = self.builder.calldatasize();
-        let out_of_bounds = self.builder.gt(end, calldata_size);
-        self.revert_if_invalid(out_of_bounds);
+        self.check_calldata_range(start, size);
     }
 
     fn validate_calldata_dynamic_tail(

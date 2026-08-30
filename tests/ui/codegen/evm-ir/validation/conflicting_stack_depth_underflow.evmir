@@ -1,0 +1,14 @@
+//~? ERROR: EVM IR verification failed: block 3: `pop` on an empty stack
+@module module
+
+bb0:
+  push 1
+  jumpi bb2, bb1
+bb1:
+  push 0
+  jump bb3
+bb2:
+  jump bb3
+bb3:
+  pop
+  stop

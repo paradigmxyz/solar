@@ -3,9 +3,9 @@
 fn @storeCalldata(arg0: calldataslice) -> u256 [selector=0xc35992d7, abi_params=[tuple<u8, u16, bytes2, u8>], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = add v0, 128
-    v2 = calldatasize
-    v3 = gt v1, v2
+    v1 = calldatasize
+    v2 = sub v1, v0
+    v3 = slt v2, 128
     jumpi v3, bb1, bb2
   bb2:
     v4 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
@@ -268,9 +268,9 @@ fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[ar
     v7 = iszero v6
     jumpi v7, bb1, bb2
   bb2:
-    v8 = add v1, v2
-    v9 = calldatasize
-    v10 = gt v8, v9
+    v8 = calldatasize
+    v9 = sub v8, v1
+    v10 = slt v9, v2
     jumpi v10, bb3, bb4
   bb4:
     v11 = mul v0, 32
@@ -421,9 +421,9 @@ fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[arr
     v7 = iszero v6
     jumpi v7, bb1, bb2
   bb2:
-    v8 = add v1, v2
-    v9 = calldatasize
-    v10 = gt v8, v9
+    v8 = calldatasize
+    v9 = sub v8, v1
+    v10 = slt v9, v2
     jumpi v10, bb3, bb4
   bb4:
     v11 = mul v0, 32

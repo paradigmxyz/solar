@@ -6,7 +6,7 @@ fn @g() -> (u256, storageptr, u256) {
     ret 1, 0, 2
 }
 
-fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @g, 3
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

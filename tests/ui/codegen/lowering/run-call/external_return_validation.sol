@@ -27,6 +27,8 @@
 //@ run-call: ExternalReturnValidation::dirtyBoolPacked() => 0x01
 //@ run-call-fail: ExternalReturnValidation::dynamicShort(uint256) 0x60
 //@ run-call: ExternalReturnValidation::dynamicShort(uint256) 0x61 => true
+//@ run-call-fail: ExternalReturnValidation::dynamicLengthOverflow() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: ExternalReturnValidation::dynamicArrayLengthOverflow() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 //@ run-call: ExternalReturnValidation::dirtyInternalWiden() => 0
 //@ run-call: ExternalReturnValidation::dirtyInternalAggregate() => (1, true)
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol
@@ -323,6 +325,30 @@ contract ExternalReturnValidation {
             mstore(0, 0x20)
             mstore(0x20, 0x21)
             return(0, length)
+        }
+    }
+
+    function dynamicLengthOverflow() external view returns (uint256) {
+        return this.dynamicLengthOverflowTarget().length;
+    }
+
+    function dynamicLengthOverflowTarget() external pure returns (bytes memory) {
+        assembly ("memory-safe") {
+            mstore(0, 0x20)
+            mstore(0x20, 0x10000000000000000)
+            return(0, 0x40)
+        }
+    }
+
+    function dynamicArrayLengthOverflow() external view returns (uint256) {
+        return this.dynamicArrayLengthOverflowTarget().length;
+    }
+
+    function dynamicArrayLengthOverflowTarget() external pure returns (uint256[] memory) {
+        assembly ("memory-safe") {
+            mstore(0, 0x20)
+            mstore(0x20, 0x10000000000000000)
+            return(0, 0x40)
         }
     }
 }

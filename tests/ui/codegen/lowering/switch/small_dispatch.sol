@@ -4,9 +4,9 @@
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@[size] filecheck: --check-prefixes=CHECK,SIZE
 //@[runtime] compile-flags: -O size
-//@[runtime] run-call: PartialTerminalDispatch::f0 => 0
-//@[runtime] run-call: PartialTerminalDispatch::f1
-//@[runtime] run-call: PartialTerminalDispatch::f39
+//@ run-call: PartialTerminalDispatch::f0 => 0
+//@ run-call: PartialTerminalDispatch::f1
+//@ run-call: PartialTerminalDispatch::f39
 
 contract OneFunction {
     // CHECK-LABEL: small_dispatch.sol:OneFunction (runtime) ===

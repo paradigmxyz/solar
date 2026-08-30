@@ -2,7 +2,7 @@
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, StackDepths, instruction_size_lower_bound},
+    utils::{FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -31,6 +31,7 @@ impl EvmPass for Outline {
 }
 
 const MIN_MACHINE_RUN: usize = 4;
+const MAX_MACHINE_RUN_CANDIDATES: usize = 2_000_000;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId, u16); 1]>;
 type OutlineEdits = FxHashMap<BlockId, BlockEdits>;
@@ -52,15 +53,22 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     // Enumerating every contiguous run is quadratic in a block's length, and
-    // hashing each run's instructions made it cubic. Two exact filters keep it
-    // in hand without changing which groups are found:
+    // hashing each run's instructions made it cubic. Two exact filters and a
+    // candidate budget keep it in hand:
     //
     // - A run can only be outlined if it occurs at least twice, so every instruction in it occurs
     //   at least twice module-wide. Runs are cut at any instruction that does not, which ends them
     //   at the unique pushes that separate most straight-line code.
     // - A run's hash comes from a per-block prefix table, so it costs the same whatever the run's
     //   length. Equality still compares instructions, so the grouping is exactly as before.
+    // - Large modules use shorter runs so candidate storage stays bounded. Longer repeated
+    //   sequences can still be outlined in chunks.
     let hashes = InstHashes::new(module);
+    let repeated_instructions = hashes.repeated_count();
+    if repeated_instructions == 0 || repeated_instructions > MAX_MACHINE_RUN_CANDIDATES {
+        return false;
+    }
+    let max_run_length = max_machine_run_length(repeated_instructions);
 
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -72,7 +80,8 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             let mut inputs = 0i32;
             let mut peak = 0i32;
             let mut run_size = 0usize;
-            for end in start..block.instructions.len() {
+            let limit = block.instructions.len().min(start + max_run_length);
+            for end in start..limit {
                 let inst = &block.instructions[end];
                 if !hashes.repeats(block_id, end) {
                     break;
@@ -164,7 +173,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let run_size = lower_bound(gcx, &body);
         let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
-        if free.len() * run_size < free.len() * site_size + stub_size + 2 {
+        if free.len() * run_size < free.len() * site_size + stub_size + 1 {
             continue;
         }
         for site in &free {
@@ -203,7 +212,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
-            stub.instructions.push(Instruction::opcode(op::swap(depth as u8)));
+            stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
         }
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         stubs.push(module.add_block(stub));
@@ -217,6 +226,12 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
+}
+
+fn max_machine_run_length(repeated_instructions: usize) -> usize {
+    debug_assert_ne!(repeated_instructions, 0);
+    debug_assert!(repeated_instructions <= MAX_MACHINE_RUN_CANDIDATES);
+    (MIN_MACHINE_RUN - 1 + MAX_MACHINE_RUN_CANDIDATES / repeated_instructions).max(MIN_MACHINE_RUN)
 }
 
 /// Outlines closed computations that differ only in a bounded number of immediate pushes.
@@ -313,8 +328,8 @@ fn outline_parametric_machine_runs(
         let mut parameters = Vec::new();
         for (index, first_inst) in first_body.iter().enumerate() {
             let differs = free.iter().skip(1).any(|site| {
-                InstKey::new(&module.blocks[site.block].instructions[site.start + index])
-                    != InstKey::new(first_inst)
+                MachineInstKey::new(&module.blocks[site.block].instructions[site.start + index])
+                    != MachineInstKey::new(first_inst)
             });
             if differs {
                 if !parameterizable_push(first_inst)
@@ -402,7 +417,7 @@ fn outline_parametric_machine_runs(
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
-            stub.instructions.push(Instruction::opcode(op::swap(depth as u8)));
+            stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
         }
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         stubs.push(module.add_block(stub));
@@ -447,7 +462,7 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
                 return None;
             }
             for swap in 1..=depth {
-                result.push(Instruction::opcode(op::swap(swap as u8)));
+                result.push(Instruction::stack_op(op::StackOp::Swap(swap as u8)));
             }
             delta += 1;
             continue;
@@ -500,7 +515,9 @@ fn split_parametric_outline_site(
     module.blocks[block].instructions.extend(edit.prefix.iter().cloned());
     module.blocks[block].instructions.push(Instruction::push_block(continuation));
     for depth in (1..=edit.inputs).rev() {
-        module.blocks[block].instructions.push(Instruction::opcode(op::swap(depth as u8)));
+        module.blocks[block]
+            .instructions
+            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
     }
     module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(edit.stub)));
 }
@@ -556,7 +573,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     for value in values {
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
         stub.instructions.push(Instruction::push_value(value));
-        stub.instructions.push(Instruction::opcode(op::SWAP1));
+        stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(1)));
         stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
         let stub = module.add_block(stub);
         for &(block, index) in &sites[&value] {
@@ -608,7 +625,9 @@ fn split_outline_site(
     let continuation = module.add_block(continuation);
     module.blocks[block].instructions.push(Instruction::push_block(continuation));
     for depth in (1..=inputs).rev() {
-        module.blocks[block].instructions.push(Instruction::opcode(op::swap(depth as u8)));
+        module.blocks[block]
+            .instructions
+            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
     }
     module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
 }
@@ -617,8 +636,16 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
     if inst.is_encoded_push() {
         return Some((0, 0, 1));
     }
+    if let Some(stack_op) = inst.as_stack_op() {
+        return Some(match stack_op {
+            op::StackOp::Dup(depth) => (u16::from(depth), 0, 1),
+            op::StackOp::Swap(depth) => (u16::from(depth) + 1, 0, 0),
+            op::StackOp::Exchange(_, depth) => (u16::from(depth) + 1, 0, 0),
+            op::StackOp::Pop => (1, 1, 0),
+        });
+    }
     Some(match inst.opcode {
-        op::CALLDATASIZE | op::PUSH0 | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),
+        op::CALLDATASIZE | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),
         op::ISZERO | op::NOT | op::CALLDATALOAD | op::MLOAD => (1, 1, 1),
         op::ADD
         | op::SUB
@@ -635,9 +662,6 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
         | op::EQ
         | op::DIV => (2, 2, 1),
         op::MSTORE => (2, 2, 0),
-        op::POP => (1, 1, 0),
-        dup if (op::DUP1..=op::DUP16).contains(&dup) => (u16::from(dup - op::DUP1) + 1, 0, 1),
-        swap if (op::SWAP1..=op::SWAP16).contains(&swap) => (u16::from(swap - op::SWAP1) + 2, 0, 0),
         _ => return None,
     })
 }
@@ -686,16 +710,6 @@ struct ParamEdit {
     prefix: Vec<Instruction>,
 }
 
-/// The identity of an instruction for outlining: what a run must match on.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct InstKey(u8, u8, Option<PushValue>);
-
-impl InstKey {
-    fn new(inst: &Instruction) -> Self {
-        Self(inst.opcode, inst.encoding, inst.value)
-    }
-}
-
 /// Per-block instruction tables: whether each instruction occurs more than
 /// once module-wide, and prefix hashes so any run hashes in constant time.
 ///
@@ -713,10 +727,10 @@ impl InstHashes {
     const BASE: u64 = 0x100_0000_01b3;
 
     fn new(module: &Module) -> Self {
-        let mut counts = FxHashMap::<InstKey, u32>::default();
+        let mut counts = FxHashMap::<MachineInstKey, u32>::default();
         for block in module.blocks.iter() {
             for inst in &block.instructions {
-                *counts.entry(InstKey::new(inst)).or_default() += 1;
+                *counts.entry(MachineInstKey::new(inst)).or_default() += 1;
             }
         }
 
@@ -729,7 +743,7 @@ impl InstHashes {
             let mut repeated = DenseBitSet::new_empty(block.instructions.len());
             prefix.push(0u64);
             for (index, inst) in block.instructions.iter().enumerate() {
-                let key = InstKey::new(inst);
+                let key = MachineInstKey::new(inst);
                 if counts.get(&key).copied().unwrap_or(0) >= 2 {
                     repeated.insert(index);
                 }
@@ -758,6 +772,10 @@ impl InstHashes {
         self.repeats[block].contains(index)
     }
 
+    fn repeated_count(&self) -> usize {
+        self.repeats.iter().map(DenseBitSet::count).sum()
+    }
+
     fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
         let prefix = &self.prefixes[block];
         prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
@@ -773,9 +791,11 @@ struct MachineInstSlice<'a> {
 impl PartialEq for MachineInstSlice<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.insts.len() == other.insts.len()
-            && self.insts.iter().zip(other.insts).all(|(a, b)| {
-                a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
-            })
+            && self
+                .insts
+                .iter()
+                .zip(other.insts)
+                .all(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
     }
 }
 
@@ -789,14 +809,17 @@ impl Hash for MachineInstSlice<'_> {
 
 /// A normalized instruction identity that ignores ordinary immediate-push values.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct ParamInstKey(u8, u8, Option<PushValue>);
+enum ParamInstKey {
+    ImmediatePush,
+    Exact(MachineInstKey),
+}
 
 impl ParamInstKey {
     fn new(inst: &Instruction) -> Self {
         if parameterizable_push(inst) {
-            Self(inst.opcode, inst.encoding, None)
+            Self::ImmediatePush
         } else {
-            Self(inst.opcode, inst.encoding, inst.value)
+            Self::Exact(MachineInstKey::new(inst))
         }
     }
 }
@@ -890,5 +913,18 @@ impl RunState {
     fn labels(&mut self, module: &Module, count: usize) -> Option<Vec<u32>> {
         let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
         labels.take(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn machine_run_candidate_budget() {
+        for repeated in [1, 10, 1_000, 200_000, 2_000_000] {
+            let lengths = max_machine_run_length(repeated) - MIN_MACHINE_RUN + 1;
+            assert!(repeated * lengths <= MAX_MACHINE_RUN_CANDIDATES);
+        }
     }
 }

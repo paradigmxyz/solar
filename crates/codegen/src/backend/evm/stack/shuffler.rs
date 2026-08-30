@@ -3,10 +3,10 @@
 //! This module converts a source stack layout to a target layout using DUP, SWAP, and POP
 //! operations. Layouts of up to four words compare nontrivial greedy results with a bounded
 //! shortest-action search and take the searched sequence only when it improves one objective
-//! without worsening action count or static gas. Larger layouts use the verified greedy result,
-//! with the bounded search as the correctness fallback when the greedy pass cannot reach the
-//! target. When exact search reaches its state cap it stops enqueueing successors but drains the
-//! existing frontier, preserving targets that were discovered before the cap.
+//! without worsening action count, static gas, or encoded size. Larger layouts use the verified
+//! greedy result, with the bounded search as the correctness fallback when the greedy pass cannot
+//! reach the target. When exact search reaches its state cap it stops enqueueing successors but
+//! drains the existing frontier, preserving targets that were discovered before the cap.
 //!
 //! ## Algorithm overview
 //!
@@ -20,9 +20,10 @@
 //! Swaps between equal tracked values are omitted. A transition is returned only
 //! when the modeled source reaches the exact target.
 
-use super::model::{MAX_STACK_ACCESS, StackModel, StackOp};
-use crate::mir::ValueId;
+use super::model::StackModel;
+use crate::{backend::evm::op::StackOp, mir::ValueId};
 use smallvec::SmallVec;
+use solar_config::EvmVersion;
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use std::collections::VecDeque;
 
@@ -54,13 +55,25 @@ pub(crate) struct StackShuffler<'a> {
     target: &'a [TargetSlot],
     /// Operations generated so far.
     ops: Vec<StackOp>,
+    /// Target used to compare logical operations by their lowered cost.
+    evm_version: EvmVersion,
     /// Multiplicity: how many copies of each value are needed.
     multiplicities: FxHashMap<ValueId, usize>,
 }
 
 impl<'a> StackShuffler<'a> {
     /// Creates a new shuffler to transform source to target layout.
+    #[cfg(test)]
     pub(crate) fn new(source: &StackModel, target: &'a [TargetSlot]) -> Self {
+        Self::for_evm_version(source, target, EvmVersion::Osaka)
+    }
+
+    /// Creates a shuffler for an EVM version.
+    pub(crate) fn for_evm_version(
+        source: &StackModel,
+        target: &'a [TargetSlot],
+        evm_version: EvmVersion,
+    ) -> Self {
         let source_stack: Layout = source.as_slice().iter().copied().collect();
 
         // Count multiplicities in the target.
@@ -70,12 +83,17 @@ impl<'a> StackShuffler<'a> {
             *multiplicities.entry(*v).or_default() += 1;
         }
 
-        Self { source: source_stack, target, ops: Vec::new(), multiplicities }
+        Self { source: source_stack, target, ops: Vec::new(), evm_version, multiplicities }
+    }
+
+    fn max_stack_access(&self) -> usize {
+        self.evm_version.reachable_stack_depth()
     }
 
     /// Performs the shuffle and returns the result.
     pub(crate) fn shuffle(mut self) -> Option<ShuffleResult> {
         let original = self.source.clone();
+        let max_stack_access = self.max_stack_access();
 
         // Phase 1: Ensure we have enough copies of each value.
         self.ensure_multiplicities();
@@ -93,34 +111,41 @@ impl<'a> StackShuffler<'a> {
             .abs_diff(self.target.len())
             .max(usize::from(!Self::matches_target(&original, self.target)));
         if original.len().max(self.target.len()) <= EXACT_LAYOUT_OPTIMIZATION_LIMIT
-            && greedy.as_ref().is_none_or(|result| result.ops.len() > operation_lower_bound)
+            && greedy.as_ref().is_none_or(|result| {
+                Self::lowered_cost(&result.ops, self.evm_version).0 > operation_lower_bound
+            })
         {
-            let exact = Self::search_exact(original, self.target, &self.multiplicities);
+            let exact =
+                Self::search_exact(original, self.target, &self.multiplicities, max_stack_access);
             return match (greedy, exact) {
                 (Some(greedy), Some(exact)) => {
-                    let exact_gas = Self::static_gas(&exact.ops);
-                    let greedy_gas = Self::static_gas(&greedy.ops);
-                    if exact.ops.len() <= greedy.ops.len()
+                    let (exact_actions, exact_gas, exact_size) =
+                        Self::lowered_cost(&exact.ops, self.evm_version);
+                    let (greedy_actions, greedy_gas, greedy_size) =
+                        Self::lowered_cost(&greedy.ops, self.evm_version);
+                    let use_exact = exact_actions <= greedy_actions
                         && exact_gas <= greedy_gas
-                        && (exact.ops.len() < greedy.ops.len() || exact_gas < greedy_gas)
-                    {
-                        Some(exact)
-                    } else {
-                        Some(greedy)
-                    }
+                        && exact_size <= greedy_size
+                        && (exact_actions < greedy_actions
+                            || exact_gas < greedy_gas
+                            || exact_size < greedy_size);
+                    if use_exact { Some(exact) } else { Some(greedy) }
                 }
                 (None, Some(exact)) => Some(exact),
                 (greedy, None) => greedy,
             };
         }
 
-        greedy.or_else(|| Self::search_exact(original, self.target, &self.multiplicities))
+        greedy.or_else(|| {
+            Self::search_exact(original, self.target, &self.multiplicities, max_stack_access)
+        })
     }
 
     fn search_exact(
         source: Layout,
         target: &[TargetSlot],
         multiplicities: &FxHashMap<ValueId, usize>,
+        max_stack_access: usize,
     ) -> Option<ShuffleResult> {
         let mut queue = VecDeque::new();
         let mut predecessors = FxHashMap::default();
@@ -138,7 +163,10 @@ impl<'a> StackShuffler<'a> {
                 ops.reverse();
                 return Some(ShuffleResult { ops });
             }
-            let max_swap = stack.len().saturating_sub(1).min(MAX_STACK_ACCESS);
+            if predecessors.len() >= MAX_LAYOUT_SEARCH_STATES {
+                continue;
+            }
+            let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
             for depth in 1..=max_swap {
                 if stack[0] == stack[depth] {
                     continue;
@@ -166,7 +194,7 @@ impl<'a> StackShuffler<'a> {
                     continue;
                 }
                 let Some(depth) =
-                    stack.iter().take(MAX_STACK_ACCESS).position(|&slot| slot == Some(value))
+                    stack.iter().take(max_stack_access).position(|&slot| slot == Some(value))
                 else {
                     continue;
                 };
@@ -185,8 +213,15 @@ impl<'a> StackShuffler<'a> {
         None
     }
 
-    fn static_gas(ops: &[StackOp]) -> usize {
-        ops.iter().map(|op| if matches!(op, StackOp::Pop) { 2 } else { 3 }).sum()
+    fn lowered_cost(ops: &[StackOp], evm_version: EvmVersion) -> (usize, usize, usize) {
+        ops.iter().fold((0, 0, 0), |(instructions, gas, size), op| {
+            let metrics = op.metrics(evm_version).expect("valid shuffle operation");
+            (
+                instructions + metrics.instruction_count,
+                gas + metrics.static_gas,
+                size + metrics.assembled_len,
+            )
+        })
     }
 
     fn enqueue(
@@ -215,22 +250,28 @@ impl<'a> StackShuffler<'a> {
 
     /// Phase 1: Ensure we have enough copies of each value in source.
     fn ensure_multiplicities(&mut self) {
-        // For each value, check if we have enough copies.
-        for (&value, &needed) in self.multiplicities.iter() {
-            let current_count = self.source.iter().filter(|&&v| v == Some(value)).count();
-            if current_count < needed {
-                // DUP this value until its target multiplicity is available.
-                if let Some(depth) = self.find_value(value)
-                    && depth < MAX_STACK_ACCESS
-                {
-                    for _ in current_count..needed {
-                        let dup_n = (self.find_value(value).unwrap_or(0) + 1) as u8;
-                        if dup_n <= 16 {
-                            self.ops.push(StackOp::Dup(dup_n));
-                            self.source.insert(0, Some(value));
-                        }
-                    }
-                }
+        let mut source_counts = FxHashMap::<_, usize>::default();
+        for value in self.source.iter().flatten() {
+            *source_counts.entry(*value).or_default() += 1;
+        }
+
+        for (&value, &needed) in &self.multiplicities {
+            let current = source_counts.get(&value).copied().unwrap_or(0);
+            let missing = needed.saturating_sub(current);
+            if missing == 0 {
+                continue;
+            }
+            let Some(depth) =
+                self.find_value(value).filter(|&depth| depth < self.max_stack_access())
+            else {
+                continue;
+            };
+
+            self.ops.push(StackOp::Dup((depth + 1) as u8));
+            self.source.insert(0, Some(value));
+            for _ in 1..missing {
+                self.ops.push(StackOp::Dup(1));
+                self.source.insert(0, Some(value));
             }
         }
     }
@@ -239,51 +280,36 @@ impl<'a> StackShuffler<'a> {
     fn arrange_positions(&mut self) {
         // Work from top of stack downward.
         for target_depth in 0..self.target.len().min(self.source.len()) {
-            let target_slot = &self.target[target_depth];
+            let TargetSlot::Value(target_value) = self.target[target_depth];
+            if self.source.get(target_depth) == Some(&Some(target_value)) {
+                continue;
+            }
+            let Some(source_depth) = self.find_value_from(target_value, target_depth) else {
+                continue;
+            };
+            let max_stack_access = self.max_stack_access();
+            if source_depth == target_depth || source_depth > max_stack_access {
+                continue;
+            }
+            if target_depth == 0 {
+                self.swap(source_depth);
+                continue;
+            }
+            if target_depth > max_stack_access {
+                continue;
+            }
 
-            match target_slot {
-                TargetSlot::Value(target_val) => {
-                    // Check if the correct value is already at this position.
-                    if self.source.get(target_depth) == Some(&Some(*target_val)) {
-                        continue;
-                    }
-
-                    // Find where the target value currently is.
-                    if let Some(source_depth) = self.find_value_from(*target_val, target_depth)
-                        && source_depth != target_depth
-                        && source_depth <= MAX_STACK_ACCESS
-                    {
-                        // Move the selected value into place.
-                        if target_depth == 0 {
-                            // The top position needs one swap.
-                            let swap_n = source_depth as u8;
-                            if (1..=16).contains(&swap_n) {
-                                self.swap(source_depth);
-                            }
-                        } else {
-                            // First swap the current top to `target_depth`, then bring the selected
-                            // value to the top and swap it back.
-                            if target_depth <= MAX_STACK_ACCESS && source_depth <= MAX_STACK_ACCESS
-                            {
-                                // Swap the top with the `target_depth` position.
-                                let swap1 = target_depth as u8;
-                                if (1..=16).contains(&swap1) {
-                                    self.swap(target_depth);
-                                }
-
-                                // Bring the occurrence selected before the first swap to the top.
-                                // Re-searching here could pick an already-fixed duplicate above
-                                // `target_depth` and disturb the prefix.
-                                self.swap(source_depth);
-
-                                // Swap back to put the value at `target_depth`.
-                                if (1..=16).contains(&swap1) {
-                                    self.swap(target_depth);
-                                }
-                            }
-                        }
-                    }
-                }
+            let target_depth = target_depth as u8;
+            let source_depth = source_depth as u8;
+            if let Some(exchange) = StackOp::from_swaps(target_depth, source_depth, target_depth) {
+                self.ops.push(exchange);
+                self.source.swap(usize::from(target_depth), usize::from(source_depth));
+            } else {
+                // Bring the selected value through the top when `EXCHANGE` cannot encode these
+                // two depths.
+                self.swap(usize::from(target_depth));
+                self.swap(usize::from(source_depth));
+                self.swap(usize::from(target_depth));
             }
         }
     }
@@ -297,21 +323,50 @@ impl<'a> StackShuffler<'a> {
 
     /// Phase 3: Pop excess values from the stack.
     fn pop_excess(&mut self) {
+        let mut source_counts = FxHashMap::<_, usize>::default();
+        for value in self.source.iter().flatten() {
+            *source_counts.entry(*value).or_default() += 1;
+        }
+
+        let mut pop_count = 0;
+        for slot in &self.source {
+            let can_pop = if let Some(value) = slot {
+                let current = source_counts.get_mut(value).expect("counted source value");
+                let needed = self.multiplicities.get(value).copied().unwrap_or(0);
+                if *current > needed {
+                    *current -= 1;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                self.source.len() - pop_count > self.target.len()
+            };
+            if !can_pop {
+                break;
+            }
+            pop_count += 1;
+        }
+
+        if Self::matches_target(&self.source[pop_count..], self.target) {
+            self.ops.extend(std::iter::repeat_n(StackOp::Pop, pop_count));
+            self.source.drain(..pop_count);
+            return;
+        }
+
         while self.source.len() > self.target.len() {
-            let target_len = self.target.len();
-            if target_len == 0 {
+            let depth = self.target.len();
+            if depth == 0 {
                 self.ops.push(StackOp::Pop);
                 self.source.remove(0);
                 continue;
             }
-
-            // The arrangement phase fixes the target prefix, so the first word after it is
-            // surplus. Rotate that word to the top, pop it, then restore the target prefix.
-            // Popping the top directly would discard the first returned value instead.
-            let depth = target_len;
-            if depth > MAX_STACK_ACCESS {
+            if depth > self.max_stack_access() {
                 break;
             }
+
+            // The arrangement phase fixes the target prefix, so remove the first excess word
+            // without discarding that prefix.
             self.swap(depth);
             self.ops.push(StackOp::Pop);
             self.source.remove(0);
@@ -340,6 +395,7 @@ impl<'a> StackShuffler<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::evm::stack::model::MAX_STACK_ACCESS;
 
     fn make_model(values: &[Option<ValueId>]) -> StackModel {
         let mut model = StackModel::new();
@@ -357,13 +413,7 @@ mod tests {
     fn assert_reaches(source: &StackModel, target: &[TargetSlot], result: &ShuffleResult) {
         let mut actual = source.clone();
         for &op in &result.ops {
-            match op {
-                StackOp::Dup(depth) => actual.dup(depth),
-                StackOp::Swap(depth) => actual.swap(depth),
-                StackOp::Pop => {
-                    actual.pop();
-                }
-            }
+            actual.apply(op);
         }
         assert!(StackShuffler::matches_target(actual.as_slice(), target));
     }
@@ -491,6 +541,22 @@ mod tests {
     }
 
     #[test]
+    fn test_amsterdam_shuffle_prefers_smaller_encoding() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let v2 = ValueId::from_usize(2);
+        let source = make_model(&[Some(v0), Some(v1), Some(v2)]);
+        let target = [TargetSlot::Value(v1), TargetSlot::Value(v2), TargetSlot::Value(v0)];
+
+        let result = StackShuffler::for_evm_version(&source, &target, EvmVersion::Amsterdam)
+            .shuffle()
+            .unwrap();
+
+        assert_eq!(result.ops, [StackOp::Swap(2), StackOp::Swap(1)]);
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
     fn test_shuffle_preserves_fixed_duplicate_prefix() {
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
@@ -500,6 +566,56 @@ mod tests {
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
 
         assert_eq!(result.ops, [StackOp::Swap(1), StackOp::Swap(2)]);
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_legacy_shuffle_uses_exchange() {
+        let values: Vec<_> = (0..4).map(ValueId::from_usize).collect();
+        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
+        let target = [
+            TargetSlot::Value(values[0]),
+            TargetSlot::Value(values[2]),
+            TargetSlot::Value(values[1]),
+            TargetSlot::Value(values[3]),
+        ];
+
+        let result =
+            StackShuffler::for_evm_version(&source, &target, EvmVersion::Osaka).shuffle().unwrap();
+
+        assert_eq!(result.ops, [StackOp::Exchange(1, 2)]);
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_shuffle_uses_extended_exchange() {
+        let values: Vec<_> = (0..18).map(ValueId::from_usize).collect();
+        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
+        let mut target_values = values;
+        target_values.swap(1, 17);
+        let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
+
+        let result = StackShuffler::for_evm_version(&source, &target, EvmVersion::Amsterdam)
+            .shuffle()
+            .unwrap();
+
+        assert_eq!(result.ops, [StackOp::Exchange(1, 17)]);
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_shuffle_uses_extended_swap() {
+        let values: Vec<_> = (0..18).map(ValueId::from_usize).collect();
+        let source = make_model(&values.iter().copied().map(Some).collect::<Vec<_>>());
+        let mut target_values = values;
+        target_values.swap(0, 17);
+        let target: Vec<_> = target_values.into_iter().map(TargetSlot::Value).collect();
+
+        let result = StackShuffler::for_evm_version(&source, &target, EvmVersion::Amsterdam)
+            .shuffle()
+            .unwrap();
+
+        assert_eq!(result.ops, [StackOp::Swap(17)]);
         assert_reaches(&source, &target, &result);
     }
 
@@ -563,7 +679,9 @@ mod tests {
             counts
         });
 
-        let result = StackShuffler::search_exact(source, &target, &multiplicities).unwrap();
+        let result =
+            StackShuffler::search_exact(source, &target, &multiplicities, MAX_STACK_ACCESS)
+                .unwrap();
 
         assert_eq!(
             result.ops,
@@ -599,9 +717,13 @@ mod tests {
                     panic!("failed to shuffle {source_values:?} to {target_values:?}")
                 });
                 let shuffler = StackShuffler::new(&source, &target);
-                let exact =
-                    StackShuffler::search_exact(shuffler.source, &target, &shuffler.multiplicities)
-                        .unwrap();
+                let exact = StackShuffler::search_exact(
+                    shuffler.source,
+                    &target,
+                    &shuffler.multiplicities,
+                    MAX_STACK_ACCESS,
+                )
+                .unwrap();
                 assert!(
                     result.ops.len() <= exact.ops.len(),
                     "non-minimal shuffle from {source_values:?} to {target_values:?}: \

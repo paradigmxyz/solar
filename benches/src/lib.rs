@@ -219,7 +219,8 @@ fn ensure_contract_bytecode(
     for dep in gcx.contract_bytecode_dependencies(contract_id) {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
-    let mut module = codegen::lower::lower_contract_with_bytecodes(gcx, contract_id, bytecodes);
+    let empty = FxHashMap::default();
+    let mut module = codegen::lower::lower_contract(gcx, contract_id, bytecodes, &empty);
     gcx.dcx().has_errors()?;
     let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
     bytecodes.insert(contract_id, artifact.deployment.clone().into());

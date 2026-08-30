@@ -2,7 +2,7 @@
 //@[mir] compile-flags: -O gas -Zdump=mir
 //@[mir] filecheck:
 //@[runtime] compile-flags: -O gas
-//@[runtime] run-call: vested; constructor=[11] => 11
+//@ run-call: vested; constructor=[11] => 11
 
 contract PublicBody {
     uint256 private immutable _start;

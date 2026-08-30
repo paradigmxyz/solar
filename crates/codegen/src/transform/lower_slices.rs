@@ -370,15 +370,14 @@ impl LowerSlices {
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
                     InstKind::InternalCall { function, returns, .. } => {
                         signatures.get(&function).and_then(|signature| {
-                            (usize::try_from(returns).ok() == Some(signature.len())
-                                && signature.contains(&ParamRepr::Pair))
-                            .then(|| {
-                                builder
-                                    .func()
-                                    .inst_result_value(inst_id)
-                                    .map(|result| (signature, result))
-                            })
-                            .flatten()
+                            (usize::try_from(returns).ok() == Some(signature.len()))
+                                .then(|| {
+                                    builder
+                                        .func()
+                                        .inst_result_value(inst_id)
+                                        .map(|result| (signature, result))
+                                })
+                                .flatten()
                         })
                     }
                     _ => None,
@@ -397,12 +396,17 @@ impl LowerSlices {
                 else {
                     unreachable!()
                 };
+                changed |= *call_returns != returns;
                 *call_returns = returns;
                 let Some(MirType::Slice(location)) = instruction.result_ty else {
-                    changed = true;
                     continue;
                 };
                 instruction.result_ty = Some(slice_param_ptr_type(location));
+                changed = true;
+
+                if signature[0] != ParamRepr::Pair {
+                    continue;
+                }
 
                 let already_rebuilt = builder.func().instructions().any(|user| {
                     matches!(builder.func().inst(user).kind, InstKind::MakeSlice { ptr, .. } if ptr == result)
@@ -746,9 +750,10 @@ impl LowerSlices {
         for &(slice, inst, is_ptr) in projections.values() {
             let Some(ty) = func.value_ty(slice) else { continue };
             let physical_object = matches!(ty, MirType::MemPtr);
+            let physical_pointer = matches!(ty, MirType::MemPtr | MirType::CalldataPtr);
             let physical_word = matches!(ty, MirType::UInt(_))
                 && matches!(func.value(slice), Value::Inst(def) if matches!(func.inst(*def).kind, InstKind::MLoad(_)));
-            if physical_word || (physical_object && is_ptr) {
+            if physical_word || (physical_pointer && is_ptr) {
                 let result = func.inst_result_value(inst).expect("slice projection has a result");
                 replacements.insert(result, slice);
                 removed.insert(inst);
