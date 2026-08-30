@@ -493,14 +493,12 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             .normalize_stdout
             .push((run_call_mir_stdout_regex().clone().into(), vec![]));
     }
-    if unscoped_run_call {
-        if base_mir_dump {
-            config
-                .comment_defaults
-                .base()
-                .normalize_stdout
-                .push((run_call_mir_stdout_regex().clone().into(), vec![]));
-        }
+    if unscoped_run_call && base_mir_dump {
+        config
+            .comment_defaults
+            .base()
+            .normalize_stdout
+            .push((run_call_mir_stdout_regex().clone().into(), vec![]));
     }
 }
 
