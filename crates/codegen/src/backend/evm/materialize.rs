@@ -1,6 +1,6 @@
 //! EVM value rematerialization recipes.
 
-use super::mir_opcode;
+use super::mir_opcode::mir_opcode;
 use crate::mir::{Function, InstKind, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};

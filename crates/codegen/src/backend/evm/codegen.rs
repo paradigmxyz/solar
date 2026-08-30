@@ -18,7 +18,8 @@ use super::{
         cross_block_values, is_cheap_recomputable_value, is_cross_block_recomputable_kind,
         is_rematerializable_leaf, rematerializable_nullary_opcode, rematerializable_nullary_value,
     },
-    mir_opcode, op,
+    mir_opcode::mir_opcode,
+    op,
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,
         ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
