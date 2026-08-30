@@ -1028,8 +1028,10 @@ impl<'a> StackPhiPlanner<'a> {
                 // edge needs no shuffle and the others usually little.
                 let Some(first) = forward.clone().next() else { continue };
                 // A wide join shuffles every predecessor into one order; a word the join only
-                // passes on rarely pays that there.
-                let wide = block.predecessors.len() > 2;
+                // passes on rarely pays that there. A loop header is different: its latches
+                // return with the header's own order, so a word riding around the loop
+                // shuffles nowhere.
+                let wide = block.predecessors.len() > 2 && !back_edges.contains_key(&join);
                 let used_here = self.block_uses(join);
                 let mut carried = resident_out
                     .get(&first)
@@ -1310,25 +1312,39 @@ impl<'a> StackPhiPlanner<'a> {
                     let live_out = liveness.live_out(block_id);
                     for succ in carried_succs {
                         // A planned join carries exactly its layout; a chained block carries
-                        // whatever it wants.
-                        // A loop header never asks optimistically: a word carried around a loop
-                        // pays its shuffle on every iteration.
-                        let loop_header =
-                            self.loops.iter().any(|loop_info| loop_info.header == succ);
-                        let onward: Vec<ValueId> = if let Some(layout) =
-                            layouts.get(&succ).filter(|_| precise || loop_header)
-                        {
-                            layout.clone()
-                        } else if let Some(entry) = plan.entries.get(&succ) {
-                            entry.clone()
-                        } else {
-                            wanted
-                                .get(&succ)
-                                .map(|set| set.iter().copied().collect())
-                                .unwrap_or_default()
-                        };
+                        // whatever it wants. The optimistic phase asks for wants everywhere, a
+                        // loop header included: its layout can only hold what the preheader
+                        // and the latches deliver, and those only carry what the header asks
+                        // for, so asking with the layout alone never bootstraps a loop-carried
+                        // word. The latch check and the precise phase prune what it costs.
+                        let onward: Vec<ValueId> =
+                            if let Some(layout) = layouts.get(&succ).filter(|_| precise) {
+                                layout.clone()
+                            } else if let Some(entry) = plan.entries.get(&succ) {
+                                entry.clone()
+                            } else {
+                                wanted
+                                    .get(&succ)
+                                    .map(|set| set.iter().copied().collect())
+                                    .unwrap_or_default()
+                            };
                         set.extend(
                             onward.into_iter().filter(|value| {
+                                live_in.contains(*value) && live_out.contains(*value)
+                            }),
+                        );
+                    }
+                }
+                // A word the enclosing loop carries around is wanted everywhere inside it:
+                // the joins on the way to a latch must carry it, or the latch cannot deliver
+                // it back to the header and the header drops it.
+                let live_out = liveness.live_out(block_id);
+                for loop_info in &self.loops {
+                    if loop_info.blocks.contains(block_id)
+                        && let Some(layout) = layouts.get(&loop_info.header)
+                    {
+                        set.extend(
+                            layout.iter().copied().filter(|value| {
                                 live_in.contains(*value) && live_out.contains(*value)
                             }),
                         );
