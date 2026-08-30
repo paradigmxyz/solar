@@ -889,7 +889,7 @@ struct StackPhiPlanner<'a> {
 }
 
 /// Longest entry layout `plan_live_joins` carries into a block.
-const LIVE_JOIN_LAYOUT_LIMIT: usize = 8;
+const LIVE_JOIN_LAYOUT_LIMIT: usize = 12;
 
 impl<'a> StackPhiPlanner<'a> {
     fn new(func: &'a Function, cold_functions: &'a DenseBitSet<FunctionId>) -> Self {
