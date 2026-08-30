@@ -185,6 +185,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         let (rhs_size, rhs_gas) = immediate_materialization_cost(evm_version, rhs_value);
         let (result_size, result_gas) = immediate_materialization_cost(evm_version, result);
         let input_size = lhs_size + rhs_size + 1;
+        // TODO: Include the evaluated opcode's gas once opcode metadata exposes it.
         let input_gas = lhs_gas + rhs_gas;
         if result_size <= input_size
             && result_gas <= input_gas
