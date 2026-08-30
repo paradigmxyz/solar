@@ -3009,17 +3009,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             .clone()
             .or(resident_stack_plan)
             .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
+        if required_stack_plan && !stack_phi_plan.merge_resident(func, &global_stack_plan) {
+            // Selection preflights this exact composition. If a future transform invalidates
+            // that proof, regenerate the runtime with the ordinary frame-backed convention
+            // instead of emitting a partial stack ABI or panicking.
+            self.disabled_stack_only_functions.insert(func_id);
+            return;
+        }
         let mut stack_phi_sources = stack_phi_plan.edge_sources();
-        if required_stack_plan {
-            if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
-                // Selection preflights this exact composition. If a future transform invalidates
-                // that proof, regenerate the runtime with the ordinary frame-backed convention
-                // instead of emitting a partial stack ABI or panicking.
-                self.disabled_stack_only_functions.insert(func_id);
-                return;
-            }
-            stack_phi_sources = stack_phi_plan.edge_sources();
-        } else if global_stack_plan.is_empty()
+        if !required_stack_plan
+            && global_stack_plan.is_empty()
             && let Some((values, plan)) =
                 self.compute_cross_block_stack_layout(
                     func,

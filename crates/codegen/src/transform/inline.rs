@@ -618,8 +618,8 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            let inst_cost = estimate_inst_cost(gcx, module, kind);
-            summary.instruction_count += inst_cost.instructions;
+            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
+            summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
@@ -740,10 +740,9 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
 struct MirCost {
     runtime_gas: u64,
     code_size: usize,
-    instructions: usize,
 }
 
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
@@ -918,7 +917,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::StorageArrayElementSlot { .. } => 4,
         _ => 1,
     };
-    MirCost { runtime_gas, code_size, instructions }
+    (MirCost { runtime_gas, code_size }, instructions)
 }
 
 fn estimate_terminator_cost(term: &Terminator) -> MirCost {
@@ -935,7 +934,7 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
         Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
         Terminator::Invalid => (0, 1),
     };
-    MirCost { runtime_gas, code_size, instructions: 1 }
+    MirCost { runtime_gas, code_size }
 }
 
 fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
