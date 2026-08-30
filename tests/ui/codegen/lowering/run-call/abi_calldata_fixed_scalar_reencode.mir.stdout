@@ -130,54 +130,52 @@ fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view
     v12 = add v5, v6
     v13 = make_calldata_slice v12, 3
     v14 = slice_ptr v13
-    v15 = add v14, 96
-    v16 = lt v15, v14
-    v17 = calldatasize
-    v18 = gt v15, v17
-    v19 = or v16, v18
-    jumpi v19, bb5, bb6
+    v15 = calldatasize
+    v16 = sub v15, v14
+    v17 = slt v16, 96
+    jumpi v17, bb5, bb6
   bb6:
-    v20 = calldataload v14
-    v21 = and v20, 255
-    v22 = eq v20, v21
-    v23 = iszero v22
-    jumpi v23, bb7, bb8
+    v18 = calldataload v14
+    v19 = and v18, 255
+    v20 = eq v18, v19
+    v21 = iszero v20
+    jumpi v21, bb7, bb8
   bb8:
-    v24 = add v14, 32
-    v25 = calldataload v24
-    v26 = and v25, 255
-    v27 = eq v25, v26
-    v28 = iszero v27
-    jumpi v28, bb9, bb10
+    v22 = add v14, 32
+    v23 = calldataload v22
+    v24 = and v23, 255
+    v25 = eq v23, v24
+    v26 = iszero v25
+    jumpi v26, bb9, bb10
   bb10:
-    v29 = add v14, 64
-    v30 = calldataload v29
-    v31 = and v30, 255
-    v32 = eq v30, v31
-    v33 = iszero v32
-    jumpi v33, bb11, bb12
+    v27 = add v14, 64
+    v28 = calldataload v27
+    v29 = and v28, 255
+    v30 = eq v28, v29
+    v31 = iszero v30
+    jumpi v31, bb11, bb12
   bb12:
-    v34 = abi_encode [array<3, word>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v13
-    v35 = slice_ptr v34
-    v36 = slice_len v34
-    v37 = staticcall v1, v0, v35, v36, 0, 0
-    jumpi v37, bb14, bb13
+    v32 = abi_encode [array<3, word<u8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v13
+    v33 = slice_ptr v32
+    v34 = slice_len v32
+    v35 = staticcall v1, v0, v33, v34, 0, 0
+    jumpi v35, bb14, bb13
   bb13:
     revert_returndata
   bb14:
-    v38 = returndatasize
-    v39 = add v38, 63
-    v40 = lt v39, v38
-    jumpi v40, bb15, bb16
+    v36 = returndatasize
+    v37 = add v36, 63
+    v38 = lt v37, v36
+    jumpi v38, bb15, bb16
   bb16:
-    v41 = not 31
-    v42 = and v39, v41
-    v43 = alloc memorybytes, exact, uninitialized, infallible, v42
-    set_memory_object_len memorybytes, v43, v38
-    v44 = make_returndata_slice 0, v38
-    memory_object_copy_from_slice memorybytes, v43, v44
-    v45 = abi_decode [bytes], v43
-    ret v45
+    v39 = not 31
+    v40 = and v37, v39
+    v41 = alloc memorybytes, exact, uninitialized, infallible, v40
+    set_memory_object_len memorybytes, v41, v36
+    v42 = make_returndata_slice 0, v36
+    memory_object_copy_from_slice memorybytes, v41, v42
+    v43 = abi_decode [bytes], v41
+    ret v43
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
