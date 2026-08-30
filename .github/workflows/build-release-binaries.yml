@@ -9,21 +9,6 @@ on:
         required: false
         type: string
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".cargo/**"
-      - ".github/workflows/build-release-binaries.yml"
-      - ".github/workflows/release.yml"
-      - "benches/runtime/**"
-      - "crates/**"
-      - "testdata/projects/**"
-      - "testdata/repros/**"
-      - "Cargo.lock"
-      - "Cargo.toml"
-      - "dist-workspace.toml"
-      - "rust-toolchain*"
-      - "scripts/pgo/**"
-      - "scripts/wasm/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
