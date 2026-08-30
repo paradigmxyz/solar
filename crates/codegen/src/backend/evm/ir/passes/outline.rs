@@ -31,6 +31,7 @@ impl EvmPass for Outline {
 }
 
 const MIN_MACHINE_RUN: usize = 4;
+const MAX_MACHINE_RUN_CANDIDATES: usize = 2_000_000;
 
 type BlockEdits = SmallVec<[(usize, usize, BlockId, u16); 1]>;
 type OutlineEdits = FxHashMap<BlockId, BlockEdits>;
@@ -52,15 +53,22 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     // Enumerating every contiguous run is quadratic in a block's length, and
-    // hashing each run's instructions made it cubic. Two exact filters keep it
-    // in hand without changing which groups are found:
+    // hashing each run's instructions made it cubic. Two exact filters and a
+    // candidate budget keep it in hand:
     //
     // - A run can only be outlined if it occurs at least twice, so every instruction in it occurs
     //   at least twice module-wide. Runs are cut at any instruction that does not, which ends them
     //   at the unique pushes that separate most straight-line code.
     // - A run's hash comes from a per-block prefix table, so it costs the same whatever the run's
     //   length. Equality still compares instructions, so the grouping is exactly as before.
+    // - Large modules use shorter runs so candidate storage stays bounded. Longer repeated
+    //   sequences can still be outlined in chunks.
     let hashes = InstHashes::new(module);
+    let repeated_instructions = hashes.repeated_count();
+    if repeated_instructions == 0 || repeated_instructions > MAX_MACHINE_RUN_CANDIDATES {
+        return false;
+    }
+    let max_run_length = max_machine_run_length(repeated_instructions);
 
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -72,7 +80,8 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             let mut inputs = 0i32;
             let mut peak = 0i32;
             let mut run_size = 0usize;
-            for end in start..block.instructions.len() {
+            let limit = block.instructions.len().min(start + max_run_length);
+            for end in start..limit {
                 let inst = &block.instructions[end];
                 if !hashes.repeats(block_id, end) {
                     break;
@@ -217,6 +226,12 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
+}
+
+fn max_machine_run_length(repeated_instructions: usize) -> usize {
+    debug_assert_ne!(repeated_instructions, 0);
+    debug_assert!(repeated_instructions <= MAX_MACHINE_RUN_CANDIDATES);
+    (MIN_MACHINE_RUN - 1 + MAX_MACHINE_RUN_CANDIDATES / repeated_instructions).max(MIN_MACHINE_RUN)
 }
 
 /// Outlines closed computations that differ only in a bounded number of immediate pushes.
@@ -757,6 +772,10 @@ impl InstHashes {
         self.repeats[block].contains(index)
     }
 
+    fn repeated_count(&self) -> usize {
+        self.repeats.iter().map(DenseBitSet::count).sum()
+    }
+
     fn range(&self, block: BlockId, start: usize, end: usize) -> u64 {
         let prefix = &self.prefixes[block];
         prefix[end + 1].wrapping_sub(prefix[start].wrapping_mul(self.powers[end + 1 - start]))
@@ -894,5 +913,18 @@ impl RunState {
     fn labels(&mut self, module: &Module, count: usize) -> Option<Vec<u32>> {
         let labels = self.labels.get_or_insert_with(|| FreshLabels::new(module));
         labels.take(count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn machine_run_candidate_budget() {
+        for repeated in [1, 10, 1_000, 200_000, 2_000_000] {
+            let lengths = max_machine_run_length(repeated) - MIN_MACHINE_RUN + 1;
+            assert!(repeated * lengths <= MAX_MACHINE_RUN_CANDIDATES);
+        }
     }
 }
