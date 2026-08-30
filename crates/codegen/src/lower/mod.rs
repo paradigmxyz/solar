@@ -198,6 +198,14 @@ struct InlineReturnCtx {
 
 type InternalFunctionPointerShape = (Vec<MirType>, Vec<MirType>);
 
+#[derive(Clone, Debug)]
+pub struct ContractBytecodes {
+    /// Deployment bytecode, including the initcode prefix.
+    pub deployment: Bytes,
+    /// Deployed runtime bytecode.
+    pub runtime: Bytes,
+}
+
 /// Lowering context for converting HIR to MIR.
 pub(crate) struct Lowerer<'gcx> {
     /// The global context.
@@ -258,8 +266,8 @@ pub(crate) struct Lowerer<'gcx> {
     pending_inline_returns: Option<Vec<ValueId>>,
     /// Next available memory offset for locals.
     next_local_memory_offset: u64,
-    /// Bytecodes of other contracts (for `new` expressions).
-    contract_bytecodes: FxHashMap<ContractId, Bytes>,
+    /// Bytecodes of other contracts used by creation and metatype expressions.
+    contract_bytecodes: FxHashMap<ContractId, ContractBytecodes>,
     /// Stack of loop contexts for nested loops.
     loop_stack: Vec<LoopContext>,
     /// Variables that are assigned after declaration (need memory storage).
@@ -738,13 +746,18 @@ impl<'gcx> Lowerer<'gcx> {
         builder.load_immutable(id, self.module.immutable_type(id))
     }
 
-    /// Registers a contract's bytecode for use in `new` expressions.
-    pub(crate) fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Bytes) {
-        self.contract_bytecodes.insert(contract_id, bytecode);
+    /// Registers a contract's deployment and runtime bytecode.
+    pub(crate) fn register_contract_bytecodes(
+        &mut self,
+        contract_id: ContractId,
+        bytecodes: ContractBytecodes,
+    ) {
+        self.contract_bytecodes.insert(contract_id, bytecodes);
     }
 
-    fn contract_initcode_data_name(&self, contract_id: ContractId) -> Symbol {
-        Symbol::intern(&format!("{}_initcode", self.gcx.hir.contract(contract_id).name))
+    fn contract_bytecode_data_name(&self, contract_id: ContractId, creation: bool) -> Symbol {
+        let kind = if creation { "initcode" } else { "runtime_code" };
+        Symbol::intern(&format!("{}_{kind}", self.gcx.hir.contract(contract_id).name))
     }
 
     /// Lowers a contract to MIR.
@@ -2946,15 +2959,15 @@ fn padded_data_word(data: &[u8]) -> [u8; EvmMemoryLayout::WORD_SIZE as usize] {
 pub fn lower_contract(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, Bytes>,
+    child_bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
     share_public_bodies: bool,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut lowerer = Lowerer::new(gcx, contract.name, share_public_bodies);
 
     // Register all child contract bytecodes
-    for (&child_id, bytecode) in child_bytecodes {
-        lowerer.register_contract_bytecode(child_id, bytecode.clone());
+    for (&child_id, bytecodes) in child_bytecodes {
+        lowerer.register_contract_bytecodes(child_id, bytecodes.clone());
     }
 
     lowerer.lower_contract(contract_id);

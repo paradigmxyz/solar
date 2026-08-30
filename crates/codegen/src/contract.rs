@@ -299,12 +299,16 @@ fn generate_contract_bytecode(
     let child_bytecodes = graph.dependencies[contract_id]
         .iter()
         .map(|dependency| {
-            let bytecode = artifacts[dependency]
+            let artifact = artifacts[dependency]
                 .get()
-                .expect("dependency artifact should have been generated")
-                .deployment
-                .clone();
-            (dependency, bytecode)
+                .expect("dependency artifact should have been generated");
+            (
+                dependency,
+                lower::ContractBytecodes {
+                    deployment: artifact.deployment.clone(),
+                    runtime: artifact.runtime.clone(),
+                },
+            )
         })
         .collect();
     let share_public_bodies = gcx.sess.opts.optimization.is_size();

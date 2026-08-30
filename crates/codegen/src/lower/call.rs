@@ -953,7 +953,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Look up pre-compiled bytecode
         let bytecode = match self.contract_bytecodes.get(&contract_id) {
-            Some(bc) => bc.clone(),
+            Some(bytecodes) => bytecodes.deployment.clone(),
             None => {
                 let guar = self
                     .gcx
@@ -1018,7 +1018,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
 
-        let data_name = self.contract_initcode_data_name(contract_id);
+        let data_name = self.contract_bytecode_data_name(contract_id, true);
         self.copy_named_data_to_memory(builder, mem_offset, bytecode, data_name);
 
         // Append the encoded constructor arguments after the creation code.

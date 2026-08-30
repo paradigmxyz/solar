@@ -1757,23 +1757,14 @@ impl<'gcx> Lowerer<'gcx> {
             );
         };
 
-        // Look up pre-compiled bytecode
-        // For creationCode we use the deployment bytecode (initcode)
-        if !is_creation_code {
-            return self.err_value(
-                builder,
-                ty.span,
-                "codegen does not support `type(C).runtimeCode` yet",
-            );
-        }
-
         let bytecode = match self.contract_bytecodes.get(&contract_id) {
-            Some(bc) => bc.clone(),
+            Some(bytecodes) if is_creation_code => bytecodes.deployment.clone(),
+            Some(bytecodes) => bytecodes.runtime.clone(),
             None => {
                 return self.err_value(
                     builder,
                     ty.span,
-                    "codegen is missing creation bytecode for `type(C).creationCode`",
+                    "codegen is missing bytecode for `type(C).creationCode`/`runtimeCode`",
                 );
             }
         };
@@ -1797,7 +1788,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Copy bytecode to the object payload.
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        let data_name = self.contract_initcode_data_name(contract_id);
+        let data_name = self.contract_bytecode_data_name(contract_id, is_creation_code);
         self.copy_padded_data_slice_to_memory_with_name(
             builder,
             data_start,
