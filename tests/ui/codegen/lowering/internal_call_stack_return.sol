@@ -4,11 +4,11 @@
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@[size] filecheck: --check-prefix=SIZE
 //@[runtime] compile-flags: -O gas
-//@[runtime] run-call: stackAcross 2 => 215
-//@[runtime] run-call: memoryAcross 2 => 215
-//@[runtime] run-call: voidAcross 2 => 8
-//@[runtime] run-call: nestedAcross 2 => 218
-//@[runtime] run-call: multiAcross 2 => 0
+//@ run-call: stackAcross 2 => 215
+//@ run-call: memoryAcross 2 => 215
+//@ run-call: voidAcross 2 => 8
+//@ run-call: nestedAcross 2 => 218
+//@ run-call: multiAcross 2 => 0
 
 contract InternalCallStackReturn {
     uint256 private state;

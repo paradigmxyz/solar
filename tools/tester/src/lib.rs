@@ -370,6 +370,7 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     let mut declared_revisions = Vec::new();
     let mut dump_revisions = Vec::new();
     let mut scoped_runtime_revisions = Vec::new();
+    let mut scoped_run_call_revisions = Vec::new();
     let mut emitted_revisions = Vec::new();
     let mut unscoped_run_call = false;
     let mut base_mir_dump = false;
@@ -396,6 +397,11 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             continue;
         }
         let Some(revisions) = revisions else { continue };
+        if run_call::is_directive(line) {
+            scoped_run_call_revisions
+                .extend(revisions.split(',').map(|revision| revision.trim().to_owned()));
+            continue;
+        }
         if !directive.contains("compile-flags") {
             continue;
         }
@@ -431,6 +437,7 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     emitted_revisions.sort_unstable();
     emitted_revisions.dedup();
     let mut artifact_revisions = runtime_revisions.clone();
+    artifact_revisions.extend(scoped_run_call_revisions.iter().cloned());
     if unscoped_run_call {
         if declared_revisions.is_empty() {
             if base_mir_dump {
@@ -466,16 +473,27 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             .normalize_stdout
             .push((run_call_stdout_regex().clone().into(), vec![]));
     }
+    let mut run_call_dump_revisions = if unscoped_run_call {
+        dump_revisions.clone()
+    } else {
+        dump_revisions
+            .iter()
+            .filter(|revision| scoped_run_call_revisions.contains(revision))
+            .cloned()
+            .collect()
+    };
+    run_call_dump_revisions.sort_unstable();
+    run_call_dump_revisions.dedup();
+    if !run_call_dump_revisions.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(run_call_dump_revisions)
+            .or_default()
+            .normalize_stdout
+            .push((run_call_mir_stdout_regex().clone().into(), vec![]));
+    }
     if unscoped_run_call {
-        if !dump_revisions.is_empty() {
-            config
-                .comment_defaults
-                .revisioned
-                .entry(dump_revisions)
-                .or_default()
-                .normalize_stdout
-                .push((run_call_mir_stdout_regex().clone().into(), vec![]));
-        }
         if base_mir_dump {
             config
                 .comment_defaults
