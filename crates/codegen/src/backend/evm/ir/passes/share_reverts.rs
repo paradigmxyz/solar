@@ -111,8 +111,7 @@ fn is_empty_revert(module: &Module, block: BlockId) -> bool {
     let block = &module.blocks[block];
     let [zero, dup] = block.instructions.as_slice() else { return false };
     is_zero_push(zero)
-        && dup.opcode == op::DUP1
-        && !dup.is_encoded_push()
+        && dup.as_stack_op() == Some(op::StackOp::Dup(1))
         && matches!(
             block.terminator.as_ref().map(|term| &term.kind),
             Some(TerminatorKind::Op(op::REVERT))
@@ -120,9 +119,8 @@ fn is_empty_revert(module: &Module, block: BlockId) -> bool {
 }
 
 fn is_zero_push(inst: &Instruction) -> bool {
-    (inst.is_encoded_push()
+    inst.is_encoded_push()
         && inst.deferred_push().is_none()
         && inst.immutable_push().is_none()
-        && matches!(inst.value, Some(PushValue::Immediate(value)) if value == U256::ZERO))
-        || (inst.opcode == op::PUSH0 && !inst.is_encoded_push())
+        && matches!(inst.value, Some(PushValue::Immediate(value)) if value == U256::ZERO)
 }

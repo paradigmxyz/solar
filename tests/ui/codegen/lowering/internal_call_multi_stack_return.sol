@@ -3,18 +3,12 @@
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
-//@[run] run-call: pair 2 => 209, 364
-//@[run] run-call: triple 2 => 209, 364, 901
-//@[run] run-call: six 2 => 209, 364, 901, 1824, 2139, 5162
-//@[run] run-call: sumPair 2 => 573
-//@[run] run-call: sumTriple 2 => 1474
-//@[run] run-call: sumSix 2 => 10599
-//@[size] run-call: pair 2 => 209, 364
-//@[size] run-call: triple 2 => 209, 364, 901
-//@[size] run-call: six 2 => 209, 364, 901, 1824, 2139, 5162
-//@[size] run-call: sumPair 2 => 573
-//@[size] run-call: sumTriple 2 => 1474
-//@[size] run-call: sumSix 2 => 10599
+//@ run-call: pair 2 => 209, 364
+//@ run-call: triple 2 => 209, 364, 901
+//@ run-call: six 2 => 209, 364, 901, 1824, 2139, 5162
+//@ run-call: sumPair 2 => 573
+//@ run-call: sumTriple 2 => 1474
+//@ run-call: sumSix 2 => 10599
 
 contract InternalCallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.

@@ -23,8 +23,8 @@ Set `SOLAR_FOUNDRY_PROJECT` to run one discovered project while debugging.
 (morpho-blue, solmate, solady, seaport, openzeppelin-contracts,
 uniswap-v4-core) as a differential suite: both compilers run each project's
 own tests with a fixed fuzz seed, solc's passing tests are the oracle, and
-artifacts are audited for parity and EIP-170. It is local-only and never runs
-in CI: the test is `#[ignore]`d and needs the network on first use.
+artifacts are audited for parity. It is local-only and never runs in CI: the
+test is `#[ignore]`d and needs the network on first use.
 
 Projects are pinned to full commit hashes in
 `tools/tester/src/foundry/external.rs` and fetched into
@@ -41,8 +41,8 @@ Environment variables:
   curated list, for out-of-repo projects. Entries are `[[project]]` tables
   with `name` plus either `repo` and `rev` (fetched) or `path` (an existing
   local directory, resolved relative to the manifest). Optional keys: `mode`
-  (`"test"` or `"build"`), `solc_version` (emulated solc version for the compiler
-  leg, needed when sources pin an exact `pragma solidity`), `skip_tests`,
-  `skip_contracts` (arrays of `{ pattern, reason }`; the reason is mandatory),
-  and `notes`.
+  (`"test"` or `"build"`), `profile` (Foundry profile for both compiler legs),
+  `solc_version` (emulated solc version for the compiler leg, needed when
+  sources pin an exact `pragma solidity`), `skip_tests`, `skip_contracts`
+  (arrays of `{ pattern, reason }`; the reason is mandatory), and `notes`.
 - `SOLAR_FOUNDRY_REPORT_DIR`: also write per-project JSON reports.

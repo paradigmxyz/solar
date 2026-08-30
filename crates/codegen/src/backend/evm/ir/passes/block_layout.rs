@@ -241,6 +241,10 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
             Some(PushValue::Data(_)) => 4,
             _ => 1,
         }
+    } else if let Some(stack_op) = inst.as_stack_op() {
+        stack_op
+            .assembled_len(gcx.sess.opts.evm_version)
+            .expect("block layout only runs on target-compatible stack operations")
     } else {
         1
     }

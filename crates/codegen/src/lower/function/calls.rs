@@ -944,7 +944,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             "storage access",
                         );
                     };
-                    Some((access.slot, AbiType::Word))
+                    Some((access.slot, AbiType::Word(None)))
                 } else {
                     Some(self.lower_abi_call_argument(argument, parameter_ty)?)
                 }
@@ -1072,7 +1072,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(access) = self.storage_access(receiver) else {
                 return report_unsupported(self.context.gcx, receiver.span, "storage access");
             };
-            Some((access.slot, AbiType::Word))
+            Some((access.slot, AbiType::Word(None)))
         } else {
             self.lower_abi_call_argument(receiver, parameter_ty)
         }
@@ -1106,7 +1106,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let static_return_buffer =
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let decode_returndata = return_tys.iter().any(|&ty| {
-            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word))
+            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
         });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },

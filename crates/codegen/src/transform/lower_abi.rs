@@ -3992,52 +3992,17 @@ fn materialize_calldata_return(
     let mut current = builder.current_block();
     LowerAbiCx::guard_input_range(builder, base, ty.data_head_size(), input_end, &mut current);
     let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
-
-    match ty {
-        AbiParamType::Tuple(fields) => {
-            let (object, layout) =
-                builder.alloc_word_struct(fields.len() as u64, AllocationSemantics::INTERNAL);
-            let mut offset = 0;
-            for (index, field) in fields.iter().enumerate() {
-                let head = builder.add_u64_offset(base, offset);
-                let value = LowerAbiCx::decode_aggregate_argument(
-                    builder,
-                    field,
-                    field.mir_type(),
-                    head,
-                    base,
-                    &mut current,
-                    options,
-                );
-                let value = LowerAbiCx::encode_memory_scalar(builder, field, value);
-                builder.memory_object_store_field(object, layout, index as u64, value);
-                offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
-            }
-            builder.switch_to_block(current);
-            object
-        }
-        AbiParamType::FixedArray { element, len } => {
-            let (object, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
-            let mut offset = 0;
-            for index in 0..*len {
-                let head = builder.add_u64_offset(base, offset);
-                let value = LowerAbiCx::decode_aggregate_argument(
-                    builder,
-                    element,
-                    element.mir_type(),
-                    head,
-                    base,
-                    &mut current,
-                    options,
-                );
-                let value = LowerAbiCx::encode_memory_scalar(builder, element, value);
-                let index = builder.imm_u64(index);
-                builder.memory_object_store_element(object, layout, index, value);
-                offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
-            }
-            builder.switch_to_block(current);
-            object
-        }
-        _ => unreachable!("calldata aggregate return must be a tuple or fixed array"),
-    }
+    let object = LowerAbiCx::decode_static_aggregate(builder, ty, base, |builder, ty, head| {
+        LowerAbiCx::decode_aggregate_argument(
+            builder,
+            ty,
+            ty.mir_type(),
+            head,
+            base,
+            &mut current,
+            options,
+        )
+    });
+    builder.switch_to_block(current);
+    object
 }

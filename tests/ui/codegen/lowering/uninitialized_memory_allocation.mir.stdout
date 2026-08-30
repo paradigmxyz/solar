@@ -77,7 +77,7 @@ fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, pure, ab
     revert 0, 36
 }
 
-fn @nestedDynamicDefaults() -> (u256, u256, u256, bool) [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @nestedDynamicDefaults() -> (u256, u256, u256, bool) [selector=0xd34386dc, pure, abi_params=[], abi_returns=[word, word, word, word<bool>]] {
   bb0:
     v0 = internal_call @freeMemoryPointer, 1
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
@@ -111,7 +111,7 @@ fn @defaultBytesReturn() -> memorybytes [selector=0x2a63b10a, pure, abi_params=[
     ret 96
 }
 
-fn @defaultThroughInternalCall() -> bool [selector=0x62fbef79, pure, abi_params=[], abi_returns=[word]] {
+fn @defaultThroughInternalCall() -> bool [selector=0x62fbef79, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @isEmpty, 1, 96
     ret v0

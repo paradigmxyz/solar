@@ -22,8 +22,16 @@ pub(crate) struct FunctionMemorySummary {
     may_reset_fmp: bool,
     /// Whether the function may move the free-memory pointer below its current value.
     may_recycle_fmp: bool,
+    /// Whether the function may read or write the free-memory pointer directly.
+    may_observe_fmp: bool,
+    /// Whether the function may read `msize`.
+    may_observe_msize: bool,
     /// Parameters whose pointer value may escape the call.
     captures: DenseBitSet<ArgIdx>,
+    /// Parameters whose pointer value the function may relate to the heap: a value derived
+    /// from the parameter meets one derived from the free-memory pointer or `msize` in a
+    /// single instruction.
+    observes: DenseBitSet<ArgIdx>,
 }
 
 impl FunctionMemorySummary {
@@ -33,7 +41,10 @@ impl FunctionMemorySummary {
             writes: 0,
             may_reset_fmp: false,
             may_recycle_fmp: false,
+            may_observe_fmp: false,
+            may_observe_msize: false,
             captures: DenseBitSet::new_empty(params),
+            observes: DenseBitSet::new_empty(params),
         }
     }
 
@@ -43,7 +54,10 @@ impl FunctionMemorySummary {
             writes: 0b1111,
             may_reset_fmp: true,
             may_recycle_fmp: true,
+            may_observe_fmp: true,
+            may_observe_msize: true,
             captures: DenseBitSet::new_filled(params),
+            observes: DenseBitSet::new_filled(params),
         }
     }
 
@@ -71,6 +85,32 @@ impl FunctionMemorySummary {
         self.may_recycle_fmp
     }
 
+    /// Returns whether the function may read or write the free-memory pointer directly.
+    ///
+    /// Together with [`Self::observes_param`], such a function can derive aliases from where a
+    /// pointer argument lies relative to the heap, so moving that argument's object out of the
+    /// heap is observable to it.
+    #[must_use]
+    pub(crate) const fn may_observe_fmp(&self) -> bool {
+        self.may_observe_fmp
+    }
+
+    /// Returns whether the function may read `msize`, which an elided allocation would change.
+    #[must_use]
+    pub(crate) const fn may_observe_msize(&self) -> bool {
+        self.may_observe_msize
+    }
+
+    /// Returns whether the function may relate a parameter's pointer value to the heap.
+    ///
+    /// Dereferencing the pointer, or comparing it with values derived from itself, is
+    /// placement-agnostic; only an instruction that also consumes a value derived from the
+    /// free-memory pointer or `msize` can observe where the object lies relative to the heap.
+    #[must_use]
+    pub(crate) fn observes_param(&self, index: ArgIdx) -> bool {
+        index.index() >= self.observes.domain_size() || self.observes.contains(index)
+    }
+
     /// Returns whether a parameter's pointer value may escape the call.
     #[must_use]
     pub(crate) fn captures_param(&self, index: ArgIdx) -> bool {
@@ -82,6 +122,8 @@ impl FunctionMemorySummary {
         self.writes |= other.writes;
         self.may_reset_fmp |= other.may_reset_fmp;
         self.may_recycle_fmp |= other.may_recycle_fmp;
+        self.may_observe_fmp |= other.may_observe_fmp;
+        self.may_observe_msize |= other.may_observe_msize;
     }
 }
 
@@ -205,6 +247,9 @@ fn merge_call(
         if callee.captures_param(ArgIdx::new(index)) {
             capture_sources(summary, func, sources, arg);
         }
+        if callee.observes_param(ArgIdx::new(index)) {
+            observe_sources(summary, func, sources, arg);
+        }
     }
 }
 
@@ -227,6 +272,7 @@ fn local_summary(
 
     let mut summary = FunctionMemorySummary::empty(func.params.len());
     let aa = AliasAnalysis::new(func);
+    let heap_derived = heap_derived_values(func);
     for block in &func.blocks {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
@@ -253,6 +299,17 @@ fn local_summary(
             }
             summary.may_reset_fmp |= aa.instruction_may_reset_fmp(func, inst_id);
             summary.may_recycle_fmp |= instruction_may_recycle_fmp(func, inst_id);
+            summary.may_observe_fmp |= instruction_observes_fmp(func, inst_id);
+            summary.may_observe_msize |= matches!(kind, InstKind::MSize);
+            // An instruction that consumes both a pointer-derived value and a heap-derived one
+            // can relate the object to the heap, whatever the positions: comparisons, pointer
+            // arithmetic against the free-memory pointer, or storing one through the other.
+            let operands = kind.operands();
+            if operands.iter().any(|operand| heap_derived.contains(*operand)) {
+                for operand in operands {
+                    observe_sources(&mut summary, func, sources, operand);
+                }
+            }
 
             match kind {
                 InstKind::MStore(_, value)
@@ -279,13 +336,103 @@ fn local_summary(
             }
         }
 
-        if let Some(Terminator::Return { values }) = &block.terminator {
-            for &value in values {
-                capture_sources(&mut summary, func, sources, value);
+        match &block.terminator {
+            Some(Terminator::Return { values }) => {
+                for &value in values {
+                    capture_sources(&mut summary, func, sources, value);
+                }
+            }
+            Some(Terminator::TailCall { .. }) | None => {}
+            Some(term) => {
+                let operands = term.operands();
+                if operands.iter().any(|operand| heap_derived.contains(*operand)) {
+                    for operand in operands {
+                        observe_sources(&mut summary, func, sources, operand);
+                    }
+                }
             }
         }
     }
     summary
+}
+
+/// Values derived from the free-memory pointer or `msize`, through any computation except a
+/// load: a word read through such an address is data, not a heap position. Internal call
+/// results count as heap-derived, since a callee may return a heap position.
+fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
+    let mut derived = DenseBitSet::new_empty(func.num_values());
+    let mut users = IndexVec::from_vec(vec![Vec::new(); func.num_values()]);
+    let mut worklist = Vec::new();
+    for inst_id in func.instructions() {
+        let Some(result) = func.inst_result_value(inst_id) else { continue };
+        let kind = &func.inst(inst_id).kind;
+        let root = match kind {
+            InstKind::Fmp | InstKind::MSize | InstKind::InternalCall { .. } => true,
+            InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
+            _ => false,
+        };
+        if root {
+            derived.insert(result);
+            worklist.push(result);
+            continue;
+        }
+        if matches!(
+            kind,
+            InstKind::MLoad(_)
+                | InstKind::CalldataLoad(_)
+                | InstKind::SLoad(_)
+                | InstKind::TLoad(_)
+                | InstKind::Keccak256(_, _)
+                | InstKind::MemoryObjectLoadField { .. }
+                | InstKind::MemoryObjectLoadElement { .. }
+                | InstKind::MemoryObjectLoadByte { .. }
+                | InstKind::MemoryObjectLen(_, _)
+                | InstKind::MemorySliceLoadWord { .. }
+                | InstKind::CalldataSliceLoadWord { .. }
+                | InstKind::SliceLen(_)
+        ) {
+            continue;
+        }
+        for operand in kind.operands() {
+            users[operand].push(result);
+        }
+    }
+    while let Some(value) = worklist.pop() {
+        for &user in &users[value] {
+            if derived.insert(user) {
+                worklist.push(user);
+            }
+        }
+    }
+    derived
+}
+
+fn observe_sources(
+    summary: &mut FunctionMemorySummary,
+    func: &Function,
+    sources: &IndexVec<ValueId, DenseBitSet<ArgIdx>>,
+    value: ValueId,
+) {
+    if let Value::Arg(index) = func.value(value)
+        && index.index() < summary.observes.domain_size()
+    {
+        summary.observes.insert(*index);
+    }
+    summary.observes.union(&sources[value]);
+}
+
+/// Returns whether an instruction reads the free-memory pointer or the memory size directly.
+///
+/// Compiler-owned allocations are still abstract here and cannot relate a pointer argument to
+/// the heap; only source-visible pointer reads and writes can.
+fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
+    match func.inst(inst_id).kind {
+        InstKind::Fmp | InstKind::SetFmp(_) | InstKind::MSize => true,
+        InstKind::MLoad(address) | InstKind::MStore(address, _) => {
+            func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+        }
+        _ => false,
+    }
 }
 
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {

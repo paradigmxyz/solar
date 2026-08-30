@@ -56,7 +56,7 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
             [
                 Instruction::push_value(U256::from(size)),
                 Instruction::push_data(data),
-                Instruction::opcode(op::DUP3),
+                Instruction::stack_op(op::StackOp::Dup(3)),
                 Instruction::opcode(op::CODECOPY),
             ],
         );
@@ -72,7 +72,7 @@ fn find_run(
 ) -> Option<Rewrite> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
     let first = immediate(value)?;
-    if raw_opcode(dup) != Some(op::DUP2) || raw_opcode(store) != Some(op::MSTORE) {
+    if dup.as_legacy_opcode() != Some(op::DUP2) || store.as_legacy_opcode() != Some(op::MSTORE) {
         return None;
     }
 
@@ -82,10 +82,10 @@ fn find_run(
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
         if immediate(offset) != Some(U256::from(words * 32))
-            || raw_opcode(dup) != Some(op::DUP2)
-            || raw_opcode(add) != Some(op::ADD)
-            || raw_opcode(swap) != Some(op::SWAP1)
-            || raw_opcode(store) != Some(op::MSTORE)
+            || dup.as_legacy_opcode() != Some(op::DUP2)
+            || add.as_legacy_opcode() != Some(op::ADD)
+            || swap.as_legacy_opcode() != Some(op::SWAP1)
+            || store.as_legacy_opcode() != Some(op::MSTORE)
         {
             break;
         }
@@ -124,8 +124,4 @@ fn immediate(inst: &Instruction) -> Option<U256> {
         Some(PushValue::Immediate(value)) => Some(value),
         _ => None,
     }
-}
-
-fn raw_opcode(inst: &Instruction) -> Option<u8> {
-    (!inst.is_encoded_push()).then_some(inst.opcode)
 }

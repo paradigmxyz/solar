@@ -11,9 +11,10 @@ use crate::{
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
-use solar_data_structures::index::index_vec;
+use solar_data_structures::{index::index_vec, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
+use std::ops::Range;
 
 impl<'gcx> Assembler<'gcx> {
     /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
@@ -65,6 +66,11 @@ impl<'gcx> Assembler<'gcx> {
     /// Emits a raw opcode.
     pub(crate) fn emit_op(&mut self, opcode: u8) {
         self.push_ir_instruction(ir::Instruction::opcode(opcode));
+    }
+
+    /// Emits a logical stack operation.
+    pub(crate) fn emit_stack_op(&mut self, stack_op: op::StackOp) {
+        self.push_ir_instruction(ir::Instruction::stack_op(stack_op));
     }
 
     /// Emits a push instruction with an immediate value.
@@ -162,6 +168,66 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
+    /// Number of blocks the program holds so far; the next defined label starts block `len`.
+    pub(crate) fn block_count(&self) -> usize {
+        self.program.blocks.len()
+    }
+
+    /// Control-flow edges among the blocks in `range`, for dataflow over one function's code
+    /// before finalization. A block reaches every block whose label it pushes (jump and jumpi
+    /// targets, and a return address pushed before a call), its indexed-jump targets, and the
+    /// next block when it ends without a terminator. A block that jumps or branches through a
+    /// stack word reaches every block in `range` whose label is pushed anywhere in it. Targets
+    /// outside `range` — other functions — are omitted: they never touch this function's frame
+    /// and control comes back only through a pushed return label.
+    pub(crate) fn dataflow_edges(&self, range: Range<usize>) -> Vec<(ir::BlockId, ir::BlockId)> {
+        let in_range = |block: ir::BlockId| range.contains(&block.index());
+        let mut edges = Vec::new();
+        let mut address_taken = Vec::new();
+        let mut take = |edges: &mut Vec<_>, source, target| {
+            if in_range(source) && in_range(target) {
+                edges.push((source, target));
+                if !address_taken.contains(&target) {
+                    address_taken.push(target);
+                }
+            }
+        };
+        for &(source, _, label) in &self.label_relocations {
+            if let Some(&target) = self.label_blocks.get(&label) {
+                take(&mut edges, source, target);
+            }
+        }
+        for (source, targets) in &self.indexed_jump_relocations {
+            for label in targets {
+                if let Some(&target) = self.label_blocks.get(label) {
+                    take(&mut edges, *source, target);
+                }
+            }
+        }
+        for index in range.clone() {
+            let block = ir::BlockId::from_usize(index);
+            let instructions = &self.program.blocks[block].instructions;
+            let dynamic = instructions.iter().enumerate().any(|(position, inst)| {
+                !inst.is_encoded_push()
+                    && matches!(inst.opcode, op::JUMP | op::JUMPI)
+                    && !position
+                        .checked_sub(1)
+                        .and_then(|previous| instructions.get(previous))
+                        .is_some_and(ir::Instruction::is_encoded_push)
+            });
+            if dynamic {
+                edges.extend(address_taken.iter().map(|&target| (block, target)));
+            }
+            if !self.block_has_explicit_terminator(block)
+                && self.explicit_jump_target(block).is_none()
+                && range.contains(&(index + 1))
+            {
+                edges.push((block, ir::BlockId::from_usize(index + 1)));
+            }
+        }
+        edges
+    }
+
     fn explicit_jump_target(&self, block: ir::BlockId) -> Option<ir::BlockId> {
         let instructions = &self.program.blocks[block].instructions;
         let [.., push, jump] = instructions.as_slice() else { return None };
@@ -195,7 +261,12 @@ impl<'gcx> Assembler<'gcx> {
             let size = usize::from(type_size.bytes()) + 1;
             (size, size)
         } else if !inst.is_encoded_push() {
-            (1, 1)
+            let size = inst.as_stack_op().map_or(1, |stack_op| {
+                stack_op
+                    .assembled_len(self.gcx.sess.opts.evm_version)
+                    .expect("stack operation must support the target EVM version")
+            });
+            (size, size)
         } else if let Some(value) = inst.pushed_value() {
             let size = push_len(self.gcx.sess.opts.evm_version, value);
             (size, size)
@@ -297,6 +368,9 @@ impl<'gcx> Assembler<'gcx> {
         if self.cold_labels.contains(label) {
             block.metadata.hotness = ir::Hotness::Cold;
         }
+        if self.loop_labels.contains(label) {
+            block.metadata.in_loop = true;
+        }
         let block = self.program.add_block(block);
         self.current_block = Some(block);
         self.block_labels.push(Some(label));
@@ -308,6 +382,14 @@ impl<'gcx> Assembler<'gcx> {
         self.cold_labels.insert(label);
         if let Some(&block) = self.label_blocks.get(&label) {
             self.program.blocks[block].metadata.hotness = ir::Hotness::Cold;
+        }
+    }
+
+    /// Marks a label-started block as running once per loop iteration.
+    pub(in crate::backend::evm) fn mark_label_loop(&mut self, label: Label) {
+        self.loop_labels.insert(label);
+        if let Some(&block) = self.label_blocks.get(&label) {
+            self.program.blocks[block].metadata.in_loop = true;
         }
     }
 
@@ -326,10 +408,60 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn push_ir_instruction(&mut self, instruction: ir::Instruction) -> (ir::BlockId, usize) {
-        let block = self.current_block();
-        let index = self.program.blocks[block].instructions.len();
+        let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
         (block, index)
+    }
+
+    /// Returns the block and index the next emitted instruction will take.
+    pub(crate) fn next_instruction_position(&mut self) -> (ir::BlockId, usize) {
+        let block = self.current_block();
+        (block, self.program.blocks[block].instructions.len())
+    }
+
+    /// Removes the instructions in `range` from `block` again. Relocations inside the range are
+    /// dropped and later ones in the block shift down; the range must lie within the block.
+    /// Removes instruction ranges, which must not overlap within a block, dropping the
+    /// relocations inside them and shifting the ones after them in one pass over each
+    /// relocation list; the result is that of removing the ranges one at a time, later
+    /// ranges first.
+    pub(crate) fn remove_instructions(&mut self, removals: &mut [(ir::BlockId, Range<usize>)]) {
+        removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
+        // Each block's ranges in order, with the number of instructions removed before each.
+        let mut per_block: FxHashMap<ir::BlockId, Vec<(Range<usize>, usize)>> =
+            FxHashMap::default();
+        for (block, range) in removals.iter() {
+            let ranges = per_block.entry(*block).or_default();
+            let before = ranges.last().map_or(0, |(range, before)| before + range.len());
+            ranges.push((range.clone(), before));
+        }
+        fn shift<T>(
+            relocations: &mut Vec<(ir::BlockId, usize, T)>,
+            per_block: &FxHashMap<ir::BlockId, Vec<(Range<usize>, usize)>>,
+        ) {
+            relocations.retain_mut(|(block, index, _)| {
+                let Some(ranges) = per_block.get(block) else { return true };
+                // The last range starting at or before the instruction.
+                let position = ranges.partition_point(|(range, _)| range.start <= *index);
+                let Some((range, before)) = position.checked_sub(1).map(|i| &ranges[i]) else {
+                    return true;
+                };
+                if range.contains(index) {
+                    return false;
+                }
+                *index -= before + range.len();
+                true
+            });
+        }
+        shift(&mut self.label_relocations, &per_block);
+        shift(&mut self.deferred_relocations, &per_block);
+        shift(&mut self.alloc_relocations, &per_block);
+        for (block, ranges) in per_block {
+            let instructions = &mut self.program.blocks[block].instructions;
+            for (range, _) in ranges.into_iter().rev() {
+                instructions.drain(range);
+            }
+        }
     }
 
     pub(in crate::backend::evm) fn finish_evm_ir(
@@ -371,7 +503,7 @@ impl<'gcx> Assembler<'gcx> {
                 DeferredAllocResolution::Dynamic(size) => vec![
                     push(U256::from(EvmMemoryLayout::FMP_SLOT)),
                     ir::Instruction::opcode(op::MLOAD),
-                    ir::Instruction::opcode(op::DUP1),
+                    ir::Instruction::stack_op(op::StackOp::Dup(1)),
                     push(size),
                     ir::Instruction::opcode(op::ADD),
                     push(U256::from(EvmMemoryLayout::FMP_SLOT)),
@@ -391,6 +523,7 @@ impl<'gcx> Assembler<'gcx> {
 
         self.label_blocks.clear();
         self.cold_labels.clear();
+        self.loop_labels.clear();
 
         Some((module, std::mem::take(&mut self.block_labels)))
     }
@@ -443,7 +576,7 @@ impl<'gcx> Assembler<'gcx> {
 
 pub(in crate::backend::evm) fn resolve_known_deferred_constants(
     module: &mut ir::Module,
-    values: &solar_data_structures::map::FxHashMap<DeferredConst, U256>,
+    values: &FxHashMap<DeferredConst, U256>,
 ) {
     for block in &mut module.blocks {
         for inst in &mut block.instructions {

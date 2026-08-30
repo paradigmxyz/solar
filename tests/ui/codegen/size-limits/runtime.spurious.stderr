@@ -1,0 +1,16 @@
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
+LL │ ┏ contract RuntimeLimit {
+LL │ ┃     function deployTest() external returns (address) { return address(new test()); }
+LL │ ┃     function deployA() external returns (address) { return address(new A()); }
+LL │ ┃     function deployB() external returns (address) { return address(new B()); }
+LL │ ┃     function deployC() external returns (address) { return address(new C()); }
+LL │ ┃     function deployD() external returns (address) { return address(new D()); }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+

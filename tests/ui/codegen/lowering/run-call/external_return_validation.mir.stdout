@@ -30,7 +30,7 @@ fn @shortTarget() [selector=0xeee93c02, pure, abi_params=[], abi_returns=[word]]
     returndata 0, 0
 }
 
-fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word]] {
+fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -62,23 +62,23 @@ fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word]]
     revert 0, 0
 }
 
-fn @dirtyTarget() [selector=0xacf697c3, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyTarget() [selector=0xacf697c3, pure, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     mstore 0, 256 !metadata(memory=scratch)
     returndata 0, 32
 }
 
-fn @dirtyValue() -> u8 [selector=0x79df5ae3, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyValue() -> u8 [selector=0x79df5ae3, pure, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     ret 256
 }
 
-fn @dirtyBool() -> bool [selector=0xf17a2b8e, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyBool() -> bool [selector=0xf17a2b8e, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     ret 2
 }
 
-fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, bool>]] {
+fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -89,7 +89,7 @@ fn @dirtyStruct() -> memorystruct [selector=0xe1193b83, pure, abi_params=[], abi
     ret v0
 }
 
-fn @dirtyUnusedStructField() -> u8 [selector=0xc1226a60, view, abi_params=[], abi_returns=[word]] {
+fn @dirtyUnusedStructField() -> u8 [selector=0xc1226a60, view, abi_params=[], abi_returns=[word<u8>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -114,14 +114,14 @@ fn @dirtyUnusedStructField() -> u8 [selector=0xc1226a60, view, abi_params=[], ab
     revert 0, 0
 }
 
-fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, bool>]] {
+fn @dirtyUnusedStructFieldTarget() [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
   bb0:
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     returndata 0, 64
 }
 
-fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word>], abi_return_params=[tuple<u8>]] {
+fn @dirtyStructBranch(arg0: bool) -> memorystruct [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word<u8>>], abi_return_params=[tuple<u8>]] {
   bb0:
     v0 = internal_call @dirtyValueInternal, 1
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
@@ -151,7 +151,7 @@ fn @dirtyInternalWiden() -> u256 [selector=0xcdec1938, pure, abi_params=[], abi_
     ret v1
 }
 
-fn @dirtyInternalAggregate() -> memorystruct [selector=0x4697f467, pure, abi_params=[], abi_returns=[tuple<word, word>], abi_return_params=[tuple<u8, bool>]] {
+fn @dirtyInternalAggregate() -> memorystruct [selector=0x4697f467, pure, abi_params=[], abi_returns=[tuple<word<u8>, word<bool>>], abi_return_params=[tuple<u8, bool>]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
@@ -371,7 +371,7 @@ fn @_anonymous() [fallback] {
     returndata 0, 192
 }
 
-fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, bool>]] {
+fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_params=[], abi_returns=[memory_array<word<bool>>], abi_return_params=[array<_, bool>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
@@ -382,7 +382,7 @@ fn @dirtyArray() -> memoryarray [selector=0xab113bc3, pure, abi_params=[], abi_r
     ret v0
 }
 
-fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v0, 32
@@ -410,7 +410,7 @@ fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_params=[], a
     revert 0, 36
 }
 
-fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
@@ -440,7 +440,7 @@ fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_params=[],
     revert 0, 36
 }
 
-fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -460,7 +460,7 @@ fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_params=[], abi_r
     ret v6
 }
 
-fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_returns=[word]] {
+fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
     memory_zero v0, 32
@@ -499,7 +499,7 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_r
     revert 0, 36
 }
 
-fn @dirtyEnum() -> u8 [selector=0x676092a0, pure, abi_params=[], abi_returns=[word], abi_return_params=[enum<2, u8>]] {
+fn @dirtyEnum() -> u8 [selector=0x676092a0, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     ret 2
 }
@@ -549,7 +549,7 @@ fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_params=[], ab
     jumpi v3, bb1, bb2
   bb2:
     v4 = and 2, 1
-    v5 = abi_encode [word], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
     v7 = slice_len v5
     v8 = staticcall v1, v0, v6, v7, 0, 32
@@ -586,37 +586,25 @@ fn @dirtyEnumStructExternalArg() -> u256 [selector=0x06fd3c7e, view, abi_params=
     mstore v0, 2
     v1 = address
     v2 = gas
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v4 = memory_object_load_field memorystruct<1>, v0, 0
-    v5 = lt v4, 2
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = and v4, 1
-    memory_object_store_field memorystruct<1>, v3, 0, v7
-    v8 = abi_encode [tuple<word>], selector 0x9e10d92f00000000000000000000000000000000000000000000000000000000, args v3
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = staticcall v2, v1, v9, v10, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:
-    revert_returndata
-  bb4:
-    v12 = returndatasize
-    v13 = lt v12, 32
-    jumpi v13, bb5, bb6
-  bb6:
-    v14 = add 0, 0
-    v15 = mload v14
-    v16 = add 0, 0
-    v17 = mload v16
-    ret v17
-  bb5:
-    revert 0, 0
+    v3 = abi_encode [tuple<word<enum 2>>], selector 0x9e10d92f00000000000000000000000000000000000000000000000000000000, args v0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v2, v1, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    ret v12
+  bb3:
+    revert 0, 0
 }
 
 fn @enumStructTarget(arg0: memorystruct) -> u256 [selector=0x9e10d92f, pure, abi_params=[tuple<enum<2, u8>>], abi_returns=[word]] {
@@ -632,74 +620,25 @@ fn @dirtyEnumArrayExternalArg() -> u256 [selector=0xa5e959d5, view, abi_params=[
     mstore v1, 2
     v2 = address
     v3 = gas
-    v4 = memory_object_len memoryarray, v0
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb1, bb2
-  bb2:
-    v7 = mul v5, 32
-    v8 = iszero 32
-    v9 = div v7, 32
-    v10 = eq v9, v5
-    v11 = or v8, v10
-    v12 = iszero v11
-    jumpi v12, bb3, bb4
-  bb4:
-    v13 = alloc memoryarray<1>, exact, uninitialized, infallible, v7
-    set_memory_object_len memoryarray, v13, v4
-    v14 = memory_object_data memoryarray, v0
-    v15 = memory_object_data memoryarray, v13
-    jump bb5
-  bb5:
-    v16 = phi [bb4: 0], [bb9: v26]
-    v17 = phi [bb4: v14], [bb9: v24]
-    v18 = phi [bb4: v15], [bb9: v25]
-    v19 = lt v16, v4
-    jumpi v19, bb6, bb7
-  bb7:
-    v27 = abi_encode [memory_array<word>], selector 0x8529de5100000000000000000000000000000000000000000000000000000000, args v13
-    v28 = slice_ptr v27
-    v29 = slice_len v27
-    v30 = staticcall v3, v2, v28, v29, 0, 32
-    jumpi v30, bb11, bb10
-  bb10:
-    revert_returndata
-  bb11:
-    v31 = returndatasize
-    v32 = lt v31, 32
-    jumpi v32, bb12, bb13
-  bb13:
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = add 0, 0
-    v36 = mload v35
-    ret v36
-  bb12:
-    revert 0, 0
-  bb6:
-    v20 = mload v17
-    v21 = lt v20, 2
-    v22 = iszero v21
-    jumpi v22, bb8, bb9
-  bb9:
-    v23 = and v20, 1
-    mstore v18, v23
-    v24 = add v17, 32
-    v25 = add v18, 32
-    v26 = add v16, 1
-    jump bb5
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v4 = abi_encode [memory_array<word<enum 2>>], selector 0x8529de5100000000000000000000000000000000000000000000000000000000, args v0
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = staticcall v3, v2, v5, v6, 0, 32
+    jumpi v7, bb2, bb1
   bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert_returndata
+  bb2:
+    v8 = returndatasize
+    v9 = lt v8, 32
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    ret v13
+  bb3:
+    revert 0, 0
 }
 
 fn @enumArrayTarget(arg0: memoryarray) -> u256 [selector=0x8529de51, pure, abi_params=[array<_, enum<2, u8>>], abi_returns=[word]] {
@@ -787,47 +726,8 @@ fn @dirtyEnumNested() -> memorybytes [selector=0xb5dac01b, pure, abi_params=[], 
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v1
     v2 = add v0, 32
     mstore v2, 2
-    v3 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    jump bb1
-  bb1:
-    v4 = phi [bb0: 0], [bb6: v21]
-    v5 = lt v4, 1
-    jumpi v5, bb2, bb3
-  bb3:
-    v22 = abi_encode [array<1, array<1, word>>], object, args v3
-    ret v22
-  bb2:
-    v6 = memory_object_load_element memoryfixedarray<1, 1>, v0, v4
-    v7 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    v8 = memory_object_data memoryfixedarray, v6
-    v9 = memory_object_data memoryfixedarray, v7
-    jump bb4
-  bb4:
-    v10 = phi [bb2: 0], [bb8: v20]
-    v11 = phi [bb2: v8], [bb8: v18]
-    v12 = phi [bb2: v9], [bb8: v19]
-    v13 = lt v10, 1
-    jumpi v13, bb5, bb6
-  bb6:
-    memory_object_store_element memoryfixedarray<1, 1>, v3, v4, v7
-    v21 = add v4, 1
-    jump bb1
-  bb5:
-    v14 = mload v11
-    v15 = lt v14, 2
-    v16 = iszero v15
-    jumpi v16, bb7, bb8
-  bb8:
-    v17 = and v14, 1
-    mstore v12, v17
-    v18 = add v11, 32
-    v19 = add v12, 32
-    v20 = add v10, 1
-    jump bb4
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
+    v3 = abi_encode [array<1, array<1, word<enum 2>>>], object, args v0
+    ret v3
 }
 
 fn @dirtyBoolPacked() -> memorybytes [selector=0x09c9026f, pure, abi_params=[], abi_returns=[memory_bytes]] {
@@ -843,7 +743,7 @@ fn @dirtyBoolPacked() -> memorybytes [selector=0x09c9026f, pure, abi_params=[], 
     ret v4
 }
 
-fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_params=[u256], abi_returns=[word]] {
+fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_params=[u256], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas

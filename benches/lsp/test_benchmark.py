@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-
 MODULE_PATH = Path(__file__).with_name("benchmark.py")
 MODULE_SPEC = importlib.util.spec_from_file_location("solar_lsp_benchmark", MODULE_PATH)
 if MODULE_SPEC is None or MODULE_SPEC.loader is None:
@@ -113,7 +112,9 @@ def valid_response(method: str, config: dict[str, Any] = RESPONSE_CONFIG) -> Any
 
 
 def write_json(path: Path, value: Any) -> bytes:
-    data = (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n").encode()
+    data = (
+        json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    ).encode()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     return data
@@ -228,7 +229,9 @@ class RawArtifact:
             benchmark_result = {"name": method, "servers": rows}
             benchmark_input = benchmark._expected_benchmark_input(method, config)
             if benchmark_input is not None:
-                benchmark_result["input"] = json.dumps(benchmark_input, separators=(",", ":"))
+                benchmark_result["input"] = json.dumps(
+                    benchmark_input, separators=(",", ":")
+                )
             benchmarks.append(benchmark_result)
         return {
             "timestamp": "2026-08-17T13:00:00Z",
@@ -340,7 +343,9 @@ class ConfigTests(unittest.TestCase):
         )
         self.assertNotIn("commit", config["servers"][0])
         self.assertNotIn("repo", config["servers"][0])
-        self.assertIs(benchmark._validate_generated_config(config, ("head", "base")), config)
+        self.assertIs(
+            benchmark._validate_generated_config(config, ("head", "base")), config
+        )
 
     def test_generated_config_validation_rejects_contract_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -360,9 +365,7 @@ class ConfigTests(unittest.TestCase):
         upstream = benchmark.pinned_upstream()
 
         self.assertEqual(upstream["version"], "0.3.3")
-        self.assertEqual(
-            upstream["commit"], "ca0651f86f430290dacdbeb62c9c6987a3ad6966"
-        )
+        self.assertEqual(upstream["commit"], "ca0651f86f430290dacdbeb62c9c6987a3ad6966")
         self.assertEqual(
             upstream["source"]["sha256"],
             "145dc03c5606d6b5ec66647d233486bab9f4e65022275763bf445bc26414470e",
@@ -393,9 +396,11 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("GITHUB_TOKEN", run.call_args.kwargs["env"])
 
         bad = mock.Mock(returncode=0, stdout="lsp-bench 0.3.4\n")
-        with mock.patch.object(benchmark.subprocess, "run", return_value=bad):
-            with self.assertRaises(benchmark.ExecutionError):
-                benchmark._verify_upstream_binary(Path("/tmp/lsp-bench"))
+        with (
+            mock.patch.object(benchmark.subprocess, "run", return_value=bad),
+            self.assertRaises(benchmark.ExecutionError),
+        ):
+            benchmark._verify_upstream_binary(Path("/tmp/lsp-bench"))
 
     def test_run_rejects_the_same_binary_path_for_both_roles(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -414,7 +419,9 @@ class ConfigTests(unittest.TestCase):
 
 
 class ContextTests(unittest.TestCase):
-    def test_context_requires_base_to_be_main_and_head_to_be_merge_candidate(self) -> None:
+    def test_context_requires_base_to_be_main_and_head_to_be_merge_candidate(
+        self,
+    ) -> None:
         with self.assertRaisesRegex(benchmark.ValidationError, "equal main"):
             benchmark.validate_context(
                 CONTEXT.repository,
@@ -429,9 +436,7 @@ class ContextTests(unittest.TestCase):
                 CONTEXT.run_url,
             )
 
-        with self.assertRaisesRegex(
-            benchmark.ValidationError, "equal merge candidate"
-        ):
+        with self.assertRaisesRegex(benchmark.ValidationError, "equal merge candidate"):
             benchmark.validate_context(
                 CONTEXT.repository,
                 CONTEXT.pr_head_repository,
@@ -461,14 +466,16 @@ class ContextTests(unittest.TestCase):
             {"run_url": f"{CONTEXT.run_url}\t"},
         )
         for values in invalid:
-            with self.subTest(values=values):
-                with self.assertRaises(benchmark.ValidationError):
-                    context = {
-                        key: value
-                        for key, value in CONTEXT.__dict__.items()
-                        if key != "comparison_mode"
-                    } | values
-                    benchmark.validate_context(**context)
+            with (
+                self.subTest(values=values),
+                self.assertRaises(benchmark.ValidationError),
+            ):
+                context = {
+                    key: value
+                    for key, value in CONTEXT.__dict__.items()
+                    if key != "comparison_mode"
+                } | values
+                benchmark.validate_context(**context)
 
 
 class ArgumentParserTests(unittest.TestCase):
@@ -531,7 +538,9 @@ class ArgumentParserTests(unittest.TestCase):
 
                 self.assertEqual(parsed.command, command)
                 self.assertEqual(parsed.pr_number, CONTEXT.pr_number)
-                self.assertEqual(parsed.workflow_repository, CONTEXT.workflow_repository)
+                self.assertEqual(
+                    parsed.workflow_repository, CONTEXT.workflow_repository
+                )
 
 
 class ResponseValidationTests(unittest.TestCase):
@@ -575,17 +584,21 @@ class ResponseValidationTests(unittest.TestCase):
             "textDocument/documentSymbol": [{"name": "Main"}],
         }
         for method, response in invalid.items():
-            with self.subTest(method=method):
-                with self.assertRaises(benchmark.ValidationError):
-                    benchmark._validate_response(
-                        method, response, "response", RESPONSE_CONFIG
-                    )
+            with (
+                self.subTest(method=method),
+                self.assertRaises(benchmark.ValidationError),
+            ):
+                benchmark._validate_response(
+                    method, response, "response", RESPONSE_CONFIG
+                )
 
     def test_rejects_deceptive_hover_and_malformed_completion(self) -> None:
         invalid = (
             (
                 "textDocument/hover",
-                {"contents": "not a signature: double takes address and returns uint256"},
+                {
+                    "contents": "not a signature: double takes address and returns uint256"
+                },
             ),
             (
                 "textDocument/completion",
@@ -597,11 +610,13 @@ class ResponseValidationTests(unittest.TestCase):
         )
 
         for method, response in invalid:
-            with self.subTest(method=method):
-                with self.assertRaises(benchmark.ValidationError):
-                    benchmark._validate_response(
-                        method, response, "response", RESPONSE_CONFIG
-                    )
+            with (
+                self.subTest(method=method),
+                self.assertRaises(benchmark.ValidationError),
+            ):
+                benchmark._validate_response(
+                    method, response, "response", RESPONSE_CONFIG
+                )
 
     def test_references_reject_malformed_extra_locations(self) -> None:
         response = [location("Main.sol", 8), location("Main.sol", 13), {"uri": 7}]
@@ -616,7 +631,9 @@ class ResponseValidationTests(unittest.TestCase):
             "textDocument/diagnostic": valid_response("textDocument/diagnostic"),
             "textDocument/definition": valid_response("textDocument/definition"),
             "textDocument/references": valid_response("textDocument/references"),
-            "textDocument/documentSymbol": valid_response("textDocument/documentSymbol"),
+            "textDocument/documentSymbol": valid_response(
+                "textDocument/documentSymbol"
+            ),
         }
         cases["textDocument/diagnostic"]["uri"] = "file:///untrusted/Main.sol"
         cases["textDocument/definition"][0]["uri"] = "file:///untrusted/Math.sol"
@@ -626,11 +643,13 @@ class ResponseValidationTests(unittest.TestCase):
         )
 
         for method, response in cases.items():
-            with self.subTest(method=method):
-                with self.assertRaises(benchmark.ValidationError):
-                    benchmark._validate_response(
-                        method, response, "response", RESPONSE_CONFIG
-                    )
+            with (
+                self.subTest(method=method),
+                self.assertRaises(benchmark.ValidationError),
+            ):
+                benchmark._validate_response(
+                    method, response, "response", RESPONSE_CONFIG
+                )
 
 
 class ArtifactValidationTests(unittest.TestCase):
@@ -666,7 +685,9 @@ class ArtifactValidationTests(unittest.TestCase):
             artifact.manifest["context"]["head_sha"] = "3" * 40
             artifact.rewrite_manifest()
 
-            with self.assertRaisesRegex(benchmark.ValidationError, "trusted workflow context"):
+            with self.assertRaisesRegex(
+                benchmark.ValidationError, "trusted workflow context"
+            ):
                 benchmark.validate_artifact(artifact.root, CONTEXT)
 
     def test_rejects_tampered_result_digest(self) -> None:
@@ -681,11 +702,11 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_missing_pass_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             artifact = RawArtifact(Path(directory))
-            (
-                artifact.root / "passes" / "head-first" / "1" / "config.json"
-            ).unlink()
+            (artifact.root / "passes" / "head-first" / "1" / "config.json").unlink()
 
-            with self.assertRaisesRegex(benchmark.ValidationError, "layout is incomplete"):
+            with self.assertRaisesRegex(
+                benchmark.ValidationError, "layout is incomplete"
+            ):
                 benchmark.validate_artifact(artifact.root, CONTEXT)
 
     def test_rejects_files_not_covered_by_the_manifest(self) -> None:
@@ -693,7 +714,9 @@ class ArtifactValidationTests(unittest.TestCase):
             artifact = RawArtifact(Path(directory))
             (artifact.root / "workflow.txt").write_text("untrusted sibling")
 
-            with self.assertRaisesRegex(benchmark.ValidationError, "unexpected entry workflow.txt"):
+            with self.assertRaisesRegex(
+                benchmark.ValidationError, "unexpected entry workflow.txt"
+            ):
                 benchmark.validate_artifact(artifact.root, CONTEXT)
 
     def test_rejects_unexpected_config_fields_after_digest_verification(self) -> None:
@@ -728,7 +751,10 @@ class ArtifactValidationTests(unittest.TestCase):
             ),
         )
         for mutate in mutations:
-            with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(mutate=mutate),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 artifact = RawArtifact(Path(directory))
                 hover = next(
                     item
@@ -778,11 +804,16 @@ class ArtifactValidationTests(unittest.TestCase):
     def test_rejects_malformed_and_duplicate_key_json(self) -> None:
         invalid_documents = (b"{", b'{"schema_version": 1, "schema_version": 1}')
         for document in invalid_documents:
-            with self.subTest(document=document), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(document=document),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 artifact = RawArtifact(Path(directory))
                 (artifact.root / "manifest.json").write_bytes(document)
 
-                with self.assertRaisesRegex(benchmark.ValidationError, "valid strict JSON"):
+                with self.assertRaisesRegex(
+                    benchmark.ValidationError, "valid strict JSON"
+                ):
                     benchmark.validate_artifact(artifact.root, CONTEXT)
 
     def test_rejects_incorrect_measured_response(self) -> None:
@@ -793,12 +824,12 @@ class ArtifactValidationTests(unittest.TestCase):
                 for item in artifact.results[("base-first", 1)]["benchmarks"]
                 if item["name"] == "textDocument/hover"
             )
-            hover["servers"][0]["iterations"][4]["response"] = {
-                "contents": "unrelated"
-            }
+            hover["servers"][0]["iterations"][4]["response"] = {"contents": "unrelated"}
             artifact.rewrite_results("base-first")
 
-            with self.assertRaisesRegex(benchmark.ValidationError, "double function hover"):
+            with self.assertRaisesRegex(
+                benchmark.ValidationError, "double function hover"
+            ):
                 benchmark.validate_artifact(artifact.root, CONTEXT)
 
     def test_rejects_invalid_rss_even_though_rss_is_not_a_verdict_metric(self) -> None:
@@ -817,7 +848,9 @@ class ArtifactValidationTests(unittest.TestCase):
             artifact.configs[("base-first", 1)]["servers"][0]["commit"] = "main"
             artifact.rewrite_config("base-first")
 
-            with self.assertRaisesRegex(benchmark.ValidationError, "unsupported server fields"):
+            with self.assertRaisesRegex(
+                benchmark.ValidationError, "unsupported server fields"
+            ):
                 benchmark.validate_artifact(artifact.root, CONTEXT)
 
     @unittest.skipIf(os.name == "nt", "symlink semantics differ on Windows")
@@ -832,7 +865,9 @@ class ArtifactValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(benchmark.ValidationError, "unexpected entry"):
                 benchmark.validate_artifact(artifact.root, CONTEXT)
 
-    def test_render_artifact_turns_invalid_input_into_escaped_inconclusive_report(self) -> None:
+    def test_render_artifact_turns_invalid_input_into_escaped_inconclusive_report(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             artifact = RawArtifact(root / "raw")
@@ -885,7 +920,9 @@ class ArtifactValidationTests(unittest.TestCase):
                     for item in artifact.results[(pass_name, session)]["benchmarks"]
                     if item["name"] == "initialize"
                 )
-                head = next(row for row in initialize["servers"] if row["server"] == "head")
+                head = next(
+                    row for row in initialize["servers"] if row["server"] == "head"
+                )
                 head.update(p50_ms=1e308, p95_ms=1e308, mean_ms=1e308)
                 for iteration in head["iterations"]:
                     iteration["ms"] = 1e308
@@ -984,9 +1021,7 @@ class StatisticsTests(unittest.TestCase):
         comparison = benchmark.build_comparison(constant_sessions(), CONTEXT)
 
         self.assertEqual(benchmark.METHODS[1], "textDocument/diagnostic")
-        self.assertEqual(
-            comparison["methods"][1]["name"], "didOpen/publishDiagnostics"
-        )
+        self.assertEqual(comparison["methods"][1]["name"], "didOpen/publishDiagnostics")
         rendered = benchmark.render_markdown(
             benchmark.add_publication_state(
                 comparison, CONTEXT, CURRENT_MAIN_SHA, CURRENT_PR_HEAD_SHA
@@ -1006,9 +1041,11 @@ class StatisticsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "at least one sample"):
             benchmark.percentile([], 50)
         for percent in (0, -1, 101):
-            with self.subTest(percent=percent):
-                with self.assertRaisesRegex(ValueError, "must be in"):
-                    benchmark.percentile([1], percent)
+            with (
+                self.subTest(percent=percent),
+                self.assertRaisesRegex(ValueError, "must be in"),
+            ):
+                benchmark.percentile([1], percent)
 
     def test_method_verdict_requires_both_order_strata(self) -> None:
         cases = (
@@ -1085,7 +1122,9 @@ class StatisticsTests(unittest.TestCase):
         self.assertEqual(comparison["methods"][0]["delta_ms"], {"p50": 2.0, "p95": 0.0})
         self.assertEqual(comparison["methods"][0]["verdict"], "stable")
 
-    def test_build_comparison_recomputes_metrics_and_prioritizes_regressions(self) -> None:
+    def test_build_comparison_recomputes_metrics_and_prioritizes_regressions(
+        self,
+    ) -> None:
         sessions = constant_sessions()
         for session in sessions:
             session.samples["head"][benchmark.METHODS[0]] = [12.0] * 10
@@ -1160,7 +1199,9 @@ class MarkdownTests(unittest.TestCase):
             "+2.0000 ms (+20.00%) | 10.00 ms | 12.00 ms | "
             "+2.0000 ms (+20.00%) | regression |"
         )
-        self.assertTrue(rendered.startswith("<!-- solar-lsp-benchmark -->\n## LSP benchmark\n"))
+        self.assertTrue(
+            rendered.startswith("<!-- solar-lsp-benchmark -->\n## LSP benchmark\n")
+        )
         self.assertIn("**Overall:** `regression`", rendered)
         self.assertIn(expected_row, rendered)
         self.assertIn(f"/commit/{CONTEXT.merge_candidate_sha}", rendered)

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/logical_short_circuit.sol:LogicalShortCircuit ===
 @module LogicalShortCircuit
-fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word]] {
+fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -15,7 +15,7 @@ fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word]] {
     revert 0, 36
 }
 
-fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_returns=[word, word]] {
+fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
     jumpi 0, bb1, bb2
   bb2:
@@ -56,7 +56,7 @@ fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_retur
     revert 0, 0
 }
 
-fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word]] {
+fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
     jumpi 1, bb2, bb1
   bb1:
@@ -97,7 +97,7 @@ fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_return
     ret v17, v16
 }
 
-fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_returns=[word, word]] {
+fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
     jumpi 1, bb1, bb2
   bb2:
@@ -138,7 +138,7 @@ fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_return
     revert 0, 0
 }
 
-fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word]] {
+fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
     jumpi 0, bb2, bb1
   bb1:

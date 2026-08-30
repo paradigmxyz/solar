@@ -1,36 +1,36 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_validation.sol:CalldataValidation ===
 @module CalldataValidation
-fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word]] {
+fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word<u8>]] {
   bb0:
     ret arg0
 }
 
-fn @vInt16(arg0: i16) -> i16 [selector=0xe9697b4d, pure, abi_params=[i16], abi_returns=[word]] {
+fn @vInt16(arg0: i16) -> i16 [selector=0xe9697b4d, pure, abi_params=[i16], abi_returns=[word<i16>]] {
   bb0:
     ret arg0
 }
 
-fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word]] {
+fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word<bool>]] {
   bb0:
     ret arg0
 }
 
-fn @vAddress(arg0: address) -> address [selector=0x23347413, pure, abi_params=[address], abi_returns=[word]] {
+fn @vAddress(arg0: address) -> address [selector=0x23347413, pure, abi_params=[address], abi_returns=[word<u160>]] {
   bb0:
     ret arg0
 }
 
-fn @vBytes4(arg0: bytes4) -> bytes4 [selector=0x2c920949, pure, abi_params=[bytes4], abi_returns=[word]] {
+fn @vBytes4(arg0: bytes4) -> bytes4 [selector=0x2c920949, pure, abi_params=[bytes4], abi_returns=[word<bytes4>]] {
   bb0:
     ret arg0
 }
 
-fn @vEnum(arg0: u8) -> u8 [selector=0x5aa5e60a, pure, abi_params=[enum<3, u8>], abi_returns=[word], abi_return_params=[enum<3, u8>]] {
+fn @vEnum(arg0: u8) -> u8 [selector=0x5aa5e60a, pure, abi_params=[enum<3, u8>], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     ret arg0
 }
 
-fn @vWidened(arg0: u8) -> u16 [selector=0x3d71ddd7, pure, abi_params=[u8], abi_returns=[word]] {
+fn @vWidened(arg0: u8) -> u16 [selector=0x3d71ddd7, pure, abi_params=[u8], abi_returns=[word<u16>]] {
   bb0:
     ret arg0
 }

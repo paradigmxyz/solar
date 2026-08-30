@@ -17,29 +17,23 @@ env:
 jobs:
   test:
     name: test ${{ matrix.os }} ${{ matrix.rust }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: depot-${{ matrix.os }}
     timeout-minutes: 30
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            runner: "depot-ubuntu-latest"
-            rust: "stable"
-          - os: "macos-latest"
-            runner: "macos-latest"
-            rust: "stable"
-          - os: "windows-latest"
-            runner: "windows-latest"
-            rust: "stable"
-          - os: "ubuntu-latest"
-            runner: "depot-ubuntu-latest"
             rust: "1.96" # MSRV
           - os: "ubuntu-latest"
-            runner: "depot-ubuntu-latest"
             rust: "nightly"
+        exclude:
+          - os: "windows-latest"
+            rust: ${{ github.event_name == 'push' && 'none' || 'stable' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -148,7 +142,7 @@ jobs:
 
   feature-checks:
     name: features
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-latest-4
     timeout-minutes: 30
     permissions:
       contents: read

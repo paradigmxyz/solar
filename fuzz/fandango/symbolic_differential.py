@@ -15,7 +15,6 @@ import subprocess
 import tempfile
 from typing import Any
 
-
 SCHEMA = "solar:solsymdiff@v1"
 TEST_NAME = "checkSymbolicDifferential"
 DEFAULT_DYNAMIC_LENGTHS = (0, 1, 2, 3)
@@ -47,12 +46,13 @@ def main(argv: list[str] | None = None) -> int:
         "--include-stateful",
         action="store_true",
         help=(
-            "allow a nonpayable target under the clean zero-storage, "
-            "single-call model"
+            "allow a nonpayable target under the clean zero-storage, single-call model"
         ),
     )
     parser.add_argument("--project-root", type=pathlib.Path)
-    parser.add_argument("--include-path", type=pathlib.Path, action="append", default=[])
+    parser.add_argument(
+        "--include-path", type=pathlib.Path, action="append", default=[]
+    )
     parser.add_argument("--remapping", action="append", default=[])
     parser.add_argument("--solc", default="solc")
     parser.add_argument("--solar", default="target/debug/solar")
@@ -132,7 +132,9 @@ def main(argv: list[str] | None = None) -> int:
     }[result["status"]]
 
 
-def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> dict[str, Any]:
+def run(
+    args: argparse.Namespace, output_root: pathlib.Path | None = None
+) -> dict[str, Any]:
     source = args.source.resolve()
     if not source.is_file():
         raise ValueError(f"source file does not exist: {source}")
@@ -211,11 +213,11 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
     }
 
     if output_root is None:
-        output_root = pathlib.Path(__file__).resolve().parents[2] / "target" / "solsymdiff"
+        output_root = (
+            pathlib.Path(__file__).resolve().parents[2] / "target" / "solsymdiff"
+        )
     output_root.mkdir(parents=True, exist_ok=True)
-    project = pathlib.Path(
-        tempfile.mkdtemp(prefix=f"{source.stem}-", dir=output_root)
-    )
+    project = pathlib.Path(tempfile.mkdtemp(prefix=f"{source.stem}-", dir=output_root))
     (project / "standard-input.json").write_text(
         serialized_input + "\n",
         encoding="utf-8",
@@ -389,11 +391,11 @@ def _standard_input(
     with tempfile.TemporaryDirectory(prefix="solar-solsymdiff-imports-") as cwd:
         result = subprocess.run(
             command,
+            check=False,
             input=json.dumps(discovery_input),
             cwd=cwd,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
     output = _compiler_json(result, "Solc import discovery")
@@ -408,7 +410,9 @@ def _standard_input(
             path = source
         else:
             candidates = tuple((root / name).resolve() for root in roots)
-            path = next((candidate for candidate in candidates if candidate.is_file()), None)
+            path = next(
+                (candidate for candidate in candidates if candidate.is_file()), None
+            )
             if path is None:
                 raise ValueError(f"could not snapshot imported source unit: {name}")
         sources[name] = {"content": path.read_text(encoding="utf-8")}
@@ -432,7 +436,9 @@ def _standard_input(
         **({"remappings": list(remappings)} if remappings else {}),
     }
     value = {"language": "Solidity", "sources": sources, "settings": settings}
-    serialized = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    serialized = json.dumps(
+        value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
     return {
         "input": value,
         "root_source": root_source,
@@ -453,21 +459,21 @@ def _compile(
     with tempfile.TemporaryDirectory(prefix="solar-solsymdiff-compile-") as cwd:
         result = subprocess.run(
             [compiler, "--standard-json"],
+            check=False,
             input=standard_input,
             cwd=cwd,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
     output = _compiler_json(result, label)
 
     contracts = output.get("contracts")
-    source_contracts = contracts.get(source_name) if isinstance(contracts, dict) else None
+    source_contracts = (
+        contracts.get(source_name) if isinstance(contracts, dict) else None
+    )
     artifact = (
-        source_contracts.get(contract)
-        if isinstance(source_contracts, dict)
-        else None
+        source_contracts.get(contract) if isinstance(source_contracts, dict) else None
     )
     if not isinstance(artifact, dict):
         raise ValueError(f"{label} did not emit {source_name}:{contract}")
@@ -548,7 +554,9 @@ def _select_function(
         allowed.add("nonpayable")
     if mutability not in allowed:
         choices = ", ".join(sorted(allowed))
-        raise ValueError(f"{signature} has mutability {mutability!r}; allowed: {choices}")
+        raise ValueError(
+            f"{signature} has mutability {mutability!r}; allowed: {choices}"
+        )
     if not all(_supported_input(item) for item in solc_entry["inputs"]):
         raise ValueError(f"{signature} uses an unsupported symbolic input")
 
@@ -606,7 +614,9 @@ def _canonical_type(item: dict[str, Any]) -> str:
     if not isinstance(components, list):
         raise ValueError("tuple ABI value has no components")
     suffix = abi_type[len("tuple") :]
-    return f"({','.join(_canonical_type(component) for component in components)}){suffix}"
+    return (
+        f"({','.join(_canonical_type(component) for component in components)}){suffix}"
+    )
 
 
 def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
@@ -631,9 +641,7 @@ def _selector(identifiers: dict[str, Any], signature: str, label: str) -> str:
     try:
         bytes.fromhex(payload)
     except ValueError as err:
-        raise ValueError(
-            f"{label} emitted a non-hex selector for {signature}"
-        ) from err
+        raise ValueError(f"{label} emitted a non-hex selector for {signature}") from err
     return "0x" + payload.lower()
 
 
@@ -668,7 +676,7 @@ def _supported_elementary(abi_type: str) -> bool:
 
     if abi_type in {"address", "bool", "bytes", "string"}:
         return True
-    if abi_type.startswith("uint") or abi_type.startswith("int"):
+    if abi_type.startswith(("uint", "int")):
         width = abi_type[4:] if abi_type.startswith("uint") else abi_type[3:]
         return not width or (width.isdigit() and int(width) in range(8, 257, 8))
     if abi_type.startswith("bytes"):
@@ -746,9 +754,7 @@ def _write_project(
     (project / "test").mkdir()
 
     definitions, declarations = _solidity_parameters(function["inputs"])
-    arguments = ", ".join(
-        f"arg{index}" for index in range(len(function["inputs"]))
-    )
+    arguments = ", ".join(f"arg{index}" for index in range(len(function["inputs"])))
     encode_arguments = f", {arguments}" if arguments else ""
     word_checks = "\n".join(
         (
@@ -811,9 +817,9 @@ def _run_forge(
 ) -> dict[str, Any]:
     help_output = subprocess.run(
         [forge, "test", "--help"],
+        check=False,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=args.timeout,
     ).stdout
     command = [
@@ -862,11 +868,11 @@ def _run_forge(
     )
     result = subprocess.run(
         command,
+        check=False,
         cwd=project,
         env=env,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=args.timeout,
     )
     if not result.stdout.strip():
@@ -898,9 +904,7 @@ def _classify(
             if isinstance(symbolic, dict):
                 matches.append((test_name, result, symbolic))
     if len(matches) != 1:
-        raise ValueError(
-            f"expected one symbolic result, found {len(matches)}"
-        )
+        raise ValueError(f"expected one symbolic result, found {len(matches)}")
 
     test_name, result, symbolic = matches[0]
     if not test_name.startswith(TEST_NAME):

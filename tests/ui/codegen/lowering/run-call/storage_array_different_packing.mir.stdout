@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_different_packing.sol:StorageArrayDifferentPacking ===
 @module StorageArrayDifferentPacking
-fn @test() -> (bytes10, bytes10, bytes10, bytes10, bytes10) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word, word, word]] {
+fn @test() -> (bytes10, bytes10, bytes10, bytes10, bytes10) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>, word<bytes10>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 320
     set_memory_object_len memoryarray, v0, 9

@@ -20,7 +20,7 @@ fn @_anonymous(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]
     stop
 }
 
-fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word]] {
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffff
@@ -28,7 +28,7 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
     ret v2
 }
 
-fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word]] {
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 24, v0
@@ -42,33 +42,33 @@ fn @_anonymous() [constructor] {
     v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = eq 1, 0
     v2 = iszero v1
-    v3 = abi_encode [word, word], args v0, v2
+    v3 = abi_encode [word<bytes3>, word<bool>], args v0, v2
     v4 = not 31
-    v5 = and 400, v4
+    v5 = and 391, v4
     v6 = alloc raw, exact, uninitialized, infallible, v5
-    mstore v6, 0x61013138038061013160e03960e001601f017fffffffffffffffffffffffffff
+    mstore v6, 0x61012838038061012860e03960e001601f017fffffffffffffffffffffffffff
     v7 = add v6, 32
-    mstore v7, 0xffffffffffffffffffffffffffffffffffffe0166040523460c15760e08060c0
+    mstore v7, 0xffffffffffffffffffffffffffffffffffffe0166040523460b85760e060e061
     v8 = add v6, 64
-    mstore v8, 0x528060c05260e06101313803016040820111905015609e57609a565b5f5462ff
+    mstore v8, 0x1283803016040820111156094576090565b5f5462ffffff198116905060e051
     v9 = add v6, 96
-    mstore v9, 0xffff198116905060e05160e81c62ffffff9016811790505f5560ff60181b5f54
+    mstore v9, 0x60e81c62ffffff9016811790505f5560ff60181b5f54811991501660ff60e060
     v10 = add v6, 128
-    mstore v10, 0x811991501660ff60e0602001511660181b811790505f5560c5565b5f80fd5b60
+    mstore v10, 0x2001511660181b811790505f5560bc565b5f80fd5b8060c0528060c052516018
     v11 = add v6, 160
-    mstore v11, 0xc0518060c0525160181b1515609a57602060c05101516002901015609a57605b
+    mstore v11, 0x1b1515609057602060c051015160029010156090576051565b5f80fd5b606280
     v12 = add v6, 192
-    mstore v12, 0x565b5f80fd5b60628060cf5f395ff3346028575f3560e01c806317d7de7c1460
+    mstore v12, 0x60c65f395ff3346028575f3560e01c806317d7de7c146020578063f963393014
     v13 = add v6, 224
-    mstore v13, 0x20578063f9633930146024576028565b602c565b6047565b5f80fd5b5f5462ff
+    mstore v13, 0x6024576028565b602c565b6047565b5f80fd5b5f5462ffffff901660e81b6080
     v14 = add v6, 256
-    mstore v14, 0xffff901660e81b6080526020608001608090036080f35b5f5460181c60ff9016
+    mstore v14, 0x526020608001608090036080f35b5f5460181c60ff9016151560805260206080
     v15 = add v6, 288
-    mstore v15, 0x15156080526020608001608090036080f3000000000000000000000000000000
+    mstore v15, 0x1608090036080f3000000000000000000000000000000000000000000000000
     v16 = slice_ptr v3
-    v17 = add v6, 305
+    v17 = add v6, 296
     mcopy v17, v16, 64 !metadata(memory=heap)
-    v18 = create 0, v6, 369
+    v18 = create 0, v6, 360
     jumpi v18, bb2, bb1
   bb1:
     revert_returndata
@@ -82,7 +82,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word]] {
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -116,7 +116,7 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     revert 0, 0
 }
 
-fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word]] {
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

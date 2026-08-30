@@ -37,7 +37,7 @@ fn @directXor(arg0: i8, arg1: u24) -> u256 [selector=0x7fa5e04f, pure, abi_param
     ret v1
 }
 
-fn @isUint8Max(arg0: i8) -> bool [selector=0x9244ef1d, pure, abi_params=[i8], abi_returns=[word]] {
+fn @isUint8Max(arg0: i8) -> bool [selector=0x9244ef1d, pure, abi_params=[i8], abi_returns=[word<bool>]] {
   bb0:
     v0 = and arg0, 255
     v1 = eq v0, 255

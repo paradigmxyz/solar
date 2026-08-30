@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-
 HEADER = "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n"
 
 SIZE_CONFIGS = {
@@ -24,9 +23,13 @@ def main() -> None:
     output_dir = Path(__file__).resolve().parents[1] / "testdata" / "repros"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    configs = SIZE_CONFIGS.values() if args.sizes == "all" else (SIZE_CONFIGS[args.sizes],)
+    configs = (
+        SIZE_CONFIGS.values() if args.sizes == "all" else (SIZE_CONFIGS[args.sizes],)
+    )
     for size_name, n_symbols, n_depth, n_types in configs:
-        print(f"Generating {size_name} repros (n={n_symbols}, depth={n_depth}, types={n_types})...")
+        print(
+            f"Generating {size_name} repros (n={n_symbols}, depth={n_depth}, types={n_types})..."
+        )
         generate_many_symbols(output_dir, size_name, n_symbols)
         generate_many_functions(output_dir, size_name, n_symbols)
         generate_deep_nesting(output_dir, size_name, n_depth)
@@ -57,7 +60,10 @@ def generate_many_symbols(directory: Path, size: str, n: int) -> None:
 
 def generate_many_functions(directory: Path, size: str, n: int) -> None:
     lines = ["contract C{"]
-    lines.extend(f"function f{i}(uint x)public pure returns(uint r){{r=x+{i};}}" for i in range(n))
+    lines.extend(
+        f"function f{i}(uint x)public pure returns(uint r){{r=x+{i};}}"
+        for i in range(n)
+    )
     lines.append("}")
     write_file(directory, f"many_functions_{size}.sol", source(lines))
 
@@ -75,7 +81,11 @@ def generate_deep_nesting(directory: Path, size: str, depth: int) -> None:
     loops.append("}" * loop_depth)
     loops.append("}")
 
-    write_file(directory, f"deep_nesting_{size}.sol", source(["contract C{", *nested, *loops, "}"]))
+    write_file(
+        directory,
+        f"deep_nesting_{size}.sol",
+        source(["contract C{", *nested, *loops, "}"]),
+    )
 
 
 def generate_many_types(directory: Path, size: str, n: int) -> None:
@@ -103,9 +113,12 @@ def generate_large_literals(directory: Path, size: str, n: int) -> None:
     lines.append("}")
 
     strings = ",".join(
-        f'"String literal number {i} with some content to make it longer"' for i in range(min(n, 50))
+        f'"String literal number {i} with some content to make it longer"'
+        for i in range(min(n, 50))
     )
-    lines.append(f"function g()public pure returns(string memory r){{r=string(abi.encodePacked({strings}));}}")
+    lines.append(
+        f"function g()public pure returns(string memory r){{r=string(abi.encodePacked({strings}));}}"
+    )
     lines.append("}")
     write_file(directory, f"large_literals_{size}.sol", source(lines))
 
@@ -145,9 +158,13 @@ def generate_many_storage(directory: Path, size: str, n: int) -> None:
 
 def generate_many_events(directory: Path, size: str, n: int) -> None:
     lines = ["contract C{"]
-    lines.extend(f"event E{i}(address indexed a,uint indexed b,bytes32 c);" for i in range(n))
+    lines.extend(
+        f"event E{i}(address indexed a,uint indexed b,bytes32 c);" for i in range(n)
+    )
     lines.append("function f()public{")
-    lines.extend(f"emit E{i}(msg.sender,{i},bytes32(uint({i})));" for i in range(min(n, 100)))
+    lines.extend(
+        f"emit E{i}(msg.sender,{i},bytes32(uint({i})));" for i in range(min(n, 100))
+    )
     lines.extend(("}", "}"))
     write_file(directory, f"many_events_{size}.sol", source(lines))
 

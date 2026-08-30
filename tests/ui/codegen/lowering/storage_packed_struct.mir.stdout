@@ -189,7 +189,7 @@ fn @_anonymous() [constructor] {
     revert 0, 36
 }
 
-fn @read() -> (u8, u8, u256) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word, word, word]] {
+fn @read() -> (u8, u8, u256) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
@@ -201,7 +201,7 @@ fn @read() -> (u8, u8, u256) [selector=0x57de26a4, view, abi_params=[], abi_retu
     ret v1, v4, v6
 }
 
-fn @copyValues() -> (u8, u8, u256) [selector=0xd888038d, view, abi_params=[], abi_returns=[word, word, word]] {
+fn @copyValues() -> (u8, u8, u256) [selector=0xd888038d, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v1 = sload 0 !metadata(storage=slot(0))
@@ -230,7 +230,7 @@ fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-fn @write(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0x529e141c, abi_params=[u8, u8, u256], abi_returns=[word, word, word]] {
+fn @write(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0x529e141c, abi_params=[u8, u8, u256], abi_returns=[word<u8>, word<u8>, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
@@ -258,7 +258,7 @@ fn @write(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0x529e141c
     ret v14, v17, v19
 }
 
-fn @replace(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0xcde69356, abi_params=[u8, u8, u256], abi_returns=[word, word, word]] {
+fn @replace(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0xcde69356, abi_params=[u8, u8, u256], abi_returns=[word<u8>, word<u8>, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and arg0, 255
@@ -295,7 +295,7 @@ fn @replace(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0xcde693
     ret v20, v23, v25
 }
 
-fn @arrayRead(arg0: u256) -> u8 [selector=0x0ef5e270, view, abi_params=[u256], abi_returns=[word]] {
+fn @arrayRead(arg0: u256) -> u8 [selector=0x0ef5e270, view, abi_params=[u256], abi_returns=[word<u8>]] {
   bb0:
     v0 = lt arg0, 4
     v1 = iszero v0
@@ -316,7 +316,7 @@ fn @arrayRead(arg0: u256) -> u8 [selector=0x0ef5e270, view, abi_params=[u256], a
     revert 0, 36
 }
 
-fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u256, u8], abi_returns=[word]] {
+fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u256, u8], abi_returns=[word<u8>]] {
   bb0:
     v0 = lt arg0, 4
     v1 = iszero v0
@@ -358,7 +358,7 @@ fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u25
     revert 0, 36
 }
 
-fn @mixedRead() -> (address, bool, u16) [selector=0x3e58c576, view, abi_params=[], abi_returns=[word, word, word]] {
+fn @mixedRead() -> (address, bool, u16) [selector=0x3e58c576, view, abi_params=[], abi_returns=[word<u160>, word<bool>, word<u16>]] {
   bb0:
     v0 = sload 3 !metadata(storage=slot(3))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -371,7 +371,7 @@ fn @mixedRead() -> (address, bool, u16) [selector=0x3e58c576, view, abi_params=[
     ret v1, v4, v7
 }
 
-fn @encodedRead() -> (bytes4, i8) [selector=0xb2b63fb7, view, abi_params=[], abi_returns=[word, word]] {
+fn @encodedRead() -> (bytes4, i8) [selector=0xb2b63fb7, view, abi_params=[], abi_returns=[word<bytes4>, word<i8>]] {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
     v1 = and v0, 0xffffffff
@@ -383,7 +383,7 @@ fn @encodedRead() -> (bytes4, i8) [selector=0xb2b63fb7, view, abi_params=[], abi
     ret v2, v6
 }
 
-fn @encodedWrite(arg0: bytes4, arg1: i8) -> (bytes4, i8) [selector=0xf0fbe3a2, abi_params=[bytes4, i8], abi_returns=[word, word]] {
+fn @encodedWrite(arg0: bytes4, arg1: i8) -> (bytes4, i8) [selector=0xf0fbe3a2, abi_params=[bytes4, i8], abi_returns=[word<bytes4>, word<i8>]] {
   bb0:
     v0 = sload 4 !metadata(storage=slot(4))
     v1 = not 0xffffffff
@@ -410,7 +410,7 @@ fn @encodedWrite(arg0: bytes4, arg1: i8) -> (bytes4, i8) [selector=0xf0fbe3a2, a
     ret v15, v19
 }
 
-fn @encodedArrayRead(arg0: u256) -> (bytes4, i8) [selector=0xdf819380, view, abi_params=[u256], abi_returns=[word, word]] {
+fn @encodedArrayRead(arg0: u256) -> (bytes4, i8) [selector=0xdf819380, view, abi_params=[u256], abi_returns=[word<bytes4>, word<i8>]] {
   bb0:
     v0 = lt arg0, 2
     v1 = iszero v0
@@ -449,7 +449,7 @@ fn @encodedArrayRead(arg0: u256) -> (bytes4, i8) [selector=0xdf819380, view, abi
     revert 0, 36
 }
 
-fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selector=0xe381ba9e, abi_params=[u256, bytes4, i8], abi_returns=[word, word]] {
+fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selector=0xe381ba9e, abi_params=[u256, bytes4, i8], abi_returns=[word<bytes4>, word<i8>]] {
   bb0:
     v0 = lt arg0, 2
     v1 = iszero v0
@@ -531,7 +531,7 @@ fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selec
     revert 0, 36
 }
 
-fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_zero v0, 128
