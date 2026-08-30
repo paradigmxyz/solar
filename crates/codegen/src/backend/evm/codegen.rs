@@ -5211,14 +5211,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// CURRENT function's own frame, use [`Self::emit_own_frame_addr`], which
     /// resolves to an absolute address when the function has a static frame.
     fn emit_current_internal_frame_addr(&mut self, offset: u64) {
-        self.emit_current_internal_frame_addr_impl(offset, true);
+        let growth = if offset == 0 { 1 } else { 2 };
+        self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(growth));
+        self.emit_current_internal_frame_addr_untracked(offset);
     }
 
-    fn emit_current_internal_frame_addr_impl(&mut self, offset: u64, record_peak: bool) {
-        if record_peak {
-            let growth = if offset == 0 { 1 } else { 2 };
-            self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(growth));
-        }
+    fn emit_current_internal_frame_addr_untracked(&mut self, offset: u64) {
         self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         if offset != 0 {
@@ -5248,10 +5246,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// absolute push for static-frame functions, the frame-pointer indirection
     /// otherwise.
     fn emit_own_frame_addr(&mut self, offset: u64) {
-        self.emit_own_frame_addr_impl(offset, true);
+        if self.own_frame_addr_is_dynamic() {
+            let growth = if offset == 0 { 1 } else { 2 };
+            self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(growth));
+        }
+        self.emit_own_frame_addr_untracked(offset);
     }
 
-    fn emit_own_frame_addr_impl(&mut self, offset: u64, record_peak: bool) {
+    fn emit_own_frame_addr_untracked(&mut self, offset: u64) {
         if let Some(func_id) = self.current_internal_function
             && self.static_frame_functions.contains(func_id)
         {
@@ -5263,7 +5265,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_push(U256::from(EvmMemoryLayout::HEAP_START + offset));
             return;
         }
-        self.emit_current_internal_frame_addr_impl(offset, record_peak);
+        self.emit_current_internal_frame_addr_untracked(offset);
+    }
+
+    fn own_frame_addr_is_dynamic(&self) -> bool {
+        self.current_internal_function
+            .is_none_or(|func_id| !self.static_frame_functions.contains(func_id))
+            && (self.in_internal_function || self.in_constructor)
     }
 
     /// Removes the unused dynamic-frame header and single stack-return word from a static frame.
@@ -7892,18 +7900,16 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_spill_slot_addr(&mut self, func: &Function, slot: SpillSlot) {
-        self.emit_spill_slot_addr_impl(func, slot, true);
+        if self.in_internal_function {
+            self.emit_own_frame_addr(self.internal_spill_slot_offset(func, slot));
+        } else {
+            self.emit_spill_slot_addr_untracked(func, slot);
+        }
     }
 
-    fn emit_spill_slot_addr_impl(&mut self, func: &Function, slot: SpillSlot, record_peak: bool) {
+    fn emit_spill_slot_addr_untracked(&mut self, func: &Function, slot: SpillSlot) {
         if self.in_internal_function {
-            let spill_base = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-                + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
-                + (func.returns.len() as u64) * EvmMemoryLayout::WORD_SIZE;
-            self.emit_own_frame_addr_impl(
-                spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
-                record_peak,
-            );
+            self.emit_own_frame_addr_untracked(self.internal_spill_slot_offset(func, slot));
         } else if self.in_constructor {
             let spill_addr = self.constructor_spill_base(self.immutable_encodings.len())
                 + u64::from(slot.offset) * EvmMemoryLayout::WORD_SIZE;
@@ -7925,6 +7931,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    fn internal_spill_slot_offset(&self, func: &Function, slot: SpillSlot) -> u64 {
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
+            + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
+            + (func.returns.len() as u64) * EvmMemoryLayout::WORD_SIZE
+            + func.internal_frame_size
+            + u64::from(slot.offset) * EvmMemoryLayout::WORD_SIZE
+    }
+
     /// Ranks the external body's spill slots by reference count, hottest
     /// first, so the most reloaded slots receive the shortest addresses after
     /// final layout. The ranking is a bijection over the same slot area —
@@ -7942,10 +7956,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_internal_arg_load(&mut self, index: ArgIdx) {
-        self.emit_own_frame_addr_impl(
+        self.emit_own_frame_addr_untracked(
             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
                 + (index.index() as u64) * EvmMemoryLayout::WORD_SIZE,
-            false,
         );
         self.asm.emit_op(op::MLOAD);
     }
@@ -9107,7 +9120,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 ScheduledOp::LoadSpill(slot) => {
                     // PUSH slot_offset, MLOAD
-                    self.emit_spill_slot_addr_impl(func, slot, false);
+                    self.emit_spill_slot_addr_untracked(func, slot);
                     self.asm.emit_op(op::MLOAD);
                 }
                 ScheduledOp::LoadArg(index) => {
