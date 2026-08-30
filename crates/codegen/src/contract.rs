@@ -7,7 +7,7 @@ use crate::{
     mir::{LibraryLink, Module},
     pass::run_pipeline,
 };
-use alloy_primitives::{Bytes, keccak256};
+use alloy_primitives::Bytes;
 use either::Either;
 use solar_ast::TypeSize;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -72,28 +72,6 @@ pub struct LibraryReference {
     pub name: String,
     /// Byte offset where the address begins.
     pub start: usize,
-}
-
-impl LibraryReference {
-    /// Returns solc's textual placeholder for this reference, `__$<hash>$__`, where the hash is
-    /// the first 34 hex digits of `keccak256("<source>:<name>")`.
-    #[must_use]
-    pub fn placeholder(&self) -> String {
-        let hash = keccak256(format!("{}:{}", self.source, self.name));
-        format!("__${}$__", alloy_primitives::hex::encode(&hash[..17]))
-    }
-}
-
-/// Hex-encodes bytecode with every unresolved library address printed as solc's textual
-/// `__$<hash>$__` placeholder, so an unlinked artifact is never mistaken for deployable code.
-#[must_use]
-pub fn linkable_hex(bytecode: &[u8], references: &[LibraryReference]) -> String {
-    let mut object = alloy_primitives::hex::encode(bytecode);
-    for reference in references {
-        let start = reference.start * 2;
-        object.replace_range(start..start + 40, &reference.placeholder());
-    }
-    object
 }
 
 /// A contract selection.

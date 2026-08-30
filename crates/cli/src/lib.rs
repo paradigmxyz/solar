@@ -11,6 +11,7 @@ use std::process::ExitCode;
 
 pub use solar_config::{self as config, CompileOpts, LspArgs, UnstableOpts, version};
 
+mod bytecode;
 mod emit;
 pub mod standard_json;
 
