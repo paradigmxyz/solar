@@ -162,7 +162,7 @@ bb15:
   exp
   stop
 
-// Fold adjacent constants when the compact result improves both objectives.
+// Fold adjacent constants through the shared EVM word evaluator.
 // CHECK-LABEL: {{^[ +].*}}bb16:
 // CHECK: -   add
 // CHECK: +   push 67
@@ -190,4 +190,13 @@ bb18:
   push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
   push 1
   add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb19:
+// CHECK: -   sub
+// CHECK: +   push 26
+bb19:
+  push 5
+  push 31
+  sub
   stop

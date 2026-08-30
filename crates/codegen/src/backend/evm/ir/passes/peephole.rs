@@ -21,10 +21,13 @@ use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
 };
-use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
-    op,
-    stack::StackOp as PhysicalStackOp,
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Module, PushValue, TerminatorKind},
+        op,
+        stack::StackOp as PhysicalStackOp,
+    },
+    utils::eval,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -167,8 +170,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         }
     }
 
-    // Fold adjacent literal ADD/MUL expressions only when the compact result is no worse in
-    // either encoded size or static gas.
+    // Fold adjacent constants when the selected result materialization is a Pareto improvement.
     if let [.., lhs, rhs, instruction] = instructions.as_slice()
         && lhs.has_canonical_stack_effect()
         && rhs.has_canonical_stack_effect()
@@ -176,18 +178,14 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         && let Some(lhs_value) = lhs.concrete_immediate()
         && let Some(rhs_value) = rhs.concrete_immediate()
         && let Some(opcode) = instruction.as_legacy_opcode()
-        && let Some((result, opcode_gas)) = match opcode {
-            op::ADD => Some((lhs_value.wrapping_add(rhs_value), 3)),
-            op::MUL => Some((lhs_value.wrapping_mul(rhs_value), 5)),
-            _ => None,
-        }
+        && let Some(result) = eval::eval_opcode(opcode, &[rhs_value, lhs_value])
     {
         let evm_version = gcx.sess.opts.evm_version;
         let (lhs_size, lhs_gas) = immediate_materialization_cost(evm_version, lhs_value);
         let (rhs_size, rhs_gas) = immediate_materialization_cost(evm_version, rhs_value);
         let (result_size, result_gas) = immediate_materialization_cost(evm_version, result);
         let input_size = lhs_size + rhs_size + 1;
-        let input_gas = lhs_gas + rhs_gas + opcode_gas;
+        let input_gas = lhs_gas + rhs_gas;
         if result_size <= input_size
             && result_gas <= input_gas
             && (result_size < input_size || result_gas < input_gas)

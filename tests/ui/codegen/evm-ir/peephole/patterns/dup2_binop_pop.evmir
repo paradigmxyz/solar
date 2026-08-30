@@ -36,8 +36,8 @@ bb1:
 // CHECK: - swap 1
 // CHECK: - pop
 bb2:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   and
   swap 1
@@ -50,8 +50,8 @@ bb2:
 // CHECK: - swap 1
 // CHECK: - pop
 bb3:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   or
   swap 1
@@ -64,8 +64,8 @@ bb3:
 // CHECK: - swap 1
 // CHECK: - pop
 bb4:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   xor
   swap 1
@@ -78,8 +78,8 @@ bb4:
 // CHECK: - swap 1
 // CHECK: - pop
 bb5:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   eq
   swap 1
@@ -93,8 +93,8 @@ bb5:
 // CHECK: - pop
 // CHECK: + sub
 bb6:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   sub
   swap 1
@@ -108,8 +108,8 @@ bb6:
 // CHECK: - pop
 // CHECK: + div
 bb7:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   div
   swap 1
@@ -123,8 +123,8 @@ bb7:
 // CHECK: - pop
 // CHECK: + sdiv
 bb8:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   sdiv
   swap 1
@@ -138,8 +138,8 @@ bb8:
 // CHECK: - pop
 // CHECK: + mod
 bb9:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   mod
   swap 1
@@ -153,8 +153,8 @@ bb9:
 // CHECK: - pop
 // CHECK: + smod
 bb10:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   smod
   swap 1
@@ -168,8 +168,8 @@ bb10:
 // CHECK: - pop
 // CHECK: + exp
 bb11:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   exp
   swap 1
@@ -183,8 +183,8 @@ bb11:
 // CHECK: - pop
 // CHECK: + signextend
 bb12:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   signextend
   swap 1
@@ -198,8 +198,8 @@ bb12:
 // CHECK: - pop
 // CHECK: + gt
 bb13:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   lt
   swap 1
@@ -213,8 +213,8 @@ bb13:
 // CHECK: - pop
 // CHECK: + lt
 bb14:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   gt
   swap 1
@@ -228,8 +228,8 @@ bb14:
 // CHECK: - pop
 // CHECK: + sgt
 bb15:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   slt
   swap 1
@@ -243,8 +243,8 @@ bb15:
 // CHECK: - pop
 // CHECK: + slt
 bb16:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   sgt
   swap 1
@@ -258,8 +258,8 @@ bb16:
 // CHECK: - pop
 // CHECK: + byte
 bb17:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   byte
   swap 1
@@ -273,8 +273,8 @@ bb17:
 // CHECK: - pop
 // CHECK: + shl
 bb18:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   shl
   swap 1
@@ -288,8 +288,8 @@ bb18:
 // CHECK: - pop
 // CHECK: + shr
 bb19:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   shr
   swap 1
@@ -303,8 +303,8 @@ bb19:
 // CHECK: - pop
 // CHECK: + sar
 bb20:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   sar
   swap 1
@@ -318,8 +318,8 @@ bb20:
 // CHECK: - pop
 // CHECK: + keccak256
 bb21:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   dup 2
   keccak256
   swap 1

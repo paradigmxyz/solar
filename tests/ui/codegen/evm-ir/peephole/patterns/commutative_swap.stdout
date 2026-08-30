@@ -14,53 +14,53 @@
     mul
     stop
   bb2:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
     and
     stop
   bb3:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
     or
     stop
   bb4:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
     xor
     stop
   bb5:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
     eq
     stop
   bb6:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
 -   lt
 +   gt
     stop
   bb7:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
 -   gt
 +   lt
     stop
   bb8:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
 -   slt
 +   sgt
     stop
   bb9:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   swap 1
 -   sgt
 +   slt

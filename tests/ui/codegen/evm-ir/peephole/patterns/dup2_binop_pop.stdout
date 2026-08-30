@@ -18,40 +18,40 @@
 -   pop
     stop
   bb2:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
     and
 -   swap 1
 -   pop
     stop
   bb3:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
     or
 -   swap 1
 -   pop
     stop
   bb4:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
     xor
 -   swap 1
 -   pop
     stop
   bb5:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
     eq
 -   swap 1
 -   pop
     stop
   bb6:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   sub
     swap 1
@@ -59,8 +59,8 @@
 +   sub
     stop
   bb7:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   div
     swap 1
@@ -68,8 +68,8 @@
 +   div
     stop
   bb8:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   sdiv
     swap 1
@@ -77,8 +77,8 @@
 +   sdiv
     stop
   bb9:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   mod
     swap 1
@@ -86,8 +86,8 @@
 +   mod
     stop
   bb10:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   smod
     swap 1
@@ -95,8 +95,8 @@
 +   smod
     stop
   bb11:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   exp
     swap 1
@@ -104,8 +104,8 @@
 +   exp
     stop
   bb12:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   signextend
     swap 1
@@ -113,8 +113,8 @@
 +   signextend
     stop
   bb13:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   lt
 -   swap 1
@@ -122,8 +122,8 @@
 +   gt
     stop
   bb14:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   gt
 -   swap 1
@@ -131,8 +131,8 @@
 +   lt
     stop
   bb15:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   slt
 -   swap 1
@@ -140,8 +140,8 @@
 +   sgt
     stop
   bb16:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   sgt
 -   swap 1
@@ -149,8 +149,8 @@
 +   slt
     stop
   bb17:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   byte
     swap 1
@@ -158,8 +158,8 @@
 +   byte
     stop
   bb18:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   shl
     swap 1
@@ -167,8 +167,8 @@
 +   shl
     stop
   bb19:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   shr
     swap 1
@@ -176,8 +176,8 @@
 +   shr
     stop
   bb20:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   sar
     swap 1
@@ -185,8 +185,8 @@
 +   sar
     stop
   bb21:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   dup 2
 -   keccak256
     swap 1
