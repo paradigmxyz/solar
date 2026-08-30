@@ -1,5 +1,6 @@
 //! Standard JSON data structures, serialization, selection parsing, and statistics.
 
+use crate::bytecode::MaybeHexBytecode;
 use alloy_primitives::Address;
 use indexmap::IndexMap;
 use serde::{
@@ -202,7 +203,7 @@ pub(super) struct EvmOutput {
 #[serde(rename_all = "camelCase")]
 pub(super) struct BytecodeOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) object: Option<String>,
+    pub(super) object: Option<MaybeHexBytecode>,
     // Ethdebug output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'a>>,
