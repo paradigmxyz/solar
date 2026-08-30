@@ -1399,10 +1399,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // logical length.
             let per_slot = u64::from(32 / size.bytes());
             if let Some(length) = fixed_length {
-                let remainder = length % per_slot;
+                let remainder = (length % per_slot) as u16;
                 if remainder != 0 {
                     let slot_index = self.builder.imm_u64(length / per_slot);
-                    let used_bits = u64::from(size.bits()) * remainder;
+                    let used_bits = size.bits() * remainder;
                     let mask = (U256::from(1) << used_bits) - U256::from(1);
                     let mask = self.builder.imm_u256(mask);
                     self.clear_unused_packed_array_elements(slot, slot_index, mask);
