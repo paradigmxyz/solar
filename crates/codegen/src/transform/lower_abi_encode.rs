@@ -289,7 +289,7 @@ fn lower_encode(
             let total = builder.imm_u64(total_size);
             builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
             let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
-            encode_static_tuple(builder, args, &layout.types, data);
+            encode_tuple(builder, args, &layout.types, data, helpers);
             return builder.make_slice(data, total, SliceLocation::Memory);
         }
         let buffer = if mode == AbiEncodeMode::Scratch {
