@@ -8,6 +8,7 @@
 use cfg_if as _;
 
 use eyre::{Result, eyre};
+use regex::bytes::Regex;
 use std::{
     ffi::{OsStr, OsString},
     io,
@@ -24,6 +25,10 @@ use ui_test::{
     spanned::{Span, Spanned},
 };
 
+const RUN_CALL_STDOUT_FILTER_PATTERN: &str = r"(?s).+";
+const RUN_CALL_MIR_STDOUT_FILTER_PATTERN: &str = r#"(?s)\{"contracts".*\}\n?$"#;
+
+mod codegen_matrix;
 mod errors;
 #[cfg(test)]
 mod foundry;
@@ -171,6 +176,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         };
     }
     register_custom_flags![FileCheck, run_call::RunCall, run_call::RunCallFail];
+    config.custom_comments.insert(codegen_matrix::NAME, codegen_matrix::parse);
 
     config.comment_defaults.base().exit_status = None.into();
     config.infer_exit_status_from_annotations = !mode.is_solc();
@@ -337,9 +343,18 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if is_codegen_test {
         config.program.args.push("--allow=2264".into());
     }
+    let has_codegen_matrix = codegen_matrix::apply(config, src);
+    let has_mir_dump = src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@") && line.contains("-Zdump=mir")
+    }) || has_codegen_matrix;
     if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
-        config.program.args.push("--emit=abi,bin".into());
-        config.stdout_filter(r"(?s).+", "");
+        if has_mir_dump {
+            configure_run_call_stdout(config, src);
+        } else {
+            config.program.args.push("--emit=abi,bin".into());
+            config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
+        }
     }
     if src.lines().any(|line| {
         let line = line.trim_start();
@@ -349,6 +364,171 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }) {
         config.program.args.retain(|arg| arg != "-j1");
     }
+}
+
+fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
+    let mut declared_revisions = Vec::new();
+    let mut dump_revisions = Vec::new();
+    let mut scoped_runtime_revisions = Vec::new();
+    let mut scoped_run_call_revisions = Vec::new();
+    let mut emitted_revisions = Vec::new();
+    let mut unscoped_run_call = false;
+    let mut base_mir_dump = false;
+    if codegen_matrix::is_standard(src) {
+        declared_revisions.extend(codegen_matrix::revisions(src).into_iter().map(str::to_owned));
+        dump_revisions.push("mir".to_owned());
+        emitted_revisions.extend(["none", "gas", "size"].map(str::to_owned));
+    }
+    for line in src.lines() {
+        let Some((directive, revisions)) = run_call::parse_directive(line) else {
+            continue;
+        };
+        if let Some(revision_list) = directive.strip_prefix("revisions:") {
+            declared_revisions.extend(revision_list.split_whitespace().map(str::to_owned));
+            continue;
+        }
+
+        if revisions.is_none() {
+            if run_call::is_directive(line) {
+                unscoped_run_call = true;
+            } else if directive.contains("compile-flags") && directive.contains("-Zdump=mir") {
+                base_mir_dump = true;
+            }
+            continue;
+        }
+        let Some(revisions) = revisions else { continue };
+        if run_call::is_directive(line) {
+            scoped_run_call_revisions
+                .extend(revisions.split(',').map(|revision| revision.trim().to_owned()));
+            continue;
+        }
+        if !directive.contains("compile-flags") {
+            continue;
+        }
+        let is_dump = directive.contains("-Zdump=");
+        let emits_artifacts = directive.split_whitespace().any(|arg| arg == "--emit=abi,bin");
+        for revision in revisions.split(',').map(|revision| revision.trim().to_owned()) {
+            if emits_artifacts {
+                emitted_revisions.push(revision.clone());
+            }
+            if is_dump {
+                dump_revisions.push(revision);
+            } else {
+                scoped_runtime_revisions.push(revision);
+            }
+        }
+    }
+
+    let mut runtime_revisions = if declared_revisions.is_empty() {
+        scoped_runtime_revisions
+    } else {
+        declared_revisions
+            .iter()
+            .filter(|revision| !dump_revisions.iter().any(|dump| dump == *revision))
+            .cloned()
+            .collect()
+    };
+    runtime_revisions.sort_unstable();
+    runtime_revisions.dedup();
+    let has_scoped_dump_call =
+        dump_revisions.iter().any(|revision| scoped_run_call_revisions.contains(revision));
+    if runtime_revisions.is_empty()
+        && (!unscoped_run_call || !base_mir_dump)
+        && !has_scoped_dump_call
+    {
+        return;
+    }
+
+    emitted_revisions.sort_unstable();
+    emitted_revisions.dedup();
+    let mut artifact_revisions = runtime_revisions.clone();
+    artifact_revisions.extend(scoped_run_call_revisions.iter().cloned());
+    if unscoped_run_call {
+        if declared_revisions.is_empty() {
+            if base_mir_dump {
+                config.comment_defaults.base().compile_flags.push("--emit=abi,bin".into());
+            }
+        } else {
+            artifact_revisions = declared_revisions.clone();
+        }
+    }
+    artifact_revisions.sort_unstable();
+    artifact_revisions.dedup();
+    let missing_emit = artifact_revisions
+        .iter()
+        .filter(|revision| !emitted_revisions.iter().any(|emitted| emitted == *revision))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !missing_emit.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(missing_emit)
+            .or_default()
+            .compile_flags
+            .push("--emit=abi,bin".into());
+    }
+
+    if !runtime_revisions.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(runtime_revisions)
+            .or_default()
+            .normalize_stdout
+            .push((run_call_stdout_regex().clone().into(), vec![]));
+    }
+    let mut run_call_dump_revisions = if unscoped_run_call {
+        dump_revisions.clone()
+    } else {
+        dump_revisions
+            .iter()
+            .filter(|revision| scoped_run_call_revisions.contains(revision))
+            .cloned()
+            .collect()
+    };
+    run_call_dump_revisions.sort_unstable();
+    run_call_dump_revisions.dedup();
+    let dump_only_revisions = dump_revisions
+        .iter()
+        .filter(|revision| !run_call_dump_revisions.contains(revision))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !dump_only_revisions.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(dump_only_revisions)
+            .or_default()
+            .normalize_stdout
+            .push((run_call_stdout_regex().clone().into(), vec![]));
+    }
+    if !run_call_dump_revisions.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(run_call_dump_revisions)
+            .or_default()
+            .normalize_stdout
+            .push((run_call_mir_stdout_regex().clone().into(), vec![]));
+    }
+    if unscoped_run_call && base_mir_dump {
+        config
+            .comment_defaults
+            .base()
+            .normalize_stdout
+            .push((run_call_mir_stdout_regex().clone().into(), vec![]));
+    }
+}
+
+fn run_call_stdout_regex() -> &'static Regex {
+    static FILTER: OnceLock<Regex> = OnceLock::new();
+    FILTER.get_or_init(|| Regex::new(RUN_CALL_STDOUT_FILTER_PATTERN).unwrap())
+}
+
+fn run_call_mir_stdout_regex() -> &'static Regex {
+    static FILTER: OnceLock<Regex> = OnceLock::new();
+    FILTER.get_or_init(|| Regex::new(RUN_CALL_MIR_STDOUT_FILTER_PATTERN).unwrap())
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.
