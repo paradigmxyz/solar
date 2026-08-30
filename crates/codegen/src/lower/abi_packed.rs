@@ -14,7 +14,7 @@ use solar_sema::{
     ty::{Ty, TyKind},
 };
 
-enum PackedAbiArg {
+enum PackedAbiArg<'gcx> {
     /// Compile-time literal bytes, packed without padding.
     Bytes(Vec<u8>),
     /// A single value occupying the top `size` bytes of its word.
@@ -22,9 +22,13 @@ enum PackedAbiArg {
     /// A memory `bytes`/`string` pointer (`[length][data...]`) whose data is
     /// copied without padding.
     DynamicBytes(ValueId),
+    /// A memory array whose elements each occupy one padded word.
+    MemoryWordArray { value: ValueId, fixed_len: Option<u64>, elem: Ty<'gcx> },
+    /// A calldata array slice whose elements each occupy one padded word.
+    CalldataWordArray { value: ValueId, elem: Ty<'gcx> },
 }
 
-impl PackedAbiArg {
+impl PackedAbiArg<'_> {
     fn max_static_write(args: &[Self]) -> Option<usize> {
         let mut offset = 0usize;
         let mut max_write = 0usize;
@@ -49,7 +53,14 @@ impl PackedAbiArg {
                     max_write = max_write.max(offset + 32);
                     offset += *size;
                 }
-                Self::DynamicBytes(_) => return None,
+                Self::MemoryWordArray { fixed_len: Some(len), .. } => {
+                    let bytes = usize::try_from(*len).ok()?.checked_mul(32)?;
+                    max_write = max_write.max(offset + bytes);
+                    offset += bytes;
+                }
+                Self::DynamicBytes(_)
+                | Self::MemoryWordArray { fixed_len: None, .. }
+                | Self::CalldataWordArray { .. } => return None,
             }
             i += 1;
         }
@@ -166,7 +177,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &[hir::Expr<'_>],
-    ) -> Result<Vec<PackedAbiArg>, ErrorGuaranteed> {
+    ) -> Result<Vec<PackedAbiArg<'gcx>>, ErrorGuaranteed> {
         let mut packed_args = Vec::with_capacity(args.len());
 
         for arg in args {
@@ -207,9 +218,50 @@ impl<'gcx> Lowerer<'gcx> {
                 ty.peel_refs().kind,
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             ) {
-                let ptr = self.lower_value_expr(builder, arg);
+                let ptr = self.lower_expr_as_memory_bytes(builder, arg);
                 packed_args.push(PackedAbiArg::DynamicBytes(ptr));
                 continue;
+            }
+
+            match ty.peel_refs().kind {
+                TyKind::DynArray(elem) if self.abi_is_word_element(elem) => {
+                    let value = self.lower_value_expr(builder, arg);
+                    if Self::value_is_calldata_slice(builder, value) {
+                        packed_args.push(PackedAbiArg::CalldataWordArray { value, elem });
+                    } else {
+                        packed_args.push(PackedAbiArg::MemoryWordArray {
+                            value,
+                            fixed_len: None,
+                            elem,
+                        });
+                    }
+                    continue;
+                }
+                TyKind::Array(elem, len) if self.abi_is_word_element(elem) => {
+                    let value = self.lower_value_expr(builder, arg);
+                    let len = u64::try_from(len).map_err(|_| {
+                        self.gcx
+                            .dcx()
+                            .err("packed array is too large for codegen")
+                            .span(arg.span)
+                            .emit()
+                    })?;
+                    if len.checked_mul(32).is_none() {
+                        return Err(self
+                            .gcx
+                            .dcx()
+                            .err("packed array is too large for codegen")
+                            .span(arg.span)
+                            .emit());
+                    }
+                    packed_args.push(PackedAbiArg::MemoryWordArray {
+                        value,
+                        fixed_len: Some(len),
+                        elem,
+                    });
+                    continue;
+                }
+                _ => {}
             }
 
             let size = self.get_packed_size_from_expr(arg, ty);
@@ -280,7 +332,7 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         data_start: ValueId,
-        args: &[PackedAbiArg],
+        args: &[PackedAbiArg<'gcx>],
     ) -> (ValueId, Option<u64>) {
         // The cursor is `base + offset`: the offset stays compile-time between
         // dynamic (runtime-length) arguments, which rebase the cursor.
@@ -348,8 +400,64 @@ impl<'gcx> Lowerer<'gcx> {
                     let dest = self.offset_ptr(builder, base, offset);
                     let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-                    builder.mcopy(dest, src, len);
+                    builder.mcopy_heap(dest, src, len);
                     base = builder.add(dest, len);
+                    offset = 0;
+                    is_static = false;
+                }
+                &PackedAbiArg::MemoryWordArray { value, fixed_len, elem } => {
+                    let dest = self.offset_ptr(builder, base, offset);
+                    let (src, len) = if let Some(len) = fixed_len {
+                        (value, builder.imm_u64(len))
+                    } else {
+                        (
+                            builder.memory_object_data(value, MemoryObjectKind::DynamicArray),
+                            builder.memory_object_len(value, MemoryObjectKind::DynamicArray),
+                        )
+                    };
+                    let word = builder.imm_u64(32);
+                    let size = builder.mul(len, word);
+                    if self.packed_array_element_is_canonical_word(elem) {
+                        builder.mcopy_heap(dest, src, size);
+                    } else {
+                        self.emit_decode_elements_loop(builder, len, |this, builder, index| {
+                            let five = builder.imm_u64(5);
+                            let element_offset = builder.shl(five, index);
+                            let src = builder.add(src, element_offset);
+                            let value = builder.mload(src);
+                            let value = this.abi_encode_value(builder, value, elem);
+                            let dst = builder.add(dest, element_offset);
+                            builder.mstore(dst, value);
+                        });
+                    }
+                    if let Some(len) = fixed_len {
+                        offset += len * 32;
+                    } else {
+                        base = builder.add(dest, size);
+                        offset = 0;
+                        is_static = false;
+                    }
+                }
+                &PackedAbiArg::CalldataWordArray { value: slice, elem } => {
+                    let dest = self.offset_ptr(builder, base, offset);
+                    let word = builder.imm_u64(32);
+                    let len = builder.slice_len(slice);
+                    let size = builder.mul(len, word);
+                    let src = builder.slice_ptr(slice);
+                    if self.packed_array_element_is_canonical_word(elem) {
+                        builder.calldatacopy_heap(dest, src, size);
+                    } else {
+                        self.emit_decode_elements_loop(builder, len, |this, builder, index| {
+                            let five = builder.imm_u64(5);
+                            let element_offset = builder.shl(five, index);
+                            let src = builder.add(src, element_offset);
+                            let value = builder.calldataload(src);
+                            this.emit_abi_field_clean_check(builder, elem, value);
+                            let dst = builder.add(dest, element_offset);
+                            builder.mstore(dst, value);
+                        });
+                    }
+                    base = builder.add(dest, size);
                     offset = 0;
                     is_static = false;
                 }
@@ -373,7 +481,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         base: ValueId,
         offset: u64,
-        args: &[PackedAbiArg],
+        args: &[PackedAbiArg<'gcx>],
     ) -> Option<(usize, u64)> {
         let mut const_word = U256::ZERO;
         let mut terms = Vec::new();
@@ -482,6 +590,21 @@ impl<'gcx> Lowerer<'gcx> {
         self.get_packed_size_from_ty(ty)
     }
 
+    /// Whether an array element already occupies a canonical full ABI word.
+    fn packed_array_element_is_canonical_word(&self, ty: Ty<'gcx>) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(
+                ElementaryType::Int(size)
+                | ElementaryType::UInt(size)
+                | ElementaryType::Fixed(size, _)
+                | ElementaryType::UFixed(size, _),
+            ) => size.bytes() == 32,
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => size.bytes() == 32,
+            TyKind::Udvt(inner, _) => self.packed_array_element_is_canonical_word(inner),
+            _ => false,
+        }
+    }
+
     /// Gets the packed size from a sema type.
     fn get_packed_size_from_ty(&self, ty: Ty<'gcx>) -> usize {
         match ty.peel_refs().kind {
@@ -499,6 +622,7 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::StringLiteral(_, size) => size.bytes() as usize,
             TyKind::IntLiteral(..) => 32,
             TyKind::Contract(_) | TyKind::Super(_) => 20,
+            TyKind::Fn(function) if function.is_external() => 24,
             TyKind::Enum(_) => 1,
             TyKind::Udvt(inner, _) => self.get_packed_size_from_ty(inner),
             TyKind::Ref(inner, _) => self.get_packed_size_from_ty(inner),

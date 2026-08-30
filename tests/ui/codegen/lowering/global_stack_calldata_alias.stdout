@@ -8,20 +8,19 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xc21f7bbb
   sub
   push bb3
   jumpi
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 64
   sgt
   push 36
   calldataload
-  swap1
+  swap 1
   push bb3
   jumpi
   push 4
@@ -30,40 +29,40 @@ bb0:
   not
   push 96
   shr
-  dup2
+  dup 2
   and
-  dup2
+  dup 2
   sub
   push bb3
   jumpi
   push 1
-  dup2
+  dup 2
   eq
   push bb8
   jumpi
   push 2
-  dup2
+  dup 2
   eq
   push bb12
   jumpi
   push 3
-  dup2
+  dup 2
   sub
   push bb17
   jumpi
   push 3
   jump bb26
 bb26:
-  dup3
+  dup 3
   add
-  dup1
+  dup 1
   push 160
   mstore
-  swap1
+  swap 1
   pop
   jump bb25
 bb25:
-  dup1
+  dup 1
   push 160
   mstore
   lt
@@ -80,7 +79,7 @@ bb24:
   return
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb8:
   push 1
@@ -90,7 +89,7 @@ bb12:
   jump bb26
 bb17:
   push 4
-  dup2
+  dup 2
   sub
   push bb20
   jumpi
@@ -102,7 +101,7 @@ bb20:
   push bb24
   jumpi
   push 5
-  dup2
+  dup 2
   add
   jump bb25
 bb11 [cold]:

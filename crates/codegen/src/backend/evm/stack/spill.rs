@@ -1,6 +1,6 @@
 //! Spill-slot management for values preserved in memory.
 //!
-//! Values that are inaccessible through DUP16/SWAP16 or need a stable
+//! Values outside the target's DUP/SWAP reach or needing a stable
 //! cross-block home can be spilled to memory. Slots are logical word offsets:
 //! lowering places them after the external function's static memory, inside an
 //! internal function's frame, or in the constructor's reserved spill region.
@@ -176,6 +176,24 @@ impl SpillManager {
     #[must_use]
     pub(crate) fn is_stored(&self, value: ValueId) -> bool {
         self.stored.contains(value)
+    }
+
+    /// Iterates every value whose slot already-emitted code has stored.
+    pub(crate) fn stored_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.stored.iter()
+    }
+
+    /// Iterates every value whose spill slot can be loaded at this point,
+    /// whether stored in this block or delivered by an edge.
+    pub(crate) fn reloadable_values(&self) -> impl Iterator<Item = ValueId> + '_ {
+        self.reloadable.iter()
+    }
+
+    /// Drops a value's mandatory-store obligation. Used when a value is kept
+    /// stack-resident across a memory clobber and consumed before any block
+    /// exit, so it needs no memory home at all.
+    pub(crate) fn clear_store_requirement(&mut self, value: ValueId) {
+        self.mandatory_store.remove(value);
     }
 
     /// Marks an unstored value as safe to rematerialize from stable inputs.

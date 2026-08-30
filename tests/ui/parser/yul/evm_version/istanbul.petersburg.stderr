@@ -1,0 +1,18 @@
+error[1561]: Yul builtin `chainid` requires Istanbul-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/istanbul.sol:LL:CC
+   │
+LL │             id := chainid()
+   │                   ━━━━━━━
+   │
+   ╰ help: compile with `--evm-version istanbul` or newer
+
+error[7721]: Yul builtin `selfbalance` requires Istanbul-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/istanbul.sol:LL:CC
+   │
+LL │             selfBalance := selfbalance()
+   │                            ━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version istanbul` or newer
+
+error: aborting due to 2 previous errors
+

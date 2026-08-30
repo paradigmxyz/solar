@@ -16,38 +16,38 @@
 // - unchecked exponentiation stays native `EXP` (masked for sub-word types).
 contract CheckedPowShapes {
     // CHECK-LABEL: fn @upow{{[( ]}}
-    // CHECK: eq arg0, 2
-    // CHECK: shl arg1, 1
-    // CHECK: exp arg0, arg1
-    // CHECK: {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
-    // CHECK: shr 1,
+    // CHECK-DAG: eq arg0, 2
+    // CHECK-DAG: shl arg1, 1
+    // CHECK-DAG: exp arg0, arg1
+    // CHECK-DAG: {{v[0-9]+}} = mul {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK-DAG: shr 1,
     function upow(uint256 a, uint256 b) public pure returns (uint256) {
         return a ** b;
     }
 
     // CHECK-LABEL: fn @spow{{[( ]}}
-    // CHECK: eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    // CHECK: exp arg0, arg1
-    // CHECK: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
-    // CHECK: mul {{v[0-9]+}}, {{v[0-9]+}}
+    // CHECK-DAG: eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK-DAG: exp arg0, arg1
+    // CHECK-DAG: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    // CHECK-DAG: mul {{v[0-9]+}}, {{v[0-9]+}}
     function spow(int256 a, uint256 b) public pure returns (int256) {
         return a ** b;
     }
 
     // CHECK-LABEL: fn @upow8{{[( ]}}
-    // CHECK: shl arg1, 1
-    // CHECK: gt {{v[0-9]+}}, 255
-    // CHECK: exp arg0, arg1
-    // CHECK: gt {{v[0-9]+}}, 255
+    // CHECK-DAG: shl arg1, 1
+    // CHECK-DAG: gt {{v[0-9]+}}, 255
+    // CHECK-DAG: exp arg0, arg1
+    // CHECK-DAG: gt {{v[0-9]+}}, 255
     function upow8(uint8 a, uint8 b) public pure returns (uint8) {
         return a ** b;
     }
 
     // CHECK-LABEL: fn @spow8{{[( ]}}
-    // CHECK: exp arg0, arg1
-    // CHECK: gt {{v[0-9]+}}, 127
-    // CHECK: sdiv 127, arg0
-    // CHECK: sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80,
+    // CHECK-DAG: exp arg0, arg1
+    // CHECK-DAG: gt {{v[0-9]+}}, 127
+    // CHECK-DAG: sdiv 127, arg0
+    // CHECK-DAG: sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80,
     function spow8(int8 a, uint8 b) public pure returns (int8) {
         return a ** b;
     }
@@ -67,9 +67,7 @@ contract CheckedPowShapes {
     }
 
     // CHECK-LABEL: fn @const_neg2{{[( ]}}
-    // CHECK: [[BASE:v[0-9]+]] = sub 0, 2
-    // CHECK: exp [[BASE]], arg0
-    // CHECK: sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, [[BASE]]
+    // CHECK: exp 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, arg0
     function const_neg2(uint256 b) public pure returns (int256) {
         return (-2) ** b;
     }

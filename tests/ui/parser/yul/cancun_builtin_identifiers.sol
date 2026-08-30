@@ -6,7 +6,8 @@ contract C {
     function identifier() external pure {
         assembly {
             let mcopy
-            //~^ ERROR: expected identifier, found Yul EVM builtin keyword `mcopy`
+            //~[shanghai]^ WARN: `mcopy` will be promoted to Yul reserved identifier in the future and will not be allowed anymore as an identifier
+            //~[cancun]| ERROR: expected identifier, found Yul EVM builtin keyword `mcopy`
         }
     }
 

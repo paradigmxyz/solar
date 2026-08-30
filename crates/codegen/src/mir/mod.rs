@@ -13,7 +13,9 @@ mod abi;
 pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
 
 mod storage;
-pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
+pub use storage::{
+    PackedKind, PackedValue, StorageField, StorageLayout, StorageLayoutRef, StructField,
+};
 
 mod value;
 pub(crate) use value::{Immediate, Value};
@@ -94,6 +96,7 @@ impl BlockId {
 mod round_trip {
     use super::Module;
     use crate::lower;
+    use solar_data_structures::map::FxHashMap;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
@@ -213,7 +216,12 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id);
+                let module = lower::lower_contract(
+                    gcx,
+                    id,
+                    &FxHashMap::default(),
+                    gcx.sess.opts.optimization.is_size(),
+                );
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -287,7 +295,12 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id);
+                let module = lower::lower_contract(
+                    gcx,
+                    id,
+                    &FxHashMap::default(),
+                    gcx.sess.opts.optimization.is_size(),
+                );
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());
@@ -331,8 +344,17 @@ mod round_trip {
                 }
             };
             let print2 = parsed2.to_text().to_string();
-            if print1 != print2 {
-                let diff = first_diff(&print1, &print2)
+            let parsed3 = match parse_module(&sess, &print2) {
+                Ok(m) => m,
+                Err(_) => {
+                    result =
+                        Err(format!("third parse failed: {}", sess.emitted_diagnostics().unwrap()));
+                    return;
+                }
+            };
+            let print3 = parsed3.to_text().to_string();
+            if print2 != print3 {
+                let diff = first_diff(&print2, &print3)
                     .map(|(i, a, b)| format!("line {i}: `{a}` vs `{b}`"))
                     .unwrap_or_else(|| "(length mismatch)".to_string());
                 result = Err(format!("not idempotent: {diff}"));

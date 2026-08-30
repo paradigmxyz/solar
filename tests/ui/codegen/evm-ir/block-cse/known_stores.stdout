@@ -3,32 +3,32 @@
   @module module
   bb0:
     push 7
-    dup1
+    dup 1
     push 128
     mstore
-    dup1
+    dup 1
     push 160
     mstore
--   dup1
+-   dup 1
 -   push 128
 -   mstore
     pop
     stop
   bb1:
     push 9
-    dup1
+    dup 1
     push 192
     mstore
 -   push 192
 -   mload
-+   dup1
++   dup 1
     add
     push 0
     mstore
     stop
   bb2:
     push 5
-    dup1
+    dup 1
     push 224
     mstore
     push 32
@@ -40,13 +40,13 @@
     stop
   bb3:
     push 3
-    dup1
+    dup 1
     push 128
     mstore
     push 4
     push 144
     mstore
-    dup1
+    dup 1
     push 128
     mstore
     pop

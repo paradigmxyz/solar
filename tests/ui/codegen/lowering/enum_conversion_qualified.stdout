@@ -9,19 +9,18 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xb4702ebe
   eq
   push bb10
   jumpi
-  dup1
+  dup 1
   push 0xbc477c04
   sub
   push bb4
   jumpi
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -46,12 +45,11 @@ bb16:
   return
 bb4 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb10:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt

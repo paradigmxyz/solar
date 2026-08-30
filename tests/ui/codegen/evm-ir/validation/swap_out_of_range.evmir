@@ -1,8 +1,8 @@
-//~? ERROR: EVM IR verification failed: block 0: `swap2` reaches depth 2 but the stack has 2
+//~? ERROR: EVM IR verification failed: block 0: `swap 2` reaches depth 2 but the stack has 2
 @module module
 
 bb0:
   push 1
   push 2
-  swap2
+  swap 2
   stop

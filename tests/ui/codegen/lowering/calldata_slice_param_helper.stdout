@@ -7,21 +7,41 @@ fn @lastWord() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v19 = add arg0, 36
+    v20 = add arg0, 4
+    v21 = calldataload v20
+    v6 = lt v19, 32
+    v7 = sub v19, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb1, bb3
+  bb3:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb1, bb4
+  bb4:
+    v14 = sub v3, v19
+    v15 = gt v21, v14
+    jumpi v15, bb1, bb5
+  bb5:
+    v23 = add arg0, 4
+    v24 = calldataload v23
+    v22 = add arg0, 36
+    v16 = internal_call @_last, 1, v22, v24
+    mstore 128, v16
+    returndata 128, 32
   bb1:
     revert 0, 0
-  bb2:
-    v7 = add arg0, 4
-    v8 = calldataload v7
-    v6 = add arg0, 36
-    v3 = internal_call @_last, 1, v6, v8
-    mstore 128, v3
-    returndata 128, 32
 }
 
 fn @_last(arg0: calldataptr, arg1: u256) -> u256 {
   bb0:
-    v3 = sub arg1, 32
-    v4 = add arg0, v3
+    v2 = sub arg1, 32
+    v4 = add arg0, v2
     v5 = calldataload v4
     ret v5
 }
@@ -32,21 +52,41 @@ fn @lastWord2() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v29 = add arg0, 36
+    v30 = add arg0, 4
+    v31 = calldataload v30
+    v6 = lt v29, 32
+    v7 = sub v29, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb1, bb3
+  bb3:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb1, bb4
+  bb4:
+    v14 = sub v3, v29
+    v15 = gt v31, v14
+    jumpi v15, bb1, bb5
+  bb5:
+    v33 = add arg0, 4
+    v34 = calldataload v33
+    v32 = add arg0, 36
+    v16 = internal_call @_last, 1, v32, v34
+    jumpi v31, bb6, bb1
+  bb6:
+    v20 = sub v31, 1
+    v21 = add v29, 1
+    v23 = internal_call @_last, 1, v21, v20
+    v24 = xor v16, v23
+    mstore 128, v24
+    returndata 128, 32
   bb1:
     revert 0, 0
-  bb2:
-    v16 = add arg0, 36
-    v17 = add arg0, 4
-    v18 = calldataload v17
-    v3 = internal_call @_last, 1, v16, v18
-    jumpi v18, bb3, bb1
-  bb3:
-    v7 = sub v18, 1
-    v8 = add v16, 1
-    v10 = internal_call @_last, 1, v8, v7
-    v11 = xor v3, v10
-    mstore 128, v11
-    returndata 128, 32
 }
 
 fn @entry() [entry] {
@@ -57,10 +97,10 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb4, [0x3955f902 => bb2, 0x97f495a8 => bb3]
-  bb2:
-    tail_call @lastWord
   bb3:
     tail_call @lastWord2
+  bb2:
+    tail_call @lastWord
   bb4:
     revert 0, 0
 }

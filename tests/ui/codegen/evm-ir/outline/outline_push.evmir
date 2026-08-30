@@ -7,7 +7,7 @@
 // CHECK: + jump [[OUTLINE:bb[0-9]+]]
 // CHECK: + [[OUTLINE]]:
 // CHECK: {{^[ +].*}}push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-// CHECK: + swap1
+// CHECK: + swap 1
 // CHECK: + jump
 // CHECK: + [[RET1:bb[0-9]+]]:
 // CHECK: {{^[ +].*}}pop

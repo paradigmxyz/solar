@@ -6,51 +6,77 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
-    v3 = slice_ptr arg0
-    v4 = slice_len arg0
-    v5 = calldataload 68
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = eq v5, v6
-    jumpi v7, bb4, bb3
-  bb3:
-    revert 0, 0
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
   bb4:
-    mstore 128, v3
-    mstore 160, v4
-    v8 = mload 128
-    v9 = mload 160
-    v10 = make_calldata_slice v8, v9
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = lt v12, arg1
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
     jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = gt v5, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = slice_ptr arg0
+    v17 = slice_len arg0
+    v18 = calldataload 68
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = eq v18, v19
+    jumpi v20, bb10, bb9
+  bb9:
+    revert 0, 0
+  bb10:
+    mstore 128, v16
+    mstore 160, v17
+    v21 = mload 128
+    v22 = mload 160
+    v23 = make_calldata_slice v21, v22
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = lt v25, arg1
+    jumpi v26, bb11, bb12
+  bb12:
+    v27 = sub v25, arg1
+    v28 = add v24, arg1
+    v29 = make_calldata_slice v28, v27
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    mstore 128, v30
+    mstore 160, v31
+    v32 = mload 128
+    v33 = mload 160
+    v34 = make_calldata_slice v32, v33
+    v35 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v34
+    v36 = slice_ptr v35
+    v37 = slice_len v35
+    v38 = gas
+    v39 = call v38, arg2, 0, v36, v37, 0, 0
+    jumpi v39, bb14, bb13
+  bb13:
+    v40 = returndatasize
+    returndatacopy 0, 0, v40 !metadata(memory=abi_return)
+    v41 = returndatasize
+    revert 0, v41
+  bb14:
+    stop
+  bb11:
+    revert 0, 0
+  bb7:
+    revert 0, 0
   bb5:
     revert 0, 0
-  bb6:
-    v14 = sub v12, arg1
-    v15 = add v11, arg1
-    v16 = make_calldata_slice v15, v14
-    v17 = slice_ptr v16
-    v18 = slice_len v16
-    mstore 128, v17
-    mstore 160, v18
-    v19 = mload 128
-    v20 = mload 160
-    v21 = make_calldata_slice v19, v20
-    v22 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v21
-    v23 = slice_ptr v22
-    v24 = slice_len v22
-    v25 = gas
-    v26 = call v25, arg2, 0, v23, v24, 0, 0
-    jumpi v26, bb8, bb7
-  bb7:
-    v27 = returndatasize
-    returndatacopy 0, 0, v27 !metadata(memory=scratch)
-    revert 0, v27
-  bb8:
-    stop
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

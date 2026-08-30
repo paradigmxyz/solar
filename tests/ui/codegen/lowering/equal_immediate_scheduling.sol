@@ -10,10 +10,10 @@ contract EqualImmediateScheduling {
     // NONE-COUNT-2: push 0x123456789abcde
     // GAS: push 0x123456789abcde
     // GAS-NOT: push 0x123456789abcde
-    // GAS: dup1
+    // GAS: dup 1
     // SIZE: push 0x123456789abcde
     // SIZE-NOT: push 0x123456789abcde
-    // SIZE: dup1
+    // SIZE: dup 1
     function combine(uint256 modulus) public pure returns (uint256) {
         return addmod(0x123456789abcde, 0x123456789abcde, modulus);
     }

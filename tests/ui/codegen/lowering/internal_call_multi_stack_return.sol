@@ -1,18 +1,31 @@
-//@ revisions: ir run
+//@ revisions: ir run size
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
+//@[size] compile-flags: -Osize
 //@[run] run-call: pair 2 => 209, 364
 //@[run] run-call: triple 2 => 209, 364, 901
 //@[run] run-call: six 2 => 209, 364, 901, 1824, 2139, 5162
 //@[run] run-call: sumPair 2 => 573
 //@[run] run-call: sumTriple 2 => 1474
 //@[run] run-call: sumSix 2 => 10599
+//@[size] run-call: pair 2 => 209, 364
+//@[size] run-call: triple 2 => 209, 364, 901
+//@[size] run-call: six 2 => 209, 364, 901, 1824, 2139, 5162
+//@[size] run-call: sumPair 2 => 573
+//@[size] run-call: sumTriple 2 => 1474
+//@[size] run-call: sumSix 2 => 10599
 
 contract InternalCallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
-    // CHECK: swap1
-    // CHECK-NEXT: swap2
+    // CHECK-LABEL: @module runtime
+    // CHECK: push 256
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[PAIR_RETURN:bb[0-9]+]]
+    // CHECK: jump [[PAIR_HELPER:bb[0-9]+]]
+    // CHECK: [[PAIR_HELPER]]:
+    // CHECK: swap2
     // CHECK-NEXT: jump
     function pair(uint256 x) external pure returns (uint256, uint256) {
         return pairHelper(x);
@@ -40,9 +53,13 @@ contract InternalCallMultiStackReturn {
     }
 
     // Three results exercise the complete SWAP1..SWAP3 return-label rotation.
-    // CHECK: swap1
-    // CHECK-NEXT: swap2
-    // CHECK-NEXT: swap3
+    // CHECK: push 320
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[TRIPLE_RETURN:bb[0-9]+]]
+    // CHECK: jump [[TRIPLE_HELPER:bb[0-9]+]]
+    // CHECK: [[TRIPLE_HELPER]]:
+    // CHECK: swap3
     // CHECK-NEXT: jump
     function triple(uint256 x) external pure returns (uint256, uint256, uint256) {
         return tripleHelper(x);
@@ -82,7 +99,15 @@ contract InternalCallMultiStackReturn {
     // Six results exercise a return whose values are already live on the physical stack. The
     // return shuffler must reuse those words instead of duplicating the entire tuple beyond its
     // requested layout.
-    // CHECK: swap4
+    // CHECK: push 512
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK: push [[SIX_RETURN:bb[0-9]+]]
+    // CHECK: jump [[SIX_HELPER:bb[0-9]+]]
+    // CHECK: [[SIX_HELPER]]:
+    // CHECK: swap2
+    // CHECK-NEXT: swap3
+    // CHECK-NEXT: swap4
     // CHECK-NEXT: swap5
     // CHECK-NEXT: swap6
     // CHECK-NEXT: jump

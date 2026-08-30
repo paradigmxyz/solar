@@ -9,7 +9,6 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span, Symbol,
-    config::EvmVersion,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, sym,
 };
@@ -1282,6 +1281,11 @@ impl<'gcx> ResolveContext<'gcx> {
             let cond = this.lower_yul_condition(&for_.cond);
             let step =
                 this.in_yul_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
+            let source = if step.stmts.is_empty() {
+                hir::LoopSource::For
+            } else {
+                hir::LoopSource::ForWithUpdate
+            };
             let body =
                 this.in_yul_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
             let builder = this.hir_builder();
@@ -1305,7 +1309,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let loop_stmt = builder.stmt(
                 hir::StmtKind::Loop(
                     builder.block(this.arena.alloc_as_slice(loop_body), for_.body.span),
-                    hir::LoopSource::For,
+                    source,
                 ),
                 for_.body.span,
             );
@@ -1417,24 +1421,47 @@ impl<'gcx> ResolveContext<'gcx> {
             return Ok(&*functions);
         }
         if let Some(builtin) = Builtin::from_yul_name(name.name) {
-            if self.lcx.sess.opts.evm_version < EvmVersion::Cancun
-                && matches!(
-                    builtin,
-                    Builtin::YulBlobbasefee
-                        | Builtin::YulBlobhash
-                        | Builtin::YulMcopy
-                        | Builtin::YulTload
-                        | Builtin::YulTstore
-                )
-            {
+            let target = self.lcx.sess.opts.evm_version;
+            if builtin == Builtin::YulPrevrandao && !target.has_prev_randao() {
                 return Err(self
                     .dcx()
-                    .err(format!("Yul builtin `{}` requires Cancun-compatible EVM", name.name))
+                    .err("Yul builtin `prevrandao` requires Paris-compatible EVM")
                     .span(name.span)
-                    .help("compile with `--evm-version cancun` or newer")
+                    .help("compile with `--evm-version paris` or newer")
                     .emit());
             }
-            return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
+            if builtin == Builtin::YulDifficulty && target.has_prev_randao() {
+                return Err(self
+                    .dcx()
+                    .err("Yul builtin `difficulty` is unavailable for Paris-compatible EVM")
+                    .span(name.span)
+                    .help("use `prevrandao()` when compiling for `paris` or newer")
+                    .emit());
+            }
+            if let Some(required) = builtin.required_evm_version(target) {
+                return Err(self
+                    .dcx()
+                    .err(format!(
+                        "Yul builtin `{}` requires {required:?}-compatible EVM",
+                        name.name
+                    ))
+                    .code(
+                        builtin
+                            .evm_version_error_code()
+                            .expect("version-gated Yul builtin without a diagnostic code"),
+                    )
+                    .span(name.span)
+                    .help(format!("compile with `--evm-version {required}` or newer"))
+                    .emit());
+            }
+            let is_active = match builtin {
+                Builtin::YulDifficulty => !target.has_prev_randao(),
+                Builtin::YulPrevrandao => target.has_prev_randao(),
+                _ => true,
+            };
+            if is_active {
+                return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
+            }
         }
         if name.name.as_str().starts_with("verbatim_") {
             return Err(self.dcx().emit_err(name.span, "unsupported verbatim builtin"));
@@ -1666,6 +1693,11 @@ impl<'gcx> ResolveContext<'gcx> {
             // }
             ast::StmtKind::For { init, cond, next, body } => {
                 self.in_scope_if(init.is_some(), |this| {
+                    let source = if next.is_some() {
+                        hir::LoopSource::ForWithUpdate
+                    } else {
+                        hir::LoopSource::For
+                    };
                     let init = init.as_deref().map(|stmt| this.lower_stmt_full(stmt));
                     let cond = this.lower_expr_opt(cond.as_deref());
                     let mut body =
@@ -1697,7 +1729,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
                     let mut kind = hir::StmtKind::Loop(
                         builder.block(this.arena.alloc_as_slice(body), span),
-                        hir::LoopSource::For,
+                        source,
                     );
 
                     if let Some(init) = init {

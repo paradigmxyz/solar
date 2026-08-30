@@ -4,9 +4,9 @@
 // CHECK-LABEL: {{^[ +].*}}fn @promote_checked_sum_loop{{[( ]}}
 // CHECK: + [[INITIAL:v[0-9]+]] = sload 0
 // CHECK: + mstore 128, [[INITIAL]]
-// CHECK: + {{v[0-9]+}} = mload 128
 // CHECK: + [[FLUSH:v[0-9]+]] = mload 128
 // CHECK: + sstore 0, [[FLUSH]]
+// CHECK: + {{v[0-9]+}} = mload 128
 fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
   bb0:
     jump bb1
@@ -33,10 +33,10 @@ fn @promote_checked_sum_loop(arg0: u256) [selector=0x01020304] {
 
 // CHECK-LABEL: {{^[ +].*}}fn @promote_revert_exit_reads_slot{{[( ]}}
 // CHECK: + mstore 128, 1
-// CHECK: + {{v[0-9]+}} = mload 128
-// CHECK: + {{v[0-9]+}} = mload 128
 // CHECK: + [[FLUSH:v[0-9]+]] = mload 128
 // CHECK: + sstore 0, [[FLUSH]]
+// CHECK: + {{v[0-9]+}} = mload 128
+// CHECK: + {{v[0-9]+}} = mload 128
 fn @promote_revert_exit_reads_slot(arg0: u256) [selector=0x01020304] {
   bb0:
     sstore 0, 1

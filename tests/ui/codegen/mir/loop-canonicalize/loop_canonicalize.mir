@@ -2,8 +2,8 @@
 //@filecheck:
 @module LoopCanonicalize
 // CHECK-LABEL: {{^[ +].*}}fn @insert_preheader{{[( ]}}
-// CHECK: + {{v[0-9]+}} = phi [bb4: 30], [bb6: [[ENTRY:v[0-9]+]]]
-// CHECK: + [[ENTRY]] = phi [bb1: 10], [bb2: 20]
+// CHECK: + [[ENTRY:v[0-9]+]] = phi [bb1: 10], [bb2: 20]
+// CHECK: + {{v[0-9]+}} = phi [bb4: 30], [bb6: [[ENTRY]]]
 fn @insert_preheader(arg0: bool) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2

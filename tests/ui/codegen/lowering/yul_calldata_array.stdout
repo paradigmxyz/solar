@@ -6,18 +6,44 @@ fn @probe(arg0: calldataslice) -> (u256, u256) [abi_returns=[word, word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = div v14, 32
+    v16 = gt v5, v15
+    jumpi v16, bb7, bb8
+  bb8:
     mstore 128, 0
     mstore 160, 0
-    v3 = slice_len arg0
-    mstore 128, v3
-    v4 = slice_ptr arg0
-    v5 = calldataload v4
-    mstore 160, v5
-    v6 = mload 128
-    v7 = mload 160
-    ret v6, v7
+    v17 = slice_len arg0
+    mstore 128, v17
+    v18 = slice_ptr arg0
+    v19 = calldataload v18
+    mstore 160, v19
+    v20 = mload 128
+    v21 = mload 160
+    ret v20, v21
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

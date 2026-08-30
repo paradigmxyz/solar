@@ -6,90 +6,138 @@ fn @set(arg0: u256, arg1: memorybytes) {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = add 4, arg1
+    v5 = lt v4, 4
+    jumpi v5, bb3, bb4
+  bb4:
+    v6 = internal_call @__abi_decode_calldata_0, 1, v4
+    v7 = mapping_slot arg0, 0
+    v8 = memory_object_len memorybytes, v6
+    v9 = memory_object_data memorybytes, v6
+    v10 = sload v7 !metadata(storage=symbolic(v7))
+    v11 = and v10, 1
+    v12 = eq v11, 1
+    v13 = and v10, 255
+    v14 = shr 1, v13
+    v15 = shr 1, v10
+    v16 = select v12, v15, v14
+    v17 = not 31
+    v18 = add v16, 31
+    v19 = and v18, v17
+    v20 = div v19, 32
+    v21 = select v12, v20, 0
+    v22 = add v8, 31
+    v23 = and v22, v17
+    v24 = div v23, 32
+    v25 = gt v8, 31
+    v26 = select v25, v24, 0
+    v27 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v27, v7
+    v28 = keccak256 v27, 32
+    jumpi v25, bb6, bb5
+  bb5:
+    v29 = mload v9
+    v30 = mul v8, 8
+    v31 = shr v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v32 = not v31
+    v33 = and v29, v32
+    v34 = shl 1, v8
+    v35 = or v33, v34
+    sstore v7, v35 !metadata(storage=symbolic(v7))
+    jump bb9
+  bb6:
+    v36 = shl 1, v8
+    v37 = or v36, 1
+    sstore v7, v37 !metadata(storage=symbolic(v7))
+    mstore v27, 0
+    jump bb7
+  bb7:
+    v38 = mload v27
+    v39 = lt v38, v26
+    jumpi v39, bb8, bb9
+  bb9:
+    mstore v27, v26
+    jump bb10
+  bb10:
+    v46 = mload v27
+    v47 = lt v46, v21
+    jumpi v47, bb11, bb12
+  bb12:
+    stop
+  bb11:
+    v48 = mload v27
+    v49 = add v28, v48
+    sstore v49, 0 !metadata(storage=symbolic(v49))
+    v50 = add v48, 1
+    mstore v27, v50
+    jump bb10
+  bb8:
+    v40 = mload v27
+    v41 = add v28, v40
+    v42 = mul v40, 32
+    v43 = add v9, v42
+    v44 = mload v43
+    sstore v41, v44 !metadata(storage=symbolic(v41))
+    v45 = add v40, 1
+    mstore v27, v45
+    jump bb7
+  bb3:
+    revert 0, 0
   bb1:
     revert 0, 0
+}
+
+fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = calldatasize
+    v1 = gt arg0, v0
+    v2 = sub v0, arg0
+    v3 = gt 32, v2
+    v4 = or v1, v3
+    jumpi v4, bb1, bb2
   bb2:
-    v3 = add 4, arg1
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = mapping_slot arg0, 0
-    v13 = memory_object_len memorybytes, v9
-    v14 = memory_object_data memorybytes, v9
-    v15 = sload v12 !metadata(storage=symbolic(v12))
-    v16 = and v15, 1
-    v17 = eq v16, 1
-    v18 = and v15, 255
-    v19 = shr 1, v18
-    v20 = shr 1, v15
-    v21 = select v17, v20, v19
-    v22 = not 31
-    v23 = add v21, 31
-    v24 = and v23, v22
-    v25 = div v24, 32
-    v26 = select v17, v25, 0
-    v27 = add v13, 31
-    v28 = and v27, v22
-    v29 = div v28, 32
-    v30 = gt v13, 31
-    v31 = select v30, v29, 0
-    v32 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v32, v12
-    v33 = keccak256 v32, 32
-    jumpi v30, bb4, bb3
-  bb3:
-    v34 = mload v14
-    v35 = mul v13, 8
-    v36 = shr v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v37 = not v36
-    v38 = and v34, v37
-    v39 = shl 1, v13
-    v40 = or v38, v39
-    sstore v12, v40 !metadata(storage=symbolic(v12))
-    jump bb7
+    v5 = calldataload arg0
+    v6 = add arg0, 32
+    v7 = sub v0, v6
+    v8 = gt v5, v7
+    jumpi v8, bb3, bb4
   bb4:
-    v41 = shl 1, v13
-    v42 = or v41, 1
-    sstore v12, v42 !metadata(storage=symbolic(v12))
-    mstore v32, 0
-    jump bb5
-  bb5:
-    v43 = mload v32
-    v44 = lt v43, v31
-    jumpi v44, bb6, bb7
+    v9 = calldataload arg0
+    v10 = add v9, 31
+    v11 = lt v10, v9
+    jumpi v11, bb5, bb6
   bb6:
-    v45 = mload v32
-    v46 = add v33, v45
-    v47 = mul v45, 32
-    v48 = add v14, v47
-    v49 = mload v48
-    sstore v46, v49 !metadata(storage=symbolic(v46))
-    v50 = add v45, 1
-    mstore v32, v50
-    jump bb5
-  bb7:
-    mstore v32, v31
-    jump bb8
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = iszero v13
+    v15 = select v14, 32, v13
+    v16 = add 32, v15
+    v17 = lt v16, v15
+    jumpi v17, bb7, bb8
   bb8:
-    v51 = mload v32
-    v52 = lt v51, v26
-    jumpi v52, bb9, bb10
-  bb9:
-    v53 = mload v32
-    v54 = add v33, v53
-    sstore v54, 0 !metadata(storage=symbolic(v54))
-    v55 = add v53, 1
-    mstore v32, v55
-    jump bb8
-  bb10:
-    stop
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v16
+    mstore v18, v9
+    v19 = add v18, 32
+    v20 = sub v15, 32
+    v21 = add v19, v20
+    mstore v21, 0
+    v22 = add arg0, 32
+    calldatacopy v19, v22, v9 !metadata(memory=heap)
+    ret v18
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
@@ -98,91 +146,139 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memorybytes) {
     v1 = sub v0, 4
     v2 = slt v1, 96
     jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = add 4, arg2
+    v5 = lt v4, 4
+    jumpi v5, bb3, bb4
+  bb4:
+    v6 = internal_call @__abi_decode_calldata_1, 1, v4
+    v7 = mapping_slot arg0, 1
+    v8 = mapping_slot arg1, v7
+    v9 = memory_object_len memorybytes, v6
+    v10 = memory_object_data memorybytes, v6
+    v11 = sload v8 !metadata(storage=symbolic(v8))
+    v12 = and v11, 1
+    v13 = eq v12, 1
+    v14 = and v11, 255
+    v15 = shr 1, v14
+    v16 = shr 1, v11
+    v17 = select v13, v16, v15
+    v18 = not 31
+    v19 = add v17, 31
+    v20 = and v19, v18
+    v21 = div v20, 32
+    v22 = select v13, v21, 0
+    v23 = add v9, 31
+    v24 = and v23, v18
+    v25 = div v24, 32
+    v26 = gt v9, 31
+    v27 = select v26, v25, 0
+    v28 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v28, v8
+    v29 = keccak256 v28, 32
+    jumpi v26, bb6, bb5
+  bb5:
+    v30 = mload v10
+    v31 = mul v9, 8
+    v32 = shr v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = not v32
+    v34 = and v30, v33
+    v35 = shl 1, v9
+    v36 = or v34, v35
+    sstore v8, v36 !metadata(storage=symbolic(v8))
+    jump bb9
+  bb6:
+    v37 = shl 1, v9
+    v38 = or v37, 1
+    sstore v8, v38 !metadata(storage=symbolic(v8))
+    mstore v28, 0
+    jump bb7
+  bb7:
+    v39 = mload v28
+    v40 = lt v39, v27
+    jumpi v40, bb8, bb9
+  bb9:
+    mstore v28, v27
+    jump bb10
+  bb10:
+    v47 = mload v28
+    v48 = lt v47, v22
+    jumpi v48, bb11, bb12
+  bb12:
+    stop
+  bb11:
+    v49 = mload v28
+    v50 = add v29, v49
+    sstore v50, 0 !metadata(storage=symbolic(v50))
+    v51 = add v49, 1
+    mstore v28, v51
+    jump bb10
+  bb8:
+    v41 = mload v28
+    v42 = add v29, v41
+    v43 = mul v41, 32
+    v44 = add v10, v43
+    v45 = mload v44
+    sstore v42, v45 !metadata(storage=symbolic(v42))
+    v46 = add v41, 1
+    mstore v28, v46
+    jump bb7
+  bb3:
+    revert 0, 0
   bb1:
     revert 0, 0
+}
+
+fn @__abi_decode_calldata_1(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = calldatasize
+    v1 = gt arg0, v0
+    v2 = sub v0, arg0
+    v3 = gt 32, v2
+    v4 = or v1, v3
+    jumpi v4, bb1, bb2
   bb2:
-    v3 = add 4, arg2
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = not 31
-    v7 = and v5, v6
-    v8 = add v7, 32
-    v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    set_memory_object_len memorybytes, v9, v4
-    v10 = memory_object_data memorybytes, v9
-    v11 = add v3, 32
-    calldatacopy v10, v11, v4
-    v12 = mapping_slot arg0, 1
-    v13 = mapping_slot arg1, v12
-    v14 = memory_object_len memorybytes, v9
-    v15 = memory_object_data memorybytes, v9
-    v16 = sload v13 !metadata(storage=symbolic(v13))
-    v17 = and v16, 1
-    v18 = eq v17, 1
-    v19 = and v16, 255
-    v20 = shr 1, v19
-    v21 = shr 1, v16
-    v22 = select v18, v21, v20
-    v23 = not 31
-    v24 = add v22, 31
-    v25 = and v24, v23
-    v26 = div v25, 32
-    v27 = select v18, v26, 0
-    v28 = add v14, 31
-    v29 = and v28, v23
-    v30 = div v29, 32
-    v31 = gt v14, 31
-    v32 = select v31, v30, 0
-    v33 = alloc raw, exact, uninitialized, infallible, 32
-    mstore v33, v13
-    v34 = keccak256 v33, 32
-    jumpi v31, bb4, bb3
-  bb3:
-    v35 = mload v15
-    v36 = mul v14, 8
-    v37 = shr v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v38 = not v37
-    v39 = and v35, v38
-    v40 = shl 1, v14
-    v41 = or v39, v40
-    sstore v13, v41 !metadata(storage=symbolic(v13))
-    jump bb7
+    v5 = calldataload arg0
+    v6 = add arg0, 32
+    v7 = sub v0, v6
+    v8 = gt v5, v7
+    jumpi v8, bb3, bb4
   bb4:
-    v42 = shl 1, v14
-    v43 = or v42, 1
-    sstore v13, v43 !metadata(storage=symbolic(v13))
-    mstore v33, 0
-    jump bb5
-  bb5:
-    v44 = mload v33
-    v45 = lt v44, v32
-    jumpi v45, bb6, bb7
+    v9 = calldataload arg0
+    v10 = add v9, 31
+    v11 = lt v10, v9
+    jumpi v11, bb5, bb6
   bb6:
-    v46 = mload v33
-    v47 = add v34, v46
-    v48 = mul v46, 32
-    v49 = add v15, v48
-    v50 = mload v49
-    sstore v47, v50 !metadata(storage=symbolic(v47))
-    v51 = add v46, 1
-    mstore v33, v51
-    jump bb5
-  bb7:
-    mstore v33, v32
-    jump bb8
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = iszero v13
+    v15 = select v14, 32, v13
+    v16 = add 32, v15
+    v17 = lt v16, v15
+    jumpi v17, bb7, bb8
   bb8:
-    v52 = mload v33
-    v53 = lt v52, v27
-    jumpi v53, bb9, bb10
-  bb9:
-    v54 = mload v33
-    v55 = add v34, v54
-    sstore v55, 0 !metadata(storage=symbolic(v55))
-    v56 = add v54, 1
-    mstore v33, v56
-    jump bb8
-  bb10:
-    stop
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v16
+    mstore v18, v9
+    v19 = add v18, 32
+    v20 = sub v15, 32
+    v21 = add v19, v20
+    mstore v21, 0
+    v22 = add arg0, 32
+    calldatacopy v19, v22, v9 !metadata(memory=heap)
+    ret v18
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 
 fn @get(arg0: u256) -> memorybytes [abi_returns=[memory_bytes]] {
@@ -191,12 +287,12 @@ fn @get(arg0: u256) -> memorybytes [abi_returns=[memory_bytes]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 0
     v4 = internal_call @__load_storage_bytes, 1, v3
     ret v4
+  bb1:
+    revert 0, 0
 }
 
 fn @__load_storage_bytes(arg0: u256) -> memorybytes {
@@ -228,14 +324,14 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v17 = keccak256 v13, 32
     v18 = div v9, 32
     jump bb4
-  bb3:
-    ret v14
   bb4:
     v19 = phi [bb2: v18], [bb5: v26]
     v20 = phi [bb2: v17], [bb5: v24]
     v21 = phi [bb2: v15], [bb5: v25]
     v22 = gt v19, 0
     jumpi v22, bb5, bb3
+  bb3:
+    ret v14
   bb5:
     v23 = sload v20 !metadata(storage=symbolic(v20))
     mstore v21, v23
@@ -251,12 +347,12 @@ fn @getNested(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 1
     v4 = mapping_slot arg1, v3
     v5 = internal_call @__load_storage_bytes, 1, v4
     ret v5
+  bb1:
+    revert 0, 0
 }
 

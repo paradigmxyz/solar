@@ -2,10 +2,11 @@
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, instruction_size_lower_bound, is_terminal_boundary},
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_terminal_boundary},
 };
-use crate::backend::evm::ir::{
-    Block, BlockId, Hotness, Instruction, Module, Terminator, TerminatorKind,
+use crate::backend::evm::{
+    ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
+    op::StackOp,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
@@ -77,7 +78,7 @@ impl RunState {
 
             if let Some((representative, common)) = matched
                 && common > 0
-                && suffix_lower_bound(gcx, module, block_id, common) > 5
+                && suffix_size(gcx, module, block_id, common) > 5
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
@@ -193,21 +194,20 @@ fn common_suffix(a: &Block, b: &Block) -> usize {
         .iter()
         .rev()
         .zip(b.instructions.iter().rev())
-        .take_while(|(a, b)| machine_instructions_equal(a, b))
+        .take_while(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
         .count()
 }
 
-fn machine_instructions_equal(a: &Instruction, b: &Instruction) -> bool {
-    a.opcode == b.opcode && a.encoding == b.encoding && a.value == b.value
-}
-
-fn suffix_lower_bound(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) -> usize {
+fn suffix_size(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) -> usize {
     let block = &module.blocks[block_id];
     let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
     terminator_lower_bound(gcx, module, block_id, terminator)
         + block.instructions[block.instructions.len() - common..]
             .iter()
-            .map(|inst| instruction_size_lower_bound(gcx, inst))
+            .map(|inst| match inst.as_stack_op() {
+                Some(StackOp::Exchange(_, ..=16)) => 3,
+                _ => instruction_size_lower_bound(gcx, inst),
+            })
             .sum::<usize>()
 }
 

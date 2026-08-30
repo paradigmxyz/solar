@@ -7,6 +7,8 @@
       jump bb1
     bb1:
       jumpi 1, bb2, bb4
+    bb4:
+      stop
     bb2:
       v0 = sload 0
       v1 = mul v0, 2
@@ -14,7 +16,5 @@
       jump bb3
     bb3:
       jump bb1
-    bb4:
-      stop
   }
   

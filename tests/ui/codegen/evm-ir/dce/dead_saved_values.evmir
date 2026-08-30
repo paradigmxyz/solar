@@ -1,19 +1,19 @@
 //@ revisions: gas size
-//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=dce
+//@[gas] compile-flags: --evm-version amsterdam -Ogas -Zevm-ir-pipeline=dce
 //@[gas] filecheck: --check-prefixes=COMMON,GAS
-//@[size] compile-flags: -Osize -Zevm-ir-pipeline=dce
+//@[size] compile-flags: --evm-version amsterdam -Osize -Zevm-ir-pipeline=dce
 //@[size] filecheck: --check-prefixes=COMMON,SIZE
 @module module
 
 // Eliminate a dead saved value across an arbitrary straight-line region.
 // COMMON-LABEL: {{^[ +].*}}bb0:
-// COMMON: -   dup1
+// COMMON: -   dup 1
 // COMMON: {{^[ +].*}}mload
 // COMMON: {{^[ +].*}}mstore
 // COMMON: -   pop
 bb0:
   push 7
-  dup1
+  dup 1
   push 160
   mload
   push 128
@@ -24,16 +24,16 @@ bb0:
 
 // Preserve the produced value while removing the dead saved operand.
 // COMMON-LABEL: {{^[ +].*}}bb1:
-// COMMON: -   dup1
+// COMMON: -   dup 1
 // COMMON: {{^[ +].*}}add
-// COMMON: -   swap1
+// COMMON: -   swap 1
 // COMMON: -   pop
 bb1:
   push 7
-  dup1
+  dup 1
   push 1
   add
-  swap1
+  swap 1
   pop
   push 0
   mstore
@@ -41,15 +41,15 @@ bb1:
 
 // Keep one copy needed for multiple uses, but elide the dead preservation.
 // COMMON-LABEL: {{^[ +].*}}bb2:
-// COMMON: {{^[ +].*}}dup1
-// COMMON: -   dup1
+// COMMON: {{^[ +].*}}dup 1
+// COMMON: -   dup 1
 // COMMON: {{^[ +].*}}push 32
 // COMMON: {{^[ +].*}}push 64
 // COMMON: -   pop
 bb2:
   push 7
-  dup1
-  dup1
+  dup 1
+  dup 1
   push 32
   mstore
   push 64
@@ -59,33 +59,33 @@ bb2:
 
 // Retarget a read of the omitted original to its remaining alias.
 // GAS-LABEL: {{^[ +].*}}bb3:
-// GAS: {{^[ +].*}}dup1
-// GAS: -   dup2
-// GAS: -   swap1
+// GAS: {{^[ +].*}}dup 1
+// GAS-NEXT: -   dup 2
+// GAS: -   swap 1
 // SIZE-LABEL: {{^[ +].*}}bb3:
-// SIZE: {{^[ +].*}}dup1
-// SIZE-NEXT: {{^[ +].*}}dup2
-// SIZE: {{^[ +].*}}swap1
+// SIZE: {{^[ +].*}}dup 1
+// SIZE-NEXT: {{^[ +].*}}dup 2
+// SIZE: {{^[ +].*}}swap 1
 bb3:
   push 1
   push 2
-  dup1
-  dup2
+  dup 1
+  dup 2
   add
-  swap1
+  swap 1
   pop
   pop
   stop
 
 // Elide a permutation that only moves the omitted original.
 // COMMON-LABEL: {{^[ +].*}}bb4:
-// COMMON: -   dup1
-// COMMON: -   swap1
+// COMMON: -   dup 1
+// COMMON: -   swap 1
 // COMMON: -   pop
 bb4:
   push 1
-  dup1
-  swap1
+  dup 1
+  swap 1
   push 32
   mstore
   pop
@@ -93,11 +93,11 @@ bb4:
 
 // Do not scan through physical control flow.
 // COMMON-LABEL: {{^[ +].*}}bb5:
-// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}dup 1
 // COMMON: {{^[ +].*}}jumpi
 bb5:
   push 1
-  dup1
+  dup 1
   push bb6
   jumpi
   pop
@@ -108,28 +108,28 @@ bb6:
 
 // Keep a saved value when no matching discard exists.
 // COMMON-LABEL: {{^[ +].*}}bb7:
-// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}dup 1
 // COMMON: {{^[ +].*}}mstore
 bb7:
   push 7
-  dup1
+  dup 1
   push 32
   mstore
   stop
 
 // Preserve two results with one shallower swap.
 // COMMON-LABEL: {{^[ +].*}}bb8:
-// COMMON: -   dup1
-// COMMON: -   swap2
-// COMMON: +   swap1
+// COMMON: -   dup 1
+// COMMON: -   swap 2
+// COMMON: +   swap 1
 // COMMON: -   pop
 bb8:
   push 7
-  dup1
+  dup 1
   pop
   caller
   callvalue
-  swap2
+  swap 2
   pop
   pop
   pop
@@ -137,17 +137,17 @@ bb8:
 
 // Prefer removing an immediately discarded copy over rotating three results.
 // COMMON-LABEL: {{^[ +].*}}bb9:
-// COMMON: -   dup1
+// COMMON: -   dup 1
 // COMMON: -   pop
-// COMMON: {{^[ +].*}}swap3
+// COMMON: {{^[ +].*}}swap 3
 bb9:
   push 7
-  dup1
+  dup 1
   pop
   caller
   callvalue
   origin
-  swap3
+  swap 3
   pop
   pop
   pop
@@ -156,30 +156,30 @@ bb9:
 
 // Remove an unused non-top stack copy and its cleanup permutation.
 // COMMON-LABEL: {{^[ +].*}}bb10:
-// COMMON: -   dup2
-// COMMON: -   swap1
+// COMMON: -   dup 2
+// COMMON: -   swap 1
 bb10:
   push 1
   push 2
-  dup2
-  swap1
+  dup 2
+  swap 1
   pop
   pop
   stop
 
 // Adjust a deeper read across the omitted original.
 // GAS-LABEL: {{^[ +].*}}bb11:
-// GAS: -   dup1
-// GAS: -   dup3
-// GAS: +   dup2
+// GAS: -   dup 1
+// GAS: -   dup 3
+// GAS: +   dup 2
 // SIZE-LABEL: {{^[ +].*}}bb11:
-// SIZE: {{^[ +].*}}dup1
-// SIZE: {{^[ +].*}}dup3
+// SIZE: {{^[ +].*}}dup 1
+// SIZE: {{^[ +].*}}dup 3
 bb11:
   push 7
-  dup1
+  dup 1
   push 1
-  dup3
+  dup 3
   add
   pop
   pop
@@ -188,27 +188,27 @@ bb11:
 
 // Keep a copy when an ordinary operation consumes both occurrences.
 // COMMON-LABEL: {{^[ +].*}}bb12:
-// COMMON: {{^[ +].*}}dup1
+// COMMON: {{^[ +].*}}dup 1
 // COMMON: {{^[ +].*}}add
 bb12:
   push 7
-  dup1
+  dup 1
   add
   pop
   stop
 
 // Reject a rotation that saves no size and increases gas.
 // COMMON-LABEL: {{^[ +].*}}bb13:
-// COMMON: {{^[ +].*}}dup1
-// COMMON: {{^[ +].*}}swap4
+// COMMON: {{^[ +].*}}dup 1
+// COMMON: {{^[ +].*}}swap 4
 bb13:
   push 7
-  dup1
+  dup 1
   iszero
   caller
   callvalue
   origin
-  swap4
+  swap 4
   pop
   pop
   pop
@@ -217,46 +217,48 @@ bb13:
 
 // Keep a deeper copy when it is consumed as an operand.
 // COMMON-LABEL: {{^[ +].*}}bb14:
-// COMMON: {{^[ +].*}}dup2
+// COMMON: {{^[ +].*}}dup 2
 // COMMON: {{^[ +].*}}add
 bb14:
   push 1
   push 2
-  dup2
+  dup 2
   add
   pop
   pop
   stop
 
-// EOF extended stack operations select words through immediate data that is not represented in
-// EVM IR yet. Do not track an omitted copy across them from the net stack effect alone.
+// Track an omitted copy through logical extended stack operations.
 // COMMON-LABEL: {{^[ +].*}}bb15:
-// COMMON: {{^[ +].*}}dup1
-// COMMON: {{^[ +].*}}dupn
+// COMMON: -   dup 2
 bb15:
   push 1
-  dup1
-  dupn
+  dup 1
+  dup 2
   pop
   pop
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb16:
-// COMMON: {{^[ +].*}}dup1
-// COMMON: {{^[ +].*}}swapn
+// COMMON: -   dup 1
+// COMMON-NEXT: -   swap 1
+// COMMON-NEXT: -   pop
 bb16:
   push 1
-  dup1
-  swapn
+  dup 1
+  swap 1
   pop
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb17:
-// COMMON: {{^[ +].*}}dup1
-// COMMON: {{^[ +].*}}exchange
+// COMMON: -   dup 1
+// COMMON-NEXT: -   exchange 1, 2
+// COMMON-NEXT: -   pop
+// COMMON-NEXT: +   swap 1
 bb17:
   push 1
-  dup1
-  exchange
+  dup 1
+  dup 1
+  exchange 1, 2
   pop
   stop

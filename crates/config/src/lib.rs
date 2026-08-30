@@ -117,6 +117,33 @@ str_enum! {
 }
 
 impl EvmVersion {
+    /// Returns the maximum deployed code size for this EVM version.
+    pub fn runtime_code_size_limit(self) -> Option<usize> {
+        match self {
+            Self::Homestead | Self::TangerineWhistle => None,
+            Self::Amsterdam => Some(65_536),
+            _ => Some(24_576),
+        }
+    }
+
+    /// Returns the maximum initcode size for this EVM version.
+    pub fn initcode_size_limit(self) -> Option<usize> {
+        match self {
+            Self::Homestead
+            | Self::TangerineWhistle
+            | Self::SpuriousDragon
+            | Self::Byzantium
+            | Self::Constantinople
+            | Self::Petersburg
+            | Self::Istanbul
+            | Self::Berlin
+            | Self::London
+            | Self::Paris => None,
+            Self::Amsterdam => Some(131_072),
+            _ => Some(49_152),
+        }
+    }
+
     pub fn can_overcharge_gas_for_call(self) -> bool {
         self >= Self::TangerineWhistle
     }
@@ -158,6 +185,15 @@ impl EvmVersion {
     }
     pub fn has_clz(self) -> bool {
         self >= Self::Osaka
+    }
+    pub fn has_slot_num(self) -> bool {
+        self >= Self::Amsterdam
+    }
+    pub fn has_extended_stack_ops(self) -> bool {
+        self >= Self::Amsterdam
+    }
+    pub fn reachable_stack_depth(self) -> usize {
+        if self.has_extended_stack_ops() { 235 } else { 16 }
     }
 }
 

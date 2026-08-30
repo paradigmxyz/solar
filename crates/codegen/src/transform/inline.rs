@@ -690,6 +690,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         | InstKind::BlockNumber
         | InstKind::PrevRandao
         | InstKind::GasLimit
+        | InstKind::SlotNum
         | InstKind::ChainId
         | InstKind::Address
         | InstKind::SelfBalance
@@ -1062,7 +1063,14 @@ fn inline_call_impl(
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
-        insert_extra_return_stores(cloner.caller, continuation, &return_values[1..]);
+        insert_extra_return_stores(
+            cloner.caller,
+            continuation,
+            &return_values[1..],
+            caller_is_external,
+            caller_frame_prefix,
+            &mut replacements,
+        )?;
     }
 
     cloner.caller.replace_uses(&replacements);
@@ -1264,10 +1272,27 @@ fn build_return_values(
     Some(values)
 }
 
-fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, values: &[ValueId]) {
+fn insert_extra_return_stores(
+    caller: &mut Function,
+    continuation: BlockId,
+    values: &[ValueId],
+    caller_is_external: bool,
+    caller_frame_prefix: u64,
+    replacements: &mut FxHashMap<ValueId, ValueId>,
+) -> Option<()> {
     if values.is_empty() {
-        return;
+        return Some(());
     }
+
+    // Reserve a compiler-owned frame buffer, including the unused result-zero
+    // word expected by the multi-return projection protocol. Using the
+    // unbumped free-memory pointer here would overwrite any object that inline
+    // assembly is constructing there.
+    let buffer_size =
+        u64::try_from(values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+    let buffer_local_offset = caller.internal_frame_size;
+    caller.internal_frame_size = caller.internal_frame_size.checked_add(buffer_size)?;
+    let buffer_frame_offset = caller_frame_prefix.checked_add(buffer_local_offset)?;
 
     // Insert the stores right after the continuation block's leading phis.
     let phi_count = caller.blocks[continuation]
@@ -1275,24 +1300,60 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .iter()
         .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
+    let base_load = caller.blocks[continuation].instructions.get(phi_count).and_then(|&inst_id| {
+        let InstKind::MLoad(addr) = caller.inst(inst_id).kind else { return None };
+        (caller.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
+            .then(|| caller.inst_result_value(inst_id))
+            .flatten()
+    });
 
-    let (base_load, base) =
-        caller.alloc_value_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
     let mut insert_at = phi_count;
-    caller.blocks[continuation].instructions.insert(insert_at, base_load);
-    insert_at += 1;
 
     for (index, &value) in values.iter().enumerate() {
-        let offset = caller
-            .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
-        let (addr, addr_value) = caller.alloc_value_inst(Instruction::new(
-            InstKind::Add(base, offset),
-            Some(MirType::uint256()),
-        ));
+        let offset = u64::try_from(index + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let frame_offset = buffer_frame_offset.checked_add(offset)?;
+        let (addr, addr_value) = if caller_is_external {
+            let absolute = EvmMemoryLayout::HEAP_START
+                .checked_add(buffer_local_offset.checked_add(offset)?)?;
+            (None, caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(absolute)))))
+        } else {
+            let (inst, value) = caller.alloc_value_inst(Instruction::new(
+                InstKind::InternalFrameAddr(frame_offset),
+                Some(MirType::MemPtr),
+            ));
+            (Some(inst), value)
+        };
         let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
-        caller.blocks[continuation].instructions.insert(insert_at, addr);
-        caller.blocks[continuation].instructions.insert(insert_at + 1, store);
-        insert_at += 2;
+        if let Some(addr) = addr {
+            caller.blocks[continuation].instructions.insert(insert_at, addr);
+            insert_at += 1;
+        }
+        caller.blocks[continuation].instructions.insert(insert_at, store);
+        insert_at += 1;
+    }
+
+    let (base_inst, base) = if caller_is_external {
+        let absolute = EvmMemoryLayout::HEAP_START.checked_add(buffer_local_offset)?;
+        (None, caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(absolute)))))
+    } else {
+        let (inst, value) = caller.alloc_value_inst(Instruction::new(
+            InstKind::InternalFrameAddr(buffer_frame_offset),
+            Some(MirType::MemPtr),
+        ));
+        (Some(inst), value)
+    };
+    if let Some(base_inst) = base_inst {
+        caller.blocks[continuation].instructions.insert(insert_at, base_inst);
+        insert_at += 1;
+    }
+
+    // Lowering reads the just-published base from scratch slot 0x20 before
+    // projecting returns 1..N. Preserve that same identity in SSA after
+    // inlining: otherwise memory DSE sees only an indirect load through the
+    // scratch word and can incorrectly delete a compiler-frame return store.
+    // Keep publishing the pointer as well for any non-canonical consumers.
+    if let Some(base_load) = base_load {
+        replacements.insert(base_load, base);
     }
 
     let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
@@ -1300,6 +1361,7 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     ))));
     let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
     caller.blocks[continuation].instructions.insert(insert_at, publish);
+    Some(())
 }
 
 fn redirect_phi_predecessors(

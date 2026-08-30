@@ -151,6 +151,18 @@ impl Ident {
         self.name.is_reserved_yul_builtin()
     }
 
+    /// Returns `true` if the identifier is a Yul EVM builtin reserved by `evm_version`.
+    #[inline]
+    pub fn is_reserved_yul_builtin_in(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.name.is_reserved_yul_builtin_in(evm_version)
+    }
+
+    /// Returns `true` if the identifier is a future Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.name.is_future_yul_builtin(evm_version)
+    }
+
     /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
     /// for possible future use.
     #[inline]
@@ -301,6 +313,7 @@ impl Symbol {
                 | kw::Break
                 | kw::Continue
                 | kw::Leave
+                | kw::Hex
                 | kw::True
                 | kw::False
         )
@@ -318,7 +331,28 @@ impl Symbol {
     #[inline]
     pub fn is_reserved_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+            || matches!(self, kw::Address | kw::Byte | kw::Clz | kw::Return | kw::Revert)
+    }
+
+    /// Returns `true` if the symbol is a Yul EVM builtin keyword reserved by `evm_version`.
+    #[inline]
+    pub fn is_reserved_yul_builtin_in(self, evm_version: crate::config::EvmVersion) -> bool {
+        self.is_reserved_yul_builtin() && !self.is_future_yul_builtin(evm_version)
+    }
+
+    /// Returns `true` if the symbol is a future Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_future_yul_builtin(self, evm_version: crate::config::EvmVersion) -> bool {
+        match self {
+            kw::Basefee => !evm_version.has_base_fee(),
+            kw::Prevrandao => !evm_version.has_prev_randao(),
+            kw::Blobbasefee | kw::Blobhash | kw::Mcopy | kw::Tload | kw::Tstore => {
+                !evm_version.has_blob_base_fee()
+            }
+            kw::Clz => !evm_version.has_clz(),
+            kw::Slotnum => !evm_version.has_slot_num(),
+            _ => false,
+        }
     }
 
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
@@ -867,6 +901,7 @@ symbols! {
         Extcodesize:    "extcodesize",
         Gas:            "gas",
         Gaslimit:       "gaslimit",
+        Slotnum:        "slotnum",
         Gasprice:       "gasprice",
         Gt:             "gt",
         Invalid:        "invalid",
@@ -962,6 +997,13 @@ symbols! {
         Panic,
         Test,
         X,
+        __abi_decode_calldata_static_array,
+        __abi_decode_calldata_static_array_element,
+        __abi_resolve_checked_array,
+        __abi_resolve_checked_head,
+        __abi_resolve_offset,
+        __abi_validate_calldata_array_head,
+        __abi_validate_calldata_range,
         __load_storage_bytes,
         __ret_bytes,
         __revert_error,
@@ -999,6 +1041,8 @@ symbols! {
         deployment,
         dispatch,
         display_test,
+        dup,
+        dupn,
         ecrecover,
         effect,
         encode,
@@ -1012,9 +1056,12 @@ symbols! {
         err,
         error,
         evm_dash_shaped: "evm-shaped",
+        evmasm,
         exact,
+        exchange,
         experimental,
         external_call,
+        external_function,
         fmp,
         fn_: "fn",
         from,
@@ -1114,6 +1161,8 @@ symbols! {
         storageptr,
         storeimmutable,
         super_: "super",
+        swap,
+        swapn,
         symbolic,
         tail_call,
         terminal,

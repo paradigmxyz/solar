@@ -6,15 +6,15 @@ bb0:
   jumpi
   push 0
   calldataload
-  dup1
+  dup 1
   push 128
   mstore
-  dup1
+  dup 1
   push 40
   gt
   push bb8
   jumpi
-  dup1
+  dup 1
   push 40
   sub
   push bb4
@@ -29,7 +29,7 @@ bb22:
   push 0
   return
 bb4:
-  dup1
+  dup 1
   push 48
   sub
   push bb5
@@ -38,7 +38,7 @@ bb4:
   push 105
   jump bb22
 bb5:
-  dup1
+  dup 1
   push 56
   sub
   push bb6
@@ -47,7 +47,7 @@ bb5:
   push 106
   jump bb22
 bb6:
-  dup1
+  dup 1
   push 64
   sub
   push bb7
@@ -60,10 +60,10 @@ bb7:
   jump bb21
 bb21 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb8:
-  dup1
+  dup 1
   push 8
   sub
   push bb9
@@ -72,7 +72,7 @@ bb8:
   push 100
   jump bb22
 bb9:
-  dup1
+  dup 1
   push 16
   sub
   push bb10
@@ -81,7 +81,7 @@ bb9:
   push 101
   jump bb22
 bb10:
-  dup1
+  dup 1
   push 24
   sub
   push bb11
@@ -90,7 +90,7 @@ bb10:
   push 102
   jump bb22
 bb11:
-  dup1
+  dup 1
   push 32
   sub
   push bb12

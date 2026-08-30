@@ -2,8 +2,8 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 42
-  dup1
+  push 41
+  dup 1
   push 9
   push 0
   codecopy
@@ -20,14 +20,13 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xb3de648b
   sub
   push bb3
   jumpi
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -42,5 +41,5 @@ bb5:
   stop
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert

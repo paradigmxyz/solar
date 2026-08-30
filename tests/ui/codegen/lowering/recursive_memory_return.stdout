@@ -6,26 +6,13 @@ fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = eq arg0, 0
     jumpi v3, bb3, bb4
-  bb3:
-    v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v5 = memory_object_field_addr memorystruct<2>, v4, 0
-    mstore v5, 0
-    v6 = memory_object_field_addr memorystruct<2>, v4, 1
-    mstore v6, 0
-    ret v4
   bb4:
     v7 = sub arg0, 1
     v8 = lt arg0, 1
     jumpi v8, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v9 = internal_call @build.1, 1, v7
     v10 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -34,10 +21,6 @@ fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
     v13 = add v12, arg0
     v14 = lt v13, v12
     jumpi v14, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v15 = memory_object_field_addr memorystruct<2>, v10, 0
     mstore v15, v13
@@ -46,35 +29,41 @@ fn @build.0(arg0: u256) -> memorystruct [abi_returns=[tuple<word, word>]] {
     v18 = add v17, 1
     v19 = lt v18, v17
     jumpi v19, bb9, bb10
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v20 = memory_object_field_addr memorystruct<2>, v10, 1
     mstore v20, v18
     ret v10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v5 = memory_object_field_addr memorystruct<2>, v4, 0
+    mstore v5, 0
+    v6 = memory_object_field_addr memorystruct<2>, v4, 1
+    mstore v6, 0
+    ret v4
+  bb1:
+    revert 0, 0
 }
 
 fn @build.1(arg0: u256) -> memorystruct {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v2 = memory_object_field_addr memorystruct<2>, v1, 0
-    mstore v2, 0
-    v3 = memory_object_field_addr memorystruct<2>, v1, 1
-    mstore v3, 0
-    ret v1
   bb2:
     v4 = sub arg0, 1
     v5 = lt arg0, 1
     jumpi v5, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v6 = internal_call @build.1, 1, v4
     v7 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
@@ -83,10 +72,6 @@ fn @build.1(arg0: u256) -> memorystruct {
     v10 = add v9, arg0
     v11 = lt v10, v9
     jumpi v11, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v12 = memory_object_field_addr memorystruct<2>, v7, 0
     mstore v12, v10
@@ -95,14 +80,29 @@ fn @build.1(arg0: u256) -> memorystruct {
     v15 = add v14, 1
     v16 = lt v15, v14
     jumpi v16, bb7, bb8
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v17 = memory_object_field_addr memorystruct<2>, v7, 1
     mstore v17, v15
     ret v7
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v2 = memory_object_field_addr memorystruct<2>, v1, 0
+    mstore v2, 0
+    v3 = memory_object_field_addr memorystruct<2>, v1, 1
+    mstore v3, 0
+    ret v1
 }
 
 fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
@@ -111,8 +111,6 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mul arg0, 32
     v4 = div v3, 32
@@ -126,10 +124,6 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     v6 = add v3, 32
     v7 = lt v6, v3
     jumpi v7, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
     set_memory_object_len memoryarray, v8, arg0
@@ -139,13 +133,10 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     v9 = mload 128
     v10 = lt v9, arg0
     jumpi v10, bb10, bb11
+  bb11:
+    jump bb8
   bb8:
     ret v8
-  bb9:
-    v22 = mload 128
-    v23 = add v22, 1
-    v24 = lt v23, v22
-    jumpi v24, bb16, bb17
   bb10:
     v11 = mload 128
     v12 = mul v11, 10
@@ -155,12 +146,6 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     v16 = or v13, v15
     v17 = iszero v16
     jumpi v17, bb12, bb13
-  bb11:
-    jump bb8
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     v18 = mload 128
     v19 = memory_object_len memoryarray, v8
@@ -174,13 +159,28 @@ fn @mkArr(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     v21 = memory_object_element_addr memoryarray<1>, v8, v18
     mstore v21, v12
     jump bb9
+  bb9:
+    v22 = mload 128
+    v23 = add v22, 1
+    v24 = lt v23, v22
+    jumpi v24, bb16, bb17
+  bb17:
+    mstore 128, v23
+    jump bb7
   bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb17:
-    mstore 128, v23
-    jump bb7
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 
 fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray {
@@ -188,8 +188,6 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray {
     v0 = mload arg0
     v1 = eq arg1, v0
     jumpi v1, bb1, bb2
-  bb1:
-    ret arg0
   bb2:
     v2 = mul arg1, arg1
     v3 = iszero arg1
@@ -198,10 +196,6 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray {
     v6 = or v3, v5
     v7 = iszero v6
     jumpi v7, bb3, bb4
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v8 = memory_object_len memoryarray, arg0
     v9 = lt arg1, v8
@@ -216,13 +210,19 @@ fn @fillImpl(arg0: memoryarray, arg1: u256) -> memoryarray {
     v11 = add arg1, 1
     v12 = lt v11, arg1
     jumpi v12, bb7, bb8
+  bb8:
+    v13 = internal_call @fillImpl, 1, arg0, v11
+    ret v13
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb8:
-    v13 = internal_call @fillImpl, 1, arg0, v11
-    ret v13
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    ret arg0
 }
 
 fn @squares(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
@@ -231,8 +231,6 @@ fn @squares(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = mul arg0, 32
     v4 = div v3, 32
@@ -246,14 +244,16 @@ fn @squares(arg0: u256) -> memoryarray [abi_returns=[memory_array<word>]] {
     v6 = add v3, 32
     v7 = lt v6, v3
     jumpi v7, bb5, bb6
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
     set_memory_object_len memoryarray, v8, arg0
     v9 = internal_call @fillImpl, 1, v8, 0
     ret v9
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
 }
 

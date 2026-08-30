@@ -2,7 +2,12 @@
 @module FunctionPointerSignatures
 fn @constructor() {
   bb0:
-    sstore 1, 2 !metadata(storage=slot(1))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffff0000000000000000ff
+    v2 = and 2, 0xffffffffffffffff
+    v3 = shl 8, v2
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     stop
 }
 
@@ -18,13 +23,13 @@ fn @__internal_dispatch_0(arg0: function) {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
-  bb1:
-    internal_call @setFlag.12, 0
-    ret
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    internal_call @setFlag.12, 0
+    ret
 }
 
 fn @setFlag.3() {
@@ -39,11 +44,13 @@ fn @setFlag.3() {
 
 fn @callState() -> bool [abi_returns=[word]] {
   bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    internal_call @__internal_dispatch_0, 0, v0
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 255
-    ret v2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 8, v0
+    v2 = and v1, 0xffffffffffffffff
+    internal_call @__internal_dispatch_0, 0, v2
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 255
+    ret v4
 }
 
 fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
@@ -52,30 +59,30 @@ fn @callPair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = internal_call @__internal_dispatch_1, 2, 5, arg0
     v4 = mload 32 !metadata(memory=scratch)
     v5 = add v4, 32
     v6 = mload v5
     ret v3, v6
+  bb1:
+    revert 0, 0
 }
 
 fn @__internal_dispatch_1(arg0: function, arg1: u256) -> (u256, u256) {
   bb0:
     v0 = eq arg0, 5
     jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
   bb1:
     v1 = internal_call @pair, 2, arg1
     v2 = mload 32 !metadata(memory=scratch)
     v3 = add v2, 32
     v4 = mload v3
     ret v1, v4
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 81 !metadata(memory=scratch)
-    revert 0, 36
 }
 
 fn @pair(arg0: u256) -> (u256, u256) {
@@ -83,12 +90,12 @@ fn @pair(arg0: u256) -> (u256, u256) {
     v0 = add arg0, 1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
+  bb2:
+    ret arg0, v0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret arg0, v0
 }
 
 fn @callZero() {
@@ -102,12 +109,12 @@ fn @sum(arg0: u256, arg1: u256) -> u256 {
     v0 = add arg0, arg1
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
+  bb2:
+    ret v0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
-    ret v0
 }
 
 fn @callTwoArgs() -> u256 [abi_returns=[word]] {
@@ -120,13 +127,13 @@ fn @__internal_dispatch_2(arg0: function, arg1: u256, arg2: u256) -> u256 {
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
-  bb1:
-    v1 = internal_call @sum, 1, arg1, arg2
-    ret v1
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
+  bb1:
+    v1 = internal_call @sum, 1, arg1, arg2
+    ret v1
 }
 
 fn @setFlag.12() {

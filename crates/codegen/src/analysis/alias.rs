@@ -21,7 +21,11 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
-use std::{cell::RefCell, collections::VecDeque, sync::Arc};
+use std::{
+    cell::{OnceCell, RefCell},
+    collections::VecDeque,
+    sync::Arc,
+};
 
 /// An address space tracked by ModRef analysis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -420,7 +424,9 @@ pub(crate) struct AliasAnalysis {
     /// construct the analysis but never issue a memory query (pure or
     /// memory-free functions), so the block scans and the FMP dataflow are
     /// deferred until a query actually needs them.
-    provenance: std::cell::OnceCell<PointerProvenance>,
+    provenance: OnceCell<PointerProvenance>,
+    /// Values whose derived pointer graph reaches a capturing use.
+    escaping_values: RefCell<Option<DenseBitSet<ValueId>>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
@@ -436,7 +442,11 @@ impl AliasAnalysis {
     /// function up front.
     #[must_use]
     pub(crate) fn empty() -> Self {
-        Self { provenance: std::cell::OnceCell::new(), call_summaries: None }
+        Self {
+            provenance: OnceCell::new(),
+            escaping_values: RefCell::new(None),
+            call_summaries: None,
+        }
     }
 
     /// Computes a snapshot using module-level internal-call summaries.
@@ -448,19 +458,20 @@ impl AliasAnalysis {
         Self::with_optional_summaries(func, Some(summaries))
     }
 
-    /// Drops value-address memoization after instruction operands are rewritten.
+    /// Drops value-dependent memoization after instruction operands are rewritten.
     pub(crate) fn clear_cached_addresses(&self) {
         if let Some(provenance) = self.provenance.get() {
             provenance.addresses.borrow_mut().clear();
             provenance.visiting.borrow_mut().clear();
         }
+        self.escaping_values.borrow_mut().take();
     }
 
     fn with_optional_summaries(
         _func: &Function,
         call_summaries: Option<Arc<MemoryCallSummaries>>,
     ) -> Self {
-        Self { provenance: std::cell::OnceCell::new(), call_summaries }
+        Self { provenance: OnceCell::new(), escaping_values: RefCell::new(None), call_summaries }
     }
 
     /// The lazily built provenance snapshot for `func`. Every query passes the
@@ -592,79 +603,90 @@ impl AliasAnalysis {
     /// Unsupported uses stay conservative.
     #[must_use]
     pub(crate) fn value_escapes(&self, func: &Function, root: ValueId) -> bool {
-        let mut derived = FxHashSet::default();
-        derived.insert(root);
-        loop {
-            let mut changed = false;
-            for inst_id in func.instructions() {
-                let Some(value_id) = func.inst_result_value(inst_id) else { continue };
-                let propagates = match &func.inst(inst_id).kind {
-                    InstKind::Add(first, second)
-                    | InstKind::Sub(first, second)
-                    | InstKind::MakeSlice { ptr: first, len: second, .. } => {
-                        derived.contains(first) || derived.contains(second)
-                    }
-                    InstKind::Phi(incoming) => {
-                        incoming.iter().any(|(_, value)| derived.contains(value))
-                    }
-                    InstKind::Select(_, first, second) => {
-                        derived.contains(first) || derived.contains(second)
-                    }
-                    InstKind::SlicePtr(value)
-                    | InstKind::MemoryObjectData(value, _)
-                    | InstKind::MemoryObjectFieldAddr { object: value, .. } => {
-                        derived.contains(value)
-                    }
-                    InstKind::MemoryObjectElementAddr { object, .. } => derived.contains(object),
-                    _ => false,
-                };
-                if propagates && derived.insert(value_id) {
-                    changed = true;
-                }
-            }
-            if !changed {
-                break;
-            }
+        if self.escaping_values.borrow().is_none() {
+            let escaping = self.compute_escaping_values(func);
+            *self.escaping_values.borrow_mut() = Some(escaping);
         }
+        self.escaping_values.borrow().as_ref().unwrap().contains(root)
+    }
+
+    fn compute_escaping_values(&self, func: &Function) -> DenseBitSet<ValueId> {
+        let mut escaping = DenseBitSet::new_empty(func.num_values());
 
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 let kind = &func.inst(inst_id).kind;
                 for operand in kind.operands() {
-                    if derived.contains(&operand) && self.instruction_operand_escapes(kind, operand)
-                    {
-                        return true;
+                    if self.instruction_operand_escapes(kind, operand) {
+                        escaping.insert(operand);
                     }
                 }
             }
+
             if let Some(terminator) = &block.terminator {
                 for operand in terminator.operands() {
-                    if !derived.contains(&operand) {
-                        continue;
-                    }
-                    match terminator {
-                        Terminator::Revert { offset, .. }
-                        | Terminator::ReturnData { offset, .. }
-                            if operand == *offset => {}
-                        Terminator::TailCall { function, args } => {
-                            let summary = self
-                                .call_summaries
-                                .as_deref()
-                                .and_then(|summaries| summaries.get(*function));
-                            if summary.is_none_or(|summary| {
-                                args.iter().enumerate().any(|(index, &arg)| {
-                                    arg == operand && summary.captures_param(ArgIdx::new(index))
-                                })
-                            }) {
-                                return true;
-                            }
-                        }
-                        _ => return true,
+                    if self.terminator_operand_escapes(terminator, operand) {
+                        escaping.insert(operand);
                     }
                 }
             }
         }
-        false
+
+        let mut worklist = escaping.iter().collect::<VecDeque<_>>();
+        while let Some(value) = worklist.pop_front() {
+            let Value::Inst(inst_id) = func.value(value) else { continue };
+            let kind = &func.inst(*inst_id).kind;
+            let mut propagate = |predecessor| {
+                if escaping.insert(predecessor) {
+                    worklist.push_back(predecessor);
+                }
+            };
+            match kind {
+                InstKind::Add(first, second)
+                | InstKind::Sub(first, second)
+                | InstKind::MakeSlice { ptr: first, len: second, .. } => {
+                    propagate(*first);
+                    propagate(*second);
+                }
+                InstKind::Phi(incoming) => {
+                    for &(_, predecessor) in incoming {
+                        propagate(predecessor);
+                    }
+                }
+                InstKind::Select(_, first, second) => {
+                    propagate(*first);
+                    propagate(*second);
+                }
+                InstKind::SlicePtr(predecessor)
+                | InstKind::MemoryObjectData(predecessor, _)
+                | InstKind::MemoryObjectFieldAddr { object: predecessor, .. } => {
+                    propagate(*predecessor);
+                }
+                InstKind::MemoryObjectElementAddr { object, .. } => propagate(*object),
+                _ => {}
+            }
+        }
+        escaping
+    }
+
+    fn terminator_operand_escapes(&self, terminator: &Terminator, operand: ValueId) -> bool {
+        match terminator {
+            Terminator::Revert { offset, .. } | Terminator::ReturnData { offset, .. }
+                if operand == *offset =>
+            {
+                false
+            }
+            Terminator::TailCall { function, args } => {
+                let summary =
+                    self.call_summaries.as_deref().and_then(|summaries| summaries.get(*function));
+                summary.is_none_or(|summary| {
+                    args.iter().enumerate().any(|(index, &arg)| {
+                        arg == operand && summary.captures_param(ArgIdx::new(index))
+                    })
+                })
+            }
+            _ => true,
+        }
     }
 
     fn instruction_operand_escapes(&self, kind: &InstKind, operand: ValueId) -> bool {
@@ -907,6 +929,10 @@ impl AliasAnalysis {
                 }
                 let base =
                     self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
+                layout.for_each_preserved_storage_slot(|offset| {
+                    let offset = alloy_primitives::U256::from_limbs([offset, 0, 0, 0]);
+                    effects.read(Access::Location(Location::Storage(base.offset_by(offset))));
+                });
                 add_storage_range(&mut effects, base, layout.storage_slots(), true);
             }
             InstKind::ClearStorage { .. } => {
@@ -1560,6 +1586,7 @@ impl AliasAnalysis {
             // Calldata and returndata ABI values read their own buffers, not
             // memory (returndata does not occur as an ABI type in practice).
             AbiType::Word
+            | AbiType::ExternalFunction
             | AbiType::Bytes(SliceLocation::Calldata | SliceLocation::Returndata)
             | AbiType::DynamicArray {
                 location: SliceLocation::Calldata | SliceLocation::Returndata,
@@ -1688,6 +1715,29 @@ mod tests {
         let aa = AliasAnalysis::new(&func);
 
         assert_eq!(aa.memory_address(&func, absolute), Some(MemoryAddress::absolute(0x20)));
+    }
+
+    #[test]
+    fn propagates_escape_facts_back_through_pointer_derivations() {
+        let mut func = function();
+        let (local, captured) = {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let local = builder.add_param(MirType::uint256());
+            let captured = builder.add_param(MirType::uint256());
+            let offset = builder.imm_u64(32);
+            let local_address = builder.add(local, offset);
+            let captured_address = builder.add(captured, offset);
+            let value = builder.imm_u64(1);
+            let destination = builder.imm_u64(0x80);
+            builder.mstore(local_address, value);
+            builder.mstore(destination, captured_address);
+            builder.stop();
+            (local, captured)
+        };
+        let aa = AliasAnalysis::new(&func);
+
+        assert!(!aa.value_escapes(&func, local));
+        assert!(aa.value_escapes(&func, captured));
     }
 
     #[test]

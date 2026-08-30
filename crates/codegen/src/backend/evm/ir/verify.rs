@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
+use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
@@ -9,11 +10,16 @@ use std::fmt;
 /// EVM IR verifier.
 struct Verifier<'a> {
     dcx: &'a DiagCtxt,
+    evm_version: Option<EvmVersion>,
 }
 
 impl<'a> Verifier<'a> {
     const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx }
+        Self { dcx, evm_version: None }
+    }
+
+    const fn for_evm_version(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
+        Self { dcx, evm_version: Some(evm_version) }
     }
 
     #[track_caller]
@@ -120,6 +126,35 @@ impl<'a> Verifier<'a> {
         } else {
             if inst.value.is_some() {
                 self.error_in_block(block_id, "only `push` instructions can carry a value");
+            }
+            if let Some(stack_op) = inst.as_stack_op() {
+                if inst.opcode != stack_op.ir_opcode() {
+                    self.error_in_block(block_id, "logical stack operation has the wrong opcode");
+                }
+                if !stack_op.is_valid() {
+                    self.error_in_block(block_id, "logical stack operation has invalid depths");
+                } else if let Some(evm_version) = self.evm_version
+                    && stack_op.assembled_len(evm_version).is_none()
+                {
+                    self.error_in_block(
+                        block_id,
+                        format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
+                    );
+                }
+            } else if op::StackOp::from_legacy_opcode(inst.opcode).is_some()
+                || matches!(inst.opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!("`{}` must use the logical stack-op form", inst.mnemonic()),
+                );
+            } else if inst.opcode == op::PUSH0 {
+                self.error_in_block(block_id, "`push0` must use the logical push form");
+            } else if let Some(evm_version) = self.evm_version
+                && inst.opcode == op::SLOTNUM
+                && !evm_version.has_slot_num()
+            {
+                self.error_in_block(block_id, "`slotnum` requires Amsterdam-compatible EVM");
             }
             if (op::PUSH1..=op::PUSH32).contains(&inst.opcode) {
                 self.error_in_block(
@@ -231,17 +266,17 @@ impl<'a> Verifier<'a> {
     fn verify_stack_ops(&self, module: &Module) {
         let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.blocks.len()]);
         entry_depths[BlockId::ENTRY] = Some(0);
-        let mut pending = vec![BlockId::ENTRY];
-        while let Some(block_id) = pending.pop() {
+        let mut alternate_depths = FxHashSet::default();
+        let mut pending = vec![(BlockId::ENTRY, 0)];
+        while let Some((block_id, mut stack)) = pending.pop() {
             let block = &module.blocks[block_id];
             let term =
                 block.terminator.as_ref().expect("terminator must exist after shape validation");
-            let mut stack = entry_depths[block_id].unwrap();
             let mut physical_targets = Vec::new();
             let mut valid = true;
             for (index, inst) in block.instructions.iter().enumerate() {
                 if inst.is_physical_stack_op() {
-                    if self.apply_physical_stack_op(block_id, inst.opcode, &mut stack).is_err() {
+                    if self.apply_physical_stack_op(block_id, inst, &mut stack).is_err() {
                         valid = false;
                         break;
                     }
@@ -296,20 +331,17 @@ impl<'a> Verifier<'a> {
             }
             term.kind.visit_targets(|target| physical_targets.push((target, stack)));
             for (target, depth) in physical_targets {
-                Self::propagate_depth(target, depth, &mut entry_depths, &mut pending);
+                match entry_depths[target] {
+                    None => {
+                        entry_depths[target] = Some(depth);
+                        pending.push((target, depth));
+                    }
+                    Some(first) if first != depth && alternate_depths.insert((target, depth)) => {
+                        pending.push((target, depth));
+                    }
+                    Some(_) => {}
+                }
             }
-        }
-    }
-
-    fn propagate_depth(
-        target: BlockId,
-        depth: usize,
-        entry_depths: &mut IndexVec<BlockId, Option<usize>>,
-        pending: &mut Vec<BlockId>,
-    ) {
-        if entry_depths[target].is_none() {
-            entry_depths[target] = Some(depth);
-            pending.push(target);
         }
     }
 
@@ -337,39 +369,46 @@ impl<'a> Verifier<'a> {
     fn apply_physical_stack_op(
         &self,
         block_id: BlockId,
-        opcode: u8,
+        inst: &Instruction,
         stack: &mut usize,
     ) -> Result<(), ErrorGuaranteed> {
-        let name = match opcode {
-            op::DUP1..=op::DUP16 => {
-                let n = opcode - op::DUP1 + 1;
+        let stack_op = inst.as_stack_op().expect("checked physical stack operation");
+        let name = match stack_op {
+            op::StackOp::Dup(n) => {
                 if *stack < usize::from(n) {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!("`dup{n}` reaches depth {n} but the stack has {}", *stack),
+                        format_args!("`dup {n}` reaches depth {n} but the stack has {}", *stack),
                     ));
                 }
                 *stack += 1;
                 "dup"
             }
-            op::SWAP1..=op::SWAP16 => {
-                let n = opcode - op::SWAP1 + 1;
+            op::StackOp::Swap(n) => {
                 if *stack < usize::from(n) + 1 {
                     return Err(self.error_in_block(
                         block_id,
-                        format_args!("`swap{n}` reaches depth {n} but the stack has {}", *stack),
+                        format_args!("`swap {n}` reaches depth {n} but the stack has {}", *stack),
                     ));
                 }
                 "swap"
             }
-            op::POP => {
+            op::StackOp::Exchange(_, m) => {
+                if *stack < usize::from(m) + 1 {
+                    return Err(self.error_in_block(
+                        block_id,
+                        format_args!("`exchange` reaches depth {m} but the stack has {}", *stack),
+                    ));
+                }
+                "exchange"
+            }
+            op::StackOp::Pop => {
                 if *stack == 0 {
                     return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
                 }
                 *stack -= 1;
                 "pop"
             }
-            _ => unreachable!("checked physical stack opcode"),
         };
         self.ensure_stack_limit(block_id, name, *stack)
     }
@@ -415,6 +454,84 @@ pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
     Verifier::new(dcx).verify_module(module);
 }
 
+pub(super) fn validate_evm_version(
+    dcx: &DiagCtxt,
+    module: &Module,
+    evm_version: EvmVersion,
+    allow_legacy_opcodes: bool,
+) {
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for inst in &block.instructions {
+            if let Some(stack_op) = inst.as_stack_op() {
+                validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
+            } else {
+                validate_opcode(dcx, block_id, inst.opcode, evm_version, allow_legacy_opcodes);
+            }
+        }
+        if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator {
+            validate_opcode(dcx, block_id, *opcode, evm_version, allow_legacy_opcodes);
+        }
+    }
+}
+
+pub(super) fn validate_stack_ops_for_evm_version(
+    dcx: &DiagCtxt,
+    module: &Module,
+    evm_version: EvmVersion,
+) {
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for inst in &block.instructions {
+            if let Some(stack_op) = inst.as_stack_op() {
+                validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
+            }
+        }
+    }
+}
+
+fn validate_stack_op(
+    dcx: &DiagCtxt,
+    block: BlockId,
+    inst: &Instruction,
+    stack_op: op::StackOp,
+    evm_version: EvmVersion,
+) {
+    if stack_op.lowering(evm_version).is_none() {
+        dcx.err(format!(
+            "EVM IR verification failed: block {}: `{}` requires Amsterdam-compatible EVM",
+            block.index(),
+            inst.mnemonic()
+        ))
+        .emit();
+    }
+}
+
+fn validate_opcode(
+    dcx: &DiagCtxt,
+    block: BlockId,
+    opcode: u8,
+    evm_version: EvmVersion,
+    allow_legacy_opcodes: bool,
+) {
+    if allow_legacy_opcodes
+        && ((!evm_version.has_bitwise_shifting() && matches!(opcode, op::SHL | op::SHR | op::SAR))
+            || (!evm_version.supports_returndata() && opcode == op::REVERT))
+    {
+        return;
+    }
+    if !op::is_available(opcode, evm_version) {
+        let name = op::mnemonic(opcode).unwrap_or("unknown");
+        dcx.err(format!(
+            "EVM IR verification failed: block {}: opcode `{name}` is unavailable for `{evm_version}` EVM",
+            block.index()
+        ))
+        .emit();
+    }
+}
+
+pub(super) fn validate_for_evm_version(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
+    Verifier::for_evm_version(dcx, evm_version).verify_module(module);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,5 +554,25 @@ mod tests {
             validate(&dcx, &module);
             assert_eq!(dcx.err_count(), expected_errors);
         }
+    }
+
+    #[test]
+    fn gates_amsterdam_instructions() {
+        let mut module = Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        module.blocks[entry]
+            .instructions
+            .extend((0..17).map(|_| Instruction::push_value(U256::ZERO)));
+        module.blocks[entry].instructions.push(Instruction::stack_op(op::StackOp::Dup(17)));
+        module.blocks[entry].instructions.push(Instruction::opcode(op::SLOTNUM));
+        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        let osaka = DiagCtxt::with_silent_emitter(None);
+        validate_for_evm_version(&osaka, &module, EvmVersion::Osaka);
+        assert_eq!(osaka.err_count(), 2);
+
+        let amsterdam = DiagCtxt::with_silent_emitter(None);
+        validate_for_evm_version(&amsterdam, &module, EvmVersion::Amsterdam);
+        assert_eq!(amsterdam.err_count(), 0);
     }
 }

@@ -3,7 +3,7 @@
   @module module
   bb0:
     push 7
--   dup1
+-   dup 1
     push 160
     mload
     push 128
@@ -13,18 +13,18 @@
     stop
   bb1:
     push 7
--   dup1
+-   dup 1
     push 1
     add
--   swap1
+-   swap 1
 -   pop
     push 0
     mstore
     stop
   bb2:
     push 7
-    dup1
--   dup1
+    dup 1
+-   dup 1
     push 32
     mstore
     push 64
@@ -34,24 +34,24 @@
   bb3:
     push 1
     push 2
-    dup1
-    dup2
+    dup 1
+    dup 2
     add
-    swap1
+    swap 1
     pop
     pop
     stop
   bb4:
     push 1
--   dup1
--   swap1
+-   dup 1
+-   swap 1
     push 32
     mstore
 -   pop
     stop
   bb5:
     push 1
-    dup1
+    dup 1
     push bb6
     jumpi
     pop
@@ -60,30 +60,30 @@
     stop
   bb7:
     push 7
-    dup1
+    dup 1
     push 32
     mstore
     stop
   bb8:
     push 7
--   dup1
+-   dup 1
     pop
     caller
     callvalue
--   swap2
-+   swap1
+-   swap 2
++   swap 1
     pop
     pop
 -   pop
     stop
   bb9:
     push 7
--   dup1
+-   dup 1
 -   pop
     caller
     callvalue
     origin
-    swap3
+    swap 3
     pop
     pop
     pop
@@ -92,16 +92,16 @@
   bb10:
     push 1
     push 2
--   dup2
--   swap1
--   pop
+-   dup 2
+-   swap 1
     pop
+-   pop
     stop
   bb11:
     push 7
-    dup1
+    dup 1
     push 1
-    dup3
+    dup 3
     add
     pop
     pop
@@ -109,18 +109,18 @@
     stop
   bb12:
     push 7
-    dup1
+    dup 1
     add
     pop
     stop
   bb13:
     push 7
-    dup1
+    dup 1
     iszero
     caller
     callvalue
     origin
-    swap4
+    swap 4
     pop
     pop
     pop
@@ -129,28 +129,30 @@
   bb14:
     push 1
     push 2
-    dup2
+    dup 2
     add
     pop
     pop
     stop
   bb15:
     push 1
-    dup1
-    dupn
-    pop
-    pop
+-   dup 1
+-   dup 2
+-   pop
+-   pop
     stop
   bb16:
     push 1
-    dup1
-    swapn
-    pop
+-   dup 1
+-   swap 1
+-   pop
     stop
   bb17:
     push 1
-    dup1
-    exchange
-    pop
+    dup 1
+-   dup 1
+-   exchange 1, 2
+-   pop
++   swap 1
     stop
   

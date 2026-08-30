@@ -24,12 +24,26 @@
  (yul_decimal_number)
  (yul_hex_number)
 ] @number
+(number_unit) @type
+
+(hex_string_literal "hex" @string.special)
+(unicode_string_literal "unicode" @string.special)
+(yul_hex_string_literal "hex" @string.special)
 [
  (true)
  (false)
-] @constant.builtin
+] @boolean
 
 (comment) @comment
+
+; Built-ins
+; ---------
+
+((identifier) @variable.builtin
+  (#match? @variable.builtin "^(abi|block|msg|now|super|this|tx)$"))
+
+((identifier) @function.builtin
+  (#match? @function.builtin "^(addmod|assert|blockhash|blobhash|ecrecover|gasleft|keccak256|mulmod|require|ripemd160|selfdestruct|sha256|sha3|suicide)$"))
 
 ; Definitions and references
 ; -----------
@@ -79,18 +93,18 @@
 (call_expression . (expression(identifier)) @function)
 
 ; Function parameters
-(call_struct_argument name: (_) @field)
-(event_parameter name: (identifier) @parameter)
+(call_struct_argument name: (_) @function.kwargs)
+(event_parameter name: (identifier) @variable.parameter)
 (parameter name: (identifier) @variable.parameter)
 
 ; Yul functions
 (yul_function_call function: (yul_identifier) @function)
-(yul_function_definition . (yul_identifier) @function (yul_identifier) @parameter)
+(yul_function_definition . (yul_identifier) @function (yul_identifier) @variable.parameter)
 
 
 ; Structs and members
 (member_expression property: (identifier) @property)
-(struct_expression type: ((expression(identifier)) @type .))
+(struct_expression type: (expression (identifier) @type))
 (struct_field_assignment name: (identifier) @property)
 
 
@@ -102,14 +116,21 @@
 ; Keywords
 [
  "pragma"
+ "abstract"
  "contract"
+ "error"
  "interface"
  "library"
+ "layout"
+ "at"
+ "type"
  "is"
  "struct"
  "enum"
  "event"
+ "anonymous"
  "using"
+ "global"
  "assembly"
  "emit"
  "public"
@@ -125,8 +146,12 @@
  "calldata"
  "var"
  "constant"
+ "let"
  (virtual)
  (override_specifier)
+ (immutable)
+ (state_location)
+ (unchecked)
  (yul_leave)
 ] @keyword
 
@@ -134,9 +159,6 @@
  "for"
  "while"
  "do"
-] @repeat
-
-[
  "break"
  "continue"
  "if"
@@ -144,23 +166,20 @@
  "switch"
  "case"
  "default"
-] @conditional
-
-[
  "try"
  "catch"
-] @exception
+ "revert"
+] @keyword.control
 
-[
- "return"
- "returns"
-] @keyword.return
+"return" @keyword.control
+"returns" @keyword
 
-"function" @keyword.function
+"function" @keyword.declaration
 
-"import" @include
-(import_directive "as" @include)
-(import_directive "from" @include)
+"import" @keyword.import
+(import_directive "as" @keyword.import)
+(import_directive "from" @keyword.import)
+(using_alias "as" @keyword)
 
 (event_parameter "indexed" @keyword)
 
@@ -179,6 +198,9 @@
 [
   "."
   ","
+  ";"
+  ":"
+  "=>"
 ] @punctuation.delimiter
 
 
@@ -206,11 +228,30 @@
   ">"
   "!"
   "~"
+  "="
+  "+="
+  "-="
+  "*="
+  "/="
+  "%="
+  "^="
+  "&="
+  "|="
+  ">>="
+  "<<="
+  "->"
+  ":="
   "-"
   "+"
   "++"
   "--"
 ] @operator
+
+(ternary_expression
+  [
+    "?"
+    ":"
+  ] @operator)
 
 [
   "delete"

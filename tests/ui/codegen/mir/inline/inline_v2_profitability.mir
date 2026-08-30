@@ -4,8 +4,8 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @single_large_caller{{[( ]}}
 // CHECK: - {{.*}}internal_call @single_large_callee
-// CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED:v[0-9]+]]]
-// CHECK: + [[INLINED]] = add arg0, 1
+// CHECK: + [[INLINED:v[0-9]+]] = add arg0, 1
+// CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED]]]
 fn @single_large_caller(arg0: u256) -> u256 {
   bb0:
     v1 = internal_call fn1, 1, arg0
@@ -92,8 +92,8 @@ fn @large_shared_nontail(arg0: u256) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @large_shared_tail{{[( ]}}
 // CHECK: - {{.*}}internal_call @large_shared_callee
-// CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED:v[0-9]+]]]
-// CHECK: + [[INLINED]] = add arg0, 1
+// CHECK: + [[INLINED:v[0-9]+]] = add arg0, 1
+// CHECK: + {{v[0-9]+}} = phi [bb13: [[INLINED]]]
 fn @large_shared_tail(arg0: u256) -> u256 {
   bb0:
     v1 = internal_call fn8, 1, arg0

@@ -7,12 +7,12 @@ fn @doAdd() {
     v1 = sub v0, 4
     v2 = slt v1, 64
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = internal_call @add, 1, arg0, arg1
     mstore 128, v3
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @add(arg0: i256, arg1: i256) -> i256 {
@@ -22,10 +22,10 @@ fn @add(arg0: i256, arg1: i256) -> i256 {
     v2 = slt v0, arg1
     v3 = xor v1, v2
     jumpi v3, bb1, bb2
-  bb1:
-    tail_call @__revert_stub0
   bb2:
     ret v0
+  bb1:
+    tail_call @__revert_stub0
 }
 
 fn @doNeg() {
@@ -34,23 +34,23 @@ fn @doNeg() {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
     v3 = internal_call @neg, 1, arg0
     mstore 128, v3
     returndata 128, 32
+  bb1:
+    revert 0, 0
 }
 
 fn @neg(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     jumpi v0, bb1, bb2
-  bb1:
-    tail_call @__revert_stub0
   bb2:
     v1 = sub 0, arg0
     ret v1
+  bb1:
+    tail_call @__revert_stub0
 }
 
 fn @__revert_stub0() {
@@ -68,10 +68,10 @@ fn @entry() [entry] {
     v1 = calldataload 0
     v2 = shr 224, v1
     switch v2, default bb4, [0x8fa81b4e => bb2, 0xe9148a2a => bb3]
-  bb2:
-    tail_call @doNeg
   bb3:
     tail_call @doAdd
+  bb2:
+    tail_call @doNeg
   bb4:
     revert 0, 0
 }

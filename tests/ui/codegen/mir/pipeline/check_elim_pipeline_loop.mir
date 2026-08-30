@@ -16,11 +16,11 @@
 // CHECK-NEXT: [[INDEX:v[0-9]+]] = phi [bb0: 0], [[[LATCH:bb[0-9]+]]: [[NEXT:v[0-9]+]]]
 // CHECK: [[SUM:v[0-9]+]] = add {{v[0-9]+}}, [[INDEX]]
 // CHECK: {{v[0-9]+}} = lt [[SUM]], {{v[0-9]+}}
-// CHECK: mstore 4, 17 !metadata(memory=scratch)
-// CHECK: revert 0, 36
 // CHECK: [[LATCH]]:
 // CHECK: [[NEXT]] = add [[INDEX]], 1
 // CHECK-NEXT: jump [[HEADER]]
+// CHECK: mstore 4, 17 !metadata(memory=scratch)
+// CHECK: revert 0, 36
 fn @sum(arg0: u256) {
   bb0:
     mstore 128, 0

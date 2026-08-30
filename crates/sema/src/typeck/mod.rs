@@ -284,10 +284,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
                 return false;
             }
         }
-        if !same_external_params(gcx, gcx.type_of_item(a), gcx.type_of_item(b)) {
-            return false;
-        }
-        true
+        same_external_params(gcx, gcx.type_of_item(a), gcx.type_of_item(b))
     };
 
     let mut reported = GrowableBitSet::new_empty();

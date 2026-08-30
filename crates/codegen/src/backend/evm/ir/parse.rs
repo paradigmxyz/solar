@@ -221,9 +221,40 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 })?;
                 Instruction::push_immutable(id, type_size)
             }
-            _ => Instruction::opcode(op::from_ir_symbol(mnemonic).ok_or_else(|| {
-                self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
-            })?),
+            sym::dup | sym::swap => {
+                let depth = self.parse_u8()?;
+                let stack_op = if mnemonic == sym::dup {
+                    op::StackOp::Dup(depth)
+                } else {
+                    op::StackOp::Swap(depth)
+                };
+                if !stack_op.is_valid() {
+                    return Err(self.parser.error("stack depth must be between 1 and 235"));
+                }
+                Instruction::stack_op(stack_op)
+            }
+            sym::exchange => {
+                let n = self.parse_u8()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let m = self.parse_u8()?;
+                let stack_op = op::StackOp::Exchange(n, m);
+                if !stack_op.is_valid() {
+                    return Err(self
+                        .parser
+                        .error("exchange depths must satisfy `1 <= n < m` and `n + m <= 30`"));
+                }
+                Instruction::stack_op(stack_op)
+            }
+            _ => {
+                let opcode = op::from_ir_symbol(mnemonic).ok_or_else(|| {
+                    self.parser.error(format!("unknown instruction opcode `{mnemonic}`"))
+                })?;
+                if opcode == op::PUSH0 {
+                    Instruction::push_value(U256::ZERO)
+                } else {
+                    Instruction::opcode(opcode)
+                }
+            }
         };
         inst.metadata = self.parse_metadata()?;
         module.blocks[block].instructions.push(inst);
@@ -400,6 +431,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, source_map::FileName};
     use std::path::{Path, PathBuf};
 
@@ -417,6 +449,30 @@ mod tests {
             .join("ui")
             .join("codegen")
             .join("evm-ir")
+    }
+
+    #[test]
+    fn legacy_stack_ops_print_with_operands() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        let output = sess.enter(|| {
+            parse_module(&sess, "@module legacy\nbb0:\n  push0\n  dup1\n  swap16\n  stop\n")
+                .unwrap()
+                .to_text()
+                .to_string()
+        });
+
+        assert_data_eq!(
+            output,
+            str![[r#"
+@module legacy
+bb0:
+  push 0
+  dup 1
+  swap 16
+  stop
+
+"#]]
+        );
     }
 
     #[test]

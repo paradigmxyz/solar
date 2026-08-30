@@ -1,0 +1,10 @@
+error[5430]: Yul builtin `basefee` requires London-compatible EVM
+   ╭▸ ROOT/tests/ui/parser/yul/evm_version/london.sol:LL:CC
+   │
+LL │             fee := basefee()
+   │                    ━━━━━━━
+   │
+   ╰ help: compile with `--evm-version london` or newer
+
+error: aborting due to 1 previous error
+

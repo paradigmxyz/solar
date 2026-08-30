@@ -1,14 +1,12 @@
-error: tag `@return` not valid for variables
+warning[6546]: tag `@return` not valid for variables
    ╭▸ ROOT/tests/ui/natspec/tag_variables.sol:LL:CC
    │
 LL │     /// @return Invalid return on private variable
    ╰╴         ━━━━━━
 
-error: tag `@param` not valid for variables
+warning[6546]: tag `@param` not valid for variables
    ╭▸ ROOT/tests/ui/natspec/tag_variables.sol:LL:CC
    │
 LL │     /// @param owner Invalid parameter on variable
    ╰╴         ━━━━━
-
-error: aborting due to 2 previous errors
 

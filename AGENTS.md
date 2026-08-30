@@ -224,6 +224,18 @@ complex runtime tests under `tests/foundry/` and run them with
 state, multiple actors or contracts, event assertions, cheatcodes, and complex
 setup.
 
+Real-world Foundry projects run as an external, local-only differential suite
+through `cargo tq foundry-external [name]`: each project's own test suite is
+the oracle, with solc as the baseline leg. Add a project to
+`tools/tester/src/foundry/external.rs` (pinned to a full commit hash, git
+submodules only for dependencies) when whole-project scale is what finds the
+bugs — dispatch and ABI breadth, deep inheritance, assembly-heavy libraries,
+EIP-170 pressure. Keep writing minimal in-repo `tests/foundry/` projects or
+`run-call` UI tests for anything that can be reduced: external projects are
+never run in CI, and a reduced regression test must land with any fix they
+surface. Skip entries require a reason; sustained divergences graduate to
+`docs/SOLC_DIVERGENCE.md`.
+
 Use FileCheck when exact full-output snapshots are too brittle or when a test
 needs to assert selected output properties such as ordering, presence, or
 absence. Put `// CHECK:`, `// CHECK-LABEL:`, `// CHECK-NOT:`, and related
@@ -282,6 +294,7 @@ Error messages should follow these conventions:
 - **No full stops**: Error messages should not end with periods
 - **Use backticks for code**: Use `` `identifier` `` instead of `"identifier"` for code references
 - **Main message is concise**: Keep the primary error message short and direct
+- **Match solc warning codes**: When adding a warning that solc also emits, use solc's diagnostic code so the same code silences it with `--allow`
 - **Propagate guarantees**: Code paths that emit diagnostics should return `Result<(), ErrorGuaranteed>` instead of `bool` where practical, and pass the emitted guarantee to `mk_ty_err` when producing an error type
 - **Avoid unchecked guarantees**: Do not use `ErrorGuaranteed::new_unchecked()` when a real emitted diagnostic guarantee can be propagated
 - **Use subdiagnostics**: Add context via `note`, `help`, and `span_note`:

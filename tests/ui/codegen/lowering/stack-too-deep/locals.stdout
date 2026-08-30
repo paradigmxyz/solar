@@ -2,8 +2,8 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 836
-  dup1
+  push 835
+  dup 1
   push 10
   push 0
   codecopy
@@ -20,7 +20,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x188b85b4
   eq
   push bb4
@@ -28,7 +28,7 @@ bb0:
   jump bb3
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb49 [cold]:
   push 0x4e487b71
@@ -43,9 +43,8 @@ bb49 [cold]:
   push 0
   revert
 bb4:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -55,7 +54,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 4
@@ -67,7 +66,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 4
@@ -79,7 +78,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 224
   mstore
   push 4
@@ -88,10 +87,10 @@ bb4:
   push bb49
   jumpi
   push 4
-  dup1
+  dup 1
   calldataload
   add
-  dup1
+  dup 1
   push 256
   mstore
   push 4
@@ -103,7 +102,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 288
   mstore
   push 4
@@ -115,7 +114,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 320
   mstore
   push 4
@@ -127,7 +126,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 352
   mstore
   push 4
@@ -139,7 +138,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 384
   mstore
   push 4
@@ -151,7 +150,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 416
   mstore
   push 4
@@ -163,7 +162,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 448
   mstore
   push 4
@@ -175,7 +174,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 480
   mstore
   push 4
@@ -187,7 +186,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 512
   mstore
   push 4
@@ -199,7 +198,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 544
   mstore
   push 4
@@ -211,7 +210,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 576
   mstore
   push 4
@@ -223,7 +222,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 608
   mstore
   push 4
@@ -235,7 +234,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 640
   mstore
   push 4
@@ -247,7 +246,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 672
   mstore
   push 4
@@ -259,7 +258,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 704
   mstore
   push 4
@@ -271,7 +270,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 736
   mstore
   push 4
@@ -283,7 +282,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 768
   mstore
   push 4
@@ -295,7 +294,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 800
   mstore
   push 4
@@ -308,7 +307,7 @@ bb4:
   push 4
   calldataload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 4
@@ -321,7 +320,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -334,7 +333,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -347,7 +346,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -360,7 +359,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -373,7 +372,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -386,7 +385,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -399,7 +398,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -412,7 +411,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -425,7 +424,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -438,7 +437,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -451,7 +450,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -464,7 +463,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -477,7 +476,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -490,7 +489,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -503,7 +502,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -516,7 +515,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -529,7 +528,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -542,7 +541,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192
@@ -555,7 +554,7 @@ bb4:
   push 160
   mload
   add
-  dup1
+  dup 1
   push 192
   mstore
   push 160
@@ -568,7 +567,7 @@ bb4:
   push 192
   mload
   add
-  dup1
+  dup 1
   push 160
   mstore
   push 192

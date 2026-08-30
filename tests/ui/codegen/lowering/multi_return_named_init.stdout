@@ -16,18 +16,14 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
     v5 = mload v4 !metadata(memory=internal_frame)
     v6 = lt v5, 8
     jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
   bb2:
     v36 = internal_frame_addr 192
     v37 = mload v36 !metadata(memory=internal_frame)
     v38 = internal_frame_addr 224
     v39 = mload v38 !metadata(memory=internal_frame)
     ret v37, v39
-  bb3:
-    v31 = internal_frame_addr 256
-    v32 = mload v31 !metadata(memory=internal_frame)
-    v33 = add v32, 1
-    v34 = lt v33, v32
-    jumpi v34, bb10, bb11
   bb4:
     v7 = internal_frame_addr 192
     v8 = mload v7 !metadata(memory=internal_frame)
@@ -40,8 +36,6 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
     v14 = slice_len arg0
     v15 = lt v13, v14
     jumpi v15, bb7, bb6
-  bb5:
-    jump bb2
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -63,22 +57,28 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) {
     v28 = add v27, 1
     v29 = lt v28, v27
     jumpi v29, bb8, bb9
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     v30 = internal_frame_addr 224
     mstore v30, v28 !metadata(memory=internal_frame)
     jump bb3
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+  bb3:
+    v31 = internal_frame_addr 256
+    v32 = mload v31 !metadata(memory=internal_frame)
+    v33 = add v32, 1
+    v34 = lt v33, v32
+    jumpi v34, bb10, bb11
   bb11:
     v35 = internal_frame_addr 256
     mstore v35, v33 !metadata(memory=internal_frame)
     jump bb1
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_returns=[word, word]] {
@@ -87,17 +87,42 @@ fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_returns=[word, word]] {
     v1 = sub v0, 4
     v2 = slt v1, 32
     jumpi v2, bb1, bb2
-  bb1:
-    revert 0, 0
   bb2:
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = gt v5, v14
+    jumpi v15, bb7, bb8
+  bb8:
     mstore 128, 0
     mstore 160, 0
-    v3 = internal_call @readU64, 2, arg0, 0
-    mstore 128, v3
-    v4 = internal_call @readU64, 2, arg0, 8
-    mstore 160, v4
-    v5 = mload 128
-    v6 = mload 160
-    ret v5, v6
+    v16 = internal_call @readU64, 2, arg0, 0
+    mstore 128, v16
+    v17 = internal_call @readU64, 2, arg0, 8
+    mstore 160, v17
+    v18 = mload 128
+    v19 = mload 160
+    ret v18, v19
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
 }
 

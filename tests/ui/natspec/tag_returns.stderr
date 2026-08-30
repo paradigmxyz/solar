@@ -1,32 +1,30 @@
-error: too many `@return` tags: function has 2 return values, found 3
+warning[2604]: too many `@return` tags: function has 2 return values, found 3
    ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
    │
 LL │     /// @return Third return value
    ╰╴         ━━━━━━
 
-error: tag `@return` references non-existent return parameter 'other'
+warning[5856]: tag `@return` references non-existent return parameter 'other'
    ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
    │
 LL │     /// @return other Invalid return name
    ╰╴         ━━━━━━
 
-error: tag `@return` does not contain the name of its return parameter
+warning[5856]: tag `@return` does not contain the name of its return parameter
    ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
    │
 LL │     /// @return
    ╰╴         ━━━━━━
 
-error: mismatched `@return` parameter: expected `first`, found `second`
+warning[5856]: mismatched `@return` parameter: expected `first`, found `second`
    ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
    │
 LL │     /// @return second The second return value is documented first
    ╰╴                ━━━━━━
 
-error: mismatched `@return` parameter: expected `second`, found `first`
+warning[5856]: mismatched `@return` parameter: expected `second`, found `first`
    ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
    │
 LL │     /// @return first The first return value is documented second
    ╰╴                ━━━━━
-
-error: aborting due to 5 previous errors
 

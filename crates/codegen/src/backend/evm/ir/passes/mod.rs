@@ -11,12 +11,15 @@ mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
 mod constant_data;
 mod dce;
+mod legalize_shifts;
 mod outline;
 mod peephole;
 mod share_reverts;
 mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
+
+pub(in crate::backend::evm) use legalize_shifts::{LEGACY_SHIFT_STACK_HEADROOM, legalize_shifts};
 
 use super::Module;
 use crate::{
@@ -57,6 +60,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &coalesce_copies::CoalesceCopies,
     &constant_data::ConstantData,
     &dce::Dce,
+    &legalize_shifts::LegalizeShifts,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
@@ -91,8 +95,28 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // lose more shared bytes than the local CSE removes.
     &block_cse::BlockCseCleanup,
     &dce::Dce,
+    // DCE retargets physical stack operations and exposes local rewrites.
+    &peephole::Peephole,
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
+    &block_layout::BlockLayout,
+    &share_reverts::ShareReverts,
+    &cfg_simplify::CfgSimplify,
+    &block_layout::BlockLayout,
+    // Block CSE and final placement can expose new equal tails whose addresses or predecessors
+    // differed during the first structural sweep. Repeat the structural half to a fixed point at
+    // pass granularity; each pass remains internally profitability-gated.
+    &terminal_dedup::TerminalDedup,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &cfg_simplify::CfgSimplify,
+    &tail_merge::TailMerge,
+    &outline::Outline,
+    &cfg_simplify::CfgSimplify,
+    &compact_pushes::CompactPushes,
+    &peephole::Peephole,
+    &block_cse::BlockCseCleanup,
+    &dce::Dce,
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
@@ -136,10 +160,14 @@ fn run_passes_inner(
         }
 
         if enabled {
+            let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = pass.run_pass(gcx, module);
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
+            if gcx.dcx().err_count() != errors_before {
+                return changed;
+            }
         }
 
         if let Some(before) = before {
@@ -157,6 +185,11 @@ fn run_passes_inner(
 /// `name` overrides the module name in pass output.
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+    super::verify::validate_stack_ops_for_evm_version(gcx.dcx(), module, gcx.sess.opts.evm_version);
+    if gcx.dcx().has_errors().is_err() {
+        return false;
+    }
+
     let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
         return run_passes(gcx, module, DEFAULT_PIPELINE, None);
     };

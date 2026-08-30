@@ -15,7 +15,6 @@ import subprocess
 import tempfile
 from typing import Any
 
-
 SCHEMA = "solar:solsymdiff@v1"
 TEST_NAME = "checkSymbolicDifferential"
 DEFAULT_DYNAMIC_LENGTHS = (0, 1, 2, 3)
@@ -47,20 +46,13 @@ def main(argv: list[str] | None = None) -> int:
         "--include-stateful",
         action="store_true",
         help=(
-            "allow a nonpayable target or concrete same-target prefix under "
-            "the clean zero-storage model"
+            "allow a nonpayable target under the clean zero-storage, single-call model"
         ),
     )
-    parser.add_argument(
-        "--prefix-calldata",
-        type=_prefix_calldata,
-        action="append",
-        default=[],
-        metavar="HEX",
-        help="replay fixed zero-value target calldata before the symbolic call",
-    )
     parser.add_argument("--project-root", type=pathlib.Path)
-    parser.add_argument("--include-path", type=pathlib.Path, action="append", default=[])
+    parser.add_argument(
+        "--include-path", type=pathlib.Path, action="append", default=[]
+    )
     parser.add_argument("--remapping", action="append", default=[])
     parser.add_argument("--solc", default="solc")
     parser.add_argument("--solar", default="target/debug/solar")
@@ -140,13 +132,12 @@ def main(argv: list[str] | None = None) -> int:
     }[result["status"]]
 
 
-def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> dict[str, Any]:
+def run(
+    args: argparse.Namespace, output_root: pathlib.Path | None = None
+) -> dict[str, Any]:
     source = args.source.resolve()
     if not source.is_file():
         raise ValueError(f"source file does not exist: {source}")
-    prefix_calldata = tuple(args.prefix_calldata)
-    if prefix_calldata and not args.include_stateful:
-        raise ValueError("prefix calls require --include-stateful")
 
     tools = {
         name: _resolve_executable(getattr(args, name))
@@ -193,8 +184,6 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
         include_view=args.include_view,
         include_stateful=args.include_stateful,
     )
-    if prefix_calldata and function["mutability"] == "pure":
-        raise ValueError("prefix calls require a view or nonpayable target")
     input_lengths = _normalize_input_lengths(args.input_length, function["inputs"])
     solc_runtime = solc_artifact["runtime"]
     solar_runtime = solar_artifact["runtime"]
@@ -224,11 +213,11 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
     }
 
     if output_root is None:
-        output_root = pathlib.Path(__file__).resolve().parents[2] / "target" / "solsymdiff"
+        output_root = (
+            pathlib.Path(__file__).resolve().parents[2] / "target" / "solsymdiff"
+        )
     output_root.mkdir(parents=True, exist_ok=True)
-    project = pathlib.Path(
-        tempfile.mkdtemp(prefix=f"{source.stem}-", dir=output_root)
-    )
+    project = pathlib.Path(tempfile.mkdtemp(prefix=f"{source.stem}-", dir=output_root))
     (project / "standard-input.json").write_text(
         serialized_input + "\n",
         encoding="utf-8",
@@ -241,7 +230,6 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
         args.evm_version,
         dynamic_lengths=args.dynamic_lengths,
         input_lengths=input_lengths,
-        prefix_calldata=prefix_calldata,
         exploration_order=args.exploration_order,
         max_dynamic_length=max_dynamic_length,
         max_returndata_bytes=args.max_returndata_bytes,
@@ -269,8 +257,6 @@ def run(args: argparse.Namespace, output_root: pathlib.Path | None = None) -> di
             "project": str(project),
         }
     )
-    if prefix_calldata:
-        result["prefix"] = {"calldata": list(prefix_calldata), "value": 0}
     (project / "result.json").write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -297,14 +283,6 @@ def _nonnegative_int(value: str) -> int:
     if number < 0:
         raise argparse.ArgumentTypeError("value must be non-negative")
     return number
-
-
-def _prefix_calldata(value: str) -> str:
-    if not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})*", value):
-        raise argparse.ArgumentTypeError(
-            "prefix calldata must be 0x-prefixed, even-length hexadecimal"
-        )
-    return value.lower()
 
 
 def _dynamic_lengths(value: str) -> tuple[int, ...]:
@@ -413,11 +391,11 @@ def _standard_input(
     with tempfile.TemporaryDirectory(prefix="solar-solsymdiff-imports-") as cwd:
         result = subprocess.run(
             command,
+            check=False,
             input=json.dumps(discovery_input),
             cwd=cwd,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
     output = _compiler_json(result, "Solc import discovery")
@@ -432,7 +410,9 @@ def _standard_input(
             path = source
         else:
             candidates = tuple((root / name).resolve() for root in roots)
-            path = next((candidate for candidate in candidates if candidate.is_file()), None)
+            path = next(
+                (candidate for candidate in candidates if candidate.is_file()), None
+            )
             if path is None:
                 raise ValueError(f"could not snapshot imported source unit: {name}")
         sources[name] = {"content": path.read_text(encoding="utf-8")}
@@ -456,7 +436,9 @@ def _standard_input(
         **({"remappings": list(remappings)} if remappings else {}),
     }
     value = {"language": "Solidity", "sources": sources, "settings": settings}
-    serialized = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    serialized = json.dumps(
+        value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
     return {
         "input": value,
         "root_source": root_source,
@@ -477,21 +459,21 @@ def _compile(
     with tempfile.TemporaryDirectory(prefix="solar-solsymdiff-compile-") as cwd:
         result = subprocess.run(
             [compiler, "--standard-json"],
+            check=False,
             input=standard_input,
             cwd=cwd,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
         )
     output = _compiler_json(result, label)
 
     contracts = output.get("contracts")
-    source_contracts = contracts.get(source_name) if isinstance(contracts, dict) else None
+    source_contracts = (
+        contracts.get(source_name) if isinstance(contracts, dict) else None
+    )
     artifact = (
-        source_contracts.get(contract)
-        if isinstance(source_contracts, dict)
-        else None
+        source_contracts.get(contract) if isinstance(source_contracts, dict) else None
     )
     if not isinstance(artifact, dict):
         raise ValueError(f"{label} did not emit {source_name}:{contract}")
@@ -572,7 +554,9 @@ def _select_function(
         allowed.add("nonpayable")
     if mutability not in allowed:
         choices = ", ".join(sorted(allowed))
-        raise ValueError(f"{signature} has mutability {mutability!r}; allowed: {choices}")
+        raise ValueError(
+            f"{signature} has mutability {mutability!r}; allowed: {choices}"
+        )
     if not all(_supported_input(item) for item in solc_entry["inputs"]):
         raise ValueError(f"{signature} uses an unsupported symbolic input")
 
@@ -630,7 +614,9 @@ def _canonical_type(item: dict[str, Any]) -> str:
     if not isinstance(components, list):
         raise ValueError("tuple ABI value has no components")
     suffix = abi_type[len("tuple") :]
-    return f"({','.join(_canonical_type(component) for component in components)}){suffix}"
+    return (
+        f"({','.join(_canonical_type(component) for component in components)}){suffix}"
+    )
 
 
 def _function_shape(entry: dict[str, Any]) -> tuple[Any, ...]:
@@ -655,9 +641,7 @@ def _selector(identifiers: dict[str, Any], signature: str, label: str) -> str:
     try:
         bytes.fromhex(payload)
     except ValueError as err:
-        raise ValueError(
-            f"{label} emitted a non-hex selector for {signature}"
-        ) from err
+        raise ValueError(f"{label} emitted a non-hex selector for {signature}") from err
     return "0x" + payload.lower()
 
 
@@ -692,7 +676,7 @@ def _supported_elementary(abi_type: str) -> bool:
 
     if abi_type in {"address", "bool", "bytes", "string"}:
         return True
-    if abi_type.startswith("uint") or abi_type.startswith("int"):
+    if abi_type.startswith(("uint", "int")):
         width = abi_type[4:] if abi_type.startswith("uint") else abi_type[3:]
         return not width or (width.isdigit() and int(width) in range(8, 257, 8))
     if abi_type.startswith("bytes"):
@@ -763,7 +747,6 @@ def _write_project(
     max_dynamic_length: int,
     dynamic_lengths: tuple[int, ...] = DEFAULT_DYNAMIC_LENGTHS,
     input_lengths: dict[str, tuple[int, ...]] | None = None,
-    prefix_calldata: tuple[str, ...] = (),
     exploration_order: str = "bfs",
     max_returndata_bytes: int = MAX_RETURNDATA_BYTES,
 ) -> None:
@@ -771,9 +754,7 @@ def _write_project(
     (project / "test").mkdir()
 
     definitions, declarations = _solidity_parameters(function["inputs"])
-    arguments = ", ".join(
-        f"arg{index}" for index in range(len(function["inputs"]))
-    )
+    arguments = ", ".join(f"arg{index}" for index in range(len(function["inputs"])))
     encode_arguments = f", {arguments}" if arguments else ""
     word_checks = "\n".join(
         (
@@ -782,90 +763,9 @@ def _write_project(
         )
         for offset in range(0, max_returndata_bytes, 32)
     )
-    prefix_a = []
-    prefix_store = []
-    prefix_b = []
-    if prefix_calldata:
-        prefix_a.extend(
-            (
-                "        bytes32[] memory prefixResultA = "
-                f"new bytes32[]({len(prefix_calldata)});",
-                "        vm.record();",
-                "        vm.recordLogs();",
-            )
-        )
-        for index, calldata in enumerate(prefix_calldata):
-            payload = calldata.removeprefix("0x")
-            prefix_a.extend(
-                (
-                    "        {",
-                    "            (bool ok, bytes memory ret) =",
-                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
-                    f"            prefixResultA[{index}] = keccak256(abi.encode(ok, ret));",
-                    "        }",
-                )
-            )
-        prefix_a.extend(
-            (
-                "        (, bytes32[] memory prefixWritesA) = vm.accesses(TARGET);",
-                "        vm.stopRecord();",
-                "        Vm.Log[] memory prefixLogsA = vm.getRecordedLogs();",
-                "        bytes32[] memory prefixValuesA =",
-                "            new bytes32[](prefixWritesA.length);",
-                "        for (uint256 i; i < prefixWritesA.length; ++i) {",
-                "            prefixValuesA[i] = vm.load(TARGET, prefixWritesA[i]);",
-                "        }",
-                "",
-            )
-        )
-        prefix_store.extend(
-            (
-                "        for (uint256 i; i < prefixWritesA.length; ++i) {",
-                "            vm.store(STATE_MIRROR, prefixWritesA[i], prefixValuesA[i]);",
-                "        }",
-            )
-        )
-        prefix_b.extend(("        vm.record();", "        vm.recordLogs();"))
-        for index, calldata in enumerate(prefix_calldata):
-            payload = calldata.removeprefix("0x")
-            prefix_b.extend(
-                (
-                    "        {",
-                    "            (bool ok, bytes memory ret) =",
-                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
-                    "            assert(",
-                    f"                prefixResultA[{index}] == keccak256(abi.encode(ok, ret))",
-                    "            );",
-                    "        }",
-                )
-            )
-        prefix_b.extend(
-            (
-                "        (, bytes32[] memory prefixWritesB) = vm.accesses(TARGET);",
-                "        vm.stopRecord();",
-                "        Vm.Log[] memory prefixLogsB = vm.getRecordedLogs();",
-                "        assert(",
-                "            keccak256(abi.encode(prefixLogsA)) ==",
-                "                keccak256(abi.encode(prefixLogsB))",
-                "        );",
-                "        for (uint256 i; i < prefixWritesA.length; ++i) {",
-                "            assert(",
-                "                vm.load(STATE_MIRROR, prefixWritesA[i]) ==",
-                "                    vm.load(TARGET, prefixWritesA[i])",
-                "            );",
-                "        }",
-                "        for (uint256 i; i < prefixWritesB.length; ++i) {",
-                "            assert(",
-                "                vm.load(STATE_MIRROR, prefixWritesB[i]) ==",
-                "                    vm.load(TARGET, prefixWritesB[i])",
-                "            );",
-                "        }",
-                "",
-            )
-        )
     template = (
         _STATEFUL_TEST_TEMPLATE
-        if function.get("mutability") == "nonpayable" or prefix_calldata
+        if function.get("mutability") == "nonpayable"
         else _STATELESS_TEST_TEMPLATE
     )
     test_source = template.format(
@@ -878,13 +778,7 @@ def _write_project(
         target_address=TARGET_ADDRESS,
         state_mirror_address=STATE_MIRROR_ADDRESS,
         call_gas=CALL_GAS,
-        target_call=(
-            "staticcall" if function.get("mutability") == "view" else "call"
-        ),
         max_returndata=max_returndata_bytes,
-        prefix_a="\n".join(prefix_a),
-        prefix_store="\n".join(prefix_store),
-        prefix_b="\n".join(prefix_b),
         word_checks=word_checks,
     )
     (project / "test" / "SymbolicDifferential.t.sol").write_text(
@@ -923,9 +817,9 @@ def _run_forge(
 ) -> dict[str, Any]:
     help_output = subprocess.run(
         [forge, "test", "--help"],
+        check=False,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=args.timeout,
     ).stdout
     command = [
@@ -974,11 +868,11 @@ def _run_forge(
     )
     result = subprocess.run(
         command,
+        check=False,
         cwd=project,
         env=env,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=args.timeout,
     )
     if not result.stdout.strip():
@@ -1010,9 +904,7 @@ def _classify(
             if isinstance(symbolic, dict):
                 matches.append((test_name, result, symbolic))
     if len(matches) != 1:
-        raise ValueError(
-            f"expected one symbolic result, found {len(matches)}"
-        )
+        raise ValueError(f"expected one symbolic result, found {len(matches)}")
 
     test_name, result, symbolic = matches[0]
     if not test_name.startswith(TEST_NAME):
@@ -1241,11 +1133,10 @@ contract SymbolicDifferentialTest {{
         uint256 snapshot = vm.snapshotState();
         vm.etch(TARGET, SOLC_CODE);
 
-{prefix_a}
         vm.record();
         vm.recordLogs();
         (bool okA, bytes memory retA) =
-            TARGET.{target_call}{{gas: CALL_GAS}}(callData);
+            TARGET.call{{gas: CALL_GAS}}(callData);
         (, bytes32[] memory writesA) = vm.accesses(TARGET);
         vm.stopRecord();
         Vm.Log[] memory logsA = vm.getRecordedLogs();
@@ -1255,9 +1146,6 @@ contract SymbolicDifferentialTest {{
             valuesA[i] = vm.load(TARGET, writesA[i]);
         }}
         assert(vm.revertToStateAndDelete(snapshot));
-{prefix_store}
-
-{prefix_b}
         for (uint256 i; i < writesA.length; ++i) {{
             vm.store(STATE_MIRROR, writesA[i], valuesA[i]);
         }}
@@ -1265,7 +1153,7 @@ contract SymbolicDifferentialTest {{
         vm.record();
         vm.recordLogs();
         (bool okB, bytes memory retB) =
-            TARGET.{target_call}{{gas: CALL_GAS}}(callData);
+            TARGET.call{{gas: CALL_GAS}}(callData);
         (, bytes32[] memory writesB) = vm.accesses(TARGET);
         vm.stopRecord();
         Vm.Log[] memory logsB = vm.getRecordedLogs();

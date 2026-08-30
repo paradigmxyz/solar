@@ -1,0 +1,304 @@
+name: Build release binaries
+
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: false
+        type: string
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".cargo/**"
+      - ".github/workflows/build-release-binaries.yml"
+      - ".github/workflows/release.yml"
+      - "benches/runtime/**"
+      - "crates/**"
+      - "testdata/projects/**"
+      - "testdata/repros/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "dist-workspace.toml"
+      - "rust-toolchain*"
+      - "scripts/pgo/**"
+      - "scripts/wasm/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-14
+            pgo: true
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04-arm
+            pgo: true
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+            pgo: true
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2022
+            pgo: true
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+            pgo: true
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-22.04
+            pgo: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Read release config
+        id: release-config
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: python scripts/pgo/dist_config.py --target "$TARGET" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: ${{ steps.release-config.outputs.rust_toolchain }}
+          targets: ${{ matrix.target }}
+      - name: Install LLVM profiling tools
+        if: matrix.pgo
+        run: rustup component add llvm-tools-preview
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+        with:
+          cache-on-failure: true
+          cache-targets: false
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install --yes musl-tools
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target_dir="${{ github.workspace }}/target/solar-release"
+          if [[ "${{ matrix.pgo }}" == "true" ]]; then
+            python scripts/pgo/build.py \
+              --target "${{ matrix.target }}" \
+              --target-dir "$target_dir"
+          else
+            python scripts/pgo/build.py \
+              --target "${{ matrix.target }}" \
+              --target-dir "$target_dir" \
+              --baseline-only
+          fi
+
+          suffix=""
+          if [[ "${{ matrix.target }}" == *-windows-msvc ]]; then
+            suffix=".exe"
+          fi
+          echo "SOLAR_BINARY=$target_dir/${{ matrix.target }}/dist/solar$suffix" >> "$GITHUB_ENV"
+      - name: Test release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          "$SOLAR_BINARY" --version
+          "$SOLAR_BINARY" testdata/repros/many_functions_small.sol --stop-after=analysis
+      - name: Verify static Windows runtime
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          llvm_readobj="$(rustc --print sysroot)/lib/rustlib/${{ matrix.target }}/bin/llvm-readobj.exe"
+          imports="$RUNNER_TEMP/solar-coff-imports.txt"
+          "$llvm_readobj" --coff-imports "$SOLAR_BINARY" > "$imports"
+          if grep -Eiq 'vcruntime[[:digit:]_]*\.dll|ucrtbase\.dll|api-ms-win-crt-' "$imports"; then
+            echo "solar must not dynamically link the Visual C++ runtime" >&2
+            exit 1
+          fi
+      - name: Verify GNU libc requirement
+        if: endsWith(matrix.target, '-unknown-linux-gnu')
+        shell: bash
+        env:
+          MIN_GLIBC_VERSION: ${{ steps.release-config.outputs.min_glibc_version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+
+          max_glibc_version="$(
+            readelf --version-info "$SOLAR_BINARY" \
+              | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' \
+              | sed 's/GLIBC_//' \
+              | sort -Vu \
+              | tail -n 1 \
+              || true
+          )"
+          if [[ -z "$max_glibc_version" ]]; then
+            echo "solar has no readable GNU libc version requirement" >&2
+            exit 1
+          fi
+          if [[ -z "$MIN_GLIBC_VERSION" ]]; then
+            echo "dist-workspace.toml has no glibc limit for $TARGET" >&2
+            exit 1
+          fi
+          if [[ "$(printf '%s\n' "$max_glibc_version" "$MIN_GLIBC_VERSION" | sort -V | tail -n 1)" != "$MIN_GLIBC_VERSION" ]]; then
+            echo "solar requires glibc $max_glibc_version, above the configured $MIN_GLIBC_VERSION" >&2
+            exit 1
+          fi
+      - name: Build benchmark baseline
+        if: github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          python scripts/pgo/build.py \
+            --target "${{ matrix.target }}" \
+            --target-dir "${{ github.workspace }}/target/solar-baseline" \
+            --baseline-only
+      - name: Compare baseline and PGO
+        if: github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          python scripts/pgo/compare.py \
+            --baseline "${{ github.workspace }}/target/solar-baseline/${{ matrix.target }}/dist/solar" \
+            --pgo "$SOLAR_BINARY" \
+            --output-dir "${{ github.workspace }}/target/pgo-comparison"
+      - name: Upload PGO comparison
+        if: always() && github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pgo-comparison
+          path: target/pgo-comparison
+      - name: Package release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          archive="solar-${{ matrix.target }}"
+          package_dir="$RUNNER_TEMP/$archive"
+          mkdir -p "$package_dir"
+          if [[ "${{ matrix.target }}" == *-windows-msvc ]]; then
+            cp "$SOLAR_BINARY" "$package_dir/solar.exe"
+            (
+              cd "$package_dir"
+              7z a "$GITHUB_WORKSPACE/$archive.zip" solar.exe
+            )
+            sha256sum "$archive.zip" > "$archive.zip.sha256"
+          else
+            cp "$SOLAR_BINARY" "$package_dir/solar"
+            cp -R "$package_dir" "$archive"
+            tar -czf "$archive.tar.gz" "$archive"
+            if command -v sha256sum >/dev/null; then
+              sha256sum "$archive.tar.gz" > "$archive.tar.gz.sha256"
+            else
+              shasum -a 256 "$archive.tar.gz" > "$archive.tar.gz.sha256"
+            fi
+          fi
+      - name: Upload release binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            solar-*.tar.gz
+            solar-*.tar.gz.sha256
+            solar-*.zip
+            solar-*.zip.sha256
+
+  collect:
+    name: Collect release binaries
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          pattern: release-*
+          path: target/distrib
+          merge-multiple: true
+      - name: Check release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          (
+            cd target/distrib
+            sha256sum --check solar-*.sha256
+          )
+      - name: Download cargo-dist from the release plan
+        if: inputs.plan != ''
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cargo-dist-cache
+          path: ~/.cargo/bin
+      - name: Prepare cargo-dist from the release plan
+        if: inputs.plan != ''
+        shell: bash
+        run: chmod +x ~/.cargo/bin/dist
+      - name: Install cargo-dist
+        if: inputs.plan == ''
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/axodotdev/cargo-dist/releases/download/v0.32.0/cargo-dist-installer.sh \
+            | sh
+      - name: Create local artifact manifest
+        shell: bash
+        env:
+          PLAN: ${{ inputs.plan }}
+        run: |
+          set -euo pipefail
+
+          tag_args=()
+          if [[ -n "$PLAN" ]]; then
+            tag="$(jq -r '.announcement_tag // empty' <<< "$PLAN")"
+            if [[ -n "$tag" ]]; then
+              tag_args=(--tag "$tag")
+            fi
+          fi
+          manifest="$RUNNER_TEMP/local-dist-manifest.json"
+          dist manifest "${tag_args[@]}" \
+            --artifacts=local \
+            --no-local-paths \
+            --output-format=json \
+            > "$manifest"
+          python scripts/pgo/patch_dist_manifest_checksums.py \
+            --manifest "$manifest" \
+            --artifacts-dir target/distrib
+          mv "$manifest" target/distrib/local-dist-manifest.json
+      - name: Upload cargo-dist artifacts
+        if: inputs.plan != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: artifacts-build-release-binaries
+          path: target/distrib
+      - name: Validate cargo-dist artifact handoff
+        if: inputs.plan == ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          dist generate --mode=ci --check
+          dist build --artifacts=global --output-format=json \
+            > target/pgo-global-dist-manifest.json

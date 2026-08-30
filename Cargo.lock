@@ -4384,6 +4384,8 @@ version = "0.2.0"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
+ "anstream",
+ "anstyle",
  "bitflags 2.13.1",
  "cfg-if",
  "clap",
@@ -4619,8 +4621,12 @@ dependencies = [
  "cfg-if",
  "evm2",
  "regex",
+ "serde",
  "serde_json",
+ "solar-config",
+ "strum 0.28.0",
  "tempfile",
+ "toml_edit",
  "ui_test",
 ]
 

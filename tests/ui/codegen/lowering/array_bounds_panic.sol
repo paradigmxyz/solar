@@ -83,6 +83,7 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @cdDyn{{[( ]}}
+    // CHECK: slice_len arg0
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: calldataload
@@ -98,6 +99,7 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @cdBytes{{[( ]}}
+    // CHECK: slice_len arg0
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: calldataload

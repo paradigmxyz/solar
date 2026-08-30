@@ -24,11 +24,15 @@ alloy-primitives.workspace = true
 evm2.workspace = true
 regex.workspace = true
 serde_json.workspace = true
+solar-config.workspace = true
+strum.workspace = true
 tempfile.workspace = true
 ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork", version = "0.30.5" }
 
 [dev-dependencies]
 cfg-if.workspace = true
+serde = { workspace = true, features = ["derive"] }
+toml_edit = { workspace = true, features = ["serde"] }
 
 [features]
 nightly = []

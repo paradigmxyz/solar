@@ -6,10 +6,10 @@
       jump bb1
     bb1:
       jumpi arg0, bb2, bb3
-    bb2:
-      jump bb1
     bb3:
       ret 7
+    bb2:
+      jump bb1
   }
   
   fn @keeps_branch_self_loop(arg0: bool) -> u256 {
@@ -24,20 +24,23 @@
   fn @removes_nested_transparent_diamond(arg0: bool, arg1: bool) -> u256 {
     bb0:
 -     jumpi arg0, bb1, bb2
-+     jump bb5
-    bb1:
+-   bb2:
+      jump bb5
+-   bb1:
 -     jumpi arg1, bb3, bb4
-+     invalid
-    bb2:
+-   bb4:
 -     jump bb5
-+     invalid
-    bb3:
+-   bb3:
 -     jump bb5
-+     invalid
-    bb4:
--     jump bb5
-+     invalid
     bb5:
       ret 7
++   bb1:
++     invalid
++   bb2:
++     invalid
++   bb3:
++     invalid
++   bb4:
++     invalid
   }
   

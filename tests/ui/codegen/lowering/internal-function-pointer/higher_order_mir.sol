@@ -47,11 +47,11 @@ contract HigherOrderFunctionPointer {
     // CHECK: internal_call @__internal_dispatch_1, 1, {{v[0-9]+}}
     // CHECK-LABEL: fn @__internal_dispatch_0(
     // CHECK: eq arg0, [[HIGHER1]]
-    // CHECK: internal_call @higher1, 1
     // CHECK: eq arg0, [[HIGHER2]]
-    // CHECK: internal_call @higher2, 1
     // CHECK: eq arg0, [[HIGHER3]]
     // CHECK: internal_call @higher3, 1
+    // CHECK: internal_call @higher2, 1
+    // CHECK: internal_call @higher1, 1
     // CHECK-LABEL: fn @__internal_dispatch_1(
     // CHECK: eq arg0, [[HIGHER0]]
     // CHECK: internal_call @higher0.7, 1

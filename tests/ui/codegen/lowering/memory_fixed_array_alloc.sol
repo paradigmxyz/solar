@@ -104,13 +104,12 @@ contract NamedReturnAndDelete {
 
     // Uninitialized memory references point at real empty objects, not scratch.
     // CHECK-LABEL: fn @emptyMemoryReferences{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: set_memory_object_len memoryarray, [[ARRAY]], 0
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[BYTES]], 0
     // CHECK: [[STRUCT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: alloc memoryarray<1>
-    // CHECK: alloc memorybytes
+    // CHECK: [[ARRAY_FIELD:v[0-9]+]] = memory_object_field_addr memorystruct<2>, [[STRUCT]], 0
+    // CHECK: mstore [[ARRAY_FIELD]], 96
+    // CHECK: [[BYTES_FIELD:v[0-9]+]] = memory_object_field_addr memorystruct<2>, [[STRUCT]], 1
+    // CHECK: mstore [[BYTES_FIELD]], 96
+    // CHECK-COUNT-2: mload 96
     function emptyMemoryReferences() public pure returns (uint256) {
         uint256[] memory values;
         bytes memory data;
@@ -120,10 +119,9 @@ contract NamedReturnAndDelete {
 
     // Named dynamic returns also start as real empty memory objects.
     // CHECK-LABEL: fn @emptyNamedReturns{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>
-    // CHECK: set_memory_object_len memoryarray, [[ARRAY]], 0
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes
-    // CHECK: set_memory_object_len memorybytes, [[BYTES]], 0
+    // CHECK: mstore 128, 96
+    // CHECK: mstore 160, 96
+    // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function emptyNamedReturns()
         public
         pure
@@ -135,10 +133,8 @@ contract NamedReturnAndDelete {
     // CHECK-LABEL: fn @emptyWideNamedStruct{{[( ]}}
     // CHECK: [[WIDE:v[0-9]+]] = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     // CHECK: memory_zero [[WIDE]], 128
-    // CHECK: [[EMPTY:v[0-9]+]] = alloc memorybytes, exact, uninitialized, infallible, 32
-    // CHECK: set_memory_object_len memorybytes, [[EMPTY]], 0
     // CHECK: [[DATA:v[0-9]+]] = memory_object_field_addr memorystruct<4>, [[WIDE]], 1
-    // CHECK: mstore [[DATA]], [[EMPTY]]
+    // CHECK: mstore [[DATA]], 96
     // CHECK-NOT: mstore {{v[0-9]+}}, 0
     // CHECK: mstore 128, [[WIDE]]
     function emptyWideNamedStruct() public pure returns (WideHolder memory holder) {}
@@ -146,9 +142,11 @@ contract NamedReturnAndDelete {
     // Named struct returns always receive semantic default objects; optimization
     // passes remove stores overwritten before reads.
     // CHECK-LABEL: fn @fullyInitializedNamedStruct{{[( ]}}
-    // CHECK: alloc memorystruct<2>
-    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 0
-    // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 0
+    // CHECK: [[HOLDER:v[0-9]+]] = alloc memorystruct<2>
+    // CHECK: [[VALUES:v[0-9]+]] = memory_object_field_addr memorystruct<2>, [[HOLDER]], 0
+    // CHECK: mstore [[VALUES]], 96
+    // CHECK: [[DATA:v[0-9]+]] = memory_object_field_addr memorystruct<2>, [[HOLDER]], 1
+    // CHECK: mstore [[DATA]], 96
     // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, 1
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 1
     function fullyInitializedNamedStruct()
@@ -162,7 +160,9 @@ contract NamedReturnAndDelete {
 
     // `delete` zeroes the elements in place; the pointer stays valid.
     // CHECK-LABEL: fn @deleteInPlace{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<3, 1>
+    // CHECK: alloc memoryfixedarray<3, 1>
+    // CHECK: mstore {{v[0-9]+}}, 7
+    // CHECK: [[ARRAY:v[0-9]+]] = mload 128
     // CHECK: mstore [[ARRAY]], 0
     // CHECK: [[SECOND:v[0-9]+]] = add [[ARRAY]], 32
     // CHECK: mstore [[SECOND]], 0
@@ -181,8 +181,9 @@ contract NamedReturnAndDelete {
 
     // Deleting a wide value array also zeroes it in bulk.
     // CHECK-LABEL: fn @bulkDeleteInPlace{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryfixedarray<4, 1>
+    // CHECK: alloc memoryfixedarray<4, 1>
     // CHECK: mstore {{v[0-9]+}}, 7
+    // CHECK: [[ARRAY:v[0-9]+]] = mload 128
     // CHECK: memory_zero [[ARRAY]], 128
     // CHECK: mstore {{v[0-9]+}}, 9
     function bulkDeleteInPlace() public pure returns (uint256, uint256) {

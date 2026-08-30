@@ -7,7 +7,7 @@
     add
 -   push 3
 -   push 2
-+   dup1
++   dup 1
     add
 -   add
     stop
@@ -25,7 +25,7 @@
     mload
 -   push 32
 -   mload
-+   dup1
++   dup 1
     add
     stop
   bb3:
@@ -41,7 +41,7 @@
   bb4:
     push 5
 -   push 5
-+   dup1
++   dup 1
     add
     push 0
     push 0
@@ -101,7 +101,7 @@
     push 3
     add
     push 7
-    swapn
+    swap 1
     pop
     push 2
     push 3
@@ -113,7 +113,9 @@
     push 3
     add
     push 7
-    exchange
+    push 8
+    exchange 1, 2
+    pop
     pop
     push 2
     push 3

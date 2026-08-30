@@ -58,8 +58,8 @@ fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @split_branch_terminated_pred{{[( ]}}
 // CHECK: + jumpi arg1, bb5, bb4
-// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb5: [[INSERTED:v[0-9]+]]]
-// CHECK: + [[INSERTED]] = add arg0, 1
+// CHECK: + [[INSERTED:v[0-9]+]] = add arg0, 1
+// CHECK: + {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb5: [[INSERTED]]]
 fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
   bb0:
     jumpi arg1, bb1, bb2

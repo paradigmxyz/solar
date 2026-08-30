@@ -13,6 +13,11 @@
 -     v3 = lt v2, 4
 +     v3 = lt v10, 4
       jumpi v3, bb2, bb3
+    bb3:
+      v8 = internal_frame_addr 128
+-     v9 = mload v8
+-     ret v9
++     ret v10
     bb2:
       v4 = internal_frame_addr 128
 -     v5 = mload v4
@@ -21,11 +26,6 @@
       v7 = internal_frame_addr 128
 -     mstore v7, v6
       jump bb1
-    bb3:
-      v8 = internal_frame_addr 128
--     v9 = mload v8
--     ret v9
-+     ret v10
   }
   
   fn @escaped_address() -> (bytes32, u256) {
@@ -37,11 +37,21 @@
       ret v1, v2
   }
   
-  fn @gas_observed() -> u256 {
+  fn @gas_not_a_barrier() -> u256 {
+    bb0:
+      v0 = internal_frame_addr 128
+-     mstore v0, 42
+      v1 = gas
+-     v2 = mload v0
+-     ret v2
++     ret 42
+  }
+  
+  fn @msize_observed() -> u256 {
     bb0:
       v0 = internal_frame_addr 128
       mstore v0, 42
-      v1 = gas
+      v1 = msize
       v2 = mload v0
       ret v2
   }

@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 428
+  push 427
   codesize
   sub
-  dup1
-  push 428
+  dup 1
+  push 427
   push 192
   codecopy
   push 192
@@ -20,12 +20,12 @@ bb0:
   mstore
   push 192
   mload
-  dup1
+  dup 1
   push 0x87d912cb
   gt
   push bb5
   jumpi
-  dup1
+  dup 1
   push 0x87d912cb
   sub
   push bb1
@@ -36,15 +36,15 @@ bb0:
   sstore
   jump bb17
 bb17:
-  push 234
-  dup1
+  push 233
+  dup 1
   push 194
   push 0
   codecopy
   push 0
   return
 bb1:
-  dup1
+  dup 1
   push 0x905f7d67
   sub
   push bb2
@@ -55,7 +55,7 @@ bb1:
   sstore
   jump bb17
 bb2:
-  dup1
+  dup 1
   push 0x920f5c73
   sub
   push bb3
@@ -66,7 +66,7 @@ bb2:
   sstore
   jump bb17
 bb3:
-  dup1
+  dup 1
   push 0xcbf99d38
   sub
   push bb4
@@ -80,7 +80,7 @@ bb4:
   pop
   jump bb17
 bb5:
-  dup1
+  dup 1
   push 0x3b88f6c2
   sub
   push bb6
@@ -91,7 +91,7 @@ bb5:
   sstore
   jump bb17
 bb6:
-  dup1
+  dup 1
   push 0x41052a0d
   sub
   push bb7
@@ -102,7 +102,7 @@ bb6:
   sstore
   jump bb17
 bb7:
-  dup1
+  dup 1
   push 0x7238232f
   sub
   push bb8
@@ -126,14 +126,13 @@ bb0:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0x839a19d9
   sub
   push bb3
   jumpi
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
   sgt
@@ -141,16 +140,16 @@ bb0:
   jumpi
   push 4
   calldataload
-  dup1
+  dup 1
   push 15
   and
   indexed_jump bb13, bb13, bb6, bb7, bb13, bb13, bb13, bb8, bb9, bb13, bb13, bb10, bb13, bb11, bb13, bb12
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb6:
-  dup1
+  dup 1
   push 0x3b88f6c2
   sub
   push bb13
@@ -169,7 +168,7 @@ bb15:
   push 128
   return
 bb7:
-  dup1
+  dup 1
   push 0x920f5c73
   sub
   push bb13
@@ -180,7 +179,7 @@ bb7:
   mstore
   jump bb15
 bb8:
-  dup1
+  dup 1
   push 0x905f7d67
   sub
   push bb13
@@ -191,7 +190,7 @@ bb8:
   mstore
   jump bb15
 bb9:
-  dup1
+  dup 1
   push 0xcbf99d38
   sub
   push bb13
@@ -202,7 +201,7 @@ bb9:
   mstore
   jump bb15
 bb10:
-  dup1
+  dup 1
   push 0x87d912cb
   sub
   push bb13
@@ -213,7 +212,7 @@ bb10:
   mstore
   jump bb15
 bb11:
-  dup1
+  dup 1
   push 0x41052a0d
   sub
   push bb13
@@ -224,7 +223,7 @@ bb11:
   mstore
   jump bb15
 bb12:
-  dup1
+  dup 1
   push 0x7238232f
   sub
   push bb13

@@ -1,0 +1,6 @@
+warning[9432]: `block.prevrandao` is not supported by this EVM version and will be treated as `block.difficulty`
+   ╭▸ ROOT/tests/ui/typeck/evm_version/paris.sol:LL:CC
+   │
+LL │         return block.prevrandao;
+   ╰╴               ━━━━━━━━━━━━━━━━
+

@@ -1,7 +1,7 @@
-//~? ERROR: EVM IR verification failed: block 0: `dup2` reaches depth 2 but the stack has 1
+//~? ERROR: EVM IR verification failed: block 0: `dup 2` reaches depth 2 but the stack has 1
 @module module
 
 bb0:
   push 1
-  dup2
+  dup 2
   stop

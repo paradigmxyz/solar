@@ -10,7 +10,7 @@ bb1:
   calldataload
   push 224
   shr
-  dup1
+  dup 1
   push 0xd9171e32
   eq
   push bb2
@@ -20,15 +20,14 @@ bb2:
   jump bb4
 bb3 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb4:
-  calldatasize
   push 4
-  swap1
+  calldatasize
   sub
   push 32
-  swap1
+  swap 1
   slt
   iszero
   push bb6
@@ -36,7 +35,7 @@ bb4:
   jump bb5
 bb5 [cold]:
   push 0
-  dup1
+  dup 1
   revert
 bb6:
   push 4

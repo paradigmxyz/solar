@@ -1,0 +1,8 @@
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/invalid_denomination_no_whitespace.sol:LL:CC
+   │
+LL │     uint constant y = 1wei;
+   ╰╴                       ━
+
+error: aborting due to 1 previous error
+
