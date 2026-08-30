@@ -18,13 +18,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_ROOT = REPOSITORY_ROOT / "benches" / "runtime"
 RUNTIME_BENCHMARK = RUNTIME_ROOT / "benchmark.py"
 sys.path.insert(0, str(RUNTIME_ROOT))
 
 from benchmark import compiler_input
-from build_solar_pgo import EVALUATION_TESTS, SYNTHETIC_CORPUS, TRAINING_TESTS
+from build import EVALUATION_TESTS, SYNTHETIC_CORPUS, TRAINING_TESTS
 from cases import TEST_CASES
 
 

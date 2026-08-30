@@ -16,7 +16,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_BENCHMARK = REPOSITORY_ROOT / "benches" / "runtime" / "benchmark.py"
 SYNTHETIC_CORPUS = REPOSITORY_ROOT / "testdata" / "repros"
 

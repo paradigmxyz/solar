@@ -22,9 +22,7 @@ on:
       - "Cargo.toml"
       - "dist-workspace.toml"
       - "rust-toolchain*"
-      - "scripts/build_solar_pgo.py"
-      - "scripts/compare_solar_pgo.py"
-      - "scripts/patch_dist_manifest_checksums.py"
+      - "scripts/pgo/**"
       - "scripts/wasm/**"
 
 concurrency:
@@ -94,11 +92,11 @@ jobs:
 
           target_dir="${{ github.workspace }}/target/solar-release"
           if [[ "${{ matrix.pgo }}" == "true" ]]; then
-            python scripts/build_solar_pgo.py \
+            python scripts/pgo/build.py \
               --target "${{ matrix.target }}" \
               --target-dir "$target_dir"
           else
-            python scripts/build_solar_pgo.py \
+            python scripts/pgo/build.py \
               --target "${{ matrix.target }}" \
               --target-dir "$target_dir" \
               --baseline-only
@@ -133,7 +131,7 @@ jobs:
         if: github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
-          python scripts/build_solar_pgo.py \
+          python scripts/pgo/build.py \
             --target "${{ matrix.target }}" \
             --target-dir "${{ github.workspace }}/target/solar-baseline" \
             --baseline-only
@@ -141,7 +139,7 @@ jobs:
         if: github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
-          python scripts/compare_solar_pgo.py \
+          python scripts/pgo/compare.py \
             --baseline "${{ github.workspace }}/target/solar-baseline/${{ matrix.target }}/dist/solar" \
             --pgo "$SOLAR_BINARY" \
             --output-dir "${{ github.workspace }}/target/pgo-comparison"
@@ -242,7 +240,7 @@ jobs:
             --no-local-paths \
             --output-format=json \
             > "$manifest"
-          python scripts/patch_dist_manifest_checksums.py \
+          python scripts/pgo/patch_dist_manifest_checksums.py \
             --manifest "$manifest" \
             --artifacts-dir target/distrib
           mv "$manifest" target/distrib/local-dist-manifest.json
