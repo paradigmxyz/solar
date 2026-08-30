@@ -110,9 +110,6 @@ bb8:
   calldatasize
   sub
   dup 2
-  push 192
-  mstore
-  dup 2
   sgt
   push bb6
   jumpi
@@ -142,12 +139,12 @@ bb8:
   push 32
   dup 3
   add
-  dup 1
-  push 224
-  mstore
   dup 2
   dup 5
   dup 3
+  dup 1
+  push 224
+  mstore
   calldatacopy
   swap 1
   pop
@@ -172,9 +169,6 @@ bb17 [loop]:
   push bb20
   jumpi
   dup 2
-  dup 1
-  push 256
-  mstore
   push 0
   sstore
   pop
@@ -461,9 +455,6 @@ bb33:
   mstore
   swap 3
   pop
-  dup 1
-  push 160
-  mstore
   push 0
   not
   push 192
@@ -472,6 +463,9 @@ bb33:
   gt
   push bb6
   jumpi
+  dup 1
+  push 160
+  mstore
   calldatasize
   sub
   dup 2
@@ -500,9 +494,6 @@ bb33:
   dup 2
   add
   dup 3
-  dup 1
-  push 160
-  mstore
   dup 5
   dup 3
   calldatacopy

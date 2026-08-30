@@ -54,7 +54,7 @@ bb4:
   push bb3
   jumpi
   dup 1
-  push 224
+  push 160
   mstore
   calldatasize
   sub
@@ -63,14 +63,11 @@ bb4:
   push bb3
   jumpi
   push 448
-  push 224
+  push 160
   mload
   dup 1
   calldataload
   dup 3
-  mstore
-  dup 3
-  push 288
   mstore
   push 36
   dup 4
@@ -95,9 +92,6 @@ bb4:
   push bb3
   jumpi
   calldataload
-  dup 2
-  push 160
-  mstore
   dup 2
   calldatasize
   sub
@@ -136,9 +130,6 @@ bb4:
   pop
   swap 1
   pop
-  dup 3
-  push 256
-  mstore
   push 32
   dup 4
   add
@@ -174,9 +165,6 @@ bb4:
   jumpi
   calldataload
   dup 2
-  push 160
-  mstore
-  dup 2
   calldatasize
   sub
   dup 2
@@ -204,9 +192,6 @@ bb4:
   add
   dup 3
   dup 5
-  dup 1
-  push 160
-  mstore
   dup 3
   calldatacopy
   pop
@@ -217,7 +202,7 @@ bb4:
   dup 5
   add
   dup 1
-  push 320
+  push 288
   mstore
   dup 2
   dup 2
@@ -237,12 +222,9 @@ bb4:
   dup 5
   add
   dup 1
-  push 160
+  push 320
   mstore
   dup 2
-  dup 1
-  push 192
-  mstore
   dup 2
   mstore
   swap 1
@@ -251,9 +233,6 @@ bb4:
   dup 5
   add
   dup 4
-  dup 1
-  push 224
-  mstore
   swap 1
   mstore
   swap 2
@@ -269,7 +248,7 @@ bb13 [loop]:
   dup 1
   mload
   dup 3
-  push 288
+  push 224
   mstore
   dup 3
   lt
@@ -322,9 +301,6 @@ bb13 [loop]:
   push 0
   keccak256
   dup 2
-  dup 1
-  push 192
-  mstore
   swap 1
   sstore
   push 128
@@ -334,7 +310,7 @@ bb13 [loop]:
   return
 bb17 [loop]:
   dup 3
-  push 224
+  push 160
   mstore
   push 192
   mstore
@@ -352,7 +328,7 @@ bb17 [loop]:
   push 192
   mload
   add
-  push 288
+  push 224
   mload
   push 32
   dup 2
@@ -364,9 +340,6 @@ bb17 [loop]:
   swap 1
   push 1
   add
-  dup 1
-  push 192
-  mstore
   dup 1
   dup 3
   mul
@@ -384,7 +357,7 @@ bb17 [loop]:
   iszero
   push bb21
   jumpi
-  push 224
+  push 160
   mload
   swap 2
   dup 3
@@ -392,9 +365,9 @@ bb17 [loop]:
   swap 2
   dup 3
   lt
-  push 160
-  mload
   push 320
+  mload
+  push 288
   mload
   push 352
   mload
@@ -560,9 +533,6 @@ bb9:
   or
   push bb4
   jumpi
-  dup 3
-  push 160
-  mstore
   dup 3
   push 5
   shl
@@ -825,9 +795,6 @@ bb27:
   push 32
   add
   dup 3
-  dup 1
-  push 160
-  mstore
   dup 2
   dup 4
   mcopy

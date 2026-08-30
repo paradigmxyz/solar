@@ -41,7 +41,7 @@ contract SF {
     // CHECK: push 416
     // CHECK-NEXT: mstore
     // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: push 224
+    // CHECK-NEXT: push {{[0-9]+}}
     // CHECK-NEXT: mstore
     // CHECK: push 7
     // CHECK-NEXT: push 4

@@ -2247,6 +2247,10 @@ pub struct EvmCodegen<'gcx> {
     /// Every stack-neutral spill store the function emitted. A store whose slot the function
     /// never loads is removed at the end: its value reached each reader on a carried stack.
     function_spill_stores: Vec<BlockSpillStore>,
+    /// Every spill reload the current function emitted: block, instruction index, slot offset.
+    function_spill_loads: Vec<(ir::BlockId, usize, u32)>,
+    /// Index of the first EVM IR block the current function emitted.
+    function_ir_block_start: usize,
     /// Spill slots the function loads from anywhere; every reload goes through
     /// [`Self::emit_spill_reload`].
     loaded_spill_slots: FxHashSet<u32>,
@@ -2353,6 +2357,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             path_spill_stores: FxHashMap::default(),
             block_reloaded_values: DenseBitSet::new_empty(0),
             function_spill_stores: Vec::new(),
+            function_spill_loads: Vec::new(),
+            function_ir_block_start: 0,
             loaded_spill_slots: FxHashSet::default(),
             deferred_spill_store_removals: Vec::new(),
             late_gas_operands: FxHashMap::default(),
@@ -3837,6 +3843,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.removed_spill_stores = DenseBitSet::new_empty(func.num_values());
         self.block_reloaded_values = DenseBitSet::new_empty(func.num_values());
         self.function_spill_stores.clear();
+        self.function_spill_loads.clear();
+        self.function_ir_block_start = self.asm.block_count();
         self.path_spill_stores.clear();
         self.loaded_spill_slots.clear();
         self.deferred_spill_store_removals.clear();
@@ -4404,6 +4412,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             peak = peak.saturating_add(ir::LEGACY_SHIFT_STACK_HEADROOM);
         }
         self.function_stack_peaks.insert(func_id, peak);
+        self.remove_dead_spill_stores();
         self.remove_unloaded_spill_stores();
         self.assign_ranked_spill_addrs(func_id);
     }
@@ -4575,6 +4584,113 @@ impl<'gcx> EvmCodegen<'gcx> {
             if let Some(available) = &mut self.spill_available {
                 available.remove(&store.value);
             }
+        }
+    }
+
+    /// Drops the spill stores no execution path reads back before the slot is written again or
+    /// the function exits. Every load of a spill slot goes through [`Self::emit_spill_reload`],
+    /// so slot liveness is a backward dataflow over the function's EVM IR blocks: a load makes
+    /// its slot live, a recorded store kills it, and a store made while its slot is dead is
+    /// removed. Loop back edges iterate to a fixpoint; a jump through a stack word reaches every
+    /// address-taken block; calls into other functions leave the frame alone and return through
+    /// a pushed label. This subsumes the never-loaded-slot rule and also catches a store whose
+    /// slot is only ever reloaded on paths that store it again first — the store an arm makes
+    /// after entering on a carried stack, or a loop header's re-store of its own phi when only
+    /// the exit reloads it after storing again.
+    fn remove_dead_spill_stores(&mut self) {
+        // An optimization like the EVM IR passes: `-O none` keeps every store it emitted.
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+            return;
+        }
+        let range = self.function_ir_block_start..self.asm.block_count();
+        if range.is_empty() || self.function_spill_stores.is_empty() {
+            return;
+        }
+        let removed = self
+            .deferred_spill_store_removals
+            .iter()
+            .map(|store| (store.block, store.range.start))
+            .collect::<FxHashSet<_>>();
+        // Events per block, ordered by instruction index: `Ok(offset)` is a load, `Err(index)`
+        // a store recorded at `function_spill_stores[index]`.
+        let mut events: FxHashMap<ir::BlockId, Vec<(usize, Result<u32, usize>)>> =
+            FxHashMap::default();
+        for (index, store) in self.function_spill_stores.iter().enumerate() {
+            if !removed.contains(&(store.block, store.range.start)) {
+                events.entry(store.block).or_default().push((store.range.start, Err(index)));
+            }
+        }
+        for &(block, index, offset) in &self.function_spill_loads {
+            events.entry(block).or_default().push((index, Ok(offset)));
+        }
+        for block_events in events.values_mut() {
+            block_events.sort_by_key(|&(index, _)| index);
+        }
+        let mut successors: FxHashMap<ir::BlockId, Vec<ir::BlockId>> = FxHashMap::default();
+        for (source, target) in self.asm.dataflow_edges(range.clone()) {
+            successors.entry(source).or_default().push(target);
+        }
+        let blocks = range.map(ir::BlockId::from_usize).collect::<Vec<_>>();
+        let mut live_in: FxHashMap<ir::BlockId, FxHashSet<u32>> = FxHashMap::default();
+        let store_offset = |index: usize| self.function_spill_stores[index].slot.offset;
+        let live_in_of = |block: ir::BlockId,
+                          live_in: &FxHashMap<ir::BlockId, FxHashSet<u32>>|
+         -> FxHashSet<u32> {
+            let mut live = FxHashSet::default();
+            for succ in successors.get(&block).into_iter().flatten() {
+                if let Some(set) = live_in.get(succ) {
+                    live.extend(set.iter().copied());
+                }
+            }
+            for &(_, event) in events.get(&block).into_iter().flatten().rev() {
+                match event {
+                    Ok(offset) => {
+                        live.insert(offset);
+                    }
+                    Err(index) => {
+                        live.remove(&store_offset(index));
+                    }
+                }
+            }
+            live
+        };
+        loop {
+            let mut changed = false;
+            for &block in blocks.iter().rev() {
+                let live = live_in_of(block, &live_in);
+                if live_in.get(&block) != Some(&live) {
+                    live_in.insert(block, live);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let mut dead = Vec::new();
+        for &block in &blocks {
+            let mut live = FxHashSet::default();
+            for succ in successors.get(&block).into_iter().flatten() {
+                if let Some(set) = live_in.get(succ) {
+                    live.extend(set.iter().copied());
+                }
+            }
+            for &(_, event) in events.get(&block).into_iter().flatten().rev() {
+                match event {
+                    Ok(offset) => {
+                        live.insert(offset);
+                    }
+                    Err(index) => {
+                        let offset = store_offset(index);
+                        if !live.remove(&offset) {
+                            dead.push(index);
+                        }
+                    }
+                }
+            }
+        }
+        for index in dead {
+            self.deferred_spill_store_removals.push(self.function_spill_stores[index].clone());
         }
     }
 
@@ -10197,6 +10313,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Reloads a spill slot; the only way a function reads one back.
     fn emit_spill_reload(&mut self, func: &Function, slot: SpillSlot) {
+        let (block, index) = self.asm.next_instruction_position();
+        self.function_spill_loads.push((block, index, slot.offset));
         self.loaded_spill_slots.insert(slot.offset);
         self.emit_spill_slot_addr(func, slot);
         self.asm.emit_op(op::MLOAD);

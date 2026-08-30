@@ -168,6 +168,66 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
+    /// Number of blocks the program holds so far; the next defined label starts block `len`.
+    pub(crate) fn block_count(&self) -> usize {
+        self.program.blocks.len()
+    }
+
+    /// Control-flow edges among the blocks in `range`, for dataflow over one function's code
+    /// before finalization. A block reaches every block whose label it pushes (jump and jumpi
+    /// targets, and a return address pushed before a call), its indexed-jump targets, and the
+    /// next block when it ends without a terminator. A block that jumps or branches through a
+    /// stack word reaches every block in `range` whose label is pushed anywhere in it. Targets
+    /// outside `range` — other functions — are omitted: they never touch this function's frame
+    /// and control comes back only through a pushed return label.
+    pub(crate) fn dataflow_edges(&self, range: Range<usize>) -> Vec<(ir::BlockId, ir::BlockId)> {
+        let in_range = |block: ir::BlockId| range.contains(&block.index());
+        let mut edges = Vec::new();
+        let mut address_taken = Vec::new();
+        let mut take = |edges: &mut Vec<_>, source, target| {
+            if in_range(source) && in_range(target) {
+                edges.push((source, target));
+                if !address_taken.contains(&target) {
+                    address_taken.push(target);
+                }
+            }
+        };
+        for &(source, _, label) in &self.label_relocations {
+            if let Some(&target) = self.label_blocks.get(&label) {
+                take(&mut edges, source, target);
+            }
+        }
+        for (source, targets) in &self.indexed_jump_relocations {
+            for label in targets {
+                if let Some(&target) = self.label_blocks.get(label) {
+                    take(&mut edges, *source, target);
+                }
+            }
+        }
+        for index in range.clone() {
+            let block = ir::BlockId::from_usize(index);
+            let instructions = &self.program.blocks[block].instructions;
+            let dynamic = instructions.iter().enumerate().any(|(position, inst)| {
+                !inst.is_encoded_push()
+                    && matches!(inst.opcode, op::JUMP | op::JUMPI)
+                    && !position
+                        .checked_sub(1)
+                        .and_then(|previous| instructions.get(previous))
+                        .is_some_and(ir::Instruction::is_encoded_push)
+            });
+            if dynamic {
+                edges.extend(address_taken.iter().map(|&target| (block, target)));
+            }
+            if !self.block_has_explicit_terminator(block)
+                && self.explicit_jump_target(block).is_none()
+                && range.contains(&(index + 1))
+            {
+                edges.push((block, ir::BlockId::from_usize(index + 1)));
+            }
+        }
+        edges
+    }
+
     fn explicit_jump_target(&self, block: ir::BlockId) -> Option<ir::BlockId> {
         let instructions = &self.program.blocks[block].instructions;
         let [.., push, jump] = instructions.as_slice() else { return None };

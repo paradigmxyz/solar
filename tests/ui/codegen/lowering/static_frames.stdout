@@ -81,14 +81,14 @@ bb70 [cold]:
   push 0
   revert
 bb9:
-  push 224
+  push 256
   mstore
   push 7
   push 4
   calldataload
   mod
   dup 2
-  push 256
+  push 224
   mstore
   push 64
   mload
@@ -183,8 +183,6 @@ bb10:
   push 128
   add
   mload
-  push 288
-  mstore
   push 160
   mload
   push 64
@@ -195,6 +193,8 @@ bb10:
   add
   mload
   push 160
+  mstore
+  push 288
   mstore
   push 5
   push 4
@@ -288,7 +288,7 @@ bb11:
   mstore
   push 0
   sload
-  push 256
+  push 224
   mload
   dup 2
   add
@@ -299,9 +299,9 @@ bb11:
   jumpi
   push 0
   sstore
-  push 256
-  mload
   push 224
+  mload
+  push 256
   mload
   dup 2
   add
@@ -327,9 +327,6 @@ bb11:
   lt
   push bb70
   jumpi
-  dup 1
-  push 224
-  mstore
   jump bb71
 bb19:
   push bb20
@@ -445,12 +442,6 @@ bb33:
   swap 2
   jump
 bb37:
-  dup 1
-  push 160
-  mload
-  push 160
-  add
-  mstore
   push 160
   mload
   push 160
