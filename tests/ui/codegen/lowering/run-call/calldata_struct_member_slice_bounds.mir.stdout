@@ -32,12 +32,8 @@ fn @edge(arg0: calldataslice) -> u256 [selector=0xf583b19b, pure, abi_params=[tu
     v19 = add v6, 32
     v20 = make_calldata_slice v19, v12
     v21 = internal_call @_decodeBatch, 1, v20
-    v22 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v23 = add v22, 32
-    v24 = mload v23
-    v25 = make_calldata_slice v21, v24
-    v26 = slice_len v25
-    ret v26
+    v22 = slice_len v21
+    ret v22
   bb7:
     revert 0, 0
   bb5:

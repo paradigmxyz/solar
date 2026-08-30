@@ -17,27 +17,27 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) [pure] {
 
 fn @use() [selector=0x01bd03f7, pure] {
   bb0:
-    v6 = calldatasize
-    v7 = lt v6, 36
-    jumpi v7, bb1, bb2
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
   bb2:
-    v8 = calldataload 4
-    v9 = add v8, 4
-    v10 = add v8, 36
-    v11 = gt v8, 0xffffffffffffffff
-    v12 = gt v10, v6
-    v13 = or v11, v12
-    v14 = calldataload v9
-    v16 = sub v6, v10
-    v17 = gt v14, v16
-    v18 = or v13, v17
-    jumpi v18, bb1, bb3
+    v4 = calldataload 4
+    v5 = add v4, 4
+    v6 = add v4, 36
+    v7 = gt v4, 0xffffffffffffffff
+    v8 = gt v6, v2
+    v9 = or v7, v8
+    v10 = calldataload v5
+    v12 = sub v2, v6
+    v13 = gt v10, v12
+    v14 = or v9, v13
+    jumpi v14, bb1, bb3
   bb3:
-    v0 = internal_call @unwrap, 2, v10, v14
-    v22 = mload 32 !metadata(memory=scratch)
-    v2 = add v22, 32
-    v3 = mload v2
-    mstore 128, v3
+    v0 = internal_call @unwrap, 2, v6, v10
+    v20 = mload 32 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = mload v21
+    mstore 128, v22
     returndata 128, 32
   bb1:
     revert 0, 0

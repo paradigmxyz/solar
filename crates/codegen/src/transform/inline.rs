@@ -1253,10 +1253,11 @@ fn inline_call_impl(
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
-        insert_extra_return_stores(
+        insert_return_buffer_stores(
             cloner.caller,
             continuation,
-            &return_values[1..],
+            &return_values,
+            &callee.returns,
             caller_is_external,
             caller_frame_prefix,
         )?;
@@ -1462,21 +1463,18 @@ fn build_return_values(
     Some(values)
 }
 
-fn insert_extra_return_stores(
+fn insert_return_buffer_stores(
     caller: &mut Function,
     continuation: BlockId,
     values: &[ValueId],
+    return_tys: &[MirType],
     caller_is_external: bool,
     caller_frame_prefix: u64,
 ) -> Option<()> {
-    if values.is_empty() {
+    debug_assert_eq!(values.len(), return_tys.len());
+    if values.len() < 2 {
         return Some(());
     }
-
-    let size = u64::try_from(values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-    let local_offset = caller.internal_frame_size;
-    caller.internal_frame_size = caller.internal_frame_size.checked_add(size)?;
-    let frame_offset = caller_frame_prefix.checked_add(local_offset)?;
 
     let phi_count = caller.blocks[continuation]
         .instructions
@@ -1487,7 +1485,25 @@ fn insert_extra_return_stores(
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);
         builder.switch_to_block(continuation);
-        for (index, &value) in values.iter().enumerate() {
+        let mut stored_values = Vec::with_capacity(return_tys.len());
+        for (index, (&value, &ty)) in values.iter().zip(return_tys).enumerate() {
+            if let MirType::Slice(_) = ty {
+                if index != 0 {
+                    stored_values.push(builder.slice_ptr(value));
+                }
+                stored_values.push(builder.slice_len(value));
+            } else if index != 0 {
+                stored_values.push(value);
+            }
+        }
+
+        let size =
+            u64::try_from(stored_values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let local_offset = builder.func().internal_frame_size;
+        builder.func_mut().internal_frame_size =
+            builder.func().internal_frame_size.checked_add(size)?;
+        let frame_offset = caller_frame_prefix.checked_add(local_offset)?;
+        for (index, value) in stored_values.into_iter().enumerate() {
             let offset = u64::try_from(index + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
             let offset = if caller_is_external {
                 builder.imm_u64(
