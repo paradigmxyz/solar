@@ -160,6 +160,78 @@ fn @staticAggregate() -> u256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     revert 0, 0
 }
 
+fn @projectedAggregate() -> u256 [selector=0xec2041b8, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 464, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600e5761019f8060125f395ff35b5f5ffd346038575f3560e01c80630a39e7
+    v4 = add v3, 32
+    mstore v4, 0xbc14602a578063986597e514602f578063af36778b146034576038565b610167
+    v5 = add v3, 64
+    mstore v5, 0x565b610176565b603c565b5f80fd5b6101806040526040518060e0528060e052
+    v6 = add v3, 96
+    mstore v6, 0x6040810160405260405180610100526020810160405260405160408101604052
+    v7 = add v3, 128
+    mstore v7, 0x6040368237815280610100528152602081015f8152508060e052515160025f10
+    v8 = add v3, 160
+    mstore v8, 0x151560bf577f4e487b7100000000000000000000000000000000000000000000
+    v9 = add v3, 192
+    mstore v9, 0x5f52603260045260245ffd5b600b81525060e0518060e0525151
+    v10 = add v3, 224
+    mstore v10, 0x60026001101515610105577f4e487b7100000000000000000000000000000000
+    v11 = add v3, 256
+    mstore v11, 0x5f52603260045260245ffd5b6020810190506016
+    v12 = add v3, 288
+    mstore v12, 0x815250602060e05101602181525060e0518060e0525151806101005251608052
+    v13 = add v3, 320
+    mstore v13, 0x6020608001602061010051015181526020900150604060800150604060800160
+    v14 = add v3, 352
+    mstore v14, 0x2060e0510151815260209001506060608001608090036080f35b60205f526101
+    v15 = add v3, 384
+    mstore v15, 0x60205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff
+    v16 = add v3, 416
+    mstore v16, 0x90166080526020608001608090036080f3000000000000000000000000000000
+    v17 = slice_ptr v0
+    v18 = add v3, 433
+    mcopy v18, v17, 0 !metadata(memory=heap)
+    v19 = create 0, v3, 433
+    jumpi v19, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v20 = gas
+    v21 = abi_encode [], selector 0xaf36778b00000000000000000000000000000000000000000000000000000000
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = alloc raw, exact, uninitialized, infallible, 96
+    v25 = staticcall v20, v19, v22, v23, v24, 96
+    jumpi v25, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v26 = returndatasize
+    v27 = lt v26, 96
+    jumpi v27, bb5, bb6
+  bb6:
+    v28 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v24
+    v29 = memory_object_load_field memorystruct<2>, v28, 0
+    v30 = memory_object_load_field memorystruct<1>, v29, 0
+    v31 = lt 1, 2
+    v32 = iszero v31
+    jumpi v32, bb7, bb8
+  bb8:
+    v33 = memory_object_load_element memoryfixedarray<2, 1>, v30, 1
+    ret v33
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    revert 0, 0
+}
+
 fn @functionPointerAggregate() -> u256 [selector=0xebe6d175, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []

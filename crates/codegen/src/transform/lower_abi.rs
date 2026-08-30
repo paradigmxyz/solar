@@ -927,7 +927,9 @@ impl LowerAbiCx {
     fn static_field_offset_matches(ty: &AbiParamType, field: u64) -> bool {
         let AbiParamType::Tuple(fields) = ty else { return false };
         let Some(field_index) = usize::try_from(field).ok() else { return false };
-        let Some(_) = fields.get(field_index) else { return false };
+        if !fields.get(field_index).is_some_and(AbiParamType::is_scalar_word) {
+            return false;
+        }
         let Some(offset) = fields[..field_index]
             .iter()
             .try_fold(0_u64, |offset, field| offset.checked_add(field.checked_head_size()?))
