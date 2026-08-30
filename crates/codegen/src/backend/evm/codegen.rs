@@ -16,7 +16,7 @@ use super::{
     layout::{RelayoutAddress, preserves_push_width},
     materialize::{
         cross_block_values, is_cheap_recomputable_value, is_cross_block_recomputable_kind,
-        is_rematerializable_leaf, rematerializable_nullary_opcode,
+        is_rematerializable_leaf, rematerializable_nullary_value,
     },
     op,
     stack::{
@@ -4511,8 +4511,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn always_rematerializable_op(func: &Function, value: ValueId) -> Option<u8> {
-        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
-        rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
+        rematerializable_nullary_value(func, value)
     }
 
     fn can_own_spill_slot(func: &Function, value: ValueId) -> bool {
@@ -6478,7 +6477,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        let spill_store = ScheduleCost::spill_store(OperandCostModel::DIRECT);
+        let spill_store = ScheduleCost::memory_store(OperandCostModel::DIRECT);
         let spill_load = ScheduleCost::memory_load(OperandCostModel::DIRECT);
         let resident_access =
             ScheduleCost::stack_op(StackOp::Dup(1), self.gcx.sess.opts.evm_version);
@@ -6949,9 +6948,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
             crate::mir::Value::Arg(_) => raw_leaves_ok,
-            crate::mir::Value::Inst(inst_id) => {
-                rematerializable_nullary_opcode(&func.inst(*inst_id).kind).is_some()
-            }
+            crate::mir::Value::Inst(_) => rematerializable_nullary_value(func, val).is_some(),
             _ => false,
         }
     }
@@ -8759,7 +8756,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             {
                 drained.spills.allocate(value);
                 drained.spills.mark_stored(value);
-                drain_cost = drain_cost.plus(ScheduleCost::spill_store(cost_model));
+                drain_cost = drain_cost.plus(ScheduleCost::memory_store(cost_model));
             }
         }
         drained.clear_stack();

@@ -33,6 +33,12 @@ pub(super) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u
     })
 }
 
+/// Returns the opcode for a stable nullary MIR value that is cheaper to re-emit than preserve.
+pub(super) fn rematerializable_nullary_value(func: &Function, value: ValueId) -> Option<u8> {
+    let Value::Inst(inst_id) = func.value(value) else { return None };
+    rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
+}
+
 /// Returns whether an instruction result can be cheaply rebuilt from stable operands.
 pub(super) const fn is_cheap_recomputable_kind(kind: &InstKind) -> bool {
     matches!(

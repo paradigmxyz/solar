@@ -104,7 +104,7 @@ use super::{
 use crate::{
     analysis::Liveness,
     backend::evm::{
-        materialize::{is_rematerializable_leaf, rematerializable_nullary_opcode},
+        materialize::{is_rematerializable_leaf, rematerializable_nullary_value},
         op::StackOp,
     },
     mir::{ArgIdx, BlockId, Function, ValueId},
@@ -155,7 +155,7 @@ pub(crate) struct StackScheduler {
 }
 
 /// A scheduled operation to emit.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ScheduledOp {
     /// Stack manipulation (DUP, SWAP, POP).
     Stack(StackOp),
@@ -341,14 +341,8 @@ impl ScheduleCost {
         Self { static_gas: 1, encoded_bytes: 1, actions: 1 }
     }
 
-    /// Estimated cost of duplicating a resident value and storing it through
-    /// the active spill-address convention.
-    pub(crate) fn spill_store(cost_model: OperandCostModel) -> Self {
-        Self {
-            static_gas: cost_model.load_static_gas.saturating_add(3),
-            encoded_bytes: cost_model.load_encoded_bytes.saturating_add(1),
-            actions: 2,
-        }
+    fn of_op(op: &ScheduledOp, evm_version: EvmVersion, cost_model: OperandCostModel) -> Self {
+        Self::default().with_op(op, evm_version, cost_model)
     }
 
     fn with_op(
@@ -402,7 +396,7 @@ impl ScheduleCost {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct PlannedAction {
     op: ScheduledOp,
     pushed: Option<ValueId>,
@@ -1125,7 +1119,7 @@ impl StackScheduler {
             {
                 return;
             }
-            let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
+            let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
             let plan =
                 OperandPlan { actions: smallvec::smallvec![PlannedAction { op, pushed }], cost };
             if best
@@ -1330,10 +1324,9 @@ impl StackScheduler {
             let op = self
                 .materialize_operand(value, func)
                 .filter(|materialize| {
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(materialize, evm_version, cost_model);
+                        ScheduleCost::of_op(materialize, evm_version, cost_model);
                     materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
                 })
                 .unwrap_or(duplicate);
@@ -1386,9 +1379,8 @@ impl StackScheduler {
             StackOp::Swap((goal.len() - 1) as u8)
         });
         if self.materialize_operand(first, func).is_some_and(|materialize| {
-            let resident_cost = ScheduleCost::default().with_op(&first_op, evm_version, cost_model);
-            let materialize_cost =
-                ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+            let resident_cost = ScheduleCost::of_op(&first_op, evm_version, cost_model);
+            let materialize_cost = ScheduleCost::of_op(&materialize, evm_version, cost_model);
             materialize_cost.cmp_for(resident_cost, optimization).is_lt()
         }) {
             return None;
@@ -1465,10 +1457,9 @@ impl StackScheduler {
             let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
             self.materialize_operand(resident, func)
                 .filter(|materialize| {
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(materialize, evm_version, cost_model);
+                        ScheduleCost::of_op(materialize, evm_version, cost_model);
                     materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
                 })
                 .unwrap_or(duplicate)
@@ -1585,13 +1576,11 @@ impl StackScheduler {
             && let Some(materialize) = self.materialize_operand(value, func)
         {
             let mut actions =
-                smallvec::smallvec![PlannedAction { op: materialize.clone(), pushed: Some(value) }];
+                smallvec::smallvec![PlannedAction { op: materialize, pushed: Some(value) }];
             if preserve && copies == 0 {
                 let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
-                let duplicate_cost =
-                    ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
-                let materialize_cost =
-                    ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+                let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
+                let materialize_cost = ScheduleCost::of_op(&materialize, evm_version, cost_model);
                 let op = if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
                     materialize
                 } else {
@@ -1695,9 +1684,8 @@ impl StackScheduler {
                 let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
                 let materialize = self.materialize_operand(value, func);
                 let cheap_surplus_materialization = materialize.as_ref().is_some_and(|op| {
-                    let materialize_cost =
-                        ScheduleCost::default().with_op(op, evm_version, cost_model);
-                    let duplicate_cost = ScheduleCost::default().with_op(
+                    let materialize_cost = ScheduleCost::of_op(op, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(
                         &ScheduledOp::Stack(StackOp::Dup(1)),
                         evm_version,
                         cost_model,
@@ -1714,16 +1702,10 @@ impl StackScheduler {
                     let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
                     let op = materialize
                         .filter(|materialize| {
-                            let duplicate_cost = ScheduleCost::default().with_op(
-                                &duplicate,
-                                evm_version,
-                                cost_model,
-                            );
-                            let materialize_cost = ScheduleCost::default().with_op(
-                                materialize,
-                                evm_version,
-                                cost_model,
-                            );
+                            let duplicate_cost =
+                                ScheduleCost::of_op(&duplicate, evm_version, cost_model);
+                            let materialize_cost =
+                                ScheduleCost::of_op(materialize, evm_version, cost_model);
                             materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
                         })
                         .unwrap_or(duplicate);
@@ -1855,7 +1837,7 @@ impl StackScheduler {
         let cost = states[state].cost;
         let mut actions = PlannedActions::new();
         while let Some((parent, action)) = &states[state].parent {
-            actions.push(action.clone());
+            actions.push(*action);
             state = *parent;
         }
         actions.reverse();
@@ -1886,7 +1868,6 @@ impl StackScheduler {
         let max_stack_access = evm_version.reachable_stack_depth();
 
         let mut remaining = ScheduleCost::default();
-        let mut has_missing_copies = false;
         let mut missing_counts = SmallVec::<[(ValueId, usize); 8]>::new();
         let mut total_missing = 0usize;
         for (&value, &required) in required_counts {
@@ -1895,19 +1876,17 @@ impl StackScheduler {
             if missing == 0 {
                 continue;
             }
-            has_missing_copies = true;
             missing_counts.push((value, missing));
             total_missing += missing;
 
             let duplicate =
                 stack.contains(&Some(value)).then_some(ScheduledOp::Stack(StackOp::Dup(1)));
             let materialize = self.materialize_operand(value, func);
-            let first = match (duplicate, materialize.clone()) {
+            let first = match (duplicate, materialize) {
                 (Some(duplicate), Some(materialize)) => {
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+                        ScheduleCost::of_op(&materialize, evm_version, cost_model);
                     if duplicate_cost.cmp_for(materialize_cost, optimization).is_le() {
                         duplicate
                     } else {
@@ -1921,10 +1900,9 @@ impl StackScheduler {
             let subsequent = match materialize {
                 Some(materialize) => {
                     let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+                        ScheduleCost::of_op(&materialize, evm_version, cost_model);
                     if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
                         materialize
                     } else {
@@ -1938,7 +1916,7 @@ impl StackScheduler {
             }
         }
 
-        if has_missing_copies
+        if total_missing != 0
             && !Self::operand_goal_reachable_by_missing_pushes(
                 stack,
                 goal,
@@ -1947,20 +1925,14 @@ impl StackScheduler {
                 total_missing,
             )
         {
-            let mut rearrange = ScheduleCost::default().with_op(
-                &ScheduledOp::Stack(StackOp::Swap(1)),
-                evm_version,
-                cost_model,
-            );
+            let mut rearrange =
+                ScheduleCost::of_op(&ScheduledOp::Stack(StackOp::Swap(1)), evm_version, cost_model);
             if (matches!(optimization, OptimizationMode::Gas)
                 || cost_model.needs_headroom(stack.len()))
                 && Self::operand_pop_can_help(stack, goal, preserve_counts, max_stack_access)
             {
-                let pop = ScheduleCost::default().with_op(
-                    &ScheduledOp::Stack(StackOp::Pop),
-                    evm_version,
-                    cost_model,
-                );
+                let pop =
+                    ScheduleCost::of_op(&ScheduledOp::Stack(StackOp::Pop), evm_version, cost_model);
                 if pop.cmp_for(rearrange, optimization).is_lt() {
                     rearrange = pop;
                 }
@@ -1975,17 +1947,17 @@ impl StackScheduler {
                     continue;
                 }
                 if let Some(op) = self.materialize_operand(value, func) {
-                    let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
+                    let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
                     if cost.cmp_for(rearrange, optimization).is_lt() {
                         rearrange = cost;
                     }
                 }
             }
             remaining = remaining.plus(rearrange);
-        } else if !has_missing_copies && !Self::operand_goal_reached(stack, goal, preserve_counts) {
+        } else if total_missing == 0 && !Self::operand_goal_reached(stack, goal, preserve_counts) {
             let mut cheapest = None;
             let mut consider = |op: ScheduledOp| {
-                let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
+                let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
                 if cheapest.is_none_or(|old: ScheduleCost| cost.cmp_for(old, optimization).is_lt())
                 {
                     cheapest = Some(cost);
@@ -2142,9 +2114,7 @@ impl StackScheduler {
     }
 
     fn rematerialize_nullary(value: ValueId, func: &Function) -> Option<ScheduledOp> {
-        let crate::mir::Value::Inst(inst_id) = func.value(value) else { return None };
-        rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
-            .map(ScheduledOp::RematerializeNullary)
+        rematerializable_nullary_value(func, value).map(ScheduledOp::RematerializeNullary)
     }
 
     /// Ensures a value is on top of the stack.
@@ -2514,8 +2484,8 @@ mod tests {
                 for &value in &goal {
                     let Some(op) = scheduler.materialize_operand(value, func) else { continue };
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&op, evm_version, OperandCostModel::DIRECT);
-                    let duplicate_cost = ScheduleCost::default().with_op(
+                        ScheduleCost::of_op(&op, evm_version, OperandCostModel::DIRECT);
+                    let duplicate_cost = ScheduleCost::of_op(
                         &ScheduledOp::Stack(StackOp::Dup(1)),
                         evm_version,
                         OperandCostModel::DIRECT,

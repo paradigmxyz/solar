@@ -637,12 +637,11 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
         return Some((0, 0, 1));
     }
     if let Some(stack_op) = inst.as_stack_op() {
-        return Some(match stack_op {
-            op::StackOp::Dup(depth) => (u16::from(depth), 0, 1),
-            op::StackOp::Swap(depth) => (u16::from(depth) + 1, 0, 0),
-            op::StackOp::Exchange(_, depth) => (u16::from(depth) + 1, 0, 0),
-            op::StackOp::Pop => (1, 1, 0),
-        });
+        let required = u16::try_from(stack_op.required_depth()).ok()?;
+        let growth = stack_op.net_growth();
+        let inputs = u16::try_from(growth.saturating_neg().max(0)).ok()?;
+        let outputs = u16::try_from(growth.max(0)).ok()?;
+        return Some((required, inputs, outputs));
     }
     Some(match inst.opcode {
         op::CALLDATASIZE | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),

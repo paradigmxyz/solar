@@ -22,9 +22,16 @@ impl EvmPass for StackNormalize {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
         let mut cache = FxHashMap::default();
+        let mut scratch = Vec::new();
+        let mut normalizations = Vec::new();
         for block in &mut module.blocks {
-            changed |=
-                normalize_runs(&mut block.instructions, gcx.sess.opts.evm_version, &mut cache);
+            changed |= normalize_runs(
+                &mut block.instructions,
+                gcx.sess.opts.evm_version,
+                &mut cache,
+                &mut scratch,
+                &mut normalizations,
+            );
         }
         changed
     }
@@ -33,18 +40,20 @@ impl EvmPass for StackNormalize {
 type StackRun = SmallVec<[StackOp; MAX_STACK_RUN_LEN]>;
 type NormalizationCache = FxHashMap<StackRun, Option<StackRun>>;
 
+struct Normalization {
+    start: usize,
+    end: usize,
+    output: StackRun,
+}
+
 fn normalize_runs(
     instructions: &mut Vec<Instruction>,
     evm_version: EvmVersion,
     cache: &mut NormalizationCache,
+    scratch: &mut Vec<Instruction>,
+    normalizations: &mut Vec<Normalization>,
 ) -> bool {
-    struct Normalization {
-        start: usize,
-        end: usize,
-        output: StackRun,
-    }
-
-    let mut normalizations = Vec::new();
+    normalizations.clear();
     let mut input = StackRun::new();
     let mut cursor = 0;
     while cursor < instructions.len() {
@@ -89,10 +98,11 @@ fn normalize_runs(
         return false;
     }
 
-    let source = std::mem::take(instructions);
-    instructions.reserve(source.len());
-    let mut source = source.into_iter().enumerate().peekable();
-    for normalization in normalizations {
+    scratch.clear();
+    std::mem::swap(instructions, scratch);
+    instructions.reserve(scratch.len());
+    let mut source = scratch.drain(..).enumerate().peekable();
+    for normalization in normalizations.drain(..) {
         while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
             instructions.push(source.next().unwrap().1);
         }
