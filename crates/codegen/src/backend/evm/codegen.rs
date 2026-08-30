@@ -16,9 +16,9 @@ use super::{
     layout::{RelayoutAddress, preserves_push_width},
     materialize::{
         cross_block_values, is_cheap_recomputable_value, is_cross_block_recomputable_kind,
-        is_rematerializable_leaf, rematerializable_nullary_value,
+        is_rematerializable_leaf, rematerializable_nullary_opcode, rematerializable_nullary_value,
     },
-    op,
+    mir_opcode, op,
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,
         ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
@@ -4674,273 +4674,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_live_out_operands(func, liveness, block, &operands);
 
         match kind {
-            // Binary arithmetic operations
-            InstKind::Add(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::ADD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Sub(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::SUB,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Mul(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::MUL,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Div(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::DIV,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::SDiv(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::SDIV,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Mod(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::MOD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::SMod(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::SMOD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Exp(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::EXP,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-
-            // Bitwise operations
-            InstKind::And(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::AND,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Or(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::OR,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Xor(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::XOR,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Not(a) => self.emit_unary_op_with_result(
-                func,
-                *a,
-                op::NOT,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Clz(a) => self.emit_unary_op_with_result(
-                func,
-                *a,
-                op::CLZ,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Shl(shift, val) => self.emit_binary_op_with_result(
-                func,
-                *shift,
-                *val,
-                op::SHL,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Shr(shift, val) => self.emit_binary_op_with_result(
-                func,
-                *shift,
-                *val,
-                op::SHR,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Sar(shift, val) => self.emit_binary_op_with_result(
-                func,
-                *shift,
-                *val,
-                op::SAR,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Byte(i, x) => self.emit_binary_op_with_result(
-                func,
-                *i,
-                *x,
-                op::BYTE,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-
-            // Comparison operations - track results for branch conditions and Select
-            InstKind::Lt(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::LT,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Gt(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::GT,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::SLt(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::SLT,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::SGt(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::SGT,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Eq(a, b) => self.emit_binary_op_with_result(
-                func,
-                *a,
-                *b,
-                op::EQ,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::IsZero(a) => self.emit_unary_op_with_result(
-                func,
-                *a,
-                op::ISZERO,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-
-            // Memory operations
-            // Track MLOAD results so they can be used as operands in subsequent instructions.
-            // This is essential for nested external calls where the return value from one call
-            // becomes an argument to another call.
-            InstKind::MLoad(addr) => self.emit_unary_op_with_result(
-                func,
-                *addr,
-                op::MLOAD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::MStore(addr, val) => self.emit_store_op_live_aware(
-                func,
-                *addr,
-                *val,
-                op::MSTORE,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::MStore8(addr, val) => self.emit_store_op_live_aware(
-                func,
-                *addr,
-                *val,
-                op::MSTORE8,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::MSize => {
-                self.asm.emit_op(op::MSIZE);
-                self.scheduler.instruction_executed(0, result_value);
+            kind if let Some(opcode) = mir_opcode(kind) => {
+                self.emit_mir_opcode(
+                    func,
+                    &operands,
+                    opcode,
+                    result_value,
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
             InstKind::Alloc { size, .. } => {
                 debug_assert!(func.inst(inst_id).metadata.deferred_alloc());
@@ -4954,185 +4697,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 unreachable!("abstract allocation instruction reached EVM emission")
             }
 
-            // Storage operations
-            InstKind::SLoad(slot) => self.emit_unary_op_with_result(
-                func,
-                *slot,
-                op::SLOAD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::SStore(slot, val) => self.emit_store_op_live_aware(
-                func,
-                *slot,
-                *val,
-                op::SSTORE,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::TLoad(slot) => self.emit_unary_op_with_result(
-                func,
-                *slot,
-                op::TLOAD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::TStore(slot, val) => self.emit_store_op_live_aware(
-                func,
-                *slot,
-                *val,
-                op::TSTORE,
-                liveness,
-                block,
-                inst_idx,
-            ),
-
-            // Calldata operations
-            InstKind::CalldataLoad(off) => self.emit_unary_op_with_result(
-                func,
-                *off,
-                op::CALLDATALOAD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::CalldataSize => {
-                self.asm.emit_op(op::CALLDATASIZE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-
-            // Hash operations
-            InstKind::Keccak256(off, len) => self.emit_binary_op_with_result(
-                func,
-                *off,
-                *len,
-                op::KECCAK256,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-
-            // Environment operations
-            InstKind::Caller => {
-                self.asm.emit_op(op::CALLER);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::CallValue => {
-                self.asm.emit_op(op::CALLVALUE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::Address => {
-                self.asm.emit_op(op::ADDRESS);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::Origin => {
-                self.asm.emit_op(op::ORIGIN);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::GasPrice => {
-                self.asm.emit_op(op::GASPRICE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::Gas => {
-                self.asm.emit_op(op::GAS);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::Timestamp => {
-                self.asm.emit_op(op::TIMESTAMP);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::BlockNumber => {
-                self.asm.emit_op(op::NUMBER);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::Coinbase => {
-                self.asm.emit_op(op::COINBASE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::ChainId => {
-                self.asm.emit_op(op::CHAINID);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::SelfBalance => {
-                self.asm.emit_op(op::SELFBALANCE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::BaseFee => {
-                self.asm.emit_op(op::BASEFEE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::BlobBaseFee => {
-                self.asm.emit_op(op::BLOBBASEFEE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::GasLimit => {
-                self.asm.emit_op(op::GASLIMIT);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::SlotNum => {
-                self.asm.emit_op(op::SLOTNUM);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::PrevRandao => {
-                self.asm.emit_op(op::PREVRANDAO);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-            InstKind::Balance(addr) => self.emit_unary_op_with_result(
-                func,
-                *addr,
-                op::BALANCE,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::BlockHash(num) => self.emit_unary_op_with_result(
-                func,
-                *num,
-                op::BLOCKHASH,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::BlobHash(idx) => self.emit_unary_op_with_result(
-                func,
-                *idx,
-                op::BLOBHASH,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::ExtCodeSize(addr) => self.emit_unary_op_with_result(
-                func,
-                *addr,
-                op::EXTCODESIZE,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::ExtCodeHash(addr) => self.emit_unary_op_with_result(
-                func,
-                *addr,
-                op::EXTCODEHASH,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::CodeSize => {
-                self.asm.emit_op(op::CODESIZE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
             InstKind::StoreImmutable(..) => {
                 unreachable!("immutable stores must be lowered before EVM codegen")
             }
@@ -5140,30 +4704,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_load_immutable(*id);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::ReturnDataSize => {
-                self.asm.emit_op(op::RETURNDATASIZE);
-                self.scheduler.instruction_executed(0, result_value);
-            }
-
-            // Ternary operations
-            InstKind::AddMod(a, b, n) => self.emit_nary_op(
-                func,
-                &[*n, *b, *a],
-                op::ADDMOD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::MulMod(a, b, n) => self.emit_nary_op(
-                func,
-                &[*n, *b, *a],
-                op::MULMOD,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
 
             // Select is like a ternary conditional
             InstKind::Select(cond, true_val, false_val) => {
@@ -5221,45 +4761,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_op_with_effect(op::ADD, StackEffect { pops: 2, pushes: 1 }, push);
             }
 
-            // Sign extend
-            InstKind::SignExtend(b, x) => self.emit_binary_op_with_result(
-                func,
-                *b,
-                *x,
-                op::SIGNEXTEND,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-
             // Phi nodes are skipped (handled by copies)
             InstKind::Phi(_) => {}
 
-            // Contract creation
-            InstKind::Create(value, offset, size) => self.emit_nary_op(
-                func,
-                &[*size, *offset, *value],
-                op::CREATE,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-            InstKind::Create2(value, offset, size, salt) => self.emit_nary_op(
-                func,
-                &[*salt, *size, *offset, *value],
-                op::CREATE2,
-                result_value,
-                liveness,
-                block,
-                inst_idx,
-            ),
-
             // External calls
             //
-            // These use emit_value_fresh to guarantee correct values regardless of scheduler state.
-            // The stack-aware emit_op_with_effect ensures proper tracking after emission.
+            // These use emit_value_fresh to guarantee correct values regardless of scheduler
+            // state. The stack-aware emit_op_with_effect ensures proper
+            // tracking after emission.
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 // CALL(gas, addr, value, argsOffset, argsSize, retOffset, retSize)
                 // EVM pops in order: gas (TOS), addr, value, argsOffset, argsSize, retOffset,
@@ -5420,7 +4929,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             }
             InstKind::Log2(offset, size, topic1, topic2) => {
-                // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1, topic2
+                // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1,
+                // topic2
                 self.emit_log(
                     func,
                     op::LOG2,
@@ -5549,6 +5059,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::ClearStorage { .. } => {
                 unreachable!("aggregate operations must be lowered before EVM codegen")
             }
+            _ => unreachable!("MIR instruction was not handled: {kind:?}"),
         }
 
         if let Some(result) = result_value
@@ -5578,6 +5089,62 @@ impl<'gcx> EvmCodegen<'gcx> {
         let dead_ops = self.scheduler.drop_dead_values(liveness, block, inst_idx);
         for op in dead_ops {
             self.asm.emit_stack_op(op);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_mir_opcode(
+        &mut self,
+        func: &Function,
+        operands: &[ValueId],
+        opcode: u8,
+        result: Option<ValueId>,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        let (inputs, outputs) = op::stack_io(opcode).expect("MIR opcode has no stack effect");
+        debug_assert_eq!(usize::from(inputs), operands.len());
+
+        match (inputs, outputs) {
+            (0, 1) => {
+                self.asm.emit_op(opcode);
+                self.scheduler.instruction_executed(0, result);
+            }
+            (1, 1) => self.emit_unary_op_with_result(
+                func,
+                operands[0],
+                opcode,
+                result,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            (2, 1) => self.emit_binary_op_with_result(
+                func,
+                operands[0],
+                operands[1],
+                opcode,
+                result,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            (2, 0) => self.emit_store_op_live_aware(
+                func,
+                operands[0],
+                operands[1],
+                opcode,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            (_, 1) => {
+                let mut stack_order = SmallVec::<[ValueId; 8]>::from_slice(operands);
+                stack_order.reverse();
+                self.emit_nary_op(func, &stack_order, opcode, result, liveness, block, inst_idx);
+            }
+            _ => unreachable!("unsupported MIR opcode stack effect {inputs}->{outputs}"),
         }
     }
 
@@ -8815,59 +8382,28 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn static_call_operand_orders(kind: &InstKind) -> SmallVec<[SmallVec<[ValueId; 3]>; 2]> {
         let mut orders = SmallVec::new();
-        let binary = match kind {
-            InstKind::Add(a, b)
-            | InstKind::Mul(a, b)
-            | InstKind::And(a, b)
-            | InstKind::Or(a, b)
-            | InstKind::Xor(a, b)
-            | InstKind::Eq(a, b)
-            | InstKind::Lt(a, b)
-            | InstKind::Gt(a, b)
-            | InstKind::SLt(a, b)
-            | InstKind::SGt(a, b) => Some((*a, *b, true)),
-            InstKind::Sub(a, b)
-            | InstKind::Div(a, b)
-            | InstKind::SDiv(a, b)
-            | InstKind::Mod(a, b)
-            | InstKind::SMod(a, b)
-            | InstKind::Exp(a, b)
-            | InstKind::Shl(a, b)
-            | InstKind::Shr(a, b)
-            | InstKind::Sar(a, b)
-            | InstKind::Byte(a, b)
-            | InstKind::Keccak256(a, b)
-            | InstKind::SignExtend(a, b) => Some((*a, *b, false)),
-            _ => None,
-        };
-        if let Some((a, b, swappable)) = binary {
-            orders.push(smallvec::smallvec![b, a]);
-            if swappable && a != b {
-                orders.push(smallvec::smallvec![a, b]);
+        if let Some(opcode) = mir_opcode(kind) {
+            let operands = kind.operands();
+            if !operands.is_empty()
+                && op::stack_io(opcode).is_some_and(|(inputs, outputs)| {
+                    outputs == 1 && usize::from(inputs) == operands.len()
+                })
+            {
+                let mut stack_order = SmallVec::<[ValueId; 3]>::from_iter(operands.iter().copied());
+                stack_order.reverse();
+                orders.push(stack_order);
+                if operands.len() == 2
+                    && operands[0] != operands[1]
+                    && Self::swapped_binary_opcode(opcode).is_some()
+                {
+                    orders.push(SmallVec::from_iter(operands));
+                }
             }
             return orders;
         }
 
-        match kind {
-            InstKind::Not(a)
-            | InstKind::Clz(a)
-            | InstKind::IsZero(a)
-            | InstKind::MLoad(a)
-            | InstKind::SLoad(a)
-            | InstKind::TLoad(a)
-            | InstKind::CalldataLoad(a)
-            | InstKind::Balance(a)
-            | InstKind::BlockHash(a)
-            | InstKind::BlobHash(a)
-            | InstKind::ExtCodeSize(a)
-            | InstKind::ExtCodeHash(a) => orders.push(smallvec::smallvec![*a]),
-            InstKind::AddMod(a, b, n) | InstKind::MulMod(a, b, n) => {
-                orders.push(smallvec::smallvec![*n, *b, *a]);
-            }
-            InstKind::Select(condition, if_true, if_false) => {
-                orders.push(smallvec::smallvec![*if_false, *if_true, *condition]);
-            }
-            _ => {}
+        if let InstKind::Select(condition, if_true, if_false) = kind {
+            orders.push(smallvec::smallvec![*if_false, *if_true, *condition]);
         }
         orders
     }
@@ -9732,155 +9268,136 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // This handles GAS (which is always fresh) and MLOAD (which re-reads from
                     // memory)
                     let inst_kind = &func.inst(*inst_id).kind;
-                    match inst_kind {
-                        crate::mir::InstKind::Gas => {
-                            self.asm.emit_op(op::GAS);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::LoadImmutable(id) if !self.in_constructor => {
-                            self.emit_load_immutable(*id);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::InternalFrameAddr(offset) => {
-                            self.emit_own_frame_addr(*offset);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::ConstructorArgsBase => {
-                            self.emit_constructor_args_base();
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::BlockNumber => {
-                            self.asm.emit_op(op::NUMBER);
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::MLoad(offset) => {
-                            // Re-reading a constant scratch location is safe, but the
-                            // free-memory-pointer word moves: a pointer defined as
-                            // `mload(0x40)` must reach this point through its spill
-                            // slot. A slot that is reloadable but not yet stored
-                            // belongs to a defining block emitted after this point
-                            // that still executes first at runtime.
-                            if func.value_u64(*offset) == Some(EvmMemoryLayout::FMP_SLOT) {
-                                if let Some(slot) = self.scheduler.reloadable_spill(val) {
-                                    let scheduled = ScheduledOp::LoadSpill(slot);
-                                    self.record_scheduled_ops_peak(
-                                        self.scheduler.depth(),
-                                        &[scheduled],
-                                    );
-                                    self.emit_spill_slot_addr(func, slot);
-                                    self.asm.emit_op(op::MLOAD);
-                                    self.scheduler.stack.push(val);
-                                    return;
-                                }
-                                panic!(
-                                    "emit_value_fresh: rematerializing a stale \
+                    if let Some(opcode) = rematerializable_nullary_opcode(inst_kind).or_else(|| {
+                        mir_opcode(inst_kind).filter(|_| matches!(inst_kind, InstKind::Gas))
+                    }) {
+                        self.asm.emit_op(opcode);
+                        self.scheduler.stack.push(val);
+                    } else {
+                        match inst_kind {
+                            crate::mir::InstKind::LoadImmutable(id) if !self.in_constructor => {
+                                self.emit_load_immutable(*id);
+                                self.scheduler.stack.push(val);
+                            }
+                            crate::mir::InstKind::InternalFrameAddr(offset) => {
+                                self.emit_own_frame_addr(*offset);
+                                self.scheduler.stack.push(val);
+                            }
+                            crate::mir::InstKind::ConstructorArgsBase => {
+                                self.emit_constructor_args_base();
+                                self.scheduler.stack.push(val);
+                            }
+                            crate::mir::InstKind::MLoad(offset) => {
+                                // Re-reading a constant scratch location is safe, but the
+                                // free-memory-pointer word moves: a pointer defined as
+                                // `mload(0x40)` must reach this point through its spill
+                                // slot. A slot that is reloadable but not yet stored
+                                // belongs to a defining block emitted after this point
+                                // that still executes first at runtime.
+                                if func.value_u64(*offset) == Some(EvmMemoryLayout::FMP_SLOT) {
+                                    if let Some(slot) = self.scheduler.reloadable_spill(val) {
+                                        let scheduled = ScheduledOp::LoadSpill(slot);
+                                        self.record_scheduled_ops_peak(
+                                            self.scheduler.depth(),
+                                            &[scheduled],
+                                        );
+                                        self.emit_spill_slot_addr(func, slot);
+                                        self.asm.emit_op(op::MLOAD);
+                                        self.scheduler.stack.push(val);
+                                        return;
+                                    }
+                                    panic!(
+                                        "emit_value_fresh: rematerializing a stale \
                                      free-memory-pointer load: {val:?} in `{}`",
-                                    func.name
+                                        func.name
+                                    );
+                                }
+                                self.emit_value_fresh(func, *offset);
+                                self.asm.emit_op(op::MLOAD);
+                                // Pop offset, push result
+                                self.scheduler.stack.pop();
+                                self.scheduler.stack.push(val);
+                            }
+                            crate::mir::InstKind::CalldataLoad(offset) => {
+                                // Calldata is immutable, so re-reading it is
+                                // always safe once the address rematerializes.
+                                self.emit_value_fresh(func, *offset);
+                                self.asm.emit_op(op::CALLDATALOAD);
+                                // Pop offset, push result
+                                self.scheduler.stack.pop();
+                                self.scheduler.stack.push(val);
+                            }
+                            kind if mir_opcode(kind).is_some_and(|opcode| {
+                                matches!(
+                                    opcode,
+                                    op::KECCAK256
+                                        | op::ADD
+                                        | op::SUB
+                                        | op::MUL
+                                        | op::AND
+                                        | op::OR
+                                        | op::XOR
+                                        | op::SHL
+                                        | op::SHR
+                                        | op::DIV
+                                        | op::SDIV
+                                        | op::MOD
+                                        | op::SMOD
+                                        | op::LT
+                                        | op::GT
+                                        | op::SLT
+                                        | op::SGT
+                                        | op::EQ
+                                        | op::SAR
+                                )
+                            }) =>
+                            {
+                                let opcode = mir_opcode(kind).unwrap();
+                                let operands = kind.operands();
+                                debug_assert_eq!(operands.len(), 2);
+                                self.emit_fresh_binary(
+                                    func,
+                                    val,
+                                    operands[0],
+                                    operands[1],
+                                    opcode,
+                                    op::is_commutative(opcode),
                                 );
                             }
-                            self.emit_value_fresh(func, *offset);
-                            self.asm.emit_op(op::MLOAD);
-                            // Pop offset, push result
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::CalldataLoad(offset) => {
-                            // Calldata is immutable, so re-reading it is
-                            // always safe once the address rematerializes.
-                            self.emit_value_fresh(func, *offset);
-                            self.asm.emit_op(op::CALLDATALOAD);
-                            // Pop offset, push result
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Keccak256(offset, size) => {
-                            // Re-emit KECCAK256 - memory content should still be valid.
-                            // KECCAK256 reads s[0] = offset, s[1] = size, so emit the
-                            // offset last so it ends up on top.
-                            self.emit_value_fresh(func, *size);
-                            self.emit_value_fresh(func, *offset);
-                            self.asm.emit_op(op::KECCAK256);
-                            // Pop offset and size, push result
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.push(val);
-                        }
-                        crate::mir::InstKind::Add(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::ADD, true);
-                        }
-                        crate::mir::InstKind::Sub(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::SUB, false);
-                        }
-                        crate::mir::InstKind::Mul(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::MUL, true);
-                        }
-                        crate::mir::InstKind::And(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::AND, true);
-                        }
-                        crate::mir::InstKind::Or(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::OR, true);
-                        }
-                        crate::mir::InstKind::Xor(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::XOR, true);
-                        }
-                        crate::mir::InstKind::Shl(shift, value) => {
-                            self.emit_fresh_binary(func, val, *shift, *value, op::SHL, false);
-                        }
-                        crate::mir::InstKind::Shr(shift, value) => {
-                            self.emit_fresh_binary(func, val, *shift, *value, op::SHR, false);
-                        }
-                        crate::mir::InstKind::Div(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::DIV, false);
-                        }
-                        crate::mir::InstKind::SDiv(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::SDIV, false);
-                        }
-                        crate::mir::InstKind::Mod(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::MOD, false);
-                        }
-                        crate::mir::InstKind::SMod(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::SMOD, false);
-                        }
-                        crate::mir::InstKind::Lt(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::LT, false);
-                        }
-                        crate::mir::InstKind::Gt(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::GT, false);
-                        }
-                        crate::mir::InstKind::SLt(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::SLT, false);
-                        }
-                        crate::mir::InstKind::SGt(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::SGT, false);
-                        }
-                        crate::mir::InstKind::Eq(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::EQ, true);
-                        }
-                        crate::mir::InstKind::Sar(shift, value) => {
-                            self.emit_fresh_binary(func, val, *shift, *value, op::SAR, false);
-                        }
-                        crate::mir::InstKind::SLoad(slot) => {
-                            // Re-emit SLOAD. CALL operands are materialized in a
-                            // tight sequence with no intervening store, so the
-                            // storage slot reads the same value as the original
-                            // load (same recompute contract as MLOAD above).
-                            self.emit_value_fresh(func, *slot);
-                            self.asm.emit_op(op::SLOAD);
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.push(val);
-                        }
-                        _ => {
-                            // A value that cannot be re-executed (e.g. an
-                            // internal-call result used to compute a CALL
-                            // operand) is live on the stack: duplicate it rather
-                            // than re-running it. If it is buried too deep to
-                            // `DUP`, spill it to a reserved slot and reload.
-                            if let Some(depth) = self.scheduler.stack.find(val) {
-                                if depth < self.stack_access_limit() {
-                                    self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
-                                } else {
-                                    let slot = self.scheduler.spills.allocate(val);
-                                    self.spill_deep_stack_value(func, val, slot, depth);
+                            crate::mir::InstKind::SLoad(slot) => {
+                                // Re-emit SLOAD. CALL operands are materialized in a
+                                // tight sequence with no intervening store, so the
+                                // storage slot reads the same value as the original
+                                // load (same recompute contract as MLOAD above).
+                                self.emit_value_fresh(func, *slot);
+                                self.asm.emit_op(op::SLOAD);
+                                self.scheduler.stack.pop();
+                                self.scheduler.stack.push(val);
+                            }
+                            _ => {
+                                // A value that cannot be re-executed (e.g. an
+                                // internal-call result used to compute a CALL
+                                // operand) is live on the stack: duplicate it rather
+                                // than re-running it. If it is buried too deep to
+                                // `DUP`, spill it to a reserved slot and reload.
+                                if let Some(depth) = self.scheduler.stack.find(val) {
+                                    if depth < self.stack_access_limit() {
+                                        self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
+                                    } else {
+                                        let slot = self.scheduler.spills.allocate(val);
+                                        self.spill_deep_stack_value(func, val, slot, depth);
+                                        let scheduled = ScheduledOp::LoadSpill(slot);
+                                        self.record_scheduled_ops_peak(
+                                            self.scheduler.depth(),
+                                            &[scheduled],
+                                        );
+                                        self.emit_spill_slot_addr(func, slot);
+                                        self.asm.emit_op(op::MLOAD);
+                                        self.scheduler.stack.push(val);
+                                    }
+                                } else if let Some(slot) = self.scheduler.reloadable_spill(val) {
+                                    // A defining block emitted later still stores
+                                    // this slot before the load executes at runtime.
                                     let scheduled = ScheduledOp::LoadSpill(slot);
                                     self.record_scheduled_ops_peak(
                                         self.scheduler.depth(),
@@ -9889,24 +9406,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     self.emit_spill_slot_addr(func, slot);
                                     self.asm.emit_op(op::MLOAD);
                                     self.scheduler.stack.push(val);
-                                }
-                            } else if let Some(slot) = self.scheduler.reloadable_spill(val) {
-                                // A defining block emitted later still stores
-                                // this slot before the load executes at runtime.
-                                let scheduled = ScheduledOp::LoadSpill(slot);
-                                self.record_scheduled_ops_peak(
-                                    self.scheduler.depth(),
-                                    &[scheduled],
-                                );
-                                self.emit_spill_slot_addr(func, slot);
-                                self.asm.emit_op(op::MLOAD);
-                                self.scheduler.stack.push(val);
-                            } else {
-                                panic!(
-                                    "emit_value_fresh: value {val:?} ({:?}) is neither on the \
+                                } else {
+                                    panic!(
+                                        "emit_value_fresh: value {val:?} ({:?}) is neither on the \
                                      stack, spilled, nor re-executable",
-                                    func.inst(*inst_id).kind
-                                );
+                                        func.inst(*inst_id).kind
+                                    );
+                                }
                             }
                         }
                     }

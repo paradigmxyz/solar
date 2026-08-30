@@ -1,6 +1,6 @@
 //! EVM value rematerialization recipes.
 
-use super::op;
+use super::mir_opcode;
 use crate::mir::{Function, InstKind, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
@@ -12,25 +12,29 @@ pub(super) const fn is_rematerializable_leaf(value: &Value) -> bool {
 
 /// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
 pub(super) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
-    Some(match kind {
-        InstKind::CalldataSize => op::CALLDATASIZE,
-        InstKind::CodeSize => op::CODESIZE,
-        InstKind::Caller => op::CALLER,
-        InstKind::CallValue => op::CALLVALUE,
-        InstKind::Address => op::ADDRESS,
-        InstKind::Origin => op::ORIGIN,
-        InstKind::GasPrice => op::GASPRICE,
-        InstKind::Coinbase => op::COINBASE,
-        InstKind::Timestamp => op::TIMESTAMP,
-        InstKind::BlockNumber => op::NUMBER,
-        InstKind::PrevRandao => op::PREVRANDAO,
-        InstKind::GasLimit => op::GASLIMIT,
-        InstKind::SlotNum => op::SLOTNUM,
-        InstKind::ChainId => op::CHAINID,
-        InstKind::BaseFee => op::BASEFEE,
-        InstKind::BlobBaseFee => op::BLOBBASEFEE,
-        _ => return None,
-    })
+    if matches!(
+        kind,
+        InstKind::CalldataSize
+            | InstKind::CodeSize
+            | InstKind::Caller
+            | InstKind::CallValue
+            | InstKind::Address
+            | InstKind::Origin
+            | InstKind::GasPrice
+            | InstKind::Coinbase
+            | InstKind::Timestamp
+            | InstKind::BlockNumber
+            | InstKind::PrevRandao
+            | InstKind::GasLimit
+            | InstKind::SlotNum
+            | InstKind::ChainId
+            | InstKind::BaseFee
+            | InstKind::BlobBaseFee
+    ) {
+        mir_opcode(kind)
+    } else {
+        None
+    }
 }
 
 /// Returns the opcode for a stable nullary MIR value that is cheaper to re-emit than preserve.
@@ -117,7 +121,10 @@ pub(super) fn cross_block_values(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{BlockId, Immediate, ImmutableId, Instruction, MirType, Value};
+    use crate::{
+        backend::evm::op,
+        mir::{BlockId, Immediate, ImmutableId, Instruction, MirType, Value},
+    };
     use alloy_primitives::U256;
     use solar_interface::Ident;
 
