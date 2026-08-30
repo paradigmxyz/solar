@@ -55,9 +55,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         needs_validation: bool,
     ) -> bool {
         // base = slice_ptr(value)
-        // len = slice_len(value)
         // head = abi_head(ty)
-        // if head > len { revert(0, 0) }
         // check_range(base, head)
         // validate_static(ty, base)
         if self.is_external_abi_argument(value) || !needs_validation {
@@ -69,10 +67,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let base = self.builder.slice_ptr(value);
-        let length = self.builder.slice_len(value);
         let size = self.builder.imm_u64(abi_type.head_size());
-        let too_short = self.builder.gt(size, length);
-        self.revert_if_invalid(too_short);
         self.check_calldata_range(base, size);
         self.validate_calldata_static_value(ty, base);
         true
