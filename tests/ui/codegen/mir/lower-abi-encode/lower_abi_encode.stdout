@@ -112,6 +112,36 @@
 +     jump bb1
   }
   
+  fn @fixed_nested_dynamic_arrays(arg0: memoryfixedarray) -> memoryslice {
+    bb0:
+-     v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+-     ret v0
++     v1 = fmp
++     v2 = add v1, 32
++     v3 = sub v2, v1
++     mstore v1, v3
++     v4 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 0
++     v5 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
++     v6 = add v2, 64
++     v7 = sub v6, v2
++     mstore v2, v7
++     v8 = internal_call @encode_abi_array, 1, v4, v6
++     v9 = add v2, 32
++     v10 = sub v8, v2
++     mstore v9, v10
++     v11 = internal_call @encode_abi_array, 1, v5, v8
++     v12 = sub v11, v2
++     v13 = add v2, v12
++     v14 = sub v13, v1
++     v15 = add v14, 0
++     v16 = add v15, 31
++     v17 = not 31
++     v18 = and v16, v17
++     v19 = alloc raw, exact, uninitialized, infallible, v18
++     v20 = make_memory_slice v19, v15
++     ret v20
+  }
+  
   fn @returndata_bytes() -> memoryslice {
     bb0:
       v0 = returndatasize
@@ -173,5 +203,34 @@
 +     v15 = alloc raw, exact, uninitialized, infallible, v14
 +     v16 = make_memory_slice v15, v11
 +     ret v16
++ }
++ 
++ fn @encode_abi_array(arg0: u256, arg1: memptr) -> u256 {
++   bb0:
++     v0 = memory_object_len memoryarray, arg0
++     v1 = iszero arg0
++     v2 = iszero v1
++     v3 = mul v0, v2
++     mstore arg1, v3
++     v4 = mul v3, 32
++     v5 = add arg1, 32
++     v6 = memory_object_data memoryarray, arg0
++     v7 = add v5, v4
++     jump bb1
++   bb1:
++     v8 = phi [bb0: 0], [bb2: v15]
++     v9 = lt v8, v3
++     jumpi v9, bb2, bb3
++   bb3:
++     ret v7
++   bb2:
++     v10 = mul v8, 32
++     v11 = add v6, v10
++     v12 = add v5, v10
++     v13 = mload v11
++     v14 = and v13, 255
++     mstore v12, v14
++     v15 = add v8, 1
++     jump bb1
   }
   

@@ -6,7 +6,7 @@ use super::*;
 enum StorageArrayElement {
     Bytes(FunctionId),
     Word,
-    Packed { bytes: u8, encoding: StorageEncoding },
+    Packed { bytes: u8, encoding: StorageEncoding, enum_variants: Option<u64> },
 }
 
 /// Builds the helper for decoding one storage `bytes`/`string` slot.
@@ -59,8 +59,13 @@ fn build_storage_array_helper(function: &mut Function, element: StorageArrayElem
             let element_slot = builder.add(data_slot, index);
             builder.sload(element_slot)
         }
-        StorageArrayElement::Packed { bytes, encoding } => {
-            load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding)
+        StorageArrayElement::Packed { bytes, encoding, enum_variants } => {
+            let value =
+                load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding);
+            if let Some(variants) = enum_variants {
+                builder.validate_enum_value(variants, value);
+            }
+            value
         }
     };
     builder.memory_object_store_element(object, layout, index, value);
@@ -970,20 +975,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && self.types.memory_layout(element).is_none()
         {
             let bytes = size.bytes();
+            let enum_variants = match element.peel_refs().kind {
+                TyKind::Enum(id) => Some(self.context.gcx.hir.enumm(id).variants.len() as u64),
+                _ => None,
+            };
+            let name = match enum_variants {
+                Some(variants) => helper_name(
+                    sym::load_storage_packed_array,
+                    format!("{bytes}_{}_enum_{variants}", encoding as u8),
+                ),
+                None => helper_name(
+                    sym::load_storage_packed_array,
+                    format!("{bytes}_{}", encoding as u8),
+                ),
+            };
             let helper = self
-                .lazy_helper(
-                    helper_name(
-                        sym::load_storage_packed_array,
-                        format!("{bytes}_{}", encoding as u8),
-                    ),
-                    |_, function| {
-                        build_storage_array_helper(
-                            function,
-                            StorageArrayElement::Packed { bytes, encoding },
-                        );
-                        Some(())
-                    },
-                )
+                .lazy_helper(name, |_, function| {
+                    build_storage_array_helper(
+                        function,
+                        StorageArrayElement::Packed { bytes, encoding, enum_variants },
+                    );
+                    Some(())
+                })
                 .expect("packed storage array helper construction cannot fail");
             return Some(helper);
         }
