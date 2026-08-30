@@ -1,4 +1,21 @@
 //! Block-local common-subexpression regeneration over scheduled EVM IR.
+//!
+//! The pass symbolically executes each basic block and interns expressions by opcode, operands,
+//! and the relevant memory or storage epoch. When an expression already exists on the physical
+//! stack, it removes the repeated computation and regenerates the value with a reachable `DUP`.
+//! It also tracks known constant-address memory words, removing stores of an unchanged value and
+//! replacing loads with the expression last stored at that address.
+//!
+//! Expression spans are reusable only when they are closed: the interval must consume no value
+//! from before the interval and produce only the tracked result. Unknown stack effects and
+//! observable writes invalidate the affected symbolic state. Memory and storage reads carry
+//! separate epochs, so a write prevents reuse across a possible state change without blocking
+//! unrelated pure expressions. Rewrites stay within one block and respect the target's reachable
+//! stack depth; the pass does not perform alias analysis or move instructions across control flow.
+//!
+//! This runs after physical stack scheduling, where repeated expressions and redundant constant
+//! memory traffic are visible. Peephole cleanup follows it because removing a computation can
+//! expose adjacent stack and arithmetic simplifications.
 
 use super::EvmPass;
 use crate::backend::evm::{

@@ -1,4 +1,20 @@
 //! Target-dependent selection of compact immediate materializations.
+//!
+//! A literal `PUSHn` is not always the shortest way to construct a 256-bit constant. For each
+//! concrete immediate, this pass compares the literal encoding with a fixed set of equivalent
+//! recipes: `PUSH0; NOT` for an all-ones word, `NOT` of a shorter inverse, and shift-based forms
+//! for masks or values with trailing zero bytes. It then emits the recipe with the fewest encoded
+//! bytes, keeping the literal on ties so the pass never increases code size.
+//!
+//! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
+//! target supports them. The exported cost helper uses the same selector, so other EVM IR passes
+//! can compare a prospective rewrite with the bytes and static gas that this pass will emit.
+//! Recipes may use more instructions and transient stack space than a literal push; passes that
+//! move encoded pushes must therefore preserve their own stack-headroom proof.
+//!
+//! The pass runs late, after transformations that reason about one logical immediate instruction.
+//! Later peephole and stack cleanup can simplify the concrete recipe, while assembly only chooses
+//! final push widths and does not rediscover constant-building expressions.
 
 use super::EvmPass;
 use crate::backend::evm::{

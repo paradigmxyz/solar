@@ -1,4 +1,20 @@
 //! Late dead-value elimination over scheduled EVM IR.
+//!
+//! Stack scheduling can leave a duplicated value that survives through several physical stack
+//! operations only to be discarded by `POP`. Starting from each `DUP`, this pass symbolically
+//! follows the copied occurrence through the block. It removes that occurrence, retargets the
+//! intervening `DUP`, `SWAP`, and `EXCHANGE` operations to the compressed stack, and accepts the
+//! candidate when the omitted copy reaches its discard.
+//!
+//! The simulation stops when an ordinary instruction consumes the selected occurrence, when the
+//! target cannot encode a required replacement stack operation, or when another live occurrence
+//! cannot be reached. Candidate costs use the target's lowered stack operations. A rewrite must
+//! improve bytes or static gas without making the other metric worse; size mode also disables
+//! optional duplicate retargeting that can trade bytes for gas.
+//!
+//! This is a block-local, post-scheduling pass: it does not recover MIR liveness or remove general
+//! computations. It runs in cleanup stages because CFG, CSE, and normalization passes can expose
+//! new dead copies, and peephole cleanup immediately folds the shorter physical sequence.
 
 use super::EvmPass;
 use crate::backend::evm::{

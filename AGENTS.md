@@ -142,6 +142,12 @@ programs or purposes.
 
 ### Codegen / MIR Pass Tests
 
+Every MIR and EVM IR pass module must start with module documentation that explains the pass in
+enough detail to review it without first reading the implementation. Describe what the pass
+rewrites, the analysis or algorithm it uses, the main safety and profitability constraints, and
+where it belongs in the pipeline. Document important limits or deliberate omissions; do not settle
+for a one-line restatement of the pass name.
+
 - Prefer UI tests for MIR/codegen behavior. Organize codegen tests by layer:
   - Solidity-to-IR lowering tests go under `tests/ui/codegen/lowering/`.
   - MIR optimization tests go under `tests/ui/codegen/mir/<pass-name>/`, using

@@ -1,4 +1,23 @@
-//! Reorders pushes around self-contained expressions that do not observe the push.
+//! Move encoded pushes before self-contained producers to remove a following `SWAP1`.
+//!
+//! Physical scheduling can emit `producer; PUSH value; SWAP1` when the producer must run before an
+//! immediate operand is materialized. If the producer is a closed expression and none of its
+//! instructions observes the extra stack word, this pass rewrites the sequence to `PUSH value;
+//! producer`. The values reach the consumer in the same order and the `SWAP1` disappears. A linked
+//! instruction sequence lets chained rewrites move whole expression fragments in linear time.
+//!
+//! The expression tracker accepts only known one-result operations, rejects physical stack
+//! instructions and observations such as `PC` or `GAS`, and clears at unknown effects. Moving a
+//! push can increase the producer's absolute stack peak, so the pass first admits rewrites that do
+//! not exceed the block's existing relative high-water mark. Remaining candidates use CFG-derived
+//! entry depths and are rejected when dynamic control flow or an unbounded path prevents a proof.
+//! Net stack effects do not change, which lets the second phase reuse depths after the first phase.
+//!
+//! The pass runs after outlining and before compact pushes: it reasons about one logical encoded
+//! push, while later target-specific expansion may choose a shorter constant recipe. It is disabled
+//! for pre-extended-stack size builds because its interaction with later structural cleanup can
+//! increase code size there; gas mode and targets with extended stack operations keep the measured
+//! win.
 
 use super::{
     EvmPass,

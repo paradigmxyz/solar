@@ -1,4 +1,22 @@
 //! Outline repeated closed computations and large immediate pushes.
+//!
+//! The pass finds repeated straight-line machine instruction runs, replaces each profitable site
+//! with a jump to one shared body, and returns from that body through a stack-held continuation.
+//! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
+//! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
+//! when the call and return sequence is smaller than spelling out each literal.
+//!
+//! Candidates must be closed stack computations with known effects: they consume a fixed number
+//! of inputs, produce a fixed number of outputs, contain no control flow or observable operation,
+//! and fit the EVM stack limit at every site. Profitability includes the shared body, per-site
+//! call sequence, continuation labels, and target-dependent push widths. Sites are selected without
+//! overlap, and new blocks and labels are installed through the normal EVM IR CFG representation.
+//!
+//! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
+//! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
+//! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
+//! Outlining runs before late CFG/CSE/DCE cleanup, which removes jump thunks and redundancies
+//! exposed by sharing; assembly remains responsible only for final label offsets and push widths.
 
 use super::{
     EvmPass,

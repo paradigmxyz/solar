@@ -1,4 +1,21 @@
 //! Local peephole optimization over scheduled EVM IR.
+//!
+//! This pass repeatedly applies ordered, bounded rewrites to the end of each block's instruction
+//! prefix until it reaches a local fixed point. The rules cover constant arithmetic, comparison
+//! canonicalization, redundant pushes and copies, target-aware `DUP`/`SWAP`/`EXCHANGE` identities,
+//! and short symbolic stack sequences whose net effect is the identity. It also removes trailing
+//! `POP`s before `STOP`, which cannot observe the remaining stack.
+//!
+//! Rules match only canonical EVM IR instructions and preserve instruction metadata on retained or
+//! replacement operations. Constant materializations use the same target-dependent cost model as
+//! compact pushes. Stack rewrites check that replacement operations can be lowered for the selected
+//! EVM version, and bounded symbolic simulation prevents the matcher from becoming a general or
+//! unbounded stack optimizer. Rule order is intentional because one rewrite often exposes the next.
+//!
+//! Peephole runs at several cleanup points after transforms that delete, coalesce, or resynthesize
+//! instructions. [`Cleanup`] couples such a pass with peephole only when the wrapped pass reports a
+//! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
+//! to assembly.
 
 use super::{
     EvmPass,
