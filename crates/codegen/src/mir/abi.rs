@@ -245,8 +245,10 @@ impl AbiParamType {
 /// The ABI-relevant shape and source representation of one value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum AbiType {
-    /// A scalar encoded as one word.
-    Word,
+    /// A scalar encoded as one word, with the cleanup its type requires when the word is read
+    /// from memory: narrow integers are masked or sign-extended, booleans canonicalized, and
+    /// enums range-checked during encoding, like solc. `None` is a full word.
+    Word(Option<AbiWordValidator>),
     /// An external function pointer encoded as a left-aligned `bytes24` word.
     Function,
     /// A dynamic byte string represented in the given address space.
@@ -274,7 +276,7 @@ impl AbiType {
     #[must_use]
     pub(crate) fn is_dynamic(&self) -> bool {
         match self {
-            Self::Word | Self::Function => false,
+            Self::Word(_) | Self::Function => false,
             Self::Bytes(_) | Self::DynamicArray { .. } => true,
             Self::FixedArray { element, .. } => element.is_dynamic(),
             Self::Tuple(fields) => fields.iter().any(Self::is_dynamic),
@@ -287,10 +289,18 @@ impl AbiType {
         if self.is_dynamic() {
             return 32;
         }
+        self.tail_size()
+    }
+
+    /// Returns the size of the value's own encoding where a tail offset points: the length
+    /// word of a dynamically sized value, or the whole head area of a statically sized one.
+    /// This is solc's `calldataEncodedTailSize`, the length its calldata tail access requires.
+    #[must_use]
+    pub(crate) fn tail_size(&self) -> u64 {
         match self {
+            Self::Word(_) | Self::Function | Self::Bytes(_) | Self::DynamicArray { .. } => 32,
             Self::FixedArray { element, len } => element.head_size() * len,
             Self::Tuple(fields) => fields.iter().map(Self::head_size).sum(),
-            _ => 32,
         }
     }
 }
@@ -311,7 +321,8 @@ impl fmt::Display for AbiLayout {
 impl fmt::Display for AbiType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Word => write!(f, "word"),
+            Self::Word(None) => write!(f, "word"),
+            Self::Word(Some(cleanup)) => write!(f, "word<{cleanup}>"),
             Self::Function => write!(f, "function"),
             // ABI values live in calldata (inputs) or memory (outputs); the
             // location's own `Display` yields the `memory`/`calldata` prefix.
@@ -336,7 +347,7 @@ impl fmt::Display for AbiType {
 ///
 /// Shared by the ABI lowering phase (wrappers, constructors, returns) and the
 /// calldata decoding helpers in the function lowerer.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum AbiWordValidator {
     /// Word must fit in a low-bit range.
     Unsigned(u16),
@@ -348,6 +359,19 @@ pub(crate) enum AbiWordValidator {
     Bool,
     /// Word must be less than the number of enum variants.
     EnumRange(u64),
+}
+
+/// Prints the validator as the MIR scalar type it canonicalizes, or `enum N` for a range.
+impl fmt::Display for AbiWordValidator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unsigned(bits) => write!(f, "u{bits}"),
+            Self::LeftAligned(bits) => write!(f, "bytes{}", bits / 8),
+            Self::SignExtend(byte_index) => write!(f, "i{}", (byte_index + 1) * 8),
+            Self::Bool => write!(f, "bool"),
+            Self::EnumRange(variants) => write!(f, "enum {variants}"),
+        }
+    }
 }
 
 impl AbiWordValidator {

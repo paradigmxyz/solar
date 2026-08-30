@@ -18,7 +18,7 @@ fn @avgEdge() -> u256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[wo
     ret v2
 }
 
-fn @negativeConstant() -> bool [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word]] {
+fn @negativeConstant() -> bool [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sub 0, 0xd89e8
     v1 = internal_call @isMinTick, 1, v0

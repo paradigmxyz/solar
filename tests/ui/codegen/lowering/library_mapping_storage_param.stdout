@@ -54,9 +54,6 @@ bb0:
   sload
   dup 2
   add
-  dup 1
-  push 256
-  mstore
   swap 1
   dup 2
   lt
@@ -69,9 +66,6 @@ bb3 [cold]:
   dup 1
   revert
 bb7:
-  dup 1
-  push 160
-  mstore
   push 128
   mstore
   push 32

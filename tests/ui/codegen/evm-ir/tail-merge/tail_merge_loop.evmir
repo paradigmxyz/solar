@@ -1,0 +1,94 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Zevm-ir-pipeline=tail-merge -O gas --evm-version amsterdam
+//@[size] compile-flags: -Zevm-ir-pipeline=tail-merge -O size --evm-version amsterdam
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] filecheck: --check-prefix=SIZE
+@module module
+
+// A shared tail is entered by a jump every time it runs. Loop blocks keep their own copy in
+// gas mode, where the bytes saved never pay back a jump per iteration; size mode merges them.
+bb0:
+  push 0
+  jump bb1
+
+bb1:
+  dup 1
+  push bb2
+  jumpi
+  jump bb3
+
+// GAS-LABEL: {{^[ +].*}}bb2 [loop]:
+// GAS: {{^[ +].*}}push 11
+// GAS-NEXT: {{^[ +].*}}pop
+// GAS-NEXT: {{^[ +].*}}push 22
+// GAS-NEXT: {{^[ +].*}}push 33
+// GAS-NEXT: {{^[ +].*}}mstore
+// GAS-NEXT: {{^[ +].*}}push 44
+// GAS-NEXT: {{^[ +].*}}push 55
+// GAS-NEXT: {{^[ +].*}}mstore
+// GAS-NEXT: {{^[ +].*}}jump bb1
+// SIZE-LABEL: {{^[ +].*}}bb2 [loop]:
+// SIZE: {{^[ +].*}}push 11
+// SIZE: + jump [[TAIL:bb[0-9]+]]
+bb2 [loop]:
+  push 11
+  pop
+  push 22
+  push 33
+  mstore
+  push 44
+  push 55
+  mstore
+  jump bb1
+
+// GAS-LABEL: {{^[ +].*}}bb3 [loop]:
+// GAS: {{^[ +].*}}push 99
+// GAS-NEXT: {{^[ +].*}}pop
+// GAS-NEXT: {{^[ +].*}}push 22
+// GAS-NEXT: {{^[ +].*}}push 33
+// GAS-NEXT: {{^[ +].*}}mstore
+// GAS-NEXT: {{^[ +].*}}push 44
+// GAS-NEXT: {{^[ +].*}}push 55
+// GAS-NEXT: {{^[ +].*}}mstore
+// GAS-NEXT: {{^[ +].*}}jump bb1
+// SIZE-LABEL: {{^[ +].*}}bb3 [loop]:
+// SIZE: {{^[ +].*}}push 99
+// SIZE: + jump [[TAIL]]
+bb3 [loop]:
+  push 99
+  pop
+  push 22
+  push 33
+  mstore
+  push 44
+  push 55
+  mstore
+  jump bb1
+
+// Hot blocks outside a loop still share their tail in gas mode.
+// GAS-LABEL: {{^[ +].*}}bb4:
+// GAS: {{^[ +].*}}push 77
+// GAS: + jump [[TAIL_B:bb[0-9]+]]
+bb4:
+  push 77
+  push 22
+  push 33
+  push 44
+  push 55
+  revert
+
+// GAS-LABEL: {{^[ +].*}}bb5:
+// GAS: {{^[ +].*}}push 88
+// GAS: + jump [[TAIL_B]]
+bb5:
+  push 88
+  push 22
+  push 33
+  push 44
+  push 55
+  revert
+
+// SIZE: {{^[ +].*}}[[TAIL]] [loop]:
+// SIZE-NEXT: {{^[ +].*}}pop
+// SIZE-NEXT: {{^[ +].*}}push 22
+// SIZE: {{^[ +].*}}jump bb1

@@ -2,7 +2,7 @@
 @module A
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:B ===
 @module B
-fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word]] {
+fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 20
@@ -35,7 +35,7 @@ fn @_anonymous() [constructor] {
 @module InternalLibrary
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:EmptyContractRuntime ===
 @module EmptyContractRuntime
-fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word]] {
+fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
@@ -69,7 +69,7 @@ fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], a
     ret v10
 }
 
-fn @deploysRevertingRuntime() -> bool [selector=0x7c2d5470, abi_params=[], abi_returns=[word]] {
+fn @deploysRevertingRuntime() -> bool [selector=0x7c2d5470, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -104,7 +104,7 @@ fn @deploysRevertingRuntime() -> bool [selector=0x7c2d5470, abi_params=[], abi_r
     ret v15
 }
 
-fn @hasCode() -> bool [selector=0xfffc60a2, abi_params=[], abi_returns=[word]] {
+fn @hasCode() -> bool [selector=0xfffc60a2, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
@@ -125,7 +125,7 @@ fn @hasCode() -> bool [selector=0xfffc60a2, abi_params=[], abi_returns=[word]] {
     ret v9
 }
 
-fn @rejectsCalls() -> bool [selector=0x99b623b6, abi_params=[], abi_returns=[word]] {
+fn @rejectsCalls() -> bool [selector=0x99b623b6, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

@@ -11,7 +11,6 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-
 SOLC_ADDRESS = "0x1000000000000000000000000000000000000001"
 SOLAR_ADDRESS = "0x1000000000000000000000000000000000000002"
 # Well-known anvil dev account 0; unlocked, so `eth_sendTransaction` needs no
@@ -40,20 +39,20 @@ def compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float)
         ],
         check=True,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=timeout,
     )
     return runtime_from_contracts(json.loads(result.stdout)["contracts"], contract)
 
 
-def compile_solar(solar: str, source: pathlib.Path, contract: str, timeout: float) -> str:
+def compile_solar(
+    solar: str, source: pathlib.Path, contract: str, timeout: float
+) -> str:
     result = subprocess.run(
         [solar, "--emit=bin-runtime", "--pretty-json", str(source)],
         check=True,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=timeout,
     )
     return runtime_from_contracts(json.loads(result.stdout)["contracts"], contract)
@@ -64,8 +63,7 @@ def cast_calldata(cast: str, signature: str, args: list[str]) -> str:
         [cast, "calldata", signature, *args],
         check=True,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return result.stdout.strip()
 
@@ -88,7 +86,9 @@ def rpc(
     timeout: float,
     retries: int = 2,
 ) -> dict[str, Any]:
-    payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+    payload = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    )
     request = urllib.request.Request(
         url, data=payload.encode(), headers={"Content-Type": "application/json"}
     )
@@ -98,7 +98,9 @@ def rpc(
                 return json.loads(response.read().decode())
         except (urllib.error.URLError, TimeoutError) as err:
             if attempt >= retries:
-                raise InfraError(f"JSON-RPC transport error for {method}: {err}") from err
+                raise InfraError(
+                    f"JSON-RPC transport error for {method}: {err}"
+                ) from err
             time.sleep(0.1 * (attempt + 1))
 
     raise InfraError(f"JSON-RPC transport error for {method}")
@@ -171,7 +173,9 @@ def wait_for_receipt(url: str, tx_hash: str, timeout: float) -> dict[str, Any] |
     """
     deadline = time.monotonic() + timeout
     while True:
-        receipt = rpc(url, "eth_getTransactionReceipt", [tx_hash], timeout).get("result")
+        receipt = rpc(url, "eth_getTransactionReceipt", [tx_hash], timeout).get(
+            "result"
+        )
         if receipt:
             return receipt
         if time.monotonic() >= deadline:

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/modifier_virtual_empty.sol:ModifierVirtualEmpty ===
 @module ModifierVirtualEmpty
-fn @f() -> bool [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
+fn @f() -> bool [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     jumpi 0, bb2, bb3
   bb3:

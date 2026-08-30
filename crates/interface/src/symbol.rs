@@ -313,6 +313,7 @@ impl Symbol {
                 | kw::Break
                 | kw::Continue
                 | kw::Leave
+                | kw::Hex
                 | kw::True
                 | kw::False
         )
@@ -349,6 +350,7 @@ impl Symbol {
                 !evm_version.has_blob_base_fee()
             }
             kw::Clz => !evm_version.has_clz(),
+            kw::Slotnum => !evm_version.has_slot_num(),
             _ => false,
         }
     }
@@ -899,6 +901,7 @@ symbols! {
         Extcodesize:    "extcodesize",
         Gas:            "gas",
         Gaslimit:       "gaslimit",
+        Slotnum:        "slotnum",
         Gasprice:       "gasprice",
         Gt:             "gt",
         Invalid:        "invalid",
@@ -991,6 +994,7 @@ symbols! {
     // nice to have.
     Symbols {
         Error,
+        Loop: "loop",
         Panic,
         Test,
         X,
@@ -1045,6 +1049,7 @@ symbols! {
         dispatch,
         display_test,
         dup,
+        dupn,
         ecrecover,
         effect,
         encode,
@@ -1052,13 +1057,16 @@ symbols! {
         encodePacked,
         encodeWithSelector,
         encodeWithSignature,
+        encode_abi_array,
         entry,
         environment_read,
         erc7201,
         err,
         error,
         evm_dash_shaped: "evm-shaped",
+        evmasm,
         exact,
+        exchange,
         experimental,
         external_call,
         fmp,
@@ -1187,9 +1195,11 @@ symbols! {
         storage_write,
         storageptr,
         store_recursive_storage,
+        store_storage_bytes,
         storeimmutable,
         super_: "super",
         swap,
+        swapn,
         symbolic,
         tail_call,
         terminal,

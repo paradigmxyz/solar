@@ -62,7 +62,7 @@ fn @swap(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [select
     ret v3, v5
 }
 
-fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [selector=0xcccc734d, abi_params=[bool, u256, u256, u8], abi_returns=[word, word]] {
+fn @packedRebind(arg0: bool, arg1: u256, arg2: u256, arg3: u8) -> (u8, u8) [selector=0xcccc734d, abi_params=[bool, u256, u256, u8], abi_returns=[word<u8>, word<u8>]] {
   bb0:
     v0 = mapping_slot arg1, 1
     jumpi arg0, bb1, bb2
@@ -151,7 +151,7 @@ fn @chainedAssignmentExpression(arg0: u256, arg1: u256, arg2: u256) -> (u256, u2
     ret v4, v6
 }
 
-fn @mappingAssignmentExpression(arg0: u256, arg1: u256, arg2: u8) -> (u8, u8, u8, u8) [selector=0xe5a9572e, abi_params=[u256, u256, u8], abi_returns=[word, word, word, word]] {
+fn @mappingAssignmentExpression(arg0: u256, arg1: u256, arg2: u8) -> (u8, u8, u8, u8) [selector=0xe5a9572e, abi_params=[u256, u256, u8], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>]] {
   bb0:
     v0 = mapping_slot arg0, 1
     v1 = add v0, 1

@@ -35,7 +35,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codegen-runtime'
-    runs-on: depot-ubuntu-latest
+    runs-on: depot-ubuntu-latest-8
     timeout-minutes: 45
     permissions:
       actions: read
@@ -86,56 +86,107 @@ jobs:
           "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
 
       - name: Build Solar
-        run: cargo build --release -p solar-compiler --bin solar
+        run: |
+          cargo build --profile bench -p solar-compiler --bin solar
+          cp target/release/solar target/release/solar-head
 
-      - name: Download baseline (${{ env.BASE_BRANCH }} branch)
+      - name: Download exact baseline (${{ env.BASE_BRANCH }} branch)
         id: baseline
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench/baseline
 
-          run_ids="$(
+          base_sha="$BASE_SHA"
+          if [[ -z "$base_sha" ]]; then
+            base_sha="$(git rev-parse "origin/$BASE_BRANCH")"
+          fi
+          echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+          runs_json="$(
             gh run list \
               --workflow bench.yml \
-              --branch "$BASE_BRANCH" \
-              --status success \
-              --limit 20 \
-              --json databaseId \
-              --jq '.[].databaseId' \
+              --commit "$base_sha" \
+              --limit 10 \
+              --json createdAt,databaseId,status \
               2>/dev/null || true
           )"
+          latest_run_id="$(
+            jq -r --argjson current "$CURRENT_RUN_ID" \
+              '[.[] | select(.databaseId != $current)] | max_by(.createdAt).databaseId // empty' \
+              <<< "$runs_json"
+          )"
+          if [[ "${{ github.event_name }}" == "pull_request" && -n "$latest_run_id" ]]; then
+            latest_status="$(
+              jq -r --argjson run_id "$latest_run_id" \
+                '.[] | select(.databaseId == $run_id) | .status' \
+                <<< "$runs_json"
+            )"
+            if [[ "$latest_status" != "completed" ]]; then
+              echo "Waiting for exact-base benchmark run $latest_run_id"
+              gh run watch "$latest_run_id" --interval 10
+              runs_json="$(
+                gh run list \
+                  --workflow bench.yml \
+                  --commit "$base_sha" \
+                  --limit 10 \
+                  --json createdAt,databaseId,status
+              )"
+            fi
+          fi
+          run_ids="$(
+            jq -r --argjson current "$CURRENT_RUN_ID" \
+              '[.[] | select(.databaseId != $current and .status == "completed")] | sort_by(.createdAt) | reverse | .[].databaseId' \
+              <<< "$runs_json"
+          )"
           if [[ -z "$run_ids" ]]; then
-            echo "::warning::No successful $BASE_BRANCH benchmark run was found for baseline comparison"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No completed benchmark run was found for exact base $base_sha"
             exit 0
           fi
 
           for run_id in $run_ids; do
-            if gh run download "$run_id" \
-              --name codegen-runtime-baseline \
-              --dir target/codegen-bench/baseline \
-              2>/dev/null && [[ -f target/codegen-bench/baseline/results.json ]]; then
-              exit 0
-            fi
-            if gh run download "$run_id" \
-              --name codegen-runtime-results \
-              --dir target/codegen-bench/baseline \
-              2>/dev/null && [[ -f target/codegen-bench/baseline/results.json ]]; then
-              exit 0
-            fi
+            for artifact in codegen-runtime-baseline codegen-runtime-results; do
+              download_dir="$RUNNER_TEMP/codegen-baseline-$run_id-$artifact"
+              mkdir -p "$download_dir"
+              if gh run download "$run_id" \
+                --name "$artifact" \
+                --dir "$download_dir" \
+                2>/dev/null && [[ -f "$download_dir/results.json" ]]; then
+                cp "$download_dir/results.json" target/codegen-bench/baseline/results.json
+                echo "found=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done
           done
 
-          echo "::warning::No $BASE_BRANCH baseline artifact was available for comparison"
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Exact base $base_sha has no complete baseline artifact"
 
-      - name: Run codegen benchmark
-        id: codegen-bench
+      - name: Build exact-base compiler
+        if: github.event_name == 'pull_request' && steps.baseline.outputs.found != 'true'
+        env:
+          BASE_SHA: ${{ steps.baseline.outputs.sha }}
         run: |
           set -euo pipefail
-          mkdir -p target/codegen-bench
+          git checkout --detach "$BASE_SHA"
+          if ! cargo build --profile bench -p solar-compiler --bin solar; then
+            git checkout --detach "$GITHUB_SHA"
+            exit 1
+          fi
+          cp target/release/solar target/release/solar-base
+          git checkout --detach "$GITHUB_SHA"
+
+      - name: Run exact-base benchmark
+        if: github.event_name == 'pull_request' && steps.baseline.outputs.found != 'true'
+        run: |
+          set -euo pipefail
           if ! python3 benches/runtime/benchmark.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar target/release/solar \
+            --solar target/release/solar-base \
             --mode runtime compile-time \
             --suite all \
             --compile-repeats 5 \
@@ -143,7 +194,36 @@ jobs:
             --gas-profile hot \
             --start-anvil \
             --allow-failures \
-            --output target/codegen-bench/results.json; then
+            --output target/codegen-bench/baseline/results.json; then
+            echo "::warning::Exact-base codegen benchmark failed to complete"
+          fi
+
+      - name: Run codegen benchmark
+        id: codegen-bench
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench
+          args=(
+            --verbose
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+            --solar target/release/solar-head
+            --mode runtime compile-time
+            --suite all
+            --compile-repeats 5
+            --gas
+            --gas-profile hot
+            --start-anvil
+            --allow-failures
+            --output target/codegen-bench/results.json
+          )
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" && \
+            -f target/codegen-bench/baseline/results.json ]]; then
+            args+=(
+              --solar-only
+              --reference-results target/codegen-bench/baseline/results.json
+            )
+          fi
+          if ! python3 benches/runtime/benchmark.py "${args[@]}"; then
             echo "::warning::Codegen benchmark failed to complete"
           fi
 
@@ -170,7 +250,14 @@ jobs:
 
       - name: Add report to job summary
         if: always()
-        run: cat target/codegen-bench/report.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          if [[ -f target/codegen-bench/report.md ]]; then
+            cat target/codegen-bench/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '## Codegen benchmark' >> "$GITHUB_STEP_SUMMARY"
+            echo >> "$GITHUB_STEP_SUMMARY"
+            echo 'The benchmark did not produce a report.' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Comment on PR
         if: >-
@@ -211,7 +298,7 @@ jobs:
       github.event_name != 'workflow_dispatch' ||
       inputs.benchmark == 'all' ||
       inputs.benchmark == 'codspeed'
-    runs-on: depot-ubuntu-latest-4
+    runs-on: depot-ubuntu-latest-8
     permissions:
       contents: read
     steps:

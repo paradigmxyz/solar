@@ -239,9 +239,7 @@ class ProjectGenerationTests(unittest.TestCase):
                 max_dynamic_length=256,
             )
 
-            test_source = (
-                project / "test" / "SymbolicDifferential.t.sol"
-            ).read_text()
+            test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
             config = (project / "foundry.toml").read_text()
 
         self.assertIn("checkSymbolicDifferential(uint256 arg0)", test_source)
@@ -273,9 +271,7 @@ class ProjectGenerationTests(unittest.TestCase):
                 max_dynamic_length=256,
             )
 
-            test_source = (
-                project / "test" / "SymbolicDifferential.t.sol"
-            ).read_text()
+            test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
             config = (project / "foundry.toml").read_text()
 
         self.assertIn("vm.recordLogs()", test_source)
@@ -412,7 +408,7 @@ class CommandTests(unittest.TestCase):
                         },
                     }
                 }
-            }
+            },
         }
         script = (
             "#!/usr/bin/env python3\n"

@@ -17,7 +17,7 @@ fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u25
     ret v0, v1, v2, v3, 0, 0
 }
 
-fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_returns=[word, word, word]] {
+fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word]] {
   bb0:
     v0 = tload 1
     v1 = not 0xffff
@@ -42,7 +42,7 @@ fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_return
     ret v14, v17, v12
 }
 
-fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word]] {
+fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>]] {
   bb0:
     v0 = sub 0, 2
     v1 = shl 32, 0xffff
@@ -96,7 +96,7 @@ fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
 @module TransientModifier
-fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>]] {
   bb0:
     v0 = tload 0
     v1 = and v0, 0xffff

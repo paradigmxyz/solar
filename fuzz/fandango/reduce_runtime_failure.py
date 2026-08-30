@@ -18,13 +18,13 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any, Self
 
-
 RUN_RE = re.compile(
     r"(?P<prefix>function\s+run\s*\([^)]*\)\s+external\s+returns\s*\(uint256\s+r\)\s*\{\s*unchecked\s*\{\s*)"
     r"(?P<body>.*?)"
     r"(?P<suffix>\s*value\s*=\s*r\s*;\s*values\s*\[\s*a\s*&\s*7\s*\]\s*=\s*r\s*;\s*emit\s+Seen\s*\(\s*1\s*,\s*r\s*\)\s*;\s*return\s+r\s*;\s*\}\s*\})",
     re.DOTALL,
 )
+
 
 @dataclass
 class Stats:
@@ -99,9 +99,13 @@ class Reducer:
             chunk_size = max(1, len(items) // granularity)
             changed = False
             for start in range(0, len(items), chunk_size):
-                candidate_items = items[:start] + items[start + chunk_size:]
-                candidate = replace_body(source, parts.match, body_or_default(candidate_items))
-                if self.try_candidate(candidate, f"remove statement chunk {start}:{start + chunk_size}"):
+                candidate_items = items[:start] + items[start + chunk_size :]
+                candidate = replace_body(
+                    source, parts.match, body_or_default(candidate_items)
+                )
+                if self.try_candidate(
+                    candidate, f"remove statement chunk {start}:{start + chunk_size}"
+                ):
                     source = candidate
                     parts = RunParts.parse(source)
                     if parts is None:
@@ -127,7 +131,9 @@ class Reducer:
             for replacement in structured_replacements(item):
                 candidate_items = list(items)
                 candidate_items[index] = replacement
-                candidate = replace_body(source, parts.match, body_or_default(candidate_items))
+                candidate = replace_body(
+                    source, parts.match, body_or_default(candidate_items)
+                )
                 if self.try_candidate(candidate, f"simplify structured item {index}"):
                     return candidate
         return source
@@ -157,7 +163,9 @@ class Reducer:
                 return candidate
         return source
 
-    def apply_text_replacements(self, source: str, replacements: list[tuple[int, int, str, str]]) -> str:
+    def apply_text_replacements(
+        self, source: str, replacements: list[tuple[int, int, str, str]]
+    ) -> str:
         for start, end, replacement, label in replacements:
             candidate = source[:start] + replacement + source[end:]
             if candidate != source and self.try_candidate(candidate, label):
@@ -203,9 +211,9 @@ class Reducer:
                     "--timeout",
                     str(self.args.timeout),
                 ],
+                check=False,
                 text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 timeout=self.args.timeout + 5,
             )
         try:
@@ -243,14 +251,21 @@ def main() -> int:
     args.out.write_text(reduced)
     reduced_failure = dict(failure)
     reduced_failure["source_text"] = reduced
-    args.out.with_suffix(".json").write_text(json.dumps(reduced_failure, indent=2, sort_keys=True) + "\n")
-    print(json.dumps({
-        "attempts": reducer.stats.attempts,
-        "accepted": reducer.stats.accepted,
-        "input_bytes": len(source),
-        "output_bytes": len(reduced),
-        "out": str(args.out),
-    }, separators=(",", ":")))
+    args.out.with_suffix(".json").write_text(
+        json.dumps(reduced_failure, indent=2, sort_keys=True) + "\n"
+    )
+    print(
+        json.dumps(
+            {
+                "attempts": reducer.stats.attempts,
+                "accepted": reducer.stats.accepted,
+                "input_bytes": len(source),
+                "output_bytes": len(reduced),
+                "out": str(args.out),
+            },
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 
@@ -266,12 +281,12 @@ def split_top_level_items(body: str) -> list[str]:
         elif char == "}":
             depth = max(depth - 1, 0)
             if depth == 0 and not next_nonspace_starts_with(body, index + 1, "else"):
-                item = body[start:index + 1].strip()
+                item = body[start : index + 1].strip()
                 if item:
                     items.append(item)
                 start = index + 1
         elif char == ";" and depth == 0:
-            item = body[start:index + 1].strip()
+            item = body[start : index + 1].strip()
             if item:
                 items.append(item)
             start = index + 1
@@ -293,24 +308,28 @@ def structured_replacements(item: str) -> list[str]:
     replacements = []
     if_match = match_if_else(item)
     if if_match is not None:
-        replacements.extend([
-            if_match["then"].strip(),
-            if_match["else"].strip(),
-            "r = 0;",
-            "r = value;",
-        ])
+        replacements.extend(
+            [
+                if_match["then"].strip(),
+                if_match["else"].strip(),
+                "r = 0;",
+                "r = value;",
+            ]
+        )
 
     for_match = match_for(item)
     if for_match is not None:
         init = for_match["init"].strip()
         body = for_match["body"].strip()
-        replacements.extend([
-            body,
-            f"{init};",
-            f"{init}; r = value;",
-            re.sub(r"<\s*[^;]+", "< 1", item, count=1),
-            re.sub(r"<\s*[^;]+", "< 0", item, count=1),
-        ])
+        replacements.extend(
+            [
+                body,
+                f"{init};",
+                f"{init}; r = value;",
+                re.sub(r"<\s*[^;]+", "< 1", item, count=1),
+                re.sub(r"<\s*[^;]+", "< 0", item, count=1),
+            ]
+        )
 
     if "if (" in item and " else " not in item:
         simple = match_if(item)
@@ -336,9 +355,9 @@ def match_if_else(item: str) -> dict[str, str] | None:
     if else_start < 0 or else_end < 0:
         return None
     return {
-        "condition": item[cond_start + 1:cond_end],
-        "then": item[then_start + 1:then_end],
-        "else": item[else_start + 1:else_end],
+        "condition": item[cond_start + 1 : cond_end],
+        "then": item[then_start + 1 : then_end],
+        "else": item[else_start + 1 : else_end],
     }
 
 
@@ -351,8 +370,8 @@ def match_if(item: str) -> dict[str, str] | None:
     if min(start, cond_start, cond_end, then_start, then_end) < 0:
         return None
     return {
-        "condition": item[cond_start + 1:cond_end],
-        "then": item[then_start + 1:then_end],
+        "condition": item[cond_start + 1 : cond_end],
+        "then": item[then_start + 1 : then_end],
     }
 
 
@@ -364,7 +383,7 @@ def match_for(item: str) -> dict[str, str] | None:
     body_end = matching_delimiter(item, body_start, "{", "}")
     if min(start, header_start, header_end, body_start, body_end) < 0:
         return None
-    header = item[header_start + 1:header_end]
+    header = item[header_start + 1 : header_end]
     parts = header.split(";")
     if len(parts) != 3:
         return None
@@ -372,7 +391,7 @@ def match_for(item: str) -> dict[str, str] | None:
         "init": parts[0],
         "condition": parts[1],
         "step": parts[2],
-        "body": item[body_start + 1:body_end],
+        "body": item[body_start + 1 : body_end],
     }
 
 
@@ -381,19 +400,23 @@ def call_replacements(source: str) -> list[tuple[int, int, str, str]]:
     for name in ("helper", "mix"):
         for start, end, args in find_calls(source, name):
             if name == "helper" and len(args) == 1:
-                replacements.extend([
-                    (start, end, parenthesize(args[0]), "inline helper"),
-                    (start, end, "0", "helper to zero"),
-                    (start, end, "a", "helper to a"),
-                    (start, end, "value", "helper to value"),
-                ])
+                replacements.extend(
+                    [
+                        (start, end, parenthesize(args[0]), "inline helper"),
+                        (start, end, "0", "helper to zero"),
+                        (start, end, "a", "helper to a"),
+                        (start, end, "value", "helper to value"),
+                    ]
+                )
             elif name == "mix" and len(args) == 2:
-                replacements.extend([
-                    (start, end, parenthesize(args[0]), "mix to left"),
-                    (start, end, parenthesize(args[1]), "mix to right"),
-                    (start, end, f"({args[0]} ^ {args[1]})", "mix to xor"),
-                    (start, end, "0", "mix to zero"),
-                ])
+                replacements.extend(
+                    [
+                        (start, end, parenthesize(args[0]), "mix to left"),
+                        (start, end, parenthesize(args[1]), "mix to right"),
+                        (start, end, f"({args[0]} ^ {args[1]})", "mix to xor"),
+                        (start, end, "0", "mix to zero"),
+                    ]
+                )
     return replacements
 
 
@@ -402,15 +425,21 @@ def index_replacements(source: str) -> list[tuple[int, int, str, str]]:
     for match in re.finditer(r"values\s*\[(?P<index>[^\]]+)\]", source):
         index = match.group("index").strip()
         if index != "0":
-            replacements.append((match.start("index"), match.end("index"), "0", "mapping key to zero"))
+            replacements.append(
+                (match.start("index"), match.end("index"), "0", "mapping key to zero")
+            )
     for match in re.finditer(r"data\s*\[(?P<index>[^\]]+)\]", source):
         index = match.group("index").strip()
         if index != "0":
-            replacements.append((match.start("index"), match.end("index"), "0", "data index to zero"))
+            replacements.append(
+                (match.start("index"), match.end("index"), "0", "data index to zero")
+            )
     for match in re.finditer(r"xs\s*\[(?P<index>[^\]]+)\]", source):
         index = match.group("index").strip()
         if index != "0":
-            replacements.append((match.start("index"), match.end("index"), "0", "array index to zero"))
+            replacements.append(
+                (match.start("index"), match.end("index"), "0", "array index to zero")
+            )
     return replacements
 
 
@@ -420,10 +449,12 @@ def literal_replacements(source: str) -> list[tuple[int, int, str, str]]:
         literal = match.group(0)
         if literal in {"0", "1"}:
             continue
-        replacements.extend([
-            (match.start(), match.end(), "0", f"{literal} to zero"),
-            (match.start(), match.end(), "1", f"{literal} to one"),
-        ])
+        replacements.extend(
+            [
+                (match.start(), match.end(), "0", f"{literal} to zero"),
+                (match.start(), match.end(), "1", f"{literal} to one"),
+            ]
+        )
         if literal.startswith("0x") or int(literal) > 2:
             replacements.append((match.start(), match.end(), "2", f"{literal} to two"))
     return replacements
@@ -435,17 +466,35 @@ def assignment_replacements(source: str) -> list[tuple[int, int, str, str]]:
         expr = match.group("expr").strip()
         for replacement in ("0", "1", "a", "b", "value"):
             if expr != replacement:
-                replacements.append((match.start("expr"), match.end("expr"), replacement, f"r assignment to {replacement}"))
+                replacements.append(
+                    (
+                        match.start("expr"),
+                        match.end("expr"),
+                        replacement,
+                        f"r assignment to {replacement}",
+                    )
+                )
     for match in re.finditer(r"\br\s*\+=\s*(?P<expr>[^;{}]+);", source):
-        replacements.extend([
-            (match.start(), match.end(), "r += 0;", "remove r addend"),
-            (match.start("expr"), match.end("expr"), "1", "r addend to one"),
-        ])
-    for match in re.finditer(r"\buint256\s+(?P<name>limit|key)\s*=\s*(?P<expr>[^;{}]+);", source):
+        replacements.extend(
+            [
+                (match.start(), match.end(), "r += 0;", "remove r addend"),
+                (match.start("expr"), match.end("expr"), "1", "r addend to one"),
+            ]
+        )
+    for match in re.finditer(
+        r"\buint256\s+(?P<name>limit|key)\s*=\s*(?P<expr>[^;{}]+);", source
+    ):
         expr = match.group("expr").strip()
         for replacement in ("0", "1", "a & 7"):
             if expr != replacement:
-                replacements.append((match.start("expr"), match.end("expr"), replacement, f"{match.group('name')} to {replacement}"))
+                replacements.append(
+                    (
+                        match.start("expr"),
+                        match.end("expr"),
+                        replacement,
+                        f"{match.group('name')} to {replacement}",
+                    )
+                )
     return replacements
 
 
@@ -471,7 +520,7 @@ def find_calls(source: str, name: str) -> list[tuple[int, int, list[str]]]:
         close_index = matching_delimiter(source, open_index, "(", ")")
         if close_index < 0:
             continue
-        args = split_args(source[open_index + 1:close_index])
+        args = split_args(source[open_index + 1 : close_index])
         calls.append((match.start(), close_index + 1, args))
     return calls
 
@@ -520,7 +569,13 @@ def body_or_default(items: list[str]) -> str:
 
 
 def replace_body(source: str, match: re.Match[str], body: str) -> str:
-    return source[:match.start()] + match.group("prefix") + body + match.group("suffix") + source[match.end():]
+    return (
+        source[: match.start()]
+        + match.group("prefix")
+        + body
+        + match.group("suffix")
+        + source[match.end() :]
+    )
 
 
 def is_plausible_source(source: str) -> bool:

@@ -278,8 +278,10 @@ async fn collect_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u
 mod tests {
     use super::*;
     #[cfg(unix)]
+    use crate::config::negotiate_capabilities;
+    use crate::test_support::TestProject;
+    #[cfg(unix)]
     use crate::test_support::process_exists;
-    use crate::{config::negotiate_capabilities, test_support::TestProject};
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
     #[cfg(unix)]
@@ -444,6 +446,12 @@ mod tests {
         );
         let path = project.path("/src/Test.sol");
         let original = project.read_file("/src/Test.sol");
+        // Restoring writes the same bytes back, so only the timestamps can tell; on a file
+        // system with coarse timestamps the restore could share the tick that created the
+        // fixture, so age the fixture first.
+        let fixture = std::fs::File::options().write(true).open(&path).unwrap();
+        fixture.set_modified(SystemTime::now() - Duration::from_secs(60)).unwrap();
+        drop(fixture);
         let diagnostic = String::from_utf8(solc_diagnostic("source changed and restored")).unwrap();
         let config = FlycheckConfig {
             id: "restored-source".into(),

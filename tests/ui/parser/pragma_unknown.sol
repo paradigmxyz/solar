@@ -9,5 +9,7 @@ pragma amogus 69;
 //~^ ERROR: unknown pragma
 pragma amogus 69 diwqbn9ru3b2q945 390ru31290r 0qjr09wadm;
 //~^ ERROR: unknown pragma
+//~| ERROR: identifier-start is not allowed at end of a number
+//~| ERROR: identifier-start is not allowed at end of a number
 pragma amogus 0.8.15;
 //~^ ERROR: only `solidity` is supported as a version pragma

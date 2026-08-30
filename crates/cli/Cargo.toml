@@ -24,6 +24,8 @@ solar-sema.workspace = true
 
 alloy-primitives.workspace = true
 alloy-json-abi.workspace = true
+anstream.workspace = true
+anstyle.workspace = true
 bitflags.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }

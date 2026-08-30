@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_validation.sol:AbiValidation ===
 @module AbiValidation
-fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word]] {
+fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word<bool>]] {
   bb0:
     ret arg0
 }
 
-fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word]] {
+fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word<u8>]] {
   bb0:
     ret arg0
 }
 
-fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[address], abi_returns=[word]] {
+fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[address], abi_returns=[word<u160>]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [word<u160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = staticcall v1, v0, v3, v4, 0, 32
@@ -42,7 +42,7 @@ fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[a
     revert 0, 0
 }
 
-fn @vAddressTarget(arg0: address) -> address [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word]] {
+fn @vAddressTarget(arg0: address) -> address [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<u160>]] {
   bb0:
     ret arg0
 }

@@ -131,108 +131,104 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 443, v1
+    v2 = and 405, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e5761018a8060125f395ff35b5f5ffd346028575f3560e01c80633fa4f2
+    mstore v3, 0x34600e576101648060125f395ff35b5f5ffd346028575f3560e01c80633fa4f2
     v4 = add v3, 32
     mstore v4, 0x451460205780635269df1a146024576028565b602c565b603f565b5f80fd5b60
     v5 = add v3, 64
-    mstore v5, 0x1546080526020608001608090036080f35b608436101561013957610135565b
+    mstore v5, 0x1546080526020608001608090036080f35b608436101561011d57610119565b
     v6 = add v3, 96
-    mstore v6, 0x602435600435018060a0528060a0526004358110156092577f4e487b71000000
+    mstore v6, 0x60243560043501600435811015608a577f4e487b710000000000000000000000
     v7 = add v3, 128
-    mstore v7, 0x5f526011600452
+    mstore v7, 0x5f52601160045260245ffd5b604435
     v8 = add v3, 160
-    mstore v8, 0x60245ffd5b60443581018060805280608052818060a05281109150501560da57
+    mstore v8, 0x810180608052806080528181109150501560ce577f4e487b7100000000000000
     v9 = add v3, 192
-    mstore v9, 0x7f4e487b71000000000000000000000000000000000000000000000000000000
+    mstore v9, 0x5f52601160045260245ffd
     v10 = add v3, 224
-    mstore v10, 0x5f52601160045260245ffd5b600460643501358060e052608051018060c052
+    mstore v10, 0x5b600460643501356080510160805180608052811015610114577f4e487b7100
     v11 = add v3, 256
-    mstore v11, 0x8060c0526080518060805281101561012c577f4e487b71000000000000000000
+    mstore v11, 0x5f52601160
     v12 = add v3, 288
-    mstore v12, 0x5f52601160045260245ffd5b80
+    mstore v12, 0x45260245ffd5b600155005b5f80fd5b6064358060a0526004016020810167ff
     v13 = add v3, 320
-    mstore v13, 0x60c052600155005b5f80fd5b60643580610100526004016020810167ffffffff
+    mstore v13, 0xffffffffffffff60a05111368211915017813560208301925082360392508281
     v14 = add v3, 352
-    mstore v14, 0xffffffff610100511136821191501781358060e0528060e05260208301925082
-    v15 = add v3, 384
-    mstore v15, 0x360392508281119250828217915091506101865750604d565b5f80fd00000000
-    v16 = slice_ptr v0
-    v17 = add v3, 412
-    mcopy v17, v16, 0 !metadata(memory=heap)
-    v18 = create 0, v3, 412
-    jumpi v18, bb2, bb1
+    mstore v14, 0x119250828217915091506101605750604d565b5f80fd00000000000000000000
+    v15 = slice_ptr v0
+    v16 = add v3, 374
+    mcopy v16, v15, 0 !metadata(memory=heap)
+    v17 = create 0, v3, 374
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = abi_encode [word], args v19
-    v21 = not 31
-    v22 = and 339, v21
-    v23 = alloc raw, exact, uninitialized, infallible, v22
-    mstore v23, 0x61011438038061011460e03960e001601f017fffffffffffffffffffffffffff
-    v24 = add v23, 32
-    mstore v24, 0xffffffffffffffffffffffffffffffffffffe0166040523460b25760e08060c0
-    v25 = add v23, 64
-    mstore v25, 0x528060c05260e06101143803016020820111905015609e57609a565b5f5473ff
-    v26 = add v23, 96
-    mstore v26, 0xffffffffffffffffffffffffffffffffffffff198116905073ffffffffffffff
-    v27 = add v23, 128
-    mstore v27, 0xffffffffffffffffffffffffff60e05116811790505f5560b6565b5f80fd5b60
-    v28 = add v23, 160
-    mstore v28, 0xc0518060c0525160a01c1515609a57605b565b5f80fd5b60548060c05f395ff3
-    v29 = add v23, 192
-    mstore v29, 0x34600757600b565b5f80fd5b6130006040525f5473ffffffffffffffffffffff
-    v30 = add v23, 224
-    mstore v30, 0xffffffffffffffffff90166130005f5f375a5f5f365f8585f4915050155f9014
-    v31 = add v23, 256
-    mstore v31, 0x1515604c573d5f5f3e3d5ffd5b3d5f5f3e3d5ff3000000000000000000000000
-    v32 = slice_ptr v20
-    v33 = add v23, 276
-    mcopy v33, v32, 32 !metadata(memory=heap)
-    v34 = create 0, v23, 308
-    jumpi v34, bb4, bb3
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = abi_encode [word<u160>], args v18
+    v20 = not 31
+    v21 = and 317, v20
+    v22 = alloc raw, exact, uninitialized, infallible, v21
+    mstore v22, 0x60fe38038060fe60e03960e001601f017fffffffffffffffffffffffffffffff
+    v23 = add v22, 32
+    mstore v23, 0xffffffffffffffffffffffffffffffffe01660405234609e5760e060e060fe38
+    v24 = add v22, 64
+    mstore v24, 0x301602082011115609157608d565b5f5473ffffffffffffffffffffffffffff
+    v25 = add v22, 96
+    mstore v25, 0xffffffffffff198116905073ffffffffffffffffffffffffffffffffffffffff
+    v26 = add v22, 128
+    mstore v26, 0x60e05116811790505f5560a2565b5f80fd5b5160a01c1515608d57604e565b5f
+    v27 = add v22, 160
+    mstore v27, 0x80fd5b60528060ac5f395ff334600757600b565b5f80fd5b6130006040525f54
+    v28 = add v22, 192
+    mstore v28, 0x73ffffffffffffffffffffffffffffffffffffffff90166130005f5f375f5f36
+    v29 = add v22, 224
+    mstore v29, 0x5f845af49050155f90141515604a573d5f5f3e3d5ffd5b3d5f5f3e3d5ff30000
+    v30 = slice_ptr v19
+    v31 = add v22, 254
+    mcopy v31, v30, 32 !metadata(memory=heap)
+    v32 = create 0, v22, 286
+    jumpi v32, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v35 = gas
-    v36 = not 31
-    v37 = and 223, v36
-    v38 = alloc memorybytes, exact, zeroed, panic, v37
-    set_memory_object_len memorybytes, v38, 160
-    v39 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v38
-    v40 = slice_ptr v39
-    v41 = slice_len v39
-    v42 = extcodesize v34
-    v43 = iszero v42
-    jumpi v43, bb5, bb6
+    v33 = gas
+    v34 = not 31
+    v35 = and 223, v34
+    v36 = alloc memorybytes, exact, zeroed, panic, v35
+    set_memory_object_len memorybytes, v36, 160
+    v37 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 1, 2, 3, v36
+    v38 = slice_ptr v37
+    v39 = slice_len v37
+    v40 = extcodesize v32
+    v41 = iszero v40
+    jumpi v41, bb5, bb6
   bb6:
-    v44 = call v35, v34, 0, v40, v41, 0, 0
-    jumpi v44, bb8, bb7
+    v42 = call v33, v32, 0, v38, v39, 0, 0
+    jumpi v42, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v45 = gas
-    v46 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v47 = slice_ptr v46
-    v48 = slice_len v46
-    v49 = staticcall v45, v34, v47, v48, 0, 32
-    jumpi v49, bb10, bb9
+    v43 = gas
+    v44 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v45 = slice_ptr v44
+    v46 = slice_len v44
+    v47 = staticcall v43, v32, v45, v46, 0, 32
+    jumpi v47, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v50 = returndatasize
-    v51 = lt v50, 32
-    jumpi v51, bb11, bb12
+    v48 = returndatasize
+    v49 = lt v48, 32
+    jumpi v49, bb11, bb12
   bb12:
+    v50 = add 0, 0
+    v51 = mload v50
     v52 = add 0, 0
     v53 = mload v52
-    v54 = add 0, 0
-    v55 = mload v54
-    v56 = eq v55, 166
-    v57 = iszero v56
-    jumpi v57, bb13, bb14
+    v54 = eq v53, 166
+    v55 = iszero v54
+    jumpi v55, bb13, bb14
   bb14:
     ret 1
   bb13:
@@ -248,110 +244,106 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 443, v1
+    v2 = and 405, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e5761018a8060125f395ff35b5f5ffd346028575f3560e01c80633fa4f2
+    mstore v3, 0x34600e576101648060125f395ff35b5f5ffd346028575f3560e01c80633fa4f2
     v4 = add v3, 32
     mstore v4, 0x451460205780635269df1a146024576028565b602c565b603f565b5f80fd5b60
     v5 = add v3, 64
-    mstore v5, 0x1546080526020608001608090036080f35b608436101561013957610135565b
+    mstore v5, 0x1546080526020608001608090036080f35b608436101561011d57610119565b
     v6 = add v3, 96
-    mstore v6, 0x602435600435018060a0528060a0526004358110156092577f4e487b71000000
+    mstore v6, 0x60243560043501600435811015608a577f4e487b710000000000000000000000
     v7 = add v3, 128
-    mstore v7, 0x5f526011600452
+    mstore v7, 0x5f52601160045260245ffd5b604435
     v8 = add v3, 160
-    mstore v8, 0x60245ffd5b60443581018060805280608052818060a05281109150501560da57
+    mstore v8, 0x810180608052806080528181109150501560ce577f4e487b7100000000000000
     v9 = add v3, 192
-    mstore v9, 0x7f4e487b71000000000000000000000000000000000000000000000000000000
+    mstore v9, 0x5f52601160045260245ffd
     v10 = add v3, 224
-    mstore v10, 0x5f52601160045260245ffd5b600460643501358060e052608051018060c052
+    mstore v10, 0x5b600460643501356080510160805180608052811015610114577f4e487b7100
     v11 = add v3, 256
-    mstore v11, 0x8060c0526080518060805281101561012c577f4e487b71000000000000000000
+    mstore v11, 0x5f52601160
     v12 = add v3, 288
-    mstore v12, 0x5f52601160045260245ffd5b80
+    mstore v12, 0x45260245ffd5b600155005b5f80fd5b6064358060a0526004016020810167ff
     v13 = add v3, 320
-    mstore v13, 0x60c052600155005b5f80fd5b60643580610100526004016020810167ffffffff
+    mstore v13, 0xffffffffffffff60a05111368211915017813560208301925082360392508281
     v14 = add v3, 352
-    mstore v14, 0xffffffff610100511136821191501781358060e0528060e05260208301925082
-    v15 = add v3, 384
-    mstore v15, 0x360392508281119250828217915091506101865750604d565b5f80fd00000000
-    v16 = slice_ptr v0
-    v17 = add v3, 412
-    mcopy v17, v16, 0 !metadata(memory=heap)
-    v18 = create 0, v3, 412
-    jumpi v18, bb2, bb1
+    mstore v14, 0x119250828217915091506101605750604d565b5f80fd00000000000000000000
+    v15 = slice_ptr v0
+    v16 = add v3, 374
+    mcopy v16, v15, 0 !metadata(memory=heap)
+    v17 = create 0, v3, 374
+    jumpi v17, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = abi_encode [word], args v19
-    v21 = not 31
-    v22 = and 353, v21
-    v23 = alloc raw, exact, uninitialized, infallible, v22
-    mstore v23, 0x61012238038061012260e03960e001601f017fffffffffffffffffffffffffff
-    v24 = add v23, 32
-    mstore v24, 0xffffffffffffffffffffffffffffffffffffe0166040523460b25760e08060c0
-    v25 = add v23, 64
-    mstore v25, 0x528060c05260e06101223803016020820111905015609e57609a565b5f5473ff
-    v26 = add v23, 96
-    mstore v26, 0xffffffffffffffffffffffffffffffffffffff198116905073ffffffffffffff
-    v27 = add v23, 128
-    mstore v27, 0xffffffffffffffffffffffffff60e05116811790505f5560b6565b5f80fd5b60
-    v28 = add v23, 160
-    mstore v28, 0xc0518060c0525160a01c1515609a57605b565b5f80fd5b60628060c05f395ff3
-    v29 = add v23, 192
-    mstore v29, 0x34600757600b565b5f80fd5b60c06040525f5473ffffffffffffffffffffffff
-    v30 = add v23, 224
-    mstore v30, 0xffffffffffffffff90166080361115603957365f5f37603e565b365f5f375b5a
-    v31 = add v23, 256
-    mstore v31, 0x5f5f365f8585f4915050155f90141515605a573d5f5f3e3d5ffd5b3d5f5f3e3d
-    v32 = add v23, 288
-    mstore v32, 0x5ff3000000000000000000000000000000000000000000000000000000000000
-    v33 = slice_ptr v20
-    v34 = add v23, 290
-    mcopy v34, v33, 32 !metadata(memory=heap)
-    v35 = create 0, v23, 322
-    jumpi v35, bb4, bb3
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v19 = abi_encode [word<u160>], args v18
+    v20 = not 31
+    v21 = and 334, v20
+    v22 = alloc raw, exact, uninitialized, infallible, v21
+    mstore v22, 0x61010f38038061010f60e03960e001601f017fffffffffffffffffffffffffff
+    v23 = add v22, 32
+    mstore v23, 0xffffffffffffffffffffffffffffffffffffe0166040523460a15760e060e061
+    v24 = add v22, 64
+    mstore v24, 0x10f3803016020820111156094576090565b5f5473ffffffffffffffffffffff
+    v25 = add v22, 96
+    mstore v25, 0xffffffffffffffffff198116905073ffffffffffffffffffffffffffffffffff
+    v26 = add v22, 128
+    mstore v26, 0xffffff60e05116811790505f5560a5565b5f80fd5b5160a01c15156090576051
+    v27 = add v22, 160
+    mstore v27, 0x565b5f80fd5b60608060af5f395ff334600757600b565b5f80fd5b60c0604052
+    v28 = add v22, 192
+    mstore v28, 0x5f5473ffffffffffffffffffffffffffffffffffffffff901660803611156039
+    v29 = add v22, 224
+    mstore v29, 0x57365f5f37603e565b365f5f375b5f5f365f845af49050155f90141515605857
+    v30 = add v22, 256
+    mstore v30, 0x3d5f5f3e3d5ffd5b3d5f5f3e3d5ff30000000000000000000000000000000000
+    v31 = slice_ptr v19
+    v32 = add v22, 271
+    mcopy v32, v31, 32 !metadata(memory=heap)
+    v33 = create 0, v22, 303
+    jumpi v33, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v36 = gas
-    v37 = not 31
-    v38 = and 223, v37
-    v39 = alloc memorybytes, exact, zeroed, panic, v38
-    set_memory_object_len memorybytes, v39, 160
-    v40 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v39
-    v41 = slice_ptr v40
-    v42 = slice_len v40
-    v43 = extcodesize v35
-    v44 = iszero v43
-    jumpi v44, bb5, bb6
+    v34 = gas
+    v35 = not 31
+    v36 = and 223, v35
+    v37 = alloc memorybytes, exact, zeroed, panic, v36
+    set_memory_object_len memorybytes, v37, 160
+    v38 = abi_encode [word, word, word, memory_bytes], selector 0x5269df1a00000000000000000000000000000000000000000000000000000000, args 4, 5, 6, v37
+    v39 = slice_ptr v38
+    v40 = slice_len v38
+    v41 = extcodesize v33
+    v42 = iszero v41
+    jumpi v42, bb5, bb6
   bb6:
-    v45 = call v36, v35, 0, v41, v42, 0, 0
-    jumpi v45, bb8, bb7
+    v43 = call v34, v33, 0, v39, v40, 0, 0
+    jumpi v43, bb8, bb7
   bb7:
     revert_returndata
   bb8:
-    v46 = gas
-    v47 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v48 = slice_ptr v47
-    v49 = slice_len v47
-    v50 = staticcall v46, v35, v48, v49, 0, 32
-    jumpi v50, bb10, bb9
+    v44 = gas
+    v45 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v46 = slice_ptr v45
+    v47 = slice_len v45
+    v48 = staticcall v44, v33, v46, v47, 0, 32
+    jumpi v48, bb10, bb9
   bb9:
     revert_returndata
   bb10:
-    v51 = returndatasize
-    v52 = lt v51, 32
-    jumpi v52, bb11, bb12
+    v49 = returndatasize
+    v50 = lt v49, 32
+    jumpi v50, bb11, bb12
   bb12:
+    v51 = add 0, 0
+    v52 = mload v51
     v53 = add 0, 0
     v54 = mload v53
-    v55 = add 0, 0
-    v56 = mload v55
-    v57 = eq v56, 175
-    v58 = iszero v57
-    jumpi v58, bb13, bb14
+    v55 = eq v54, 175
+    v56 = iszero v55
+    jumpi v56, bb13, bb14
   bb14:
     ret 1
   bb13:
@@ -381,108 +373,98 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
     revert_returndata
   bb2:
     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = abi_encode [word], args v8
+    v9 = abi_encode [word<u160>], args v8
     v10 = not 31
-    v11 = and 0x3ee, v10
+    v11 = and 841, v10
     v12 = alloc raw, exact, uninitialized, infallible, v11
-    mstore v12, 0x6103af3803806103af6101003961010001601f017fffffffffffffffffffffff
+    mstore v12, 0x61030a38038061030a6101003961010001601f017fffffffffffffffffffffff
     v13 = add v12, 32
-    mstore v13, 0xffffffffffffffffffffffffffffffffffffffffe01660405234608257610100
+    mstore v13, 0xffffffffffffffffffffffffffffffffffffffffe01660405234607157610100
     v14 = add v12, 64
-    mstore v14, 0x8060e0528060e0526101006103af3803016020820111905015606e57606a565b
+    mstore v14, 0x61010061030a3803016020820111156064576060565b6101005160c052607556
     v15 = add v12, 96
-    mstore v15, 0x6101005160c0526086565b5f80fd5b60e0518060e0525160a01c1515606a5760
+    mstore v15, 0x5b5f80fd5b5160a01c15156060576055565b5f80fd5b61026b80609f60e03960
     v16 = add v12, 128
-    mstore v16, 0x5f565b5f80fd5b6102ff8060b060e03960c05160601b610106516bffffffffff
+    mstore v16, 0xc05160601b610106516bffffffffffffffffffffffff16176101065260e0f334
     v17 = add v12, 160
-    mstore v17, 0xffffffffffffff16176101065260e0f334601a575f3560e01c80634ce637d614
+    mstore v17, 0x601a575f3560e01c80634ce637d614601657601a565b601e565b5f80fd5b6102
     v18 = add v12, 192
-    mstore v18, 0x601657601a565b601e565b5f80fd5b6102606040527300000000000000000000
+    mstore v18, 0x406040527300000000000000000000000000000000000000006040518060c052
     v19 = add v12, 224
-    mstore v19, 0x5a6040518061010052602081016040527fa9cc471800
+    mstore v19, 0x602081016040527fa9cc47180000000000000000000000000000000000000000
     v20 = add v12, 256
-    mstore v20, 0x8152600481
+    mstore v20, 0x815260048101505f5f600483855afa9150506085573d5f80
     v21 = add v12, 288
-    mstore v21, 0x150816102205282610240525f5f6004838686fa925050506092573d5f803e3d
+    mstore v21, 0x3e3d5ffd5b3d603f81018181101560be577f4e487b7100000000000000000000
     v22 = add v12, 320
-    mstore v22, 0x5ffd5b3d80610120528061012052603f8101806101e052806101e05281806101
+    mstore v22, 0x5f52604160045260245ffd5b601f
     v23 = add v12, 352
-    mstore v23, 0x205281101560e4577f4e487b7100000000000000000000000000000000000000
+    mstore v23, 0x19811690506040518060c052818101915081604052905081815260208101825f
     v24 = add v12, 384
-    mstore v24, 0x5f52604160045260245ffd5b601f198116905060405180
+    mstore v24, 0x823e509050602081018060805280608052818060c0525191508181018060e052
     v25 = add v12, 416
-    mstore v25, 0x6101005281810191508160405290508180610120528152602081018280610120
+    mstore v25, 0x8060e05281806080528110602084109350839017925050506101535760805180
     v26 = add v12, 448
-    mstore v26, 0x525f823e50905060208101806080528060805281806101005251915081810180
+    mstore v26, 0x608052518060c052608051016020810167ffffffffffffffff60c0511160e051
     v27 = add v12, 480
-    mstore v27, 0x6101405280610140528180608052811060208410935083901792505050610195
+    mstore v27, 0x8060e05282119150171561015757610179565b5f80fd5b806101205280610120
     v28 = add v12, 512
-    mstore v28, 0x5760805180608052518061010052608051018061016052806101605260208101
+    mstore v28, 0x52516020610120510160e0510381111561017d5761018e565b5f80fd5b603f81
     v29 = add v12, 544
-    mstore v29, 0x67ffffffffffffffff6101005111610140518061014052821191501715610199
+    mstore v29, 0x18181101561019257610217565b5f80fd5b601f198116905060405181810191
     v30 = add v12, 576
-    mstore v30, 0x576101c1565b5f80fd5b80610160525180610180528061018052602061016051
+    mstore v30, 0x5081604052905081815260206101205101602082018382825e50509050604051
     v31 = add v12, 608
-    mstore v31, 0x161014051038111156101c5576101e5565b5f80fd5b603f8101806102005280
+    mstore v31, 0x602081018181038252825183151581028060a05290508060a0528060a0528152
     v32 = add v12, 640
-    mstore v32, 0x610200528180610180528110156101e957610298565b5f80fd5b601f19811690
+    mstore v32, 0x601f19601f60a051011680610100528061010052602082019150806101005215
     v33 = add v12, 672
-    mstore v33, 0x50604051806101a052806101a052818101915081604052905081806101805281
+    mstore v33, 0x6101005160a051919092909192916102265761021b565b5f80fd5b6020820381
     v34 = add v12, 704
-    mstore v34, 0x52602061016051016020820183806101805282825e50509050604051806101c0
+    mstore v34, 0x15f8152505b60208501945081806101005281019150828060a05285825e5090
     v35 = add v12, 736
-    mstore v35, 0x52806101c0526020810181806101c0528103825282806101a0525183806101a0
+    mstore v35, 0x509150810390505f9001601f8101601f19811690506040518060c05281810191
     v36 = add v12, 768
-    mstore v36, 0x52151581028060a05290508060a0528060a0528152601f19601f60a051011680
-    v37 = add v12, 800
-    mstore v37, 0x60c0528060c052602082018060e05291508160e0528060c05215905090509050
-    v38 = add v12, 832
-    mstore v38, 0x6102ab5761029c565b5f80fd5b602060c0510360e051015f8152505b60206101
-    v39 = add v12, 864
-    mstore v39, 0xa0510160c0518060c05260e0510160a0518060a0528260e0518060e0525e9050
-    v40 = add v12, 896
-    mstore v40, 0x6101c051806101c05290035f9001601f8101601f198116905060405180610100
-    v41 = add v12, 928
-    mstore v41, 0x5281810191508160405290508181f30000000000000000000000000000000000
-    v42 = slice_ptr v9
-    v43 = add v12, 943
-    mcopy v43, v42, 32 !metadata(memory=heap)
-    v44 = create 0, v12, 975
-    jumpi v44, bb4, bb3
+    mstore v36, 0x508160405290508181f300000000000000000000000000000000000000000000
+    v37 = slice_ptr v9
+    v38 = add v12, 778
+    mcopy v38, v37, 32 !metadata(memory=heap)
+    v39 = create 0, v12, 810
+    jumpi v39, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v45 = gas
-    v46 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
-    v47 = memory_object_data memorybytes, v46
-    v48 = memory_object_len memorybytes, v46
-    v49 = call v45, v44, 0, v47, v48, 0, 0
-    v50 = returndatasize
-    v51 = add v50, 63
-    v52 = lt v51, v50
-    jumpi v52, bb5, bb6
+    v40 = gas
+    v41 = abi_encode [], object, selector 0x4ce637d600000000000000000000000000000000000000000000000000000000
+    v42 = memory_object_data memorybytes, v41
+    v43 = memory_object_len memorybytes, v41
+    v44 = call v40, v39, 0, v42, v43, 0, 0
+    v45 = returndatasize
+    v46 = add v45, 63
+    v47 = lt v46, v45
+    jumpi v47, bb5, bb6
   bb6:
-    v53 = not 31
-    v54 = and v51, v53
-    v55 = alloc memorybytes, exact, uninitialized, infallible, v54
-    set_memory_object_len memorybytes, v55, v50
-    v56 = make_returndata_slice 0, v50
-    memory_object_copy_from_slice memorybytes, v55, v56
-    v57 = iszero v49
-    v58 = iszero v57
-    jumpi v58, bb7, bb8
+    v48 = not 31
+    v49 = and v46, v48
+    v50 = alloc memorybytes, exact, uninitialized, infallible, v49
+    set_memory_object_len memorybytes, v50, v45
+    v51 = make_returndata_slice 0, v45
+    memory_object_copy_from_slice memorybytes, v50, v51
+    v52 = iszero v44
+    v53 = iszero v52
+    jumpi v53, bb7, bb8
   bb8:
-    v59 = memory_object_len memorybytes, v55
-    v60 = eq v59, 228
-    v61 = iszero v60
-    jumpi v61, bb9, bb10
+    v54 = memory_object_len memorybytes, v50
+    v55 = eq v54, 228
+    v56 = iszero v55
+    jumpi v56, bb9, bb10
   bb10:
-    v62 = add v55, 32
-    v63 = mload v62
-    v64 = shl 0, 0x1234
-    v65 = eq v63, v64
-    v66 = iszero v65
-    jumpi v66, bb11, bb12
+    v57 = add v50, 32
+    v58 = mload v57
+    v59 = shl 0, 0x1234
+    v60 = eq v58, v59
+    v61 = iszero v60
+    jumpi v61, bb11, bb12
   bb12:
     ret 1
   bb11:
@@ -577,7 +559,7 @@ fn @buffer() -> u256 [pure] {
     ret v0
 }
 
-fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word]] {
+fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @buffer, 1
     v1 = slice_len arg1

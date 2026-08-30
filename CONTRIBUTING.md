@@ -175,6 +175,12 @@ For details of how to use `typos`, see <https://github.com/crate-ci/typos>.
 If the command rejects a word, you should backtick the rejected word if it's code related.
 If not, the  rejected word should be inserted into `typos.toml`. 
 
+### Diagnostics
+
+When adding a warning that solc also emits, use solc's diagnostic code. This
+lets users silence the same warning with the same `--allow` code in both
+compilers.
+
 ### Tests
 
 If the change being proposed alters code (as opposed to only documentation for
