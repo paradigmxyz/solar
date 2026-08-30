@@ -313,22 +313,37 @@ fn @storeSmall(arg0: calldataslice) -> u256 [selector=0x48de48f7, abi_params=[ar
     v55 = lt v54, v35
     jumpi v55, bb22, bb23
   bb23:
-    v71 = sload 1 !metadata(storage=slot(1))
-    v72 = lt 1, v71
+    v71 = shr 4, v35
+    v72 = and v35, 15
     v73 = iszero v72
-    jumpi v73, bb24, bb25
-  bb25:
-    v74 = storage_array_data_slot 1
-    v75 = div 1, 16
-    v76 = add v74, v75
-    v77 = mod 1, 16
-    v78 = mul v77, 2
-    v79 = sload v76 !metadata(storage=symbolic(v76))
-    v80 = mul v78, 8
-    v81 = shr v80, v79
-    v82 = and v81, 0xffff
-    ret v82
+    jumpi v73, bb25, bb24
   bb24:
+    v74 = mul v72, 16
+    v75 = shl v74, 1
+    v76 = sub v75, 1
+    v77 = storage_array_data_slot 1
+    v78 = add v77, v71
+    v79 = sload v78 !metadata(storage=symbolic(v78))
+    v80 = and v79, v76
+    sstore v78, v80 !metadata(storage=symbolic(v78))
+    jump bb25
+  bb25:
+    v81 = sload 1 !metadata(storage=slot(1))
+    v82 = lt 1, v81
+    v83 = iszero v82
+    jumpi v83, bb26, bb27
+  bb27:
+    v84 = storage_array_data_slot 1
+    v85 = div 1, 16
+    v86 = add v84, v85
+    v87 = mod 1, 16
+    v88 = mul v87, 2
+    v89 = sload v86 !metadata(storage=symbolic(v86))
+    v90 = mul v88, 8
+    v91 = shr v90, v89
+    v92 = and v91, 0xffff
+    ret v92
+  bb26:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
@@ -466,25 +481,40 @@ fn @storeLeft(arg0: calldataslice) -> u256 [selector=0x2d92e508, abi_params=[arr
     v56 = lt v55, v35
     jumpi v56, bb22, bb23
   bb23:
-    v73 = sload 2 !metadata(storage=slot(2))
-    v74 = lt 1, v73
+    v73 = shr 4, v35
+    v74 = and v35, 15
     v75 = iszero v74
-    jumpi v75, bb24, bb25
-  bb25:
-    v76 = storage_array_data_slot 2
-    v77 = div 1, 16
-    v78 = add v76, v77
-    v79 = mod 1, 16
-    v80 = mul v79, 2
-    v81 = sload v78 !metadata(storage=symbolic(v78))
-    v82 = mul v80, 8
-    v83 = shr v82, v81
-    v84 = and v83, 0xffff
-    v85 = shl 240, v84
-    v86 = and v85, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v87 = shr 248, v86
-    ret v87
+    jumpi v75, bb25, bb24
   bb24:
+    v76 = mul v74, 16
+    v77 = shl v76, 1
+    v78 = sub v77, 1
+    v79 = storage_array_data_slot 2
+    v80 = add v79, v73
+    v81 = sload v80 !metadata(storage=symbolic(v80))
+    v82 = and v81, v78
+    sstore v80, v82 !metadata(storage=symbolic(v80))
+    jump bb25
+  bb25:
+    v83 = sload 2 !metadata(storage=slot(2))
+    v84 = lt 1, v83
+    v85 = iszero v84
+    jumpi v85, bb26, bb27
+  bb27:
+    v86 = storage_array_data_slot 2
+    v87 = div 1, 16
+    v88 = add v86, v87
+    v89 = mod 1, 16
+    v90 = mul v89, 2
+    v91 = sload v88 !metadata(storage=symbolic(v88))
+    v92 = mul v90, 8
+    v93 = shr v92, v91
+    v94 = and v93, 0xffff
+    v95 = shl 240, v94
+    v96 = and v95, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v97 = shr 248, v96
+    ret v97
+  bb26:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
