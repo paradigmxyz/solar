@@ -636,6 +636,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm_u64(64);
             return self.builder.shr(shift, value);
         }
+        if matches!(ty.peel_refs().kind, TyKind::Enum(..)) {
+            self.validate_enum(ty, value);
+            return value;
+        }
         self.normalize_abi_scalar(value, ty)
     }
 
