@@ -20,8 +20,8 @@ impl Module {
                 writeln!(f)?;
             }
             for (id, data) in self.data.iter_enumerated() {
-                if data.named {
-                    write!(f, "@data {} hex\"", crate::data_literal_name(id.index()))?;
+                if let Some(name) = data.name {
+                    write!(f, "@data {} hex\"", crate::display_data_name(name, id.index()))?;
                 } else {
                     write!(f, "@data {} hex\"", id.index())?;
                 }
@@ -129,8 +129,8 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
         PushValue::Immediate(value) => write!(f, "{}", display_u256(*value)),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         PushValue::Data(data) => {
-            if module.data[data.id].named {
-                write!(f, "{}", crate::data_literal_name(data.id.index()))?;
+            if let Some(name) = module.data[data.id].name {
+                write!(f, "{}", crate::display_data_name(name, data.id.index()))?;
             } else {
                 write!(f, "{}", data.id.index())?;
             }

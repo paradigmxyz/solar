@@ -74,7 +74,7 @@ impl<'gcx> Assembler<'gcx> {
             let allocated = self
                 .program
                 .data
-                .push(ir::Data { bytes: data.clone(), named: module.data_is_named(id) });
+                .push(ir::Data { bytes: data.clone(), name: module.data_name(id) });
             assert_eq!(allocated.index(), id.index(), "MIR and EVM IR data IDs must match");
         }
     }

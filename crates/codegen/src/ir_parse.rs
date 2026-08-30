@@ -98,13 +98,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         let span = self.token().span;
         let name = self.parse_ident()?;
-        let Some(index) = name.as_str().strip_prefix("literal_") else {
+        let Some((base, index)) = name.as_str().rsplit_once('_') else {
             return Err(self.error_at(span, format!("invalid data identifier `{name}`")));
         };
         let id = index.parse().map_err(|err| {
             self.error_at(span, format!("invalid data identifier `{name}`: {err}"))
         })?;
-        Ok((id, Some(name)))
+        Ok((id, Some(Symbol::intern(base))))
     }
 
     pub(crate) fn parse_data_ref(&mut self) -> Result<(U256, u32, Span), PErr<'sess>> {

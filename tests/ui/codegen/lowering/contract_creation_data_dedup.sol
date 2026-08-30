@@ -18,28 +18,28 @@ contract Child {
 
 // MIR-LABEL: contract_creation_data_dedup.sol:Factory ===
 // MIR: data:
-// MIR: literal_0: hex"
-// MIR-NOT: literal_1:
+// MIR: Child_initcode_0: hex"
+// MIR-NOT: Child_initcode_1:
 // OPT-LABEL: contract_creation_data_dedup.sol:Factory (runtime) ===
 // OPT: @module runtime
-// OPT-COUNT-3: push_data literal_0
-// OPT: @data literal_0 hex"
-// OPT-NOT: @data literal_1
+// OPT-COUNT-3: push_data Child_initcode_0
+// OPT: @data Child_initcode_0 hex"
+// OPT-NOT: @data Child_initcode_1
 contract Factory {
     // MIR-LABEL: fn @first{{[( ]}}
-    // MIR: data_copy literal_0,
+    // MIR: data_copy Child_initcode_0,
     function first() external returns (uint256) {
         return new Child().value();
     }
 
     // MIR-LABEL: fn @second{{[( ]}}
-    // MIR: data_copy literal_0,
+    // MIR: data_copy Child_initcode_0,
     function second() external returns (uint256) {
         return new Child().value();
     }
 
     // MIR-LABEL: fn @pair{{[( ]}}
-    // MIR-COUNT-2: data_copy literal_0,
+    // MIR-COUNT-2: data_copy Child_initcode_0,
     function pair() external returns (uint256) {
         Child left = new Child();
         Child right = new Child();

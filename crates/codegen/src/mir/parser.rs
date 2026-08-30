@@ -243,7 +243,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let bytes = alloy_primitives::hex::decode(bytes.as_str())
                 .map_err(|err| self.parser.error(format!("invalid data: {err}")))?;
             self.parser.bump();
-            module.add_data(bytes.into(), name.is_some());
+            module.add_data(bytes.into(), name);
         }
         self.data_sizes = module.iter_data().map(|(_, data)| data.len()).collect();
         Ok(())

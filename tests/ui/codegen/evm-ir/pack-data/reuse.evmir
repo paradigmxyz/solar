@@ -5,17 +5,17 @@
 // Reusing existing data makes this compact-zero store run profitable.
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 64
-// CHECK-NEXT: {{^[ +].*}}push_data literal_0
+// CHECK-NEXT: {{^[ +].*}}push_data zero_words_0
 // CHECK-NEXT: {{^[ +].*}}push 0
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK: {{^[ +].*}}push 64
-// CHECK-NEXT: {{^[ +].*}}push_data literal_0
+// CHECK-NEXT: {{^[ +].*}}push_data zero_words_0
 // CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
 bb0:
   push 64
-  push_data literal_0
+  push_data zero_words_0
   push 0
   codecopy
   push 128
@@ -30,5 +30,5 @@ bb0:
   mstore
   stop
 
-// CHECK: @data literal_0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-@data literal_0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+// CHECK: @data zero_words_0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+@data zero_words_0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"

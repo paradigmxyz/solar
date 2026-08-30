@@ -10830,7 +10830,7 @@ mod tests {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
             module.phase = MirPhase::EvmShaped;
-            let data = module.add_data(vec![0; 32].into(), false);
+            let data = module.add_data(vec![0; 32].into(), None);
 
             let mut function = Function::new(Ident::DUMMY);
             let mut builder = FunctionBuilder::new(&mut function);

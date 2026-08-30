@@ -392,7 +392,7 @@ mod tests {
     #[test]
     fn program_data_is_guarded_from_fallthrough() {
         let mut module = ir::Module::new(sym::module);
-        let data_id = module.data.push(ir::Data { bytes: vec![0xaa].into(), named: false });
+        let data_id = module.data.push(ir::Data { bytes: vec![0xaa].into(), name: None });
         let mut block = Block::new(0);
         block.instructions.push(ir::Instruction::push_data(ir::DataRef::new(data_id, 0)));
         module.add_block(block);
@@ -413,7 +413,7 @@ mod tests {
     #[should_panic(expected = "program data offset 2 exceeds data size 1")]
     fn assembler_rejects_out_of_bounds_data_offset() {
         let mut module = ir::Module::new(sym::module);
-        let data = module.data.push(ir::Data { bytes: vec![0xaa].into(), named: false });
+        let data = module.data.push(ir::Data { bytes: vec![0xaa].into(), name: None });
         let mut block = Block::new(0);
         block.instructions.push(ir::Instruction::push_data(ir::DataRef::new(data, 2)));
         block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)));

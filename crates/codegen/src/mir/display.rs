@@ -353,8 +353,8 @@ fn display_inst_kind<'a>(
         }
         InstKind::DataCopy(id, dest, size) => {
             write!(f, "data_copy ")?;
-            if module.is_some_and(|module| module.data_is_named(id.id)) {
-                write!(f, "{}", crate::data_literal_name(id.id.index()))?;
+            if let Some(name) = module.and_then(|module| module.data_name(id.id)) {
+                write!(f, "{}", crate::display_data_name(name, id.id.index()))?;
             } else {
                 write!(f, "{}", id.id.index())?;
             }

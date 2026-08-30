@@ -1083,6 +1083,7 @@ symbols! {
         keccak256_bytes,
         layout,
         length,
+        literal,
         log,
         loop_depth,
         make_calldata_slice,

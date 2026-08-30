@@ -27,7 +27,7 @@ use solar_data_structures::{
     smallvec::SmallVec,
 };
 use solar_interface::{
-    Ident, Span,
+    Ident, Span, Symbol,
     diagnostics::{DiagMsg, ErrorGuaranteed},
     kw, sym,
 };
@@ -376,6 +376,17 @@ impl<'gcx> Lowerer<'gcx> {
         data: &[u8],
         padded_size: usize,
     ) {
+        self.copy_padded_data_slice_to_memory_with_name(builder, dest, data, padded_size, None);
+    }
+
+    fn copy_padded_data_slice_to_memory_with_name(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        data: &[u8],
+        padded_size: usize,
+        name: Option<Symbol>,
+    ) {
         debug_assert!(padded_size >= data.len());
         if padded_size == 0 {
             return;
@@ -393,16 +404,16 @@ impl<'gcx> Lowerer<'gcx> {
             let mut padded = Vec::with_capacity(padded_size);
             padded.extend_from_slice(data);
             padded.resize(padded_size, 0);
-            self.copy_nonzero_data_to_memory(builder, dest, padded.into());
+            self.copy_nonzero_data_to_memory(builder, dest, padded.into(), name);
         }
     }
 
-    /// Copies constant module data into memory.
-    pub(super) fn copy_data_to_memory(
+    fn copy_named_data_to_memory(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         dest: ValueId,
         data: Bytes,
+        name: Symbol,
     ) {
         if data.is_empty() {
             return;
@@ -412,7 +423,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.memory_zero(dest, size);
             return;
         }
-        self.copy_nonzero_data_to_memory(builder, dest, data);
+        self.copy_nonzero_data_to_memory(builder, dest, data, Some(name));
     }
 
     fn copy_nonzero_data_to_memory(
@@ -420,6 +431,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         dest: ValueId,
         data: Bytes,
+        name: Option<Symbol>,
     ) {
         if data_is_inline(data.len()) {
             self.store_data_words(builder, dest, &data);
@@ -429,7 +441,10 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
         let size = builder.imm_u64(data.len() as u64);
-        let data = self.module.intern_data(data);
+        let data = match name {
+            Some(name) => self.module.intern_named_data(data, name),
+            None => self.module.intern_data(data),
+        };
         builder.data_copy(data, dest, size);
     }
 
@@ -726,6 +741,10 @@ impl<'gcx> Lowerer<'gcx> {
     /// Registers a contract's bytecode for use in `new` expressions.
     pub(crate) fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Bytes) {
         self.contract_bytecodes.insert(contract_id, bytecode);
+    }
+
+    fn contract_initcode_data_name(&self, contract_id: ContractId) -> Symbol {
+        Symbol::intern(&format!("{}_initcode", self.gcx.hir.contract(contract_id).name))
     }
 
     /// Lowers a contract to MIR.

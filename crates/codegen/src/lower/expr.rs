@@ -1797,7 +1797,14 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Copy bytecode to the object payload.
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        self.copy_padded_data_slice_to_memory(builder, data_start, &bytecode, aligned_data_len);
+        let data_name = self.contract_initcode_data_name(contract_id);
+        self.copy_padded_data_slice_to_memory_with_name(
+            builder,
+            data_start,
+            &bytecode,
+            aligned_data_len,
+            Some(data_name),
+        );
 
         // Return ptr (the bytes memory value)
         ptr

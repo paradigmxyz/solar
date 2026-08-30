@@ -3,25 +3,25 @@
   @module subslices
   bb0:
     push 5
--   push_data literal_0
-+   push_data literal_1+1
+-   push_data small_0
++   push_data container_1+1
     push 0
     codecopy
     push 2
--   push_data literal_1
-+   push_data literal_0
+-   push_data needle_1
++   push_data needle_0
     push 32
     codecopy
     push 5
--   push_data literal_2+1
-+   push_data literal_1+1
+-   push_data container_2+1
++   push_data container_1+1
     push 64
     codecopy
     stop
   
-- @data literal_0 hex"1122334455"
-- @data literal_1 hex"2233"
-- @data literal_2 hex"00112233445566"
-+ @data literal_0 hex"2233"
-+ @data literal_1 hex"00112233445566"
+- @data small_0 hex"1122334455"
+- @data needle_1 hex"2233"
+- @data container_2 hex"00112233445566"
++ @data needle_0 hex"2233"
++ @data container_1 hex"00112233445566"
   

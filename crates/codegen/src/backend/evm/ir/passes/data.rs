@@ -14,6 +14,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_interface::sym;
 use solar_sema::Gcx;
 
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
@@ -195,7 +196,8 @@ impl DataPool {
                 retain
             });
         }
-        let id = module.data.push(Data { bytes: bytes.clone(), named: true });
+        let id = module.data.push(Data { bytes: bytes.clone(), name: None });
+        module.data[id].name = Some(sym::literal);
         self.entries.push(PoolEntry {
             id,
             bytes: bytes.clone(),
@@ -411,12 +413,14 @@ fn pack_data(module: &mut Module, references: &DataReferences) -> bool {
         {
             data_ref
         } else {
-            let id = packed.push(Data { bytes: data.bytes.clone(), named: data.named });
+            let id = packed.push(Data { bytes: data.bytes.clone(), name: data.name });
             sources.push(old_id);
             exact.insert(data.bytes.clone(), id);
             DataRef::new(id, 0)
         };
-        packed[data_ref.id].named |= data.named;
+        if packed[data_ref.id].name.is_none() {
+            packed[data_ref.id].name = data.name;
+        }
         remap.insert(old_id, data_ref);
     }
 

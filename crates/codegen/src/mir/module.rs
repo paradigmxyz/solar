@@ -29,7 +29,7 @@ pub(crate) struct Immutable {
 #[derive(Clone, Debug)]
 struct Data {
     bytes: Bytes,
-    named: bool,
+    name: Option<Symbol>,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -269,28 +269,36 @@ impl Module {
     /// Interns constant data and returns its stable identifier.
     pub(crate) fn intern_data(&mut self, data: Bytes) -> DataRef {
         if let Some(&id) = self.data_index.get(&data) {
-            self.ensure_data_name(id);
+            if self.data[id].name.is_none() {
+                self.data[id].name = Some(sym::literal);
+            }
             return DataRef::new(id, 0);
         }
-        DataRef::new(self.add_lowered_data(data), 0)
+        let id = self.add_data(data, None);
+        self.data[id].name = Some(sym::literal);
+        DataRef::new(id, 0)
     }
 
-    pub(crate) fn add_data(&mut self, data: Bytes, named: bool) -> DataId {
-        let id = self.data.push(Data { bytes: data.clone(), named });
+    pub(crate) fn intern_named_data(&mut self, data: Bytes, name: Symbol) -> DataRef {
+        if let Some(&id) = self.data_index.get(&data) {
+            if self.data[id].name.is_none_or(|name| name == sym::literal) {
+                self.data[id].name = Some(name);
+            }
+            return DataRef::new(id, 0);
+        }
+        let id = self.add_data(data, None);
+        self.data[id].name = Some(name);
+        DataRef::new(id, 0)
+    }
+
+    pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
+        let id = self.data.push(Data { bytes: data.clone(), name });
         self.data_index.entry(data).or_insert(id);
         id
     }
 
-    fn add_lowered_data(&mut self, data: Bytes) -> DataId {
-        self.add_data(data, true)
-    }
-
-    fn ensure_data_name(&mut self, id: DataId) {
-        self.data[id].named = true;
-    }
-
-    pub(crate) fn data_is_named(&self, id: DataId) -> bool {
-        self.data[id].named
+    pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
+        self.data[id].name
     }
 
     /// Returns constant data if the identifier is allocated.
@@ -325,8 +333,8 @@ impl Module {
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;
                 for (id, data) in self.iter_data() {
-                    if self.data_is_named(id) {
-                        write!(f, "  {}", crate::data_literal_name(id.index()))?;
+                    if let Some(name) = self.data_name(id) {
+                        write!(f, "  {}", crate::display_data_name(name, id.index()))?;
                     } else {
                         write!(f, "  {}", id.index())?;
                     }
