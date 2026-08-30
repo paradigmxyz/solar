@@ -86,23 +86,11 @@ error: event invocations have to be prefixed by `emit`
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                        ━━━━━━━━━━━━
 
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
-   │
-LL │         uint x = true ? EmptyEvent() : EmptyEvent();
-   ╰╴                        ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
-
 error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                                       ━━━━━━━━━━━━
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
-   │
-LL │         uint x = true ? EmptyEvent() : EmptyEvent();
-   ╰╴                                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: mismatched number of components
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/nested_contexts.sol:LL:CC
@@ -168,5 +156,5 @@ LL │         uint x = EmptyEvent() + EmptyEvent();
    │                  │
    ╰╴                 tuple()
 
-error: aborting due to 27 previous errors
+error: aborting due to 25 previous errors
 
