@@ -452,7 +452,7 @@ mod tests {
             command: "/bin/sh".into(),
             args: vec![
                 "-c".into(),
-                "printf '%s' 'contract Test { uint256 temporary; }' > \"$1\"; printf '%s\\n' \"$2\"; printf '%s' \"$3\" > \"$1\""
+                "printf '%s' 'contract Test { uint256 temporary; }' > \"$1\"; printf '%s\\n' \"$2\"; printf '%s' \"$3\" > \"$1.tmp\"; mv \"$1.tmp\" \"$1\""
                     .into(),
                 "sh".into(),
                 path.display().to_string(),
