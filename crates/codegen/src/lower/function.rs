@@ -813,11 +813,25 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     if shape.returns.len() > 1 {
                         let base =
                             builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
-                        for index in 1..shape.returns.len() {
-                            let offset =
-                                u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32);
+                        let mut word_index =
+                            if matches!(shape.returns[0], MirType::Slice(_)) { 2 } else { 1 };
+                        for &ty in &shape.returns[1..] {
+                            let offset = u64::try_from(word_index)
+                                .unwrap_or(u64::MAX)
+                                .saturating_mul(EvmMemoryLayout::WORD_SIZE);
                             let position = builder.add_u64_offset(base, offset);
-                            values.push(builder.mload(position));
+                            let first_word = builder.mload(position);
+                            let value = if let MirType::Slice(location) = ty {
+                                let length_position =
+                                    builder.add_u64_offset(position, EvmMemoryLayout::WORD_SIZE);
+                                let length = builder.mload(length_position);
+                                word_index += 2;
+                                builder.make_slice(first_word, length, location)
+                            } else {
+                                word_index += 1;
+                                first_word
+                            };
+                            values.push(value);
                         }
                     }
                     builder.ret(values);

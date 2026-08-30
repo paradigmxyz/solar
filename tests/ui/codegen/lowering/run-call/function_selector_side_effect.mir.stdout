@@ -5,7 +5,7 @@ fn @f() [selector=0x26121ff0, view, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @h() -> address [selector=0xb8c9d365, abi_params=[], abi_returns=[word]] {
+fn @h() -> address [selector=0xb8c9d365, abi_params=[], abi_returns=[word<u160>]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = address

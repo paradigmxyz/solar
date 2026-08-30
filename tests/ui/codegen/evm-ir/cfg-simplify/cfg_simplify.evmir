@@ -16,7 +16,8 @@ bb1:
 
 // CHECK-LABEL: bb2:
 // CHECK: {{^[ +].*}}push bb3
-// CHECK: {{^[ +].*}}push bb7
+// CHECK: - push bb7
+// CHECK-NEXT: + push bb8
 // CHECK: - jump bb4
 // CHECK: + push 1
 // CHECK-NEXT: + pop
@@ -49,10 +50,12 @@ bb5:
 bb6:
   stop
 
-// CHECK-LABEL: bb7:
-// CHECK: - jump bb8
-// CHECK: - bb8:
-// CHECK: {{^[ +].*}}stop
+// A pushed label that is not a direct jump operand is a return address or another indirect
+// jump target, which lands on the thunk's target just as well.
+// CHECK: - bb7:
+// CHECK-NEXT: - jump bb8
+// CHECK-NEXT: {{^ .*}}bb8:
+// CHECK-NEXT: {{^ .*}}stop
 bb7:
   jump bb8
 bb8:

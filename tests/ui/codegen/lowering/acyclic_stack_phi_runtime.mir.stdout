@@ -3,12 +3,8 @@
 fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = internal_call @trim, 1, arg0
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = make_calldata_slice v0, v3
-    v5 = slice_len v4
-    ret v5
+    v1 = slice_len v0
+    ret v1
 }
 
 fn @trim(arg0: calldataslice) -> calldataslice [pure] {

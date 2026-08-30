@@ -222,7 +222,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     revert 0, 36
 }
 
-fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word]] {
+fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [memory_bytes], object, args v0

@@ -1,0 +1,54 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 149,
+        "end": 244
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2018",
+      "message": "function state mutability can be restricted to view",
+      "formattedMessage": "warning[2018]: function state mutability can be restricted to view\n   ╭▸ A.sol:LL:CC\n   │\nLL │ ┏     function bump(uint256 value) external returns (uint256) {\nLL │ ┃         return Lib.bump(value);\nLL │ ┃     }\n   ╰╴┗━━━━━┛\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "Parent": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "346051575f3560e01c806324c12bf6146055578063efc81a8c0360515760e08060405261010081016040525f815260200160e061018b823960cc905ff08060a052156101835760a05160805260206080f35b5f80fd5b60c08060405260208101818103825260cc9052604081017f34600d5760bb8060115f395ff35b5f5ffd34609b575f3560e01c8063b20eb4c49052606081017f03609b5761010060405260243610609b576040516040810160405263b20eb4c49052608081017f60e01b81526004810160043590525f5f60248373a77ceaa5ca71849665c7e558905260a081017fb1064012b8a127ad5af4905015609f573d603f810181811060a757601f19166090528081017f405190810160405281815260208101825f823e91505180820182119060201117905260e081017f609b575160805260206080f35b5f80fd5b3d5f803e3d5ffd5b634e487b7160e0905261010081016b1b5f52604160045260245ffd60a01b9052610120810103601f8101601f19166040519081016040528181f35b3d5f803e3d5ffd34600d5760bb8060115f395ff35b5f5ffd34609b575f3560e01c8063b20eb4c403609b5761010060405260243610609b576040516040810160405263b20eb4c460e01b81526004810160043590525f5f60248373__$277ceaa5ca71849665c7e558b1064012b8$__5af4905015609f573d603f810181811060a757601f191660405190810160405281815260208101825f823e91505180820182119060201117609b575160805260206080f35b5f80fd5b3d5f803e3d5ffd5b634e487b7160e01b5f52604160045260245ffd0000000000000000000000000000000000000000",
+            "linkReferences": {
+              "A.sol": {
+                "Lib": [
+                  {
+                    "start": 479,
+                    "length": 20
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

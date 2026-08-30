@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_array.sol:StorageDeletePackedArray ===
 @module StorageDeletePackedArray
-fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[word, word, word]] {
+fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -154,7 +154,7 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     revert 0, 36
 }
 
-fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word, word, word]] {
+fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>]] {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0
@@ -271,7 +271,7 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     revert 0, 36
 }
 
-fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], abi_returns=[word, word, word]] {
+fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], abi_returns=[word, word<u8>, word]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 6 !metadata(storage=slot(6))
@@ -364,7 +364,7 @@ fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], ab
     revert 0, 36
 }
 
-fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_returns=[word, word, word]] {
+fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>]] {
   bb0:
     v0 = lt 0, 3
     v1 = iszero v0

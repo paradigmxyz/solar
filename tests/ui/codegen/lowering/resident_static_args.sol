@@ -2,16 +2,16 @@
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
-//@[run] run-call: run 40, false => 126
-//@[run] run-call: run 40, true => 123
-//@[run] run-call: checked 40, false => 42
-//@[run] run-call-fail: checked 40, true => 0xc77ea6410000000000000000000000000000000000000000000000000000000000000028
-//@[run] run-call: nested 40, false => 82
-//@[run] run-call: nested 40, true => 81
-//@[run] run-call: asymmetric 40, false => 7
-//@[run] run-call: asymmetric 40, true => 80
-//@[run] run-call: joined 40, false => 82
-//@[run] run-call: joined 40, true => 81
+//@ run-call: run 40, false => 126
+//@ run-call: run 40, true => 123
+//@ run-call: checked 40, false => 42
+//@ run-call-fail: checked 40, true => 0xc77ea6410000000000000000000000000000000000000000000000000000000000000028
+//@ run-call: nested 40, false => 82
+//@ run-call: nested 40, true => 81
+//@ run-call: asymmetric 40, false => 7
+//@ run-call: asymmetric 40, true => 80
+//@ run-call: joined 40, false => 82
+//@ run-call: joined 40, true => 81
 
 contract ResidentStaticArgs {
     error Failed(uint256 value);

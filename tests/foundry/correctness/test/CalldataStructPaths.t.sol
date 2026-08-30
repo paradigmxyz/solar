@@ -11,11 +11,17 @@ struct CalldataOuter {
     bytes note;
 }
 
+struct CalldataStaticPacket {
+    uint256 tag;
+    uint256[2] values;
+}
+
 contract CalldataStructTarget {
     uint256[] public storedValues;
     uint256 public storedTag;
 
     event Member(uint256 tag, uint256[] values, bytes note);
+    event StaticPacket(CalldataStaticPacket indexed indexedPacket, CalldataStaticPacket packet);
 
     function assignMember(CalldataOuter calldata p, uint256 i) external {
         storedValues = p.items[i].values;
@@ -34,6 +40,10 @@ contract CalldataStructTarget {
         emit Member(p.items[i].tag, p.items[i].values, p.note);
     }
 
+    function emitStaticPacket(CalldataStaticPacket calldata packet) external {
+        emit StaticPacket(packet, packet);
+    }
+
     function nested(CalldataOuter calldata p, uint256 i, uint256 j) external pure returns (uint256, uint256, bytes32) {
         return (p.items[i].tag, p.items[i].values[j], keccak256(abi.encode(p.items[i].values)));
     }
@@ -47,6 +57,7 @@ contract CalldataStructPathsTest {
     CalldataStructVm constant vm = CalldataStructVm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     event Member(uint256 tag, uint256[] values, bytes note);
+    event StaticPacket(CalldataStaticPacket indexed indexedPacket, CalldataStaticPacket packet);
 
     CalldataStructTarget target;
 
@@ -80,6 +91,13 @@ contract CalldataStructPathsTest {
         emit Member(8, values, hex"1234");
         (bool success,) = address(target).call(emitMemberCall());
         assert(success);
+    }
+
+    function testEmitStaticCalldataStruct() public {
+        CalldataStaticPacket memory packet = CalldataStaticPacket(7, [uint256(8), 9]);
+        vm.expectEmit(true, false, false, true);
+        emit StaticPacket(packet, packet);
+        target.emitStaticPacket(packet);
     }
 
     function testNestedDynamicMember() public view {

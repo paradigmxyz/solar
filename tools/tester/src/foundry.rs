@@ -245,12 +245,18 @@ fn get_solar_binary() -> PathBuf {
         return PathBuf::from(path);
     }
 
+    // `cargo tq foundry` builds the debug binary and `cargo tq foundry-external` the release
+    // one; whichever was built last is the compiler under test, so a release binary left behind
+    // by an earlier run never shadows a fresh debug build.
     let workspace_root = workspace_root();
     let release_binary = workspace_root.join("target/release/solar");
-    if release_binary.exists() {
-        return release_binary;
+    let debug_binary = workspace_root.join("target/debug/solar");
+    let modified = |path: &Path| std::fs::metadata(path).and_then(|meta| meta.modified()).ok();
+    match (modified(&release_binary), modified(&debug_binary)) {
+        (Some(release), Some(debug)) if release > debug => release_binary,
+        (Some(_), None) => release_binary,
+        _ => debug_binary,
     }
-    workspace_root.join("target/debug/solar")
 }
 
 /// Gets the path to the workspace root.

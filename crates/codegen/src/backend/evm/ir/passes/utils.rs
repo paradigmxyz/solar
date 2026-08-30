@@ -180,6 +180,7 @@ pub(super) struct StackDepths {
     has_unbounded_depth: bool,
     has_unknown_target: bool,
     unknown_target_headroom: usize,
+    legacy_shift_headroom: usize,
 }
 
 impl StackDepths {
@@ -243,17 +244,48 @@ impl StackDepths {
             has_unbounded_depth,
             has_unknown_target,
             unknown_target_headroom: module.unknown_target_stack_headroom,
+            legacy_shift_headroom: module.legacy_shift_stack_headroom,
         })
     }
 
-    /// Returns whether an instruction has room for `growth` additional words.
+    /// Returns whether an optimization may grow the stack by `growth` words at an instruction.
+    ///
+    /// The backend's opaque-jump budget covers small growth anywhere; larger growth needs an
+    /// exact depth. Either way the legacy-shift reserve stays untouched: it is a separate
+    /// budget that legalization spends after every optimization has run.
     pub(super) fn has_headroom(&self, block: BlockId, index: usize, growth: usize) -> bool {
-        if growth <= self.unknown_target_headroom {
+        self.has_headroom_within(
+            block,
+            index,
+            growth,
+            self.unknown_target_headroom,
+            MAX_STACK_DEPTH.saturating_sub(self.legacy_shift_headroom),
+        )
+    }
+
+    /// Returns whether legacy shift legalization may transiently grow the stack by `growth`
+    /// words at an instruction, spending the backend's legacy-shift reserve.
+    pub(super) fn has_legacy_shift_headroom(
+        &self,
+        block: BlockId,
+        index: usize,
+        growth: usize,
+    ) -> bool {
+        self.has_headroom_within(block, index, growth, self.legacy_shift_headroom, MAX_STACK_DEPTH)
+    }
+
+    fn has_headroom_within(
+        &self,
+        block: BlockId,
+        index: usize,
+        growth: usize,
+        budget: usize,
+        limit: usize,
+    ) -> bool {
+        if growth <= budget {
             return true;
         }
-        if self.unbounded.contains(block)
-            || self.has_unknown_target && growth > self.unknown_target_headroom
-        {
+        if self.unbounded.contains(block) || self.has_unknown_target {
             return false;
         }
         let Some(depths) = self.before.get(block).and_then(Option::as_ref) else {
@@ -265,7 +297,7 @@ impl StackDepths {
         depths
             .get(index)
             .and_then(|depth| depth.checked_add(growth))
-            .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
+            .is_some_and(|depth| depth <= limit)
     }
 }
 

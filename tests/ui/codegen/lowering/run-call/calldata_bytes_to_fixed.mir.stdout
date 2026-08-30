@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_bytes_to_fixed.sol:CalldataBytesToFixed ===
 @module CalldataBytesToFixed
-fn @first(arg0: calldataslice) -> bytes1 [selector=0x936fc730, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @first(arg0: calldataslice) -> bytes1 [selector=0x936fc730, pure, abi_params=[bytes], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = calldata_slice_load_word calldata, arg0, 0
     v1 = slice_len arg0
@@ -13,7 +13,7 @@ fn @first(arg0: calldataslice) -> bytes1 [selector=0x936fc730, pure, abi_params=
     ret v7
 }
 
-fn @half(arg0: calldataslice) -> bytes16 [selector=0xf67e1bfb, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @half(arg0: calldataslice) -> bytes16 [selector=0xf67e1bfb, pure, abi_params=[bytes], abi_returns=[word<bytes16>]] {
   bb0:
     v0 = calldata_slice_load_word calldata, arg0, 0
     v1 = slice_len arg0
@@ -39,7 +39,7 @@ fn @word(arg0: calldataslice) -> bytes32 [selector=0xc22ee0b0, pure, abi_params=
     ret v7
 }
 
-fn @sliced(arg0: calldataslice, arg1: u256, arg2: u256) -> bytes16 [selector=0x183ecf01, pure, abi_params=[bytes, u256, u256], abi_returns=[word]] {
+fn @sliced(arg0: calldataslice, arg1: u256, arg2: u256) -> bytes16 [selector=0x183ecf01, pure, abi_params=[bytes, u256, u256], abi_returns=[word<bytes16>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

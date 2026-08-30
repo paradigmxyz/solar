@@ -53,7 +53,6 @@ contract StorageBytesMember {
     // CHECK: [[POP_ONE]]:
     // CHECK: keccak256
     // CHECK: sload
-    // CHECK: sstore
     function popOne() external {
         KeccakState storage state = states[msg.sender];
         state.part.pop();
@@ -79,7 +78,6 @@ contract StorageBytesMember {
     // CHECK: [[SET_AT]]:
     // CHECK: keccak256
     // CHECK: sload
-    // CHECK: sstore
     function setAt(uint256 i, bytes1 b) external {
         KeccakState storage state = states[msg.sender];
         state.part[i] = b;

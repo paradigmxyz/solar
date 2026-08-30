@@ -32,7 +32,7 @@ fn @_anonymous() [constructor] {
     stop
 }
 
-fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[word]] {
+fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff

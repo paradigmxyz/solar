@@ -12,12 +12,8 @@ fn @_empty() -> calldataslice [pure] {
 fn @emptyLen() -> u256 [selector=0x24046374, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = internal_call @_empty, 1
-    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v2 = add v1, 32
-    v3 = mload v2
-    v4 = make_calldata_slice v0, v3
-    v5 = internal_call @_sink, 1, v4
-    ret v5
+    v1 = internal_call @_sink, 1, v0
+    ret v1
 }
 
 fn @_sink(arg0: calldataslice) -> u256 [pure] {

@@ -20,6 +20,7 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
 struct ParsedBlockHeader {
     label: Symbol,
     hotness: Hotness,
+    in_loop: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -65,6 +66,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
+                module.blocks[block_id].metadata.in_loop = header.in_loop;
                 current_block = Some(block_id);
                 continue;
             }
@@ -105,15 +107,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let Some(label) = self.current_block_label()? else { return Ok(None) };
         self.parser.bump();
         let mut hotness = Hotness::Hot;
+        let mut in_loop = false;
         if self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
-            self.parser.expect_keyword(sym::cold)?;
-            hotness = Hotness::Cold;
+            loop {
+                if self.parser.eat_keyword(sym::cold) {
+                    hotness = Hotness::Cold;
+                } else if self.parser.eat_keyword(sym::Loop) {
+                    in_loop = true;
+                } else {
+                    return Err(self.parser.error("expected `cold` or `loop` block attribute"));
+                }
+                if !self.parser.eat(TokenKind::Comma) {
+                    break;
+                }
+            }
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
 
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, hotness }))
+        Ok(Some(ParsedBlockHeader { label, hotness, in_loop }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
