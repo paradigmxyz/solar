@@ -430,7 +430,12 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     };
     runtime_revisions.sort_unstable();
     runtime_revisions.dedup();
-    if runtime_revisions.is_empty() && (!unscoped_run_call || !base_mir_dump) {
+    let has_scoped_dump_call =
+        dump_revisions.iter().any(|revision| scoped_run_call_revisions.contains(revision));
+    if runtime_revisions.is_empty()
+        && (!unscoped_run_call || !base_mir_dump)
+        && !has_scoped_dump_call
+    {
         return;
     }
 
