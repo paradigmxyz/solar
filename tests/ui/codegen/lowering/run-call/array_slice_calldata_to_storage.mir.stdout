@@ -30,9 +30,9 @@ fn @copy(arg0: calldataslice, arg1: u256, arg2: u256) -> i256 [selector=0xaabf50
     v21 = iszero v20
     jumpi v21, bb5, bb6
   bb6:
-    v22 = add v15, v16
-    v23 = calldatasize
-    v24 = gt v22, v23
+    v22 = calldatasize
+    v23 = sub v22, v15
+    v24 = slt v23, v16
     jumpi v24, bb7, bb8
   bb8:
     v25 = mul v14, 32

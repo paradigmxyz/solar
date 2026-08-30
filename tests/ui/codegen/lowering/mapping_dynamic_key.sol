@@ -94,8 +94,7 @@ contract MappingDynamicKeyPaths {
 
     // Storage string key: materialized to memory, then hashed as bytes.
     // CHECK-LABEL: fn @setSkey{{[( ]}}
-    // CHECK: memory_object_len memorybytes, arg0
-    // CHECK: sstore 3,
+    // CHECK: internal_call @store_storage_bytes, 0, 3, arg0
     function setSkey(string memory s) public {
         skey = s;
     }

@@ -1,0 +1,95 @@
+// === ROOT/tests/ui/codegen/lowering/spill_store_unloaded.sol:SpillStoreUnloaded (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xa62f4550
+  eq
+  push bb4
+  jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  dup 1
+  revert
+bb7 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb4:
+  push 68
+  calldatasize
+  lt
+  push 4
+  calldataload
+  push 36
+  calldataload
+  swap 2
+  push bb3
+  jumpi
+  dup 2
+  dup 2
+  mul
+  dup 1
+  push 160
+  mstore
+  dup 3
+  iszero
+  dup 4
+  dup 3
+  div
+  dup 4
+  eq
+  or
+  swap 1
+  pop
+  iszero
+  push bb7
+  jumpi
+  dup 2
+  dup 2
+  gt
+  push bb8
+  jumpi
+  push 160
+  mload
+  swap 2
+  dup 3
+  add
+  swap 1
+  pop
+  swap 1
+  jump bb9
+bb9:
+  dup 2
+  lt
+  push bb7
+  jumpi
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb8:
+  push 160
+  mload
+  swap 1
+  dup 2
+  add
+  swap 2
+  pop
+  jump bb9

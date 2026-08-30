@@ -159,7 +159,7 @@ pub(crate) enum ScheduledOp {
     /// Push an immediate value.
     PushImmediate(alloy_primitives::U256),
     /// Load a spilled value from memory.
-    LoadSpill(SpillSlot),
+    LoadSpill(SpillSlot, ValueId),
     /// Load a function argument through the active calling convention.
     ///
     /// Contains the argument index (0-based).
@@ -318,7 +318,7 @@ impl ScheduleCost {
                     (3, (immediate_bytes + 1) as u32)
                 }
             }
-            ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
+            ScheduledOp::LoadSpill(..) | ScheduledOp::LoadArg(_) => {
                 (cost_model.load_static_gas, cost_model.load_encoded_bytes)
             }
             ScheduledOp::Stack(_) => unreachable!(),
@@ -974,7 +974,7 @@ impl StackScheduler {
                     stack.pop();
                 }
                 ScheduledOp::PushImmediate(_)
-                | ScheduledOp::LoadSpill(_)
+                | ScheduledOp::LoadSpill(..)
                 | ScheduledOp::LoadArg(_) => {
                     let pushed = action.pushed?;
                     if !goal.contains(&pushed)
@@ -1679,7 +1679,9 @@ impl StackScheduler {
                 None
             }
             ScheduledOp::Stack(StackOp::Pop) => stack.remove(0),
-            ScheduledOp::PushImmediate(_) | ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
+            ScheduledOp::PushImmediate(_)
+            | ScheduledOp::LoadSpill(..)
+            | ScheduledOp::LoadArg(_) => {
                 stack.insert(0, action.pushed);
                 None
             }
@@ -1700,7 +1702,7 @@ impl StackScheduler {
             }
             ScheduledOp::Stack(StackOp::Dup(_))
             | ScheduledOp::PushImmediate(_)
-            | ScheduledOp::LoadSpill(_)
+            | ScheduledOp::LoadSpill(..)
             | ScheduledOp::LoadArg(_) => {
                 stack.remove(0);
             }
@@ -1947,7 +1949,7 @@ impl StackScheduler {
             match &action.op {
                 ScheduledOp::Stack(stack_op) => self.stack.apply(*stack_op),
                 ScheduledOp::PushImmediate(_)
-                | ScheduledOp::LoadSpill(_)
+                | ScheduledOp::LoadSpill(..)
                 | ScheduledOp::LoadArg(_) => {
                     self.stack.push(action.pushed.expect("materialization pushes a known value"));
                 }
@@ -2017,7 +2019,7 @@ impl StackScheduler {
             return None;
         }
         if let Some(slot) = self.reloadable_spill(value) {
-            return Some(ScheduledOp::LoadSpill(slot));
+            return Some(ScheduledOp::LoadSpill(slot, value));
         }
 
         match func.value(value) {
@@ -2074,13 +2076,13 @@ impl StackScheduler {
             // Value is too deep for DUP. It must either be reloadable from a spill slot or
             // re-emittable below.
             if let Some(slot) = self.reloadable_spill(value) {
-                self.ops.push(ScheduledOp::LoadSpill(slot));
+                self.ops.push(ScheduledOp::LoadSpill(slot, value));
                 self.stack.push(value);
                 return &self.ops;
             }
         } else if let Some(slot) = self.reloadable_spill(value) {
             // The value is spilled, so load it.
-            self.ops.push(ScheduledOp::LoadSpill(slot));
+            self.ops.push(ScheduledOp::LoadSpill(slot, value));
             self.stack.push(value);
             return &self.ops;
         }
@@ -2554,7 +2556,7 @@ mod tests {
         assert!(!scheduler.can_emit_value(target, &func));
         let slot = scheduler.spills.allocate(target);
         scheduler.spills.mark_stored(target);
-        assert_eq!(scheduler.ensure_on_top(target, &func), [ScheduledOp::LoadSpill(slot)]);
+        assert_eq!(scheduler.ensure_on_top(target, &func), [ScheduledOp::LoadSpill(slot, target)]);
     }
 
     #[test]
@@ -3510,7 +3512,7 @@ mod tests {
 
         let forged_spill = OperandPlan {
             actions: smallvec::smallvec![PlannedAction {
-                op: ScheduledOp::LoadSpill(SpillSlot { offset: spill.offset + 1 }),
+                op: ScheduledOp::LoadSpill(SpillSlot { offset: spill.offset + 1 }, spilled),
                 pushed: Some(spilled),
             }],
             cost: ScheduleCost::default(),
@@ -3638,7 +3640,7 @@ mod tests {
         let plan = scheduler
             .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
-        assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
+        assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot, value));
     }
 
     #[test]
@@ -3653,7 +3655,7 @@ mod tests {
         let plan = scheduler
             .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
-        assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
+        assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot, value));
     }
 
     #[test]
@@ -3675,7 +3677,7 @@ mod tests {
                 .plan_operands(&[value], &[], &func, OptimizationMode::Gas, cost_model)
                 .unwrap();
 
-            assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
+            assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot, value));
             assert_eq!(plan.cost.static_gas, expected_gas);
             assert_eq!(plan.cost.encoded_bytes, expected_bytes);
         }

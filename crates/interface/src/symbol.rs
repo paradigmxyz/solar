@@ -994,6 +994,7 @@ symbols! {
     // nice to have.
     Symbols {
         Error,
+        Loop: "loop",
         Panic,
         Test,
         X,
@@ -1056,6 +1057,7 @@ symbols! {
         encodePacked,
         encodeWithSelector,
         encodeWithSignature,
+        encode_abi_array,
         entry,
         environment_read,
         erc7201,
@@ -1193,6 +1195,7 @@ symbols! {
         storage_write,
         storageptr,
         store_recursive_storage,
+        store_storage_bytes,
         storeimmutable,
         super_: "super",
         swap,

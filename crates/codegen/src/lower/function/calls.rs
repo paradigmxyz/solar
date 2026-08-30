@@ -420,10 +420,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let first_ty = function.returns[0];
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
-        let returns = Self::internal_returns_words(function.returns.iter().copied());
-        let result =
-            self.builder.internal_call(dispatcher, values, result_ty, function.returns.len());
-        Some(self.rebuild_first_internal_return(result, first_ty, returns))
+        Some(self.builder.internal_call(dispatcher, values, result_ty, function.returns.len()))
     }
 
     pub(super) fn lower_internal_function_value(
@@ -783,11 +780,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let first_ty = self.context.gcx.type_of_item((*function.returns.first()?).into());
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
-        let returns = Self::internal_returns_words(
-            function.returns.iter().map(|&id| self.context.gcx.type_of_item(id.into())),
-        );
         let result = self.builder.internal_call(mir_id, values, result_ty, function.returns.len());
-        let result = self.rebuild_first_internal_return(result, first_ty, returns);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -948,7 +941,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             "storage access",
                         );
                     };
-                    Some((access.slot, AbiType::Word))
+                    Some((access.slot, AbiType::Word(None)))
                 } else {
                     Some(self.lower_abi_call_argument(argument, parameter_ty)?)
                 }
@@ -1076,7 +1069,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(access) = self.storage_access(receiver) else {
                 return report_unsupported(self.context.gcx, receiver.span, "storage access");
             };
-            Some((access.slot, AbiType::Word))
+            Some((access.slot, AbiType::Word(None)))
         } else {
             self.lower_abi_call_argument(receiver, parameter_ty)
         }
@@ -1110,7 +1103,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let static_return_buffer =
             static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
         let decode_returndata = return_tys.iter().any(|&ty| {
-            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word))
+            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
         });
         let ret_offset = static_return_buffer.as_ref().map_or_else(
             || if !decode_returndata && returns > 1 { input } else { zero },

@@ -41,9 +41,6 @@ bb6:
   dup 1
   push 64
   mstore
-  dup 1
-  push 128
-  mstore
   push 32
   dup 2
   add
@@ -81,9 +78,6 @@ bb6:
   and
   push 64
   mload
-  dup 1
-  push 160
-  mstore
   swap 1
   dup 2
   add
@@ -282,9 +276,6 @@ bb36 [cold]:
 bb31 [cold]:
   push 64
   mload
-  dup 1
-  push 160
-  mstore
   push 0x8c379a0
   push 224
   shl
@@ -333,9 +324,6 @@ bb31 [cold]:
   and
   push 64
   mload
-  dup 1
-  push 192
-  mstore
   swap 1
   dup 2
   add

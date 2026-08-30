@@ -42,7 +42,7 @@ fn @dirtyFreeMemory() [view] {
     stop
 }
 
-fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_returns=[word]] {
+fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -52,7 +52,7 @@ fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_return
     ret v2
 }
 
-fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_returns=[word]] {
+fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     internal_call @dirtyFreeMemory, 0
     v0 = internal_call @empty, 1
@@ -61,7 +61,7 @@ fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_retur
     ret v2
 }
 
-fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word]] {
+fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -81,7 +81,7 @@ fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns
     ret v12
 }
 
-fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_returns=[word]] {
+fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     memory_object_store_field memorystruct<1>, v0, 0, 0
@@ -101,7 +101,7 @@ fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_return
     ret v12
 }
 
-fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word]] {
+fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = internal_call @encode, 1, arg0, v0

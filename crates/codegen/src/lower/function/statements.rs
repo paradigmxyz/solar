@@ -438,7 +438,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             let (mut value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
-            if matches!(abi_type, AbiType::Word) {
+            if matches!(abi_type, AbiType::Word(_)) {
                 value = self.lower_word_value(parameter_ty, argument, value);
             }
             values.push(value);
@@ -576,7 +576,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.materialize_calldata_argument(parameter_ty, value, argument.span)?;
                     abi_type = Self::memory_abi_type(abi_type);
                 }
-                if matches!(abi_type, AbiType::Word) {
+                if matches!(abi_type, AbiType::Word(_)) {
                     value = self.lower_word_value(parameter_ty, argument, value);
                 }
                 data_values.push(value);
@@ -587,7 +587,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data_ptr, data_size) = if data_types.is_empty() {
             let zero = self.builder.imm_u256(U256::ZERO);
             (zero, zero)
-        } else if matches!(data_types.as_slice(), [AbiType::Word]) {
+        } else if matches!(data_types.as_slice(), [AbiType::Word(_)]) {
             let zero = self.builder.imm_u64(0);
             self.builder.mstore(zero, data_values[0]);
             (zero, self.builder.imm_u64(32))

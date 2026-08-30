@@ -2,8 +2,8 @@
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
-//@[run] run-call: 0x354b9a2c => 0x0000000000000000000000000000000000000000000000000000000000000060
-//@[run] run-call: 0xececca9f => 0x0000000000000000000000000000000000000000000000000000000000000080
+//@ run-call: 0x354b9a2c => 0x0000000000000000000000000000000000000000000000000000000000000060
+//@ run-call: 0xececca9f => 0x0000000000000000000000000000000000000000000000000000000000000080
 
 contract EntryFreeMemory {
     // `msize` observes the memory expansion caused by initializing Solidity's free-memory pointer,

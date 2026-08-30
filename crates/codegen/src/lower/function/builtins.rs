@@ -1174,8 +1174,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values[index] = Some(self.lower_yul_word_expr(&exprs[index])?);
             }
         } else {
+            // Solidity builtins convert every argument to the declared parameter type, like
+            // solc's `expressionAsType`. A narrow local dirtied by inline assembly is cleaned
+            // here, before any semantic check such as the zero-modulus panic observes it.
+            let parameters = match builtin.ty(self.context.gcx).kind {
+                TyKind::Fn(function) => function.parameters,
+                _ => &[],
+            };
             for index in 0..N {
-                values[index] = Some(self.lower_yul_word_expr(&exprs[index])?);
+                let expr = &exprs[index];
+                values[index] = Some(match parameters.get(index) {
+                    Some(&parameter) => self.lower_typed_expr(expr, parameter)?,
+                    None => self.lower_yul_word_expr(expr)?,
+                });
             }
         }
         Some(values.map(|value| value.expect("all builtin arguments lowered")))

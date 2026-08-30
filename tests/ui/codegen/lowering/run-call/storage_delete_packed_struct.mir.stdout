@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_delete_packed_struct.sol:StorageDeletePackedStruct ===
 @module StorageDeletePackedStruct
-fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -209,7 +209,7 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=
     revert 0, 36
 }
 
-fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
@@ -418,7 +418,7 @@ fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_par
     revert 0, 36
 }
 
-fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_params=[], abi_returns=[word, word, word]] {
+fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and 4, 255
@@ -469,7 +469,7 @@ fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_params=[], abi_ret
     ret v30, v34, v38
 }
 
-fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word, word, word]] {
+fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and 4, 255
@@ -579,7 +579,7 @@ fn @clearDirtyWord() -> u256 [selector=0xc9cbcc52, abi_params=[], abi_returns=[w
     ret v1
 }
 
-fn @clearStructWithMapping() -> (u256, u8, u256, u256) [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word, word, word]] {
+fn @clearStructWithMapping() -> (u256, u8, u256, u256) [selector=0xb447ab5f, abi_params=[], abi_returns=[word, word<u8>, word, word]] {
   bb0:
     v0 = add 3, 1
     sstore 3, 1 !metadata(storage=slot(3))

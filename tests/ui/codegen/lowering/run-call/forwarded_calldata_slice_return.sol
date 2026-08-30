@@ -3,8 +3,24 @@
 //@ run-call: ForwardedCalldataSliceReturn::single(bytes) 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 7, 0x112233445566
 //@ run-call: ForwardedCalldataSliceReturn::nested(bytes) 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 7, 0x112233445566
 //@ run-call: ForwardedCalldataSliceReturn::nestedSlices(bytes) 0x112233445566778899aabbccddeeff0011223344 => 0x11, 0x2233445566778899aabbccddeeff001122334400
+//@ run-call: ForwardedCalldataSliceReturn::singleSliceLength(bytes) 0x1122 => 2
+//@ run-call: ForwardedCalldataSliceReturn::pointerSliceLength(bytes) 0x1122 => 2
+//@ run-call: ForwardedCalldataSliceReturn::arraySliceLength(uint256[]) [7, 8] => 2
 
 contract ForwardedCalldataSliceReturn {
+    function singleSliceLength(bytes calldata executionData) external pure returns (uint256) {
+        return _identity(executionData).length;
+    }
+
+    function pointerSliceLength(bytes calldata executionData) external pure returns (uint256) {
+        function(bytes calldata) internal pure returns (bytes calldata) target = _identity;
+        return target(executionData).length;
+    }
+
+    function arraySliceLength(uint256[] calldata values) external pure returns (uint256) {
+        return _identityArray(values).length;
+    }
+
     function delegate(bytes calldata executionData)
         external
         pure
@@ -35,6 +51,22 @@ contract ForwardedCalldataSliceReturn {
         returns (address, uint256, bytes calldata)
     {
         return _single(executionData);
+    }
+
+    function _identity(bytes calldata executionData)
+        internal
+        pure
+        returns (bytes calldata)
+    {
+        return executionData;
+    }
+
+    function _identityArray(uint256[] calldata values)
+        internal
+        pure
+        returns (uint256[] calldata)
+    {
+        return values;
     }
 
     function nestedSlices(bytes calldata executionData)

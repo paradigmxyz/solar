@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/storage_packed_bool.sol:PackedBool ===
 @module PackedBool
-fn @a() -> bool [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word]] {
+fn @a() -> bool [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
 }
 
-fn @b() -> bool [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word]] {
+fn @b() -> bool [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = shr 8, v0
@@ -34,7 +34,7 @@ fn @set(arg0: bool, arg1: bool) [selector=0xf907191a, abi_params=[bool, bool], a
     stop
 }
 
-fn @both() -> bool [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word]] {
+fn @both() -> bool [selector=0x35f2e0a7, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255

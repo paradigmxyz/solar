@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/webauthn_authenticator_flags.sol:C ===
 @module C
-fn @test() -> bool [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]] {
+fn @test() -> bool [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @auth, 1
     v1 = internal_call @check, 1, 1, v0
     ret v1
 }
 
-fn @testFlags() -> bool [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word]] {
+fn @testFlags() -> bool [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @auth, 1
     v1 = mload v0
@@ -18,7 +18,7 @@ fn @testFlags() -> bool [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
     ret v5
 }
 
-fn @testTypedConstant() -> bool [selector=0x62655512, pure, abi_params=[], abi_returns=[word]] {
+fn @testTypedConstant() -> bool [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @auth, 1
     v1 = memory_object_load_field memorystruct<6>, v0, 0

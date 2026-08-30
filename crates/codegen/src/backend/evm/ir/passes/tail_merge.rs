@@ -61,6 +61,11 @@ impl RunState {
             if !is_candidate(block) {
                 continue;
             }
+            // A shared tail is reached by a jump every time it runs. In gas mode a loop block
+            // keeps its own copy: the bytes saved never pay back a jump per iteration.
+            if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+                continue;
+            }
 
             let mut matched = None;
             for &representative in &self.representatives {

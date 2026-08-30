@@ -7,7 +7,7 @@ interface IERC20Minimal {
 
 contract LowLevelCallReturndata {
     // CHECK-LABEL: fn @safeTransfer{{[( ]}}
-    // CHECK: {{v[0-9]+}} = abi_encode [word, word], object, selector 0xa9059cbb
+    // CHECK: {{v[0-9]+}} = abi_encode [word<u160>, word], object, selector 0xa9059cbb
     // CHECK: {{v[0-9]+}} = call {{v[0-9]+}}, arg0, 0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: memory_object_copy_from_slice memorybytes
@@ -19,7 +19,7 @@ contract LowLevelCallReturndata {
     }
 
     // CHECK-LABEL: fn @balanceOf{{[( ]}}
-    // CHECK: abi_encode [word], object, selector 0x70a08231
+    // CHECK: abi_encode [word<u160>], object, selector 0x70a08231
     // CHECK: {{v[0-9]+}} = staticcall {{v[0-9]+}}, arg0,
     // CHECK: {{v[0-9]+}} = make_returndata_slice 0,
     // CHECK: memory_object_copy_from_slice memorybytes

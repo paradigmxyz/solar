@@ -12,9 +12,9 @@ fn @encodeDynamicStatic(arg0: calldataslice) -> memorybytes [selector=0x199f835c
     v7 = iszero v6
     jumpi v7, bb1, bb2
   bb2:
-    v8 = add v1, v2
-    v9 = calldatasize
-    v10 = gt v8, v9
+    v8 = calldatasize
+    v9 = sub v8, v1
+    v10 = slt v9, v2
     jumpi v10, bb3, bb4
   bb4:
     v11 = mul v0, 32
@@ -198,9 +198,9 @@ fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u2
     v7 = iszero v6
     jumpi v7, bb1, bb2
   bb2:
-    v8 = add v1, v2
-    v9 = calldatasize
-    v10 = gt v8, v9
+    v8 = calldatasize
+    v9 = sub v8, v1
+    v10 = slt v9, v2
     jumpi v10, bb3, bb4
   bb4:
     v11 = mul v0, 32
@@ -451,9 +451,9 @@ fn @readDynamicStorage(arg0: calldataslice) -> (u256, u256, u256, u256, u256, u2
 fn @encodeStaticStatic(arg0: calldataslice) -> memorybytes [selector=0x60e1923b, abi_params=[array<2, array<2, u256>>], abi_returns=[memory_bytes]] {
   bb0:
     v0 = slice_ptr arg0
-    v1 = add v0, 128
-    v2 = calldatasize
-    v3 = gt v1, v2
+    v1 = calldatasize
+    v2 = sub v1, v0
+    v3 = slt v2, 128
     jumpi v3, bb1, bb2
   bb2:
     v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64

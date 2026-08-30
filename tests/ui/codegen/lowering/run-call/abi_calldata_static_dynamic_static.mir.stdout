@@ -113,93 +113,28 @@ fn @g() -> memorybytes [selector=0xe2179b8e, view, abi_params=[], abi_returns=[m
     memory_object_store_element memoryfixedarray<1, 1>, v14, 0, v17
     v18 = address
     v19 = gas
-    v20 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    jump bb11
+    v20 = abi_encode [array<1, memory_array<array<1, word<u8>>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v0
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = staticcall v19, v18, v21, v22, 0, 0
+    jumpi v23, bb12, bb11
   bb11:
-    v21 = phi [bb10: 0], [bb20: v50]
-    v22 = lt v21, 1
-    jumpi v22, bb12, bb13
-  bb13:
-    v51 = abi_encode [array<1, memory_array<array<1, word>>>], selector 0x15cfcc0100000000000000000000000000000000000000000000000000000000, args v20
-    v52 = slice_ptr v51
-    v53 = slice_len v51
-    v54 = staticcall v19, v18, v52, v53, 0, 0
-    jumpi v54, bb25, bb24
-  bb24:
     revert_returndata
-  bb25:
-    v55 = returndatasize
-    v56 = add v55, 63
-    v57 = lt v56, v55
-    jumpi v57, bb26, bb27
-  bb27:
-    v58 = not 31
-    v59 = and v56, v58
-    v60 = alloc memorybytes, exact, uninitialized, infallible, v59
-    set_memory_object_len memorybytes, v60, v55
-    v61 = make_returndata_slice 0, v55
-    memory_object_copy_from_slice memorybytes, v60, v61
-    v62 = abi_decode [bytes], v60
-    ret v62
-  bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
-    v23 = memory_object_load_element memoryfixedarray<1, 1>, v0, v21
-    v24 = memory_object_len memoryarray, v23
-    v25 = add v24, 1
+    v24 = returndatasize
+    v25 = add v24, 63
     v26 = lt v25, v24
-    jumpi v26, bb14, bb15
-  bb15:
-    v27 = mul v25, 32
-    v28 = iszero 32
-    v29 = div v27, 32
-    v30 = eq v29, v25
-    v31 = or v28, v30
-    v32 = iszero v31
-    jumpi v32, bb16, bb17
-  bb17:
-    v33 = alloc memoryarray<1>, exact, uninitialized, infallible, v27
-    set_memory_object_len memoryarray, v33, v24
-    jump bb18
-  bb18:
-    v34 = phi [bb17: 0], [bb23: v49]
-    v35 = lt v34, v24
-    jumpi v35, bb19, bb20
-  bb20:
-    memory_object_store_element memoryfixedarray<1, 1>, v20, v21, v33
-    v50 = add v21, 1
-    jump bb11
-  bb19:
-    v36 = memory_object_load_element memoryarray<1>, v23, v34
-    v37 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    v38 = memory_object_data memoryfixedarray, v36
-    v39 = memory_object_data memoryfixedarray, v37
-    jump bb21
-  bb21:
-    v40 = phi [bb19: 0], [bb22: v48]
-    v41 = phi [bb19: v38], [bb22: v46]
-    v42 = phi [bb19: v39], [bb22: v47]
-    v43 = lt v40, 1
-    jumpi v43, bb22, bb23
-  bb23:
-    memory_object_store_element memoryarray<1>, v33, v34, v37
-    v49 = add v34, 1
-    jump bb18
-  bb22:
-    v44 = mload v41
-    v45 = and v44, 255
-    mstore v42, v45
-    v46 = add v41, 32
-    v47 = add v42, 32
-    v48 = add v40, 1
-    jump bb21
-  bb16:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v26, bb13, bb14
   bb14:
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, uninitialized, infallible, v28
+    set_memory_object_len memorybytes, v29, v24
+    v30 = make_returndata_slice 0, v24
+    memory_object_copy_from_slice memorybytes, v29, v30
+    v31 = abi_decode [bytes], v29
+    ret v31
+  bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36

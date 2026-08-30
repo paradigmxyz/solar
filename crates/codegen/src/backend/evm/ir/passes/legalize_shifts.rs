@@ -47,7 +47,7 @@ pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module
                     op::SAR => LEGACY_SHIFT_STACK_HEADROOM,
                     _ => continue,
                 };
-                if !depths.has_headroom(block_id, index, growth) {
+                if !depths.has_legacy_shift_headroom(block_id, index, growth) {
                     gcx.dcx()
                         .err("legacy shift legalization would exceed the EVM stack limit")
                         .emit();

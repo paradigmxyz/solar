@@ -5,7 +5,7 @@ use super::{
     utils::{remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind},
+    ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -30,8 +30,7 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     loop {
         let truncated = truncate_after_terminal(module);
         let degenerate = simplify_degenerate_branches(module);
-        let redirected =
-            redirect_jump_thunks(module, &mut state.thunks, &mut state.addressed, &mut state.order);
+        let redirected = redirect_jump_thunks(module, &mut state.thunks, &mut state.order);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -49,7 +48,6 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 struct RunState {
     thunks: FxHashMap<BlockId, BlockId>,
-    addressed: DenseBitSet<BlockId>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
@@ -61,7 +59,6 @@ impl Default for RunState {
     fn default() -> Self {
         Self {
             thunks: FxHashMap::default(),
-            addressed: DenseBitSet::new_empty(0),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
             references: IndexVec::new(),
@@ -123,28 +120,14 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 fn redirect_jump_thunks(
     module: &mut Module,
     thunks: &mut FxHashMap<BlockId, BlockId>,
-    addressed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    if addressed.domain_size() != module.blocks.len() {
-        *addressed = DenseBitSet::new_empty(module.blocks.len());
-    } else {
-        addressed.clear();
-    }
-    for block in &module.blocks {
-        for (at, inst) in block.instructions.iter().enumerate() {
-            if let Some(PushValue::Block(target)) = &inst.value
-                && !is_direct_jump_label(block, at)
-            {
-                addressed.insert(*target);
-            }
-        }
-    }
-
+    // A thunk is an empty block that only jumps on. Every reference to it, a direct jump label
+    // or a return address an internal call pushes for its callee to jump back to, lands on the
+    // thunk's target just as well, so the thunk itself is never needed.
     thunks.clear();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if !addressed.contains(block_id)
-            && block.instructions.is_empty()
+        if block.instructions.is_empty()
             && let Some(TerminatorKind::Jump(target)) =
                 block.terminator.as_ref().map(|term| &term.kind)
         {
@@ -171,9 +154,7 @@ fn redirect_jump_thunks(
     let mut changed = false;
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
-            if is_direct_jump_label(block, at)
-                && let Some(PushValue::Block(target)) = &mut block.instructions[at].value
-            {
+            if let Some(PushValue::Block(target)) = &mut block.instructions[at].value {
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
@@ -196,15 +177,6 @@ fn redirect_jump_thunks(
         changed = true;
     }
     changed
-}
-
-fn is_direct_jump_label(block: &Block, at: usize) -> bool {
-    block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
-        || (at + 1 == block.instructions.len()
-            && block
-                .terminator
-                .as_ref()
-                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
 }
 
 #[must_use]
