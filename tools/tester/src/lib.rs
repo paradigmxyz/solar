@@ -221,6 +221,12 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     for &(pattern, replacement) in stdout_filters {
         config.stdout_filter(pattern, replacement);
     }
+    // Library link placeholders hash the fully qualified library name, which starts with the
+    // absolute source path everywhere except standard JSON input, whose source names are the
+    // input's own keys: erase the hash like the root itself.
+    if !matches!(mode, Mode::StandardJson) {
+        config.stdout_filter(r"__\$[0-9a-f]{34}\$__", "__$$HASH$$__");
+    }
     let stderr_filters: &[(&str, &str)] = &[];
     for &(pattern, replacement) in stderr_filters {
         config.stderr_filter(pattern, replacement);
