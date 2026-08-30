@@ -5,6 +5,7 @@ use super::data::{
     OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
     SourceOutput, StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
 };
+use crate::bytecode::MaybeHexBytecode;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
@@ -434,10 +435,8 @@ fn make_bytecode_output(
                 &artifact.deployment_link_references
             }
         });
-        output.object = Some(solar_codegen::linkable_hex(
-            bytecode.map_or(&[][..], |bytes| bytes.as_ref()),
-            references,
-        ));
+        output.object =
+            Some(MaybeHexBytecode::new(bytecode.cloned().unwrap_or_default(), references));
     }
     if output_selection.contains(opcodes_flag) {
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(

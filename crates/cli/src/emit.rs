@@ -1,3 +1,4 @@
+use crate::bytecode::MaybeHexBytecode;
 use alloy_json_abi::AbiItem;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
@@ -34,9 +35,9 @@ struct CombinedJsonContract<'a> {
     abi: Option<Vec<AbiItem<'a>>>,
     /// Hex bytecode; unresolved library addresses print as solc's `__$<hash>$__` placeholders.
     #[serde(skip_serializing_if = "Option::is_none")]
-    bin: Option<String>,
+    bin: Option<MaybeHexBytecode>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    bin_runtime: Option<String>,
+    bin_runtime: Option<MaybeHexBytecode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
 }
@@ -296,14 +297,14 @@ fn emit_combined_json(
 
         if let Some(artifact) = artifacts.and_then(|artifacts| artifacts.get(&id)) {
             if emit_bin {
-                contract_output.bin = Some(solar_codegen::linkable_hex(
-                    &artifact.deployment,
+                contract_output.bin = Some(MaybeHexBytecode::new(
+                    artifact.deployment.clone(),
                     &artifact.deployment_link_references,
                 ));
             }
             if emit_bin_runtime {
-                contract_output.bin_runtime = Some(solar_codegen::linkable_hex(
-                    &artifact.runtime,
+                contract_output.bin_runtime = Some(MaybeHexBytecode::new(
+                    artifact.runtime.clone(),
                     &artifact.runtime_link_references,
                 ));
             }
