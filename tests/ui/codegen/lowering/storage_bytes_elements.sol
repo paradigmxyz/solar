@@ -8,8 +8,7 @@ contract StorageBytesElements {
     bytes public b;
 
     // CHECK-LABEL: fn @init{{[( ]}}
-    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes
-    // CHECK: sstore 0,
+    // CHECK: internal_call @store_storage_bytes, 0, 0, arg0
     function init(bytes memory value) public {
         b = value;
     }
@@ -40,12 +39,8 @@ contract StorageStringConstructor {
     string public symbol;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK: memory_object_len memorybytes
-    // CHECK: memory_slice_load_word memory
-    // CHECK: sstore 0,
-    // CHECK: memory_object_len memorybytes
-    // CHECK: memory_slice_load_word memory
-    // CHECK: sstore 1,
+    // CHECK: internal_call @store_storage_bytes, 0, 0, arg0
+    // CHECK: internal_call @store_storage_bytes, 0, 1, arg1
     constructor(string memory name_, string memory symbol_) {
         name = name_;
         symbol = symbol_;
@@ -62,8 +57,8 @@ contract StorageStringBase {
     string public symbol;
 
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
-    // CHECK: sstore 0,
-    // CHECK: sstore 1,
+    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: internal_call @store_storage_bytes, 0, 1,
     constructor(string memory name_, string memory symbol_) {
         name = name_;
         symbol = symbol_;
@@ -74,8 +69,8 @@ contract StorageStringDerived is StorageStringBase {
     // CHECK-LABEL: fn @_anonymous{{[( ]}}
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 9
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 4
-    // CHECK: sstore 0,
-    // CHECK: sstore 1,
+    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: internal_call @store_storage_bytes, 0, 1,
     // CHECK-LABEL: fn @name{{[( ]}}
     // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 0
     // CHECK-LABEL: fn @symbol{{[( ]}}
@@ -86,6 +81,6 @@ contract StorageStringDerived is StorageStringBase {
 // CHECK-LABEL: fn @constructor{{[( ]}}
 // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 17
 // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 3
-// CHECK: sstore 0,
-// CHECK: sstore 1,
+// CHECK: internal_call @store_storage_bytes, 0, 0,
+// CHECK: internal_call @store_storage_bytes, 0, 1,
 contract StorageStringImplicitDerived is StorageStringBase("Base Literal Name", "BLN") {}

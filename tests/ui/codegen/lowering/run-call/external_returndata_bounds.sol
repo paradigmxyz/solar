@@ -1,5 +1,6 @@
 //@ codegen-matrix: standard
 //@ run-call: ReturnHarness::staticAggregate() => 1
+//@ run-call: ReturnHarness::projectedAggregate() => 22
 //@ run-call: ReturnHarness::functionPointerAggregate() => 1
 //@ run-call: ReturnHarness::dirtyAddressBoundary() => 1
 //@ run-call-fail: ReturnHarness::truncated()
@@ -48,6 +49,11 @@ contract ReturnHarness {
         ReturnProducer producer = new ReturnProducer();
         ReturnProducer.Outer memory out = producer.aggregate();
         return check(out);
+    }
+
+    function projectedAggregate() external returns (uint256) {
+        ReturnProducer producer = new ReturnProducer();
+        return producer.aggregate().inner.values[1];
     }
 
     function functionPointerAggregate() external returns (uint256) {

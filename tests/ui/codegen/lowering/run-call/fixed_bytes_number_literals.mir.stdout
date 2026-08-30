@@ -40,7 +40,7 @@ fn @viaExternal() -> u256 [selector=0x09338c08, abi_params=[], abi_returns=[word
   bb2:
     v10 = gas
     v11 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v12 = abi_encode [word], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v11
+    v12 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v11
     v13 = slice_ptr v12
     v14 = slice_len v12
     v15 = call v10, v9, 0, v13, v14, 0, 32
@@ -66,29 +66,29 @@ fn @giveInternal(arg0: bytes4) -> bytes4 [pure] {
     ret arg0
 }
 
-fn @viaInternal() -> bytes4 [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word]] {
+fn @viaInternal() -> bytes4 [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = internal_call @giveInternal, 1, 0x1122334400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @viaLibrary() -> bytes4 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word]] {
+fn @viaLibrary() -> bytes4 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = internal_call @give, 1, 0x2122232400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @retLit() -> bytes4 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[word]] {
+fn @retLit() -> bytes4 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     ret 0xaabbccdd00000000000000000000000000000000000000000000000000000000
 }
 
-fn @declLit() -> bytes4 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word]] {
+fn @declLit() -> bytes4 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     ret 0x5566778800000000000000000000000000000000000000000000000000000000
 }
 
-fn @assignLit() -> bytes4 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word]] {
+fn @assignLit() -> bytes4 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = shl 224, 0x66778899
     ret v0
@@ -105,7 +105,7 @@ fn @mapKeyCross() -> u256 [selector=0xef866c75, abi_params=[], abi_returns=[word
     ret v4
 }
 
-fn @compareControl() -> bool [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word]] {
+fn @compareControl() -> bool [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = shl 224, 0x41424344
     v1 = shl 224, 0x41424344
@@ -113,7 +113,7 @@ fn @compareControl() -> bool [selector=0x86f1fef0, pure, abi_params=[], abi_retu
     ret v2
 }
 
-fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word]] {
+fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 6
@@ -207,13 +207,13 @@ fn @calldataSliceCast() -> bytes32 [selector=0x93f40587, view, abi_params=[], ab
     revert 0, 0
 }
 
-fn @stringAddressCast() -> address [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word]] {
+fn @stringAddressCast() -> address [selector=0x6e03912b, pure, abi_params=[], abi_returns=[word<u160>]] {
   bb0:
     v0 = shr 96, 0x6d696c6164790000000000000000000000000000000000000000000000000000
     ret v0
 }
 
-fn @emptyStringCompare() -> bool [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word]] {
+fn @emptyStringCompare() -> bool [selector=0x97e464f0, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
@@ -229,7 +229,7 @@ fn @emptyStringCompare() -> bool [selector=0x97e464f0, pure, abi_params=[], abi_
     ret v9
 }
 
-fn @stateLiterals() -> (bytes4, bytes2, bytes4) [selector=0x803da9a2, view, abi_params=[], abi_returns=[word, word, word]] {
+fn @stateLiterals() -> (bytes4, bytes2, bytes4) [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = and v0, 0xffffffff

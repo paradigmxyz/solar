@@ -1,8 +1,8 @@
 //@ revisions: ir run
 //@[ir] compile-flags: -Zdump=evm-ir-runtime
 //@[ir] filecheck:
-//@[run] run-call: run true, 10 => 23
-//@[run] run-call: run false, 10 => 47
+//@ run-call: run true, 10 => 23
+//@ run-call: run false, 10 => 47
 // A multi-return tuple assignment inside one branch arm must not leak its
 // values into the sibling arm: `off` below is reassigned only in the `then`
 // arm, so the `else` arm must read the pre-branch value, not the pickup from

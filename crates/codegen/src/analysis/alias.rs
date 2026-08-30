@@ -1810,7 +1810,7 @@ impl AliasAnalysis {
         match ty {
             // Calldata and returndata ABI values read their own buffers, not
             // memory (returndata does not occur as an ABI type in practice).
-            AbiType::Word
+            AbiType::Word(_)
             | AbiType::Function
             | AbiType::Bytes(SliceLocation::Calldata | SliceLocation::Returndata)
             | AbiType::DynamicArray {

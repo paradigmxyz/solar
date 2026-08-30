@@ -5,7 +5,7 @@ fn @value() [selector=0x3fa4f245, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @clear() -> bool [selector=0x52efea6e, abi_params=[], abi_returns=[word]] {
+fn @clear() -> bool [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = shl 32, v0

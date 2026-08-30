@@ -39,7 +39,7 @@ use super::{
     MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias,
     StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
-use crate::mir::{MirType, SliceLocation, TypeSize};
+use crate::mir::{AbiWordValidator, MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -735,7 +735,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
-            sym::word => AbiType::Word,
+            sym::word => {
+                if !self.parser.eat(TokenKind::Lt) {
+                    return Ok(AbiType::Word(None));
+                }
+                let id = self.parser.parse_ident()?;
+                let cleanup = if id == kw::Enum {
+                    let variants = self.parser.parse_uint()?;
+                    let variants = variants.try_into().map_err(|_| {
+                        self.parser.error("ABI enum variant count does not fit in u64")
+                    })?;
+                    AbiWordValidator::EnumRange(variants)
+                } else {
+                    let ty = self.parse_type_from_ident(id)?;
+                    AbiWordValidator::from_mir_type(ty).ok_or_else(|| {
+                        self.parser.error(format!("ABI word type `{ty}` needs no cleanup"))
+                    })?
+                };
+                self.expect_gt()?;
+                AbiType::Word(Some(cleanup))
+            }
             kw::Function => AbiType::Function,
             sym::memory_bytes => AbiType::Bytes(SliceLocation::Memory),
             sym::calldata_bytes => AbiType::Bytes(SliceLocation::Calldata),

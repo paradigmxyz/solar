@@ -1,0 +1,49 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge_loop.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/tail_merge_loop.evmir (after tail-merge) ===
+  @module module
+  bb0:
+    push 0
+    jump bb1
+  bb1:
+    dup 1
+    push bb2
+    jumpi
+    jump bb3
+  bb2 [loop]:
+    push 11
+    pop
+    push 22
+    push 33
+    mstore
+    push 44
+    push 55
+    mstore
+    jump bb1
+  bb3 [loop]:
+    push 99
+    pop
+    push 22
+    push 33
+    mstore
+    push 44
+    push 55
+    mstore
+    jump bb1
+  bb4:
+    push 77
+-   push 22
+-   push 33
+-   push 44
+-   push 55
+-   revert
++   jump bb6
+  bb5:
+    push 88
++   jump bb6
++ bb6:
+    push 22
+    push 33
+    push 44
+    push 55
+    revert
+  

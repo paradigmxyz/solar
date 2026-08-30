@@ -328,52 +328,11 @@ fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=
   bb12:
     v21 = and v17, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryarray<1>, v0, 2, v21
-    v22 = memory_object_len memoryarray, v0
-    v23 = add v22, 1
-    v24 = lt v23, v22
-    jumpi v24, bb13, bb14
-  bb14:
-    v25 = mul v23, 32
-    v26 = iszero 32
-    v27 = div v25, 32
-    v28 = eq v27, v23
-    v29 = or v26, v28
-    v30 = iszero v29
-    jumpi v30, bb15, bb16
-  bb16:
-    v31 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
-    set_memory_object_len memoryarray, v31, v22
-    v32 = memory_object_data memoryarray, v0
-    v33 = memory_object_data memoryarray, v31
-    jump bb17
-  bb17:
-    v34 = phi [bb16: 0], [bb18: v42]
-    v35 = phi [bb16: v32], [bb18: v40]
-    v36 = phi [bb16: v33], [bb18: v41]
-    v37 = lt v34, v22
-    jumpi v37, bb18, bb19
-  bb19:
-    v43 = abi_encode [memory_array<word>], scratch, args v31
-    v44 = slice_ptr v43
-    v45 = slice_len v43
-    v46 = keccak256 v44, v45
-    ret v46
-  bb18:
-    v38 = mload v35
-    v39 = and v38, 0xffffffffffffffffffffffffffffff
-    mstore v36, v39
-    v40 = add v35, 32
-    v41 = add v36, 32
-    v42 = add v34, 1
-    jump bb17
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v22 = abi_encode [memory_array<word<u120>>], scratch, args v0
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = keccak256 v23, v24
+    ret v25
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -456,64 +415,11 @@ fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_re
   bb16:
     v26 = and v16, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<2, 1>, v23, 1, v26
-    v27 = memory_object_len memoryarray, v0
-    v28 = add v27, 1
-    v29 = lt v28, v27
-    jumpi v29, bb17, bb18
-  bb18:
-    v30 = mul v28, 32
-    v31 = iszero 32
-    v32 = div v30, 32
-    v33 = eq v32, v28
-    v34 = or v31, v33
-    v35 = iszero v34
-    jumpi v35, bb19, bb20
-  bb20:
-    v36 = alloc memoryarray<1>, exact, uninitialized, infallible, v30
-    set_memory_object_len memoryarray, v36, v27
-    jump bb21
-  bb21:
-    v37 = phi [bb20: 0], [bb26: v52]
-    v38 = lt v37, v27
-    jumpi v38, bb22, bb23
-  bb23:
-    v53 = abi_encode [memory_array<array<2, word>>], scratch, args v36
-    v54 = slice_ptr v53
-    v55 = slice_len v53
-    v56 = keccak256 v54, v55
-    ret v56
-  bb22:
-    v39 = memory_object_load_element memoryarray<1>, v0, v37
-    v40 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v41 = memory_object_data memoryfixedarray, v39
-    v42 = memory_object_data memoryfixedarray, v40
-    jump bb24
-  bb24:
-    v43 = phi [bb22: 0], [bb25: v51]
-    v44 = phi [bb22: v41], [bb25: v49]
-    v45 = phi [bb22: v42], [bb25: v50]
-    v46 = lt v43, 2
-    jumpi v46, bb25, bb26
-  bb26:
-    memory_object_store_element memoryarray<1>, v36, v37, v40
-    v52 = add v37, 1
-    jump bb21
-  bb25:
-    v47 = mload v44
-    v48 = and v47, 0xffffffffffffffffffffffffffffff
-    mstore v45, v48
-    v49 = add v44, 32
-    v50 = add v45, 32
-    v51 = add v43, 1
-    jump bb24
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v27 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = keccak256 v28, v29
+    ret v30
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -578,36 +484,11 @@ fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_re
   bb10:
     v19 = and v15, 0xffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<2, 1>, v16, 1, v19
-    v20 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v21 = memory_object_load_field memorystruct<2>, v0, 0
-    v22 = and v21, 0xffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v20, 0, v22
-    v23 = memory_object_load_field memorystruct<2>, v0, 1
-    v24 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v25 = memory_object_data memoryfixedarray, v23
-    v26 = memory_object_data memoryfixedarray, v24
-    jump bb11
-  bb11:
-    v27 = phi [bb10: 0], [bb12: v35]
-    v28 = phi [bb10: v25], [bb12: v33]
-    v29 = phi [bb10: v26], [bb12: v34]
-    v30 = lt v27, 2
-    jumpi v30, bb12, bb13
-  bb13:
-    memory_object_store_field memorystruct<2>, v20, 1, v24
-    v36 = abi_encode [tuple<word, array<2, word>>], scratch, args v20
-    v37 = slice_ptr v36
-    v38 = slice_len v36
-    v39 = keccak256 v37, v38
-    ret v39
-  bb12:
-    v31 = mload v28
-    v32 = and v31, 0xffffffffffffffffffffffffffffff
-    mstore v29, v32
-    v33 = add v28, 32
-    v34 = add v29, 32
-    v35 = add v27, 1
-    jump bb11
+    v20 = abi_encode [tuple<word<u120>, array<2, word<u120>>>], scratch, args v0
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = keccak256 v21, v22
+    ret v23
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -633,7 +514,7 @@ fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_re
 fn @hashScalarAbi() -> bytes32 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = and 258, 255
-    v1 = abi_encode [word], scratch, args v0
+    v1 = abi_encode [word<u8>], scratch, args v0
     v2 = slice_ptr v1
     v3 = slice_len v1
     v4 = keccak256 v2, v3
@@ -645,7 +526,7 @@ fn @scalarCall() -> u256 [selector=0x6c091940, view, abi_params=[], abi_returns=
     v0 = address
     v1 = gas
     v2 = and 258, 255
-    v3 = abi_encode [word], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [word<u8>], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args v2
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = staticcall v1, v0, v4, v5, 0, 32

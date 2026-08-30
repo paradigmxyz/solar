@@ -70,7 +70,7 @@ fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], ab
     invalid
 }
 
-fn @literalBytes() -> bytes4 [selector=0x95549276, pure, abi_params=[], abi_returns=[word]] {
+fn @literalBytes() -> bytes4 [selector=0x95549276, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = lt 0, 10
     v1 = iszero v0

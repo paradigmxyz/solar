@@ -1,6 +1,27 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/forwarded_calldata_slice_return.sol:ForwardedCalldataSliceReturn ===
 @module ForwardedCalldataSliceReturn
-fn @delegate(arg0: calldataslice) -> (address, memorybytes) [selector=0x0ccfac9e, pure, abi_params=[bytes], abi_returns=[word, memory_bytes]] {
+fn @singleSliceLength(arg0: calldataslice) -> u256 [selector=0xee1d4083, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @_identity, 1, arg0
+    v1 = slice_len v0
+    ret v1
+}
+
+fn @pointerSliceLength(arg0: calldataslice) -> u256 [selector=0xc1a12f27, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @internal_dispatcher_p_calldataslice_r_calldataslice, 1, 8, arg0
+    v1 = slice_len v0
+    ret v1
+}
+
+fn @arraySliceLength(arg0: calldataslice) -> u256 [selector=0x676805be, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @_identityArray, 1, arg0
+    v1 = slice_len v0
+    ret v1
+}
+
+fn @delegate(arg0: calldataslice) -> (address, memorybytes) [selector=0x0ccfac9e, pure, abi_params=[bytes], abi_returns=[word<u160>, memory_bytes]] {
   bb0:
     v0 = internal_call @_delegate, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -40,7 +61,7 @@ fn @delegate(arg0: calldataslice) -> (address, memorybytes) [selector=0x0ccfac9e
     revert 0, 0
 }
 
-fn @single(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xd61d3fe8, pure, abi_params=[bytes], abi_returns=[word, word, memory_bytes]] {
+fn @single(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xd61d3fe8, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes]] {
   bb0:
     v0 = internal_call @_single, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -82,7 +103,7 @@ fn @single(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xd61d
     revert 0, 0
 }
 
-fn @nested(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xb26b18a9, pure, abi_params=[bytes], abi_returns=[word, word, memory_bytes]] {
+fn @nested(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xb26b18a9, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes]] {
   bb0:
     v0 = internal_call @_nested, 3, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -139,7 +160,19 @@ fn @_nested(arg0: calldataslice) -> (address, u256, calldataslice) [pure] {
     ret v1, v4, v9
 }
 
-fn @nestedSlices(arg0: calldataslice) -> (u256, address) [selector=0xb12341a6, pure, abi_params=[bytes], abi_returns=[word, word]] {
+fn @_identity(arg0: calldataslice) -> calldataslice [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @_identityArray(arg0: calldataslice) -> calldataslice [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @nestedSlices(arg0: calldataslice) -> (u256, address) [selector=0xb12341a6, pure, abi_params=[bytes], abi_returns=[word, word<u160>]] {
   bb0:
     v0 = internal_call @_parseSlices, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -311,4 +344,17 @@ fn @_single(arg0: calldataslice) -> (address, u256, calldataslice) [pure] {
     v12 = slice_len v8
     v13 = make_calldata_slice v11, v10
     ret v2, 7, v13
+}
+
+fn @internal_dispatcher_p_calldataslice_r_calldataslice(arg0: function, arg1: calldataslice) -> calldataslice [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 8
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @_identity, 1, arg1
+    ret v1
 }

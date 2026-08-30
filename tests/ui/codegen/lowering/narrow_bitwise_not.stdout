@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/narrow_bitwise_not.sol:NarrowBitwiseNot ===
 @module NarrowBitwiseNot
-fn @notUint8(arg0: u8) -> u8 [selector=0x129f3ff5, pure, abi_params=[u8], abi_returns=[word]] {
+fn @notUint8(arg0: u8) -> u8 [selector=0x129f3ff5, pure, abi_params=[u8], abi_returns=[word<u8>]] {
   bb0:
     v0 = not arg0
     v1 = and v0, 255
     ret v1
 }
 
-fn @notUint16(arg0: u16) -> u16 [selector=0xfec0a8c2, pure, abi_params=[u16], abi_returns=[word]] {
+fn @notUint16(arg0: u16) -> u16 [selector=0xfec0a8c2, pure, abi_params=[u16], abi_returns=[word<u16>]] {
   bb0:
     v0 = not arg0
     v1 = and v0, 0xffff
@@ -20,20 +20,20 @@ fn @notUint256(arg0: u256) -> u256 [selector=0x245aff7f, pure, abi_params=[u256]
     ret v0
 }
 
-fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, pure, abi_params=[i8], abi_returns=[word]] {
+fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, pure, abi_params=[i8], abi_returns=[word<i8>]] {
   bb0:
     v0 = not arg0
     ret v0
 }
 
-fn @notBytes1(arg0: bytes1) -> bytes1 [selector=0x67681bff, pure, abi_params=[bytes1], abi_returns=[word]] {
+fn @notBytes1(arg0: bytes1) -> bytes1 [selector=0x67681bff, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = not arg0
     v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
     ret v1
 }
 
-fn @notBytes2(arg0: bytes2) -> bytes2 [selector=0x42cc764f, pure, abi_params=[bytes2], abi_returns=[word]] {
+fn @notBytes2(arg0: bytes2) -> bytes2 [selector=0x42cc764f, pure, abi_params=[bytes2], abi_returns=[word<bytes2>]] {
   bb0:
     v0 = not arg0
     v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000

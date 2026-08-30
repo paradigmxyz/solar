@@ -129,7 +129,7 @@ fn @read(arg0: u256) -> u256 [selector=0xed2e5a97, view, abi_params=[u256], abi_
     revert 0, 36
 }
 
-fn @hasExpectedLength() -> bool [selector=0xa2fb6983, view, abi_params=[], abi_returns=[word]] {
+fn @hasExpectedLength() -> bool [selector=0xa2fb6983, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = mapping_slot 0, 0
     v1 = exp 2, 200

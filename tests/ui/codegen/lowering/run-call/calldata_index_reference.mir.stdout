@@ -71,46 +71,44 @@ fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f
   bb2:
     v3 = slice_ptr arg0
     v4 = add v3, 32
-    v5 = add v4, 32
-    v6 = lt v5, v4
-    v7 = calldatasize
-    v8 = gt v5, v7
-    v9 = or v6, v8
-    jumpi v9, bb3, bb4
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
   bb4:
-    v10 = calldataload v4
-    v11 = add v3, v10
-    v12 = calldatasize
-    v13 = sub v12, v3
-    v14 = sub v13, 31
-    v15 = slt v10, v14
-    v16 = iszero v15
-    jumpi v16, bb5, bb6
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb5, bb6
   bb6:
-    v17 = calldataload v11
-    v18 = gt v17, 0xffffffffffffffff
-    jumpi v18, bb7, bb8
+    v15 = calldataload v9
+    v16 = gt v15, 0xffffffffffffffff
+    jumpi v16, bb7, bb8
   bb8:
-    v19 = mul v17, 32
-    v20 = add v11, 32
-    v21 = calldatasize
-    v22 = sub v21, v19
-    v23 = sgt v20, v22
-    jumpi v23, bb9, bb10
+    v17 = mul v15, 32
+    v18 = add v9, 32
+    v19 = calldatasize
+    v20 = sub v19, v17
+    v21 = sgt v18, v20
+    jumpi v21, bb9, bb10
   bb10:
-    v24 = add v11, 32
-    v25 = make_calldata_slice v24, v17
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = slice_len v25
-    v29 = lt 1, v28
-    v30 = iszero v29
-    jumpi v30, bb11, bb12
+    v22 = add v9, 32
+    v23 = make_calldata_slice v22, v15
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = slice_len v23
+    v27 = lt 1, v26
+    v28 = iszero v27
+    jumpi v28, bb11, bb12
   bb12:
-    v31 = slice_ptr v25
-    v32 = add v31, 32
-    v33 = calldataload v32
-    ret v26, v27, v33
+    v29 = slice_ptr v23
+    v30 = add v29, 32
+    v31 = calldataload v30
+    ret v24, v25, v31
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -138,48 +136,46 @@ fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10
   bb2:
     v3 = slice_ptr arg0
     v4 = add v3, 32
-    v5 = add v4, 32
-    v6 = lt v5, v4
-    v7 = calldatasize
-    v8 = gt v5, v7
-    v9 = or v6, v8
-    jumpi v9, bb3, bb4
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
   bb4:
-    v10 = calldataload v4
-    v11 = add v3, v10
-    v12 = calldatasize
-    v13 = sub v12, v3
-    v14 = sub v13, 31
-    v15 = slt v10, v14
-    v16 = iszero v15
-    jumpi v16, bb5, bb6
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb5, bb6
   bb6:
-    v17 = calldataload v11
-    v18 = gt v17, 0xffffffffffffffff
-    jumpi v18, bb7, bb8
+    v15 = calldataload v9
+    v16 = gt v15, 0xffffffffffffffff
+    jumpi v16, bb7, bb8
   bb8:
-    v19 = mul v17, 1
-    v20 = add v11, 32
-    v21 = calldatasize
-    v22 = sub v21, v19
-    v23 = sgt v20, v22
-    jumpi v23, bb9, bb10
+    v17 = mul v15, 1
+    v18 = add v9, 32
+    v19 = calldatasize
+    v20 = sub v19, v17
+    v21 = sgt v18, v20
+    jumpi v21, bb9, bb10
   bb10:
-    v24 = add v11, 32
-    v25 = make_calldata_slice v24, v17
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = slice_len v25
-    v29 = lt 1, v28
-    v30 = iszero v29
-    jumpi v30, bb11, bb12
+    v22 = add v9, 32
+    v23 = make_calldata_slice v22, v15
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = slice_len v23
+    v27 = lt 1, v26
+    v28 = iszero v27
+    jumpi v28, bb11, bb12
   bb12:
-    v31 = slice_ptr v25
-    v32 = calldata_slice_load_word calldata, v25, 1
-    v33 = byte 0, v32
-    v34 = shl 248, v33
-    v35 = shr 248, v34
-    ret v26, v27, v35
+    v29 = slice_ptr v23
+    v30 = calldata_slice_load_word calldata, v23, 1
+    v31 = byte 0, v30
+    v32 = shl 248, v31
+    v33 = shr 248, v32
+    ret v24, v25, v33
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -2,7 +2,7 @@
 //@[none, gas, size, mir] compile-flags: --libraries Lib=0x1111111111111111111111111111111111111111
 //@[mir] filecheck: --check-prefix=LINKED
 //@[unlinked] compile-flags: -O none
-//@[none, gas, size] run-call-fail: C::emptyCode() => 0x
+//@[none, gas, size, mir] run-call-fail: C::emptyCode() => 0x
 // ported-from: test/libsolidity/semanticTests/tryCatch/try_catch_library_call.sol
 
 library Lib {
@@ -37,7 +37,7 @@ contract C {
 
     // LINKED-LABEL: @module C
     // LINKED-LABEL: fn @direct
-    // LINKED: abi_encode [word, word], selector 0x52db6885{{.*}}, args 8,
+    // LINKED: abi_encode [word, word<bool>], selector 0x52db6885{{.*}}, args 8,
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function direct(bool fail) external pure returns (uint256) {
         try Lib.direct({fail: fail, value: 8}) returns (uint256 value) {
@@ -48,7 +48,7 @@ contract C {
     }
 
     // LINKED-LABEL: fn @attached
-    // LINKED: abi_encode [word, word, word], selector 0x280ac7e9{{.*}}, args 0, 9,
+    // LINKED: abi_encode [word, word, word<bool>], selector 0x280ac7e9{{.*}}, args 0, 9,
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function attached(bool fail) external returns (uint256) {
         try state.attached({fail: fail, value: 9}) returns (uint256 value) {
@@ -59,7 +59,7 @@ contract C {
     }
 
     // LINKED-LABEL: fn @attachedValue
-    // LINKED: abi_encode [word, word, word], selector 0x7f6a6c2{{.*}}, args arg0, 10,
+    // LINKED: abi_encode [word, word, word<bool>], selector 0x7f6a6c2{{.*}}, args arg0, 10,
     // LINKED: delegatecall {{.*}}, 0x1111111111111111111111111111111111111111,
     function attachedValue(uint256 self, bool fail) external pure returns (uint256) {
         try self.add({fail: fail, value: 10}) returns (uint256 value) {

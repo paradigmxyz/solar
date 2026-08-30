@@ -100,6 +100,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend::evm) label_blocks: FxHashMap<Label, ir::BlockId>,
     /// Labels marked cold before or after their definition.
     pub(in crate::backend::evm) cold_labels: GrowableBitSet<Label>,
+    /// Labels whose blocks run once per loop iteration.
+    pub(in crate::backend::evm) loop_labels: GrowableBitSet<Label>,
     /// Unresolved block references emitted as push operands.
     pub(in crate::backend::evm) label_relocations: Vec<(ir::BlockId, usize, Label)>,
     /// Unresolved deferred constants emitted as push operands.
@@ -145,6 +147,7 @@ impl<'gcx> Assembler<'gcx> {
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
             cold_labels: GrowableBitSet::new_empty(),
+            loop_labels: GrowableBitSet::new_empty(),
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
             indexed_jump_relocations: Vec::new(),
@@ -168,6 +171,7 @@ impl<'gcx> Assembler<'gcx> {
         self.block_labels.clear();
         self.label_blocks.clear();
         self.cold_labels.clear();
+        self.loop_labels.clear();
         self.label_relocations.clear();
         self.deferred_relocations.clear();
         self.indexed_jump_relocations.clear();
@@ -189,6 +193,11 @@ impl<'gcx> Assembler<'gcx> {
     /// Records stack growth proven safe by the MIR backend.
     pub(crate) fn set_unknown_target_stack_headroom(&mut self, headroom: usize) {
         self.program.unknown_target_stack_headroom = headroom;
+    }
+
+    /// Records the transient growth the MIR backend reserved for legacy shift legalization.
+    pub(crate) fn set_legacy_shift_stack_headroom(&mut self, headroom: usize) {
+        self.program.legacy_shift_stack_headroom = headroom;
     }
 
     /// Enables size-oriented outlining for an oversized gas-mode runtime.

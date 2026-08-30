@@ -54,7 +54,7 @@ fn @validateArray(arg0: calldataslice) -> u256 [selector=0xc124fd97, pure, abi_p
     revert 0, 36
 }
 
-fn @memoryLayout() -> bool [selector=0x5caf991a, view, abi_params=[], abi_returns=[word]] {
+fn @memoryLayout() -> bool [selector=0x5caf991a, view, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -303,7 +303,7 @@ fn @memoryStructToStorage(arg0: u256) -> u256 [selector=0xb4caea8f, abi_params=[
     revert 0, 0
 }
 
-fn @storageStructToMemory() -> bool [selector=0x9a40632d, abi_params=[], abi_returns=[word]] {
+fn @storageStructToMemory() -> bool [selector=0x9a40632d, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v1 = address
@@ -437,7 +437,7 @@ fn @memoryArrayToStorage(arg0: u256) -> u256 [selector=0xe3183809, abi_params=[u
     jump bb3
 }
 
-fn @storageArrayToMemory() -> bool [selector=0xc4550e60, abi_params=[], abi_returns=[word]] {
+fn @storageArrayToMemory() -> bool [selector=0xc4550e60, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = shl 32, v0
