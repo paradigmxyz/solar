@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/contract_creation_args_data_dedup.sol:ChildWithArg (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:ChildWithArg (runtime) ===
 @module runtime
 bb0:
   callvalue
@@ -148,7 +148,7 @@ bb8:
   return
 
 @data literal_0 hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
-// === ROOT/tests/ui/codegen/lowering/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
+// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module runtime
 bb0:
   callvalue
