@@ -4,6 +4,7 @@
 //@[optimized] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[optimized] filecheck: --check-prefix=OPT
 //@[runtime] compile-flags: -Ogas
+//@[runtime] normalize-stdout-test: "(?s).+" -> ""
 //@[runtime] run-call: FactoryWithArgs::plain() => 11
 //@[runtime] run-call: FactoryWithArgs::salted() => 22
 //@[runtime] run-call: FactoryWithArgs::pair() => 7
@@ -13,6 +14,10 @@ contract ChildWithArg {
 
     constructor(uint256 value_) {
         value = value_;
+    }
+
+    function payload() external pure returns (bytes memory) {
+        return hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100";
     }
 }
 

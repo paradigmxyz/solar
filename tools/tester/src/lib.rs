@@ -339,7 +339,10 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     }
     if matches!(cfg.mode, Mode::Ui) && src.lines().any(run_call::is_directive) {
         config.program.args.push("--emit=abi,bin".into());
-        config.stdout_filter(r"(?s).+", "");
+        let manages_stdout = src.lines().any(|line| line.contains("normalize-stdout-test:"));
+        if !manages_stdout {
+            config.stdout_filter(r"(?s).+", "");
+        }
     }
     if src.lines().any(|line| {
         let line = line.trim_start();

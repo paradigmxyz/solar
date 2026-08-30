@@ -1,0 +1,430 @@
+{"contracts":{"ROOT/tests/ui/codegen/lowering/contract_creation_data_dedup.sol:Child":{"abi":[{"type":"function","name":"payload","inputs":[],"outputs":[{"name":"","type":"bytes","internalType":"bytes"}],"stateMutability":"pure"},{"type":"function","name":"value","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"pure"}],"bin":"61014780600a5f395ff334601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f80fd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060c78239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a05291505015609657602060e0510360a051015f90525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"},"ROOT/tests/ui/codegen/lowering/contract_creation_data_dedup.sol:Factory":{"abi":[{"type":"function","name":"first","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"pair","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"second","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"}],"bin":"6102df80600a5f395ff3346027575f3560e01c80633df4ddf41460a65780635a8ac02d1460a6578063a8aa1b31146037575b5f80fd5b3d5f803e3d5ffd5b5f5ffd5b610120806040528060e0526101518161018e90396101608101604052610151905ff08060a05215602b576040518060e0526101518161018e90396101608101604052610151905ff08060c05215602b5761014c5b6040518060e05260208101604052633fa4f24560e01b815290565b610100806040528060c05260208101604052633fa4f24560e01b81526040518060e0526101518161018e90396101608101604052610151905ff08060a052905015602b575a8060e05260205f600460c05160a05185fa905015602b573d6020116033575f515b60805260206080f35b5a806101005260205f60048460c05185fa91505015602b573d6020116033575f5160a051018060c05260a051811061017a5761010c565b5a806101005260205f60048460a05185fa91505015602b573d6020116033575f518060a0525f52610115608b565b634e487b7160e01b5f52601160045260245ffd61014780600a5f395ff334601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f80fd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060c78239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a05291505015609657602060e0510360a051015f90525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"}},"version":"VERSION"}
+
+// === ROOT/tests/ui/codegen/lowering/contract_creation_data_dedup.sol:Child (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x3fa4f245
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0xa878f858
+  eq
+  push bb6
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup 1
+  revert
+bb5:
+  push 7
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb6:
+  push 320
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 288
+  mstore
+  push 160
+  dup 2
+  add
+  push 64
+  mstore
+  push 128
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  dup 1
+  push 192
+  mstore
+  push 128
+  push_data literal_0
+  dup 3
+  codecopy
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  swap 3
+  mload
+  dup 1
+  push 128
+  mstore
+  dup 4
+  mstore
+  swap 2
+  pop
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  dup 1
+  push 224
+  mstore
+  push 64
+  dup 4
+  add
+  push 160
+  mstore
+  swap 2
+  pop
+  pop
+  iszero
+  push bb8
+  jumpi
+  push 32
+  push 224
+  mload
+  sub
+  push 160
+  mload
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb8
+bb8:
+  push 224
+  mload
+  push 160
+  mload
+  add
+  push 128
+  mload
+  push 192
+  mload
+  push 160
+  mload
+  mcopy
+  push 256
+  mload
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  push 288
+  mstore
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+
+@data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+// === ROOT/tests/ui/codegen/lowering/contract_creation_data_dedup.sol:Factory (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb5
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x3df4ddf4
+  eq
+  push bb30
+  jumpi
+  dup 1
+  push 0x5a8ac02d
+  eq
+  push bb30
+  jumpi
+  dup 1
+  push 0xa8aa1b31
+  eq
+  push bb18
+  jumpi
+  jump bb5
+bb5 [cold]:
+  push 0
+  dup 1
+  revert
+bb26 [cold]:
+  returndatasize
+  push 0
+  dup 1
+  returndatacopy
+  returndatasize
+  push 0
+  revert
+bb27 [cold]:
+  push 0
+  push 0
+  revert
+bb18:
+  push 288
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 224
+  mstore
+  push 337
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 352
+  dup 2
+  add
+  push 64
+  mstore
+  push 337
+  swap 1
+  push 0
+  create
+  dup 1
+  push 160
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 337
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 352
+  dup 2
+  add
+  push 64
+  mstore
+  push 337
+  swap 1
+  push 0
+  create
+  dup 1
+  push 192
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push bb33
+  jump bb31
+bb31:
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  swap 1
+  jump
+bb30:
+  push 256
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 192
+  mstore
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 337
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 352
+  dup 2
+  add
+  push 64
+  mstore
+  push 337
+  swap 1
+  push 0
+  create
+  dup 1
+  push 160
+  mstore
+  swap 1
+  pop
+  iszero
+  push bb26
+  jumpi
+  gas
+  dup 1
+  push 224
+  mstore
+  push 32
+  push 0
+  push 4
+  push 192
+  mload
+  push 160
+  mload
+  dup 6
+  staticcall
+  swap 1
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb27
+  jumpi
+  push 0
+  mload
+  jump bb29
+bb29:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb32:
+  gas
+  dup 1
+  push 256
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 5
+  push 192
+  mload
+  dup 6
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb27
+  jumpi
+  push 0
+  mload
+  push 160
+  mload
+  add
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  dup 2
+  lt
+  push bb28
+  jumpi
+  jump bb29
+bb33:
+  gas
+  dup 1
+  push 256
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 5
+  push 160
+  mload
+  dup 6
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb27
+  jumpi
+  push 0
+  mload
+  dup 1
+  push 160
+  mstore
+  push 0
+  mstore
+  push bb32
+  jump bb31
+bb28 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+
+@data literal_0 hex"61014780600a5f395ff334601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f80fd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060c78239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a05291505015609657602060e0510360a051015f90525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

@@ -1,0 +1,563 @@
+{"contracts":{"ROOT/tests/ui/codegen/lowering/contract_creation_args_data_dedup.sol:ChildWithArg":{"abi":[{"type":"constructor","inputs":[{"name":"value_","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"payload","inputs":[],"outputs":[{"name":"","type":"bytes","internalType":"bytes"}],"stateMutability":"pure"},{"type":"function","name":"value","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"view"}],"bin":"61019838038061019860e03960e001601f01601f191660405260e05160c05261016680603260e03960c0516101035260e0f334601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f80fd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060e68239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a0529150501560b557602060e0510360a051015f90525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"},"ROOT/tests/ui/codegen/lowering/contract_creation_args_data_dedup.sol:FactoryWithArgs":{"abi":[{"type":"function","name":"pair","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"plain","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"},{"type":"function","name":"salted","inputs":[],"outputs":[{"name":"","type":"uint256","internalType":"uint256"}],"stateMutability":"nonpayable"}],"bin":"6103e880600a5f395ff3346027575f3560e01c80631f98151614605a57806359748c98146037578063a8aa1b31146061575b5f80fd5b3d5f803e3d5ffd5b5f5ffd5b60f45b610100806040528060c05260405b8101604052633fa4f24560e01b815290565b610133603a565b610120806040528060e0526020810160405260038152604051806101005261019881610250903961019881016020838060e052825e5090506101986020016101eb5b6101b760200167ffffffffffffffe01690565b8201604052905ff05b8060a052905015602b575a8060e05260205f600460c05160a05185fa905015602b573d6020116033575f515b60805260206080f35b60208101600b81526040518060e0526101988161025090396101988101602083825e50905061019860200160b660a3565b82016040526001915ff560bf565b60208101601681526040518060e0526101988161025090396101988101602083825e50905061019860200161012560a3565b5a806101005260205f60048460c05185fa91505015602b573d6020116033575f5160a051018060c05260a051811061023c5760eb565b5a806101005260205f60048460a05185fa91505015602b573d6020116033575f518060a0525f526101655b6040518060e05260206048565b8201604052905ff08060c05215602b5761019b6101c6565b8201604052905ff08060a05215602b576040518060e0526020810160405260048152604051806101005261019881610250903961019881016020838060e052825e5090506101986020016101d360a3565b634e487b7160e01b5f52601160045260245ffd61019838038061019860e03960e001601f01601f191660405260e05160c05261016680603260e03960c0516101035260e0f334601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f80fd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060e68239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a0529150501560b557602060e0510360a051015f90525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"}},"version":"VERSION"}
+
+// === ROOT/tests/ui/codegen/lowering/contract_creation_args_data_dedup.sol:ChildWithArg (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x3fa4f245
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0xa878f858
+  eq
+  push bb6
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup 1
+  revert
+bb5:
+  push_immutable 0, 32
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb6:
+  push 320
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 288
+  mstore
+  push 160
+  dup 2
+  add
+  push 64
+  mstore
+  push 128
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  dup 1
+  push 192
+  mstore
+  push 128
+  push_data literal_0
+  dup 3
+  codecopy
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  swap 3
+  mload
+  dup 1
+  push 128
+  mstore
+  dup 4
+  mstore
+  swap 2
+  pop
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  dup 1
+  push 224
+  mstore
+  push 64
+  dup 4
+  add
+  push 160
+  mstore
+  swap 2
+  pop
+  pop
+  iszero
+  push bb8
+  jumpi
+  push 32
+  push 224
+  mload
+  sub
+  push 160
+  mload
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb8
+bb8:
+  push 224
+  mload
+  push 160
+  mload
+  add
+  push 128
+  mload
+  push 192
+  mload
+  push 160
+  mload
+  mcopy
+  push 256
+  mload
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  push 288
+  mstore
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+
+@data literal_0 hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+// === ROOT/tests/ui/codegen/lowering/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb5
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x1f981516
+  eq
+  push bb12
+  jumpi
+  dup 1
+  push 0x59748c98
+  eq
+  push bb6
+  jumpi
+  dup 1
+  push 0xa8aa1b31
+  eq
+  push bb18
+  jumpi
+  jump bb5
+bb5 [cold]:
+  push 0
+  dup 1
+  revert
+bb26 [cold]:
+  returndatasize
+  push 0
+  dup 1
+  returndatacopy
+  returndatasize
+  push 0
+  revert
+bb27 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push bb35
+  jump bb31
+bb31:
+  push 256
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 192
+  mstore
+  push 64
+  jump bb42
+bb42:
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  swap 1
+  jump
+bb12:
+  push bb37
+  jump bb31
+bb18:
+  push 288
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 224
+  mstore
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 3
+  dup 2
+  mstore
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 408
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 408
+  dup 2
+  add
+  push 32
+  dup 4
+  dup 1
+  push 224
+  mstore
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  push 408
+  push 32
+  add
+  push bb41
+  jump bb33
+bb33:
+  push 439
+  push 32
+  add
+  push 0xffffffffffffffe0
+  and
+  swap 1
+  jump
+bb34:
+  dup 3
+  add
+  push 64
+  mstore
+  swap 1
+  push 0
+  create
+  jump bb30
+bb30:
+  dup 1
+  push 160
+  mstore
+  swap 1
+  pop
+  iszero
+  push bb26
+  jumpi
+  gas
+  dup 1
+  push 224
+  mstore
+  push 32
+  push 0
+  push 4
+  push 192
+  mload
+  push 160
+  mload
+  dup 6
+  staticcall
+  swap 1
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb27
+  jumpi
+  push 0
+  mload
+  jump bb29
+bb29:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb35:
+  push 32
+  dup 2
+  add
+  push 11
+  dup 2
+  mstore
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 408
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 408
+  dup 2
+  add
+  push 32
+  dup 4
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  push 408
+  push 32
+  add
+  push bb34
+  jump bb33
+bb36:
+  dup 3
+  add
+  push 64
+  mstore
+  push 1
+  swap 2
+  push 0
+  create2
+  jump bb30
+bb37:
+  push 32
+  dup 2
+  add
+  push 22
+  dup 2
+  mstore
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 408
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 408
+  dup 2
+  add
+  push 32
+  dup 4
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  push 408
+  push 32
+  add
+  push bb36
+  jump bb33
+bb38:
+  gas
+  dup 1
+  push 256
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 5
+  push 192
+  mload
+  dup 6
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb27
+  jumpi
+  push 0
+  mload
+  push 160
+  mload
+  add
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  dup 2
+  lt
+  push bb28
+  jumpi
+  jump bb29
+bb39:
+  gas
+  dup 1
+  push 256
+  mstore
+  push 32
+  push 0
+  push 4
+  dup 5
+  push 160
+  mload
+  dup 6
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb27
+  jumpi
+  push 0
+  mload
+  dup 1
+  push 160
+  mstore
+  push 0
+  mstore
+  push bb38
+  jump bb32
+bb32:
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 32
+  jump bb42
+bb40:
+  dup 3
+  add
+  push 64
+  mstore
+  swap 1
+  push 0
+  create
+  dup 1
+  push 192
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push bb39
+  jump bb32
+bb41:
+  dup 3
+  add
+  push 64
+  mstore
+  swap 1
+  push 0
+  create
+  dup 1
+  push 160
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 4
+  dup 2
+  mstore
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 408
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 408
+  dup 2
+  add
+  push 32
+  dup 4
+  dup 1
+  push 224
+  mstore
+  dup 3
+  mcopy
+  pop
+  swap 1
+  pop
+  push 408
+  push 32
+  add
+  push bb40
+  jump bb33
+bb28 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+
+@data literal_0 hex"61019838038061019860e03960e001601f01601f191660405260e05160c05261016680603260e03960c0516101035260e0f334601d575f3560e01c80633fa4f245146021578063a878f85814604b575b5f80fd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060e68239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a0529150501560b557602060e0510360a051015f90525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
