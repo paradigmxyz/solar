@@ -224,7 +224,6 @@ struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
     branch_edges: FxHashMap<BlockId, StackPhiBranch>,
-    edge_sources: FxHashMap<BlockId, Vec<ValueId>>,
 }
 
 #[derive(Clone, Debug)]
@@ -782,6 +781,14 @@ impl StackPhiPlan {
         edge.results.extend(result_additions);
     }
 
+    fn edge_sources(&self) -> FxHashMap<BlockId, Vec<ValueId>> {
+        self.edges
+            .iter()
+            .map(|(&block, edge)| (block, edge.sources.clone()))
+            .chain(self.branch_edges.iter().map(|(&block, branch)| (block, branch.union.clone())))
+            .collect()
+    }
+
     /// Extends planned phi edges with the resident argument prefix required by
     /// the same target. Phi values stay nearest the top, preserving the
     /// existing loop/join schedule, while invariant arguments ride below them.
@@ -834,7 +841,6 @@ impl StackPhiPlan {
             if let Some(values) = resident.edge_layout(func, term) {
                 Self::merge_edge(edge, values);
             }
-            self.edge_sources.insert(pred, edge.sources.clone());
         }
         for (&pred, branch) in &mut self.branch_edges {
             let Some(term) = func.blocks[pred].terminator.as_ref() else { return false };
@@ -852,7 +858,6 @@ impl StackPhiPlan {
                 Self::merge_edge(edge, values);
             }
             branch.union = union_values(&branch.then_edge.sources, &branch.else_edge.sources);
-            self.edge_sources.insert(pred, branch.union.clone());
         }
         true
     }
@@ -943,7 +948,6 @@ impl<'a> StackPhiPlanner<'a> {
                         results: shape.else_results.clone(),
                     },
                 };
-                plan.edge_sources.insert(pred, branch.union.clone());
                 plan.branch_edges.insert(pred, branch);
             }
         }
@@ -1114,7 +1118,6 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
         }
     }
@@ -1206,9 +1209,7 @@ impl<'a> StackPhiPlanner<'a> {
         if !exit_values.is_empty() {
             plan.entries.insert(exit, exit_values);
         }
-        plan.edge_sources.insert(preheader, initial_sources.clone());
         plan.edges.insert(preheader, StackPhiEdge { sources: initial_sources, results: entry });
-        plan.edge_sources.insert(header, union.clone());
         plan.branch_edges.insert(header, StackPhiBranch { then_edge, else_edge, union });
         true
     }
@@ -1342,7 +1343,6 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(block_id, results.clone());
         for (pred, sources) in edges {
-            plan.edge_sources.insert(pred, sources.clone());
             plan.edges.insert(pred, StackPhiEdge { sources, results: results.clone() });
         }
     }
@@ -3009,7 +3009,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .clone()
             .or(resident_stack_plan)
             .unwrap_or_else(|| GlobalStackPlan::analyze(func, liveness, &stack_phi_plan));
-        let mut stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        let mut stack_phi_sources = stack_phi_plan.edge_sources();
         if required_stack_plan {
             if !stack_phi_plan.merge_resident(func, &global_stack_plan) {
                 // Selection preflights this exact composition. If a future transform invalidates
@@ -3018,7 +3018,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.disabled_stack_only_functions.insert(func_id);
                 return;
             }
-            stack_phi_sources = stack_phi_plan.edge_sources.clone();
+            stack_phi_sources = stack_phi_plan.edge_sources();
         } else if global_stack_plan.is_empty()
             && let Some((values, plan)) =
                 self.compute_cross_block_stack_layout(
@@ -3036,7 +3036,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // carries the value; an edge-specific cleanup may otherwise discard the sole stack
             // copy before a later block reloads its reserved slot. The reserved spill slot
             // remains available if edge emission ever falls back to the memory convention.
-            stack_phi_sources = stack_phi_plan.edge_sources.clone();
+            stack_phi_sources = stack_phi_plan.edge_sources();
             for (block_id, block) in func.blocks.iter_enumerated() {
                 let Some(term) = block.terminator.as_ref() else { continue };
                 let carried = global_stack_plan.uniformly_carried_values(func, term);

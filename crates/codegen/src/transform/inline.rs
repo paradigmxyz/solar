@@ -173,11 +173,8 @@ impl MirInliner {
             max_single_call_sanity_instructions: 12,
             max_blocks: 1,
             max_shared_callee_blocks: 1,
-            inline_single_call: true,
-            max_caller_inlined_instructions: 64,
-            expected_executions_per_deployment: 200,
-            max_module_code_size: usize::MAX,
             mode: InlineMode::TinyLeaves,
+            ..Self::default()
         }
     }
 
@@ -621,15 +618,8 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            summary.instruction_count += match kind {
-                InstKind::MappingSlot(..) => 3,
-                InstKind::MappingSlotMemory(..) => 8,
-                InstKind::MappingSlotCalldata(..) => 9,
-                InstKind::StorageArrayDataSlot(..) => 3,
-                InstKind::StorageArrayElementSlot { .. } => 4,
-                _ => 1,
-            };
             let inst_cost = estimate_inst_cost(gcx, module, kind);
+            summary.instruction_count += inst_cost.instructions;
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
@@ -750,6 +740,7 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
 struct MirCost {
     runtime_gas: u64,
     code_size: usize,
+    instructions: usize,
 }
 
 fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost {
@@ -769,10 +760,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
             let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
             (8 + base_cost * 3, 2 + base_cost as usize)
         }
-        InstKind::MemoryObjectLoadField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
-        }
-        InstKind::MemoryObjectStoreField { layout, field, .. } => {
+        InstKind::MemoryObjectLoadField { layout, field, .. }
+        | InstKind::MemoryObjectStoreField { layout, field, .. } => {
             if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
         }
         InstKind::MemoryObjectLoadElement { layout, .. }
@@ -922,7 +911,14 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::Log4(..) => (1_875, 1),
         InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
     };
-    MirCost { runtime_gas, code_size }
+    let instructions = match kind {
+        InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
+        InstKind::MappingSlotMemory(..) => 8,
+        InstKind::MappingSlotCalldata(..) => 9,
+        InstKind::StorageArrayElementSlot { .. } => 4,
+        _ => 1,
+    };
+    MirCost { runtime_gas, code_size, instructions }
 }
 
 fn estimate_terminator_cost(term: &Terminator) -> MirCost {
@@ -939,7 +935,7 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
         Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
         Terminator::Invalid => (0, 1),
     };
-    MirCost { runtime_gas, code_size }
+    MirCost { runtime_gas, code_size, instructions: 1 }
 }
 
 fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
