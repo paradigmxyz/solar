@@ -11,7 +11,7 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64

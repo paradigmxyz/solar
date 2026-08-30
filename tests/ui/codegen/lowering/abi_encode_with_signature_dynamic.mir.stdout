@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_with_signature_dynamic.sol:AbiEncodeWithSignatureDynamic ===
 @module AbiEncodeWithSignatureDynamic
-fn @callCond(arg0: address, arg1: bool, arg2: u256) -> bool [selector=0x407a1bfe, abi_params=[address, bool, u256], abi_returns=[word]] {
+fn @callCond(arg0: address, arg1: bool, arg2: u256) -> bool [selector=0x407a1bfe, abi_params=[address, bool, u256], abi_returns=[word<bool>]] {
   bb0:
     v0 = gas
     v1 = select arg1, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000

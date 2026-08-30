@@ -11,7 +11,7 @@
 //! stream. The parser/printer at the bottom of the file provide a text format for
 //! tests and debugging; the IR itself is not defined by that serialization.
 
-use super::op;
+use super::op::{self, StackOp};
 use crate::mir::{ImmutableId, TypeSize};
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
@@ -36,6 +36,15 @@ pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
     verify::validate(dcx, module);
+}
+
+/// Validates EVM IR invariants for a target EVM version.
+pub(crate) fn validate_for_evm_version(
+    dcx: &solar_interface::diagnostics::DiagCtxt,
+    module: &Module,
+    evm_version: solar_config::EvmVersion,
+) {
+    verify::validate_for_evm_version(dcx, module, evm_version);
 }
 
 /// Validates that every opcode is available for the selected EVM version.
@@ -80,6 +89,9 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Bytes>,
     /// Backend-proven growth available even across opaque physical jumps.
     pub(crate) unknown_target_stack_headroom: usize,
+    /// Backend-proven transient growth reserved for legacy shift legalization, on top of
+    /// [`Self::unknown_target_stack_headroom`]. Zero on targets with native shifts.
+    pub(crate) legacy_shift_stack_headroom: usize,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
 }
@@ -101,6 +113,7 @@ impl Module {
             blocks: IndexVec::new(),
             data: IndexVec::new(),
             unknown_target_stack_headroom: 0,
+            legacy_shift_stack_headroom: 0,
             enable_size_outlining: false,
         }
     }
@@ -162,6 +175,8 @@ impl Block {
 pub(crate) struct BlockMetadata {
     /// Estimated block hotness for layout decisions.
     pub(crate) hotness: Hotness,
+    /// Whether the block belongs to a loop, so its code runs once per iteration.
+    pub(crate) in_loop: bool,
 }
 
 /// Block hotness metadata.
@@ -191,6 +206,8 @@ pub(crate) struct Instruction {
     encoding: u8,
     /// Encoded value carried by a push instruction.
     value: Option<PushValue>,
+    /// Logical stack operation selected during final assembly lowering.
+    stack_op: Option<StackOp>,
     /// Instruction metadata.
     pub(crate) metadata: Metadata,
 }
@@ -204,7 +221,34 @@ impl Instruction {
     /// Creates an instruction for an EVM opcode.
     #[must_use]
     pub(crate) fn opcode(opcode: u8) -> Self {
-        Self { opcode, encoding: 0, value: None, metadata: Metadata::EMPTY }
+        if let Some(stack_op) = StackOp::from_legacy_opcode(opcode) {
+            return Self::stack_op(stack_op);
+        }
+        Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::EMPTY }
+    }
+
+    /// Creates a logical stack operation.
+    #[must_use]
+    pub(crate) fn stack_op(stack_op: StackOp) -> Self {
+        Self {
+            opcode: stack_op.ir_opcode(),
+            encoding: 0,
+            value: None,
+            stack_op: Some(stack_op),
+            metadata: Metadata::EMPTY,
+        }
+    }
+
+    /// Returns the equivalent one-byte opcode for a non-push instruction.
+    #[must_use]
+    pub(crate) fn as_legacy_opcode(&self) -> Option<u8> {
+        if self.is_encoded_push() {
+            None
+        } else if let Some(stack_op) = self.stack_op {
+            stack_op.legacy_opcode()
+        } else {
+            Some(self.opcode)
+        }
     }
 
     /// Creates an encoded immediate push instruction.
@@ -233,6 +277,7 @@ impl Instruction {
             opcode: op::PUSH32,
             encoding: Self::ENCODED_PUSH,
             value: None,
+            stack_op: None,
             metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
         }
     }
@@ -266,6 +311,7 @@ impl Instruction {
             opcode: op::PUSH32,
             encoding,
             value: Some(value),
+            stack_op: None,
             metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
         }
     }
@@ -312,23 +358,29 @@ impl Instruction {
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
-        fmt::from_fn(move |f| match self.encoding {
-            Self::ENCODED_PUSH => f.write_str("push"),
-            encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
-                f.write_str("push_deferred")
-            }
-            encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
-                f.write_str("push_immutable")
-            }
-            encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
-            _ => match self.opcode {
-                opcode @ op::DUP1..=op::DUP16 => {
-                    write!(f, "dup {}", opcode - op::DUP1 + 1)
+        fmt::from_fn(move |f| match self.stack_op {
+            Some(StackOp::Dup(_)) => f.write_str("dup"),
+            Some(StackOp::Swap(_)) => f.write_str("swap"),
+            Some(StackOp::Exchange(_, _)) => f.write_str("exchange"),
+            Some(StackOp::Pop) => f.write_str("pop"),
+            None => match self.encoding {
+                Self::ENCODED_PUSH => f.write_str("push"),
+                encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
+                    f.write_str("push_deferred")
                 }
-                opcode @ op::SWAP1..=op::SWAP16 => {
-                    write!(f, "swap {}", opcode - op::SWAP1 + 1)
+                encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
+                    f.write_str("push_immutable")
                 }
-                _ => op::fmt(self.opcode, f),
+                encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
+                _ => match self.opcode {
+                    opcode @ op::DUP1..=op::DUP16 => {
+                        write!(f, "dup {}", opcode - op::DUP1 + 1)
+                    }
+                    opcode @ op::SWAP1..=op::SWAP16 => {
+                        write!(f, "swap {}", opcode - op::SWAP1 + 1)
+                    }
+                    _ => op::fmt(self.opcode, f),
+                },
             },
         })
     }
@@ -337,6 +389,12 @@ impl Instruction {
     #[must_use]
     pub(crate) const fn is_encoded_push(&self) -> bool {
         self.encoding & Self::ENCODED_PUSH != 0
+    }
+
+    /// Returns the logical stack operation, if present.
+    #[must_use]
+    pub(crate) const fn as_stack_op(&self) -> Option<StackOp> {
+        self.stack_op
     }
 
     /// Returns the deferred constant referenced by this push instruction, if any.
@@ -376,11 +434,7 @@ impl Instruction {
     /// Returns whether this instruction materializes a physical EVM stack op.
     #[must_use]
     pub(crate) const fn is_physical_stack_op(&self) -> bool {
-        !self.is_encoded_push()
-            && matches!(
-                self.opcode,
-                op::POP | op::DUP1..=op::DUP16 | op::SWAP1..=op::SWAP16
-            )
+        self.stack_op.is_some()
     }
 }
 

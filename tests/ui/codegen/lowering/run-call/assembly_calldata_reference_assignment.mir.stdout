@@ -149,9 +149,9 @@ fn @dynamicWords(arg0: calldataslice) -> memoryarray [selector=0x148d46ad, pure,
     v13 = iszero v12
     jumpi v13, bb1, bb2
   bb2:
-    v14 = add v7, v8
-    v15 = calldatasize
-    v16 = gt v14, v15
+    v14 = calldatasize
+    v15 = sub v14, v7
+    v16 = slt v15, v8
     jumpi v16, bb3, bb4
   bb4:
     v17 = mul v6, 32
@@ -205,9 +205,9 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     v13 = iszero v12
     jumpi v13, bb1, bb2
   bb2:
-    v14 = add v7, v8
-    v15 = calldatasize
-    v16 = gt v14, v15
+    v14 = calldatasize
+    v15 = sub v14, v7
+    v16 = slt v15, v8
     jumpi v16, bb3, bb4
   bb4:
     v17 = mul v6, 32
@@ -271,7 +271,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     revert 0, 36
 }
 
-fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure, abi_params=[array<_, u8>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u8>]] {
+fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure, abi_params=[array<_, u8>], abi_returns=[memory_array<word<u8>>], abi_return_params=[array<_, u8>]] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0
@@ -289,9 +289,9 @@ fn @dynamicNarrow(arg0: calldataslice) -> memoryarray [selector=0x320b552a, pure
     v13 = iszero v12
     jumpi v13, bb1, bb2
   bb2:
-    v14 = add v7, v8
-    v15 = calldatasize
-    v16 = gt v14, v15
+    v14 = calldatasize
+    v15 = sub v14, v7
+    v16 = slt v15, v8
     jumpi v16, bb3, bb4
   bb4:
     v17 = mul v6, 32
@@ -375,9 +375,9 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     v13 = iszero v12
     jumpi v13, bb1, bb2
   bb2:
-    v14 = add v7, v8
-    v15 = calldatasize
-    v16 = gt v14, v15
+    v14 = calldatasize
+    v15 = sub v14, v7
+    v16 = slt v15, v8
     jumpi v16, bb3, bb4
   bb4:
     v17 = mul v6, 32
@@ -396,7 +396,7 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     set_memory_object_len memoryarray, v25, v6
     jump bb9
   bb9:
-    v26 = phi [bb8: 0], [bb25: v65]
+    v26 = phi [bb8: 0], [bb25: v63]
     v27 = lt v26, v6
     jumpi v27, bb10, bb11
   bb11:
@@ -411,52 +411,50 @@ fn @dynamicNested(arg0: calldataslice) -> memoryarray [selector=0x24abb2f5, pure
     jumpi v33, bb12, bb13
   bb13:
     v34 = add v7, v28
-    v35 = add v34, 32
-    v36 = lt v35, v34
-    v37 = calldatasize
-    v38 = gt v35, v37
-    v39 = or v36, v38
-    jumpi v39, bb14, bb15
+    v35 = calldatasize
+    v36 = sub v35, v34
+    v37 = slt v36, 32
+    jumpi v37, bb14, bb15
   bb15:
-    v40 = calldataload v34
-    v41 = add v7, v40
-    v42 = calldatasize
-    v43 = sub v42, v7
-    v44 = sub v43, 31
-    v45 = slt v40, v44
-    v46 = iszero v45
-    jumpi v46, bb16, bb17
+    v38 = calldataload v34
+    v39 = add v7, v38
+    v40 = calldatasize
+    v41 = sub v40, v7
+    v42 = sub v41, 31
+    v43 = slt v38, v42
+    v44 = iszero v43
+    jumpi v44, bb16, bb17
   bb17:
-    v47 = calldataload v41
-    v48 = gt v47, 0xffffffffffffffff
-    jumpi v48, bb18, bb19
+    v45 = calldataload v39
+    v46 = gt v45, 0xffffffffffffffff
+    jumpi v46, bb18, bb19
   bb19:
-    v49 = mul v47, 32
-    v50 = add v41, 32
-    v51 = calldatasize
-    v52 = sub v51, v49
-    v53 = sgt v50, v52
-    jumpi v53, bb20, bb21
+    v47 = mul v45, 32
+    v48 = add v39, 32
+    v49 = calldatasize
+    v50 = sub v49, v47
+    v51 = sgt v48, v50
+    jumpi v51, bb20, bb21
   bb21:
-    v54 = add v41, 32
-    v55 = mul v47, 32
-    v56 = iszero 32
-    v57 = div v55, 32
-    v58 = eq v57, v47
-    v59 = or v56, v58
-    v60 = iszero v59
-    jumpi v60, bb22, bb23
+    v52 = add v39, 32
+    v53 = mul v45, 32
+    v54 = iszero 32
+    v55 = div v53, 32
+    v56 = eq v55, v45
+    v57 = or v54, v56
+    v58 = iszero v57
+    jumpi v58, bb22, bb23
   bb23:
-    v61 = add 32, v55
-    v62 = lt v61, 32
-    jumpi v62, bb24, bb25
+    v59 = add 32, v53
+    v60 = lt v59, 32
+    jumpi v60, bb24, bb25
   bb25:
-    v63 = alloc memoryarray<1>, exact, uninitialized, infallible, v61
-    set_memory_object_len memoryarray, v63, v47
-    v64 = make_calldata_slice v54, v55
-    memory_object_copy_from_slice memoryarray, v63, v64
-    memory_object_store_element memoryarray<1>, v25, v26, v63
-    v65 = add v26, 1
+    v61 = alloc memoryarray<1>, exact, uninitialized, infallible, v59
+    set_memory_object_len memoryarray, v61, v45
+    v62 = make_calldata_slice v52, v53
+    memory_object_copy_from_slice memoryarray, v61, v62
+    memory_object_store_element memoryarray<1>, v25, v26, v61
+    v63 = add v26, 1
     jump bb9
   bb24:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -513,9 +511,9 @@ fn @dynamicOverflow(arg0: calldataslice) -> memoryarray [selector=0x51072adf, pu
     v14 = iszero v13
     jumpi v14, bb1, bb2
   bb2:
-    v15 = add v8, v9
-    v16 = calldatasize
-    v17 = gt v15, v16
+    v15 = calldatasize
+    v16 = sub v15, v8
+    v17 = slt v16, v9
     jumpi v17, bb3, bb4
   bb4:
     v18 = mul v7, 32
@@ -570,9 +568,9 @@ fn @dynamicEmptyAtEnd(arg0: calldataslice) -> memoryarray [selector=0x93d2ba08, 
     v14 = iszero v13
     jumpi v14, bb1, bb2
   bb2:
-    v15 = add v8, v9
-    v16 = calldatasize
-    v17 = gt v15, v16
+    v15 = calldatasize
+    v16 = sub v15, v8
+    v17 = slt v16, v9
     jumpi v17, bb3, bb4
   bb4:
     v18 = mul v7, 32
@@ -628,9 +626,9 @@ fn @dynamicEmptyPastEnd(arg0: calldataslice) -> memoryarray [selector=0x77beb5ce
     v15 = iszero v14
     jumpi v15, bb1, bb2
   bb2:
-    v16 = add v9, v10
-    v17 = calldatasize
-    v18 = gt v16, v17
+    v16 = calldatasize
+    v17 = sub v16, v9
+    v18 = slt v17, v10
     jumpi v18, bb3, bb4
   bb4:
     v19 = mul v8, 32
@@ -685,9 +683,9 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     v14 = iszero v13
     jumpi v14, bb1, bb2
   bb2:
-    v15 = add v8, v9
-    v16 = calldatasize
-    v17 = gt v15, v16
+    v15 = calldatasize
+    v16 = sub v15, v8
+    v17 = slt v16, v9
     jumpi v17, bb3, bb4
   bb4:
     v18 = mul v7, 32
@@ -723,7 +721,7 @@ fn @dynamicWrappingEnd(arg0: calldataslice) -> memoryarray [selector=0x4c797599,
     revert 0, 36
 }
 
-fn @returnedSlice(arg0: calldataslice) -> bytes4 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word]] {
+fn @returnedSlice(arg0: calldataslice) -> bytes4 [selector=0x515c2822, pure, abi_params=[bytes], abi_returns=[word<bytes4>]] {
   bb0:
     v0 = internal_call @slice, 1, arg0, 0
     v1 = slice_ptr v0

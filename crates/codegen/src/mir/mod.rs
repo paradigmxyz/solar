@@ -99,6 +99,7 @@ impl BlockId {
 mod round_trip {
     use super::Module;
     use crate::lower;
+    use solar_data_structures::map::FxHashMap;
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
@@ -213,12 +214,13 @@ mod round_trip {
             let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
             let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
             let gcx = c.gcx();
+            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id);
+                let module = lower::lower_contract(gcx, id, &empty, &empty);
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -287,12 +289,13 @@ mod round_trip {
             };
 
             let gcx = c.gcx();
+            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id);
+                let module = lower::lower_contract(gcx, id, &empty, &empty);
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());

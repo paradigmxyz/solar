@@ -23,10 +23,11 @@ impl EvmPass for BlockCse {
         "block-cse"
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
+        let stack_access_limit = gcx.sess.opts.evm_version.reachable_stack_depth();
         for block in &mut module.blocks {
-            changed |= regenerate_block(&mut block.instructions);
+            changed |= regenerate_block(&mut block.instructions, stack_access_limit);
         }
         changed
     }
@@ -68,8 +69,10 @@ struct FingerprintValue {
     span: Option<(usize, usize)>,
 }
 
-fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
-    if !may_regenerate(instructions) && !has_repeated_const_memory_addr(instructions) {
+fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usize) -> bool {
+    if !may_regenerate(instructions, stack_access_limit)
+        && !has_repeated_const_memory_addr(instructions)
+    {
         return false;
     }
 
@@ -108,9 +111,9 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             if inst.deferred_push().is_none()
                 && inst.pushed_value().is_some_and(|value| !value.is_zero())
                 && let Some(depth) = stack.iter().rev().position(|value| value.expr == expr)
-                && depth < 16
+                && depth < stack_access_limit
             {
-                let mut duplicate = Instruction::opcode(op::dup((depth + 1) as u8));
+                let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
                 duplicate.metadata.stack = None;
                 let origin = instructions.len();
@@ -126,33 +129,38 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
         }
 
         let opcode = inst.opcode;
-        if canonical_stack_effect && (op::DUP1..=op::DUP16).contains(&opcode) {
-            let depth = usize::from(opcode - op::DUP1 + 1);
-            ensure_depth(&mut stack, depth, &mut next_expr);
-            let value = stack[stack.len() - depth];
-            let origin = instructions.len();
-            instructions.push(inst);
-            stack.push(StackValue { expr: value.expr, span: None, origin: Some(origin) });
-            continue;
-        }
-        if canonical_stack_effect && (op::SWAP1..=op::SWAP16).contains(&opcode) {
-            let depth = usize::from(opcode - op::SWAP1 + 1);
-            ensure_depth(&mut stack, depth + 1, &mut next_expr);
-            let top = stack.len() - 1;
-            stack.swap(top, top - depth);
-            instructions.push(inst);
-            continue;
-        }
-        if canonical_stack_effect && opcode == op::POP {
-            ensure_depth(&mut stack, 1, &mut next_expr);
-            stack.pop();
-            instructions.push(inst);
+        if canonical_stack_effect && let Some(stack_op) = inst.as_stack_op() {
+            match stack_op {
+                op::StackOp::Dup(depth) => {
+                    let depth = usize::from(depth);
+                    ensure_depth(&mut stack, depth, &mut next_expr);
+                    let value = stack[stack.len() - depth];
+                    let origin = instructions.len();
+                    instructions.push(inst);
+                    stack.push(StackValue { expr: value.expr, span: None, origin: Some(origin) });
+                }
+                op::StackOp::Swap(depth) => {
+                    let depth = usize::from(depth);
+                    ensure_depth(&mut stack, depth + 1, &mut next_expr);
+                    let top = stack.len() - 1;
+                    stack.swap(top, top - depth);
+                    instructions.push(inst);
+                }
+                op::StackOp::Exchange(n, m) => {
+                    ensure_depth(&mut stack, usize::from(m) + 1, &mut next_expr);
+                    let top = stack.len() - 1;
+                    stack.swap(top - usize::from(n), top - usize::from(m));
+                    instructions.push(inst);
+                }
+                op::StackOp::Pop => {
+                    ensure_depth(&mut stack, 1, &mut next_expr);
+                    stack.pop();
+                    instructions.push(inst);
+                }
+            }
             continue;
         }
         if canonical_stack_effect && matches!(opcode, op::SWAPN | op::EXCHANGE) {
-            // EOF extended swaps select physical words through an immediate operand that EVM IR
-            // does not model yet. Their net stack effect is 0 -> 0, but preserving the current
-            // value identities would be unsound because the instruction rearranges them.
             instructions.push(inst);
             stack.clear();
             continue;
@@ -213,10 +221,10 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
                     && addr.origin == Some(instructions.len() - 1)
                     && is_removable_copy(&instructions[instructions.len() - 1])
                     && let Some(depth) = stack.iter().rev().position(|entry| entry.expr == known)
-                    && depth < 16
+                    && depth < stack_access_limit
                 {
                     instructions.truncate(instructions.len() - 1);
-                    let mut duplicate = Instruction::opcode(op::dup((depth + 1) as u8));
+                    let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                     duplicate.metadata = inst.metadata;
                     duplicate.metadata.stack = None;
                     let origin = instructions.len();
@@ -258,13 +266,13 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
             if let Some((start, _)) = closed_span
                 && instructions.len() + 1 - start > 1
                 && let Some(depth) = stack.iter().rev().position(|value| value.expr == expr)
-                && depth < 16
+                && depth < stack_access_limit
             {
                 // The removed interval contains at least one pure opcode (gas
                 // >= DUPn) plus another instruction. It is therefore strictly
                 // smaller and cannot cost more runtime gas than the DUPn.
                 instructions.truncate(start);
-                let mut duplicate = Instruction::opcode(op::dup((depth + 1) as u8));
+                let mut duplicate = Instruction::stack_op(op::StackOp::Dup((depth + 1) as u8));
                 duplicate.metadata = inst.metadata;
                 duplicate.metadata.stack = None;
                 let origin = instructions.len();
@@ -323,9 +331,9 @@ fn regenerate_block(instructions: &mut Vec<Instruction>) -> bool {
 }
 
 /// Returns whether a block computes an expression while an equal expression remains within
-/// `DUP16` reach. This lightweight symbolic execution avoids rebuilding blocks that merely repeat
-/// opcodes with different operands, which is common in already-optimized EVM IR.
-fn may_regenerate(instructions: &[Instruction]) -> bool {
+/// the target's `DUP` reach. This lightweight symbolic execution avoids rebuilding blocks that
+/// merely repeat opcodes with different operands, which is common in already-optimized EVM IR.
+fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bool {
     if !has_repeated_candidate_opcode(instructions) {
         return false;
     }
@@ -345,7 +353,7 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
             let expr = push_fingerprint(inst.opcode, inst.encoding, value);
             if inst.deferred_push().is_none()
                 && inst.pushed_value().is_some_and(|value| !value.is_zero())
-                && stack.iter().rev().take(16).any(|existing| existing.expr == expr)
+                && stack.iter().rev().take(stack_access_limit).any(|existing| existing.expr == expr)
             {
                 return true;
             }
@@ -354,23 +362,30 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
         }
 
         let opcode = inst.opcode;
-        if canonical_stack_effect && (op::DUP1..=op::DUP16).contains(&opcode) {
-            let depth = usize::from(opcode - op::DUP1 + 1);
-            ensure_hash_depth(&mut stack, depth, &mut next_fresh);
-            let value = stack[stack.len() - depth];
-            stack.push(FingerprintValue { expr: value.expr, span: None });
-            continue;
-        }
-        if canonical_stack_effect && (op::SWAP1..=op::SWAP16).contains(&opcode) {
-            let depth = usize::from(opcode - op::SWAP1 + 1);
-            ensure_hash_depth(&mut stack, depth + 1, &mut next_fresh);
-            let top = stack.len() - 1;
-            stack.swap(top, top - depth);
-            continue;
-        }
-        if canonical_stack_effect && opcode == op::POP {
-            ensure_hash_depth(&mut stack, 1, &mut next_fresh);
-            stack.pop();
+        if canonical_stack_effect && let Some(stack_op) = inst.as_stack_op() {
+            match stack_op {
+                op::StackOp::Dup(depth) => {
+                    let depth = usize::from(depth);
+                    ensure_hash_depth(&mut stack, depth, &mut next_fresh);
+                    let value = stack[stack.len() - depth];
+                    stack.push(FingerprintValue { expr: value.expr, span: None });
+                }
+                op::StackOp::Swap(depth) => {
+                    let depth = usize::from(depth);
+                    ensure_hash_depth(&mut stack, depth + 1, &mut next_fresh);
+                    let top = stack.len() - 1;
+                    stack.swap(top, top - depth);
+                }
+                op::StackOp::Exchange(n, m) => {
+                    ensure_hash_depth(&mut stack, usize::from(m) + 1, &mut next_fresh);
+                    let top = stack.len() - 1;
+                    stack.swap(top - usize::from(n), top - usize::from(m));
+                }
+                op::StackOp::Pop => {
+                    ensure_hash_depth(&mut stack, 1, &mut next_fresh);
+                    stack.pop();
+                }
+            }
             continue;
         }
         if canonical_stack_effect && matches!(opcode, op::SWAPN | op::EXCHANGE) {
@@ -395,7 +410,7 @@ fn may_regenerate(instructions: &[Instruction]) -> bool {
             let expr = operation_fingerprint(opcode, read_epoch, &operand_exprs);
             let closed_span = closed_span(operands.iter().map(|value| value.span), inst_idx);
             if closed_span.is_some()
-                && stack.iter().rev().take(16).any(|existing| existing.expr == expr)
+                && stack.iter().rev().take(stack_access_limit).any(|existing| existing.expr == expr)
             {
                 return true;
             }
@@ -608,7 +623,7 @@ mod tests {
 
     #[test]
     fn explicit_stack_effect_is_an_analysis_boundary() {
-        let mut overridden_dup = Instruction::opcode(op::DUP1);
+        let mut overridden_dup = Instruction::stack_op(op::StackOp::Dup(1));
         overridden_dup.metadata.stack = Some(StackEffect::new(0, 0));
         let mut instructions = vec![
             Instruction::push_value(U256::from(1)),
@@ -621,7 +636,7 @@ mod tests {
         ];
         let original = instructions.clone();
 
-        assert!(!regenerate_block(&mut instructions));
+        assert!(!regenerate_block(&mut instructions, 16));
         assert_eq!(instructions, original);
     }
 }

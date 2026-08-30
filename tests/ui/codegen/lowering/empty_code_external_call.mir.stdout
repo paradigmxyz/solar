@@ -244,7 +244,7 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[]] {
     revert 0, 0
 }
 
-fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
+fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -293,7 +293,7 @@ fn @trySelf() -> bool [selector=0xf948cf5e, abi_params=[], abi_returns=[word]] {
     ret 0
 }
 
-fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] {
+fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = gas
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
@@ -304,7 +304,7 @@ fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word]] 
     ret v4
 }
 
-fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word]] {
+fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = address
     v1 = gas
@@ -329,38 +329,34 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 427, v1
+    v2 = and 364, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x6101c06040523461015e575a8060e0528060e052604051806101805280610180
+    mstore v3, 0x6101c06040523461011f575a604051602081016040527f5dfc2e4a0000000000
     v4 = add v3, 32
-    mstore v4, 0x52602081016040527f5dfc2e4a00000000000000000000000000000000000000
+    mstore v4, 0x81526004810150303b
     v5 = add v3, 64
-    mstore v5, 0x81526004810150303b1515605a575f80fd5b5f5f600483
+    mstore v5, 0x15156048575f80fd5b5f5f6004835f3087f191505015605c57606c565b3d603f
     v6 = add v3, 96
-    mstore v6, 0x5f3087f191505015606e576097565b3d80610100528061010052603f81018061
+    mstore v6, 0x810181811015609e576071565b610123565b7f4e487b71000000000000000000
     v7 = add v3, 128
-    mstore v7, 0x12052806101205281806101005281101560c957609c565b610162565b7f4e48
+    mstore v7, 0x5f52604160045260245ffd5b60
     v8 = add v3, 160
-    mstore v8, 0x7b71000000000000000000000000000000000000000000000000000000005f52
+    mstore v8, 0x1f1981169050604051818101915081604052905081815260208101825f823e50
     v9 = add v3, 192
-    mstore v9, 0x604160045260245ffd5b601f1981169050604051806101a05281810191508160
+    mstore v9, 0x9050602081018061014052806101405281518061016052915081610160528061
     v10 = add v3, 224
-    mstore v10, 0x405290508180610100528152602081018280610100525f823e50905060208101
+    mstore v10, 0x140525160048210158160e01c91506308c379a0821481165050602482101563
     v11 = add v3, 256
-    mstore v11, 0x8061014052806101405281806101a05251806101605291508161016052806101
+    mstore v11, 0x4e487b718214915016505060011561011557606c565b6101605161014051fd5b
     v12 = add v3, 288
-    mstore v12, 0x40525160048210158160e01c91506308c379a08214811650506024821015634e
+    mstore v12, 0x5f80fd5b601f8061012e5f395ff334601a575f3560e01c80635dfc2e4a146016
     v13 = add v3, 320
-    mstore v13, 0x487b7182149150165050600115610154576097565b6101605161014051fd5b5f
-    v14 = add v3, 352
-    mstore v14, 0x80fd5b601f8061016d5f395ff334601a575f3560e01c80635dfc2e4a14601657
-    v15 = add v3, 384
-    mstore v15, 0x601a565b601e565b5f80fd5b0000000000000000000000000000000000000000
-    v16 = slice_ptr v0
-    v17 = add v3, 396
-    mcopy v17, v16, 0 !metadata(memory=heap)
-    v18 = create 0, v3, 396
-    jumpi v18, bb2, bb1
+    mstore v13, 0x57601a565b601e565b5f80fd5b00000000000000000000000000000000000000
+    v14 = slice_ptr v0
+    v15 = add v3, 333
+    mcopy v15, v14, 0 !metadata(memory=heap)
+    v16 = create 0, v3, 333
+    jumpi v16, bb2, bb1
   bb1:
     revert_returndata
   bb2:

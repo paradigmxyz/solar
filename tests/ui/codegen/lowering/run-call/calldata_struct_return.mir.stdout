@@ -2,7 +2,7 @@
 @module CalldataStructDecoder
 // === ROOT/tests/ui/codegen/lowering/run-call/calldata_struct_return.sol:CalldataStructReturn ===
 @module CalldataStructReturn
-fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word, word]] {
+fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word]] {
   bb0:
     v0 = internal_call @decode.3, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -17,7 +17,7 @@ fn @direct(arg0: calldataslice) -> (bool, u256) [selector=0x18f2e0cb, pure, abi_
     ret v0, v9
 }
 
-fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
+fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>]] {
   bb0:
     v0 = internal_call @decode.3, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
@@ -29,7 +29,7 @@ fn @decode.1(arg0: calldataslice) -> (bool, calldataslice) [selector=0xe5c5e9a3,
     ret v0, v6
 }
 
-fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a628, view, abi_params=[], abi_returns=[word, word, word, word, word, word, word]] {
+fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word]] {
   bb0:
     v0 = address
     v1 = gas
@@ -109,74 +109,76 @@ fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a6
   bb13:
     v48 = mload v43
     v49 = add v43, 32
-    v50 = sub v20, v49
-    v51 = gt v48, v50
-    jumpi v51, bb16, bb15
-  bb15:
-    v52 = add v48, 63
-    v53 = lt v52, v48
-    jumpi v53, bb18, bb17
+    v50 = add v48, 63
+    v51 = lt v50, v48
+    jumpi v51, bb15, bb16
+  bb16:
+    v52 = not 31
+    v53 = and v50, v52
+    v54 = alloc memorybytes, exact, uninitialized, panic, v53
+    set_memory_object_len memorybytes, v54, v48
+    v55 = sub v20, v49
+    v56 = gt v48, v55
+    jumpi v56, bb18, bb17
   bb17:
-    v54 = not 31
-    v55 = and v52, v54
-    v56 = alloc memorybytes, exact, uninitialized, infallible, v55
-    set_memory_object_len memorybytes, v56, v48
-    v57 = add v43, 32
-    v58 = make_memory_slice v57, v48
-    memory_object_copy_from_slice memorybytes, v56, v58
-    memory_object_store_field memorystruct<6>, v33, 4, v56
-    v59 = add v28, 160
-    v60 = mload v59
-    v61 = add v28, v60
-    v62 = add v61, 32
-    v63 = gt v60, 0xffffffffffffffff
-    v64 = gt v62, v20
-    v65 = or v63, v64
-    jumpi v65, bb20, bb19
+    v57 = make_memory_slice v49, v48
+    memory_object_copy_from_slice memorybytes, v54, v57
+    memory_object_store_field memorystruct<6>, v33, 4, v54
+    v58 = add v28, 160
+    v59 = mload v58
+    v60 = add v28, v59
+    v61 = add v60, 32
+    v62 = gt v59, 0xffffffffffffffff
+    v63 = gt v61, v20
+    v64 = or v62, v63
+    jumpi v64, bb20, bb19
   bb19:
-    v66 = mload v61
-    v67 = add v61, 32
-    v68 = sub v20, v67
-    v69 = gt v66, v68
-    jumpi v69, bb22, bb21
-  bb21:
-    v70 = add v66, 63
-    v71 = lt v70, v66
-    jumpi v71, bb24, bb23
+    v65 = mload v60
+    v66 = add v60, 32
+    v67 = add v65, 63
+    v68 = lt v67, v65
+    jumpi v68, bb21, bb22
+  bb22:
+    v69 = not 31
+    v70 = and v67, v69
+    v71 = alloc memorybytes, exact, uninitialized, panic, v70
+    set_memory_object_len memorybytes, v71, v65
+    v72 = sub v20, v66
+    v73 = gt v65, v72
+    jumpi v73, bb24, bb23
   bb23:
-    v72 = not 31
-    v73 = and v70, v72
-    v74 = alloc memorybytes, exact, uninitialized, infallible, v73
-    set_memory_object_len memorybytes, v74, v66
-    v75 = add v61, 32
-    v76 = make_memory_slice v75, v66
-    memory_object_copy_from_slice memorybytes, v74, v76
-    memory_object_store_field memorystruct<6>, v33, 5, v74
-    v77 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v78 = memory_object_data memoryfixedarray, v77
-    frame_store multi_return, word, 0, v78 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v77, 1, v33
-    v79 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v80 = memory_object_load_element memoryfixedarray<2, 1>, v79, 1
-    v81 = memory_object_load_field memorystruct<6>, v80, 0
-    v82 = memory_object_load_field memorystruct<6>, v80, 1
-    v83 = memory_object_load_field memorystruct<6>, v80, 2
-    v84 = memory_object_load_field memorystruct<6>, v80, 3
-    v85 = memory_object_load_field memorystruct<6>, v80, 4
+    v74 = make_memory_slice v66, v65
+    memory_object_copy_from_slice memorybytes, v71, v74
+    memory_object_store_field memorystruct<6>, v33, 5, v71
+    v75 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v76 = memory_object_data memoryfixedarray, v75
+    frame_store multi_return, word, 0, v76 !metadata(memory=scratch)
+    memory_object_store_element memoryfixedarray<2, 1>, v75, 1, v33
+    v77 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v78 = memory_object_load_element memoryfixedarray<2, 1>, v77, 1
+    v79 = memory_object_load_field memorystruct<6>, v78, 0
+    v80 = memory_object_load_field memorystruct<6>, v78, 1
+    v81 = memory_object_load_field memorystruct<6>, v78, 2
+    v82 = memory_object_load_field memorystruct<6>, v78, 3
+    v83 = memory_object_load_field memorystruct<6>, v78, 4
+    v84 = memory_object_len memorybytes, v83
+    v85 = memory_object_load_field memorystruct<6>, v78, 5
     v86 = memory_object_len memorybytes, v85
-    v87 = memory_object_load_field memorystruct<6>, v80, 5
-    v88 = memory_object_len memorybytes, v87
-    ret v24, v81, v82, v83, v84, v86, v88
+    ret v24, v79, v80, v81, v82, v84, v86
   bb24:
     revert 0, 0
-  bb22:
-    revert 0, 0
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb20:
     revert 0, 0
   bb18:
     revert 0, 0
-  bb16:
-    revert 0, 0
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb14:
     revert 0, 0
   bb12:

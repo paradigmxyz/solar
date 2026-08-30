@@ -40,15 +40,12 @@ production callers.
 
 `crates/codegen/src/lower/mod.rs` exposes only:
 
-* `lower_contract(Gcx, ContractId) -> Module`;
-* `lower_contract_with_bytecodes(Gcx, ContractId, &FxHashMap<ContractId, Bytes>) -> Module`;
-* `lower_contract_with_bytecodes_and_runtime` adds child runtime artifacts for
-  `type(...).runtimeCode`.
+* `lower_contract(Gcx, ContractId, child_bytecodes, child_runtime_bytecodes) -> Module`.
 
-The first is used by MIR tests. The second is used by contract compilation and
-the benchmark harness. A companion entry point also carries child runtime
-bytecodes for `type(...).runtimeCode`; deployment bytecodes remain part of the
-boundary for semantic contract creation.
+MIR tests pass empty maps, the benchmark harness supplies deployment bytecodes,
+and contract compilation supplies both maps. Runtime bytecodes support
+`type(...).runtimeCode`; deployment bytecodes remain part of the boundary for
+semantic contract creation.
 
 ## Replacement shape
 

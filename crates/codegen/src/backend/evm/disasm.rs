@@ -9,10 +9,10 @@ use std::{
 };
 
 /// Disassembles EVM bytecode into one opcode per line and labels reachable jump destinations.
-pub fn disassemble(bytecode: &[u8]) -> String {
+pub fn disassemble(bytecode: &[u8], evm_version: EvmVersion) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
-    let instructions = instructions(bytecode).collect::<Vec<_>>();
-    let labels = reachable_jumpdest_labels(&instructions);
+    let instructions = instructions(bytecode, evm_version).collect::<Vec<_>>();
+    let labels = reachable_jumpdest_labels(&instructions, evm_version);
 
     for (index, instruction) in instructions.iter().enumerate() {
         if instruction.opcode == op::JUMPDEST
@@ -27,10 +27,26 @@ pub fn disassemble(bytecode: &[u8]) -> String {
             for byte in instruction.data {
                 write!(output, "{byte:02x}").unwrap();
             }
-        } else if let Some(mnemonic) = op::mnemonic(instruction.opcode) {
-            output.extend(mnemonic.bytes().map(|byte| char::from(byte.to_ascii_uppercase())));
         } else {
-            write!(output, "UNKNOWN 0x{:02x}", instruction.opcode).unwrap();
+            match instruction.kind {
+                DecodedOpcode::StackImmediate(immediate) => {
+                    write_stack_immediate(&mut output, instruction.opcode, immediate)
+                }
+                DecodedOpcode::InvalidStackImmediate => {
+                    output.push_str("INVALID_");
+                    write_opcode_name(&mut output, instruction.opcode);
+                }
+                DecodedOpcode::Opcode => {
+                    if let Some(mnemonic) = versioned_mnemonic(instruction.opcode, evm_version) {
+                        write_mnemonic(&mut output, mnemonic);
+                    } else {
+                        write!(output, "UNKNOWN 0x{:02x}", instruction.opcode).unwrap();
+                    }
+                }
+                DecodedOpcode::Unavailable => {
+                    write!(output, "UNKNOWN 0x{:02x}", instruction.opcode).unwrap();
+                }
+            }
         }
         if is_push(instruction)
             && instructions
@@ -53,7 +69,10 @@ pub fn disassemble(bytecode: &[u8]) -> String {
     output
 }
 
-fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMap<usize, usize> {
+fn reachable_jumpdest_labels(
+    instructions: &[DecodedInstruction<'_>],
+    evm_version: EvmVersion,
+) -> BTreeMap<usize, usize> {
     let offsets = instructions
         .iter()
         .enumerate()
@@ -93,7 +112,10 @@ fn reachable_jumpdest_labels(instructions: &[DecodedInstruction<'_>]) -> BTreeMa
                 &mut pending,
                 &mut all_jumpdests_pending,
             );
-        } else if !op::is_terminal(instruction.opcode) {
+        } else if !op::is_terminal(instruction.opcode)
+            && op::is_available(instruction.opcode, evm_version)
+            && matches!(instruction.kind, DecodedOpcode::Opcode | DecodedOpcode::StackImmediate(_))
+        {
             pending.push_back(index + 1);
         }
     }
@@ -156,7 +178,7 @@ fn is_push(instruction: &DecodedInstruction<'_>) -> bool {
 pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> String {
     let mut output = String::with_capacity(bytecode.len().saturating_mul(8));
 
-    for instruction in instructions(bytecode) {
+    for instruction in instructions(bytecode, evm_version) {
         if instruction.push_width != 0 {
             let width = instruction.push_width;
             write!(output, "PUSH{width} 0x").unwrap();
@@ -171,10 +193,26 @@ pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> St
             } else {
                 output.push('0');
             }
-        } else if let Some(mnemonic) = standard_json_mnemonic(instruction.opcode, evm_version) {
-            output.extend(mnemonic.bytes().map(|byte| char::from(byte.to_ascii_uppercase())));
         } else {
-            write!(output, "0x{:X}", instruction.opcode).unwrap();
+            match instruction.kind {
+                DecodedOpcode::StackImmediate(immediate) => {
+                    write_stack_immediate(&mut output, instruction.opcode, immediate)
+                }
+                DecodedOpcode::InvalidStackImmediate => {
+                    output.push_str("INVALID_");
+                    write_opcode_name(&mut output, instruction.opcode);
+                }
+                DecodedOpcode::Opcode => {
+                    if let Some(mnemonic) = versioned_mnemonic(instruction.opcode, evm_version) {
+                        write_mnemonic(&mut output, mnemonic);
+                    } else {
+                        write!(output, "0x{:X}", instruction.opcode).unwrap();
+                    }
+                }
+                DecodedOpcode::Unavailable => {
+                    write!(output, "0x{:X}", instruction.opcode).unwrap();
+                }
+            }
         }
         output.push(' ');
     }
@@ -182,14 +220,49 @@ pub fn disassemble_standard_json(bytecode: &[u8], evm_version: EvmVersion) -> St
     output
 }
 
+fn write_stack_immediate(output: &mut String, opcode: u8, immediate: u8) {
+    match opcode {
+        op::DUPN | op::SWAPN => {
+            write_opcode_name(output, opcode);
+            write!(output, " {}", op::decode_stack_depth(immediate).unwrap()).unwrap();
+        }
+        op::EXCHANGE => {
+            let (n, m) = op::decode_exchange(immediate).unwrap();
+            write_opcode_name(output, opcode);
+            write!(output, " {n}, {m}").unwrap();
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn write_opcode_name(output: &mut String, opcode: u8) {
+    write_mnemonic(output, op::mnemonic(opcode).expect("known opcode"));
+}
+
+fn write_mnemonic(output: &mut String, mnemonic: &str) {
+    output.extend(mnemonic.bytes().map(|byte| char::from(byte.to_ascii_uppercase())));
+}
+
 struct DecodedInstruction<'a> {
     offset: usize,
     opcode: u8,
     push_width: u8,
     data: &'a [u8],
+    kind: DecodedOpcode,
 }
 
-fn instructions(bytecode: &[u8]) -> impl Iterator<Item = DecodedInstruction<'_>> {
+#[derive(Clone, Copy)]
+enum DecodedOpcode {
+    Opcode,
+    StackImmediate(u8),
+    InvalidStackImmediate,
+    Unavailable,
+}
+
+fn instructions(
+    bytecode: &[u8],
+    evm_version: EvmVersion,
+) -> impl Iterator<Item = DecodedInstruction<'_>> {
     let mut offset = 0;
     std::iter::from_fn(move || {
         let instruction_offset = offset;
@@ -198,14 +271,38 @@ fn instructions(bytecode: &[u8]) -> impl Iterator<Item = DecodedInstruction<'_>>
 
         let push_width =
             if (op::PUSH1..=op::PUSH32).contains(&opcode) { opcode - op::PUSH1 + 1 } else { 0 };
-        let end = offset.saturating_add(usize::from(push_width)).min(bytecode.len());
+        let kind = if (opcode == op::SLOTNUM && !evm_version.has_slot_num())
+            || (matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
+                && !evm_version.has_extended_stack_ops())
+        {
+            DecodedOpcode::Unavailable
+        } else if matches!(opcode, op::DUPN | op::SWAPN | op::EXCHANGE) {
+            let immediate = bytecode.get(offset).copied().unwrap_or(0);
+            let valid = match opcode {
+                op::DUPN | op::SWAPN => op::decode_stack_depth(immediate).is_some(),
+                op::EXCHANGE => op::decode_exchange(immediate).is_some(),
+                _ => unreachable!(),
+            };
+            if valid {
+                DecodedOpcode::StackImmediate(immediate)
+            } else {
+                DecodedOpcode::InvalidStackImmediate
+            }
+        } else {
+            DecodedOpcode::Opcode
+        };
+        let immediate_is_in_code =
+            matches!(kind, DecodedOpcode::StackImmediate(_)) && offset < bytecode.len();
+        let end = offset
+            .saturating_add(usize::from(push_width) + usize::from(immediate_is_in_code))
+            .min(bytecode.len());
         let data = &bytecode[offset..end];
         offset = end;
-        Some(DecodedInstruction { offset: instruction_offset, opcode, push_width, data })
+        Some(DecodedInstruction { offset: instruction_offset, opcode, push_width, data, kind })
     })
 }
 
-fn standard_json_mnemonic(opcode: u8, evm_version: EvmVersion) -> Option<&'static str> {
+fn versioned_mnemonic(opcode: u8, evm_version: EvmVersion) -> Option<&'static str> {
     if opcode == op::PREVRANDAO && evm_version < EvmVersion::Paris {
         Some("difficulty")
     } else {
@@ -234,6 +331,65 @@ pushes: "PUSH2 0x120 PUSH2 0x100 "
 mixed: "0xC DATALOAD "
 pre-paris: "DIFFICULTY "
 paris: "PREVRANDAO "
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn disassembles_eip_8024_immediates() {
+        assert_data_eq!(
+            disassemble(
+                &[op::DUP1, op::SWAP16, op::DUPN, 0x80, op::SWAPN, 0xdb, op::EXCHANGE, 0x9d,],
+                EvmVersion::Amsterdam,
+            ),
+            str![[r#"
+DUP1
+SWAP16
+DUPN 17
+SWAPN 108
+EXCHANGE 2, 3
+
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&[op::SWAPN, op::JUMPDEST, op::EXCHANGE], EvmVersion::Amsterdam,),
+            str![[r#"
+INVALID_SWAPN
+JUMPDEST
+EXCHANGE 9, 16
+
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&[op::DUPN, op::JUMPDEST, op::SLOTNUM, op::JUMPDEST], EvmVersion::Osaka),
+            str![[r#"
+UNKNOWN 0xe6
+JUMPDEST
+UNKNOWN 0x4b
+JUMPDEST
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn unavailable_opcodes_stop_cfg_reachability() {
+        let bytecode = [op::PUSH0, op::JUMPDEST];
+        assert_data_eq!(
+            disassemble(&bytecode, EvmVersion::Paris),
+            str![[r#"
+PUSH0
+JUMPDEST
+
+"#]]
+        );
+        assert_data_eq!(
+            disassemble(&bytecode, EvmVersion::Shanghai),
+            str![[r#"
+PUSH0
+; bb0
+JUMPDEST
 
 "#]]
         );

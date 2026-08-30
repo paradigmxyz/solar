@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_dynamic_array_from_fixed.sol:StorageDynamicArrayFromFixed ===
 @module StorageDynamicArrayFromFixed
-fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word, word, word], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
+fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[word, word<enum 6>, word<enum 6>], abi_return_params=[u256, enum<6, u8>, enum<6, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v1 = and 4, 7

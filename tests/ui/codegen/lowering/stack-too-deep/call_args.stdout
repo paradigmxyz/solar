@@ -5,7 +5,7 @@ bb0:
   callvalue
   push bb1
   jumpi
-  push 971
+  push 893
   dup 1
   push 18
   push 0
@@ -41,192 +41,160 @@ bb0:
   push 4
   calldataload
   add
-  dup 1
-  push 160
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 2
   push 4
   calldataload
   add
-  dup 1
-  push 192
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 3
   push 4
   calldataload
   add
-  dup 1
-  push 224
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 4
   dup 1
   calldataload
   add
-  dup 1
-  push 256
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 5
   push 4
   calldataload
   add
-  dup 1
-  push 288
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 6
   push 4
   calldataload
   add
-  dup 1
-  push 320
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 7
   push 4
   calldataload
   add
-  dup 1
-  push 352
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 8
   push 4
   calldataload
   add
-  dup 1
-  push 384
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 9
   push 4
   calldataload
   add
-  dup 1
-  push 416
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 10
   push 4
   calldataload
   add
-  dup 1
-  push 448
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 11
   push 4
   calldataload
   add
-  dup 1
-  push 480
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 12
   push 4
   calldataload
   add
-  dup 1
-  push 512
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 13
   push 4
   calldataload
   add
-  dup 1
-  push 544
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 14
   push 4
   calldataload
   add
-  dup 1
-  push 576
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 15
   push 4
   calldataload
   add
-  dup 1
-  push 608
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 16
   push 4
   calldataload
   add
-  dup 1
-  push 640
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 17
@@ -234,48 +202,128 @@ bb0:
   calldataload
   add
   dup 1
-  push 672
+  push 160
   mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
+  push 192
+  mstore
+  pop
+  dup 16
+  push 224
+  mstore
+  push 160
+  mload
+  push 192
+  mload
+  pop
+  dup 16
+  push 256
+  mstore
+  push 192
+  mload
+  dup 16
+  push 288
+  mstore
+  dup 15
+  push 320
+  mstore
+  dup 14
+  push 352
+  mstore
+  dup 13
+  push 384
+  mstore
+  dup 12
+  push 416
+  mstore
+  dup 11
+  push 448
+  mstore
+  dup 10
+  push 480
+  mstore
+  dup 9
+  push 512
+  mstore
+  dup 8
+  push 544
+  mstore
+  dup 7
+  push 576
+  mstore
+  dup 6
+  push 608
+  mstore
+  dup 5
+  push 640
+  mstore
+  dup 4
+  push 672
+  mstore
+  dup 3
+  push 704
+  mstore
+  swap 16
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  swap 1
+  pop
   push bb49
   jumpi
   push 18
   push 4
   calldataload
   add
-  dup 1
-  push 704
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
   push 19
   push 4
   calldataload
   add
-  dup 1
-  push 736
-  mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
   push bb49
   jumpi
-  push 384
-  dup 1
+  push 288
+  push 448
   push 0x420
   mcopy
+  push 160
+  mload
+  push 0x540
+  mstore
+  dup 2
+  push 0x560
+  mstore
+  push 0x580
+  mstore
+  pop
   push bb25
   push 4
   calldataload
-  push 160
-  mload
-  push 192
-  mload
   push 224
   mload
   push 256
@@ -285,6 +333,10 @@ bb0:
   push 320
   mload
   push 352
+  mload
+  push 384
+  mload
+  push 416
   mload
   swap 6
   dup 8
@@ -298,18 +350,10 @@ bb0:
   swap 7
   pop
   swap 6
-  swap 1
-  swap 5
-  swap 1
-  swap 2
-  swap 6
-  swap 2
-  swap 3
-  swap 5
-  swap 3
-  swap 4
-  swap 6
-  swap 4
+  exchange 1, 5
+  exchange 2, 6
+  exchange 3, 5
+  exchange 4, 6
   iszero
   push bb29
   jumpi
@@ -335,61 +379,52 @@ bb49 [cold]:
   push 0
   revert
 bb25:
-  dup 1
-  push 768
-  mstore
   push 128
   mstore
   push 32
   push 128
   return
 bb29:
-  swap 5
   push 0x5a0
   mload
+  swap 6
+  dup 7
   add
   dup 1
   push 0x5c0
   mstore
-  push 0x5a0
-  mload
-  gt
-  swap 1
-  swap 5
+  swap 6
+  dup 7
+  lt
+  swap 6
+  pop
   swap 1
   swap 2
-  swap 5
-  swap 2
-  swap 3
-  swap 5
   swap 3
   swap 4
   swap 5
-  swap 4
   iszero
   push bb30
   jumpi
   jump bb50
 bb30:
-  swap 4
   push 0x5c0
   mload
+  swap 5
+  dup 6
   add
   dup 1
   push 0x5a0
   mstore
-  push 0x5c0
-  mload
-  gt
+  swap 5
+  dup 6
+  lt
+  swap 5
+  pop
   swap 1
-  swap 4
-  swap 1
-  swap 2
-  swap 4
   swap 2
   swap 3
   swap 4
-  swap 3
   iszero
   push bb31
   jumpi
@@ -399,20 +434,22 @@ bb30:
   pop
   jump bb49
 bb31:
-  swap 3
   push 0x5a0
   mload
+  swap 4
+  dup 5
   add
   dup 1
   push 0x5c0
   mstore
-  push 0x5a0
-  mload
-  gt
+  swap 4
+  dup 5
+  lt
+  swap 4
+  pop
   swap 1
   swap 2
   swap 3
-  swap 1
   iszero
   push bb32
   jumpi
@@ -421,19 +458,21 @@ bb31:
   pop
   jump bb49
 bb32:
-  swap 2
   push 0x5c0
   mload
+  swap 3
+  dup 4
   add
   dup 1
   push 0x5a0
   mstore
-  push 0x5c0
-  mload
-  gt
+  swap 3
+  dup 4
+  lt
+  swap 3
+  pop
   swap 1
   swap 2
-  swap 1
   iszero
   push bb33
   jumpi
@@ -441,16 +480,20 @@ bb32:
   pop
   jump bb49
 bb33:
-  swap 1
   push 0x5a0
   mload
+  swap 2
+  dup 3
   add
   dup 1
   push 0x5c0
   mstore
-  push 0x5a0
-  mload
-  gt
+  swap 2
+  dup 3
+  lt
+  swap 2
+  pop
+  swap 1
   iszero
   push bb34
   jumpi
@@ -459,173 +502,122 @@ bb33:
 bb34:
   push 0x5c0
   mload
+  swap 1
+  dup 2
   add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x420
   mload
-  push 0x5a0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5c0
-  mstore
-  push 0x5a0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x440
   mload
-  push 0x5c0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x460
   mload
-  push 0x5a0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5c0
-  mstore
-  push 0x5a0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x480
   mload
-  push 0x5c0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x4a0
   mload
-  push 0x5a0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5c0
-  mstore
-  push 0x5a0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x4c0
   mload
-  push 0x5c0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x4e0
   mload
-  push 0x5a0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5c0
-  mstore
-  push 0x5a0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x500
   mload
-  push 0x5c0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x520
   mload
-  push 0x5a0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5c0
-  mstore
-  push 0x5a0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x540
   mload
-  push 0x5c0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x560
   mload
-  push 0x5a0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5c0
-  mstore
-  push 0x5a0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
   push 0x580
   mload
-  push 0x5c0
-  mload
+  dup 2
   add
-  dup 1
-  push 0x5a0
-  mstore
-  push 0x5c0
-  mload
-  gt
+  swap 1
+  dup 2
+  lt
   push bb49
   jumpi
-  push 0x5a0
-  mload
   swap 1
   jump
 bb3 [cold]:

@@ -103,7 +103,7 @@ fn @nestedWordsRoundtrip(arg0: memoryarray) -> u256 [selector=0xd8828f2f, pure, 
     revert 0, 36
 }
 
-fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word]] {
+fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=[], abi_returns=[word, word, word<u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
@@ -121,7 +121,7 @@ fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=
     set_memory_object_len memorybytes, v5, 3
     memory_object_store_word memorybytes, v5, 0, 0x102030000000000000000000000000000000000000000000000000000000000
     v6 = and 3, 255
-    v7 = abi_encode [array<2, word>, memory_bytes, word], object, args v0, v5, v6
+    v7 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v5, v6
     v8 = abi_decode [array<2, u256>, bytes, u8], v7
     v9 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v10 = memory_object_load_element memoryfixedarray<3, 1>, v9, 1

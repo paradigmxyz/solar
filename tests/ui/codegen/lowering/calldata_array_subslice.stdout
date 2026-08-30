@@ -22,9 +22,9 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
     v15 = iszero v14
     jumpi v15, bb3, bb4
   bb4:
-    v16 = add v9, v10
-    v17 = calldatasize
-    v18 = gt v16, v17
+    v16 = calldatasize
+    v17 = sub v16, v9
+    v18 = slt v17, v10
     jumpi v18, bb5, bb6
   bb6:
     v19 = mul v8, 32
