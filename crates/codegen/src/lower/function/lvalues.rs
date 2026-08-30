@@ -102,7 +102,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(ty, value))
             }
             LValuePlace::MemoryByte { object, index, ty }
-            | LValuePlace::StorageByte { object, index, ty, .. } => {
+            | LValuePlace::StorageByte { object, index, ty, .. }
+            | LValuePlace::StorageBytePush { object, index, ty, .. } => {
                 let value = self.builder.memory_object_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
@@ -145,7 +146,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.store_byte(object, index, value);
                 Some(())
             }
-            LValuePlace::StorageByte { slot, object, index, .. } => {
+            LValuePlace::StorageByte { slot, object, index, .. }
+            | LValuePlace::StorageBytePush { slot, object, index, .. } => {
                 self.store_byte(object, index, value);
                 self.store_storage_bytes(slot, object)
             }
@@ -162,7 +164,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
     ) -> Option<LValuePlace<'gcx>> {
-        let ExprKind::Index(receiver, Some(index)) = &expr.peel_parens().kind else { return None };
+        let expr = expr.peel_parens();
+        if let ExprKind::Call(callee, arguments, _) = &expr.kind
+            && arguments.is_empty()
+            && self.context.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0)
+            && let ExprKind::Member(receiver, _) = &callee.kind
+            && self.context.gcx.type_of_expr(receiver.id).is_some_and(|ty| {
+                ty.is_ref_at(DataLocation::Storage)
+                    && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
+            })
+        {
+            let Some(access) = self.storage_access(receiver) else {
+                return report_unsupported(self.context.gcx, receiver.span, "storage access");
+            };
+            let (object, index) = self.grow_storage_bytes(access.slot);
+            let ty = self.type_of_expr_or_variable(expr)?;
+            return Some(LValuePlace::StorageBytePush { slot: access.slot, object, index, ty });
+        }
+
+        let ExprKind::Index(receiver, Some(index)) = &expr.kind else { return None };
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         if !receiver_ty.is_ref_at(DataLocation::Storage)
             || !matches!(
