@@ -4726,10 +4726,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 removals.push(store);
             }
         }
-        // Later ranges first, so the earlier ones keep their indices.
-        removals.sort_by_key(|store| std::cmp::Reverse((store.block, store.range.start)));
-        for store in removals {
-            self.asm.remove_instructions(store.block, store.range.clone());
+        for store in &removals {
             if let Some(entry) = self.spill_addr_consts.get_mut(&u64::from(store.slot.offset)) {
                 entry.1 = entry.1.saturating_sub(1);
             }
@@ -4867,6 +4864,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// reachable exits all abort.
     fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
         let block = &func.blocks[block_id];
+        let mut ranges =
+            removals.into_iter().map(|store| (store.block, store.range)).collect::<Vec<_>>();
+        self.asm.remove_instructions(&mut ranges);
         matches!(
             block.terminator,
             Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)

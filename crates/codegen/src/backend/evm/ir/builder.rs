@@ -11,7 +11,7 @@ use crate::{
     mir::{ImmutableId, TypeSize},
 };
 use alloy_primitives::U256;
-use solar_data_structures::index::index_vec;
+use solar_data_structures::{index::index_vec, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
 use std::ops::Range;
@@ -421,24 +421,47 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Removes the instructions in `range` from `block` again. Relocations inside the range are
     /// dropped and later ones in the block shift down; the range must lie within the block.
-    pub(crate) fn remove_instructions(&mut self, block: ir::BlockId, range: Range<usize>) {
+    /// Removes instruction ranges, which must not overlap within a block, dropping the
+    /// relocations inside them and shifting the ones after them in one pass over each
+    /// relocation list; the result is that of removing the ranges one at a time, later
+    /// ranges first.
+    pub(crate) fn remove_instructions(&mut self, removals: &mut [(ir::BlockId, Range<usize>)]) {
+        removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
+        // Each block's ranges in order, with the number of instructions removed before each.
+        let mut per_block: FxHashMap<ir::BlockId, Vec<(Range<usize>, usize)>> =
+            FxHashMap::default();
+        for (block, range) in removals.iter() {
+            let ranges = per_block.entry(*block).or_default();
+            let before = ranges.last().map_or(0, |(range, before)| before + range.len());
+            ranges.push((range.clone(), before));
+        }
         fn shift<T>(
             relocations: &mut Vec<(ir::BlockId, usize, T)>,
-            block: ir::BlockId,
-            range: &Range<usize>,
+            per_block: &FxHashMap<ir::BlockId, Vec<(Range<usize>, usize)>>,
         ) {
-            relocations
-                .retain(|(reloc_block, index, _)| *reloc_block != block || !range.contains(index));
-            for (reloc_block, index, _) in relocations.iter_mut() {
-                if *reloc_block == block && *index >= range.end {
-                    *index -= range.len();
+            relocations.retain_mut(|(block, index, _)| {
+                let Some(ranges) = per_block.get(block) else { return true };
+                // The last range starting at or before the instruction.
+                let position = ranges.partition_point(|(range, _)| range.start <= *index);
+                let Some((range, before)) = position.checked_sub(1).map(|i| &ranges[i]) else {
+                    return true;
+                };
+                if range.contains(index) {
+                    return false;
                 }
+                *index -= before + range.len();
+                true
+            });
+        }
+        shift(&mut self.label_relocations, &per_block);
+        shift(&mut self.deferred_relocations, &per_block);
+        shift(&mut self.alloc_relocations, &per_block);
+        for (block, ranges) in per_block {
+            let instructions = &mut self.program.blocks[block].instructions;
+            for (range, _) in ranges.into_iter().rev() {
+                instructions.drain(range);
             }
         }
-        shift(&mut self.label_relocations, block, &range);
-        shift(&mut self.deferred_relocations, block, &range);
-        shift(&mut self.alloc_relocations, block, &range);
-        self.program.blocks[block].instructions.drain(range);
     }
 
     pub(in crate::backend::evm) fn finish_evm_ir(
@@ -553,7 +576,7 @@ impl<'gcx> Assembler<'gcx> {
 
 pub(in crate::backend::evm) fn resolve_known_deferred_constants(
     module: &mut ir::Module,
-    values: &solar_data_structures::map::FxHashMap<DeferredConst, U256>,
+    values: &FxHashMap<DeferredConst, U256>,
 ) {
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
