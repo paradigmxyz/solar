@@ -17,7 +17,7 @@ use crate::backend::evm::{
         Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
         assembly::{estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound},
     },
-    op, push_len,
+    op::{self, push_len},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;

@@ -1,5 +1,7 @@
 //! EVM opcode definitions and metadata.
 
+use crate::mir::InstKind;
+use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
 
@@ -266,6 +268,80 @@ opcodes! {
     0xfd => REVERT => revert => stack_io(2, 0);
     0xfe => INVALID => invalid => stack_io(0, 0);
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0);
+}
+
+/// Returns the encoded length of a minimally sized PUSH for an EVM version.
+pub(crate) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
+    if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
+}
+
+/// Returns the EVM opcode that directly implements a MIR instruction.
+pub(crate) const fn mir_opcode(kind: &InstKind) -> Option<u8> {
+    Some(match kind {
+        InstKind::Add(..) => ADD,
+        InstKind::Sub(..) => SUB,
+        InstKind::Mul(..) => MUL,
+        InstKind::Div(..) => DIV,
+        InstKind::SDiv(..) => SDIV,
+        InstKind::Mod(..) => MOD,
+        InstKind::SMod(..) => SMOD,
+        InstKind::Exp(..) => EXP,
+        InstKind::AddMod(..) => ADDMOD,
+        InstKind::MulMod(..) => MULMOD,
+        InstKind::And(..) => AND,
+        InstKind::Or(..) => OR,
+        InstKind::Xor(..) => XOR,
+        InstKind::Not(..) => NOT,
+        InstKind::Clz(..) => CLZ,
+        InstKind::Shl(..) => SHL,
+        InstKind::Shr(..) => SHR,
+        InstKind::Sar(..) => SAR,
+        InstKind::Byte(..) => BYTE,
+        InstKind::Lt(..) => LT,
+        InstKind::Gt(..) => GT,
+        InstKind::SLt(..) => SLT,
+        InstKind::SGt(..) => SGT,
+        InstKind::Eq(..) => EQ,
+        InstKind::IsZero(..) => ISZERO,
+        InstKind::MLoad(..) => MLOAD,
+        InstKind::MStore(..) => MSTORE,
+        InstKind::MStore8(..) => MSTORE8,
+        InstKind::MSize => MSIZE,
+        InstKind::SLoad(..) => SLOAD,
+        InstKind::SStore(..) => SSTORE,
+        InstKind::TLoad(..) => TLOAD,
+        InstKind::TStore(..) => TSTORE,
+        InstKind::CalldataLoad(..) => CALLDATALOAD,
+        InstKind::CalldataSize => CALLDATASIZE,
+        InstKind::Keccak256(..) => KECCAK256,
+        InstKind::Caller => CALLER,
+        InstKind::CallValue => CALLVALUE,
+        InstKind::Address => ADDRESS,
+        InstKind::Origin => ORIGIN,
+        InstKind::GasPrice => GASPRICE,
+        InstKind::Gas => GAS,
+        InstKind::Timestamp => TIMESTAMP,
+        InstKind::BlockNumber => NUMBER,
+        InstKind::Coinbase => COINBASE,
+        InstKind::ChainId => CHAINID,
+        InstKind::SelfBalance => SELFBALANCE,
+        InstKind::BaseFee => BASEFEE,
+        InstKind::BlobBaseFee => BLOBBASEFEE,
+        InstKind::GasLimit => GASLIMIT,
+        InstKind::SlotNum => SLOTNUM,
+        InstKind::PrevRandao => PREVRANDAO,
+        InstKind::Balance(..) => BALANCE,
+        InstKind::BlockHash(..) => BLOCKHASH,
+        InstKind::BlobHash(..) => BLOBHASH,
+        InstKind::ExtCodeSize(..) => EXTCODESIZE,
+        InstKind::ExtCodeHash(..) => EXTCODEHASH,
+        InstKind::CodeSize => CODESIZE,
+        InstKind::ReturnDataSize => RETURNDATASIZE,
+        InstKind::SignExtend(..) => SIGNEXTEND,
+        InstKind::Create(..) => CREATE,
+        InstKind::Create2(..) => CREATE2,
+        _ => return None,
+    })
 }
 
 /// Returns the PUSH opcode for the given width (1-32).

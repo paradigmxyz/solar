@@ -20,7 +20,7 @@ use super::{
             assembly::{estimated_indexed_jump_code_size, packs_indexed_jump},
             immediate_materialization_cost,
         },
-        op, push_len,
+        op::{self, push_len},
         stack::StackOp,
     },
     EvmCodegen,

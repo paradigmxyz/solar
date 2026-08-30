@@ -7,16 +7,8 @@
 //! - `Assembler`: Final relocation and byte encoding
 //! - `stack`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
-use alloy_primitives::U256;
-use solar_config::EvmVersion;
-
 /// Number of bytes in an EVM word.
 pub(super) const EVM_WORD_BYTES: usize = 32;
-
-/// Returns the encoded length of a minimally sized PUSH for an EVM version.
-pub(super) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
-    if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
-}
 
 mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
@@ -25,10 +17,6 @@ mod disasm;
 pub use disasm::{disassemble, disassemble_standard_json};
 
 mod layout;
-
-mod materialize;
-
-mod mir_opcode;
 
 pub mod ir;
 

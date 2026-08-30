@@ -24,7 +24,7 @@ use super::{
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op, push_len,
+    op::{self, push_len},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;

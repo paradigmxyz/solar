@@ -14,15 +14,12 @@ use super::{
     },
     ir,
     layout::{RelayoutAddress, preserves_push_width},
-    materialize::{
-        cross_block_values, is_cheap_recomputable_value, is_cross_block_recomputable_kind,
-        is_rematerializable_leaf, rematerializable_nullary_opcode, rematerializable_nullary_value,
-    },
-    mir_opcode::mir_opcode,
-    op,
+    op::{self, mir_opcode},
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,
         ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
+        cross_block_values, is_cheap_recomputable_value, is_cross_block_recomputable_kind,
+        is_rematerializable_leaf, rematerializable_nullary_opcode, rematerializable_nullary_value,
     },
 };
 use crate::{

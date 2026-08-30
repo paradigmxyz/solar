@@ -102,17 +102,13 @@ fn find_run(
         instructions[start..end].iter().map(|inst| encoded_len(gcx, inst)).sum::<usize>();
     // Account for PUSH3 conservatively so a selected rewrite cannot grow an
     // EIP-170-sized program when the data lands above the PUSH2 boundary.
-    let new_size = data.len() + push_len(gcx, U256::from(data.len())) + 4 + 2;
+    let new_size =
+        data.len() + op::push_len(gcx.sess.opts.evm_version, U256::from(data.len())) + 4 + 2;
     (new_size < old_size).then(|| Rewrite { block, start, end, data: data.into() })
 }
 
 fn encoded_len(gcx: Gcx<'_>, inst: &Instruction) -> usize {
     immediate(inst).map_or(1, |value| super::compact_pushes::selected_len(gcx, value))
-}
-
-fn push_len(gcx: Gcx<'_>, value: U256) -> usize {
-    let width = value.byte_len();
-    if width == 0 && !gcx.sess.opts.evm_version.has_push0() { 2 } else { width + 1 }
 }
 
 fn immediate(inst: &Instruction) -> Option<U256> {

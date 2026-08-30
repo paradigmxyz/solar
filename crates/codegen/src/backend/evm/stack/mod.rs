@@ -222,7 +222,9 @@ mod spill;
 pub(crate) use super::op::StackOp;
 pub(crate) use model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel};
 pub(crate) use scheduler::{
-    OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler,
+    OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler, cross_block_values,
+    is_cheap_recomputable_value, is_cross_block_recomputable_kind, is_rematerializable_leaf,
+    rematerializable_nullary_opcode, rematerializable_nullary_value,
 };
 pub(crate) use shuffler::{TargetSlot, lowered_stack_cost, resynthesize_physical_ops};
 pub(crate) use spill::SpillSlot;

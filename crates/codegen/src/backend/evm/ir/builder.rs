@@ -5,7 +5,7 @@ use crate::{
     backend::evm::{
         assembler::{Assembler, DeferredAllocResolution, DeferredConst, Label},
         ir::assembly::DeferredAlloc,
-        op, push_len,
+        op::{self, push_len},
     },
     memory::EvmMemoryLayout,
     mir::{ImmutableId, TypeSize},

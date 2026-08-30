@@ -6,7 +6,7 @@ use super::{
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
-    op::StackOp,
+    op::{StackOp, push_len},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
@@ -226,7 +226,7 @@ fn terminator_lower_bound(
     if Some(*target) == next {
         0
     } else {
-        crate::backend::evm::push_len(gcx.sess.opts.evm_version, alloy_primitives::U256::ZERO) + 1
+        push_len(gcx.sess.opts.evm_version, alloy_primitives::U256::ZERO) + 1
     }
 }
 

@@ -9,7 +9,7 @@ use crate::backend::evm::{
         BlockId, Instruction, Module, PushValue, StackEffect, TerminatorKind,
         default_terminator_stack_effect,
     },
-    op, push_len,
+    op::{self, push_len},
     stack::MAX_STACK_DEPTH,
 };
 use smallvec::SmallVec;

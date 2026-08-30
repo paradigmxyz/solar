@@ -4,7 +4,7 @@ use super::{AsmInst, Program, lower};
 use crate::backend::evm::{
     assembler::{Assembler, Label},
     ir::{self, BlockId},
-    op, push_len,
+    op::{self, push_len},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
