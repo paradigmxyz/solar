@@ -10687,6 +10687,29 @@ impl<'gcx> EvmCodegen<'gcx> {
                 retained.push(value);
             }
         }
+        // A resident stack-passed argument stays as well: the argument push duplicates it
+        // from the preserved prefix, whereas dropping it with the prepare would leave nothing
+        // to materialize it from and forfeit the whole plan. Only worth it when a live word
+        // rides along; alone, a dead argument would cost its duplicate and the pop of the
+        // original for nothing.
+        if !retained.is_empty() {
+            let is_stack_arg = |value: ValueId| {
+                stack_mask.is_some_and(|mask| {
+                    args.iter()
+                        .enumerate()
+                        .any(|(index, &arg)| mask.contains(index) && arg == value)
+                })
+            };
+            for value in self.scheduler.stack.iter().flatten() {
+                if !retained.contains(&value)
+                    && is_stack_arg(value)
+                    && matches!(func.value(value), crate::mir::Value::Inst(_))
+                    && Self::can_own_spill_slot(func, value)
+                {
+                    retained.push(value);
+                }
+            }
+        }
         if !retained.is_empty() {
             let mut caller_stack = self.scheduler.stack.clone();
             let mut prepare_ops = Vec::new();
