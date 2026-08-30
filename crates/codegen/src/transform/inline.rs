@@ -736,7 +736,7 @@ fn is_transparent_function_pointer_cast(func: &Function) -> bool {
         && is_identity_function(func)
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 struct MirCost {
     runtime_gas: u64,
     code_size: usize,
