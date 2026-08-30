@@ -1,13 +1,10 @@
-//@ revisions: mir optimized runtime
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard optimized
 //@[mir] filecheck: --check-prefix=MIR
 //@[optimized] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[optimized] filecheck: --check-prefix=OPT
-//@[runtime] compile-flags: -Ogas
-//@[runtime] normalize-stdout-test: "(?s).+" -> ""
-//@[runtime] run-call: FactoryWithArgs::plain() => 11
-//@[runtime] run-call: FactoryWithArgs::salted() => 22
-//@[runtime] run-call: FactoryWithArgs::pair() => 7
+//@ run-call: FactoryWithArgs::plain() => 11
+//@ run-call: FactoryWithArgs::salted() => 22
+//@ run-call: FactoryWithArgs::pair() => 7
 
 contract ChildWithArg {
     uint256 public immutable value;

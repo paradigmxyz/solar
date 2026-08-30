@@ -1,13 +1,10 @@
-//@ revisions: mir optimized runtime
-//@[mir] compile-flags: -O none -Zdump=mir
+//@ codegen-matrix: standard optimized
 //@[mir] filecheck: --check-prefix=MIR
 //@[optimized] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[optimized] filecheck: --check-prefix=OPT
-//@[runtime] compile-flags: -Ogas
-//@[runtime] normalize-stdout-test: "(?s).+" -> ""
-//@[runtime] run-call: Factory::first() => 7
-//@[runtime] run-call: Factory::second() => 7
-//@[runtime] run-call: Factory::pair() => 14
+//@ run-call: Factory::first() => 7
+//@ run-call: Factory::second() => 7
+//@ run-call: Factory::pair() => 14
 
 contract Child {
     function value() external pure returns (uint256) {

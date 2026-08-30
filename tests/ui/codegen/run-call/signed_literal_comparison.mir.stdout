@@ -12,4 +12,3 @@ fn @literalLeft(arg0: i256) -> bool [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

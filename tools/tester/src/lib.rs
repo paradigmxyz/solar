@@ -26,7 +26,7 @@ use ui_test::{
 };
 
 const RUN_CALL_STDOUT_FILTER_PATTERN: &str = r"(?s).+";
-const RUN_CALL_MIR_STDOUT_FILTER_PATTERN: &str = r#"(?s)\{"contracts".*\}\n?$"#;
+const RUN_CALL_DUMP_STDOUT_FILTER_PATTERN: &str = r#"(?m)(?:^\n)?^\{"contracts".*\}\n{0,2}"#;
 
 mod codegen_matrix;
 mod errors;
@@ -353,10 +353,7 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
             configure_run_call_stdout(config, src);
         } else {
             config.program.args.push("--emit=abi,bin".into());
-            let manages_stdout = src.lines().any(|line| line.contains("normalize-stdout-test:"));
-            if !manages_stdout {
-                config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
-            }
+            config.stdout_filter(RUN_CALL_STDOUT_FILTER_PATTERN, "");
         }
     }
     if src.lines().any(|line| {
@@ -513,14 +510,14 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
             .entry(run_call_dump_revisions)
             .or_default()
             .normalize_stdout
-            .push((run_call_mir_stdout_regex().clone().into(), vec![]));
+            .push((run_call_dump_stdout_regex().clone().into(), vec![]));
     }
     if unscoped_run_call && base_mir_dump {
         config
             .comment_defaults
             .base()
             .normalize_stdout
-            .push((run_call_mir_stdout_regex().clone().into(), vec![]));
+            .push((run_call_dump_stdout_regex().clone().into(), vec![]));
     }
 }
 
@@ -529,9 +526,9 @@ fn run_call_stdout_regex() -> &'static Regex {
     FILTER.get_or_init(|| Regex::new(RUN_CALL_STDOUT_FILTER_PATTERN).unwrap())
 }
 
-fn run_call_mir_stdout_regex() -> &'static Regex {
+fn run_call_dump_stdout_regex() -> &'static Regex {
     static FILTER: OnceLock<Regex> = OnceLock::new();
-    FILTER.get_or_init(|| Regex::new(RUN_CALL_MIR_STDOUT_FILTER_PATTERN).unwrap())
+    FILTER.get_or_init(|| Regex::new(RUN_CALL_DUMP_STDOUT_FILTER_PATTERN).unwrap())
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.
