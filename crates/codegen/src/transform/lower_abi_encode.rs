@@ -171,6 +171,24 @@ struct AbiValueDest {
 enum AbiValueSource {
     Scalar,
     Memory,
+    // A zeroed composite array slot uses null to represent a default object;
+    // following it as memory address zero would read unrelated scratch memory.
+    NullableMemory,
+}
+
+impl AbiValueSource {
+    fn descend_memory(
+        self,
+        builder: &mut FunctionBuilder<'_>,
+        object: ValueId,
+    ) -> (Self, Option<ValueId>) {
+        match self {
+            Self::NullableMemory => {
+                (Self::NullableMemory, Some(memory_object_non_null(builder, object)))
+            }
+            Self::Scalar | Self::Memory => (Self::Memory, None),
+        }
+    }
 }
 
 fn lower_function(func: &mut Function, helpers: &EncodeHelpers) -> bool {
@@ -369,7 +387,8 @@ fn encode_static_impl(
     allow_slice_fast_path: bool,
     source: AbiValueSource,
 ) {
-    if allow_slice_fast_path
+    if source != AbiValueSource::NullableMemory
+        && allow_slice_fast_path
         && let Some(location @ (SliceLocation::Calldata | SliceLocation::Memory)) =
             builder.func().value_slice_location(value)
     {
@@ -379,40 +398,48 @@ fn encode_static_impl(
     }
     match ty {
         AbiType::Tuple(fields) => {
+            let (child_source, non_null) = source.descend_memory(builder, value);
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
-                let field_value = builder.memory_object_load_field(
+                let mut field_value = builder.memory_object_load_field(
                     value,
                     MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
+                if let Some(non_null) = non_null {
+                    field_value = builder.mul(field_value, non_null);
+                }
                 encode_static_impl(
                     builder,
                     field,
                     field_value,
                     field_head,
                     allow_slice_fast_path,
-                    AbiValueSource::Memory,
+                    child_source,
                 );
                 field_head = offset_ptr(builder, field_head, field.head_size());
             }
         }
         AbiType::FixedArray { element, len } => {
+            let (child_source, non_null) = source.descend_memory(builder, value);
             let mut element_head = head_addr;
             for index in 0..*len {
                 let index = builder.imm_u64(index);
-                let element_value = builder.memory_object_load_element(
+                let mut element_value = builder.memory_object_load_element(
                     value,
                     MemoryObjectLayout::word_fixed_array(*len),
                     index,
                 );
+                if let Some(non_null) = non_null {
+                    element_value = builder.mul(element_value, non_null);
+                }
                 encode_static_impl(
                     builder,
                     element,
                     element_value,
                     element_head,
                     allow_slice_fast_path,
-                    AbiValueSource::Memory,
+                    child_source,
                 );
                 element_head = offset_ptr(builder, element_head, element.head_size());
             }
@@ -430,7 +457,9 @@ fn encode_static_impl(
         }
         AbiType::Word(cleanup) => {
             let value = match (source, cleanup) {
-                (AbiValueSource::Memory, Some(cleanup)) => clean_word(builder, *cleanup, value),
+                (AbiValueSource::Memory | AbiValueSource::NullableMemory, Some(cleanup)) => {
+                    clean_word(builder, *cleanup, value)
+                }
                 _ => value,
             };
             builder.mstore(head_addr, value);
@@ -499,7 +528,7 @@ fn encode_value(
     if ty.is_dynamic() {
         let relative = builder.sub(dest.tail, dest.tuple_base);
         builder.mstore(dest.head_addr, relative);
-        encode_dynamic_body(builder, ty, value, dest.tail, helpers)
+        encode_dynamic_body(builder, ty, value, dest.tail, source, helpers)
     } else {
         encode_static_impl(builder, ty, value, dest.head_addr, true, source);
         dest.tail
@@ -596,6 +625,7 @@ fn encode_dynamic_body(
     ty: &AbiType,
     value: ValueId,
     dest: ValueId,
+    source: AbiValueSource,
     helpers: &EncodeHelpers,
 ) -> ValueId {
     match ty {
@@ -635,33 +665,39 @@ fn encode_dynamic_body(
             }
         }
         AbiType::FixedArray { element, len } => {
+            let (child_source, non_null) = source.descend_memory(builder, value);
             let mut values = Vec::with_capacity(*len as usize);
             for index in 0..*len {
                 let index_value = builder.imm_u64(index);
-                let element_value = builder.memory_object_load_element(
+                let mut element_value = builder.memory_object_load_element(
                     value,
                     crate::mir::MemoryObjectLayout::word_fixed_array(*len),
                     index_value,
                 );
+                if let Some(non_null) = non_null {
+                    element_value = builder.mul(element_value, non_null);
+                }
                 values.push(element_value);
             }
             let types = vec![element.as_ref().clone(); *len as usize];
-            let size =
-                encode_tuple_impl(builder, &values, &types, dest, AbiValueSource::Memory, helpers);
+            let size = encode_tuple_impl(builder, &values, &types, dest, child_source, helpers);
             builder.add(dest, size)
         }
         AbiType::Tuple(fields) => {
+            let (child_source, non_null) = source.descend_memory(builder, value);
             let mut values = Vec::with_capacity(fields.len());
             for index in 0..fields.len() {
-                let field_value = builder.memory_object_load_field(
+                let mut field_value = builder.memory_object_load_field(
                     value,
                     crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
                     index as u64,
                 );
+                if let Some(non_null) = non_null {
+                    field_value = builder.mul(field_value, non_null);
+                }
                 values.push(field_value);
             }
-            let size =
-                encode_tuple_impl(builder, &values, fields, dest, AbiValueSource::Memory, helpers);
+            let size = encode_tuple_impl(builder, &values, fields, dest, child_source, helpers);
             builder.add(dest, size)
         }
         AbiType::Word(_) | AbiType::Function => unreachable!("word ABI values are static"),
@@ -758,7 +794,7 @@ fn encode_dynamic_array(
         element,
         element_value,
         AbiValueDest { head_addr: element_head, tuple_base: element_area, tail: current_tail },
-        AbiValueSource::Memory,
+        AbiValueSource::NullableMemory,
         helpers,
     );
 
@@ -973,9 +1009,13 @@ fn memory_object_len(
     kind: MemoryObjectKind,
 ) -> ValueId {
     let len = builder.memory_object_len(value, kind);
-    let non_null = builder.iszero(value);
-    let non_null = builder.iszero(non_null);
+    let non_null = memory_object_non_null(builder, value);
     builder.mul(len, non_null)
+}
+
+fn memory_object_non_null(builder: &mut FunctionBuilder<'_>, object: ValueId) -> ValueId {
+    let non_null = builder.iszero(object);
+    builder.iszero(non_null)
 }
 
 /// Returns the bytes represented by an immutable literal object when all active
