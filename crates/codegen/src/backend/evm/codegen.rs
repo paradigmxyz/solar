@@ -274,6 +274,10 @@ struct SpillColor {
 
 type SpillInterferences = FxHashMap<ValueId, SmallVec<[ValueId; 4]>>;
 
+/// The spill-slot events of one EVM IR block, ordered by instruction index: `Ok(offset)` reloads
+/// the slot at `offset`, `Err(index)` is the store recorded at `function_spill_stores[index]`.
+type SpillSlotEvents = Vec<(usize, Result<u32, usize>)>;
+
 impl SpillColor {
     fn new(value_count: usize) -> Self {
         Self { values: DenseBitSet::new_empty(value_count), ranges: FxHashMap::default() }
@@ -4627,10 +4631,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .map(|store| (store.block, store.range.start))
             .collect::<FxHashSet<_>>();
-        // Events per block, ordered by instruction index: `Ok(offset)` is a load, `Err(index)`
-        // a store recorded at `function_spill_stores[index]`.
-        let mut events: FxHashMap<ir::BlockId, Vec<(usize, Result<u32, usize>)>> =
-            FxHashMap::default();
+        let mut events: FxHashMap<ir::BlockId, SpillSlotEvents> = FxHashMap::default();
         for (index, store) in self.function_spill_stores.iter().enumerate() {
             if !removed.contains(&(store.block, store.range.start)) {
                 events.entry(store.block).or_default().push((store.range.start, Err(index)));
