@@ -2335,86 +2335,124 @@ fn @nestedSum() -> u256 [selector=0x002c8096, abi_params=[], abi_returns=[word]]
   bb9:
     v158 = mload v153
     v159 = add v153, 32
-    v160 = sub v148, v159
-    v161 = shr 5, v160
-    v162 = gt v158, v161
-    jumpi v162, bb12, bb11
-  bb11:
-    v163 = mul v158, 32
-    v164 = add v163, 32
-    v165 = alloc memoryarray<1>, exact, uninitialized, infallible, v164
-    set_memory_object_len memoryarray, v165, v158
-    jump bb13
-  bb13:
-    v166 = phi [bb11: v158], [bb18: v185]
-    v167 = phi [bb11: v159], [bb18: v186]
-    v168 = phi [bb11: 0], [bb18: v187]
-    v169 = gt v166, 0
-    jumpi v169, bb14, bb15
+    v160 = add v158, 1
+    v161 = lt v160, v158
+    jumpi v161, bb11, bb12
+  bb12:
+    v162 = mul v160, 32
+    v163 = iszero 32
+    v164 = div v162, 32
+    v165 = eq v164, v160
+    v166 = or v163, v165
+    v167 = iszero v166
+    jumpi v167, bb13, bb14
+  bb14:
+    v168 = alloc memoryarray<1>, exact, uninitialized, panic, v162
+    set_memory_object_len memoryarray, v168, v158
+    v169 = sub v148, v159
+    v170 = shr 5, v169
+    v171 = gt v158, v170
+    jumpi v171, bb16, bb15
   bb15:
-    v188 = memory_object_len memoryarray, v165
-    v189 = lt 0, v188
-    v190 = iszero v189
-    jumpi v190, bb20, bb21
-  bb21:
-    v191 = memory_object_load_element memoryarray<1>, v165, 0
-    v192 = eq v191, 0
-    jumpi v192, bb22, bb23
-  bb22:
-    v193 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v193, 0
-    memory_object_store_element memoryarray<1>, v165, 0, v193
-    jump bb23
+    v172 = mul v158, 32
+    jump bb17
+  bb17:
+    v173 = phi [bb15: v158], [bb26: v199]
+    v174 = phi [bb15: v159], [bb26: v200]
+    v175 = phi [bb15: 0], [bb26: v201]
+    v176 = gt v173, 0
+    jumpi v176, bb18, bb19
+  bb19:
+    v202 = memory_object_len memoryarray, v168
+    v203 = lt 0, v202
+    v204 = iszero v203
+    jumpi v204, bb28, bb29
+  bb29:
+    v205 = memory_object_load_element memoryarray<1>, v168, 0
+    v206 = eq v205, 0
+    jumpi v206, bb30, bb31
+  bb30:
+    v207 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v207, 0
+    memory_object_store_element memoryarray<1>, v168, 0, v207
+    jump bb31
+  bb31:
+    v208 = phi [bb29: v205], [bb30: v207]
+    v209 = memory_object_len memoryarray, v208
+    v210 = lt 0, v209
+    v211 = iszero v210
+    jumpi v211, bb32, bb33
+  bb33:
+    v212 = memory_object_load_element memoryarray<1>, v208, 0
+    ret v212
+  bb32:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    v177 = mload v174
+    v178 = add v159, v177
+    v179 = add v178, 32
+    v180 = gt v177, 0xffffffffffffffff
+    v181 = gt v179, v148
+    v182 = or v180, v181
+    jumpi v182, bb21, bb20
+  bb20:
+    v183 = mload v178
+    v184 = add v178, 32
+    v185 = add v183, 1
+    v186 = lt v185, v183
+    jumpi v186, bb22, bb23
   bb23:
-    v194 = phi [bb21: v191], [bb22: v193]
-    v195 = memory_object_len memoryarray, v194
-    v196 = lt 0, v195
-    v197 = iszero v196
-    jumpi v197, bb24, bb25
+    v187 = mul v185, 32
+    v188 = iszero 32
+    v189 = div v187, 32
+    v190 = eq v189, v185
+    v191 = or v188, v190
+    v192 = iszero v191
+    jumpi v192, bb24, bb25
   bb25:
-    v198 = memory_object_load_element memoryarray<1>, v194, 0
-    ret v198
+    v193 = alloc memoryarray<1>, exact, uninitialized, panic, v187
+    set_memory_object_len memoryarray, v193, v183
+    v194 = sub v148, v184
+    v195 = shr 5, v194
+    v196 = gt v183, v195
+    jumpi v196, bb27, bb26
+  bb26:
+    v197 = mul v183, 32
+    v198 = make_memory_slice v184, v197
+    memory_object_copy_from_slice memoryarray, v193, v198
+    memory_object_store_element memoryarray<1>, v168, v175, v193
+    v199 = sub v173, 1
+    v200 = add v174, 32
+    v201 = add v175, 1
+    jump bb17
+  bb27:
+    revert 0, 0
   bb24:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb20:
+  bb22:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb14:
-    v170 = mload v167
-    v171 = add v159, v170
-    v172 = add v171, 32
-    v173 = gt v170, 0xffffffffffffffff
-    v174 = gt v172, v148
-    v175 = or v173, v174
-    jumpi v175, bb17, bb16
+  bb21:
+    revert 0, 0
   bb16:
-    v176 = mload v171
-    v177 = add v171, 32
-    v178 = sub v148, v177
-    v179 = shr 5, v178
-    v180 = gt v176, v179
-    jumpi v180, bb19, bb18
-  bb18:
-    v181 = mul v176, 32
-    v182 = add v181, 32
-    v183 = alloc memoryarray<1>, exact, uninitialized, infallible, v182
-    set_memory_object_len memoryarray, v183, v176
-    v184 = make_memory_slice v177, v181
-    memory_object_copy_from_slice memoryarray, v183, v184
-    memory_object_store_element memoryarray<1>, v165, v168, v183
-    v185 = sub v166, 1
-    v186 = add v167, 32
-    v187 = add v168, 1
-    jump bb13
-  bb19:
     revert 0, 0
-  bb17:
-    revert 0, 0
-  bb12:
-    revert 0, 0
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb10:
     revert 0, 0
   bb8:

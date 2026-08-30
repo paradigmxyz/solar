@@ -268,76 +268,93 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
   bb17:
     v55 = mload v50
     v56 = add v50, 32
-    v57 = sub v38, v56
-    v58 = shr 5, v57
-    v59 = gt v55, v58
-    jumpi v59, bb20, bb19
-  bb19:
-    v60 = mul v55, 32
-    v61 = add v60, 32
-    v62 = alloc memoryarray<1>, exact, uninitialized, infallible, v61
-    set_memory_object_len memoryarray, v62, v55
-    jump bb21
-  bb21:
-    v63 = phi [bb19: v55], [bb24: v72]
-    v64 = phi [bb19: v56], [bb24: v73]
-    v65 = phi [bb19: 0], [bb24: v74]
-    v66 = gt v63, 0
-    jumpi v66, bb22, bb23
+    v57 = add v55, 1
+    v58 = lt v57, v55
+    jumpi v58, bb19, bb20
+  bb20:
+    v59 = mul v57, 32
+    v60 = iszero 32
+    v61 = div v59, 32
+    v62 = eq v61, v57
+    v63 = or v60, v62
+    v64 = iszero v63
+    jumpi v64, bb21, bb22
+  bb22:
+    v65 = alloc memoryarray<1>, exact, uninitialized, panic, v59
+    set_memory_object_len memoryarray, v65, v55
+    v66 = sub v38, v56
+    v67 = shr 5, v66
+    v68 = gt v55, v67
+    jumpi v68, bb24, bb23
   bb23:
-    memory_object_store_field memorystruct<1>, v48, 0, v62
-    v75 = memory_object_load_field memorystruct<1>, v48, 0
-    v76 = memory_object_len memoryarray, v75
-    v77 = eq v76, 3
-    v78 = iszero v77
-    jumpi v78, bb26, bb27
+    v69 = mul v55, 32
+    jump bb25
+  bb25:
+    v70 = phi [bb23: v55], [bb28: v79]
+    v71 = phi [bb23: v56], [bb28: v80]
+    v72 = phi [bb23: 0], [bb28: v81]
+    v73 = gt v70, 0
+    jumpi v73, bb26, bb27
   bb27:
-    v79 = memory_object_load_field memorystruct<1>, v48, 0
-    v80 = memory_object_len memoryarray, v79
-    v81 = lt 0, v80
-    v82 = iszero v81
-    jumpi v82, bb28, bb29
-  bb29:
-    v83 = memory_object_load_element memoryarray<1>, v79, 0
-    v84 = shr 64, v83
-    v85 = address
-    v86 = shl 32, v85
-    v87 = or v86, 0xd24c5a36
-    v88 = eq v84, v87
-    v89 = iszero v88
-    jumpi v89, bb30, bb31
+    memory_object_store_field memorystruct<1>, v48, 0, v65
+    v82 = memory_object_load_field memorystruct<1>, v48, 0
+    v83 = memory_object_len memoryarray, v82
+    v84 = eq v83, 3
+    v85 = iszero v84
+    jumpi v85, bb30, bb31
   bb31:
-    v90 = memory_object_load_field memorystruct<1>, v48, 0
-    v91 = memory_object_len memoryarray, v90
-    v92 = lt 1, v91
-    v93 = iszero v92
-    jumpi v93, bb32, bb33
+    v86 = memory_object_load_field memorystruct<1>, v48, 0
+    v87 = memory_object_len memoryarray, v86
+    v88 = lt 0, v87
+    v89 = iszero v88
+    jumpi v89, bb32, bb33
   bb33:
-    v94 = memory_object_load_element memoryarray<1>, v90, 1
-    v95 = shr 64, v94
-    v96 = address
-    v97 = shl 32, v96
-    v98 = or v97, 0xc5337ed4
-    v99 = eq v95, v98
-    v100 = iszero v99
-    jumpi v100, bb34, bb35
+    v90 = memory_object_load_element memoryarray<1>, v86, 0
+    v91 = shr 64, v90
+    v92 = address
+    v93 = shl 32, v92
+    v94 = or v93, 0xd24c5a36
+    v95 = eq v91, v94
+    v96 = iszero v95
+    jumpi v96, bb34, bb35
   bb35:
-    v101 = memory_object_load_field memorystruct<1>, v48, 0
-    v102 = memory_object_len memoryarray, v101
-    v103 = lt 2, v102
-    v104 = iszero v103
-    jumpi v104, bb36, bb37
+    v97 = memory_object_load_field memorystruct<1>, v48, 0
+    v98 = memory_object_len memoryarray, v97
+    v99 = lt 1, v98
+    v100 = iszero v99
+    jumpi v100, bb36, bb37
   bb37:
-    v105 = memory_object_load_element memoryarray<1>, v101, 2
-    v106 = shr 64, v105
-    v107 = address
-    v108 = shl 32, v107
-    v109 = or v108, 0xafb0db5f
-    v110 = eq v106, v109
-    v111 = iszero v110
-    jumpi v111, bb38, bb39
+    v101 = memory_object_load_element memoryarray<1>, v97, 1
+    v102 = shr 64, v101
+    v103 = address
+    v104 = shl 32, v103
+    v105 = or v104, 0xc5337ed4
+    v106 = eq v102, v105
+    v107 = iszero v106
+    jumpi v107, bb38, bb39
   bb39:
+    v108 = memory_object_load_field memorystruct<1>, v48, 0
+    v109 = memory_object_len memoryarray, v108
+    v110 = lt 2, v109
+    v111 = iszero v110
+    jumpi v111, bb40, bb41
+  bb41:
+    v112 = memory_object_load_element memoryarray<1>, v108, 2
+    v113 = shr 64, v112
+    v114 = address
+    v115 = shl 32, v114
+    v116 = or v115, 0xafb0db5f
+    v117 = eq v113, v116
+    v118 = iszero v117
+    jumpi v118, bb42, bb43
+  bb43:
     ret 1
+  bb42:
+    revert 0, 0
+  bb40:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb38:
     revert 0, 0
   bb36:
@@ -352,29 +369,31 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     revert 0, 36
   bb30:
     revert 0, 0
-  bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb26:
+    v74 = mload v71
+    v75 = shl 192, v74
+    v76 = iszero v75
+    jumpi v76, bb28, bb29
+  bb29:
     revert 0, 0
-  bb22:
-    v67 = mload v64
-    v68 = shl 192, v67
-    v69 = iszero v68
-    jumpi v69, bb24, bb25
-  bb25:
-    revert 0, 0
+  bb28:
+    v77 = shr 64, v74
+    v78 = shl 64, v77
+    memory_object_store_element memoryarray<1>, v65, v72, v78
+    v79 = sub v70, 1
+    v80 = add v71, 32
+    v81 = add v72, 1
+    jump bb25
   bb24:
-    v70 = shr 64, v67
-    v71 = shl 64, v70
-    memory_object_store_element memoryarray<1>, v62, v65, v71
-    v72 = sub v63, 1
-    v73 = add v64, 32
-    v74 = add v65, 1
-    jump bb21
-  bb20:
     revert 0, 0
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb18:
     revert 0, 0
   bb16:
