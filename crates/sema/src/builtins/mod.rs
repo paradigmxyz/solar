@@ -105,6 +105,9 @@ macro_rules! declare_builtins {
                         Some(EvmVersion::Cancun)
                     }
                     Self::YulClz if !target.has_clz() => Some(EvmVersion::Osaka),
+                    Self::BlockSlotnum | Self::YulSlotnum if !target.has_slot_num() => {
+                        Some(EvmVersion::Amsterdam)
+                    }
                     _ => None,
                 }
             }
@@ -128,6 +131,7 @@ macro_rules! declare_builtins {
                     Self::YulMcopy => Some(error_code!(7755)),
                     Self::YulTload | Self::YulTstore => Some(error_code!(6243)),
                     Self::YulClz => Some(error_code!(4948)),
+                    Self::YulSlotnum => Some(error_code!(1049)),
                     _ => None,
                 }
             }
@@ -223,6 +227,8 @@ declare_builtins! {
                            => gcx.types.uint(256);
     BlockBlobbasefee       => kw::Blobbasefee
                            => gcx.types.uint(256);
+    BlockSlotnum           => kw::Slotnum
+                           => gcx.types.uint(64);
 
     // `msg`
     MsgSender              => sym::sender
@@ -395,6 +401,7 @@ declare_builtins! {
     YulDifficulty          => kw::Difficulty       => gcx.mk_yul_builtin_fn(0, 1);
     YulPrevrandao          => kw::Prevrandao       => gcx.mk_yul_builtin_fn(0, 1);
     YulGaslimit            => kw::Gaslimit         => gcx.mk_yul_builtin_fn(0, 1);
+    YulSlotnum             => kw::Slotnum          => gcx.mk_yul_builtin_fn(0, 1);
     YulNumber              => kw::Number           => gcx.mk_yul_builtin_fn(0, 1);
     YulTimestamp           => kw::Timestamp        => gcx.mk_yul_builtin_fn(0, 1);
     YulGasprice            => kw::Gasprice         => gcx.mk_yul_builtin_fn(0, 1);
@@ -409,7 +416,7 @@ impl Builtin {
     const LAST_GLOBAL: usize = Self::Abi as usize + 1;
 
     const FIRST_BLOCK: usize = Self::BlockCoinbase as usize;
-    const LAST_BLOCK: usize = Self::BlockBlobbasefee as usize + 1;
+    const LAST_BLOCK: usize = Self::BlockSlotnum as usize + 1;
 
     const FIRST_MSG: usize = Self::MsgSender as usize;
     const LAST_MSG: usize = Self::MsgSig as usize + 1;

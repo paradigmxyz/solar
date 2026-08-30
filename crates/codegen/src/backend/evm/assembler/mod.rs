@@ -100,6 +100,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend::evm) label_blocks: FxHashMap<Label, ir::BlockId>,
     /// Labels marked cold before or after their definition.
     pub(in crate::backend::evm) cold_labels: GrowableBitSet<Label>,
+    /// Labels whose blocks run once per loop iteration.
+    pub(in crate::backend::evm) loop_labels: GrowableBitSet<Label>,
     /// Unresolved block references emitted as push operands.
     pub(in crate::backend::evm) label_relocations: Vec<(ir::BlockId, usize, Label)>,
     /// Unresolved deferred constants emitted as push operands.
@@ -145,6 +147,7 @@ impl<'gcx> Assembler<'gcx> {
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
             cold_labels: GrowableBitSet::new_empty(),
+            loop_labels: GrowableBitSet::new_empty(),
             label_relocations: Vec::new(),
             deferred_relocations: Vec::new(),
             indexed_jump_relocations: Vec::new(),
@@ -168,6 +171,7 @@ impl<'gcx> Assembler<'gcx> {
         self.block_labels.clear();
         self.label_blocks.clear();
         self.cold_labels.clear();
+        self.loop_labels.clear();
         self.label_relocations.clear();
         self.deferred_relocations.clear();
         self.indexed_jump_relocations.clear();
@@ -189,6 +193,11 @@ impl<'gcx> Assembler<'gcx> {
     /// Records stack growth proven safe by the MIR backend.
     pub(crate) fn set_unknown_target_stack_headroom(&mut self, headroom: usize) {
         self.program.unknown_target_stack_headroom = headroom;
+    }
+
+    /// Records the transient growth the MIR backend reserved for legacy shift legalization.
+    pub(crate) fn set_legacy_shift_stack_headroom(&mut self, headroom: usize) {
+        self.program.legacy_shift_stack_headroom = headroom;
     }
 
     /// Enables size-oriented outlining for an oversized gas-mode runtime.
@@ -367,6 +376,9 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Op(_) => {
                     offset += 1;
                 }
+                AsmInstKind::OpImmediate(_, _) => {
+                    offset += 2;
+                }
                 AsmInstKind::PushInline(value) => {
                     offset += out.encoded_push_len(U256::from(value));
                 }
@@ -440,6 +452,10 @@ impl<'gcx> Assembler<'gcx> {
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
                     out.emit_op(opcode);
+                }
+                AsmInstKind::OpImmediate(opcode, immediate) => {
+                    out.emit_op(opcode);
+                    out.emit_op(immediate);
                 }
                 AsmInstKind::PushInline(value) => {
                     out.emit_push_value(U256::from(value));
@@ -610,7 +626,7 @@ mod tests {
     use super::*;
     use crate::backend::evm::disassemble;
     use snapbox::{assert_data_eq, str};
-    use solar_config::CompileOpts;
+    use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::Session;
     use solar_sema::Compiler;
 
@@ -684,7 +700,7 @@ mod tests {
             let result = asm.assemble();
 
             assert_data_eq!(
-                disassemble(&result.bytecode),
+                disassemble(&result.bytecode, EvmVersion::Osaka),
                 str![[r#"
 PUSH1 0x00
 PUSH20 0x0000000000000000000000000000000000000000
@@ -710,7 +726,7 @@ PUSH20 0x0000000000000000000000000000000000000000
             let first = asm.assemble();
 
             assert_data_eq!(
-                disassemble(&first.bytecode),
+                disassemble(&first.bytecode, EvmVersion::Osaka),
                 str![[r#"
 PUSH4 0x80000000
 
@@ -724,7 +740,7 @@ PUSH4 0x80000000
             let second = asm.assemble();
 
             assert_data_eq!(
-                disassemble(&second.bytecode),
+                disassemble(&second.bytecode, EvmVersion::Osaka),
                 str![[r#"
 PUSH1 0x02
 

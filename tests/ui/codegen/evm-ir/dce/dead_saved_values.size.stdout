@@ -94,8 +94,8 @@
     push 2
 -   dup 2
 -   swap 1
--   pop
     pop
+-   pop
     stop
   bb11:
     push 7
@@ -136,21 +136,23 @@
     stop
   bb15:
     push 1
-    dup 1
-    dupn
-    pop
-    pop
+-   dup 1
+-   dup 2
+-   pop
+-   pop
     stop
   bb16:
     push 1
-    dup 1
-    swapn
-    pop
+-   dup 1
+-   swap 1
+-   pop
     stop
   bb17:
     push 1
     dup 1
-    exchange
-    pop
+-   dup 1
+-   exchange 1, 2
+-   pop
++   swap 1
     stop
   

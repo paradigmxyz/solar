@@ -151,6 +151,7 @@ opcodes! {
     0x48 => BASEFEE => basefee => stack_io(0, 1);
     0x49 => BLOBHASH => blobhash => stack_io(1, 1);
     0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1);
+    0x4b => SLOTNUM => slotnum => stack_io(0, 1);
     0x50 => POP => pop => stack_io(1, 0);
     0x51 => MLOAD => mload => stack_io(1, 1);
     0x52 => MSTORE => mstore => stack_io(2, 0);
@@ -288,6 +289,173 @@ pub(crate) const fn swap(n: u8) -> u8 {
     SWAP1 + n - 1
 }
 
+/// A logical EVM stack operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum StackOp {
+    /// Duplicate the nth stack element.
+    Dup(u8),
+    /// Swap the top with the nth stack element below it.
+    Swap(u8),
+    /// Swap two non-top stack elements.
+    Exchange(u8, u8),
+    /// Remove the top stack element.
+    Pop,
+}
+
+/// Target-specific lowering of one logical stack operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StackOpLowering {
+    /// One opcode with an optional immediate byte.
+    Direct(u8, Option<u8>),
+    /// Three legacy `SWAP` opcodes implementing a shallow `EXCHANGE`.
+    LegacyExchange([u8; 3]),
+}
+
+/// Exact cost of a lowered stack operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StackOpMetrics {
+    pub(crate) static_gas: usize,
+    pub(crate) assembled_len: usize,
+    pub(crate) instruction_count: usize,
+}
+
+impl StackOp {
+    /// Decodes a legacy one-byte stack opcode.
+    #[must_use]
+    pub(crate) const fn from_legacy_opcode(opcode: u8) -> Option<Self> {
+        match opcode {
+            POP => Some(Self::Pop),
+            DUP1..=DUP16 => Some(Self::Dup(opcode - DUP1 + 1)),
+            SWAP1..=SWAP16 => Some(Self::Swap(opcode - SWAP1 + 1)),
+            _ => None,
+        }
+    }
+
+    /// Returns the one-byte encoding when this operation has one.
+    #[must_use]
+    pub(crate) const fn legacy_opcode(self) -> Option<u8> {
+        match self {
+            Self::Dup(n @ 1..=16) => Some(dup(n)),
+            Self::Swap(n @ 1..=16) => Some(swap(n)),
+            Self::Pop => Some(POP),
+            _ => None,
+        }
+    }
+
+    /// Returns the placeholder opcode used to represent this operation in EVM IR.
+    #[must_use]
+    pub(crate) const fn ir_opcode(self) -> u8 {
+        match self {
+            Self::Dup(_) => DUPN,
+            Self::Swap(_) => SWAPN,
+            Self::Exchange(_, _) => EXCHANGE,
+            Self::Pop => POP,
+        }
+    }
+
+    /// Returns whether the operands are valid independent of the target EVM version.
+    #[must_use]
+    pub(crate) const fn is_valid(self) -> bool {
+        match self {
+            Self::Dup(n) | Self::Swap(n) => n >= 1 && n <= 235,
+            Self::Exchange(n, m) => n >= 1 && n < m && (n as u16) + (m as u16) <= 30,
+            Self::Pop => true,
+        }
+    }
+
+    /// Returns the target-specific lowering of this operation.
+    #[must_use]
+    pub(crate) fn lowering(self, evm_version: EvmVersion) -> Option<StackOpLowering> {
+        if !self.is_valid() {
+            return None;
+        }
+        if let Some(opcode) = self.legacy_opcode() {
+            return Some(StackOpLowering::Direct(opcode, None));
+        }
+
+        let lowering = match self {
+            Self::Dup(n) if evm_version.has_extended_stack_ops() => {
+                StackOpLowering::Direct(DUPN, Some(encode_stack_depth(n)))
+            }
+            Self::Swap(n) if evm_version.has_extended_stack_ops() => {
+                StackOpLowering::Direct(SWAPN, Some(encode_stack_depth(n)))
+            }
+            Self::Exchange(n, m) if evm_version.has_extended_stack_ops() => {
+                StackOpLowering::Direct(EXCHANGE, Some(encode_exchange(n, m)))
+            }
+            Self::Exchange(n, m) if m <= 16 => {
+                StackOpLowering::LegacyExchange([swap(n), swap(m), swap(n)])
+            }
+            _ => return None,
+        };
+        Some(lowering)
+    }
+
+    /// Returns the exact cost of this operation after target lowering.
+    #[must_use]
+    pub(crate) fn metrics(self, evm_version: EvmVersion) -> Option<StackOpMetrics> {
+        let (assembled_len, instruction_count) = match self.lowering(evm_version)? {
+            StackOpLowering::Direct(_, immediate) => (1 + usize::from(immediate.is_some()), 1),
+            StackOpLowering::LegacyExchange(opcodes) => (opcodes.len(), opcodes.len()),
+        };
+        let gas_per_instruction = if matches!(self, Self::Pop) { 2 } else { 3 };
+        Some(StackOpMetrics {
+            static_gas: instruction_count * gas_per_instruction,
+            assembled_len,
+            instruction_count,
+        })
+    }
+
+    /// Returns the exact assembled byte length when this operation can be lowered for the target.
+    #[must_use]
+    pub(crate) fn assembled_len(self, evm_version: EvmVersion) -> Option<usize> {
+        self.metrics(evm_version).map(|metrics| metrics.assembled_len)
+    }
+
+    /// Returns the `EXCHANGE` represented by a three-swap sequence.
+    #[must_use]
+    pub(crate) const fn from_swaps(first: u8, second: u8, third: u8) -> Option<Self> {
+        if first != third || first == second {
+            return None;
+        }
+        let (n, m) = if first < second { (first, second) } else { (second, first) };
+        let op = Self::Exchange(n, m);
+        if op.is_valid() { Some(op) } else { None }
+    }
+}
+
+/// Encodes the immediate used by `DUPN` and `SWAPN`.
+#[must_use]
+pub(crate) const fn encode_stack_depth(n: u8) -> u8 {
+    debug_assert!(n >= 17 && n <= 235);
+    n.wrapping_add(111)
+}
+
+/// Decodes a valid `DUPN` or `SWAPN` immediate.
+#[must_use]
+pub(crate) const fn decode_stack_depth(immediate: u8) -> Option<u8> {
+    if immediate > 90 && immediate < 128 { None } else { Some(immediate.wrapping_add(145)) }
+}
+
+/// Encodes the immediate used by `EXCHANGE`.
+#[must_use]
+pub(crate) const fn encode_exchange(n: u8, m: u8) -> u8 {
+    debug_assert!(n >= 1 && n < m && (n as u16) + (m as u16) <= 30);
+    let (q, r) = if m <= 16 { (n - 1, m - 1) } else { (29 - m, n - 1) };
+    (16 * q + r) ^ 143
+}
+
+/// Decodes a valid `EXCHANGE` immediate.
+#[must_use]
+pub(crate) const fn decode_exchange(immediate: u8) -> Option<(u8, u8)> {
+    if immediate > 81 && immediate < 128 {
+        return None;
+    }
+    let k = immediate ^ 143;
+    let (q, r) = (k / 16, k % 16);
+    Some(if q < r { (q + 1, r + 1) } else { (r + 1, 29 - q) })
+}
+
 /// Returns whether an opcode halts or unconditionally transfers control.
 #[must_use]
 pub(crate) const fn is_terminal(op: u8) -> bool {
@@ -307,9 +475,11 @@ pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
         PUSH0 => evm_version >= EvmVersion::Shanghai,
         BLOBHASH | BLOBBASEFEE | TLOAD | TSTORE | MCOPY => evm_version >= EvmVersion::Cancun,
         CLZ => evm_version >= EvmVersion::Osaka,
+        SLOTNUM => evm_version.has_slot_num(),
+        DUPN | SWAPN | EXCHANGE => evm_version.has_extended_stack_ops(),
         DATALOAD | DATALOADN | DATASIZE | DATACOPY | RJUMP | RJUMPI | RJUMPV | CALLF | RETF
-        | JUMPF | DUPN | SWAPN | EXCHANGE | EOFCREATE | RETURNCONTRACT | RETURNDATALOAD
-        | EXTCALL | EXTDELEGATECALL | EXTSTATICCALL => false,
+        | JUMPF | EOFCREATE | RETURNCONTRACT | RETURNDATALOAD | EXTCALL | EXTDELEGATECALL
+        | EXTSTATICCALL => false,
         _ => mnemonic(opcode).is_some(),
     }
 }
@@ -395,4 +565,45 @@ pub(crate) const fn writes_storage(op: u8) -> bool {
             | EXTDELEGATECALL
             | CALLF
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eip_8024_immediates() {
+        assert_eq!(encode_stack_depth(17), 0x80);
+        assert_eq!(decode_stack_depth(0xdb), Some(108));
+        assert_eq!(decode_stack_depth(0x5b), None);
+        assert_eq!(encode_exchange(2, 3), 0x9d);
+        assert_eq!(encode_exchange(1, 19), 0x2f);
+        assert_eq!(decode_exchange(0x50), Some((14, 16)));
+        assert_eq!(decode_exchange(0x52), None);
+        assert_eq!(
+            StackOp::Dup(16).lowering(EvmVersion::Osaka),
+            Some(StackOpLowering::Direct(DUP16, None))
+        );
+        assert_eq!(StackOp::Dup(17).lowering(EvmVersion::Osaka), None);
+        assert_eq!(
+            StackOp::Swap(108).lowering(EvmVersion::Amsterdam),
+            Some(StackOpLowering::Direct(SWAPN, Some(0xdb)))
+        );
+        assert_eq!(StackOp::Exchange(1, 16).assembled_len(EvmVersion::Osaka), Some(3));
+        assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Osaka), None);
+        assert_eq!(StackOp::Exchange(1, 17).assembled_len(EvmVersion::Amsterdam), Some(2));
+        assert_eq!(StackOp::from_swaps(2, 3, 2), Some(StackOp::Exchange(2, 3)));
+
+        for depth in 17..=235 {
+            assert_eq!(decode_stack_depth(encode_stack_depth(depth)), Some(depth));
+        }
+        for immediate in u8::MIN..=u8::MAX {
+            if let Some(depth) = decode_stack_depth(immediate) {
+                assert_eq!(encode_stack_depth(depth), immediate);
+            }
+            if let Some((n, m)) = decode_exchange(immediate) {
+                assert_eq!(encode_exchange(n, m), immediate);
+            }
+        }
+    }
 }

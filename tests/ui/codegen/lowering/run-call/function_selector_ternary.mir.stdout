@@ -10,7 +10,7 @@ fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[]] {
     stop
 }
 
-fn @h(arg0: bool) -> bytes4 [selector=0x05a0581e, view, abi_params=[bool], abi_returns=[word]] {
+fn @h(arg0: bool) -> bytes4 [selector=0x05a0581e, view, abi_params=[bool], abi_returns=[word<bytes4>]] {
   bb0:
     jumpi arg0, bb1, bb2
   bb2:

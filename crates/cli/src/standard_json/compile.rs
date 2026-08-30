@@ -5,7 +5,6 @@ use super::data::{
     OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
     SourceOutput, StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
 };
-use alloy_primitives::keccak256;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
@@ -428,22 +427,17 @@ fn make_bytecode_output(
 
     let mut output = BytecodeOutput::default();
     if output_selection.contains(object_flag) {
-        let mut object =
-            alloy_primitives::hex::encode(bytecode.map_or(&[][..], |bytes| bytes.as_ref()));
-        if let Some(artifact) = artifact {
-            let references = if deployed {
+        let references = artifact.map_or(&[][..], |artifact| {
+            if deployed {
                 &artifact.runtime_link_references
             } else {
                 &artifact.deployment_link_references
-            };
-            for reference in references {
-                let start = reference.start * 2;
-                let hash = keccak256(format!("{}:{}", reference.source, reference.name));
-                let placeholder = format!("__${}$__", alloy_primitives::hex::encode(&hash[..17]));
-                object.replace_range(start..start + 40, &placeholder);
             }
-        }
-        output.object = Some(object);
+        });
+        output.object = Some(solar_codegen::linkable_hex(
+            bytecode.map_or(&[][..], |bytes| bytes.as_ref()),
+            references,
+        ));
     }
     if output_selection.contains(opcodes_flag) {
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(

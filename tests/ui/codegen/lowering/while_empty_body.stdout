@@ -38,7 +38,7 @@ bb0:
   push bb3
   jumpi
   jump bb5
-bb5:
+bb5 [loop]:
   push 4
   calldataload
   push bb5

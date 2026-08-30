@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/uninitialized_memory_references.sol:UninitializedMemoryReferences ===
 @module UninitializedMemoryReferences
-fn @fmpIsStable() -> (bool, u256, u256) [selector=0x8543d886, pure, abi_params=[], abi_returns=[word, word, word]] {
+fn @fmpIsStable() -> (bool, u256, u256) [selector=0x8543d886, pure, abi_params=[], abi_returns=[word<bool>, word, word]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = mload 64 !metadata(memory=scratch)
@@ -10,7 +10,7 @@ fn @fmpIsStable() -> (bool, u256, u256) [selector=0x8543d886, pure, abi_params=[
     ret v2, v3, v4
 }
 
-fn @nullArrayElementsEncodeAsEmpty() -> bool [selector=0x71417b4d, pure, abi_params=[], abi_returns=[word]] {
+fn @nullArrayElementsEncodeAsEmpty() -> bool [selector=0x71417b4d, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2

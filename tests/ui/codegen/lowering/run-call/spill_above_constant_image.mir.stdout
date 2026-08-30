@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Registry ===
 @module Registry
-fn @createAccount(arg0: address, arg1: bytes32, arg2: u256, arg3: address, arg4: u256) [selector=0x8a54c52f, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word]] {
+fn @createAccount(arg0: address, arg1: bytes32, arg2: u256, arg3: address, arg4: u256) [selector=0x8a54c52f, abi_params=[address, bytes32, u256, address, u256], abi_returns=[word<u160>]] {
   bb0:
     calldatacopy 140, 36, 128
     mstore 108, 0x5af43d82803e903d91602b57fd5bf3 !metadata(memory=scratch)
@@ -83,7 +83,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v18 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
     v19 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
     v20 = and 0x4444444444444444444444444444444444444444, 0xffffffffffffffffffffffffffffffffffffffff
-    v21 = abi_encode [word, word, word, word, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args v18, v19, 0x7a69, v20, 0x5555
+    v21 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args v18, v19, 0x7a69, v20, 0x5555
     v22 = slice_ptr v21
     v23 = slice_len v21
     v24 = call v17, v16, 0, v22, v23, 0, 32

@@ -6,7 +6,7 @@ fn @dirty(arg0: bool) -> bool [pure] {
     ret v0
 }
 
-fn @readDirty() -> (bool, u256) [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word, word]] {
+fn @readDirty() -> (bool, u256) [selector=0xd1f2dbc1, pure, abi_params=[], abi_returns=[word<bool>, word]] {
   bb0:
     v0 = internal_call @dirty, 1, 1
     v1 = eq v0, 0

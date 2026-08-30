@@ -20,7 +20,7 @@ fn @sat(arg0: u256, arg1: u256) -> u256 [selector=0xf4c11983, pure, abi_params=[
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }
 
-fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [selector=0xcc81ee27, pure, abi_params=[u256, u256], abi_returns=[word, word]] {
+fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [selector=0xcc81ee27, pure, abi_params=[u256, u256], abi_returns=[word<bool>, word]] {
   bb0:
     v0 = internal_call @tryAdd, 2, arg0, arg1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

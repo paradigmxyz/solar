@@ -7,17 +7,18 @@ contract AcyclicStackPhi {
     // CHECK: calldataload
     // CHECK: add
     // CHECK: calldataload
-    // CHECK: dup 1
-    // CHECK: push {{[0-9]+}}
-    // CHECK: mstore
+    // CHECK-NOT: mstore
     // CHECK: push 4
-    // CHECK: dup 2
-    // CHECK: gt
-    // CHECK: push [[TRIM:bb[0-9]+]]
-    // CHECK: jumpi
-    // CHECK: push {{[0-9]+}}
-    // CHECK: mload
-    // CHECK: [[TRIM]]:
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: iszero
+    // CHECK-NEXT: push [[KEEP:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK-NOT: mload
+    // CHECK: jump
+    // CHECK: [[KEEP]]:
+    // CHECK-NOT: mload
+    // CHECK: jump
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return trim(data).length;
     }

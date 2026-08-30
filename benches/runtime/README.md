@@ -10,6 +10,10 @@ both modes with `--mode runtime compile-time`.
 Keeping the inputs here makes the benchmark reproducible from this checkout and removes the CI
 dependency on a second repository and its recursive submodules.
 
+Pass `--evm-version VERSION` to replace every archived Standard JSON target and benchmark a whole
+corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
+installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
+
 Use `--solar-only` for repeated local runs after recording a two-compiler baseline. This skips the
 reference solc compile for each case while retaining Solar compilation, gas measurements, and
 runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful

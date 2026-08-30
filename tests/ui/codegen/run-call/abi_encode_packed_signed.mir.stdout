@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/run-call/abi_encode_packed_signed.sol:AbiEncodePackedSigned ===
 @module AbiEncodePackedSigned
-fn @firstByteInt8(arg0: u8, arg1: i8) -> bytes1 [selector=0xdf400c36, pure, abi_params=[u8, i8], abi_returns=[word]] {
+fn @firstByteInt8(arg0: u8, arg1: i8) -> bytes1 [selector=0xdf400c36, pure, abi_params=[u8, i8], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = and arg0, 255
     v1 = signextend 0, arg1
@@ -28,7 +28,7 @@ fn @firstByteInt8(arg0: u8, arg1: i8) -> bytes1 [selector=0xdf400c36, pure, abi_
     revert 0, 36
 }
 
-fn @firstByteInt16(arg0: u8, arg1: i16) -> bytes1 [selector=0x3ed4619b, pure, abi_params=[u8, i16], abi_returns=[word]] {
+fn @firstByteInt16(arg0: u8, arg1: i16) -> bytes1 [selector=0x3ed4619b, pure, abi_params=[u8, i16], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = and arg0, 255
     v1 = signextend 1, arg1
@@ -56,7 +56,7 @@ fn @firstByteInt16(arg0: u8, arg1: i16) -> bytes1 [selector=0x3ed4619b, pure, ab
     revert 0, 36
 }
 
-fn @firstByteInt32(arg0: u8, arg1: i32) -> bytes1 [selector=0x538ea5fe, pure, abi_params=[u8, i32], abi_returns=[word]] {
+fn @firstByteInt32(arg0: u8, arg1: i32) -> bytes1 [selector=0x538ea5fe, pure, abi_params=[u8, i32], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = and arg0, 255
     v1 = signextend 3, arg1
@@ -84,7 +84,7 @@ fn @firstByteInt32(arg0: u8, arg1: i32) -> bytes1 [selector=0x538ea5fe, pure, ab
     revert 0, 36
 }
 
-fn @firstByteSigned16() -> bytes1 [selector=0x951569ca, pure, abi_params=[], abi_returns=[word]] {
+fn @firstByteSigned16() -> bytes1 [selector=0x951569ca, pure, abi_params=[], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = and 0, 255
     v1 = sub 0, 1

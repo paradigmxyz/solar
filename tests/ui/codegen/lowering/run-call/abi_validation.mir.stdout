@@ -1,20 +1,20 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_validation.sol:AbiValidation ===
 @module AbiValidation
-fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word]] {
+fn @vBool(arg0: bool) -> bool [selector=0x18a11c47, pure, abi_params=[bool], abi_returns=[word<bool>]] {
   bb0:
     ret arg0
 }
 
-fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word]] {
+fn @vUint8(arg0: u8) -> u8 [selector=0xd5f6949e, pure, abi_params=[u8], abi_returns=[word<u8>]] {
   bb0:
     ret arg0
 }
 
-fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[address], abi_returns=[word]] {
+fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[address], abi_returns=[word<u160>]] {
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [word], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [word<u160>], selector 0x9e9aa54a00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = slice_ptr v2
     v4 = slice_len v2
     v5 = staticcall v1, v0, v3, v4, 0, 32
@@ -42,7 +42,77 @@ fn @vAddress(arg0: address) -> address [selector=0x23347413, view, abi_params=[a
     revert 0, 0
 }
 
-fn @vAddressTarget(arg0: address) -> address [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word]] {
+fn @vAddressTarget(arg0: address) -> address [selector=0x9e9aa54a, pure, abi_params=[address], abi_returns=[word<u160>]] {
+  bb0:
+    ret arg0
+}
+
+fn @dirtyBytes1(arg0: bytes32) -> bytes32 [selector=0x92fef914, view, abi_params=[bytes32], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [word<bytes1>], selector 0xa408523c00000000000000000000000000000000000000000000000000000000, args v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v1, v0, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    ret v12
+  bb3:
+    revert 0, 0
+}
+
+fn @bytes1Target(arg0: bytes1) -> bytes32 [selector=0xa408523c, pure, abi_params=[bytes1], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @dirtyEnumArg(arg0: u256) -> u256 [selector=0xc3e104d2, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = lt arg0, 2
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = and arg0, 1
+    v5 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args v4
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = staticcall v1, v0, v6, v7, 0, 32
+    jumpi v8, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v9 = returndatasize
+    v10 = lt v9, 32
+    jumpi v10, bb5, bb6
+  bb6:
+    v11 = add 0, 0
+    v12 = mload v11
+    v13 = add 0, 0
+    v14 = mload v13
+    ret v14
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @enumTarget(arg0: u8) -> u256 [selector=0x5688f443, pure, abi_params=[enum<2, u8>], abi_returns=[word]] {
   bb0:
     ret arg0
 }

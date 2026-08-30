@@ -101,7 +101,7 @@
     push 3
     add
     push 7
-    swapn
+    swap 1
     pop
     push 2
     push 3
@@ -113,7 +113,9 @@
     push 3
     add
     push 7
-    exchange
+    push 8
+    exchange 1, 2
+    pop
     pop
     push 2
     push 3

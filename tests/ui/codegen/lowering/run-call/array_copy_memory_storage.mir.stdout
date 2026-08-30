@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/array_copy_memory_storage.sol:ArrayCopyMemoryStorage ===
 @module ArrayCopyMemoryStorage
-fn @copyDynamic() -> u32 [selector=0x902a0a84, abi_params=[], abi_returns=[word]] {
+fn @copyDynamic() -> u32 [selector=0x902a0a84, abi_params=[], abi_returns=[word<u32>]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v0, 3
@@ -113,7 +113,7 @@ fn @copyDynamic() -> u32 [selector=0x902a0a84, abi_params=[], abi_returns=[word]
     revert 0, 36
 }
 
-fn @copyFixed() -> u32 [selector=0x23235673, abi_params=[], abi_returns=[word]] {
+fn @copyFixed() -> u32 [selector=0x23235673, abi_params=[], abi_returns=[word<u32>]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_zero v0, 96
