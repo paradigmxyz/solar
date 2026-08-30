@@ -52,7 +52,7 @@ fn @dirtyBytes1(arg0: bytes32) -> bytes32 [selector=0x92fef914, view, abi_params
     v0 = address
     v1 = gas
     v2 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [word], selector 0xa408523c00000000000000000000000000000000000000000000000000000000, args v2
+    v3 = abi_encode [word<bytes1>], selector 0xa408523c00000000000000000000000000000000000000000000000000000000, args v2
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = staticcall v1, v0, v4, v5, 0, 32
@@ -87,7 +87,7 @@ fn @dirtyEnumArg(arg0: u256) -> u256 [selector=0xc3e104d2, view, abi_params=[u25
     jumpi v3, bb1, bb2
   bb2:
     v4 = and arg0, 1
-    v5 = abi_encode [word], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args v4
+    v5 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
     v7 = slice_len v5
     v8 = staticcall v1, v0, v6, v7, 0, 32
