@@ -74,42 +74,32 @@ fn normalize_runs(
     let mut input = StackRun::new();
     let mut cursor = 0;
     while cursor < instructions.len() {
-        let start = cursor;
-        input.clear();
-        while cursor < instructions.len()
-            && let Some(op) = stack_op(&instructions[cursor])
-        {
-            input.push(op);
+        let run_start = cursor;
+        while cursor < instructions.len() && stack_op(&instructions[cursor]).is_some() {
             cursor += 1;
         }
-        if cursor == start {
+        if cursor == run_start {
             cursor += 1;
             continue;
         }
-        if !(2..=MAX_STACK_RUN_LEN).contains(&input.len()) {
-            continue;
+        let mut start = run_start;
+        while start < cursor {
+            let remaining = cursor - start;
+            let len = if remaining == MAX_STACK_RUN_LEN + 1 {
+                MAX_STACK_RUN_LEN - 1
+            } else {
+                remaining.min(MAX_STACK_RUN_LEN)
+            };
+            let end = start + len;
+            input.clear();
+            input.extend(instructions[start..end].iter().filter_map(stack_op));
+            if input.len() >= 2
+                && let Some(output) = normalization(&input, evm_version, cache)
+            {
+                normalizations.push(Normalization { start, end, output });
+            }
+            start = end;
         }
-
-        let Some(output) = cache
-            .entry(input.clone())
-            .or_insert_with(|| {
-                let output = StackRun::from_vec(resynthesize_physical_ops(&input, evm_version)?);
-                if relative_peak(&output) > relative_peak(&input) {
-                    return None;
-                }
-                let input_cost = lowered_stack_cost(&input, evm_version);
-                let output_cost = lowered_stack_cost(&output, evm_version);
-                (output_cost.0 <= input_cost.0
-                    && output_cost.1 <= input_cost.1
-                    && output_cost.2 <= input_cost.2
-                    && output_cost != input_cost)
-                    .then_some(output)
-            })
-            .clone()
-        else {
-            continue;
-        };
-        normalizations.push(Normalization { start, end: cursor, output });
     }
     if normalizations.is_empty() {
         return false;
@@ -136,6 +126,29 @@ fn normalize_runs(
     }
     instructions.extend(source.map(|(_, inst)| inst));
     true
+}
+
+fn normalization(
+    input: &StackRun,
+    evm_version: EvmVersion,
+    cache: &mut NormalizationCache,
+) -> Option<StackRun> {
+    cache
+        .entry(input.clone())
+        .or_insert_with(|| {
+            let output = StackRun::from_vec(resynthesize_physical_ops(input, evm_version)?);
+            if relative_peak(&output) > relative_peak(input) {
+                return None;
+            }
+            let input_cost = lowered_stack_cost(input, evm_version);
+            let output_cost = lowered_stack_cost(&output, evm_version);
+            (output_cost.0 <= input_cost.0
+                && output_cost.1 <= input_cost.1
+                && output_cost.2 <= input_cost.2
+                && output_cost != input_cost)
+                .then_some(output)
+        })
+        .clone()
 }
 
 fn stack_op(inst: &Instruction) -> Option<StackOp> {

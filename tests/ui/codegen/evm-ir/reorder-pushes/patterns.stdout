@@ -40,9 +40,10 @@
     stop
   bb5:
     push 1
-    dup 1
+-   dup 1
     push 10
-    swap 1
+-   swap 1
++   dup 2
     sub
     stop
   bb6:
@@ -181,5 +182,12 @@
     push 16
 -   swap 1
 +   calldatasize
+    stop
+  bb17:
+    msize
+    push 0x1000
+    mload
+    swap 1
+    sub
     stop
   

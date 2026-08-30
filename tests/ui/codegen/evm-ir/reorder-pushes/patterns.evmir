@@ -50,6 +50,8 @@ bb3:
   sub
   stop
 
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^    swap 1}}
 bb4:
   pc
   push 10
@@ -57,7 +59,12 @@ bb4:
   sub
   stop
 
-// Physical stack operations can depend on values below the candidate producer.
+// A duplicated producer can move after the push by rebasing its depth.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: -   dup 1
+// CHECK: {{^[ +].*}}push 10
+// CHECK: -   swap 1
+// CHECK: +   dup 2
 bb5:
   push 1
   dup 1
@@ -67,6 +74,8 @@ bb5:
   stop
 
 // Calls observe the gas spent by any push moved before them.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^    swap 1}}
 bb6:
   push 0
   push 0
@@ -81,6 +90,11 @@ bb6:
   sub
   stop
 
+// Returndata size is stable until a call changes it.
+// CHECK-LABEL: {{^[ +].*}}bb7:
+// CHECK: {{^[ +].*}}push 3
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   returndatasize
 bb7:
   returndatasize
   push 3
@@ -89,6 +103,12 @@ bb7:
   stop
 
 // A single streaming pass handles chained candidates.
+// CHECK-LABEL: {{^[ +].*}}bb8:
+// CHECK: {{^[ +].*}}push 1
+// CHECK-NEXT: -   swap 1
+// CHECK: {{^[ +].*}}push 2
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   calldatasize
 bb8:
   calldatasize
   push 1
@@ -153,6 +173,8 @@ bb11:
   stop
 
 // Do not scan through a nested gas or position observation.
+// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK: {{^    swap 1}}
 bb12:
   gas
   push 1
@@ -162,6 +184,8 @@ bb12:
   sub
   stop
 
+// CHECK-LABEL: {{^[ +].*}}bb13:
+// CHECK: {{^    swap 1}}
 bb13:
   pc
   push 1
@@ -183,6 +207,10 @@ bb14:
   sub
   stop
 
+// Storage access warming does not observe the extra stack word.
+// CHECK-LABEL: {{^[ +].*}}bb15:
+// CHECK-NEXT: +   push 10
+// CHECK: -   swap 1
 bb15:
   push 0
   sload
@@ -230,4 +258,16 @@ bb16:
   swap 1
   push 16
   swap 1
+  stop
+
+// Memory expansion can change a prior MSIZE observation, so two read expressions do not commute.
+// CHECK-LABEL: {{^[ +].*}}bb17:
+// CHECK: {{^    msize}}
+// CHECK: {{^    swap 1}}
+bb17:
+  msize
+  push 4096
+  mload
+  swap 1
+  sub
   stop

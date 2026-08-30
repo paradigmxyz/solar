@@ -5,6 +5,12 @@
 //! instructions observes the extra stack word, this pass rewrites the sequence to `PUSH value;
 //! producer`. The values reach the consumer in the same order and the `SWAP1` disappears. A linked
 //! instruction sequence lets chained rewrites move whole expression fragments in linear time.
+//! The expression-range rewrite handles compact multi-instruction immediate recipes, whether the
+//! recipe is the producer or the value that must move before it. A separate backward matcher turns
+//! `DUPn; unary*; immediate recipe; SWAP1` into `immediate recipe; DUP(n+1); unary*`. The exact
+//! `PUSH; SWAP1; POP` form becomes `POP; PUSH`. These rewrites keep or lower the stack peak. DUP
+//! rebasing checks target reach and accepts only a Pareto improvement after target-specific
+//! stack-op lowering.
 //!
 //! The expression tracker accepts only known one-result operations, rejects physical stack
 //! instructions and observations such as `PC` or `GAS`, and clears at unknown effects. Moving a
@@ -13,11 +19,11 @@
 //! entry depths and are rejected when dynamic control flow or an unbounded path prevents a proof.
 //! Net stack effects do not change, which lets the second phase reuse depths after the first phase.
 //!
-//! The pass runs after outlining and before compact pushes: it reasons about one logical encoded
-//! push, while later target-specific expansion may choose a shorter constant recipe. It is disabled
-//! for pre-extended-stack size builds because its interaction with later structural cleanup can
-//! increase code size there; gas mode and targets with extended stack operations keep the measured
-//! win.
+//! The default pipeline runs this pass after compacting pushes in each structural sweep. The first
+//! expression sweep is disabled for pre-extended-stack size builds because its interaction with
+//! later structural cleanup can increase code size there. The final sweep runs after structural
+//! sharing is fixed and enables it safely. The exact mixed-stack rules run in every optimized mode
+//! because they preserve the surrounding value layout and cannot increase local cost.
 
 use super::{
     EvmPass,
@@ -25,13 +31,20 @@ use super::{
 };
 use crate::backend::evm::{
     ir::{BlockId, Instruction, Module},
-    op,
+    op::{self, StackOp},
     stack::MAX_STACK_DEPTH,
 };
-use solar_config::OptimizationMode;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_sema::Gcx;
 
-pub(super) struct ReorderPushes;
+pub(super) const REORDER_PUSHES: ReorderPushes =
+    ReorderPushes { reorder_legacy_size_expressions: false };
+pub(super) const FINAL_REORDER_PUSHES: ReorderPushes =
+    ReorderPushes { reorder_legacy_size_expressions: true };
+
+pub(super) struct ReorderPushes {
+    reorder_legacy_size_expressions: bool,
+}
 
 impl EvmPass for ReorderPushes {
     fn name(&self) -> &'static str {
@@ -40,18 +53,20 @@ impl EvmPass for ReorderPushes {
 
     fn is_enabled(&self, gcx: Gcx<'_>, _module: &Module) -> bool {
         !matches!(gcx.sess.opts.optimization, OptimizationMode::None)
-            && (!gcx.sess.opts.optimization.is_size()
-                || gcx.sess.opts.evm_version.has_extended_stack_ops())
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let evm_version = gcx.sess.opts.evm_version;
+        let reorder_expressions = self.reorder_legacy_size_expressions
+            || !gcx.sess.opts.optimization.is_size()
+            || gcx.sess.opts.evm_version.has_extended_stack_ops();
         let mut changed = false;
         let mut pending = Vec::new();
         for index in 0..module.blocks.len() {
             let block_id = BlockId::from_usize(index);
             let Some(high_water) = candidate_high_water(module, block_id) else { continue };
             let instructions = &mut module.blocks[block_id].instructions;
-            let result = reorder(instructions, None, high_water);
+            let result = reorder(instructions, None, high_water, evm_version, reorder_expressions);
             changed |= result.changed;
             if result.needs_depths {
                 pending.push((block_id, high_water));
@@ -63,7 +78,14 @@ impl EvmPass for ReorderPushes {
             for (block_id, high_water) in pending {
                 let instructions = &mut module.blocks[block_id].instructions;
                 let entry_depth = depths.entry_depth(block_id);
-                changed |= reorder(instructions, entry_depth, high_water).changed;
+                changed |= reorder(
+                    instructions,
+                    entry_depth,
+                    high_water,
+                    evm_version,
+                    reorder_expressions,
+                )
+                .changed;
             }
         }
         changed
@@ -79,6 +101,8 @@ fn reorder(
     instructions: &mut Vec<Instruction>,
     entry_depth: Option<usize>,
     high_water: Option<isize>,
+    evm_version: EvmVersion,
+    reorder_expressions: bool,
 ) -> ReorderResult {
     let mut source = Vec::new();
     std::mem::swap(instructions, &mut source);
@@ -101,19 +125,38 @@ fn reorder(
             relative_depth += isize::from(effect.outputs) - isize::from(effect.inputs);
         }
 
-        if inst.as_legacy_opcode() == Some(op::SWAP1)
+        if inst.as_stack_op() == Some(StackOp::Swap(1))
+            && inst.has_canonical_stack_effect()
+            && let Some(pushed) = expressions.last()
+            && pushed.immediate_recipe
+            && let Some(pushed_end) = sequence.last
+            && let Some((dup_node, rebased)) =
+                rebasable_dup_before(&sequence, pushed.start, evm_version)
+        {
+            sequence.replace_stack_op(dup_node, rebased);
+            sequence.move_range_before(pushed.start, pushed_end, dup_node);
+            expressions.clear();
+            changed = true;
+            continue;
+        }
+
+        if reorder_expressions
+            && inst.as_stack_op() == Some(StackOp::Swap(1))
+            && inst.has_canonical_stack_effect()
             && let [.., producer, pushed] = expressions.as_slice()
-            && sequence.last == Some(pushed.start)
-            && sequence.instruction(pushed.start).is_encoded_push()
+            && pushed.immediate_recipe
+            && let Some(pushed_end) = sequence.last
         {
             let (producer, pushed) = (*producer, *pushed);
+            let reordered_peak = pushed.peak.max(1 + producer.peak);
+            let added_peak = reordered_peak - 2;
             let local_peak_fits = high_water.is_some_and(|high_water| {
                 relative_depth
-                    .checked_add_unsigned(producer.peak - 1)
+                    .checked_add_unsigned(added_peak)
                     .is_some_and(|peak| peak <= high_water)
             });
-            if producer.peak == 1 || local_peak_fits || reordered_peak_fits(depth, producer.peak) {
-                sequence.move_before(pushed.start, producer.start);
+            if added_peak == 0 || local_peak_fits || reordered_peak_fits(depth, added_peak) {
+                sequence.move_range_before(pushed.start, pushed_end, producer.start);
                 let len = expressions.len();
                 expressions.swap(len - 2, len - 1);
                 changed = true;
@@ -121,6 +164,23 @@ fn reorder(
             } else if depth.is_none() {
                 needs_depths = true;
             }
+        }
+
+        if inst.as_stack_op() == Some(StackOp::Pop)
+            && inst.has_canonical_stack_effect()
+            && let Some(swap) = sequence.last
+            && sequence.instruction(swap).as_stack_op() == Some(StackOp::Swap(1))
+            && sequence.instruction(swap).has_canonical_stack_effect()
+            && let Some(pushed) = sequence.previous(swap)
+            && sequence.instruction(pushed).is_encoded_push()
+            && sequence.instruction(pushed).has_canonical_stack_effect()
+        {
+            sequence.remove(swap);
+            let pop = sequence.push(inst);
+            sequence.move_before(pop, pushed);
+            expressions.clear();
+            changed = true;
+            continue;
         }
         let node = sequence.push(inst);
         update_expressions(&mut expressions, &sequence, node);
@@ -130,9 +190,47 @@ fn reorder(
     ReorderResult { changed, needs_depths }
 }
 
-fn reordered_peak_fits(depth: Option<usize>, producer_peak: usize) -> bool {
+fn rebase_dup(evm_version: EvmVersion, depth: u8) -> Option<StackOp> {
+    let original = StackOp::Dup(depth).metrics(evm_version)?;
+    let rebased = StackOp::Dup(depth.checked_add(1)?);
+    let replacement = rebased.metrics(evm_version)?;
+    let removed = StackOp::Swap(1).metrics(evm_version)?;
+    (replacement.assembled_len <= original.assembled_len + removed.assembled_len
+        && replacement.static_gas <= original.static_gas + removed.static_gas
+        && replacement.instruction_count <= original.instruction_count + removed.instruction_count)
+        .then_some(rebased)
+}
+
+fn rebasable_dup_before(
+    sequence: &InstructionSequence,
+    before: usize,
+    evm_version: EvmVersion,
+) -> Option<(usize, StackOp)> {
+    let mut node = sequence.previous(before)?;
+    loop {
+        let inst = sequence.instruction(node);
+        if let Some(StackOp::Dup(depth)) = inst.as_stack_op() {
+            if !inst.has_canonical_stack_effect() {
+                return None;
+            }
+            return Some((node, rebase_dup(evm_version, depth)?));
+        }
+        let effect = inst.effective_stack_effect()?;
+        if !inst.has_canonical_stack_effect()
+            || inst.is_physical_stack_op()
+            || !inst.as_legacy_opcode().is_some_and(op::is_unaffected_by_preceding_push)
+            || effect.inputs != 1
+            || effect.outputs != 1
+        {
+            return None;
+        }
+        node = sequence.previous(node)?;
+    }
+}
+
+fn reordered_peak_fits(depth: Option<usize>, added_peak: usize) -> bool {
     depth
-        .and_then(|depth| depth.checked_add(producer_peak - 1))
+        .and_then(|depth| depth.checked_add(added_peak))
         .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
 }
 
@@ -140,6 +238,7 @@ fn reordered_peak_fits(depth: Option<usize>, producer_peak: usize) -> bool {
 struct Expression {
     start: usize,
     peak: usize,
+    immediate_recipe: bool,
 }
 
 fn update_expressions(
@@ -149,6 +248,7 @@ fn update_expressions(
 ) {
     let inst = sequence.instruction(node);
     let effect = if let Some(effect) = inst.effective_stack_effect()
+        && inst.has_canonical_stack_effect()
         && !inst.is_physical_stack_op()
         && inst.as_legacy_opcode().is_none_or(op::is_unaffected_by_preceding_push)
         && effect.outputs == 1
@@ -161,10 +261,17 @@ fn update_expressions(
     };
     let inputs = usize::from(effect.inputs);
     if inputs == 0 {
-        expressions.push(Expression { start: node, peak: 1 });
+        expressions.push(Expression {
+            start: node,
+            peak: 1,
+            immediate_recipe: inst.is_encoded_push(),
+        });
         return;
     }
     let start = expressions.len() - inputs;
+    let immediate_recipe =
+        inst.as_legacy_opcode().is_some_and(|opcode| matches!(opcode, op::NOT | op::SHL | op::SHR))
+            && expressions[start..].iter().all(|expression| expression.immediate_recipe);
     let peak = expressions[start..]
         .iter()
         .enumerate()
@@ -173,18 +280,16 @@ fn update_expressions(
         .unwrap_or(1);
     let first = expressions[start].start;
     expressions.truncate(start);
-    expressions.push(Expression { start: first, peak });
+    expressions.push(Expression { start: first, peak, immediate_recipe });
 }
 
 fn candidate_high_water(module: &Module, block_id: BlockId) -> Option<Option<isize>> {
     let block = &module.blocks[block_id];
     let mut depth = Some(0isize);
     let mut high_water = Some(0isize);
-    let mut previous_was_push = false;
     let mut found = false;
     for inst in &block.instructions {
-        found |= previous_was_push && inst.as_legacy_opcode() == Some(op::SWAP1);
-        previous_was_push = inst.is_encoded_push();
+        found |= inst.as_stack_op() == Some(StackOp::Swap(1));
         if let Some(effect) = inst.effective_stack_effect()
             && let Some(current) = depth
         {
@@ -241,6 +346,37 @@ impl InstructionSequence {
         self.nodes[index].instruction.as_ref().unwrap()
     }
 
+    fn previous(&self, index: usize) -> Option<usize> {
+        self.nodes[index].previous
+    }
+
+    fn replace_stack_op(&mut self, index: usize, stack_op: StackOp) {
+        let metadata =
+            std::mem::take(&mut self.nodes[index].instruction.as_mut().unwrap().metadata);
+        let mut replacement = Instruction::stack_op(stack_op);
+        replacement.metadata = metadata;
+        replacement.metadata.stack = None;
+        self.nodes[index].instruction = Some(replacement);
+    }
+
+    fn remove(&mut self, node: usize) {
+        let previous = self.nodes[node].previous;
+        let next = self.nodes[node].next;
+        if let Some(previous) = previous {
+            self.nodes[previous].next = next;
+        } else {
+            self.first = next;
+        }
+        if let Some(next) = next {
+            self.nodes[next].previous = previous;
+        } else {
+            self.last = previous;
+        }
+        self.nodes[node].previous = None;
+        self.nodes[node].next = None;
+        self.nodes[node].instruction = None;
+    }
+
     fn move_before(&mut self, node: usize, before: usize) {
         let previous = self.nodes[node].previous;
         let next = self.nodes[node].next;
@@ -263,6 +399,31 @@ impl InstructionSequence {
             self.nodes[previous].next = Some(node);
         } else {
             self.first = Some(node);
+        }
+    }
+
+    fn move_range_before(&mut self, start: usize, end: usize, before: usize) {
+        let previous = self.nodes[start].previous;
+        let next = self.nodes[end].next;
+        if let Some(previous) = previous {
+            self.nodes[previous].next = next;
+        } else {
+            self.first = next;
+        }
+        if let Some(next) = next {
+            self.nodes[next].previous = previous;
+        } else {
+            self.last = previous;
+        }
+
+        let previous = self.nodes[before].previous;
+        self.nodes[start].previous = previous;
+        self.nodes[end].next = Some(before);
+        self.nodes[before].previous = Some(end);
+        if let Some(previous) = previous {
+            self.nodes[previous].next = Some(start);
+        } else {
+            self.first = Some(start);
         }
     }
 

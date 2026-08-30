@@ -1,0 +1,146 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after compact-pushes) ===
+  @module CompactedPush
+  bb0:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
+    push 0
+    push bb1
+    push 0
+    add
+    jump
+  bb1:
+    calldatasize
+-   push 0x100000000000000000000000000000000
++   push 1
++   push 128
++   shl
+    swap 1
+    sub
+    stop
+  bb2:
+    callf !meta(stack=0->3)
+    pop
+    pop
+    pop
+-   push 0x100000000000000000000000000000000
++   push 1
++   push 128
++   shl
+    push 10
+    swap 1
+    sub
+    stop
+  bb3:
+    push 1
+    dup 1
+-   push 0x100000000000000000000000000000000
++   push 1
++   push 128
++   shl
+    swap 1
+    sub
+    stop
+  bb4:
+    calldatasize
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
+    swap 1
+    sub
+    stop
+  bb5:
+-   push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
++   push 1
++   not
+    push 10
+    swap 1
+    sub
+    stop
+  bb6:
+    calldatasize
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 8
++   shr
+    swap 1
+    sub
+    stop
+  
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after reorder-pushes) ===
+  @module CompactedPush
+  bb0:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
+    push 0
+    push bb1
+    push 0
+    add
+    jump
+  bb1:
+-   calldatasize
+    push 1
+    push 128
+    shl
+-   swap 1
++   calldatasize
+    sub
+    stop
+  bb2:
+    callf !meta(stack=0->3)
+    pop
+    pop
+    pop
++   push 10
+    push 1
+    push 128
+    shl
+-   push 10
+-   swap 1
+    sub
+    stop
+  bb3:
+    push 1
+-   dup 1
+    push 1
+    push 128
+    shl
+-   swap 1
++   dup 2
+    sub
+    stop
+  bb4:
+-   calldatasize
+    push 0
+    not
+-   swap 1
++   calldatasize
+    sub
+    stop
+  bb5:
++   push 10
+    push 1
+    not
+-   push 10
+-   swap 1
+    sub
+    stop
+  bb6:
+-   calldatasize
+    push 0
+    not
+    push 8
+    shr
+-   swap 1
++   calldatasize
+    sub
+    stop
+  

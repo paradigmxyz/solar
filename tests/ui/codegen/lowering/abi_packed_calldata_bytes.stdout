@@ -213,10 +213,9 @@ bb27:
   push 224
   mload
   and
-  dup 1
-  iszero
   push 32
-  swap 1
+  dup 2
+  iszero
   dup 3
   dup 3
   sub

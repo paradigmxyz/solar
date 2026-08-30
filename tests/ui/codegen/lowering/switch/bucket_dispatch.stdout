@@ -8,9 +8,8 @@ bb0:
   calldataload
   push 224
   shr
-  dup 1
   push 40
-  swap 1
+  dup 2
   mod
   indexed_jump bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99
 bb59:

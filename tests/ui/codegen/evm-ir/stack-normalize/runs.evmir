@@ -122,3 +122,38 @@ bb5:
   exchange 2, 3
   add
   stop
+
+// Split a run above the search bound instead of skipping the whole run.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}push 23
+// CHECK-COUNT-24: -   swap 1
+// CHECK: {{^[ +].*}}stop
+bb6:
+  push 22
+  push 23
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  stop

@@ -271,10 +271,9 @@ bb24:
   push 31
   not
   and
-  dup 1
-  iszero
   push 32
-  swap 1
+  dup 2
+  iszero
   dup 3
   dup 3
   sub
@@ -462,13 +461,12 @@ bb24:
   push 192
   mload
   mload
+  push 0
+  not
   push 288
   mload
   push 3
   shl
-  push 0
-  not
-  swap 1
   shr
   not
   and
@@ -611,10 +609,9 @@ bb37:
   push 31
   not
   and
-  dup 1
-  iszero
   push 32
-  swap 1
+  dup 2
+  iszero
   dup 3
   dup 3
   sub
@@ -763,13 +760,12 @@ bb37:
   push 128
   mload
   mload
+  push 0
+  not
   push 192
   mload
   push 3
   shl
-  push 0
-  not
-  swap 1
   shr
   not
   and

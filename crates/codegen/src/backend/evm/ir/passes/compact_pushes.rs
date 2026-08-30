@@ -12,9 +12,10 @@
 //! Recipes may use more instructions and transient stack space than a literal push; passes that
 //! move encoded pushes must therefore preserve their own stack-headroom proof.
 //!
-//! The pass runs late, after transformations that reason about one logical immediate instruction.
-//! Later peephole and stack cleanup can simplify the concrete recipe, while assembly only chooses
-//! final push widths and does not rediscover constant-building expressions.
+//! The default pipeline selects recipes before push reordering so that pass can move a complete
+//! recipe with its stack-peak proof. Later peephole and stack cleanup can simplify the concrete
+//! recipe, while assembly only chooses final push widths and does not rediscover constant-building
+//! expressions.
 
 use super::EvmPass;
 use crate::backend::evm::{
