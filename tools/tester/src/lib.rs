@@ -489,6 +489,20 @@ fn configure_run_call_stdout(config: &mut ui_test::Config, src: &str) {
     };
     run_call_dump_revisions.sort_unstable();
     run_call_dump_revisions.dedup();
+    let dump_only_revisions = dump_revisions
+        .iter()
+        .filter(|revision| !run_call_dump_revisions.contains(revision))
+        .cloned()
+        .collect::<Vec<_>>();
+    if !dump_only_revisions.is_empty() {
+        config
+            .comment_defaults
+            .revisioned
+            .entry(dump_only_revisions)
+            .or_default()
+            .normalize_stdout
+            .push((run_call_stdout_regex().clone().into(), vec![]));
+    }
     if !run_call_dump_revisions.is_empty() {
         config
             .comment_defaults
