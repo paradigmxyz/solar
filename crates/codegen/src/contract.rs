@@ -364,12 +364,8 @@ fn generate_contract_bytecode(
             (dependency, runtime)
         })
         .collect();
-    let mut module = lower::lower_contract_with_bytecodes_and_runtime(
-        gcx,
-        contract_id,
-        &child_bytecodes,
-        &child_runtime_bytecodes,
-    );
+    let mut module =
+        lower::lower_contract(gcx, contract_id, &child_bytecodes, &child_runtime_bytecodes);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
