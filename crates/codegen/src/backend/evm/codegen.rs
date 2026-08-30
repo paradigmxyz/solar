@@ -895,6 +895,64 @@ struct StackPhiPlanner<'a> {
 /// Longest entry layout `plan_live_joins` carries into a block.
 const LIVE_JOIN_LAYOUT_LIMIT: usize = 12;
 
+/// Most forward-and-backward rounds `plan_live_joins` spends converging its layouts.
+const LIVE_JOIN_ROUNDS: usize = 64;
+
+/// What one `plan_live_joins` run knows about the function before any layout exists: the
+/// blocks it plans and the per-block facts every round reads and none changes.
+struct LiveJoinFacts {
+    /// The joins being planned.
+    is_join: FxHashSet<BlockId>,
+    /// Sibling arms of planned branches, with the branch and the join it enters.
+    arms: FxHashMap<BlockId, (BlockId, BlockId)>,
+    /// Branches that enter a planned join.
+    planned_branches: DenseBitSet<BlockId>,
+    /// The latches of every loop header among the joins.
+    back_edges: FxHashMap<BlockId, Vec<BlockId>>,
+    /// The non-phi operands a block reads that are live into it.
+    own_uses: IndexVec<BlockId, Vec<ValueId>>,
+    /// The values live both into and out of a block: what it may carry onward.
+    live_through: IndexVec<BlockId, DenseBitSet<ValueId>>,
+    /// The carriable results a block defines after its last internal call and keeps live at
+    /// its exit, top of the stack first.
+    defs: IndexVec<BlockId, Vec<ValueId>>,
+    /// Blocks with an internal call, which drains whatever they entered with.
+    has_call: DenseBitSet<BlockId>,
+    /// The headers of the loops containing each block.
+    loop_headers_of: IndexVec<BlockId, SmallVec<[BlockId; 2]>>,
+    /// Blocks a branch carries its stack into: a single-predecessor block without phis or a
+    /// junk-tolerant terminal.
+    carries_arm: DenseBitSet<BlockId>,
+    /// Every value a planned join's own instructions read.
+    join_uses: FxHashMap<BlockId, FxHashSet<ValueId>>,
+    /// A planned join's phi results, in instruction order.
+    join_phis: FxHashMap<BlockId, Vec<ValueId>>,
+}
+
+/// The converging state of one `plan_live_joins` run: the layouts so far, what every block
+/// carries out under them, and what every block wants carried in.
+struct LiveJoinState {
+    layouts: FxHashMap<BlockId, Vec<ValueId>>,
+    resident_out: FxHashMap<BlockId, Vec<ValueId>>,
+    wanted: IndexVec<BlockId, DenseBitSet<ValueId>>,
+    /// The next `wanted` set under construction, swapped in when it differs.
+    scratch: DenseBitSet<ValueId>,
+    /// A successor's wants masked to what the block carries through.
+    mask: DenseBitSet<ValueId>,
+}
+
+impl LiveJoinState {
+    fn new(num_blocks: usize, num_values: usize) -> Self {
+        Self {
+            layouts: FxHashMap::default(),
+            resident_out: FxHashMap::default(),
+            wanted: IndexVec::from_vec(vec![DenseBitSet::new_empty(num_values); num_blocks]),
+            scratch: DenseBitSet::new_empty(num_values),
+            mask: DenseBitSet::new_empty(num_values),
+        }
+    }
+}
+
 impl<'a> StackPhiPlanner<'a> {
     fn new(func: &'a Function, cold_functions: &'a DenseBitSet<FunctionId>) -> Self {
         let mut loop_analyzer = LoopAnalyzer::new();
@@ -1015,125 +1073,62 @@ impl<'a> StackPhiPlanner<'a> {
         // Two phases: an optimistic one where a successor asks for everything it wants, so a
         // word can enter a chain of layouts that each depend on the next, then a precise one
         // where a successor asks only for its converged layout, pruning what nothing keeps.
+        // A round sweeps the blocks forward, refreshing what each carries out and the layouts
+        // that residency feeds, then backward, refreshing what each wants and the layouts
+        // those wants prune. Every refresh reads the newest neighbors, so a word crosses a
+        // whole chain of joins in one round rather than one join per round.
+        let facts =
+            self.live_join_facts(liveness, &joins, is_join, arms, planned_branches, back_edges);
+        let order = func.blocks.indices().collect::<Vec<_>>();
         let mut banned: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
-        let mut layouts: FxHashMap<BlockId, Vec<ValueId>> = FxHashMap::default();
+        let mut state = LiveJoinState::new(func.blocks.len(), func.num_values());
         let mut precise = false;
-        for _ in 0..64 {
-            let resident_out = self.resident_out_sets(liveness, plan, &layouts, &planned_branches);
-            let wanted = self.wanted_sets(liveness, plan, &layouts, &planned_branches, precise);
+        for _ in 0..LIVE_JOIN_ROUNDS {
             let mut changed = false;
-            for &join in &joins {
-                let block = &func.blocks[join];
-                let live_in = liveness.live_in(join);
-                let latches = back_edges.get(&join).map(Vec::as_slice).unwrap_or(&[]);
-                let forward =
-                    block.predecessors.iter().copied().filter(|pred| !latches.contains(pred));
-                // The first forward predecessor's stack order is the layout order, so that
-                // edge needs no shuffle and the others usually little.
-                let Some(first) = forward.clone().next() else { continue };
-                // A wide join shuffles every predecessor into one order; a word the join only
-                // passes on rarely pays that there. A loop header is different: its latches
-                // return with the header's own order, so a word riding around the loop
-                // shuffles nowhere.
-                let wide = block.predecessors.len() > 2 && !back_edges.contains_key(&join);
-                let used_here = self.block_uses(join);
-                let mut carried = resident_out
-                    .get(&first)
-                    .into_iter()
-                    .flatten()
-                    .copied()
-                    .filter(|&value| {
-                        live_in.contains(value)
-                            && self.carriable(value)
-                            && !banned.get(&join).is_some_and(|set| set.contains(&value))
-                            && wanted.get(&join).is_some_and(|set| set.contains(&value))
-                            && (!precise || !wide || used_here.contains(&value))
-                            && forward.clone().all(|pred| {
-                                resident_out.get(&pred).is_some_and(|list| list.contains(&value))
-                            })
-                    })
-                    .collect::<Vec<_>>();
-                // Phi sources are the newest words of a predecessor, so the results ride on top.
-                let mut phis = self.phi_result_values(&self.phi_insts(block)).unwrap_or_default();
-                carried.truncate(LIVE_JOIN_LAYOUT_LIMIT - phis.len());
-                phis.extend(carried);
-                let carried = phis;
-                if layouts.get(&join) != Some(&carried) {
-                    layouts.insert(join, carried);
-                    changed = true;
-                }
+            for &block_id in &order {
+                changed |= self.refresh_live_join_layout(
+                    liveness, block_id, &banned, precise, &facts, &mut state,
+                );
+                changed |= self.refresh_resident_out(liveness, plan, block_id, &facts, &mut state);
             }
-            for (&arm, &(pred, join)) in &arms {
-                // The join's words plus whatever else the arm reads that the branch already
-                // holds, in the order the predecessor is expected to hold them: the arm edge is
-                // the branch's identity edge, so this order is what the branch shuffles to, and
-                // matching the resident order keeps that shuffle empty on every execution. The
-                // join edge reorders on its own path only.
-                let sources = layouts
-                    .get(&join)
-                    .and_then(|layout| self.layout_sources(join, layout, pred))
-                    .unwrap_or_default();
-                let live_in = liveness.live_in(arm);
-                let resident = resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
-                let mut carried = resident
-                    .iter()
-                    .copied()
-                    .filter(|&value| {
-                        sources.contains(&value)
-                            || (live_in.contains(value)
-                                && self.carriable(value)
-                                && wanted.get(&arm).is_some_and(|set| set.contains(&value)))
-                    })
-                    .collect::<Vec<_>>();
-                // Join words the predecessor does not hold are materialized for the branch.
-                for &value in &sources {
-                    if !carried.contains(&value) {
-                        carried.push(value);
+            for &block_id in order.iter().rev() {
+                changed |= self.refresh_wanted(plan, block_id, precise, &facts, &mut state);
+                changed |= self.refresh_live_join_layout(
+                    liveness, block_id, &banned, precise, &facts, &mut state,
+                );
+            }
+            if changed {
+                continue;
+            }
+            // Under the converged layouts, every latch must deliver the header's words.
+            for (&header, latches) in &facts.back_edges {
+                let Some(layout) = state.layouts.get(&header) else { continue };
+                let phis = facts.join_phis.get(&header).map(Vec::as_slice).unwrap_or_default();
+                for &value in layout {
+                    if !phis.contains(&value)
+                        && !latches.iter().all(|latch| {
+                            state.resident_out.get(latch).is_some_and(|list| list.contains(&value))
+                        })
+                        && banned.entry(header).or_default().insert(value)
+                    {
+                        changed = true;
                     }
                 }
-                carried.truncate(LIVE_JOIN_LAYOUT_LIMIT.max(sources.len()));
-                if layouts.get(&arm) != Some(&carried) {
-                    layouts.insert(arm, carried);
-                    changed = true;
-                }
             }
-            if !changed {
-                // Under the converged layouts, every latch must deliver the header's words.
-                let resident_out =
-                    self.resident_out_sets(liveness, plan, &layouts, &planned_branches);
-                for (&header, latches) in &back_edges {
-                    let Some(layout) = layouts.get(&header) else { continue };
-                    let phis = self
-                        .phi_result_values(&self.phi_insts(&func.blocks[header]))
-                        .unwrap_or_default();
-                    for &value in layout {
-                        if !phis.contains(&value)
-                            && !latches.iter().all(|latch| {
-                                resident_out.get(latch).is_some_and(|list| list.contains(&value))
-                            })
-                            && banned.entry(header).or_default().insert(value)
-                        {
-                            changed = true;
-                        }
-                    }
-                }
-                if !changed {
-                    if precise {
-                        break;
-                    }
-                    precise = true;
-                    changed = true;
-                }
+            if changed {
+                continue;
             }
-            if !changed && precise {
+            if precise {
                 break;
             }
+            precise = true;
         }
+        let mut layouts = state.layouts;
         layouts.retain(|_, layout| !layout.is_empty());
         let mut join_layouts = layouts.clone();
-        join_layouts.retain(|block, _| is_join.contains(block));
+        join_layouts.retain(|block, _| facts.is_join.contains(block));
         let mut arm_layouts = layouts;
-        arm_layouts.retain(|block, _| arms.contains_key(block));
+        arm_layouts.retain(|block, _| facts.arms.contains_key(block));
         if join_layouts.is_empty() {
             return;
         }
@@ -1252,190 +1247,328 @@ impl<'a> StackPhiPlanner<'a> {
         }
     }
 
-    /// The live-in values a block reads itself or carries on to a successor that reads them,
-    /// so a layout never pays a shuffle for a word nothing downstream consumes on the stack.
-    fn wanted_sets(
+    /// Gathers what every round of `plan_live_joins` reads and none changes.
+    fn live_join_facts(
         &self,
         liveness: &Liveness,
-        plan: &StackPhiPlan,
-        layouts: &FxHashMap<BlockId, Vec<ValueId>>,
-        planned_branches: &DenseBitSet<BlockId>,
-        precise: bool,
-    ) -> FxHashMap<BlockId, FxHashSet<ValueId>> {
+        joins: &[BlockId],
+        is_join: FxHashSet<BlockId>,
+        arms: FxHashMap<BlockId, (BlockId, BlockId)>,
+        planned_branches: DenseBitSet<BlockId>,
+        back_edges: FxHashMap<BlockId, Vec<BlockId>>,
+    ) -> LiveJoinFacts {
         let func = self.func;
-        let carries_arm = |arm: BlockId| {
-            let block = &func.blocks[arm];
-            block.predecessors.len() == 1 && self.phi_insts(block).is_empty()
-                || self.junk_tolerant_terminal(liveness, arm)
-        };
-        let mut wanted: FxHashMap<BlockId, FxHashSet<ValueId>> = FxHashMap::default();
-        for _ in 0..8 {
-            let mut changed = false;
-            for (block_id, block) in func.blocks.iter_enumerated().rev() {
-                let live_in = liveness.live_in(block_id);
-                let mut set = FxHashSet::default();
-                for &inst in &block.instructions {
-                    let kind = &func.inst(inst).kind;
-                    if matches!(kind, InstKind::Phi(_)) {
-                        continue;
-                    }
-                    set.extend(
+        let count = func.blocks.len();
+        let num_values = func.num_values();
+        let mut own_uses = IndexVec::with_capacity(count);
+        let mut live_through = IndexVec::with_capacity(count);
+        let mut defs = IndexVec::with_capacity(count);
+        let mut has_call = DenseBitSet::new_empty(count);
+        let mut carries_arm = DenseBitSet::new_empty(count);
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let live_in = liveness.live_in(block_id);
+            let live_out = liveness.live_out(block_id);
+            let mut uses = Vec::new();
+            let mut kept = Vec::new();
+            for &inst in &block.instructions {
+                let kind = &func.inst(inst).kind;
+                if matches!(kind, InstKind::InternalCall { .. }) {
+                    has_call.insert(block_id);
+                    kept.clear();
+                }
+                if !matches!(kind, InstKind::Phi(_)) {
+                    uses.extend(
                         kind.operands().into_iter().filter(|value| live_in.contains(*value)),
                     );
                 }
-                if let Some(term) = &block.terminator {
-                    set.extend(
-                        term.operands().into_iter().filter(|value| live_in.contains(*value)),
-                    );
-                    let carried_succs: Vec<BlockId> = match term {
-                        Terminator::Jump(target) => {
-                            let target_block = &func.blocks[*target];
-                            (target_block.predecessors.len() == 1
-                                || layouts.contains_key(target)
-                                || plan.entries.contains_key(target))
-                            .then_some(*target)
-                            .into_iter()
-                            .collect()
-                        }
-                        Terminator::Branch { then_block, else_block, .. } => {
-                            let arms = [*then_block, *else_block];
-                            if planned_branches.contains(block_id) {
-                                arms.into_iter()
-                                    .filter(|arm| {
-                                        layouts.contains_key(arm) || plan.entries.contains_key(arm)
-                                    })
-                                    .collect()
-                            } else if arms.iter().all(|&arm| carries_arm(arm)) {
-                                arms.to_vec()
-                            } else {
-                                Vec::new()
-                            }
-                        }
-                        _ => Vec::new(),
-                    };
-                    let live_out = liveness.live_out(block_id);
-                    for succ in carried_succs {
-                        // A planned join carries exactly its layout; a chained block carries
-                        // whatever it wants. The optimistic phase asks for wants everywhere, a
-                        // loop header included: its layout can only hold what the preheader
-                        // and the latches deliver, and those only carry what the header asks
-                        // for, so asking with the layout alone never bootstraps a loop-carried
-                        // word. The latch check and the precise phase prune what it costs.
-                        let onward: Vec<ValueId> =
-                            if let Some(layout) = layouts.get(&succ).filter(|_| precise) {
-                                layout.clone()
-                            } else if let Some(entry) = plan.entries.get(&succ) {
-                                entry.clone()
-                            } else {
-                                wanted
-                                    .get(&succ)
-                                    .map(|set| set.iter().copied().collect())
-                                    .unwrap_or_default()
-                            };
-                        set.extend(
-                            onward.into_iter().filter(|value| {
-                                live_in.contains(*value) && live_out.contains(*value)
-                            }),
-                        );
-                    }
-                }
-                // A word the enclosing loop carries around is wanted everywhere inside it:
-                // the joins on the way to a latch must carry it, or the latch cannot deliver
-                // it back to the header and the header drops it.
-                let live_out = liveness.live_out(block_id);
-                for loop_info in &self.loops {
-                    if loop_info.blocks.contains(block_id)
-                        && let Some(layout) = layouts.get(&loop_info.header)
-                    {
-                        set.extend(
-                            layout.iter().copied().filter(|value| {
-                                live_in.contains(*value) && live_out.contains(*value)
-                            }),
-                        );
-                    }
-                }
-                if wanted.get(&block_id) != Some(&set) {
-                    wanted.insert(block_id, set);
-                    changed = true;
+                if let Some(result) = func.inst_result_value(inst)
+                    && self.carriable(result)
+                    && live_out.contains(result)
+                {
+                    kept.push(result);
                 }
             }
-            if !changed {
-                break;
+            if let Some(term) = &block.terminator {
+                uses.extend(term.operands().into_iter().filter(|value| live_in.contains(*value)));
+            }
+            uses.sort_unstable_by_key(|value| value.index());
+            uses.dedup();
+            let mut through = DenseBitSet::new_empty(num_values);
+            for value in live_in.iter().filter(|&value| live_out.contains(value)) {
+                through.insert(value);
+            }
+            live_through.push(through);
+            // Layouts list the top of the stack first; a new definition lands on top.
+            kept.reverse();
+            own_uses.push(uses);
+            defs.push(kept);
+            if block.predecessors.len() == 1 && self.phi_insts(block).is_empty()
+                || self.junk_tolerant_terminal(liveness, block_id)
+            {
+                carries_arm.insert(block_id);
             }
         }
-        wanted
+        let mut loop_headers_of = IndexVec::from_vec(vec![SmallVec::new(); count]);
+        for loop_info in &self.loops {
+            for block in loop_info.blocks.iter() {
+                loop_headers_of[block].push(loop_info.header);
+            }
+        }
+        let join_uses = joins.iter().map(|&join| (join, self.block_uses(join))).collect();
+        let join_phis = joins
+            .iter()
+            .map(|&join| {
+                let phis = self.phi_insts(&func.blocks[join]);
+                (join, self.phi_result_values(&phis).unwrap_or_default())
+            })
+            .collect();
+        LiveJoinFacts {
+            is_join,
+            arms,
+            planned_branches,
+            back_edges,
+            own_uses,
+            live_through,
+            defs,
+            has_call,
+            loop_headers_of,
+            carries_arm,
+            join_uses,
+            join_phis,
+        }
     }
 
-    /// The values on the stack at every block's exit under the planned layouts: a block starts
-    /// from its planned entry, from what a single predecessor carries across a jump or a fully
-    /// preserved branch, or from nothing; keeps what it defines; and drains everything but its
-    /// later definitions at an internal call.
-    fn resident_out_sets(
+    /// Refreshes the layout of a planned join or sibling arm from the newest residency and
+    /// wants; returns whether it changed.
+    fn refresh_live_join_layout(
+        &self,
+        liveness: &Liveness,
+        block_id: BlockId,
+        banned: &FxHashMap<BlockId, FxHashSet<ValueId>>,
+        precise: bool,
+        facts: &LiveJoinFacts,
+        state: &mut LiveJoinState,
+    ) -> bool {
+        let func = self.func;
+        let layout = if facts.is_join.contains(&block_id) {
+            let join = block_id;
+            let block = &func.blocks[join];
+            let live_in = liveness.live_in(join);
+            let latches = facts.back_edges.get(&join).map(Vec::as_slice).unwrap_or(&[]);
+            let forward = block.predecessors.iter().copied().filter(|pred| !latches.contains(pred));
+            // The first forward predecessor's stack order is the layout order, so that edge
+            // needs no shuffle and the others usually little.
+            let Some(first) = forward.clone().next() else { return false };
+            // A wide join shuffles every predecessor into one order; a word the join only
+            // passes on rarely pays that there. A loop header is different: its latches
+            // return with the header's own order, so a word riding around the loop
+            // shuffles nowhere.
+            let wide = block.predecessors.len() > 2 && !facts.back_edges.contains_key(&join);
+            let used_here = &facts.join_uses[&join];
+            let wanted = &state.wanted[join];
+            let mut carried = state
+                .resident_out
+                .get(&first)
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|&value| {
+                    live_in.contains(value)
+                        && self.carriable(value)
+                        && !banned.get(&join).is_some_and(|set| set.contains(&value))
+                        && wanted.contains(value)
+                        && (!precise || !wide || used_here.contains(&value))
+                        && forward.clone().all(|pred| {
+                            state.resident_out.get(&pred).is_some_and(|list| list.contains(&value))
+                        })
+                })
+                .collect::<Vec<_>>();
+            // Phi sources are the newest words of a predecessor, so the results ride on top.
+            let mut phis = facts.join_phis[&join].clone();
+            carried.truncate(LIVE_JOIN_LAYOUT_LIMIT - phis.len());
+            phis.extend(carried);
+            phis
+        } else if let Some(&(pred, join)) = facts.arms.get(&block_id) {
+            let arm = block_id;
+            // The join's words plus whatever else the arm reads that the branch already
+            // holds, in the order the predecessor is expected to hold them: the arm edge is
+            // the branch's identity edge, so this order is what the branch shuffles to, and
+            // matching the resident order keeps that shuffle empty on every execution. The
+            // join edge reorders on its own path only.
+            let sources = state
+                .layouts
+                .get(&join)
+                .and_then(|layout| self.layout_sources(join, layout, pred))
+                .unwrap_or_default();
+            let live_in = liveness.live_in(arm);
+            let resident = state.resident_out.get(&pred).map(Vec::as_slice).unwrap_or_default();
+            let wanted = &state.wanted[arm];
+            let mut carried = resident
+                .iter()
+                .copied()
+                .filter(|&value| {
+                    sources.contains(&value)
+                        || (live_in.contains(value)
+                            && self.carriable(value)
+                            && wanted.contains(value))
+                })
+                .collect::<Vec<_>>();
+            // Join words the predecessor does not hold are materialized for the branch.
+            for &value in &sources {
+                if !carried.contains(&value) {
+                    carried.push(value);
+                }
+            }
+            carried.truncate(LIVE_JOIN_LAYOUT_LIMIT.max(sources.len()));
+            carried
+        } else {
+            return false;
+        };
+        if state.layouts.get(&block_id) == Some(&layout) {
+            return false;
+        }
+        state.layouts.insert(block_id, layout);
+        true
+    }
+
+    /// Refreshes the values on the stack at a block's exit under the newest layouts: a block
+    /// starts from its planned entry, from what a single predecessor carries across a jump or
+    /// a fully preserved branch, or from nothing; keeps what it defines; and drains everything
+    /// but its later definitions at an internal call. Returns whether the set changed.
+    fn refresh_resident_out(
         &self,
         liveness: &Liveness,
         plan: &StackPhiPlan,
-        layouts: &FxHashMap<BlockId, Vec<ValueId>>,
-        planned_branches: &DenseBitSet<BlockId>,
-    ) -> FxHashMap<BlockId, Vec<ValueId>> {
+        block_id: BlockId,
+        facts: &LiveJoinFacts,
+        state: &mut LiveJoinState,
+    ) -> bool {
         let func = self.func;
-        let mut resident_out: FxHashMap<BlockId, Vec<ValueId>> = FxHashMap::default();
-        let carries_arm = |arm: BlockId| {
-            let block = &func.blocks[arm];
-            block.predecessors.len() == 1 && self.phi_insts(block).is_empty()
-                || self.junk_tolerant_terminal(liveness, arm)
-        };
-        for _ in 0..8 {
-            let mut changed = false;
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                let mut resident: Vec<ValueId> = if let Some(layout) = layouts.get(&block_id) {
-                    layout.clone()
-                } else if let Some(entry) = plan.entries.get(&block_id) {
-                    entry.clone()
-                } else if let [pred] = block.predecessors.as_slice()
-                    && let Some(term) = func.blocks[*pred].terminator.as_ref()
-                {
-                    let carried = match term {
-                        Terminator::Jump(_) => true,
-                        Terminator::Branch { then_block, else_block, .. } => {
-                            !planned_branches.contains(*pred)
-                                && carries_arm(*then_block)
-                                && carries_arm(*else_block)
-                        }
-                        _ => false,
-                    };
-                    if carried {
-                        resident_out.get(pred).cloned().unwrap_or_default()
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                };
-                for &inst in &block.instructions {
-                    let kind = &func.inst(inst).kind;
-                    if matches!(kind, InstKind::InternalCall { .. }) {
-                        resident.clear();
-                    }
-                    // Layouts list the top of the stack first; a new definition lands on top.
-                    if let Some(result) = func.inst_result_value(inst)
-                        && self.carriable(result)
-                        && !resident.contains(&result)
-                    {
-                        resident.insert(0, result);
-                    }
+        let block = &func.blocks[block_id];
+        let incoming: &[ValueId] = if let Some(layout) = state.layouts.get(&block_id) {
+            layout
+        } else if let Some(entry) = plan.entries.get(&block_id) {
+            entry
+        } else if let [pred] = block.predecessors.as_slice()
+            && let Some(term) = func.blocks[*pred].terminator.as_ref()
+        {
+            let carried = match term {
+                Terminator::Jump(_) => true,
+                Terminator::Branch { then_block, else_block, .. } => {
+                    !facts.planned_branches.contains(*pred)
+                        && facts.carries_arm.contains(*then_block)
+                        && facts.carries_arm.contains(*else_block)
                 }
-                let live_out = liveness.live_out(block_id);
-                resident.retain(|value| live_out.contains(*value));
-                if resident_out.get(&block_id) != Some(&resident) {
-                    resident_out.insert(block_id, resident);
-                    changed = true;
+                _ => false,
+            };
+            if carried {
+                state.resident_out.get(pred).map(Vec::as_slice).unwrap_or_default()
+            } else {
+                &[]
+            }
+        } else {
+            &[]
+        };
+        let defs = &facts.defs[block_id];
+        let mut resident = Vec::with_capacity(defs.len() + incoming.len());
+        if facts.has_call.contains(block_id) {
+            resident.extend_from_slice(defs);
+        } else {
+            let live_out = liveness.live_out(block_id);
+            resident.extend(defs.iter().copied().filter(|def| !incoming.contains(def)));
+            resident.extend(incoming.iter().copied().filter(|value| live_out.contains(*value)));
+        }
+        if state.resident_out.get(&block_id) == Some(&resident) {
+            return false;
+        }
+        state.resident_out.insert(block_id, resident);
+        true
+    }
+
+    /// Refreshes the live-in values a block reads itself or carries on to a successor that
+    /// reads them, so a layout never pays a shuffle for a word nothing downstream consumes on
+    /// the stack. Returns whether the set changed.
+    fn refresh_wanted(
+        &self,
+        plan: &StackPhiPlan,
+        block_id: BlockId,
+        precise: bool,
+        facts: &LiveJoinFacts,
+        state: &mut LiveJoinState,
+    ) -> bool {
+        let func = self.func;
+        let block = &func.blocks[block_id];
+        let live_through = &facts.live_through[block_id];
+        let LiveJoinState { layouts, wanted, scratch, mask, .. } = state;
+        scratch.clear();
+        for &value in &facts.own_uses[block_id] {
+            scratch.insert(value);
+        }
+        let want = |scratch: &mut DenseBitSet<ValueId>, layout: &[ValueId]| {
+            for &value in layout {
+                if live_through.contains(value) {
+                    scratch.insert(value);
                 }
             }
-            if !changed {
-                break;
+        };
+        if let Some(term) = &block.terminator {
+            let carried_succs: SmallVec<[BlockId; 2]> = match term {
+                Terminator::Jump(target) => {
+                    let target_block = &func.blocks[*target];
+                    (target_block.predecessors.len() == 1
+                        || layouts.contains_key(target)
+                        || plan.entries.contains_key(target))
+                    .then_some(*target)
+                    .into_iter()
+                    .collect()
+                }
+                Terminator::Branch { then_block, else_block, .. } => {
+                    let arms = [*then_block, *else_block];
+                    if facts.planned_branches.contains(block_id) {
+                        arms.into_iter()
+                            .filter(|arm| {
+                                layouts.contains_key(arm) || plan.entries.contains_key(arm)
+                            })
+                            .collect()
+                    } else if arms.iter().all(|&arm| facts.carries_arm.contains(arm)) {
+                        arms.into_iter().collect()
+                    } else {
+                        SmallVec::new()
+                    }
+                }
+                _ => SmallVec::new(),
+            };
+            for succ in carried_succs {
+                // A planned join carries exactly its layout; a chained block carries
+                // whatever it wants. The optimistic phase asks for wants everywhere, a
+                // loop header included: its layout can only hold what the preheader
+                // and the latches deliver, and those only carry what the header asks
+                // for, so asking with the layout alone never bootstraps a loop-carried
+                // word. The latch check and the precise phase prune what it costs.
+                if let Some(layout) = layouts.get(&succ).filter(|_| precise) {
+                    want(scratch, layout);
+                } else if let Some(entry) = plan.entries.get(&succ) {
+                    want(scratch, entry);
+                } else {
+                    mask.clone_from(&wanted[succ]);
+                    mask.intersect(live_through);
+                    scratch.union(mask);
+                }
             }
         }
-        resident_out
+        // A word the enclosing loop carries around is wanted everywhere inside it:
+        // the joins on the way to a latch must carry it, or the latch cannot deliver
+        // it back to the header and the header drops it.
+        for header in &facts.loop_headers_of[block_id] {
+            if let Some(layout) = layouts.get(header) {
+                want(scratch, layout);
+            }
+        }
+        if wanted[block_id] == *scratch {
+            return false;
+        }
+        std::mem::swap(&mut wanted[block_id], scratch);
+        true
     }
 
     /// The words of an edge that feed phis rather than ride through unchanged. Only these skip
@@ -4731,6 +4864,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 entry.1 = entry.1.saturating_sub(1);
             }
         }
+        let mut ranges =
+            removals.into_iter().map(|store| (store.block, store.range)).collect::<Vec<_>>();
+        self.asm.remove_instructions(&mut ranges);
     }
 
     /// Whether a block may be entered with arbitrary extra words beneath the stack it expects:
@@ -4864,9 +5000,6 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// reachable exits all abort.
     fn block_aborts(&self, func: &Function, block_id: BlockId) -> bool {
         let block = &func.blocks[block_id];
-        let mut ranges =
-            removals.into_iter().map(|store| (store.block, store.range)).collect::<Vec<_>>();
-        self.asm.remove_instructions(&mut ranges);
         matches!(
             block.terminator,
             Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
