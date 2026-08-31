@@ -2255,15 +2255,6 @@ impl<'a> StackPhiPlanner<'a> {
     }
 }
 
-/// A call's gas operand read right before the `CALL` instead of at its own definition:
-/// `gas()` or `sub(gas(), K)` used by that call alone. Targets without the 63/64 rule forward
-/// `gas() - K` with a fixed allowance for the code between the read and the call, so the
-/// scheduler must not park operands in between; reading last also saves the duplicate.
-struct LateGasOperand {
-    /// Constant subtracted from the fresh reading.
-    subtracted: Option<U256>,
-}
-
 /// A spill store emitted in the current block: the value, its slot, and the emitted
 /// `DUP`, address push, and `MSTORE`, which are stack-neutral as a whole.
 #[derive(Clone)]
@@ -2410,8 +2401,6 @@ pub struct EvmCodegen<'gcx> {
     /// Stores the carried-exit removal decided to drop. They are removed together with the
     /// never-loaded stores so the recorded instruction ranges stay valid until then.
     deferred_spill_store_removals: Vec<BlockSpillStore>,
-    /// Gas operands emitted fresh right before their call, keyed by the operand value.
-    late_gas_operands: FxHashMap<ValueId, LateGasOperand>,
     /// Values a planned stack layout carries or consumes: a planned edge skips their spill
     /// stores on the assumption that the definition stored them early.
     planned_stack_values: DenseBitSet<ValueId>,
@@ -2514,7 +2503,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             function_ir_block_start: 0,
             loaded_spill_slots: FxHashSet::default(),
             deferred_spill_store_removals: Vec::new(),
-            late_gas_operands: FxHashMap::default(),
             planned_stack_values: DenseBitSet::new_empty(0),
             removed_spill_stores: DenseBitSet::new_empty(0),
             spill_hazard_insts: FxHashSet::default(),
@@ -3826,7 +3814,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Eliminate phis.
         self.block_copies.clear();
         self.elided_insts.clear();
-        self.collect_late_gas_operands(func);
         let phi_result = PhiEliminator::analyze(func);
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
@@ -11802,84 +11789,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_scheduled_ops(func, ops);
     }
 
-    /// Emits a value fresh, without trying to DUP from the stack.
-    /// This is used for CALL operands where we need to guarantee correct values
-    /// regardless of scheduler stack tracking state.
-    /// Finds the calls whose gas operand can be read right before the `CALL` and elides the
-    /// operand's own definition; see [`LateGasOperand`].
-    fn collect_late_gas_operands(&mut self, func: &Function) {
-        self.late_gas_operands.clear();
-        let mut use_counts = IndexVec::<ValueId, u32>::from_vec(vec![0; func.num_values()]);
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                for operand in func.inst(inst_id).kind.operands() {
-                    use_counts[operand] += 1;
-                }
-            }
-            if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
-                    use_counts[operand] += 1;
-                }
-            }
-        }
-        for block in func.blocks.iter() {
-            for &inst_id in &block.instructions {
-                let gas = match &func.inst(inst_id).kind {
-                    InstKind::Call { gas, .. }
-                    | InstKind::CallCode { gas, .. }
-                    | InstKind::StaticCall { gas, .. }
-                    | InstKind::DelegateCall { gas, .. } => *gas,
-                    _ => continue,
-                };
-                if use_counts[gas] != 1 {
-                    continue;
-                }
-                let Value::Inst(operand_inst) = *func.value(gas) else { continue };
-                let (reading, subtracted) = match &func.inst(operand_inst).kind {
-                    InstKind::Gas => (operand_inst, None),
-                    InstKind::Sub(lhs, rhs) => {
-                        let Value::Inst(reading) = *func.value(*lhs) else { continue };
-                        let Value::Immediate(imm) = func.value(*rhs) else { continue };
-                        let Some(subtracted) = imm.as_u256() else { continue };
-                        if !matches!(func.inst(reading).kind, InstKind::Gas)
-                            || use_counts[*lhs] != 1
-                        {
-                            continue;
-                        }
-                        (reading, Some(subtracted))
-                    }
-                    _ => continue,
-                };
-                // Both definitions must sit in the call's block: no other block expects the
-                // reading on its stack or in a slot.
-                if !block.instructions.contains(&reading)
-                    || !block.instructions.contains(&operand_inst)
-                {
-                    continue;
-                }
-                self.elided_insts.insert(reading);
-                self.elided_insts.insert(operand_inst);
-                self.late_gas_operands.insert(gas, LateGasOperand { subtracted });
-            }
-        }
-    }
-
-    /// Pushes a call's gas operand, reading the gas fresh when its definition was elided.
+    /// Pushes a call's gas operand at its source-level evaluation point.
     fn emit_gas_operand(&mut self, func: &Function, gas: ValueId) {
-        let Some(late) = self.late_gas_operands.get(&gas) else {
-            self.emit_value_fresh(func, gas);
-            return;
-        };
-        if let Some(subtracted) = late.subtracted {
-            self.asm.emit_push(subtracted);
-            self.asm.emit_op(op::GAS);
-            self.asm.emit_op(op::SUB);
-        } else {
-            self.asm.emit_op(op::GAS);
-        }
-        self.scheduler.stack.push(gas);
+        self.emit_value_fresh(func, gas);
     }
 
+    /// Emits a value fresh, without trying to DUP from the stack.
     fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
             self.asm.emit_op(op);

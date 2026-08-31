@@ -269,6 +269,34 @@ impl CfgSimplifier {
                 InstKind::InternalCall { function, returns, .. } => {
                     CanonPayload::Call(*function, *returns as usize)
                 }
+                InstKind::Alloc { .. }
+                | InstKind::MemoryObjectLen(_, _)
+                | InstKind::SetMemoryObjectLen(_, _, _)
+                | InstKind::MemoryObjectData(_, _)
+                | InstKind::MemoryObjectFieldAddr { .. }
+                | InstKind::MemoryObjectElementAddr { .. }
+                | InstKind::MemoryObjectLoadField { .. }
+                | InstKind::MemoryObjectStoreField { .. }
+                | InstKind::MemoryObjectLoadElement { .. }
+                | InstKind::MemoryObjectLoadByte { .. }
+                | InstKind::MemoryObjectStoreElement { .. }
+                | InstKind::MemoryObjectStoreByte { .. }
+                | InstKind::MemoryObjectStoreWord { .. }
+                | InstKind::MemorySliceLoadWord { .. }
+                | InstKind::CalldataSliceLoadWord { .. }
+                | InstKind::MemoryObjectCopyFromSlice { .. }
+                | InstKind::MemoryObjectCopyFromSliceAt { .. }
+                | InstKind::MemoryObjectCopy { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiDecode { .. }
+                | InstKind::StorageToMemory { .. }
+                | InstKind::MemoryToStorage { .. }
+                | InstKind::ClearStorage { .. }
+                | InstKind::FrameLoad { .. }
+                | InstKind::FrameStore { .. }
+                | InstKind::StoreImmutable(_, _)
+                | InstKind::LoadImmutable(_)
+                | InstKind::StorageArrayElementSlot { .. } => return None,
                 _ => CanonPayload::None,
             };
             let mut metadata = inst.metadata.clone();

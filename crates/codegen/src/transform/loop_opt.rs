@@ -264,6 +264,7 @@ impl LoopOptimizer {
             | InstKind::MemoryObjectLoadElement { .. }
             | InstKind::MemoryObjectLoadByte { .. }
             | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::Keccak256Bytes(_)
             | InstKind::FrameLoad { .. } => return false,
             InstKind::Keccak256(offset, size) => {
                 return !self.function_observes_msize(func)

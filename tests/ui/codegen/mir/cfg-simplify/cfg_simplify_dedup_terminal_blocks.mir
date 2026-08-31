@@ -104,3 +104,24 @@ fn @keep_distinct_outside_operands(arg0: u256, arg1: u256) {
   bb4:
     stop
 }
+
+// Semantic memory layouts are payload, not operands, so blocks using different
+// fields must stay separate.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_distinct_memory_fields{{[( ]}}
+// CHECK: {{^[ +].*}}jumpi arg1, bb3, bb4
+fn @keep_distinct_memory_fields(arg0: u256, arg1: u256, arg2: memorystruct) {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v0 = memory_object_load_field memorystruct<2>, arg2, 0
+    mstore 0, v0
+    revert 0, 32
+  bb2:
+    jumpi arg1, bb3, bb4
+  bb3:
+    v1 = memory_object_load_field memorystruct<2>, arg2, 1
+    mstore 0, v1
+    revert 0, 32
+  bb4:
+    stop
+}

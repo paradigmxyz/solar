@@ -355,7 +355,7 @@ impl LowerAbiCx {
                 if layout.types.len() == 1
                     && !layout.types[0].is_dynamic()
                     && let Some(result) = func.inst_result_value(inst_id)
-                    && Self::can_alias_static_decode(func, result, &layout.types[0])
+                    && Self::can_alias_static_decode(func, result, *data, &layout.types[0])
                 {
                     *static_alias_decode_counts.entry(layout.clone()).or_default() += 1;
                     if matches!(func.value_ty(*data), Some(MirType::MemPtr)) {
@@ -448,7 +448,12 @@ impl LowerAbiCx {
                         .expect("ABI decode must produce a value");
                     if layout.types.len() == 1
                         && !layout.types[0].is_dynamic()
-                        && Self::can_alias_static_decode(builder.func(), result, &layout.types[0])
+                        && Self::can_alias_static_decode(
+                            builder.func(),
+                            result,
+                            data,
+                            &layout.types[0],
+                        )
                     {
                         let helper =
                             if matches!(builder.func().value_ty(data), Some(MirType::MemPtr)) {
@@ -910,13 +915,23 @@ impl LowerAbiCx {
             .saturating_add(child.checked_head_size().expect("ABI head size exceeds u64 range"));
     }
 
-    fn can_alias_static_decode(func: &Function, result: ValueId, ty: &AbiParamType) -> bool {
+    fn can_alias_static_decode(
+        func: &Function,
+        result: ValueId,
+        data: ValueId,
+        ty: &AbiParamType,
+    ) -> bool {
         if !matches!(func.value_ty(result), Some(MirType::MemoryObject(_))) {
             return false;
         }
 
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
+            if inst.kind.operands().contains(&data)
+                && !matches!(inst.kind, InstKind::AbiDecode { data: input, .. } if input == data)
+            {
+                return false;
+            }
             if !inst.kind.operands().contains(&result) {
                 continue;
             }
@@ -935,7 +950,9 @@ impl LowerAbiCx {
             }
         }
         for block in &func.blocks {
-            if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&result)) {
+            if block.terminator.as_ref().is_some_and(|term| {
+                term.operands().contains(&result) || term.operands().contains(&data)
+            }) {
                 return false;
             }
         }

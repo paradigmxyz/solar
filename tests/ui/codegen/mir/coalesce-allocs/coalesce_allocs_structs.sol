@@ -17,15 +17,14 @@ contract CoalesceAllocsFixture {
         uint256 tag;
     }
 
-    // Constructing the nested value allocates the outer struct and both inner
-    // structs back to back. The group fuses into one free-memory-pointer bump
-    // of the summed size, and the inner pointers become constant offsets.
+    // The deferred outer allocation must not coalesce with its dynamic child
+    // allocations.
     // CHECK-LABEL: fn @combine
-    // CHECK-NOT: mstore 64,
-    // CHECK: [[BASE:v[0-9]+]] = alloc {{.*}}, 224
-    // CHECK: [[FIRST:v[0-9]+]] = add [[BASE]], 96
-    // CHECK: [[SECOND:v[0-9]+]] = add [[BASE]], 160
-    // CHECK-NOT: mstore 64,
+    // CHECK: [[OUTER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 96
+    // CHECK: [[FIRST:v[0-9]+]] = mload 64
+    // CHECK: mstore [[OUTER]], [[FIRST]]
+    // CHECK: [[SECOND:v[0-9]+]] = mload 64
+    // CHECK: mstore {{v[0-9]+}}, [[SECOND]]
     // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {
         Outer memory outer = Outer(Inner(x, 1), Inner(2, x), 3);

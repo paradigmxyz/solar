@@ -387,6 +387,9 @@ fn coalesce_constant_allocations(func: &mut Function) {
             while scan < instructions.len() {
                 let next_id = instructions[scan];
                 if let Some(allocation) = constant_raw_allocation(func, next_id) {
+                    if allocation.deferred_alloc != first.deferred_alloc {
+                        break;
+                    }
                     let index = allocations.len();
                     allocations.push((next_id, allocation, false));
                     owners[allocation.result] = Some(index);
@@ -465,6 +468,7 @@ fn coalesce_constant_allocations(func: &mut Function) {
 struct ConstantRawAllocation {
     result: crate::mir::ValueId,
     size: u64,
+    deferred_alloc: bool,
 }
 
 fn constant_raw_allocation(
@@ -481,6 +485,7 @@ fn constant_raw_allocation(
     Some(ConstantRawAllocation {
         result: func.inst_result_value(inst_id)?,
         size: func.value_u64(size)?,
+        deferred_alloc: func.inst(inst_id).metadata.deferred_alloc(),
     })
 }
 

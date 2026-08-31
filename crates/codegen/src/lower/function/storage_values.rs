@@ -387,7 +387,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => {
                 let constant = match self.context.gcx.try_eval_const_value(expr) {
                     Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
-                    Ok(ConstValue::Integer(value)) => Some(self.builder.imm_u256(value.as_u256()?)),
+                    Ok(ConstValue::Integer(value)) => {
+                        value.as_u256().map(|value| self.builder.imm_u256(value))
+                    }
                     _ => None,
                 };
                 let value = if let Some(value) = constant {
