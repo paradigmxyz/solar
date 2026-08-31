@@ -119,6 +119,21 @@ fn can_split_slice_incoming(
 }
 
 impl LowerSlices {
+    fn expand_physical_value(
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        repr: ParamRepr,
+        expanded: &mut Vec<ValueId>,
+    ) {
+        match repr {
+            ParamRepr::Word | ParamRepr::CompactCalldata => expanded.push(value),
+            ParamRepr::Pair => {
+                expanded.push(builder.slice_ptr(value));
+                expanded.push(builder.slice_len(value));
+            }
+        }
+    }
+
     /// Splits a pointer phi whose incoming values still mix memory objects and
     /// logical slices. Inlining can erase the pointer type on one incoming
     /// memory object, so the physical word types may differ. Keep the pointer
@@ -331,13 +346,7 @@ impl LowerSlices {
                     for (index, arg) in args.into_iter().enumerate() {
                         let repr =
                             signature.get(ArgIdx::new(index)).copied().unwrap_or(ParamRepr::Word);
-                        match repr {
-                            ParamRepr::Word | ParamRepr::CompactCalldata => expanded.push(arg),
-                            ParamRepr::Pair => {
-                                expanded.push(builder.slice_ptr(arg));
-                                expanded.push(builder.slice_len(arg));
-                            }
-                        }
+                        Self::expand_physical_value(&mut builder, arg, repr, &mut expanded);
                     }
                     let InstKind::InternalCall { args, .. } =
                         &mut builder.func_mut().inst_mut(inst_id).kind
@@ -461,13 +470,7 @@ impl LowerSlices {
             builder.switch_to_block(block_id);
             let mut expanded = Vec::with_capacity(values.len() + added_slots);
             for (value, repr) in values.into_iter().zip(signature) {
-                match repr {
-                    ParamRepr::Word | ParamRepr::CompactCalldata => expanded.push(value),
-                    ParamRepr::Pair => {
-                        expanded.push(builder.slice_ptr(value));
-                        expanded.push(builder.slice_len(value));
-                    }
-                }
+                Self::expand_physical_value(&mut builder, value, *repr, &mut expanded);
             }
             builder.func_mut().blocks[block_id].terminator =
                 Some(Terminator::Return { values: expanded.into() });

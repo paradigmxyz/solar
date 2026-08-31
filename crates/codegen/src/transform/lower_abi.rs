@@ -357,6 +357,7 @@ impl LowerAbiCx {
 
     fn lower_decode_instructions(&self, module: &mut Module) -> bool {
         let mut decode_counts = FxHashMap::default();
+        let mut memory_type_counts = FxHashMap::default();
         let mut static_alias_decode_counts = FxHashMap::<AbiParamLayoutRef, usize>::default();
         let mut static_alias_ptr_layouts = FxHashSet::default();
         let mut decode_functions = DenseBitSet::new_empty(module.functions.len());
@@ -369,7 +370,13 @@ impl LowerAbiCx {
                 if layout.types.is_empty() || layout.checked_head_size().is_none() {
                     return false;
                 }
-                *decode_counts.entry(layout.clone()).or_insert(0) += 1;
+                let count = decode_counts.entry(layout.clone()).or_insert(0);
+                if *count == 0 {
+                    for ty in &layout.types {
+                        count_dynamic_tuple_types(ty, 1, &mut memory_type_counts);
+                    }
+                }
+                *count += 1;
                 if layout.types.len() == 1
                     && !layout.types[0].is_dynamic()
                     && let Some(result) = func.inst_result_value(inst_id)
@@ -381,6 +388,23 @@ impl LowerAbiCx {
                     }
                 }
             }
+        }
+
+        let mut memory_types = memory_type_counts
+            .into_iter()
+            .filter_map(|(ty, (count, first))| (count >= 2).then_some((first, ty)))
+            .collect::<Vec<_>>();
+        memory_types.sort_by_key(|(first, ty)| (abi_param_type_depth(ty), *first));
+
+        let mut memory_type_helpers = FxHashMap::default();
+        for (_, ty) in memory_types {
+            let helper = synthesize_memory_decode_helper(
+                module,
+                &ty,
+                &memory_type_helpers,
+                self.has_bitwise_shifting,
+            );
+            memory_type_helpers.insert(ty, helper);
         }
 
         let mut decode_helpers = FxHashMap::default();
@@ -399,13 +423,21 @@ impl LowerAbiCx {
                     static_alias_decode_helpers.insert(layout.clone(), helper);
                 }
                 if count != alias_count {
-                    let helper =
-                        self.synthesize_decode_helper(module, layout.clone(), sym::decode_static);
+                    let helper = self.synthesize_decode_helper(
+                        module,
+                        layout.clone(),
+                        sym::decode_static,
+                        &memory_type_helpers,
+                    );
                     decode_helpers.insert(layout, helper);
                 }
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
-                let helper =
-                    self.synthesize_decode_helper(module, layout.clone(), sym::decode_aggregate);
+                let helper = self.synthesize_decode_helper(
+                    module,
+                    layout.clone(),
+                    sym::decode_aggregate,
+                    &memory_type_helpers,
+                );
                 decode_helpers.insert(layout, helper);
             }
         }
@@ -440,6 +472,7 @@ impl LowerAbiCx {
                         .inst_result_value(inst)
                         .expect("ABI decode must produce a value");
                     if layout.types.len() == 1
+                        && !layout.types[0].is_dynamic()
                         && Self::can_alias_static_decode(builder.func(), result, &layout.types[0])
                     {
                         let helper =
@@ -479,8 +512,7 @@ impl LowerAbiCx {
                         base,
                         length,
                         layout.as_ref(),
-                        false,
-                        None,
+                        (!memory_type_helpers.is_empty()).then_some(&memory_type_helpers),
                         self.has_bitwise_shifting,
                     ) else {
                         return false;
@@ -677,6 +709,7 @@ impl LowerAbiCx {
         module: &mut Module,
         layout: AbiParamLayoutRef,
         name: Symbol,
+        memory_type_helpers: &FxHashMap<AbiParamType, FunctionId>,
     ) -> FunctionId {
         let mut function = Function::new(Ident::with_dummy_span(name));
         {
@@ -692,8 +725,7 @@ impl LowerAbiCx {
                 base,
                 length,
                 layout.as_ref(),
-                false,
-                None,
+                (!memory_type_helpers.is_empty()).then_some(memory_type_helpers),
                 self.has_bitwise_shifting,
             )
             .expect("checked ABI layout");
@@ -1708,7 +1740,6 @@ impl LowerAbiCx {
         let location = if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
         if constructor
             && head_checked
-            && allow_alias
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
             return builder.internal_call(
@@ -2918,13 +2949,11 @@ impl LowerAbiCx {
 }
 
 /// Decodes a memory-backed ABI tuple through the shared ABI-layer decoder.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn decode_memory_tuple(
+fn decode_memory_tuple(
     builder: &mut FunctionBuilder<'_>,
     base: ValueId,
     length: ValueId,
     layout: &AbiParamLayout,
-    allow_alias: bool,
     helpers: Option<&FxHashMap<crate::mir::AbiParamType, FunctionId>>,
     has_bitwise_shifting: bool,
 ) -> Option<Vec<ValueId>> {
@@ -2955,7 +2984,7 @@ pub(crate) fn decode_memory_tuple(
                 base,
                 &mut current,
                 DecodeOptions {
-                    allow_alias,
+                    allow_alias: false,
                     helpers,
                     ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
                 },
@@ -2968,10 +2997,51 @@ pub(crate) fn decode_memory_tuple(
     Some(values)
 }
 
+fn count_dynamic_tuple_types(
+    ty: &AbiParamType,
+    occurrences: usize,
+    counts: &mut FxHashMap<AbiParamType, (usize, usize)>,
+) {
+    match ty {
+        AbiParamType::FixedArray { element, len } => count_dynamic_tuple_types(
+            element,
+            occurrences.saturating_mul(usize::try_from(*len).unwrap_or(usize::MAX)).min(2),
+            counts,
+        ),
+        AbiParamType::DynamicArray(element) => {
+            count_dynamic_tuple_types(element, occurrences, counts)
+        }
+        AbiParamType::Tuple(fields) => {
+            if ty.has_dynamic_child() {
+                let first = counts.len();
+                let count = counts.entry(ty.clone()).or_insert((0, first));
+                count.0 = count.0.saturating_add(occurrences).min(2);
+            }
+            for field in fields {
+                count_dynamic_tuple_types(field, occurrences, counts);
+            }
+        }
+        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => {}
+    }
+}
+
+fn abi_param_type_depth(ty: &AbiParamType) -> usize {
+    match ty {
+        AbiParamType::FixedArray { element, .. } | AbiParamType::DynamicArray(element) => {
+            abi_param_type_depth(element) + 1
+        }
+        AbiParamType::Tuple(fields) => {
+            fields.iter().map(abi_param_type_depth).max().unwrap_or_default() + 1
+        }
+        AbiParamType::Scalar(_) | AbiParamType::Enum { .. } | AbiParamType::Bytes => 0,
+    }
+}
+
 /// Adds a helper for a repeated dynamic tuple in a memory ABI decode.
-pub(crate) fn synthesize_memory_decode_helper(
+fn synthesize_memory_decode_helper(
     module: &mut Module,
-    ty: crate::mir::AbiParamType,
+    ty: &AbiParamType,
+    helpers: &FxHashMap<AbiParamType, FunctionId>,
     has_bitwise_shifting: bool,
 ) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
@@ -2983,13 +3053,14 @@ pub(crate) fn synthesize_memory_decode_helper(
         let mut current = builder.current_block();
         let value = LowerAbiCx::decode_aggregate_argument(
             &mut builder,
-            &ty,
+            ty,
             ty.mir_type(),
             head,
             tuple_base,
             &mut current,
             DecodeOptions {
-                allow_alias: true,
+                allow_alias: false,
+                helpers: (!helpers.is_empty()).then_some(helpers),
                 ..DecodeOptions::new(true, input_end, has_bitwise_shifting).checked()
             },
         );

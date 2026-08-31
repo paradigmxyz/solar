@@ -407,7 +407,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let data = self.builder.slice_ptr(value);
                 let element_head_size = self.builder.imm_u64(element_type.head_size());
                 let head_size = self.builder.checked_mul(length, element_head_size);
-                self.check_calldata_tail_range(data, head_size);
+                self.check_calldata_range(data, head_size);
                 if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
                 {
@@ -699,10 +699,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.revert_if_invalid(invalid);
     }
 
-    fn check_calldata_tail_range(&mut self, start: ValueId, size: ValueId) {
-        self.check_calldata_range(start, size);
-    }
-
     fn validate_calldata_dynamic_tail(
         &mut self,
         value_pos: ValueId,
@@ -833,7 +829,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_head_size = element_abi.head_size();
         if validate_bounds {
             let head_size = self.builder.imm_u64(length.checked_mul(element_head_size)?);
-            self.check_calldata_tail_range(base, head_size);
+            self.check_calldata_range(base, head_size);
         }
         let _ = length.checked_mul(32)?;
         let (object, layout) = self.builder.alloc_word_array(length, AllocationSemantics::INTERNAL);
@@ -876,7 +872,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         });
         let nested_validate = if validate_bounds && all_static {
             let head_size = self.builder.imm_u64(head_size);
-            self.check_calldata_tail_range(base, head_size);
+            self.check_calldata_range(base, head_size);
             false
         } else {
             validate_bounds

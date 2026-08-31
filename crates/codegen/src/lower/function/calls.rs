@@ -2,6 +2,20 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
+struct ExternalReturnPlan {
+    static_buffer: Option<(ValueId, ValueId, ValueId)>,
+    offset: ValueId,
+    size: ValueId,
+    decode_returndata: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExternalReturnMode {
+    First,
+    All,
+}
+
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn uses_static_call(&self, state_mutability: hir::StateMutability) -> bool {
         matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
@@ -314,50 +328,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         let return_tys = function.returns;
         let returns = return_tys.len();
-        let (static_return_buffer, ret_offset, ret_size, decode_returndata) =
-            self.plan_return_buffer(input, zero, return_tys);
+        let return_plan = self.plan_return_buffer(input, zero, return_tys);
         if returns == 0 {
             self.revert_if_no_code(address);
         }
         let success = if self.uses_static_call(function.state_mutability) {
-            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
+            self.builder.staticcall(
+                gas,
+                address,
+                input,
+                input_size,
+                return_plan.offset,
+                return_plan.size,
+            )
         } else {
-            self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
+            self.builder.call(
+                gas,
+                address,
+                call_value,
+                input,
+                input_size,
+                return_plan.offset,
+                return_plan.size,
+            )
         };
         self.revert_external_call(success);
-        if returns == 0 {
-            return Some(Vec::new());
-        }
-        if let Some((data, _, size)) = static_return_buffer {
-            self.revert_if_short_returndata(size);
-            return self.lower_abi_decode_values(data, return_tys, callee.span);
-        }
-        if decode_returndata {
-            if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
-                return report_error(
-                    self.context.gcx,
-                    callee.span,
-                    "codegen cannot decode external function-pointer returndata before Byzantium",
-                );
-            }
-            let data = self.materialize_returndata_bytes();
-            return self.lower_abi_decode_values(data, return_tys, callee.span);
-        }
-        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
-            self.validate_static_returndata(ret_offset, function.returns);
-        }
-        if returns > 1 {
-            self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
-            let first =
-                self.load_multi_return_value_as(ret_offset, 0, returns, function.returns[0]);
-            return Some(self.load_multi_return_values(
-                first,
-                ret_offset,
-                returns,
-                function.returns.iter().skip(1).copied().map(Some),
-            ));
-        }
-        Some(vec![self.load_multi_return_value_as(ret_offset, 0, returns, function.returns[0])])
+        self.finish_external_call(
+            return_plan,
+            return_tys,
+            callee.span,
+            ExternalReturnMode::All,
+            "codegen cannot decode external function-pointer returndata before Byzantium",
+        )
     }
 
     pub(super) fn split_external_function_pointer(
@@ -875,8 +877,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&ret| self.context.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let returns = return_tys.len();
-        let (static_return_buffer, ret_offset, ret_size, decode_returndata) =
-            self.plan_return_buffer(input, zero, &return_tys);
+        let return_plan = self.plan_return_buffer(input, zero, &return_tys);
         if returns == 0
             && (self.builder.func().attributes.is_constructor
                 || self.context.gcx.resolved_builtin(receiver) != Some(Builtin::This))
@@ -884,37 +885,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.revert_if_no_code(address);
         }
         let success = if self.uses_static_call(function.state_mutability) {
-            self.builder.staticcall(gas, address, input, input_size, ret_offset, ret_size)
+            self.builder.staticcall(
+                gas,
+                address,
+                input,
+                input_size,
+                return_plan.offset,
+                return_plan.size,
+            )
         } else {
-            self.builder.call(gas, address, call_value, input, input_size, ret_offset, ret_size)
+            self.builder.call(
+                gas,
+                address,
+                call_value,
+                input,
+                input_size,
+                return_plan.offset,
+                return_plan.size,
+            )
         };
         self.revert_external_call(success);
-        if returns == 0 {
-            return Some(zero);
-        }
-        if let Some((data, _, size)) = static_return_buffer {
-            self.revert_if_short_returndata(size);
-            return self.lower_decoded_return_value(data, &return_tys, expr.span, zero);
-        }
-        if decode_returndata {
-            if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
-                return report_error(
-                    self.context.gcx,
-                    expr.span,
-                    "codegen cannot decode external function returndata before Byzantium",
-                );
-            }
-            let data = self.materialize_returndata_bytes();
-            return self.lower_decoded_return_value(data, &return_tys, expr.span, zero);
-        }
-        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
-            self.validate_static_returndata(ret_offset, &return_tys);
-        }
-        if returns > 1 {
-            self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, ret_offset);
-        }
-        let ty = self.context.gcx.type_of_item(function.returns[0].into());
-        Some(self.load_multi_return_value_as(ret_offset, 0, returns, ty))
+        let values = self.finish_external_call(
+            return_plan,
+            &return_tys,
+            expr.span,
+            ExternalReturnMode::First,
+            "codegen cannot decode external function returndata before Byzantium",
+        )?;
+        Some(values.into_iter().next().unwrap_or(zero))
     }
 
     pub(super) fn lower_abi_call_arguments(
@@ -1044,20 +1042,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if function.returns.is_empty() {
             return Some(zero);
         }
-        if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
-            return report_error(
-                self.context.gcx,
-                expr.span,
-                "codegen cannot decode linked library returndata before Byzantium",
-            );
-        }
-        let data = self.materialize_returndata_bytes();
         let return_types = function
             .returns
             .iter()
             .map(|&ret| self.context.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
-        self.lower_decoded_return_value(data, &return_types, expr.span, zero)
+        let values = self.finish_external_call(
+            ExternalReturnPlan {
+                static_buffer: None,
+                offset: zero,
+                size: zero,
+                decode_returndata: true,
+            },
+            &return_types,
+            expr.span,
+            ExternalReturnMode::First,
+            "codegen cannot decode linked library returndata before Byzantium",
+        )?;
+        Some(values.into_iter().next().unwrap_or(zero))
     }
 
     pub(super) fn lower_abi_receiver(
@@ -1092,7 +1094,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         input: ValueId,
         zero: ValueId,
         return_tys: &[Ty<'gcx>],
-    ) -> (Option<(ValueId, ValueId, ValueId)>, ValueId, ValueId, bool) {
+    ) -> ExternalReturnPlan {
         // static = static_aggregate_layout(returns)
         // buffer = static ? alloc_static_buffer(static) : none
         // decode = any_return_is_nonword
@@ -1116,7 +1118,61 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.builder.imm_u64((returns as u64).saturating_mul(32))
         };
-        (static_return_buffer, ret_offset, ret_size, decode_returndata)
+        ExternalReturnPlan {
+            static_buffer: static_return_buffer,
+            offset: ret_offset,
+            size: ret_size,
+            decode_returndata,
+        }
+    }
+
+    fn finish_external_call(
+        &mut self,
+        plan: ExternalReturnPlan,
+        return_tys: &[Ty<'gcx>],
+        span: Span,
+        mode: ExternalReturnMode,
+        unsupported_returndata: &'static str,
+    ) -> Option<Vec<ValueId>> {
+        let ExternalReturnPlan { static_buffer, offset, decode_returndata, .. } = plan;
+        let returns = return_tys.len();
+        if returns == 0 {
+            return Some(Vec::new());
+        }
+        let data = if let Some((data, _, size)) = static_buffer {
+            self.revert_if_short_returndata(size);
+            Some(data)
+        } else if decode_returndata {
+            if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
+                return report_error(self.context.gcx, span, unsupported_returndata);
+            }
+            Some(self.materialize_returndata_bytes())
+        } else {
+            None
+        };
+        if let Some(data) = data {
+            return if mode == ExternalReturnMode::All {
+                self.lower_abi_decode_values(data, return_tys, span)
+            } else {
+                self.lower_decoded_return_value(data, return_tys, span).map(|value| vec![value])
+            };
+        }
+        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
+            self.validate_static_returndata(offset, return_tys);
+        }
+        if returns > 1 {
+            self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, offset);
+        }
+        let first = self.load_multi_return_value_as(offset, 0, returns, return_tys[0]);
+        if mode == ExternalReturnMode::All && returns > 1 {
+            return Some(self.load_multi_return_values(
+                first,
+                offset,
+                returns,
+                return_tys.iter().skip(1).copied().map(Some),
+            ));
+        }
+        Some(vec![first])
     }
 
     fn lower_decoded_return_value(
@@ -1124,11 +1180,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         data: ValueId,
         return_types: &[Ty<'gcx>],
         span: Span,
-        zero: ValueId,
     ) -> Option<ValueId> {
         // values = lower_abi_decode_values(return_data, return_types)
         // multi_return_frame[1..] = values[1..]
-        // return values[0] or zero
+        // return values[0]
         let values = self.lower_abi_decode_values(data, return_types, span)?;
         if values.len() > 1 {
             let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
@@ -1137,7 +1192,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.memory_object_store_element(object, layout, index, value);
             }
         }
-        values.into_iter().next().or(Some(zero))
+        Some(values.into_iter().next().expect("external return list is not empty"))
     }
 
     fn alloc_static_return_buffer(
