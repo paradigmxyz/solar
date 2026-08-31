@@ -2,7 +2,7 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 961
+  push 955
   dup 1
   push 10
   push 0
@@ -292,11 +292,13 @@ bb0:
   lt
   swap 7
   pop
+  swap 2
+  swap 4
   swap 6
-  exchange 1, 5
-  exchange 2, 6
-  exchange 3, 5
-  exchange 4, 6
+  swap 1
+  swap 3
+  swap 5
+  swap 1
   iszero
   push bb29
   jumpi

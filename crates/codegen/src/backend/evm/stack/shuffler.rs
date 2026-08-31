@@ -6,7 +6,9 @@
 //! without worsening action count, static gas, or encoded size. Larger layouts use the verified
 //! greedy result, with the bounded search as the correctness fallback when the greedy pass cannot
 //! reach the target. When exact search reaches its state cap it stops enqueueing successors but
-//! drains the existing frontier, preserving targets that were discovered before the cap.
+//! drains the existing frontier, preserving targets that were discovered before the cap. Physical
+//! runs with unique values use a direct deletion-order and permutation solver, which avoids a
+//! wider graph search for the SWAP/POP cleanup sequences seen in generated code.
 //!
 //! ## Algorithm overview
 //!
@@ -29,6 +31,7 @@ use std::collections::VecDeque;
 
 const MAX_LAYOUT_SEARCH_STATES: usize = 100_000;
 const EXACT_LAYOUT_OPTIMIZATION_LIMIT: usize = 4;
+const MAX_ENUMERATED_PHYSICAL_REMOVALS: usize = 7;
 const PHYSICAL_RESYNTHESIS_LAYOUT_LIMIT: usize = 236;
 
 type Layout = SmallVec<[Option<ValueId>; 16]>;
@@ -79,8 +82,7 @@ pub(crate) fn resynthesize_physical_ops(
         .iter()
         .map(|value| TargetSlot::Value(value.expect("physical stack run values stay known")))
         .collect();
-    let permutation = synthesize_unique_permutation(source.as_slice(), &target)
-        .filter(|ops| ops.iter().all(|op| op.lowering(evm_version).is_some()));
+    let permutation = synthesize_unique_layout(source.as_slice(), &target, evm_version);
     if !evm_version.has_extended_stack_ops() && permutation.is_some() {
         return permutation;
     }
@@ -106,50 +108,97 @@ pub(crate) fn resynthesize_physical_ops(
     }
 }
 
-fn synthesize_unique_permutation(
+fn synthesize_unique_layout(
     source: &[Option<ValueId>],
     target: &[TargetSlot],
+    evm_version: EvmVersion,
 ) -> Option<Vec<StackOp>> {
-    if source.len() != target.len() {
+    if source.len() < target.len() {
         return None;
     }
     if target.is_empty() {
-        return Some(Vec::new());
+        return Some(vec![StackOp::Pop; source.len()]);
     }
 
-    let mut target_positions = SmallVec::<[usize; 16]>::from_elem(usize::MAX, source.len());
-    for (index, &TargetSlot::Value(value)) in target.iter().enumerate() {
-        let position = &mut target_positions[value.index()];
-        if *position != usize::MAX {
+    let source = source.iter().copied().collect::<Option<SmallVec<[ValueId; 16]>>>()?;
+    let mut target_values = SmallVec::<[ValueId; 16]>::new();
+    for &TargetSlot::Value(value) in target {
+        if target_values.contains(&value) || !source.contains(&value) {
             return None;
         }
-        *position = index;
+        target_values.push(value);
     }
-    let mut current: SmallVec<[ValueId; 16]> = source
+
+    let mut removed = source
         .iter()
         .copied()
-        .map(|value| value.filter(|value| target_positions[value.index()] != usize::MAX))
-        .collect::<Option<_>>()?;
+        .filter(|value| !target_values.contains(value))
+        .collect::<SmallVec<[ValueId; 16]>>();
+    if removed.len() > MAX_ENUMERATED_PHYSICAL_REMOVALS {
+        return None;
+    }
+    removed.sort_unstable();
+    let mut best = None;
+    loop {
+        let mut current = source.clone();
+        let mut ops = Vec::new();
+        for &value in &removed {
+            let depth = current.iter().position(|&current| current == value)?;
+            if depth != 0 {
+                ops.push(StackOp::Swap(depth as u8));
+                current.swap(0, depth);
+            }
+            ops.push(StackOp::Pop);
+            current.remove(0);
+        }
+        ops.extend(synthesize_unique_permutation(&mut current, &target_values));
+        if ops.iter().all(|op| op.lowering(evm_version).is_some())
+            && best.as_ref().is_none_or(|best: &Vec<_>| {
+                lowered_stack_cost(&ops, evm_version) < lowered_stack_cost(best, evm_version)
+            })
+        {
+            best = Some(ops);
+        }
+        if !next_permutation(&mut removed) {
+            return best;
+        }
+    }
+}
 
+fn synthesize_unique_permutation(
+    current: &mut SmallVec<[ValueId; 16]>,
+    target: &[ValueId],
+) -> Vec<StackOp> {
     let mut ops = Vec::new();
     loop {
-        let top_target = target_positions[current[0].index()];
+        let top_target = target.iter().position(|&target| target == current[0]).unwrap();
         if top_target != 0 {
             ops.push(StackOp::Swap(top_target as u8));
             current.swap(0, top_target);
             continue;
         }
 
-        let Some(cycle) = current
-            .iter()
-            .zip(target)
-            .position(|(&current, &TargetSlot::Value(target))| current != target)
+        let Some(cycle) =
+            current.iter().zip(target).position(|(&current, &target)| current != target)
         else {
-            return Some(ops);
+            return ops;
         };
         ops.push(StackOp::Swap(cycle as u8));
         current.swap(0, cycle);
     }
+}
+
+fn next_permutation(values: &mut [ValueId]) -> bool {
+    let Some(pivot) =
+        (0..values.len().saturating_sub(1)).rev().find(|&index| values[index] < values[index + 1])
+    else {
+        return false;
+    };
+    let successor =
+        (pivot + 1..values.len()).rev().find(|&index| values[pivot] < values[index]).unwrap();
+    values.swap(pivot, successor);
+    values[pivot + 1..].reverse();
+    true
 }
 
 /// Result of a shuffle operation.

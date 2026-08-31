@@ -180,3 +180,75 @@ bb8:
   swap 1
   swap 3
   stop
+
+// Shorten the SWAP/POP cleanup sequences found after generated multi-value returns.
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK: {{^[ +].*}}push 32
+// CHECK-NEXT: -   swap 3
+// CHECK-NEXT: +   swap 5
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb9:
+  push 27
+  push 28
+  push 29
+  push 30
+  push 31
+  push 32
+  swap 3
+  pop
+  pop
+  pop
+  swap 2
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb10:
+// CHECK: {{^[ +].*}}push 37
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: +   swap 4
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb10:
+  push 33
+  push 34
+  push 35
+  push 36
+  push 37
+  swap 2
+  pop
+  pop
+  swap 2
+  pop
+  stop
+
+// Normalize a seven-word cleanup without widening graph search for ordinary scheduling.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK: {{^[ +].*}}push 44
+// CHECK-NEXT: -   swap 4
+// CHECK-NEXT: +   swap 6
+// CHECK-COUNT-5: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb11:
+  push 38
+  push 39
+  push 40
+  push 41
+  push 42
+  push 43
+  push 44
+  swap 4
+  pop
+  pop
+  pop
+  pop
+  swap 2
+  pop
+  stop

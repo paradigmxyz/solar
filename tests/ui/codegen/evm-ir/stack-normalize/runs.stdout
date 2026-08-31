@@ -74,31 +74,31 @@
   bb6:
     push 22
     push 23
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
--   swap 1
     swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
     stop
   bb7:
     push 24
@@ -114,5 +114,50 @@
     swap 2
     swap 1
     swap 3
+    stop
+  bb9:
+    push 27
+    push 28
+    push 29
+    push 30
+    push 31
+    push 32
+-   swap 3
++   swap 5
+    pop
+    pop
+    pop
+-   swap 2
+    pop
+    stop
+  bb10:
+    push 33
+    push 34
+    push 35
+    push 36
+    push 37
+-   swap 2
++   swap 4
+    pop
+    pop
+-   swap 2
+    pop
+    stop
+  bb11:
+    push 38
+    push 39
+    push 40
+    push 41
+    push 42
+    push 43
+    push 44
+-   swap 4
++   swap 6
+    pop
+    pop
+    pop
+    pop
+-   swap 2
+    pop
     stop
   
