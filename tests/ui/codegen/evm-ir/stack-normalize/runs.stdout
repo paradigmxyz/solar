@@ -100,4 +100,19 @@
 -   swap 1
     swap 1
     stop
+  bb7:
+    push 24
+    push 25
+    push 26
+    push bb8
+    push 0
+    add
+    jump
+  bb8:
+    swap 3
+    swap 1
+    swap 2
+    swap 1
+    swap 3
+    stop
   

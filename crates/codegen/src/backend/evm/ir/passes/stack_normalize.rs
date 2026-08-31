@@ -8,9 +8,12 @@
 //!
 //! A replacement must be lowerable on the selected EVM version, must not raise the run's relative
 //! stack peak, and must weakly improve encoded bytes, static gas, and instruction count while
-//! strictly improving at least one. These Pareto checks prevent target-specific deep stack ops from
-//! trading a regression in one objective for a win in another. Instructions with custom stack
-//! effects break a run, and metadata from retained positions is transferred to replacement ops.
+//! strictly improving at least one. It also preserves the minimum entry depth unless the preceding
+//! block prefix guarantees enough words for the original run. This keeps an underflowing run from
+//! becoming executable when an opaque jump reaches it with too few words. The Pareto checks prevent
+//! target-specific deep stack ops from trading a regression in one objective for a win in another.
+//! Instructions with custom stack effects break a run, and metadata from retained positions is
+//! transferred to replacement ops.
 //!
 //! This is deliberately a small late machine-level normalizer, not a second MIR stack scheduler.
 //! It repairs local permutations exposed after value identities are gone, then peephole cleanup
@@ -41,6 +44,7 @@ impl EvmPass for StackNormalize {
         let mut cache = FxHashMap::default();
         let mut scratch = Vec::new();
         let mut normalizations = Vec::new();
+        let mut guaranteed_depths = Vec::new();
         for block in &mut module.blocks {
             changed |= normalize_runs(
                 &mut block.instructions,
@@ -48,6 +52,7 @@ impl EvmPass for StackNormalize {
                 &mut cache,
                 &mut scratch,
                 &mut normalizations,
+                &mut guaranteed_depths,
             );
         }
         changed
@@ -69,8 +74,10 @@ fn normalize_runs(
     cache: &mut NormalizationCache,
     scratch: &mut Vec<Instruction>,
     normalizations: &mut Vec<Normalization>,
+    guaranteed_depths: &mut Vec<usize>,
 ) -> bool {
     normalizations.clear();
+    compute_guaranteed_depths(instructions, guaranteed_depths);
     let mut input = StackRun::new();
     let mut cursor = 0;
     while cursor < instructions.len() {
@@ -94,7 +101,8 @@ fn normalize_runs(
             input.clear();
             input.extend(instructions[start..end].iter().filter_map(stack_op));
             if input.len() >= 2
-                && let Some(output) = normalization(&input, evm_version, cache)
+                && let Some(output) =
+                    normalization(&input, evm_version, guaranteed_depths[start], cache)
             {
                 normalizations.push(Normalization { start, end, output });
             }
@@ -131,13 +139,16 @@ fn normalize_runs(
 fn normalization(
     input: &StackRun,
     evm_version: EvmVersion,
+    guaranteed_depth: usize,
     cache: &mut NormalizationCache,
 ) -> Option<StackRun> {
-    cache
+    let output = cache
         .entry(input.clone())
         .or_insert_with(|| {
             let output = StackRun::from_vec(resynthesize_physical_ops(input, evm_version)?);
-            if relative_peak(&output) > relative_peak(input) {
+            if required_entry_depth(&output) > required_entry_depth(input)
+                || relative_peak(&output) > relative_peak(input)
+            {
                 return None;
             }
             let input_cost = lowered_stack_cost(input, evm_version);
@@ -148,7 +159,10 @@ fn normalization(
                 && output_cost != input_cost)
                 .then_some(output)
         })
-        .clone()
+        .clone()?;
+    let input_required = required_entry_depth(input);
+    (required_entry_depth(&output) == input_required || guaranteed_depth >= input_required)
+        .then_some(output)
 }
 
 fn stack_op(inst: &Instruction) -> Option<StackOp> {
@@ -164,4 +178,35 @@ fn relative_peak(ops: &[StackOp]) -> isize {
         peak = peak.max(depth);
     }
     peak
+}
+
+fn required_entry_depth(ops: &[StackOp]) -> usize {
+    let mut depth = 0isize;
+    let mut required = 0isize;
+    for op in ops {
+        required = required.max(op.required_depth() as isize - depth);
+        depth += op.net_growth();
+    }
+    required as usize
+}
+
+fn compute_guaranteed_depths(instructions: &[Instruction], depths: &mut Vec<usize>) {
+    depths.clear();
+    depths.reserve(instructions.len() + 1);
+    depths.push(0);
+    let mut relative_depth = 0isize;
+    let mut required_entry = 0isize;
+    for inst in instructions {
+        let Some(effect) = inst.effective_stack_effect() else {
+            relative_depth = 0;
+            required_entry = 0;
+            depths.push(0);
+            continue;
+        };
+        let required =
+            inst.as_stack_op().map_or(usize::from(effect.inputs), StackOp::required_depth);
+        required_entry = required_entry.max(required as isize - relative_depth);
+        relative_depth += isize::from(effect.outputs) - isize::from(effect.inputs);
+        depths.push((required_entry + relative_depth) as usize);
+    }
 }

@@ -157,3 +157,26 @@ bb6:
   swap 1
   swap 1
   stop
+
+// Preserve the underflow reached through an opaque dynamic edge carrying only three words.
+bb7:
+  push 24
+  push 25
+  push 26
+  push bb8
+  push 0
+  add
+  jump
+// CHECK-LABEL: {{^[ +].*}}bb8:
+// CHECK: {{^[ +].*}}swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 3
+bb8:
+  swap 3
+  swap 1
+  swap 2
+  swap 1
+  swap 3
+  stop
