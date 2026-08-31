@@ -12,7 +12,7 @@ contract StorageLongBytesReturn {
     // CHECK: ret [[VALUE]]
     bytes public b;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: sstore 0, 65
     // CHECK: [[S_DATA:v[0-9]+]] = keccak256 0, 32
     // CHECK: sstore [[S_DATA]], 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546

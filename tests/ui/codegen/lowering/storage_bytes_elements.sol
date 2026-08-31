@@ -45,7 +45,7 @@ contract StorageStringConstructor {
     // CHECK: internal_call @__load_storage_bytes, 1, 1
     string public symbol;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK-COUNT-2: mcopy {{.*}} !metadata(memory=heap)
     // CHECK: sstore 0,
     // CHECK: sstore 1,
@@ -64,7 +64,7 @@ contract StorageStringBase {
     // CHECK: internal_call @__load_storage_bytes, 1, 1
     string public symbol;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: sstore 0,
     // CHECK: sstore 1,
     constructor(string memory name_, string memory symbol_) {
@@ -74,7 +74,7 @@ contract StorageStringBase {
 }
 
 contract StorageStringDerived is StorageStringBase {
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 9
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 4
     // CHECK: sstore 0,

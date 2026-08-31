@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_push_pop.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
-fn @_anonymous() {
+fn @constructor() {
   bb0:
     v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = memory_object_len memorybytes, v0
