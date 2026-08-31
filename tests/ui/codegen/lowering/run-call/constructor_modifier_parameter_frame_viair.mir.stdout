@@ -17,18 +17,14 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb2:
     v2 = add arg0, 1
     v3 = lt v2, arg0
-    jumpi v3, bb6, bb7
-  bb7:
+    jumpi v3, bb3, bb6
+  bb6:
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb5
   bb5:
     jump bb1
   bb1:
     stop
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -48,8 +44,8 @@ fn @constructor() [constructor] {
   bb3:
     v2 = add 5, 1
     v3 = lt v2, 5
-    jumpi v3, bb7, bb8
-  bb8:
+    jumpi v3, bb4, bb7
+  bb7:
     sstore 0, v2 !metadata(storage=slot(0))
     jump bb6
   bb6:
@@ -57,13 +53,9 @@ fn @constructor() [constructor] {
   bb2:
     jump bb1
   bb1:
-    jump bb9
-  bb9:
+    jump bb8
+  bb8:
     stop
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

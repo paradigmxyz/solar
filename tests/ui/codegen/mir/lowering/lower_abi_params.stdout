@@ -32,11 +32,11 @@
 +     v9 = add 4, v8
 +     v10 = sub v6, 4
 +     v11 = gt v8, v10
-+     jumpi v11, bb5, bb4
-+   bb4:
++     jumpi v11, bb4, bb5
++   bb5:
 +     v12 = sub v6, v9
 +     v13 = gt 64, v12
-+     jumpi v13, bb7, bb6
++     jumpi v13, bb4, bb6
 +   bb6:
 +     v14 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
 +     v15 = calldataload v9
@@ -45,15 +45,15 @@
 +     v18 = gt v15, 0xffffffffffffffff
 +     v19 = gt v17, v6
 +     v20 = or v18, v19
-+     jumpi v20, bb9, bb8
-+   bb8:
++     jumpi v20, bb4, bb7
++   bb7:
 +     v21 = calldataload v16
 +     v22 = add v16, 32
 +     v23 = sub v6, v22
 +     v24 = shr 5, v23
 +     v25 = gt v21, v24
-+     jumpi v25, bb11, bb10
-+   bb10:
++     jumpi v25, bb4, bb8
++   bb8:
 +     v26 = mul v21, 32
 +     v27 = add v26, 32
 +     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v27
@@ -79,13 +79,7 @@
 +     v32 = add 128, 32
 +     v33 = sub v32, 128
 +     returndata 128, v33
-+   bb11:
-+     revert 0, 0
-+   bb9:
-+     revert 0, 0
-+   bb7:
-+     revert 0, 0
-+   bb5:
++   bb4:
 +     revert 0, 0
 +   bb2:
 +     revert 0, 0

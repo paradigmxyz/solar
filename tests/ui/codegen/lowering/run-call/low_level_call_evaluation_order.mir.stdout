@@ -13,15 +13,11 @@ fn @receiver() -> address {
   bb2:
     v7 = add v1, 1
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = address
     ret v9
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -41,15 +37,11 @@ fn @gasOpt() -> u256 {
   bb2:
     v7 = add v1, 2
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = gas
     ret v9
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -69,14 +61,10 @@ fn @valueOpt() -> u256 {
   bb2:
     v7 = add v1, 3
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     ret 0
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -96,17 +84,13 @@ fn @data() -> memorybytes {
   bb2:
     v7 = add v1, 4
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v9, 0
     v10 = memory_object_data memorybytes, v9
     ret v9
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -97,10 +97,10 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v29 = and v27, v28
     jumpi v25, bb11, bb12
   bb12:
-    jumpi 1, bb15, bb16
-  bb16:
-    revert v16, v17
+    jumpi 1, bb14, bb15
   bb15:
+    revert v16, v17
+  bb14:
     ret 0
   bb11:
     v30 = memory_object_data memorybytes, v14
@@ -111,8 +111,8 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v35 = slice_len v34
     v36 = add v35, 63
     v37 = lt v36, v35
-    jumpi v37, bb13, bb14
-  bb14:
+    jumpi v37, bb6, bb13
+  bb13:
     v38 = not 31
     v39 = and v36, v38
     v40 = alloc memorybytes, exact, uninitialized, infallible, v39
@@ -121,10 +121,6 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v41 = abi_decode [bytes], v40
     v42 = memory_object_len memorybytes, v41
     ret v42
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

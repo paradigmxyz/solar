@@ -47,16 +47,12 @@ fn @receiver() -> address {
   bb2:
     v7 = add v1, 1
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = sload 1 !metadata(storage=slot(1))
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
     ret v10
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -76,15 +72,11 @@ fn @gasOpt() -> u256 {
   bb2:
     v7 = add v1, 2
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = gas
     ret v9
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -104,14 +96,10 @@ fn @valueOpt() -> u256 {
   bb2:
     v7 = add v1, 3
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     ret 0
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -131,14 +119,10 @@ fn @arg() -> u256 {
   bb2:
     v7 = add v1, 4
     v8 = lt v7, v1
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     sstore 0, v7 !metadata(storage=slot(0))
     ret 7
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -161,8 +145,8 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v18 = returndatasize
     v19 = add v18, 63
     v20 = lt v19, v18
-    jumpi v20, bb6, bb7
-  bb7:
+    jumpi v20, bb4, bb6
+  bb6:
     v21 = not 31
     v22 = and v19, v21
     v23 = alloc memorybytes, exact, uninitialized, infallible, v22
@@ -182,16 +166,12 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v35 = iszero v34
     v36 = eq v31, 0x4e487b71
     v37 = and v35, v36
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v25, v26
+    jumpi 1, bb7, bb8
   bb8:
+    revert v25, v26
+  bb7:
     v38 = sload 0 !metadata(storage=slot(0))
     ret v38
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v9 = returndatasize
     v10 = add v9, 63

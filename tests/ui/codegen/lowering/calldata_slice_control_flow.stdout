@@ -64,13 +64,9 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 [pure] {
     v7 = slice_len arg1
     v8 = add v1, v7
     v9 = lt v8, v1
-    jumpi v9, bb3, bb4
-  bb4:
-    ret v8
+    jumpi v9, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v8
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

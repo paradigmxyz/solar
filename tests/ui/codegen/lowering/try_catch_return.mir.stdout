@@ -57,8 +57,8 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v17 = returndatasize
     v18 = add v17, 63
     v19 = lt v18, v17
-    jumpi v19, bb6, bb7
-  bb7:
+    jumpi v19, bb4, bb6
+  bb6:
     v20 = not 31
     v21 = and v18, v20
     v22 = alloc memorybytes, exact, uninitialized, infallible, v21
@@ -78,15 +78,11 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v34 = iszero v33
     v35 = eq v30, 0x4e487b71
     v36 = and v34, v35
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v24, v25
+    jumpi 1, bb7, bb8
   bb8:
+    revert v24, v25
+  bb7:
     jump bb3
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v9 = returndatasize
     v10 = add v9, 63
@@ -102,7 +98,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v16 = abi_decode [u256], v14
     jump bb3
   bb3:
-    v37 = phi [bb5: v16], [bb8: 9]
+    v37 = phi [bb5: v16], [bb7: 9]
     ret v37
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -126,8 +122,8 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v17 = returndatasize
     v18 = add v17, 63
     v19 = lt v18, v17
-    jumpi v19, bb6, bb7
-  bb7:
+    jumpi v19, bb4, bb6
+  bb6:
     v20 = not 31
     v21 = and v18, v20
     v22 = alloc memorybytes, exact, uninitialized, infallible, v21
@@ -147,15 +143,11 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v34 = iszero v33
     v35 = eq v30, 0x4e487b71
     v36 = and v34, v35
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v24, v25
+    jumpi 1, bb7, bb8
   bb8:
+    revert v24, v25
+  bb7:
     jump bb3
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v9 = returndatasize
     v10 = add v9, 63
@@ -171,7 +163,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v16 = abi_decode [u256], v14
     jump bb3
   bb3:
-    v37 = phi [bb5: v16], [bb8: 9]
+    v37 = phi [bb5: v16], [bb7: 9]
     ret v37
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -195,8 +187,8 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v17 = returndatasize
     v18 = add v17, 63
     v19 = lt v18, v17
-    jumpi v19, bb6, bb7
-  bb7:
+    jumpi v19, bb4, bb6
+  bb6:
     v20 = not 31
     v21 = and v18, v20
     v22 = alloc memorybytes, exact, uninitialized, infallible, v21
@@ -216,15 +208,11 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v34 = iszero v33
     v35 = eq v30, 0x4e487b71
     v36 = and v34, v35
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v24, v25
+    jumpi 1, bb7, bb8
   bb8:
+    revert v24, v25
+  bb7:
     ret 9
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v9 = returndatasize
     v10 = add v9, 63

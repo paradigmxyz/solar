@@ -129,10 +129,10 @@ fn @decode_calldata_slice(arg0: u256) -> u256 {
     v9 = sub v0, v3
     v10 = gt v7, v9
     v11 = or v6, v10
-    jumpi v11, bb2, bb1
-  bb1:
-    ret v2
+    jumpi v11, bb1, bb2
   bb2:
+    ret v2
+  bb1:
     revert 0, 0
 }
 

@@ -29,16 +29,12 @@ fn @alloc() -> bytes32 [selector=0xbbc001c3, pure, abi_params=[], abi_returns=[w
     v18 = memory_object_len memorybytes, v2
     v19 = lt 95, v18
     v20 = iszero v19
-    jumpi v20, bb3, bb4
-  bb4:
+    jumpi v20, bb1, bb3
+  bb3:
     v21 = byte 0, v17
     memory_object_store_byte memorybytes, v2, 95, v21
     v22 = keccak256_bytes v2
     ret v22
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -97,15 +93,11 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) -> bytes1 [selector=0
     v4 = memory_object_len memorybytes, arg0
     v5 = lt arg1, v4
     v6 = iszero v5
-    jumpi v6, bb3, bb4
-  bb4:
+    jumpi v6, bb1, bb3
+  bb3:
     v7 = memory_object_load_byte memorybytes, arg0, arg1
     v8 = shl 248, v7
     ret v8
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

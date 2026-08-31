@@ -59,9 +59,9 @@ fn @pow(arg0: u256, arg1: u256) -> u256 [selector=0x2e4c697f, pure, abi_params=[
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb7: v12]
-    v1 = phi [bb0: arg0], [bb7: v14]
-    v2 = phi [bb0: arg1], [bb7: v13]
+    v0 = phi [bb0: 1], [bb6: v12]
+    v1 = phi [bb0: arg0], [bb6: v14]
+    v2 = phi [bb0: arg1], [bb6: v13]
     v3 = gt v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -87,13 +87,9 @@ fn @pow(arg0: u256, arg1: u256) -> u256 [selector=0x2e4c697f, pure, abi_params=[
     v19 = iszero v18
     v20 = gt v13, 0
     v21 = and v20, v19
-    jumpi v21, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v21, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

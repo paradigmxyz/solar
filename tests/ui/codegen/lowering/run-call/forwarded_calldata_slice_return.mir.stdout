@@ -278,18 +278,14 @@ fn @_splitSlices(arg0: calldataslice) -> (bool, bytes2, memorybytes, memorybytes
     v34 = slice_len v15
     v35 = add v34, 63
     v36 = lt v35, v34
-    jumpi v36, bb15, bb16
-  bb16:
+    jumpi v36, bb9, bb15
+  bb15:
     v37 = not 31
     v38 = and v35, v37
     v39 = alloc memorybytes, exact, uninitialized, infallible, v38
     set_memory_object_len memorybytes, v39, v34
     memory_object_copy_from_slice memorybytes, v39, v15
     ret 1, 0, v27, v39
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     revert 0, 0
   bb11:

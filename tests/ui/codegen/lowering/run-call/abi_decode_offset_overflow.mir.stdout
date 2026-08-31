@@ -17,33 +17,25 @@ fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]
     v6 = abi_decode [array<2, array<_, u256>>], v1
     v7 = lt 1, 2
     v8 = iszero v7
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     v9 = memory_object_load_element memoryfixedarray<2, 1>, v6, 1
     v10 = eq v9, 0
-    jumpi v10, bb5, bb6
-  bb5:
+    jumpi v10, bb4, bb5
+  bb4:
     v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v11, 0
     memory_object_store_element memoryfixedarray<2, 1>, v6, 1, v11
-    jump bb6
-  bb6:
-    v12 = phi [bb4: v9], [bb5: v11]
+    jump bb5
+  bb5:
+    v12 = phi [bb3: v9], [bb4: v11]
     v13 = memory_object_len memoryarray, v12
     v14 = lt 0, v13
     v15 = iszero v14
-    jumpi v15, bb7, bb8
-  bb8:
+    jumpi v15, bb1, bb6
+  bb6:
     v16 = memory_object_load_element memoryarray<1>, v12, 0
     ret v16
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -70,69 +62,53 @@ fn @withinArray() -> u256 [selector=0xac457954, pure, abi_params=[], abi_returns
     v7 = memory_object_len memoryarray, v6
     v8 = lt 0, v7
     v9 = iszero v8
-    jumpi v9, bb3, bb4
-  bb4:
+    jumpi v9, bb1, bb3
+  bb3:
     v10 = memory_object_load_element memoryarray<1>, v6, 0
     v11 = eq v10, 0
-    jumpi v11, bb5, bb6
-  bb5:
+    jumpi v11, bb4, bb5
+  bb4:
     v12 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v12, 0
     memory_object_store_element memoryarray<1>, v6, 0, v12
-    jump bb6
-  bb6:
-    v13 = phi [bb4: v10], [bb5: v12]
+    jump bb5
+  bb5:
+    v13 = phi [bb3: v10], [bb4: v12]
     v14 = memory_object_len memoryarray, v13
     v15 = lt 0, v14
     v16 = iszero v15
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb1, bb6
+  bb6:
     v17 = memory_object_load_element memoryarray<1>, v13, 0
     v18 = memory_object_len memoryarray, v6
     v19 = lt 1, v18
     v20 = iszero v19
-    jumpi v20, bb9, bb10
-  bb10:
+    jumpi v20, bb1, bb7
+  bb7:
     v21 = memory_object_load_element memoryarray<1>, v6, 1
     v22 = eq v21, 0
-    jumpi v22, bb11, bb12
-  bb11:
+    jumpi v22, bb8, bb9
+  bb8:
     v23 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v23, 0
     memory_object_store_element memoryarray<1>, v6, 1, v23
-    jump bb12
-  bb12:
-    v24 = phi [bb10: v21], [bb11: v23]
+    jump bb9
+  bb9:
+    v24 = phi [bb7: v21], [bb8: v23]
     v25 = memory_object_len memoryarray, v24
     v26 = lt 0, v25
     v27 = iszero v26
-    jumpi v27, bb13, bb14
-  bb14:
+    jumpi v27, bb1, bb10
+  bb10:
     v28 = memory_object_load_element memoryarray<1>, v24, 0
     v29 = add v17, v28
     v30 = lt v29, v17
-    jumpi v30, bb15, bb16
-  bb16:
+    jumpi v30, bb11, bb12
+  bb12:
     ret v29
-  bb15:
+  bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

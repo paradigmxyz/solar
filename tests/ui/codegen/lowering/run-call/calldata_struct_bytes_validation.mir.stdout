@@ -195,8 +195,8 @@ fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, a
   bb14:
     v30 = add v28, 63
     v31 = lt v30, v28
-    jumpi v31, bb15, bb16
-  bb16:
+    jumpi v31, bb13, bb15
+  bb15:
     v32 = not 31
     v33 = and v30, v32
     v34 = alloc memorybytes, exact, uninitialized, infallible, v33
@@ -204,28 +204,20 @@ fn @encodePackedField(arg0: calldataslice) -> u256 [selector=0xed098724, pure, a
     memory_object_copy_from_slice_at memorybytes, v34, 0, v20
     v35 = add 0, v27
     v36 = lt v35, 0
-    jumpi v36, bb17, bb18
-  bb18:
+    jumpi v36, bb13, bb16
+  bb16:
     v37 = memory_object_len memorybytes, v34
     v38 = lt 0, v37
     v39 = iszero v38
-    jumpi v39, bb19, bb20
-  bb20:
+    jumpi v39, bb17, bb18
+  bb18:
     v40 = memory_object_load_byte memorybytes, v34, 0
     v41 = shl 248, v40
     v42 = shr 248, v41
     ret v42
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -517,12 +509,12 @@ fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_param
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    jumpi v16, bb5, bb6
-  bb6:
+    jumpi v16, bb1, bb5
+  bb5:
     v17 = add 32, v11
     v18 = lt v17, 32
-    jumpi v18, bb7, bb8
-  bb8:
+    jumpi v18, bb1, bb6
+  bb6:
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
     v20 = make_calldata_slice v1, v11
@@ -531,29 +523,21 @@ fn @copyWords(arg0: calldataslice) -> u256 [selector=0x7ce58428, pure, abi_param
     v22 = memory_object_len memoryarray, v19
     v23 = lt 0, v22
     v24 = iszero v23
-    jumpi v24, bb9, bb10
-  bb10:
+    jumpi v24, bb7, bb8
+  bb8:
     v25 = memory_object_load_element memoryarray<1>, v19, 0
     v26 = add v21, v25
     v27 = lt v26, v21
-    jumpi v27, bb11, bb12
-  bb12:
+    jumpi v27, bb9, bb10
+  bb10:
     ret v26
-  bb11:
+  bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb3:
     revert 0, 0
@@ -608,56 +592,56 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     v14 = eq v13, v0
     v15 = or v12, v14
     v16 = iszero v15
-    jumpi v16, bb5, bb6
-  bb6:
+    jumpi v16, bb1, bb5
+  bb5:
     v17 = add 32, v11
     v18 = lt v17, 32
-    jumpi v18, bb7, bb8
-  bb8:
+    jumpi v18, bb1, bb6
+  bb6:
     v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
     set_memory_object_len memoryarray, v19, v0
-    jump bb9
-  bb9:
-    v20 = phi [bb8: 0], [bb23: v54]
+    jump bb7
+  bb7:
+    v20 = phi [bb6: 0], [bb19: v54]
     v21 = lt v20, v0
-    jumpi v21, bb10, bb11
-  bb11:
+    jumpi v21, bb8, bb9
+  bb9:
     v55 = memory_object_len memoryarray, v19
     v56 = lt 0, v55
     v57 = iszero v56
-    jumpi v57, bb24, bb25
-  bb25:
+    jumpi v57, bb20, bb21
+  bb21:
     v58 = memory_object_load_element memoryarray<1>, v19, 0
     v59 = eq v58, 0
-    jumpi v59, bb26, bb27
-  bb26:
+    jumpi v59, bb22, bb23
+  bb22:
     v60 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v60, 0
     memory_object_store_element memoryarray<1>, v19, 0, v60
-    jump bb27
-  bb27:
-    v61 = phi [bb25: v58], [bb26: v60]
+    jump bb23
+  bb23:
+    v61 = phi [bb21: v58], [bb22: v60]
     v62 = memory_object_len memorybytes, v61
     ret v62
-  bb24:
+  bb20:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
+  bb8:
     v22 = mul v20, 32
     v23 = iszero 32
     v24 = div v22, 32
     v25 = eq v24, v20
     v26 = or v23, v25
     v27 = iszero v26
-    jumpi v27, bb12, bb13
-  bb13:
+    jumpi v27, bb1, bb10
+  bb10:
     v28 = add v1, v22
     v29 = calldatasize
     v30 = sub v29, v28
     v31 = slt v30, 32
-    jumpi v31, bb14, bb15
-  bb15:
+    jumpi v31, bb11, bb12
+  bb12:
     v32 = calldataload v28
     v33 = add v1, v32
     v34 = calldatasize
@@ -665,26 +649,26 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     v36 = sub v35, 31
     v37 = slt v32, v36
     v38 = iszero v37
-    jumpi v38, bb16, bb17
-  bb17:
+    jumpi v38, bb13, bb14
+  bb14:
     v39 = calldataload v33
     v40 = gt v39, 0xffffffffffffffff
-    jumpi v40, bb18, bb19
-  bb19:
+    jumpi v40, bb15, bb16
+  bb16:
     v41 = mul v39, 1
     v42 = add v33, 32
     v43 = calldatasize
     v44 = sub v43, v41
     v45 = sgt v42, v44
-    jumpi v45, bb20, bb21
-  bb21:
+    jumpi v45, bb17, bb18
+  bb18:
     v46 = add v33, 32
     v47 = make_calldata_slice v46, v39
     v48 = slice_len v47
     v49 = add v48, 63
     v50 = lt v49, v48
-    jumpi v50, bb22, bb23
-  bb23:
+    jumpi v50, bb1, bb19
+  bb19:
     v51 = not 31
     v52 = and v49, v51
     v53 = alloc memorybytes, exact, uninitialized, infallible, v52
@@ -692,31 +676,15 @@ fn @copyArray(arg0: calldataslice) -> u256 [selector=0x58bdfbf3, pure, abi_param
     memory_object_copy_from_slice memorybytes, v53, v47
     memory_object_store_element memoryarray<1>, v19, v20, v53
     v54 = add v20, 1
-    jump bb9
-  bb22:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb20:
+    jump bb7
+  bb17:
     revert 0, 0
-  bb18:
+  bb15:
     revert 0, 0
-  bb16:
+  bb13:
     revert 0, 0
-  bb14:
+  bb11:
     revert 0, 0
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     revert 0, 0
   bb1:

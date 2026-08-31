@@ -40,121 +40,97 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb5:
     v13 = lt 0, 1
     v14 = iszero v13
-    jumpi v14, bb9, bb10
-  bb10:
+    jumpi v14, bb1, bb9
+  bb9:
     v15 = mul 0, 10
     v16 = add v0, v15
     v17 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
-    jump bb11
-  bb11:
-    v18 = phi [bb10: 0], [bb12: v22]
+    jump bb10
+  bb10:
+    v18 = phi [bb9: 0], [bb11: v22]
     v19 = lt v18, 10
-    jumpi v19, bb12, bb13
-  bb13:
+    jumpi v19, bb11, bb12
+  bb12:
     v23 = lt 0, 1
     v24 = iszero v23
-    jumpi v24, bb14, bb15
-  bb15:
+    jumpi v24, bb1, bb13
+  bb13:
     v25 = mul 0, 10
     v26 = add v1, v25
-    jump bb16
-  bb16:
-    v27 = phi [bb15: 0], [bb21: v32]
+    jump bb14
+  bb14:
+    v27 = phi [bb13: 0], [bb19: v32]
     v28 = lt v27, 10
-    jumpi v28, bb17, bb18
-  bb18:
-    jump bb22
-  bb22:
-    v33 = phi [bb18: 0], [bb37: v50]
-    v34 = phi [bb18: 0], [bb37: v52]
-    v35 = phi [bb18: v0], [bb37: v35]
-    v36 = phi [bb18: v1], [bb37: v36]
+    jumpi v28, bb15, bb16
+  bb16:
+    jump bb20
+  bb20:
+    v33 = phi [bb16: 0], [bb31: v50]
+    v34 = phi [bb16: 0], [bb31: v52]
+    v35 = phi [bb16: v0], [bb31: v35]
+    v36 = phi [bb16: v1], [bb31: v36]
     v37 = lt 0, 1
     v38 = iszero v37
-    jumpi v38, bb25, bb26
-  bb26:
+    jumpi v38, bb1, bb23
+  bb23:
     v39 = mul 0, 10
     v40 = add v36, v39
     v41 = lt v34, 10
-    jumpi v41, bb27, bb28
-  bb28:
-    jump bb23
-  bb23:
+    jumpi v41, bb24, bb25
+  bb25:
+    jump bb21
+  bb21:
     ret v33
-  bb27:
+  bb24:
     v42 = lt 0, 1
     v43 = iszero v42
-    jumpi v43, bb30, bb31
-  bb31:
+    jumpi v43, bb1, bb27
+  bb27:
     v44 = mul 0, 10
     v45 = add v36, v44
     v46 = lt v34, 10
     v47 = iszero v46
-    jumpi v47, bb32, bb33
-  bb33:
+    jumpi v47, bb1, bb28
+  bb28:
     v48 = add v45, v34
     v49 = sload v48 !metadata(storage=symbolic(v48))
     v50 = add v33, v49
     v51 = lt v50, v33
-    jumpi v51, bb34, bb35
-  bb35:
-    jump bb29
-  bb29:
-    jump bb24
-  bb24:
+    jumpi v51, bb29, bb30
+  bb30:
+    jump bb26
+  bb26:
+    jump bb22
+  bb22:
     v52 = add v34, 1
     v53 = lt v52, v34
-    jumpi v53, bb36, bb37
-  bb37:
-    jump bb22
-  bb36:
+    jumpi v53, bb29, bb31
+  bb31:
+    jump bb20
+  bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb34:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb32:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb30:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
+  bb15:
     v29 = add v26, v27
     v30 = lt v27, 10
-    jumpi v30, bb19, bb20
-  bb20:
+    jumpi v30, bb17, bb18
+  bb18:
     sstore v29, 0 !metadata(storage=symbolic(v29))
-    jump bb21
-  bb19:
+    jump bb19
+  bb17:
     v31 = memory_object_load_element memoryfixedarray<10, 1>, v17, v27
     sstore v29, v31 !metadata(storage=symbolic(v29))
-    jump bb21
-  bb21:
+    jump bb19
+  bb19:
     v32 = add v27, 1
-    jump bb16
-  bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
+    jump bb14
+  bb11:
     v20 = add v16, v18
     v21 = sload v20 !metadata(storage=symbolic(v20))
     memory_object_store_element memoryfixedarray<10, 1>, v17, v18, v21
     v22 = add v18, 1
-    jump bb11
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb10
   bb4:
     v9 = add v6, v7
     v10 = lt v7, 10

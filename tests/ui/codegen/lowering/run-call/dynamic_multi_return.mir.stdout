@@ -278,14 +278,10 @@ fn @mixed() -> (u256, u256, u256) [selector=0x354df1f9, abi_params=[], abi_retur
   bb10:
     v37 = add v34, v35
     v38 = lt v37, v34
-    jumpi v38, bb11, bb12
-  bb12:
+    jumpi v38, bb9, bb11
+  bb11:
     v39 = memory_object_len memorybytes, v29
     ret v30, v37, v39
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -25,8 +25,8 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = add v16, 1
     v18 = lt v17, v16
-    jumpi v18, bb3, bb4
-  bb4:
+    jumpi v18, bb1, bb3
+  bb3:
     v19 = storage_array_data_slot 0
     v20 = div v16, 32
     v21 = add v19, v20
@@ -45,8 +45,8 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = add v32, 1
     v34 = lt v33, v32
-    jumpi v34, bb5, bb6
-  bb6:
+    jumpi v34, bb1, bb4
+  bb4:
     v35 = storage_array_data_slot 0
     v36 = div v32, 32
     v37 = add v35, v36
@@ -65,8 +65,8 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v48 = sload 0 !metadata(storage=slot(0))
     v49 = lt 1, v48
     v50 = iszero v49
-    jumpi v50, bb7, bb8
-  bb8:
+    jumpi v50, bb5, bb6
+  bb6:
     v51 = storage_array_data_slot 0
     v52 = div 1, 32
     v53 = add v51, v52
@@ -84,8 +84,8 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v64 = sload 0 !metadata(storage=slot(0))
     v65 = lt 0, v64
     v66 = iszero v65
-    jumpi v66, bb9, bb10
-  bb10:
+    jumpi v66, bb5, bb7
+  bb7:
     v67 = storage_array_data_slot 0
     v68 = div 0, 32
     v69 = add v67, v68
@@ -98,8 +98,8 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v76 = sload 0 !metadata(storage=slot(0))
     v77 = lt 1, v76
     v78 = iszero v77
-    jumpi v78, bb11, bb12
-  bb12:
+    jumpi v78, bb5, bb8
+  bb8:
     v79 = storage_array_data_slot 0
     v80 = div 1, 32
     v81 = add v79, v80
@@ -112,8 +112,8 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v88 = sload 0 !metadata(storage=slot(0))
     v89 = lt 2, v88
     v90 = iszero v89
-    jumpi v90, bb13, bb14
-  bb14:
+    jumpi v90, bb5, bb9
+  bb9:
     v91 = storage_array_data_slot 0
     v92 = div 2, 32
     v93 = add v91, v92
@@ -124,29 +124,9 @@ fn @clear() -> (u8, u8, u8) [selector=0x52efea6e, abi_params=[], abi_returns=[wo
     v98 = shr v97, v96
     v99 = and v98, 255
     ret v75, v87, v99
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -175,8 +155,8 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     sstore v3, v13 !metadata(storage=offset(v2, 1))
     v14 = lt 1, 3
     v15 = iszero v14
-    jumpi v15, bb3, bb4
-  bb4:
+    jumpi v15, bb1, bb3
+  bb3:
     v16 = div 1, 32
     v17 = add 1, v16
     v18 = mod 1, 32
@@ -192,8 +172,8 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     sstore v17, v27 !metadata(storage=offset(v16, 1))
     v28 = lt 2, 3
     v29 = iszero v28
-    jumpi v29, bb5, bb6
-  bb6:
+    jumpi v29, bb1, bb4
+  bb4:
     v30 = div 2, 32
     v31 = add 1, v30
     v32 = mod 2, 32
@@ -207,16 +187,16 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     v40 = shl v34, v39
     v41 = or v38, v40
     sstore v31, v41 !metadata(storage=offset(v30, 1))
-    jump bb7
-  bb7:
-    v42 = phi [bb6: 0], [bb8: v45]
+    jump bb5
+  bb5:
+    v42 = phi [bb4: 0], [bb6: v45]
     v43 = lt v42, 1
-    jumpi v43, bb8, bb9
-  bb9:
+    jumpi v43, bb6, bb7
+  bb7:
     v46 = lt 0, 3
     v47 = iszero v46
-    jumpi v47, bb10, bb11
-  bb11:
+    jumpi v47, bb1, bb8
+  bb8:
     v48 = div 0, 32
     v49 = add 1, v48
     v50 = mod 0, 32
@@ -227,8 +207,8 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     v55 = and v54, 255
     v56 = lt 1, 3
     v57 = iszero v56
-    jumpi v57, bb12, bb13
-  bb13:
+    jumpi v57, bb1, bb9
+  bb9:
     v58 = div 1, 32
     v59 = add 1, v58
     v60 = mod 1, 32
@@ -239,8 +219,8 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     v65 = and v64, 255
     v66 = lt 2, 3
     v67 = iszero v66
-    jumpi v67, bb14, bb15
-  bb15:
+    jumpi v67, bb1, bb10
+  bb10:
     v68 = div 2, 32
     v69 = add 1, v68
     v70 = mod 2, 32
@@ -250,31 +230,11 @@ fn @clearReference() -> (u8, u8, u8) [selector=0xc844d6fe, abi_params=[], abi_re
     v74 = shr v73, v72
     v75 = and v74, 255
     ret v55, v65, v75
-  bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
+  bb6:
     v44 = add 1, v42
     sstore v44, 0 !metadata(storage=offset(v42, 1))
     v45 = add v42, 1
-    jump bb7
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -321,8 +281,8 @@ fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], ab
     v27 = sload 6 !metadata(storage=slot(6))
     v28 = add v27, 1
     v29 = lt v28, v27
-    jumpi v29, bb6, bb7
-  bb7:
+    jumpi v29, bb1, bb6
+  bb6:
     v30 = storage_array_data_slot 6
     v31 = div v27, 32
     v32 = add v30, v31
@@ -342,8 +302,8 @@ fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], ab
     v44 = sload 6 !metadata(storage=slot(6))
     v45 = lt 0, v44
     v46 = iszero v45
-    jumpi v46, bb8, bb9
-  bb9:
+    jumpi v46, bb7, bb8
+  bb8:
     v47 = storage_array_data_slot 6
     v48 = div 0, 32
     v49 = add v47, v48
@@ -355,13 +315,9 @@ fn @deleteThenPush() -> (u256, u8, u256) [selector=0x63470f4e, abi_params=[], ab
     v55 = and v54, 255
     v56 = sload 6 !metadata(storage=slot(6))
     ret v43, v55, v56
-  bb8:
+  bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v25 = add v22, v23
@@ -395,8 +351,8 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_return
     sstore v3, v13 !metadata(storage=offset(v2, 1))
     v14 = lt 1, 3
     v15 = iszero v14
-    jumpi v15, bb3, bb4
-  bb4:
+    jumpi v15, bb1, bb3
+  bb3:
     v16 = div 1, 32
     v17 = add 1, v16
     v18 = mod 1, 32
@@ -412,8 +368,8 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_return
     sstore v17, v27 !metadata(storage=offset(v16, 1))
     v28 = lt 2, 3
     v29 = iszero v28
-    jumpi v29, bb5, bb6
-  bb6:
+    jumpi v29, bb1, bb4
+  bb4:
     v30 = div 2, 32
     v31 = add 1, v30
     v32 = mod 2, 32
@@ -427,16 +383,16 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_return
     v40 = shl v34, v39
     v41 = or v38, v40
     sstore v31, v41 !metadata(storage=offset(v30, 1))
-    jump bb7
-  bb7:
-    v42 = phi [bb6: 0], [bb8: v45]
+    jump bb5
+  bb5:
+    v42 = phi [bb4: 0], [bb6: v45]
     v43 = lt v42, 1
-    jumpi v43, bb8, bb9
-  bb9:
+    jumpi v43, bb6, bb7
+  bb7:
     v46 = lt 0, 3
     v47 = iszero v46
-    jumpi v47, bb10, bb11
-  bb11:
+    jumpi v47, bb1, bb8
+  bb8:
     v48 = div 0, 32
     v49 = add 1, v48
     v50 = mod 0, 32
@@ -447,8 +403,8 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_return
     v55 = and v54, 255
     v56 = lt 1, 3
     v57 = iszero v56
-    jumpi v57, bb12, bb13
-  bb13:
+    jumpi v57, bb1, bb9
+  bb9:
     v58 = div 1, 32
     v59 = add 1, v58
     v60 = mod 1, 32
@@ -459,8 +415,8 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_return
     v65 = and v64, 255
     v66 = lt 2, 3
     v67 = iszero v66
-    jumpi v67, bb14, bb15
-  bb15:
+    jumpi v67, bb1, bb10
+  bb10:
     v68 = div 2, 32
     v69 = add 1, v68
     v70 = mod 2, 32
@@ -470,31 +426,11 @@ fn @clearFixed() -> (u8, u8, u8) [selector=0x94bd0f54, abi_params=[], abi_return
     v74 = shr v73, v72
     v75 = and v74, 255
     ret v55, v65, v75
-  bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
+  bb6:
     v44 = add 1, v42
     sstore v44, 0 !metadata(storage=offset(v42, 1))
     v45 = add v42, 1
-    jump bb7
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -517,8 +453,8 @@ fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_params=[], abi_ret
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = add v8, 1
     v10 = lt v9, v8
-    jumpi v10, bb3, bb4
-  bb4:
+    jumpi v10, bb1, bb3
+  bb3:
     v11 = storage_array_data_slot 0
     v12 = div v8, 32
     v13 = add v11, v12
@@ -528,8 +464,8 @@ fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_params=[], abi_ret
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = add v16, 1
     v18 = lt v17, v16
-    jumpi v18, bb5, bb6
-  bb6:
+    jumpi v18, bb1, bb4
+  bb4:
     v19 = storage_array_data_slot 0
     v20 = div v16, 32
     v21 = add v19, v20
@@ -548,27 +484,19 @@ fn @clearDynamicDirtyWord() -> u256 [selector=0xa7b98e77, abi_params=[], abi_ret
     v30 = iszero v29
     v31 = add v27, v30
     v32 = storage_array_data_slot 0
-    jump bb7
-  bb7:
-    v33 = phi [bb6: 0], [bb8: v36]
+    jump bb5
+  bb5:
+    v33 = phi [bb4: 0], [bb6: v36]
     v34 = lt v33, v31
-    jumpi v34, bb8, bb9
-  bb9:
+    jumpi v34, bb6, bb7
+  bb7:
     v37 = sload v24 !metadata(storage=symbolic(v24))
     ret v37
-  bb8:
+  bb6:
     v35 = add v32, v33
     sstore v35, 0 !metadata(storage=symbolic(v35))
     v36 = add v33, 1
-    jump bb7
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

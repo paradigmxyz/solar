@@ -110,9 +110,9 @@ fn @entry(arg0: u256) -> u256 [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb10: v0]
-    v1 = phi [bb0: 0], [bb10: v6]
-    v2 = phi [bb0: 0], [bb10: v4]
+    v0 = phi [bb0: arg0], [bb9: v0]
+    v1 = phi [bb0: 0], [bb9: v6]
+    v2 = phi [bb0: 0], [bb9: v4]
     v3 = lt v1, v0
     jumpi v3, bb4, bb5
   bb5:
@@ -120,13 +120,9 @@ fn @entry(arg0: u256) -> u256 [pure] {
   bb2:
     v8 = add v2, 1
     v9 = lt v8, v2
-    jumpi v9, bb11, bb12
-  bb12:
+    jumpi v9, bb7, bb10
+  bb10:
     ret v8
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v4 = add v2, 1
     v5 = lt v4, v2
@@ -138,13 +134,9 @@ fn @entry(arg0: u256) -> u256 [pure] {
   bb3:
     v6 = add v1, 1
     v7 = lt v6, v1
-    jumpi v7, bb9, bb10
-  bb10:
-    jump bb1
+    jumpi v7, bb7, bb9
   bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

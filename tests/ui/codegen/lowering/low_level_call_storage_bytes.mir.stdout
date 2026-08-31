@@ -148,8 +148,8 @@ fn @fire() -> (bool, memorybytes) [selector=0x457094cc, abi_params=[], abi_retur
     v29 = returndatasize
     v30 = add v29, 63
     v31 = lt v30, v29
-    jumpi v31, bb11, bb12
-  bb12:
+    jumpi v31, bb3, bb11
+  bb11:
     v32 = not 31
     v33 = and v30, v32
     v34 = alloc memorybytes, exact, uninitialized, infallible, v33
@@ -157,10 +157,6 @@ fn @fire() -> (bool, memorybytes) [selector=0x457094cc, abi_params=[], abi_retur
     v35 = make_returndata_slice 0, v29
     memory_object_copy_from_slice memorybytes, v34, v35
     ret v28, v34
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     v22 = add v19, v20
     v23 = sload v22 !metadata(storage=symbolic(v22))

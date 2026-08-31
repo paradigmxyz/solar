@@ -55,8 +55,8 @@ fn @encodeArray() -> bytes32 [selector=0x7a13e494, pure, abi_params=[], abi_retu
     v5 = memory_object_len memoryarray, v0
     v6 = lt 1, v5
     v7 = iszero v6
-    jumpi v7, bb3, bb4
-  bb4:
+    jumpi v7, bb1, bb3
+  bb3:
     v8 = and 4, 255
     memory_object_store_element memoryarray<1>, v0, 1, v8
     v9 = add v0, 32
@@ -68,10 +68,6 @@ fn @encodeArray() -> bytes32 [selector=0x7a13e494, pure, abi_params=[], abi_retu
     v13 = slice_len v11
     v14 = keccak256 v12, v13
     ret v14
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

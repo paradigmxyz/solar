@@ -31,22 +31,14 @@ fn @helper(arg0: u256) -> u256 [pure] {
   bb5:
     v7 = sub arg0, 1
     v8 = lt arg0, 1
-    jumpi v8, bb6, bb7
-  bb7:
+    jumpi v8, bb4, bb6
+  bb6:
     v9 = internal_call @helper, 1, v7
     v10 = add v1, v9
     v11 = lt v10, v1
-    jumpi v11, bb8, bb9
-  bb9:
+    jumpi v11, bb4, bb7
+  bb7:
     ret v10
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -33,13 +33,9 @@ fn @pick(arg0: u256) -> u256 [selector=0x7701ea4a, abi_params=[u256], abi_return
     v13 = eq v12, v9
     v14 = or v11, v13
     v15 = iszero v14
-    jumpi v15, bb9, bb10
-  bb10:
-    ret v10
+    jumpi v15, bb4, bb9
   bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v10
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

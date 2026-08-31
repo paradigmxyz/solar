@@ -4,27 +4,27 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb24: v40]
-    v1 = phi [bb0: 0], [bb24: v1]
+    v0 = phi [bb0: 0], [bb21: v40]
+    v1 = phi [bb0: 0], [bb21: v1]
     v2 = gt v0, 40
     v3 = iszero v2
     jumpi v3, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    jump bb25
-  bb25:
-    v42 = phi [bb2: v0], [bb76: v42]
-    v43 = phi [bb2: 40], [bb76: v146]
-    v44 = phi [bb2: v1], [bb76: v44]
+    jump bb22
+  bb22:
+    v42 = phi [bb2: v0], [bb63: v42]
+    v43 = phi [bb2: 40], [bb63: v146]
+    v44 = phi [bb2: v1], [bb63: v44]
     v45 = slt v43, 0
     v46 = iszero v45
-    jumpi v46, bb28, bb29
-  bb29:
-    jump bb26
+    jumpi v46, bb25, bb26
   bb26:
+    jump bb23
+  bb23:
     ret 1
-  bb28:
+  bb25:
     v47 = sload 0 !metadata(storage=slot(0))
     v48 = and v47, 1
     v49 = eq v48, 1
@@ -33,50 +33,50 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v52 = select v49, v50, v51
     v53 = lt v52, 32
     v54 = eq v49, v53
-    jumpi v54, bb31, bb32
-  bb32:
+    jumpi v54, bb9, bb28
+  bb28:
     v55 = add v52, 31
     v56 = div v55, 32
     v57 = add v52, 63
     v58 = lt v57, v52
-    jumpi v58, bb33, bb34
-  bb34:
+    jumpi v58, bb11, bb29
+  bb29:
     v59 = not 31
     v60 = and v57, v59
     v61 = alloc memorybytes, exact, uninitialized, panic, v60
     set_memory_object_len memorybytes, v61, v52
-    jumpi v49, bb36, bb35
-  bb35:
+    jumpi v49, bb31, bb30
+  bb30:
     v62 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     memory_object_store_word memorybytes, v61, 0, v62
-    jump bb37
-  bb36:
+    jump bb32
+  bb31:
     v63 = storage_array_data_slot 0
-    jump bb38
-  bb38:
-    v64 = phi [bb36: 0], [bb39: v69]
+    jump bb33
+  bb33:
+    v64 = phi [bb31: 0], [bb34: v69]
     v65 = lt v64, v56
-    jumpi v65, bb39, bb40
-  bb40:
-    jump bb37
-  bb37:
+    jumpi v65, bb34, bb35
+  bb35:
+    jump bb32
+  bb32:
     v70 = memory_object_len memorybytes, v61
     v71 = lt v43, v70
     v72 = iszero v71
-    jumpi v72, bb41, bb42
-  bb42:
+    jumpi v72, bb36, bb37
+  bb37:
     v73 = memory_object_load_byte memorybytes, v61, v43
     v74 = shl 248, v73
     v75 = add v43, 1
     v76 = lt v75, v43
-    jumpi v76, bb43, bb44
-  bb44:
+    jumpi v76, bb7, bb38
+  bb38:
     v77 = and v75, 255
     v78 = shl 248, v77
     v79 = eq v74, v78
     v80 = iszero v79
-    jumpi v80, bb45, bb46
-  bb46:
+    jumpi v80, bb39, bb40
+  bb40:
     v81 = sload 0 !metadata(storage=slot(0))
     v82 = and v81, 1
     v83 = eq v82, 1
@@ -85,33 +85,33 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v86 = select v83, v84, v85
     v87 = lt v86, 32
     v88 = eq v83, v87
-    jumpi v88, bb47, bb48
-  bb48:
+    jumpi v88, bb9, bb41
+  bb41:
     v89 = add v86, 31
     v90 = div v89, 32
     v91 = add v86, 63
     v92 = lt v91, v86
-    jumpi v92, bb49, bb50
-  bb50:
+    jumpi v92, bb11, bb42
+  bb42:
     v93 = not 31
     v94 = and v91, v93
     v95 = alloc memorybytes, exact, uninitialized, panic, v94
     set_memory_object_len memorybytes, v95, v86
-    jumpi v83, bb52, bb51
-  bb51:
+    jumpi v83, bb44, bb43
+  bb43:
     v96 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     memory_object_store_word memorybytes, v95, 0, v96
-    jump bb53
-  bb52:
+    jump bb45
+  bb44:
     v97 = storage_array_data_slot 0
-    jump bb54
-  bb54:
-    v98 = phi [bb52: 0], [bb55: v103]
+    jump bb46
+  bb46:
+    v98 = phi [bb44: 0], [bb47: v103]
     v99 = lt v98, v90
-    jumpi v99, bb55, bb56
-  bb56:
-    jump bb53
-  bb53:
+    jumpi v99, bb47, bb48
+  bb48:
+    jump bb45
+  bb45:
     v104 = memory_object_len memorybytes, v95
     v105 = add v43, 1
     v106 = slt v43, 0
@@ -121,12 +121,12 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v110 = xor v108, v106
     v111 = iszero v109
     v112 = and v111, v110
-    jumpi v112, bb57, bb58
-  bb58:
+    jumpi v112, bb7, bb49
+  bb49:
     v113 = eq v104, v105
     v114 = iszero v113
-    jumpi v114, bb59, bb60
-  bb60:
+    jumpi v114, bb50, bb51
+  bb51:
     v115 = sload 0 !metadata(storage=slot(0))
     v116 = and v115, 1
     v117 = eq v116, 1
@@ -135,52 +135,52 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v120 = select v117, v118, v119
     v121 = lt v120, 32
     v122 = eq v117, v121
-    jumpi v122, bb61, bb62
-  bb62:
+    jumpi v122, bb9, bb52
+  bb52:
     v123 = add v120, 31
     v124 = div v123, 32
     v125 = add v120, 63
     v126 = lt v125, v120
-    jumpi v126, bb63, bb64
-  bb64:
+    jumpi v126, bb11, bb53
+  bb53:
     v127 = not 31
     v128 = and v125, v127
     v129 = alloc memorybytes, exact, uninitialized, panic, v128
     set_memory_object_len memorybytes, v129, v120
-    jumpi v117, bb66, bb65
-  bb65:
+    jumpi v117, bb55, bb54
+  bb54:
     v130 = and v115, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     memory_object_store_word memorybytes, v129, 0, v130
-    jump bb67
-  bb66:
+    jump bb56
+  bb55:
     v131 = storage_array_data_slot 0
-    jump bb68
-  bb68:
-    v132 = phi [bb66: 0], [bb69: v137]
+    jump bb57
+  bb57:
+    v132 = phi [bb55: 0], [bb58: v137]
     v133 = lt v132, v124
-    jumpi v133, bb69, bb70
-  bb70:
-    jump bb67
-  bb67:
+    jumpi v133, bb58, bb59
+  bb59:
+    jump bb56
+  bb56:
     v138 = memory_object_len memorybytes, v129
     v139 = eq v138, 0
-    jumpi v139, bb71, bb72
-  bb72:
+    jumpi v139, bb60, bb61
+  bb61:
     v140 = sub v138, 1
     v141 = add v140, 63
     v142 = lt v141, v140
-    jumpi v142, bb73, bb74
-  bb74:
+    jumpi v142, bb11, bb62
+  bb62:
     v143 = not 31
     v144 = and v141, v143
     v145 = alloc memorybytes, exact, zeroed, panic, v144
     set_memory_object_len memorybytes, v145, v140
     memory_object_copy memorybytes, v145, memorybytes, v129, v140
     internal_call @store_storage_bytes, 0, 0, v145
-    jump bb30
-  bb30:
     jump bb27
   bb27:
+    jump bb24
+  bb24:
     v146 = sub v43, 1
     v147 = slt v43, 0
     v148 = slt 1, 0
@@ -188,82 +188,42 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v150 = xor v147, v148
     v151 = xor v149, v147
     v152 = and v150, v151
-    jumpi v152, bb75, bb76
-  bb76:
-    jump bb25
-  bb75:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb73:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb71:
+    jumpi v152, bb7, bb63
+  bb63:
+    jump bb22
+  bb60:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
-  bb69:
+  bb58:
     v134 = add v131, v132
     v135 = sload v134 !metadata(storage=symbolic(v134))
     v136 = mul v132, 32
     memory_object_store_word memorybytes, v129, v136, v135
     v137 = add v132, 1
-    jump bb68
-  bb63:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb61:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
-  bb59:
+    jump bb57
+  bb50:
     revert 0, 0
-  bb57:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb55:
+  bb47:
     v100 = add v97, v98
     v101 = sload v100 !metadata(storage=symbolic(v100))
     v102 = mul v98, 32
     memory_object_store_word memorybytes, v95, v102, v101
     v103 = add v98, 1
-    jump bb54
-  bb49:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb47:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
-  bb45:
+    jump bb46
+  bb39:
     revert 0, 0
-  bb43:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb41:
+  bb36:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb39:
+  bb34:
     v66 = add v63, v64
     v67 = sload v66 !metadata(storage=symbolic(v66))
     v68 = mul v64, 32
     memory_object_store_word memorybytes, v61, v68, v67
     v69 = add v64, 1
-    jump bb38
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb33
   bb4:
     v4 = add v0, 1
     v5 = lt v4, v0
@@ -310,12 +270,12 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v32 = memory_object_len memorybytes, v23
     v33 = add v32, 1
     v34 = lt v33, v32
-    jumpi v34, bb19, bb20
-  bb20:
+    jumpi v34, bb11, bb19
+  bb19:
     v35 = add v33, 63
     v36 = lt v35, v33
-    jumpi v36, bb21, bb22
-  bb22:
+    jumpi v36, bb11, bb20
+  bb20:
     v37 = not 31
     v38 = and v35, v37
     v39 = alloc memorybytes, exact, zeroed, panic, v38
@@ -329,21 +289,9 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb3:
     v40 = add v0, 1
     v41 = lt v40, v0
-    jumpi v41, bb23, bb24
-  bb24:
-    jump bb1
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v41, bb7, bb21
   bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb17:
     v28 = add v25, v26
     v29 = sload v28 !metadata(storage=symbolic(v28))

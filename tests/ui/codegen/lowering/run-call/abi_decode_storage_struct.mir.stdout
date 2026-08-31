@@ -20,15 +20,15 @@ fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_params=[], abi_ret
     v7 = memory_object_len memoryarray, v6
     v8 = lt 1, v7
     v9 = iszero v8
-    jumpi v9, bb3, bb4
-  bb4:
+    jumpi v9, bb1, bb3
+  bb3:
     memory_object_store_element memoryarray<1>, v6, 1, 10
     v10 = memory_object_load_field memorystruct<2>, v0, 1
     v11 = memory_object_len memoryarray, v10
     v12 = lt 2, v11
     v13 = iszero v12
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb1, bb4
+  bb4:
     memory_object_store_element memoryarray<1>, v10, 2, 11
     v14 = abi_encode [tuple<word, memory_array<word>>], object, args v0
     internal_call @store_storage_bytes, 0, 0, v14
@@ -40,33 +40,33 @@ fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_params=[], abi_ret
     v20 = select v17, v18, v19
     v21 = lt v20, 32
     v22 = eq v17, v21
-    jumpi v22, bb7, bb8
-  bb8:
+    jumpi v22, bb5, bb6
+  bb6:
     v23 = add v20, 31
     v24 = div v23, 32
     v25 = add v20, 63
     v26 = lt v25, v20
-    jumpi v26, bb9, bb10
-  bb10:
+    jumpi v26, bb7, bb8
+  bb8:
     v27 = not 31
     v28 = and v25, v27
     v29 = alloc memorybytes, exact, uninitialized, panic, v28
     set_memory_object_len memorybytes, v29, v20
-    jumpi v17, bb12, bb11
-  bb11:
+    jumpi v17, bb10, bb9
+  bb9:
     v30 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     memory_object_store_word memorybytes, v29, 0, v30
-    jump bb13
-  bb12:
+    jump bb11
+  bb10:
     v31 = storage_array_data_slot 0
-    jump bb14
-  bb14:
-    v32 = phi [bb12: 0], [bb15: v37]
+    jump bb12
+  bb12:
+    v32 = phi [bb10: 0], [bb13: v37]
     v33 = lt v32, v24
-    jumpi v33, bb15, bb16
-  bb16:
-    jump bb13
-  bb13:
+    jumpi v33, bb13, bb14
+  bb14:
+    jump bb11
+  bb11:
     v38 = abi_decode [tuple<u256, array<_, u256>>], v29
     v39 = memory_object_load_field memorystruct<2>, v38, 0
     v40 = memory_object_load_field memorystruct<2>, v38, 1
@@ -75,47 +75,31 @@ fn @f() -> (u256, u256, u256, u256) [selector=0x26121ff0, abi_params=[], abi_ret
     v43 = memory_object_len memoryarray, v42
     v44 = lt 0, v43
     v45 = iszero v44
-    jumpi v45, bb17, bb18
-  bb18:
+    jumpi v45, bb1, bb15
+  bb15:
     v46 = memory_object_load_element memoryarray<1>, v42, 0
     v47 = memory_object_load_field memorystruct<2>, v38, 1
     v48 = memory_object_len memoryarray, v47
     v49 = lt 2, v48
     v50 = iszero v49
-    jumpi v50, bb19, bb20
-  bb20:
+    jumpi v50, bb1, bb16
+  bb16:
     v51 = memory_object_load_element memoryarray<1>, v47, 2
     ret v39, v41, v46, v51
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb15:
+  bb13:
     v34 = add v31, v32
     v35 = sload v34 !metadata(storage=symbolic(v34))
     v36 = mul v32, 32
     memory_object_store_word memorybytes, v29, v36, v35
     v37 = add v32, 1
-    jump bb14
-  bb9:
+    jump bb12
+  bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 34 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

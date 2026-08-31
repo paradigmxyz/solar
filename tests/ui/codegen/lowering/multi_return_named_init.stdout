@@ -4,11 +4,11 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb12: v17]
-    v1 = phi [bb0: arg0], [bb12: v1]
-    v2 = phi [bb0: 0], [bb12: v19]
-    v3 = phi [bb0: 0], [bb12: v16]
-    v4 = phi [bb0: arg1], [bb12: v4]
+    v0 = phi [bb0: arg1], [bb11: v17]
+    v1 = phi [bb0: arg0], [bb11: v1]
+    v2 = phi [bb0: 0], [bb11: v19]
+    v3 = phi [bb0: 0], [bb11: v16]
+    v4 = phi [bb0: arg1], [bb11: v4]
     v5 = lt v2, 8
     jumpi v5, bb4, bb5
   bb5:
@@ -39,13 +39,9 @@ fn @readU64(arg0: calldataslice, arg1: u256) -> (u64, u256) [pure] {
   bb3:
     v19 = add v2, 1
     v20 = lt v19, v2
-    jumpi v20, bb11, bb12
-  bb12:
-    jump bb1
+    jumpi v20, bb9, bb11
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

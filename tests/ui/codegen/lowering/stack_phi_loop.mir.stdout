@@ -11,12 +11,12 @@ fn @loopCarried(arg0: u256, arg1: bool) -> u256 [selector=0x71b76bb2, pure, abi_
     v0 = phi [bb1: 7], [bb2: 11]
     jump bb4
   bb4:
-    v1 = phi [bb3: 0], [bb17: v1]
-    v2 = phi [bb3: 0], [bb17: v16]
-    v3 = phi [bb3: arg1], [bb17: v3]
-    v4 = phi [bb3: v0], [bb17: v4]
-    v5 = phi [bb3: 0], [bb17: v18]
-    v6 = phi [bb3: arg0], [bb17: v6]
+    v1 = phi [bb3: 0], [bb14: v1]
+    v2 = phi [bb3: 0], [bb14: v16]
+    v3 = phi [bb3: arg1], [bb14: v3]
+    v4 = phi [bb3: v0], [bb14: v4]
+    v5 = phi [bb3: 0], [bb14: v18]
+    v6 = phi [bb3: arg0], [bb14: v6]
     v7 = lt v5, v6
     jumpi v7, bb7, bb8
   bb8:
@@ -34,33 +34,21 @@ fn @loopCarried(arg0: u256, arg1: bool) -> u256 [selector=0x71b76bb2, pure, abi_
   bb11:
     v14 = add v8, v4
     v15 = lt v14, v8
-    jumpi v15, bb12, bb13
-  bb13:
+    jumpi v15, bb10, bb12
+  bb12:
     v16 = add v2, v14
     v17 = lt v16, v2
-    jumpi v17, bb14, bb15
-  bb15:
+    jumpi v17, bb10, bb13
+  bb13:
     jump bb9
   bb9:
     jump bb6
   bb6:
     v18 = add v5, 1
     v19 = lt v18, v5
-    jumpi v19, bb16, bb17
-  bb17:
-    jump bb4
-  bb16:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v19, bb10, bb14
   bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb4
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -71,72 +59,56 @@ fn @sequential(arg0: u256, arg1: u256) -> u256 [selector=0xfb08deb2, pure, abi_p
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb12: v0]
-    v1 = phi [bb0: 0], [bb12: v1]
-    v2 = phi [bb0: 0], [bb12: v10]
-    v3 = phi [bb0: arg1], [bb12: v3]
-    v4 = phi [bb0: 0], [bb12: v8]
+    v0 = phi [bb0: arg0], [bb10: v0]
+    v1 = phi [bb0: 0], [bb10: v1]
+    v2 = phi [bb0: 0], [bb10: v10]
+    v3 = phi [bb0: arg1], [bb10: v3]
+    v4 = phi [bb0: 0], [bb10: v8]
     v5 = lt v2, v0
     jumpi v5, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    jump bb13
-  bb13:
-    v12 = phi [bb2: 0], [bb26: v29]
-    v13 = phi [bb2: v0], [bb26: v13]
-    v14 = phi [bb2: v1], [bb26: v14]
-    v15 = phi [bb2: v2], [bb26: v15]
-    v16 = phi [bb2: v3], [bb26: v16]
-    v17 = phi [bb2: v4], [bb26: v27]
+    jump bb11
+  bb11:
+    v12 = phi [bb2: 0], [bb20: v29]
+    v13 = phi [bb2: v0], [bb20: v13]
+    v14 = phi [bb2: v1], [bb20: v14]
+    v15 = phi [bb2: v2], [bb20: v15]
+    v16 = phi [bb2: v3], [bb20: v16]
+    v17 = phi [bb2: v4], [bb20: v27]
     v18 = lt v12, v16
-    jumpi v18, bb16, bb17
-  bb17:
-    jump bb14
-  bb14:
+    jumpi v18, bb14, bb15
+  bb15:
+    jump bb12
+  bb12:
     ret v17
-  bb16:
+  bb14:
     v19 = mul v12, 2
     v20 = iszero 2
     v21 = div v19, 2
     v22 = eq v21, v12
     v23 = or v20, v22
     v24 = iszero v23
-    jumpi v24, bb19, bb20
-  bb20:
+    jumpi v24, bb7, bb17
+  bb17:
     v25 = add v19, 3
     v26 = lt v25, v19
-    jumpi v26, bb21, bb22
-  bb22:
+    jumpi v26, bb7, bb18
+  bb18:
     v27 = add v17, v25
     v28 = lt v27, v17
-    jumpi v28, bb23, bb24
-  bb24:
-    jump bb18
-  bb18:
-    jump bb15
-  bb15:
+    jumpi v28, bb7, bb19
+  bb19:
+    jump bb16
+  bb16:
+    jump bb13
+  bb13:
     v29 = add v12, 1
     v30 = lt v29, v12
-    jumpi v30, bb25, bb26
-  bb26:
-    jump bb13
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v30, bb7, bb20
+  bb20:
+    jump bb11
   bb4:
     v6 = add v2, 1
     v7 = lt v6, v2
@@ -144,25 +116,17 @@ fn @sequential(arg0: u256, arg1: u256) -> u256 [selector=0xfb08deb2, pure, abi_p
   bb8:
     v8 = add v4, v6
     v9 = lt v8, v4
-    jumpi v9, bb9, bb10
-  bb10:
+    jumpi v9, bb7, bb9
+  bb9:
     jump bb6
   bb6:
     jump bb3
   bb3:
     v10 = add v2, 1
     v11 = lt v10, v2
-    jumpi v11, bb11, bb12
-  bb12:
+    jumpi v11, bb7, bb10
+  bb10:
     jump bb1
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -173,11 +137,11 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb22: v6]
-    v1 = phi [bb0: 0], [bb22: v7]
-    v2 = phi [bb0: arg0], [bb22: v9]
-    v3 = phi [bb0: 0], [bb22: v10]
-    v4 = phi [bb0: 0], [bb22: v21]
+    v0 = phi [bb0: arg1], [bb18: v6]
+    v1 = phi [bb0: 0], [bb18: v7]
+    v2 = phi [bb0: arg0], [bb18: v9]
+    v3 = phi [bb0: 0], [bb18: v10]
+    v4 = phi [bb0: 0], [bb18: v21]
     v5 = lt v4, v2
     jumpi v5, bb4, bb5
   bb5:
@@ -187,12 +151,12 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
   bb4:
     jump bb7
   bb7:
-    v6 = phi [bb4: v0], [bb20: v6]
-    v7 = phi [bb4: v1], [bb20: v17]
-    v8 = phi [bb4: 0], [bb20: v19]
-    v9 = phi [bb4: v2], [bb20: v9]
-    v10 = phi [bb4: v3], [bb20: v10]
-    v11 = phi [bb4: v4], [bb20: v11]
+    v6 = phi [bb4: v0], [bb17: v6]
+    v7 = phi [bb4: v1], [bb17: v17]
+    v8 = phi [bb4: 0], [bb17: v19]
+    v9 = phi [bb4: v2], [bb17: v9]
+    v10 = phi [bb4: v3], [bb17: v10]
+    v11 = phi [bb4: v4], [bb17: v11]
     v12 = lt v8, v6
     jumpi v12, bb10, bb11
   bb11:
@@ -204,13 +168,9 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
   bb3:
     v21 = add v11, 1
     v22 = lt v21, v11
-    jumpi v22, bb21, bb22
-  bb22:
+    jumpi v22, bb13, bb18
+  bb18:
     jump bb1
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb10:
     v13 = add v11, v8
     v14 = lt v13, v11
@@ -218,33 +178,21 @@ fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_param
   bb14:
     v15 = add v13, 1
     v16 = lt v15, v13
-    jumpi v16, bb15, bb16
-  bb16:
+    jumpi v16, bb13, bb15
+  bb15:
     v17 = add v7, v15
     v18 = lt v17, v7
-    jumpi v18, bb17, bb18
-  bb18:
+    jumpi v18, bb13, bb16
+  bb16:
     jump bb12
   bb12:
     jump bb9
   bb9:
     v19 = add v8, 1
     v20 = lt v19, v8
-    jumpi v20, bb19, bb20
-  bb20:
-    jump bb7
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v20, bb13, bb17
   bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb7
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -255,11 +203,11 @@ fn @storeAfterLoop(arg0: u256, arg1: u256, arg2: u256) [selector=0xd8c2ef0a, abi
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg1], [bb18: v0]
-    v1 = phi [bb0: arg0], [bb18: v16]
-    v2 = phi [bb0: arg0], [bb18: v2]
-    v3 = phi [bb0: arg2], [bb18: v3]
-    v4 = phi [bb0: 0], [bb18: v18]
+    v0 = phi [bb0: arg1], [bb14: v0]
+    v1 = phi [bb0: arg0], [bb14: v16]
+    v2 = phi [bb0: arg0], [bb14: v2]
+    v3 = phi [bb0: arg2], [bb14: v3]
+    v4 = phi [bb0: 0], [bb14: v18]
     v5 = lt v4, v3
     jumpi v5, bb4, bb5
   bb5:
@@ -278,47 +226,31 @@ fn @storeAfterLoop(arg0: u256, arg1: u256, arg2: u256) [selector=0xd8c2ef0a, abi
   bb8:
     v12 = add v6, v2
     v13 = lt v12, v6
-    jumpi v13, bb9, bb10
-  bb10:
-    jumpi 2, bb12, bb11
+    jumpi v13, bb7, bb9
+  bb9:
+    jumpi 2, bb11, bb10
   bb11:
+    v14 = div v12, 2
+    jumpi 0xf4240, bb12, bb10
+  bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    v14 = div v12, 2
-    jumpi 0xf4240, bb14, bb13
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
-  bb14:
     v15 = mod v14, 0xf4240
     v16 = add v15, 1
     v17 = lt v16, v15
-    jumpi v17, bb15, bb16
-  bb16:
+    jumpi v17, bb7, bb13
+  bb13:
     jump bb6
   bb6:
     jump bb3
   bb3:
     v18 = add v4, 1
     v19 = lt v18, v4
-    jumpi v19, bb17, bb18
-  bb18:
+    jumpi v19, bb7, bb14
+  bb14:
     jump bb1
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -64,13 +64,9 @@ fn @dynamicDefaults() -> (u256, u256, u256, u256) [selector=0xd295ba8d, pure, ab
     v5 = memory_object_len memoryarray, 96
     v6 = add v4, v5
     v7 = lt v6, v4
-    jumpi v7, bb3, bb4
-  bb4:
-    ret v2, 96, 96, v6
+    jumpi v7, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v2, 96, 96, v6
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

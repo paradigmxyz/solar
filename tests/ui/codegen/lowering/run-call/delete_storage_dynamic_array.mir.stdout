@@ -40,8 +40,8 @@ fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_retur
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = add v27, 1
     v29 = lt v28, v27
-    jumpi v29, bb6, bb7
-  bb7:
+    jumpi v29, bb1, bb6
+  bb6:
     v30 = storage_array_data_slot 0
     v31 = div v27, 10
     v32 = add v30, v31
@@ -61,8 +61,8 @@ fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_retur
     v44 = sload 0 !metadata(storage=slot(0))
     v45 = lt 0, v44
     v46 = iszero v45
-    jumpi v46, bb8, bb9
-  bb9:
+    jumpi v46, bb7, bb8
+  bb8:
     v47 = storage_array_data_slot 0
     v48 = div 0, 10
     v49 = add v47, v48
@@ -73,13 +73,9 @@ fn @clearAndPush() -> (u256, u24) [selector=0x1698ee0c, abi_params=[], abi_retur
     v54 = shr v53, v52
     v55 = and v54, 0xffffff
     ret v43, v55
-  bb8:
+  bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v25 = add v22, v23

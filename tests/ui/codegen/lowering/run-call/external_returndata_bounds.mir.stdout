@@ -20,15 +20,11 @@ fn @aggregate() -> memorystruct [selector=0xaf36778b, pure, abi_params=[], abi_r
     v8 = memory_object_load_field memorystruct<1>, v7, 0
     v9 = lt 1, 2
     v10 = iszero v9
-    jumpi v10, bb3, bb4
-  bb4:
+    jumpi v10, bb1, bb3
+  bb3:
     memory_object_store_element memoryfixedarray<2, 1>, v8, 1, 22
     memory_object_store_field memorystruct<2>, v0, 1, 33
     ret v0
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -51,7 +47,7 @@ fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_ret
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===
 @module ReturnHarness
 data:
-  ReturnProducer_initcode_0: hex"34600e576101a98060125f395ff35b5f5ffd346038575f3560e01c80630a39e7bc14602a578063986597e514602f578063af36778b146034576038565b610171565b610180565b603c565b5f80fd5b6101e06040526040518060e0528060e052604081016040526040516020810160405260405160408101604052604036823781528152602081015f8152508060e052515160025f10151560b5577f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b600b81525060e0518060e05251516002600110151560fa577f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b6020810190506016815250602060e05101602181525060e0518060e05251515f60e05191905b600281101561014357602081028201516020820260800152600181019050610120565b6040608001505050604060800160208201915081519150818152905060209001506060608001608090036080f35b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
+  ReturnProducer_initcode_0: hex"34600e5761017b8060125f395ff35b5f5ffd346038575f3560e01c80630a39e7bc14602a578063986597e514602f578063af36778b146034576038565b610143565b610152565b603c565b5f80fd5b6101e06040526040518060e0528060e052604081016040526040516020810160405260405160408101604052604036823781528152602081015f8152508060e052515160025f10151560b6575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b600b81525060e0518060e05251516002600110156089576020810190506016815250602060e05101602181525060e0518060e05251515f60e05191905b60028110156101155760208102820151602082026080015260018101905060f3565b6040608001505050604060800160208201915081519150818152905060209001506060608001608090036080f35b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
 
 fn @check(arg0: memorystruct) -> u256 [pure] {
   bb0:
@@ -70,29 +66,25 @@ fn @check(arg0: memorystruct) -> u256 [pure] {
     v8 = memory_object_load_field memorystruct<1>, v7, 0
     v9 = lt 1, 2
     v10 = iszero v9
-    jumpi v10, bb5, bb6
-  bb6:
+    jumpi v10, bb1, bb5
+  bb5:
     v11 = memory_object_load_element memoryfixedarray<2, 1>, v8, 1
     v12 = eq v11, 22
     v13 = iszero v12
-    jumpi v13, bb7, bb8
-  bb8:
+    jumpi v13, bb6, bb7
+  bb7:
     v14 = memory_object_load_field memorystruct<2>, arg0, 1
     v15 = eq v14, 33
     v16 = iszero v15
-    jumpi v16, bb9, bb10
-  bb10:
-    ret 1
+    jumpi v16, bb8, bb9
   bb9:
+    ret 1
+  bb8:
     internal_call @revert_error, 0, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
     invalid
-  bb7:
+  bb6:
     internal_call @revert_error, 0, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
     invalid
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     internal_call @revert_error, 0, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
     invalid
@@ -106,13 +98,13 @@ fn @staticAggregate() -> u256 [selector=0x9982aedb, abi_params=[], abi_returns=[
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 474, v1
+    v2 = and 428, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 443
+    data_copy ReturnProducer_initcode_0, v3, 397
     v4 = slice_ptr v0
-    v5 = add v3, 443
+    v5 = add v3, 397
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 443
+    v6 = create 0, v3, 397
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -142,13 +134,13 @@ fn @projectedAggregate() -> u256 [selector=0xec2041b8, abi_params=[], abi_return
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 474, v1
+    v2 = and 428, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 443
+    data_copy ReturnProducer_initcode_0, v3, 397
     v4 = slice_ptr v0
-    v5 = add v3, 443
+    v5 = add v3, 397
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 443
+    v6 = create 0, v3, 397
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -188,13 +180,13 @@ fn @functionPointerAggregate() -> u256 [selector=0xebe6d175, abi_params=[], abi_
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 474, v1
+    v2 = and 428, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 443
+    data_copy ReturnProducer_initcode_0, v3, 397
     v4 = slice_ptr v0
-    v5 = add v3, 443
+    v5 = add v3, 397
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 443
+    v6 = create 0, v3, 397
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -229,13 +221,13 @@ fn @dirtyAddressBoundary() -> u256 [selector=0x2986c9cc, abi_params=[], abi_retu
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 474, v1
+    v2 = and 428, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 443
+    data_copy ReturnProducer_initcode_0, v3, 397
     v4 = slice_ptr v0
-    v5 = add v3, 443
+    v5 = add v3, 397
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 443
+    v6 = create 0, v3, 397
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -280,13 +272,13 @@ fn @truncated() -> u256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word]]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 474, v1
+    v2 = and 428, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 443
+    data_copy ReturnProducer_initcode_0, v3, 397
     v4 = slice_ptr v0
-    v5 = add v3, 443
+    v5 = add v3, 397
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 443
+    v6 = create 0, v3, 397
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

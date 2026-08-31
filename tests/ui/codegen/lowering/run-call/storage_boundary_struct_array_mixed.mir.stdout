@@ -23,11 +23,11 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v1 = internal_call @getBoundaryArray, 1
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb28: v2]
-    v3 = phi [bb0: 0], [bb28: v3]
-    v4 = phi [bb0: 0], [bb28: v82]
-    v5 = phi [bb0: v1], [bb28: v5]
-    v6 = phi [bb0: v0], [bb28: v6]
+    v2 = phi [bb0: 0], [bb19: v2]
+    v3 = phi [bb0: 0], [bb19: v3]
+    v4 = phi [bb0: 0], [bb19: v82]
+    v5 = phi [bb0: v1], [bb19: v5]
+    v6 = phi [bb0: v0], [bb19: v6]
     v7 = lt v4, 10
     jumpi v7, bb4, bb5
   bb5:
@@ -36,108 +36,108 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v84 = internal_call @getDest, 1
     v85 = lt 0, 1
     v86 = iszero v85
-    jumpi v86, bb29, bb30
-  bb30:
+    jumpi v86, bb16, bb20
+  bb20:
     v87 = mul 0, 40
     v88 = add v5, v87
     v89 = alloc memoryfixedarray<10, 1>, exact, uninitialized, panic, 320
-    jump bb31
-  bb31:
-    v90 = phi [bb30: 0], [bb32: v112]
+    jump bb21
+  bb21:
+    v90 = phi [bb20: 0], [bb22: v112]
     v91 = lt v90, 10
-    jumpi v91, bb32, bb33
-  bb33:
+    jumpi v91, bb22, bb23
+  bb23:
     v113 = lt 0, 1
     v114 = iszero v113
-    jumpi v114, bb34, bb35
-  bb35:
+    jumpi v114, bb16, bb24
+  bb24:
     v115 = mul 0, 40
     v116 = add v84, v115
-    jump bb36
-  bb36:
-    v117 = phi [bb35: 0], [bb41: v176]
+    jump bb25
+  bb25:
+    v117 = phi [bb24: 0], [bb30: v176]
     v118 = lt v117, 10
-    jumpi v118, bb37, bb38
-  bb38:
+    jumpi v118, bb26, bb27
+  bb27:
     v177 = lt 0, 1
     v178 = iszero v177
-    jumpi v178, bb42, bb43
-  bb43:
+    jumpi v178, bb16, bb31
+  bb31:
     v179 = mul 0, 40
     v180 = add v5, v179
-    jump bb44
-  bb44:
-    v181 = phi [bb43: 0], [bb45: v189]
+    jump bb32
+  bb32:
+    v181 = phi [bb31: 0], [bb33: v189]
     v182 = lt v181, 10
-    jumpi v182, bb45, bb46
-  bb46:
+    jumpi v182, bb33, bb34
+  bb34:
     v190 = sload v6 !metadata(storage=symbolic(v6))
     v191 = eq v190, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    jumpi v191, bb47, bb48
-  bb48:
-    jump bb49
-  bb47:
+    jumpi v191, bb35, bb36
+  bb36:
+    jump bb37
+  bb35:
     v192 = lt 0, 1
     v193 = iszero v192
-    jumpi v193, bb50, bb51
-  bb51:
+    jumpi v193, bb16, bb38
+  bb38:
     v194 = mul 0, 40
     v195 = add v5, v194
     v196 = lt 9, 10
     v197 = iszero v196
-    jumpi v197, bb52, bb53
-  bb53:
+    jumpi v197, bb16, bb39
+  bb39:
     v198 = mul 9, 4
     v199 = add v195, v198
     v200 = add v199, 2
     v201 = sload v200 !metadata(storage=offset(v199, 2))
     v202 = eq v201, 0
-    jump bb49
-  bb49:
-    v203 = phi [bb53: v202], [bb48: 0]
-    jump bb54
-  bb54:
-    v204 = phi [bb49: v3], [bb92: v260]
-    v205 = phi [bb49: v4], [bb92: v205]
-    v206 = phi [bb49: 0], [bb92: v274]
-    v207 = phi [bb49: v203], [bb92: v273]
-    v208 = phi [bb49: v84], [bb92: v208]
-    v209 = phi [bb49: v6], [bb92: v209]
-    v210 = phi [bb49: v5], [bb92: v210]
+    jump bb37
+  bb37:
+    v203 = phi [bb39: v202], [bb36: 0]
+    jump bb40
+  bb40:
+    v204 = phi [bb37: v3], [bb63: v260]
+    v205 = phi [bb37: v4], [bb63: v205]
+    v206 = phi [bb37: 0], [bb63: v274]
+    v207 = phi [bb37: v203], [bb63: v273]
+    v208 = phi [bb37: v84], [bb63: v208]
+    v209 = phi [bb37: v6], [bb63: v209]
+    v210 = phi [bb37: v5], [bb63: v210]
     v211 = lt v206, 10
-    jumpi v211, bb57, bb58
-  bb58:
-    jump bb55
-  bb55:
+    jumpi v211, bb43, bb44
+  bb44:
+    jump bb41
+  bb41:
     ret v204, v207
-  bb57:
+  bb43:
     v212 = lt 0, 1
     v213 = iszero v212
-    jumpi v213, bb60, bb61
-  bb61:
+    jumpi v213, bb16, bb46
+  bb46:
     v214 = mul 0, 40
     v215 = add v208, v214
     v216 = lt v206, 10
     v217 = iszero v216
-    jumpi v217, bb62, bb63
-  bb63:
+    jumpi v217, bb16, bb47
+  bb47:
     v218 = mul v206, 4
     v219 = add v215, v218
     v220 = sload v219 !metadata(storage=symbolic(v219))
     v221 = add v204, v220
     v222 = lt v221, v204
-    jumpi v222, bb64, bb65
-  bb65:
+    jumpi v222, bb7, bb48
+  bb48:
     v223 = lt 0, 1
     v224 = iszero v223
-    jumpi v224, bb66, bb67
-  bb67:
+    jumpi v224, bb16, bb49
+  bb49:
     v225 = mul 0, 40
     v226 = add v208, v225
     v227 = lt v206, 10
     v228 = iszero v227
-    jumpi v228, bb68, bb69
-  bb69:
+    jumpi v228, bb16, bb50
+  bb50:
     v229 = mul v206, 4
     v230 = add v226, v229
     v231 = add v230, 1
@@ -145,18 +145,18 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v233 = and v232, 0xffffffffffffffffffffffffffffffff
     v234 = add v221, v233
     v235 = lt v234, v221
-    jumpi v235, bb70, bb71
-  bb71:
+    jumpi v235, bb7, bb51
+  bb51:
     v236 = lt 0, 1
     v237 = iszero v236
-    jumpi v237, bb72, bb73
-  bb73:
+    jumpi v237, bb16, bb52
+  bb52:
     v238 = mul 0, 40
     v239 = add v208, v238
     v240 = lt v206, 10
     v241 = iszero v240
-    jumpi v241, bb74, bb75
-  bb75:
+    jumpi v241, bb16, bb53
+  bb53:
     v242 = mul v206, 4
     v243 = add v239, v242
     v244 = add v243, 1
@@ -165,126 +165,58 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v247 = and v246, 0xffffffffffffffff
     v248 = add v234, v247
     v249 = lt v248, v234
-    jumpi v249, bb76, bb77
-  bb77:
+    jumpi v249, bb7, bb54
+  bb54:
     v250 = lt 0, 1
     v251 = iszero v250
-    jumpi v251, bb78, bb79
-  bb79:
+    jumpi v251, bb16, bb55
+  bb55:
     v252 = mul 0, 40
     v253 = add v208, v252
     v254 = lt v206, 10
     v255 = iszero v254
-    jumpi v255, bb80, bb81
-  bb81:
+    jumpi v255, bb16, bb56
+  bb56:
     v256 = mul v206, 4
     v257 = add v253, v256
     v258 = add v257, 2
     v259 = sload v258 !metadata(storage=offset(v257, 2))
     v260 = add v248, v259
     v261 = lt v260, v248
-    jumpi v261, bb82, bb83
-  bb83:
-    jumpi v207, bb84, bb85
-  bb85:
-    jump bb86
-  bb84:
+    jumpi v261, bb7, bb57
+  bb57:
+    jumpi v207, bb58, bb59
+  bb59:
+    jump bb60
+  bb58:
     v262 = lt 0, 1
     v263 = iszero v262
-    jumpi v263, bb87, bb88
-  bb88:
+    jumpi v263, bb16, bb61
+  bb61:
     v264 = mul 0, 40
     v265 = add v208, v264
     v266 = lt v206, 10
     v267 = iszero v266
-    jumpi v267, bb89, bb90
-  bb90:
+    jumpi v267, bb16, bb62
+  bb62:
     v268 = mul v206, 4
     v269 = add v265, v268
     v270 = add v269, 3
     v271 = sload v270 !metadata(storage=offset(v269, 3))
     v272 = and v271, 255
-    jump bb86
-  bb86:
-    v273 = phi [bb90: v272], [bb85: 0]
-    jump bb59
-  bb59:
-    jump bb56
-  bb56:
+    jump bb60
+  bb60:
+    v273 = phi [bb62: v272], [bb59: 0]
+    jump bb45
+  bb45:
+    jump bb42
+  bb42:
     v274 = add v206, 1
     v275 = lt v274, v206
-    jumpi v275, bb91, bb92
-  bb92:
-    jump bb54
-  bb91:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb89:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb87:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb82:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb80:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb78:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb76:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb74:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb72:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb70:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb68:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb66:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb64:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb62:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb60:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb52:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb50:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb45:
+    jumpi v275, bb7, bb63
+  bb63:
+    jump bb40
+  bb33:
     v183 = mul v181, 4
     v184 = add v180, v183
     sstore v184, 0 !metadata(storage=symbolic(v184))
@@ -296,17 +228,13 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v188 = add v184, 3
     sstore v188, 0 !metadata(storage=offset(v184, 3))
     v189 = add v181, 1
-    jump bb44
-  bb42:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb37:
+    jump bb32
+  bb26:
     v119 = mul v117, 4
     v120 = add v116, v119
     v121 = lt v117, 10
-    jumpi v121, bb39, bb40
-  bb40:
+    jumpi v121, bb28, bb29
+  bb29:
     v149 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     memory_object_store_field memorystruct<5>, v149, 0, 0
     memory_object_store_field memorystruct<5>, v149, 1, 0
@@ -344,8 +272,8 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v174 = and v170, 255
     v175 = or v173, v174
     sstore v169, v175 !metadata(storage=offset(v120, 3))
-    jump bb41
-  bb39:
+    jump bb30
+  bb28:
     v122 = memory_object_load_element memoryfixedarray<10, 1>, v89, v117
     v123 = memory_object_load_field memorystruct<5>, v122, 0
     sstore v120, v123 !metadata(storage=symbolic(v120))
@@ -378,15 +306,11 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v147 = and v143, 255
     v148 = or v146, v147
     sstore v142, v148 !metadata(storage=offset(v120, 3))
-    jump bb41
-  bb41:
+    jump bb30
+  bb30:
     v176 = add v117, 1
-    jump bb36
-  bb34:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb32:
+    jump bb25
+  bb22:
     v92 = mul v90, 4
     v93 = add v88, v92
     v94 = alloc memorystruct<5>, exact, uninitialized, panic, 160
@@ -414,11 +338,7 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     memory_object_store_field memorystruct<5>, v94, 4, v111
     memory_object_store_element memoryfixedarray<10, 1>, v89, v90, v94
     v112 = add v90, 1
-    jump bb31
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb21
   bb4:
     v8 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v9 = mul v4, 5
@@ -431,8 +351,8 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb8:
     v15 = add 1, v9
     v16 = lt v15, 1
-    jumpi v16, bb9, bb10
-  bb10:
+    jumpi v16, bb7, bb9
+  bb9:
     memory_object_store_field memorystruct<5>, v8, 0, v15
     v17 = mul v4, 5
     v18 = iszero 5
@@ -440,12 +360,12 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v20 = eq v19, v4
     v21 = or v18, v20
     v22 = iszero v21
-    jumpi v22, bb11, bb12
-  bb12:
+    jumpi v22, bb7, bb10
+  bb10:
     v23 = add 2, v17
     v24 = lt v23, 2
-    jumpi v24, bb13, bb14
-  bb14:
+    jumpi v24, bb7, bb11
+  bb11:
     v25 = and v23, 0xffffffffffffffffffffffffffffffff
     v26 = and v25, 0xffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<5>, v8, 1, v26
@@ -455,12 +375,12 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v30 = eq v29, v4
     v31 = or v28, v30
     v32 = iszero v31
-    jumpi v32, bb15, bb16
-  bb16:
+    jumpi v32, bb7, bb12
+  bb12:
     v33 = add 3, v27
     v34 = lt v33, 3
-    jumpi v34, bb17, bb18
-  bb18:
+    jumpi v34, bb7, bb13
+  bb13:
     v35 = and v33, 0xffffffffffffffff
     v36 = and v35, 0xffffffffffffffff
     memory_object_store_field memorystruct<5>, v8, 2, v36
@@ -470,12 +390,12 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v40 = eq v39, v4
     v41 = or v38, v40
     v42 = iszero v41
-    jumpi v42, bb19, bb20
-  bb20:
+    jumpi v42, bb7, bb14
+  bb14:
     v43 = add 4, v37
     v44 = lt v43, 4
-    jumpi v44, bb21, bb22
-  bb22:
+    jumpi v44, bb7, bb15
+  bb15:
     v45 = shl 0, v43
     memory_object_store_field memorystruct<5>, v8, 3, v45
     v46 = eq 1, 0
@@ -483,14 +403,14 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     memory_object_store_field memorystruct<5>, v8, 4, v47
     v48 = lt 0, 1
     v49 = iszero v48
-    jumpi v49, bb23, bb24
-  bb24:
+    jumpi v49, bb16, bb17
+  bb17:
     v50 = mul 0, 40
     v51 = add v5, v50
     v52 = lt v4, 10
     v53 = iszero v52
-    jumpi v53, bb25, bb26
-  bb26:
+    jumpi v53, bb16, bb18
+  bb18:
     v54 = mul v4, 4
     v55 = add v51, v54
     v56 = memory_object_load_field memorystruct<5>, v8, 0
@@ -530,48 +450,12 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb3:
     v82 = add v4, 1
     v83 = lt v82, v4
-    jumpi v83, bb27, bb28
-  bb28:
-    jump bb1
-  bb27:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v83, bb7, bb19
   bb19:
+    jump bb1
+  bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

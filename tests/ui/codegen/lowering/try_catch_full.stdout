@@ -339,8 +339,8 @@ fn @decode_aggregate.4(arg0: memptr) -> (u256, memptr) {
     v3 = lt v2, v0
     v4 = lt v1, 64
     v5 = or v3, v4
-    jumpi v5, bb2, bb1
-  bb1:
+    jumpi v5, bb1, bb2
+  bb2:
     v6 = mload v0
     v7 = add v0, 32
     v8 = mload v7
@@ -349,7 +349,7 @@ fn @decode_aggregate.4(arg0: memptr) -> (u256, memptr) {
     v11 = gt v8, 0xffffffffffffffff
     v12 = gt v10, v2
     v13 = or v11, v12
-    jumpi v13, bb2, bb3
+    jumpi v13, bb1, bb3
   bb3:
     v14 = mload v9
     v16 = add v14, 63
@@ -368,7 +368,7 @@ fn @decode_aggregate.4(arg0: memptr) -> (u256, memptr) {
     mstore v20, v14
     v21 = sub v2, v10
     v22 = gt v14, v21
-    jumpi v22, bb2, bb6
+    jumpi v22, bb1, bb6
   bb6:
     v24 = add v20, 32
     mcopy v24, v10, v14
@@ -381,7 +381,7 @@ fn @decode_aggregate.4(arg0: memptr) -> (u256, memptr) {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
+  bb1:
     revert 0, 0
 }
 
@@ -393,15 +393,15 @@ fn @decode_aggregate.5(arg0: memptr) -> memptr {
     v3 = lt v2, v0
     v4 = lt v1, 32
     v5 = or v3, v4
-    jumpi v5, bb2, bb1
-  bb1:
+    jumpi v5, bb1, bb2
+  bb2:
     v6 = mload v0
     v7 = add v0, v6
     v8 = add v7, 32
     v9 = gt v6, 0xffffffffffffffff
     v10 = gt v8, v2
     v11 = or v9, v10
-    jumpi v11, bb2, bb3
+    jumpi v11, bb1, bb3
   bb3:
     v12 = mload v7
     v14 = add v12, 63
@@ -420,7 +420,7 @@ fn @decode_aggregate.5(arg0: memptr) -> memptr {
     mstore v18, v12
     v19 = sub v2, v8
     v20 = gt v12, v19
-    jumpi v20, bb2, bb6
+    jumpi v20, bb1, bb6
   bb6:
     v22 = add v18, 32
     mcopy v22, v8, v12
@@ -433,7 +433,7 @@ fn @decode_aggregate.5(arg0: memptr) -> memptr {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb2:
+  bb1:
     revert 0, 0
 }
 

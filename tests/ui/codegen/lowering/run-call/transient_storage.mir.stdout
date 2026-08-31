@@ -123,8 +123,8 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>]] {
     v18 = iszero v17
     v19 = gt v13, 0xffff
     v20 = or v18, v19
-    jumpi v20, bb5, bb6
-  bb6:
+    jumpi v20, bb2, bb5
+  bb5:
     v21 = tload 0
     v22 = not 0xffff
     v23 = and v21, v22
@@ -138,10 +138,6 @@ fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>]] {
     jump bb1
   bb1:
     ret v27
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

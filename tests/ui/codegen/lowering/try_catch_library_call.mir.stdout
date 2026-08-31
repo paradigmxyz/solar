@@ -74,8 +74,8 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v13 = returndatasize
     v14 = add v13, 63
     v15 = lt v14, v13
-    jumpi v15, bb6, bb7
-  bb7:
+    jumpi v15, bb4, bb6
+  bb6:
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc memorybytes, exact, uninitialized, infallible, v17
@@ -90,22 +90,22 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v25 = iszero v24
     v26 = shr 224, v23
     v27 = eq v26, 0x8c379a0
-    jumpi v27, bb8, bb9
-  bb9:
-    jump bb10
+    jumpi v27, bb7, bb8
   bb8:
+    jump bb9
+  bb7:
     v28 = internal_call @try_decode_error_message, 1, v20, v21
-    jump bb10
-  bb10:
-    v29 = phi [bb8: v28], [bb9: 0]
+    jump bb9
+  bb9:
+    v29 = phi [bb7: v28], [bb8: 0]
     v30 = lt v21, 36
     v31 = iszero v30
     v32 = eq v26, 0x4e487b71
     v33 = and v31, v32
-    jumpi v29, bb11, bb12
-  bb12:
-    revert v20, v21
+    jumpi v29, bb10, bb11
   bb11:
+    revert v20, v21
+  bb10:
     v34 = memory_object_data memorybytes, v18
     v35 = memory_object_len memorybytes, v18
     v36 = add v34, 4
@@ -114,8 +114,8 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v39 = slice_len v38
     v40 = add v39, 63
     v41 = lt v40, v39
-    jumpi v41, bb13, bb14
-  bb14:
+    jumpi v41, bb4, bb12
+  bb12:
     v42 = not 31
     v43 = and v40, v42
     v44 = alloc memorybytes, exact, uninitialized, infallible, v43
@@ -123,14 +123,6 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     memory_object_copy_from_slice memorybytes, v44, v38
     v45 = abi_decode [bytes], v44
     ret 18
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v5 = returndatasize
     v6 = add v5, 63
@@ -165,8 +157,8 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v13 = returndatasize
     v14 = add v13, 63
     v15 = lt v14, v13
-    jumpi v15, bb6, bb7
-  bb7:
+    jumpi v15, bb4, bb6
+  bb6:
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc memorybytes, exact, uninitialized, infallible, v17
@@ -181,22 +173,22 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v25 = iszero v24
     v26 = shr 224, v23
     v27 = eq v26, 0x8c379a0
-    jumpi v27, bb8, bb9
-  bb9:
-    jump bb10
+    jumpi v27, bb7, bb8
   bb8:
+    jump bb9
+  bb7:
     v28 = internal_call @try_decode_error_message, 1, v20, v21
-    jump bb10
-  bb10:
-    v29 = phi [bb8: v28], [bb9: 0]
+    jump bb9
+  bb9:
+    v29 = phi [bb7: v28], [bb8: 0]
     v30 = lt v21, 36
     v31 = iszero v30
     v32 = eq v26, 0x4e487b71
     v33 = and v31, v32
-    jumpi v29, bb11, bb12
-  bb12:
-    revert v20, v21
+    jumpi v29, bb10, bb11
   bb11:
+    revert v20, v21
+  bb10:
     v34 = memory_object_data memorybytes, v18
     v35 = memory_object_len memorybytes, v18
     v36 = add v34, 4
@@ -205,8 +197,8 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v39 = slice_len v38
     v40 = add v39, 63
     v41 = lt v40, v39
-    jumpi v41, bb13, bb14
-  bb14:
+    jumpi v41, bb4, bb12
+  bb12:
     v42 = not 31
     v43 = and v40, v42
     v44 = alloc memorybytes, exact, uninitialized, infallible, v43
@@ -214,14 +206,6 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     memory_object_copy_from_slice memorybytes, v44, v38
     v45 = abi_decode [bytes], v44
     ret 19
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v5 = returndatasize
     v6 = add v5, 63
@@ -256,8 +240,8 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v13 = returndatasize
     v14 = add v13, 63
     v15 = lt v14, v13
-    jumpi v15, bb6, bb7
-  bb7:
+    jumpi v15, bb4, bb6
+  bb6:
     v16 = not 31
     v17 = and v14, v16
     v18 = alloc memorybytes, exact, uninitialized, infallible, v17
@@ -272,22 +256,22 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v25 = iszero v24
     v26 = shr 224, v23
     v27 = eq v26, 0x8c379a0
-    jumpi v27, bb8, bb9
-  bb9:
-    jump bb10
+    jumpi v27, bb7, bb8
   bb8:
+    jump bb9
+  bb7:
     v28 = internal_call @try_decode_error_message, 1, v20, v21
-    jump bb10
-  bb10:
-    v29 = phi [bb8: v28], [bb9: 0]
+    jump bb9
+  bb9:
+    v29 = phi [bb7: v28], [bb8: 0]
     v30 = lt v21, 36
     v31 = iszero v30
     v32 = eq v26, 0x4e487b71
     v33 = and v31, v32
-    jumpi v29, bb11, bb12
-  bb12:
-    revert v20, v21
+    jumpi v29, bb10, bb11
   bb11:
+    revert v20, v21
+  bb10:
     v34 = memory_object_data memorybytes, v18
     v35 = memory_object_len memorybytes, v18
     v36 = add v34, 4
@@ -296,8 +280,8 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v39 = slice_len v38
     v40 = add v39, 63
     v41 = lt v40, v39
-    jumpi v41, bb13, bb14
-  bb14:
+    jumpi v41, bb4, bb12
+  bb12:
     v42 = not 31
     v43 = and v40, v42
     v44 = alloc memorybytes, exact, uninitialized, infallible, v43
@@ -305,14 +289,6 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     memory_object_copy_from_slice memorybytes, v44, v38
     v45 = abi_decode [bytes], v44
     ret 20
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v5 = returndatasize
     v6 = add v5, 63

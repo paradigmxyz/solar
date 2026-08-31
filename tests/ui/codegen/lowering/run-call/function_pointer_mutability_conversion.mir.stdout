@@ -81,8 +81,8 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    jumpi v82, bb19, bb20
-  bb20:
+    jumpi v82, bb13, bb19
+  bb19:
     v83 = div 0, 4
     v84 = add 3, v83
     v85 = mod 0, 4
@@ -93,10 +93,6 @@ fn @testViewToDefault() -> (u256, u256) [selector=0xea84b69f, abi_params=[], abi
     v90 = and v89, 0xffffffffffffffff
     v91 = internal_call @internal_dispatcher_p_none_r_u256, 1, v90
     ret v80, v91
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb17:
     revert 0, 0
   bb13:
@@ -228,8 +224,8 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    jumpi v82, bb19, bb20
-  bb20:
+    jumpi v82, bb13, bb19
+  bb19:
     v83 = div 0, 4
     v84 = add 3, v83
     v85 = mod 0, 4
@@ -240,10 +236,6 @@ fn @testPureToDefault() -> (u256, u256) [selector=0x77df1859, abi_params=[], abi
     v90 = and v89, 0xffffffffffffffff
     v91 = internal_call @internal_dispatcher_p_none_r_u256, 1, v90
     ret v80, v91
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb17:
     revert 0, 0
   bb13:
@@ -375,8 +367,8 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_re
     v80 = mload v79
     v81 = lt 0, 1
     v82 = iszero v81
-    jumpi v82, bb19, bb20
-  bb20:
+    jumpi v82, bb13, bb19
+  bb19:
     v83 = div 0, 4
     v84 = add 4, v83
     v85 = mod 0, 4
@@ -387,10 +379,6 @@ fn @testPureToView() -> (u256, u256) [selector=0x78f13937, abi_params=[], abi_re
     v90 = and v89, 0xffffffffffffffff
     v91 = internal_call @internal_dispatcher_p_none_r_u256, 1, v90
     ret v80, v91
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb17:
     revert 0, 0
   bb13:

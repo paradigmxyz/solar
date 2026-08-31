@@ -14,17 +14,13 @@ fn @constructor() [constructor] {
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = add v5, 1
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    jumpi v7, bb1, bb3
+  bb3:
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
     sstore v9, 20 !metadata(storage=symbolic(v9))
     sstore 0, v6 !metadata(storage=slot(0))
     stop
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -49,39 +45,27 @@ fn @compound() -> (u256, u256, u256) [selector=0xf69e2046, abi_params=[], abi_re
     v8 = sload v7 !metadata(storage=symbolic(v7))
     v9 = add v8, 7
     v10 = lt v9, v8
-    jumpi v10, bb5, bb6
-  bb6:
+    jumpi v10, bb1, bb5
+  bb5:
     sstore v7, v9 !metadata(storage=symbolic(v7))
     v11 = sload 1 !metadata(storage=slot(1))
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = lt 0, v12
     v14 = iszero v13
-    jumpi v14, bb7, bb8
-  bb8:
+    jumpi v14, bb3, bb6
+  bb6:
     v15 = storage_array_data_slot 0
     v16 = add v15, 0
     v17 = sload v16 !metadata(storage=symbolic(v15))
     v18 = sload 0 !metadata(storage=slot(0))
     v19 = lt 1, v18
     v20 = iszero v19
-    jumpi v20, bb9, bb10
-  bb10:
+    jumpi v20, bb3, bb7
+  bb7:
     v21 = storage_array_data_slot 0
     v22 = add v21, 1
     v23 = sload v22 !metadata(storage=offset(v21, 1))
     ret v11, v17, v23
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -110,39 +94,27 @@ fn @postIncrement() -> (u256, u256, u256) [selector=0x016e4842, abi_params=[], a
     v8 = sload v7 !metadata(storage=symbolic(v7))
     v9 = add v8, 1
     v10 = lt v9, v8
-    jumpi v10, bb5, bb6
-  bb6:
+    jumpi v10, bb1, bb5
+  bb5:
     sstore v7, v9 !metadata(storage=symbolic(v7))
     v11 = sload 1 !metadata(storage=slot(1))
     v12 = sload 0 !metadata(storage=slot(0))
     v13 = lt 0, v12
     v14 = iszero v13
-    jumpi v14, bb7, bb8
-  bb8:
+    jumpi v14, bb3, bb6
+  bb6:
     v15 = storage_array_data_slot 0
     v16 = add v15, 0
     v17 = sload v16 !metadata(storage=symbolic(v15))
     v18 = sload 0 !metadata(storage=slot(0))
     v19 = lt 1, v18
     v20 = iszero v19
-    jumpi v20, bb9, bb10
-  bb10:
+    jumpi v20, bb3, bb7
+  bb7:
     v21 = storage_array_data_slot 0
     v22 = add v21, 1
     v23 = sload v22 !metadata(storage=offset(v21, 1))
     ret v11, v17, v23
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -212,16 +184,12 @@ fn @pushSideEffect() -> (u256, u256, u256) [selector=0x0753e3a7, abi_params=[], 
     v24 = sload 2 !metadata(storage=slot(2))
     v25 = lt 1, v24
     v26 = iszero v25
-    jumpi v26, bb9, bb10
-  bb10:
+    jumpi v26, bb7, bb9
+  bb9:
     v27 = storage_array_data_slot 2
     v28 = add v27, 1
     v29 = sload v28 !metadata(storage=offset(v27, 1))
     ret v17, v23, v29
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -276,8 +276,8 @@ fn @deploy() -> (memorybytes, memorybytes, u8) [selector=0x775c300c, abi_params=
     v25 = returndatasize
     v26 = add v25, 63
     v27 = lt v26, v25
-    jumpi v27, bb9, bb10
-  bb10:
+    jumpi v27, bb5, bb9
+  bb9:
     v28 = not 31
     v29 = and v26, v28
     v30 = alloc memorybytes, exact, uninitialized, infallible, v29
@@ -290,32 +290,28 @@ fn @deploy() -> (memorybytes, memorybytes, u8) [selector=0x775c300c, abi_params=
     v35 = slice_ptr v34
     v36 = slice_len v34
     v37 = staticcall v33, v6, v35, v36, 0, 32
-    jumpi v37, bb12, bb11
-  bb11:
+    jumpi v37, bb11, bb10
+  bb10:
     revert_returndata
-  bb12:
+  bb11:
     v38 = returndatasize
     v39 = lt v38, 32
-    jumpi v39, bb13, bb14
-  bb14:
+    jumpi v39, bb12, bb13
+  bb13:
     v40 = add 0, 0
     v41 = mload v40
     v42 = and v41, 255
     v43 = eq v41, v42
     v44 = iszero v43
-    jumpi v44, bb15, bb16
-  bb16:
+    jumpi v44, bb14, bb15
+  bb15:
     v45 = add 0, 0
     v46 = mload v45
     ret v19, v32, v46
-  bb15:
+  bb14:
     revert 0, 0
-  bb13:
+  bb12:
     revert 0, 0
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

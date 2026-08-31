@@ -29,13 +29,13 @@ fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_params=[array
   bb10:
     v67 = lt 0, 2
     v68 = iszero v67
-    jumpi v68, bb26, bb27
-  bb27:
+    jumpi v68, bb1, bb26
+  bb26:
     v69 = add 0, 0
     v70 = lt 0, 2
     v71 = iszero v70
-    jumpi v71, bb28, bb29
-  bb29:
+    jumpi v71, bb1, bb27
+  bb27:
     v72 = div 0, 32
     v73 = add v69, v72
     v74 = mod 0, 32
@@ -46,13 +46,13 @@ fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_params=[array
     v79 = and v78, 255
     v80 = lt 0, 2
     v81 = iszero v80
-    jumpi v81, bb30, bb31
-  bb31:
+    jumpi v81, bb1, bb28
+  bb28:
     v82 = add 0, 0
     v83 = lt 1, 2
     v84 = iszero v83
-    jumpi v84, bb32, bb33
-  bb33:
+    jumpi v84, bb1, bb29
+  bb29:
     v85 = div 1, 32
     v86 = add v82, v85
     v87 = mod 1, 32
@@ -63,17 +63,17 @@ fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_params=[array
     v92 = and v91, 255
     v93 = add v79, v92
     v94 = gt v93, 255
-    jumpi v94, bb34, bb35
-  bb35:
+    jumpi v94, bb30, bb31
+  bb31:
     v95 = lt 1, 2
     v96 = iszero v95
-    jumpi v96, bb36, bb37
-  bb37:
+    jumpi v96, bb1, bb32
+  bb32:
     v97 = add 0, 1
     v98 = lt 0, 2
     v99 = iszero v98
-    jumpi v99, bb38, bb39
-  bb39:
+    jumpi v99, bb1, bb33
+  bb33:
     v100 = div 0, 32
     v101 = add v97, v100
     v102 = mod 0, 32
@@ -84,17 +84,17 @@ fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_params=[array
     v107 = and v106, 255
     v108 = add v93, v107
     v109 = gt v108, 255
-    jumpi v109, bb40, bb41
-  bb41:
+    jumpi v109, bb30, bb34
+  bb34:
     v110 = lt 1, 2
     v111 = iszero v110
-    jumpi v111, bb42, bb43
-  bb43:
+    jumpi v111, bb1, bb35
+  bb35:
     v112 = add 0, 1
     v113 = lt 1, 2
     v114 = iszero v113
-    jumpi v114, bb44, bb45
-  bb45:
+    jumpi v114, bb1, bb36
+  bb36:
     v115 = div 1, 32
     v116 = add v112, v115
     v117 = mod 1, 32
@@ -105,52 +105,12 @@ fn @test(arg0: memoryfixedarray) -> u256 [selector=0x55aeb383, abi_params=[array
     v122 = and v121, 255
     v123 = add v108, v122
     v124 = gt v123, 255
-    jumpi v124, bb46, bb47
-  bb47:
+    jumpi v124, bb30, bb37
+  bb37:
     ret v123
-  bb46:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb44:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb42:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb40:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb38:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb36:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb34:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb32:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb30:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
     v12 = add 0, v10
@@ -272,19 +232,19 @@ fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_params=[arra
   bb5:
     v61 = lt 0, 2
     v62 = iszero v61
-    jumpi v62, bb21, bb22
-  bb22:
+    jumpi v62, bb1, bb21
+  bb21:
     v63 = mul 0, 2
     v64 = add 2, v63
     v65 = lt 0, 2
     v66 = iszero v65
-    jumpi v66, bb23, bb24
-  bb24:
+    jumpi v66, bb1, bb22
+  bb22:
     v67 = add v64, 0
     v68 = lt 0, 2
     v69 = iszero v68
-    jumpi v69, bb25, bb26
-  bb26:
+    jumpi v69, bb1, bb23
+  bb23:
     v70 = div 0, 32
     v71 = add v67, v70
     v72 = mod 0, 32
@@ -295,19 +255,19 @@ fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_params=[arra
     v77 = and v76, 255
     v78 = lt 0, 2
     v79 = iszero v78
-    jumpi v79, bb27, bb28
-  bb28:
+    jumpi v79, bb1, bb24
+  bb24:
     v80 = mul 0, 2
     v81 = add 2, v80
     v82 = lt 0, 2
     v83 = iszero v82
-    jumpi v83, bb29, bb30
-  bb30:
+    jumpi v83, bb1, bb25
+  bb25:
     v84 = add v81, 0
     v85 = lt 1, 2
     v86 = iszero v85
-    jumpi v86, bb31, bb32
-  bb32:
+    jumpi v86, bb1, bb26
+  bb26:
     v87 = div 1, 32
     v88 = add v84, v87
     v89 = mod 1, 32
@@ -318,23 +278,23 @@ fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_params=[arra
     v94 = and v93, 255
     v95 = add v77, v94
     v96 = gt v95, 255
-    jumpi v96, bb33, bb34
-  bb34:
+    jumpi v96, bb27, bb28
+  bb28:
     v97 = lt 0, 2
     v98 = iszero v97
-    jumpi v98, bb35, bb36
-  bb36:
+    jumpi v98, bb1, bb29
+  bb29:
     v99 = mul 0, 2
     v100 = add 2, v99
     v101 = lt 1, 2
     v102 = iszero v101
-    jumpi v102, bb37, bb38
-  bb38:
+    jumpi v102, bb1, bb30
+  bb30:
     v103 = add v100, 1
     v104 = lt 0, 2
     v105 = iszero v104
-    jumpi v105, bb39, bb40
-  bb40:
+    jumpi v105, bb1, bb31
+  bb31:
     v106 = div 0, 32
     v107 = add v103, v106
     v108 = mod 0, 32
@@ -345,23 +305,23 @@ fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_params=[arra
     v113 = and v112, 255
     v114 = add v95, v113
     v115 = gt v114, 255
-    jumpi v115, bb41, bb42
-  bb42:
+    jumpi v115, bb27, bb32
+  bb32:
     v116 = lt 0, 2
     v117 = iszero v116
-    jumpi v117, bb43, bb44
-  bb44:
+    jumpi v117, bb1, bb33
+  bb33:
     v118 = mul 0, 2
     v119 = add 2, v118
     v120 = lt 1, 2
     v121 = iszero v120
-    jumpi v121, bb45, bb46
-  bb46:
+    jumpi v121, bb1, bb34
+  bb34:
     v122 = add v119, 1
     v123 = lt 1, 2
     v124 = iszero v123
-    jumpi v124, bb47, bb48
-  bb48:
+    jumpi v124, bb1, bb35
+  bb35:
     v125 = div 1, 32
     v126 = add v122, v125
     v127 = mod 1, 32
@@ -372,68 +332,12 @@ fn @test2(arg0: memoryfixedarray) -> u256 [selector=0x3fc8671b, abi_params=[arra
     v132 = and v131, 255
     v133 = add v114, v132
     v134 = gt v133, 255
-    jumpi v134, bb49, bb50
-  bb50:
+    jumpi v134, bb27, bb36
+  bb36:
     ret v133
-  bb49:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb47:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb45:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb43:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb41:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb39:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb37:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb35:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb27:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     v6 = add v3, v4

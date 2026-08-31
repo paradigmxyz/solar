@@ -60,13 +60,9 @@ fn @depth(arg0: u256) -> u256 [pure] {
     v3 = internal_call @depth, 1, v1
     v4 = add v3, 1
     v5 = lt v4, v3
-    jumpi v5, bb6, bb7
-  bb7:
-    ret v4
+    jumpi v5, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v4
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

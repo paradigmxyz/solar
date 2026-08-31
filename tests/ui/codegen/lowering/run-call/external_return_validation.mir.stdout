@@ -214,14 +214,10 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
     v25 = memory_object_len memoryarray, v24
     v26 = lt 0, v25
     v27 = iszero v26
-    jumpi v27, bb7, bb8
-  bb8:
+    jumpi v27, bb5, bb7
+  bb7:
     v28 = memory_object_load_element memoryarray<1>, v24, 0
     ret v28
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -351,16 +347,12 @@ fn @dirtyMemoryLvalue() -> bool [selector=0x91f3b994, pure, abi_params=[], abi_r
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v7
     v8 = lt 0, 1
     v9 = iszero v8
-    jumpi v9, bb5, bb6
-  bb6:
+    jumpi v9, bb1, bb5
+  bb5:
     v10 = memory_object_load_element memoryfixedarray<1, 1>, v0, 0
     v11 = and v10, 255
     v12 = eq v11, 2
     ret v12
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -549,7 +541,7 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params
     set_memory_object_len memorybytes, v3, 32
     jump bb1
   bb1:
-    v4 = phi [bb0: 0], [bb9: v18]
+    v4 = phi [bb0: 0], [bb8: v18]
     v5 = lt v4, 1
     jumpi v5, bb2, bb3
   bb3:
@@ -565,24 +557,20 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params
   bb5:
     v12 = add 0, v6
     v13 = lt v12, 0
-    jumpi v13, bb6, bb7
-  bb7:
+    jumpi v13, bb4, bb6
+  bb6:
     v14 = memory_object_load_element memoryfixedarray<1, 1>, v0, v4
     v15 = lt v14, 2
     v16 = iszero v15
-    jumpi v16, bb8, bb9
-  bb9:
+    jumpi v16, bb7, bb8
+  bb8:
     v17 = and v14, 1
     memory_object_store_word memorybytes, v3, v12, v17
     v18 = add v4, 1
     jump bb1
-  bb8:
+  bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

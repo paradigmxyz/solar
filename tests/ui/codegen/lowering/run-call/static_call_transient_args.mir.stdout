@@ -80,15 +80,15 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     internal_call @_schedule, 0, v27, arg5
     jump bb12
   bb12:
-    v28 = phi [bb11: arg5], [bb45: v28]
-    v29 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb45: v29]
-    v30 = phi [bb11: arg2], [bb45: v30]
-    v31 = phi [bb11: v27], [bb45: v31]
-    v32 = phi [bb11: arg3], [bb45: v32]
-    v33 = phi [bb11: 0], [bb45: v105]
-    v34 = phi [bb11: arg0], [bb45: v34]
-    v35 = phi [bb11: arg4], [bb45: v35]
-    v36 = phi [bb11: arg1], [bb45: v36]
+    v28 = phi [bb11: arg5], [bb41: v28]
+    v29 = phi [bb11: 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1], [bb41: v29]
+    v30 = phi [bb11: arg2], [bb41: v30]
+    v31 = phi [bb11: v27], [bb41: v31]
+    v32 = phi [bb11: arg3], [bb41: v32]
+    v33 = phi [bb11: 0], [bb41: v105]
+    v34 = phi [bb11: arg0], [bb41: v34]
+    v35 = phi [bb11: arg4], [bb41: v35]
+    v36 = phi [bb11: arg1], [bb41: v36]
     v37 = slice_len v34
     v38 = lt v33, v37
     jumpi v38, bb15, bb16
@@ -97,14 +97,14 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb13:
     v107 = eq v35, 0
     v108 = iszero v107
-    jumpi v108, bb46, bb47
-  bb47:
-    jump bb48
-  bb46:
+    jumpi v108, bb42, bb43
+  bb43:
+    jump bb44
+  bb42:
     mstore 0, v35 !metadata(memory=scratch)
     log2 0, 32, 0x20fda5fd27a1ea7bf5b9567f143ac5470bb059374a27e8f67cb44f946f6d0387, v31
-    jump bb48
-  bb48:
+    jump bb44
+  bb44:
     jump bb5
   bb5:
     jump bb1
@@ -135,8 +135,8 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v54 = slice_len v36
     v55 = lt v33, v54
     v56 = iszero v55
-    jumpi v56, bb24, bb25
-  bb25:
+    jumpi v56, bb18, bb24
+  bb24:
     v57 = slice_ptr v36
     v58 = mul v33, 32
     v59 = iszero 32
@@ -144,15 +144,15 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v61 = eq v60, v33
     v62 = or v59, v61
     v63 = iszero v62
-    jumpi v63, bb26, bb27
-  bb27:
+    jumpi v63, bb20, bb25
+  bb25:
     v64 = add v57, v58
     v65 = calldataload v64
     v66 = slice_len v30
     v67 = lt v33, v66
     v68 = iszero v67
-    jumpi v68, bb28, bb29
-  bb29:
+    jumpi v68, bb18, bb26
+  bb26:
     v69 = slice_ptr v30
     v70 = mul v33, 32
     v71 = iszero 32
@@ -160,14 +160,14 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v73 = eq v72, v33
     v74 = or v71, v73
     v75 = iszero v74
-    jumpi v75, bb30, bb31
-  bb31:
+    jumpi v75, bb20, bb27
+  bb27:
     v76 = add v69, v70
     v77 = calldatasize
     v78 = sub v77, v76
     v79 = slt v78, 32
-    jumpi v79, bb32, bb33
-  bb33:
+    jumpi v79, bb28, bb29
+  bb29:
     v80 = calldataload v76
     v81 = add v69, v80
     v82 = calldatasize
@@ -175,31 +175,31 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
     v84 = sub v83, 31
     v85 = slt v80, v84
     v86 = iszero v85
-    jumpi v86, bb34, bb35
-  bb35:
+    jumpi v86, bb30, bb31
+  bb31:
     v87 = calldataload v81
     v88 = gt v87, 0xffffffffffffffff
-    jumpi v88, bb36, bb37
-  bb37:
+    jumpi v88, bb32, bb33
+  bb33:
     v89 = mul v87, 1
     v90 = add v81, 32
     v91 = calldatasize
     v92 = sub v91, v89
     v93 = sgt v90, v92
-    jumpi v93, bb38, bb39
-  bb39:
+    jumpi v93, bb34, bb35
+  bb35:
     v94 = add v81, 32
     v95 = make_calldata_slice v94, v87
     v96 = slice_ptr v95
     v97 = slice_len v95
     v98 = gt v97, 0xffffffffffffffff
-    jumpi v98, bb40, bb41
-  bb41:
+    jumpi v98, bb36, bb37
+  bb37:
     v99 = calldatasize
     v100 = sub v99, v97
     v101 = sgt v96, v100
-    jumpi v101, bb42, bb43
-  bb43:
+    jumpi v101, bb38, bb39
+  bb39:
     v102 = abi_encode [word<u160>, word, calldata_bytes, word, word], args v50, v65, v95, v32, v28
     v103 = slice_ptr v102
     v104 = slice_len v102
@@ -210,17 +210,13 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb14:
     v105 = add v33, 1
     v106 = lt v105, v33
-    jumpi v106, bb44, bb45
-  bb45:
+    jumpi v106, bb40, bb41
+  bb41:
     jump bb12
-  bb44:
+  bb40:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb42:
-    revert 0, 0
-  bb40:
-    revert 0, 0
   bb38:
     revert 0, 0
   bb36:
@@ -230,21 +226,9 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb32:
     revert 0, 0
   bb30:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb26:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb24:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb22:
     revert 0, 0
   bb20:

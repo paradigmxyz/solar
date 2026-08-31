@@ -405,11 +405,11 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v2 = add v1, 4
     v3 = sub v0, 4
     v4 = gt v1, v3
-    jumpi v4, bb2, bb1
-  bb1:
+    jumpi v4, bb1, bb2
+  bb2:
     v5 = sub v0, v2
     v6 = gt 64, v5
-    jumpi v6, bb2, bb3
+    jumpi v6, bb1, bb3
   bb3:
     v7 = mload 64 !metadata(memory=scratch, effect=memory_write)
     v54 = add v7, 96
@@ -423,13 +423,13 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v13 = gt v10, 0xffffffffffffffff
     v14 = gt v12, v0
     v15 = or v13, v14
-    jumpi v15, bb2, bb4
+    jumpi v15, bb1, bb4
   bb4:
     v16 = calldataload v11
     v18 = sub v0, v12
     v19 = shr 5, v18
     v20 = gt v16, v19
-    jumpi v20, bb2, bb5
+    jumpi v20, bb1, bb5
   bb5:
     v21 = shl 5, v16
     v22 = add v21, 32
@@ -456,13 +456,13 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v31 = gt v28, 0xffffffffffffffff
     v32 = gt v30, v0
     v33 = or v31, v32
-    jumpi v33, bb2, bb9
+    jumpi v33, bb1, bb9
   bb9:
     v34 = calldataload v29
     v36 = sub v0, v30
     v37 = shr 5, v36
     v38 = gt v34, v37
-    jumpi v38, bb2, bb10
+    jumpi v38, bb1, bb10
   bb10:
     v39 = shl 5, v34
     v40 = add v39, 32
@@ -480,7 +480,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v44 = add v25, 32
     v45 = add v26, 1
     jump bb6
-  bb2:
+  bb1:
     revert 0, 0
 }
 

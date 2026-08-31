@@ -155,8 +155,8 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v80 = returndatasize
     v81 = add v80, 63
     v82 = lt v81, v80
-    jumpi v82, bb27, bb28
-  bb28:
+    jumpi v82, bb3, bb27
+  bb27:
     v83 = not 31
     v84 = and v81, v83
     v85 = alloc memorybytes, exact, uninitialized, infallible, v84
@@ -167,8 +167,8 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v88 = memory_object_len memoryarray, v87
     v89 = lt 0, v88
     v90 = iszero v89
-    jumpi v90, bb29, bb30
-  bb30:
+    jumpi v90, bb23, bb28
+  bb28:
     v91 = memory_object_load_element memoryarray<1>, v87, 0
     v92 = shr 64, v91
     v93 = shr 32, v92
@@ -176,40 +176,28 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v95 = address
     v96 = eq v94, v95
     v97 = iszero v96
-    jumpi v97, bb31, bb32
-  bb32:
+    jumpi v97, bb29, bb30
+  bb30:
     v98 = memory_object_len memoryarray, v87
     v99 = lt 0, v98
     v100 = iszero v99
-    jumpi v100, bb33, bb34
-  bb34:
+    jumpi v100, bb23, bb31
+  bb31:
     v101 = memory_object_load_element memoryarray<1>, v87, 0
     v102 = shr 64, v101
     v103 = and v102, 0xffffffff
     v104 = shl 224, v103
     v105 = eq v104, 0x9811c7c100000000000000000000000000000000000000000000000000000000
     v106 = iszero v105
-    jumpi v106, bb35, bb36
-  bb36:
+    jumpi v106, bb32, bb33
+  bb33:
     ret 1
-  bb35:
+  bb32:
     internal_call @revert_error, 0, 14, 0x61727261792073656c6563746f72000000000000000000000000000000000000
     invalid
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb31:
+  bb29:
     internal_call @revert_error, 0, 13, 0x6172726179206164647265737300000000000000000000000000000000000000
     invalid
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb27:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb23:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

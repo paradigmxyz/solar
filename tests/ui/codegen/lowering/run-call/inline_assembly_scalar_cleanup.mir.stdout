@@ -16,23 +16,19 @@ fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_par
     v9 = iszero v8
     v10 = gt v4, 255
     v11 = or v9, v10
-    jumpi v11, bb3, bb4
-  bb4:
+    jumpi v11, bb1, bb3
+  bb3:
     v12 = and 257, 255
-    jumpi 1, bb6, bb5
+    jumpi 1, bb5, bb4
   bb5:
+    v13 = div v12, 1
+    v14 = and 257, 255
+    jumpi 2, bb6, bb4
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v13 = div v12, 1
-    v14 = and 257, 255
-    jumpi 2, bb8, bb7
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 18 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
     v15 = mod v14, 2
     v16 = and 257, 255
     v17 = shl 0, v16
@@ -40,10 +36,6 @@ fn @arithmetic() -> (u8, u8, u8, u8, u8, u8) [selector=0x980a67fd, pure, abi_par
     v19 = and 257, 255
     v20 = shr 1, v19
     ret v1, v4, v13, v15, v18, v20
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -80,13 +72,9 @@ fn @increments() -> (u8, u8) [selector=0x56aa2dc5, pure, abi_params=[], abi_retu
     v3 = and 256, 255
     v4 = add v3, 1
     v5 = gt v4, 255
-    jumpi v5, bb3, bb4
-  bb4:
-    ret v1, v3
+    jumpi v5, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v1, v3
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

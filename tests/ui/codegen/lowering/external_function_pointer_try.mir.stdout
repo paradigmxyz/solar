@@ -97,8 +97,8 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
     v18 = returndatasize
     v19 = add v18, 63
     v20 = lt v19, v18
-    jumpi v20, bb6, bb7
-  bb7:
+    jumpi v20, bb4, bb6
+  bb6:
     v21 = not 31
     v22 = and v19, v21
     v23 = alloc memorybytes, exact, uninitialized, infallible, v22
@@ -118,19 +118,15 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
     v35 = iszero v34
     v36 = eq v31, 0x4e487b71
     v37 = and v35, v36
-    jumpi 1, bb8, bb9
-  bb9:
-    revert v25, v26
+    jumpi 1, bb7, bb8
   bb8:
+    revert v25, v26
+  bb7:
     v38 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v38, 6
     v39 = memory_object_data memorybytes, v38
     mstore v39, 0x6661696c65640000000000000000000000000000000000000000000000000000
     ret 0, v38
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     v8 = returndatasize
     v9 = add v8, 63

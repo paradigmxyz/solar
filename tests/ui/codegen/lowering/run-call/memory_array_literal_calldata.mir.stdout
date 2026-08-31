@@ -44,8 +44,8 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
     v23 = slice_len arg1
     v24 = add v23, 63
     v25 = lt v24, v23
-    jumpi v25, bb14, bb15
-  bb15:
+    jumpi v25, bb8, bb14
+  bb14:
     v26 = not 31
     v27 = and v24, v26
     v28 = alloc memorybytes, exact, uninitialized, infallible, v27
@@ -53,10 +53,6 @@ fn @collect(arg0: calldataslice, arg1: calldataslice) -> memoryfixedarray [selec
     memory_object_copy_from_slice memorybytes, v28, arg1
     memory_object_store_element memoryfixedarray<2, 1>, v4, 1, v28
     ret v4
-  bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb12:
     revert 0, 0
   bb10:

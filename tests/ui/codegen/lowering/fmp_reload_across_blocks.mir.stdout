@@ -115,61 +115,41 @@ fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4
   bb5:
     v10 = add v4, 0x4b0
     v11 = lt v10, v4
-    jumpi v11, bb6, bb7
-  bb7:
+    jumpi v11, bb4, bb6
+  bb6:
     v12 = gas
     v13 = sub v12, v10
     v14 = lt v12, v10
-    jumpi v14, bb8, bb9
-  bb9:
+    jumpi v14, bb4, bb7
+  bb7:
     v15 = mul 0x800, v13
     v16 = iszero v13
     v17 = div v15, v13
     v18 = eq v17, 0x800
     v19 = or v16, v18
     v20 = iszero v19
-    jumpi v20, bb10, bb11
-  bb11:
+    jumpi v20, bb4, bb8
+  bb8:
     v21 = add v15, 0x8fe800
     v22 = lt v21, v15
-    jumpi v22, bb12, bb13
-  bb13:
+    jumpi v22, bb4, bb9
+  bb9:
     v23 = internal_call @sqrt, 1, v21
     v24 = sub v23, 0xc00
     v25 = lt v23, 0xc00
-    jumpi v25, bb14, bb15
-  bb15:
-    jumpi 4, bb17, bb16
-  bb16:
+    jumpi v25, bb4, bb10
+  bb10:
+    jumpi 4, bb12, bb11
+  bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
-  bb17:
+  bb12:
     v26 = div v24, 4
     v27 = mul v26, 32
     v28 = mul v26, 32
     calldatacopy 0, 0, v28 !metadata(memory=scratch)
     revert 0, v27
-  bb14:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb10:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

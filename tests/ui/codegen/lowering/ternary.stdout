@@ -42,13 +42,9 @@ fn @abs_diff(arg0: u256, arg1: u256) -> u256 [selector=0xef0baf7e, pure, abi_par
   bb2:
     v4 = sub arg1, arg0
     v5 = lt arg1, arg0
-    jumpi v5, bb6, bb7
-  bb7:
-    jump bb3
+    jumpi v5, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb3
   bb1:
     v2 = sub arg0, arg1
     v3 = lt arg0, arg1
@@ -56,7 +52,7 @@ fn @abs_diff(arg0: u256, arg1: u256) -> u256 [selector=0xef0baf7e, pure, abi_par
   bb5:
     jump bb3
   bb3:
-    v6 = phi [bb5: v2], [bb7: v4]
+    v6 = phi [bb5: v2], [bb6: v4]
     ret v6
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

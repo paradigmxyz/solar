@@ -19,13 +19,9 @@ fn @fact(arg0: u256) -> u256 [selector=0x0b95d228, pure, abi_params=[u256], abi_
     v8 = eq v7, arg0
     v9 = or v6, v8
     v10 = iszero v9
-    jumpi v10, bb6, bb7
-  bb7:
-    ret v5
+    jumpi v10, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v5
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -49,22 +45,14 @@ fn @fib(arg0: u256) -> u256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_r
     v4 = internal_call @fib, 1, v2
     v5 = sub arg0, 2
     v6 = lt arg0, 2
-    jumpi v6, bb6, bb7
-  bb7:
+    jumpi v6, bb4, bb6
+  bb6:
     v7 = internal_call @fib, 1, v5
     v8 = add v4, v7
     v9 = lt v8, v4
-    jumpi v9, bb8, bb9
-  bb9:
+    jumpi v9, bb4, bb7
+  bb7:
     ret v8
-  bb8:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

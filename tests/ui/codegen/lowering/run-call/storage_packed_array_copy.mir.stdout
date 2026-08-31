@@ -13,8 +13,8 @@ fn @constructor() [constructor] {
     v21 = shl 192, 2
     v22 = lt 8, 10
     v23 = iszero v22
-    jumpi v23, bb11, bb12
-  bb12:
+    jumpi v23, bb7, bb11
+  bb11:
     v24 = div 8, 1
     v25 = add 3, v24
     v26 = mod 8, 1
@@ -32,8 +32,8 @@ fn @constructor() [constructor] {
     v37 = shl 192, 2
     v38 = lt 9, 10
     v39 = iszero v38
-    jumpi v39, bb13, bb14
-  bb14:
+    jumpi v39, bb7, bb12
+  bb12:
     v40 = div 9, 1
     v41 = add 3, v40
     v42 = mod 9, 1
@@ -49,14 +49,6 @@ fn @constructor() [constructor] {
     v52 = or v48, v51
     sstore v41, v52 !metadata(storage=offset(v40, 3))
     stop
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     v2 = and v0, 0xffffffffffffffff
     v3 = shl 192, v2
@@ -114,31 +106,31 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb6:
     jump bb10
   bb10:
-    v41 = phi [bb6: 0], [bb21: v57]
-    v42 = phi [bb6: 0], [bb21: v59]
-    v43 = phi [bb6: 0], [bb21: v43]
+    v41 = phi [bb6: 0], [bb20: v57]
+    v42 = phi [bb6: 0], [bb20: v59]
+    v43 = phi [bb6: 0], [bb20: v43]
     v44 = lt v42, 9
     jumpi v44, bb13, bb14
   bb14:
     jump bb11
   bb11:
+    jump bb21
+  bb21:
+    v61 = phi [bb11: v41], [bb29: v61]
+    v62 = phi [bb11: v42], [bb29: v62]
+    v63 = phi [bb11: v43], [bb29: v79]
+    v64 = phi [bb11: 0], [bb29: v81]
+    v65 = lt v64, 10
+    jumpi v65, bb24, bb25
+  bb25:
     jump bb22
   bb22:
-    v61 = phi [bb11: v41], [bb33: v61]
-    v62 = phi [bb11: v42], [bb33: v62]
-    v63 = phi [bb11: v43], [bb33: v79]
-    v64 = phi [bb11: 0], [bb33: v81]
-    v65 = lt v64, 10
-    jumpi v65, bb25, bb26
-  bb26:
-    jump bb23
-  bb23:
     ret v61, v63
-  bb25:
+  bb24:
     v66 = lt v64, 10
     v67 = iszero v66
-    jumpi v67, bb28, bb29
-  bb29:
+    jumpi v67, bb16, bb27
+  bb27:
     v68 = div v64, 1
     v69 = add 3, v68
     v70 = mod v64, 1
@@ -152,29 +144,17 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v78 = shr 192, v77
     v79 = add v63, v78
     v80 = lt v79, v63
-    jumpi v80, bb30, bb31
-  bb31:
-    jump bb27
-  bb27:
-    jump bb24
-  bb24:
+    jumpi v80, bb18, bb28
+  bb28:
+    jump bb26
+  bb26:
+    jump bb23
+  bb23:
     v81 = add v64, 1
     v82 = lt v81, v64
-    jumpi v82, bb32, bb33
-  bb33:
-    jump bb22
-  bb32:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb30:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb28:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v82, bb18, bb29
+  bb29:
+    jump bb21
   bb13:
     v45 = lt v42, 9
     v46 = iszero v45
@@ -200,13 +180,9 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb12:
     v59 = add v42, 1
     v60 = lt v59, v42
-    jumpi v60, bb20, bb21
-  bb21:
-    jump bb10
+    jumpi v60, bb18, bb20
   bb20:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb10
   bb18:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -48,13 +48,13 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v56 = and v55, 255
     v57 = lt v56, 6
     v58 = iszero v57
-    jumpi v58, bb13, bb14
-  bb14:
+    jumpi v58, bb9, bb13
+  bb13:
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = lt 1, v59
     v61 = iszero v60
-    jumpi v61, bb15, bb16
-  bb16:
+    jumpi v61, bb11, bb14
+  bb14:
     v62 = storage_array_data_slot 0
     v63 = div 1, 32
     v64 = add v62, v63
@@ -66,21 +66,9 @@ fn @assign() -> (u256, u8, u8) [selector=0x12ae6397, abi_params=[], abi_returns=
     v70 = and v69, 255
     v71 = lt v70, 6
     v72 = iszero v71
-    jumpi v72, bb17, bb18
-  bb18:
-    ret v44, v56, v70
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v72, bb9, bb15
   bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 33 !metadata(memory=scratch)
-    revert 0, 36
+    ret v44, v56, v70
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

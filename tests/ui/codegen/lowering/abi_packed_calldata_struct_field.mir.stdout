@@ -57,12 +57,12 @@ fn @pack(arg0: calldataslice) -> memorybytes [selector=0xc917a597, pure, abi_par
     v36 = and v32, 0xffffffffffffffffffffffffffffffffffffffff
     v37 = add v28, 20
     v38 = lt v37, v28
-    jumpi v38, bb17, bb18
-  bb18:
+    jumpi v38, bb13, bb17
+  bb17:
     v39 = add v37, 63
     v40 = lt v39, v37
-    jumpi v40, bb19, bb20
-  bb20:
+    jumpi v40, bb13, bb18
+  bb18:
     v41 = not 31
     v42 = and v39, v41
     v43 = alloc memorybytes, exact, uninitialized, infallible, v42
@@ -70,31 +70,15 @@ fn @pack(arg0: calldataslice) -> memorybytes [selector=0xc917a597, pure, abi_par
     memory_object_copy_from_slice_at memorybytes, v43, 0, v20
     v44 = add 0, v27
     v45 = lt v44, 0
-    jumpi v45, bb21, bb22
-  bb22:
+    jumpi v45, bb13, bb19
+  bb19:
     v46 = shl 96, v36
     memory_object_store_word memorybytes, v43, v44, v46
     v47 = add v44, 20
     v48 = lt v47, v44
-    jumpi v48, bb23, bb24
-  bb24:
+    jumpi v48, bb13, bb20
+  bb20:
     ret v43
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb15:
     revert 0, 0
   bb13:

@@ -45,20 +45,20 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v15 = or v14, 0xa7a0d537
     v16 = lt 1, 2
     v17 = iszero v16
-    jumpi v17, bb5, bb6
-  bb6:
+    jumpi v17, bb1, bb5
+  bb5:
     v18 = shl 64, v15
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, v18
     v19 = lt 1, 2
     v20 = iszero v19
-    jumpi v20, bb7, bb8
-  bb8:
+    jumpi v20, bb1, bb6
+  bb6:
     v21 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v22 = shr 64, v21
     v23 = lt 0, 2
     v24 = iszero v23
-    jumpi v24, bb9, bb10
-  bb10:
+    jumpi v24, bb1, bb7
+  bb7:
     v25 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
     v26 = shr 64, v25
     v27 = and v26, 0xffffffff
@@ -66,8 +66,8 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v29 = abi_encode [], object, selector v28
     v30 = lt 1, 2
     v31 = iszero v30
-    jumpi v31, bb11, bb12
-  bb12:
+    jumpi v31, bb1, bb8
+  bb8:
     v32 = memory_object_load_element memoryfixedarray<2, 1>, v0, 1
     v33 = shr 64, v32
     v34 = and v33, 0xffffffff
@@ -78,27 +78,27 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v39 = abi_encode [], object, selector v38
     v40 = memory_object_len memorybytes, v29
     v41 = eq v40, 4
-    jumpi v41, bb13, bb14
-  bb14:
-    jump bb15
-  bb13:
+    jumpi v41, bb9, bb10
+  bb10:
+    jump bb11
+  bb9:
     v42 = memory_object_len memorybytes, v36
     v43 = eq v42, 4
-    jump bb15
-  bb15:
-    v44 = phi [bb13: v43], [bb14: 0]
-    jumpi v44, bb16, bb17
-  bb17:
-    jump bb18
-  bb16:
+    jump bb11
+  bb11:
+    v44 = phi [bb9: v43], [bb10: 0]
+    jumpi v44, bb12, bb13
+  bb13:
+    jump bb14
+  bb12:
     v45 = memory_object_len memorybytes, v39
     v46 = eq v45, 4
-    jump bb18
-  bb18:
-    v47 = phi [bb16: v46], [bb17: 0]
+    jump bb14
+  bb14:
+    v47 = phi [bb12: v46], [bb13: 0]
     v48 = iszero v47
-    jumpi v48, bb19, bb20
-  bb20:
+    jumpi v48, bb15, bb16
+  bb16:
     v49 = memory_object_load_element memorybytes, v29, 0
     v50 = memory_object_len memorybytes, v29
     v51 = lt v50, 4
@@ -117,8 +117,8 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v64 = and v57, v63
     v65 = eq v56, v64
     v66 = iszero v65
-    jumpi v66, bb21, bb22
-  bb22:
+    jumpi v66, bb15, bb17
+  bb17:
     v67 = memory_object_load_element memorybytes, v29, 0
     v68 = memory_object_len memorybytes, v29
     v69 = lt v68, 4
@@ -137,8 +137,8 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v82 = and v75, v81
     v83 = eq v74, v82
     v84 = iszero v83
-    jumpi v84, bb23, bb24
-  bb24:
+    jumpi v84, bb15, bb18
+  bb18:
     v85 = memory_object_load_element memorybytes, v29, 0
     v86 = memory_object_len memorybytes, v29
     v87 = lt v86, 4
@@ -151,8 +151,8 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v94 = shl 224, v93
     v95 = eq v92, v94
     v96 = iszero v95
-    jumpi v96, bb25, bb26
-  bb26:
+    jumpi v96, bb15, bb19
+  bb19:
     v97 = memory_object_load_element memorybytes, v29, 0
     v98 = memory_object_len memorybytes, v29
     v99 = lt v98, 4
@@ -162,37 +162,9 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v103 = select v99, v102, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v104 = and v97, v103
     ret v104
-  bb25:
+  bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

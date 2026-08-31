@@ -90,13 +90,9 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
     v19 = slice_len arg2
     v20 = add v17, v19
     v21 = lt v20, v17
-    jumpi v21, bb7, bb8
-  bb8:
-    ret v20
+    jumpi v21, bb5, bb7
   bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v20
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -113,7 +109,7 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Router ===
 @module Router
 data:
-  Mgr_initcode_0: hex"34600e576102f38060125f395ff35b5f5ffd346071575f3560e01c80630acaa1fa1460525780632360a5fc14605657806347799da814605b578063483f31ab14605f5780635580f72a146064578063a5841194146068578063f6e32b8b14606d576071565b60b8565b6101a7565b6075565b610164565b6087565b610182565b60fc565b5f80fd5b5f546080526020608001608090036080f35b602436101560a95760a5565b60076080526020608001608090036080f35b5f80fd5b60043560a01c151560a5576093565b602436101560ed5760e9565b6001600435141560d65760ca5f0360d9565b60645b6080526020608001608090036080f35b5f80fd5b60043560a01c151560e95760c4565b60243610156101535761014f565b60015460ff90161515610128575f6080526020608001608090036080f35b6001600435141561013c5760ca5f0361013f565b60645b6080526020608001608090036080f35b5f80fd5b60043560a01c151561014f5761010a565b602436101561017d57610179565b6004355f55005b5f80fd5b610172565b602436101561019657610192565b005b5f80fd5b60043560a01c151561019257610190565b6101243610156102aa576102a6565b60015460ff198116905060ff6001168117905060015560406004013562ffffff8116811415156101e4575f80fd5b604060a4013573ffffffffffffffffffffffffffffffffffffffff81168114151561020d575f80fd5b81018060a0528060a0528181109150501561024f577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b600461010435013560a0510160a0518060a052811015610296577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6080526020608001608090036080f35b5f80fd5b610104358060c0526004016020810167ffffffffffffffff60c05111368211915017813560208301925082360392508281119250828217915091506102ef57506101b6565b5f80fd"
+  Mgr_initcode_0: hex"34600e576102c78060125f395ff35b5f5ffd346071575f3560e01c80630acaa1fa1460525780632360a5fc14605657806347799da814605b578063483f31ab14605f5780635580f72a146064578063a5841194146068578063f6e32b8b14606d576071565b60b8565b6101a7565b6075565b610164565b6087565b610182565b60fc565b5f80fd5b5f546080526020608001608090036080f35b602436101560a95760a5565b60076080526020608001608090036080f35b5f80fd5b60043560a01c151560a5576093565b602436101560ed5760e9565b6001600435141560d65760ca5f0360d9565b60645b6080526020608001608090036080f35b5f80fd5b60043560a01c151560e95760c4565b60243610156101535761014f565b60015460ff90161515610128575f6080526020608001608090036080f35b6001600435141561013c5760ca5f0361013f565b60645b6080526020608001608090036080f35b5f80fd5b60043560a01c151561014f5761010a565b602436101561017d57610179565b6004355f55005b5f80fd5b610172565b602436101561019657610192565b005b5f80fd5b60043560a01c151561019257610190565b61012436101561027d57610279565b60015460ff198116905060ff6001168117905060015560406004013562ffffff8116811415156101e4575f80fd5b604060a4013573ffffffffffffffffffffffffffffffffffffffff81168114151561020d575f80fd5b81018060a0528060a05281811091505015610250575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b600461010435013560a0510160a0518060a0528110610223576080526020608001608090036080f35b5f80fd5b610104358060c0526004016020810167ffffffffffffffff60c0511136821191501781356020830192508236039250828111925082821791509150156102c1575f80fd5b506101b656"
 
 fn @constructor() [constructor] {
   bb0:
@@ -135,13 +131,13 @@ fn @constructor() [constructor] {
     sstore 0, v13 !metadata(storage=slot(0))
     v14 = abi_encode []
     v15 = not 31
-    v16 = and 804, v15
+    v16 = and 760, v15
     v17 = alloc raw, exact, uninitialized, infallible, v16
-    data_copy Mgr_initcode_0, v17, 773
+    data_copy Mgr_initcode_0, v17, 729
     v18 = slice_ptr v14
-    v19 = add v17, 773
+    v19 = add v17, 729
     mcopy v19, v18, 0 !metadata(memory=heap)
-    v20 = create 0, v17, 773
+    v20 = create 0, v17, 729
     jumpi v20, bb2, bb1
   bb1:
     revert_returndata
@@ -373,17 +369,17 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffff
     v36 = caller
     v37 = eq v11, 0x8000000000000000000000000000000000000000000000000000000000000000
-    jumpi v37, bb21, bb22
-  bb22:
+    jumpi v37, bb16, bb21
+  bb21:
     v38 = sub 0, v11
     internal_call @settle, 0, v35, v36, v38
     jump bb20
   bb20:
     v39 = sgt v5, 0
-    jumpi v39, bb23, bb24
-  bb24:
-    jump bb25
+    jumpi v39, bb22, bb23
   bb23:
+    jump bb24
+  bb22:
     v40 = sload 0 !metadata(storage=slot(0))
     v41 = and v40, 0xffffffffffffffffffffffffffffffffffffffff
     v42 = gas
@@ -392,20 +388,20 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v45 = slice_len v43
     v46 = extcodesize v41
     v47 = iszero v46
-    jumpi v47, bb26, bb27
-  bb27:
+    jumpi v47, bb25, bb26
+  bb26:
     v48 = call v42, v41, 0, v44, v45, 0, 0
-    jumpi v48, bb29, bb28
-  bb28:
+    jumpi v48, bb28, bb27
+  bb27:
     revert_returndata
-  bb29:
-    jump bb25
-  bb25:
+  bb28:
+    jump bb24
+  bb24:
     v49 = sgt v11, 0
-    jumpi v49, bb30, bb31
-  bb31:
-    jump bb32
+    jumpi v49, bb29, bb30
   bb30:
+    jump bb31
+  bb29:
     v50 = sload 0 !metadata(storage=slot(0))
     v51 = and v50, 0xffffffffffffffffffffffffffffffffffffffff
     v52 = gas
@@ -414,15 +410,15 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v55 = slice_len v53
     v56 = extcodesize v51
     v57 = iszero v56
-    jumpi v57, bb33, bb34
-  bb34:
+    jumpi v57, bb32, bb33
+  bb33:
     v58 = call v52, v51, 0, v54, v55, 0, 0
-    jumpi v58, bb36, bb35
-  bb35:
+    jumpi v58, bb35, bb34
+  bb34:
     revert_returndata
-  bb36:
-    jump bb32
-  bb32:
+  bb35:
+    jump bb31
+  bb31:
     v59 = sload 0 !metadata(storage=slot(0))
     v60 = and v59, 0xffffffffffffffffffffffffffffffffffffffff
     v61 = gas
@@ -430,36 +426,32 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     v63 = slice_ptr v62
     v64 = slice_len v62
     v65 = staticcall v61, v60, v63, v64, 0, 32
-    jumpi v65, bb38, bb37
-  bb37:
+    jumpi v65, bb37, bb36
+  bb36:
     revert_returndata
-  bb38:
+  bb37:
     v66 = returndatasize
     v67 = lt v66, 32
-    jumpi v67, bb39, bb40
-  bb40:
+    jumpi v67, bb38, bb39
+  bb39:
     v68 = add 0, 0
     v69 = mload v68
     v70 = add 0, 0
     v71 = mload v70
     v72 = eq v71, 100
     v73 = iszero v72
-    jumpi v73, bb41, bb42
-  bb42:
-    ret 1
+    jumpi v73, bb40, bb41
   bb41:
+    ret 1
+  bb40:
     internal_call @revert_error, 0, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     invalid
-  bb39:
+  bb38:
     revert 0, 0
-  bb33:
+  bb32:
     revert 0, 0
-  bb26:
+  bb25:
     revert 0, 0
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -666,17 +658,17 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v104 = and v103, 0xffffffffffffffffffffffffffffffffffffffff
     v105 = caller
     v106 = eq v60, 0x8000000000000000000000000000000000000000000000000000000000000000
-    jumpi v106, bb42, bb43
-  bb43:
+    jumpi v106, bb37, bb42
+  bb42:
     v107 = sub 0, v60
     internal_call @settle, 0, v104, v105, v107
     jump bb41
   bb41:
     v108 = sgt v52, 0
-    jumpi v108, bb44, bb45
-  bb45:
-    jump bb46
+    jumpi v108, bb43, bb44
   bb44:
+    jump bb45
+  bb43:
     v109 = sload 0 !metadata(storage=slot(0))
     v110 = and v109, 0xffffffffffffffffffffffffffffffffffffffff
     v111 = gas
@@ -685,20 +677,20 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v114 = slice_len v112
     v115 = extcodesize v110
     v116 = iszero v115
-    jumpi v116, bb47, bb48
-  bb48:
+    jumpi v116, bb46, bb47
+  bb47:
     v117 = call v111, v110, 0, v113, v114, 0, 0
-    jumpi v117, bb50, bb49
-  bb49:
+    jumpi v117, bb49, bb48
+  bb48:
     revert_returndata
-  bb50:
-    jump bb46
-  bb46:
+  bb49:
+    jump bb45
+  bb45:
     v118 = sgt v60, 0
-    jumpi v118, bb51, bb52
-  bb52:
-    jump bb53
+    jumpi v118, bb50, bb51
   bb51:
+    jump bb52
+  bb50:
     v119 = sload 0 !metadata(storage=slot(0))
     v120 = and v119, 0xffffffffffffffffffffffffffffffffffffffff
     v121 = gas
@@ -707,19 +699,19 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v124 = slice_len v122
     v125 = extcodesize v120
     v126 = iszero v125
-    jumpi v126, bb54, bb55
-  bb55:
+    jumpi v126, bb53, bb54
+  bb54:
     v127 = call v121, v120, 0, v123, v124, 0, 0
-    jumpi v127, bb57, bb56
-  bb56:
+    jumpi v127, bb56, bb55
+  bb55:
     revert_returndata
-  bb57:
-    jump bb53
-  bb53:
+  bb56:
+    jump bb52
+  bb52:
     v128 = eq v44, 0xc1f
     v129 = iszero v128
-    jumpi v129, bb58, bb59
-  bb59:
+    jumpi v129, bb57, bb58
+  bb58:
     v130 = sload 0 !metadata(storage=slot(0))
     v131 = and v130, 0xffffffffffffffffffffffffffffffffffffffff
     v132 = gas
@@ -727,39 +719,35 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v134 = slice_ptr v133
     v135 = slice_len v133
     v136 = staticcall v132, v131, v134, v135, 0, 32
-    jumpi v136, bb61, bb60
-  bb60:
+    jumpi v136, bb60, bb59
+  bb59:
     revert_returndata
-  bb61:
+  bb60:
     v137 = returndatasize
     v138 = lt v137, 32
-    jumpi v138, bb62, bb63
-  bb63:
+    jumpi v138, bb61, bb62
+  bb62:
     v139 = add 0, 0
     v140 = mload v139
     v141 = add 0, 0
     v142 = mload v141
     v143 = eq v142, 100
     v144 = iszero v143
-    jumpi v144, bb64, bb65
-  bb65:
-    ret 2
+    jumpi v144, bb63, bb64
   bb64:
+    ret 2
+  bb63:
     internal_call @revert_error, 0, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
     invalid
-  bb62:
+  bb61:
     revert 0, 0
-  bb58:
+  bb57:
     internal_call @revert_error, 0, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
     invalid
-  bb54:
+  bb53:
     revert 0, 0
-  bb47:
+  bb46:
     revert 0, 0
-  bb42:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb37:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

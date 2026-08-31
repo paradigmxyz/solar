@@ -65,8 +65,8 @@ fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_params
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb8: v2]
-    v1 = phi [bb0: 0], [bb8: v4]
+    v0 = phi [bb0: 0], [bb7: v2]
+    v1 = phi [bb0: 0], [bb7: v4]
     v2 = add v0, 1
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
@@ -75,25 +75,21 @@ fn @conditionSideEffect() -> (u256, u256) [selector=0x9f218831, pure, abi_params
   bb3:
     v4 = add v1, 1
     v5 = lt v4, v1
-    jumpi v5, bb6, bb7
-  bb7:
+    jumpi v5, bb4, bb6
+  bb6:
     v6 = lt v4, 2
-    jumpi v6, bb8, bb9
-  bb9:
+    jumpi v6, bb7, bb8
+  bb8:
     jump bb2
   bb2:
     ret v2, v4
-  bb8:
+  bb7:
     jump bb1
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
+  bb9:
     invalid
 }
 
@@ -101,8 +97,8 @@ fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_params=[], abi_retur
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb11: v2]
-    v1 = phi [bb0: 0], [bb11: v7]
+    v0 = phi [bb0: 0], [bb10: v2]
+    v1 = phi [bb0: 0], [bb10: v7]
     v2 = add v0, 1
     v3 = lt v2, v0
     jumpi v3, bb4, bb5
@@ -114,30 +110,26 @@ fn @skipRemainder() -> u256 [selector=0x3c43b081, pure, abi_params=[], abi_retur
   bb8:
     v5 = add v1, 10
     v6 = lt v5, v1
-    jumpi v6, bb9, bb10
-  bb10:
-    jump bb3
+    jumpi v6, bb4, bb9
   bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb3
   bb6:
     jump bb3
   bb3:
-    v7 = phi [bb10: v5], [bb6: v1]
+    v7 = phi [bb9: v5], [bb6: v1]
     v8 = lt v2, 4
-    jumpi v8, bb11, bb12
-  bb12:
+    jumpi v8, bb10, bb11
+  bb11:
     jump bb2
   bb2:
     ret v7
-  bb11:
+  bb10:
     jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb13:
+  bb12:
     invalid
 }
 
@@ -145,59 +137,51 @@ fn @nested() -> u256 [selector=0x4ce2d543, pure, abi_params=[], abi_returns=[wor
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb16: v9]
-    v1 = phi [bb0: 0], [bb16: v5]
+    v0 = phi [bb0: 0], [bb14: v9]
+    v1 = phi [bb0: 0], [bb14: v5]
     v2 = add v1, 1
     v3 = lt v2, v1
     jumpi v3, bb4, bb5
   bb5:
     jump bb6
   bb6:
-    v4 = phi [bb5: v0], [bb13: v9]
-    v5 = phi [bb5: v2], [bb13: v5]
-    v6 = phi [bb5: 0], [bb13: v7]
+    v4 = phi [bb5: v0], [bb11: v9]
+    v5 = phi [bb5: v2], [bb11: v5]
+    v6 = phi [bb5: 0], [bb11: v7]
     v7 = add v6, 1
     v8 = lt v7, v6
-    jumpi v8, bb9, bb10
-  bb10:
+    jumpi v8, bb4, bb9
+  bb9:
     v9 = add v4, 1
     v10 = lt v9, v4
-    jumpi v10, bb11, bb12
-  bb12:
+    jumpi v10, bb4, bb10
+  bb10:
     jump bb8
   bb8:
     v11 = lt v7, 3
-    jumpi v11, bb13, bb14
-  bb14:
+    jumpi v11, bb11, bb12
+  bb12:
     jump bb7
   bb7:
     jump bb3
   bb3:
     v12 = lt v5, 2
-    jumpi v12, bb16, bb17
-  bb17:
+    jumpi v12, bb14, bb15
+  bb15:
     jump bb2
   bb2:
     ret v9
-  bb16:
+  bb14:
     jump bb1
-  bb13:
-    jump bb6
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb6
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb15:
+  bb13:
     invalid
-  bb18:
+  bb16:
     invalid
 }
 
@@ -230,8 +214,8 @@ fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_params=[]
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb5: v8], [bb12: v6]
-    v1 = phi [bb0: 0], [bb5: v3], [bb12: v3]
+    v0 = phi [bb0: 0], [bb5: v8], [bb11: v6]
+    v1 = phi [bb0: 0], [bb5: v3], [bb11: v3]
     v2 = lt v1, 4
     jumpi v2, bb3, bb4
   bb4:
@@ -250,25 +234,17 @@ fn @whileConditionalContinue() -> u256 [selector=0xd1e42237, pure, abi_params=[]
   bb10:
     v8 = add v0, 10
     v9 = lt v8, v0
-    jumpi v9, bb13, bb14
-  bb14:
+    jumpi v9, bb6, bb12
+  bb12:
     jump bb5
   bb5:
     jump bb1
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb8:
     v6 = add v0, 1
     v7 = lt v6, v0
-    jumpi v7, bb11, bb12
-  bb12:
-    jump bb1
+    jumpi v7, bb6, bb11
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -294,13 +270,9 @@ fn @exitUsesPreviousLoopValue() -> u256 [selector=0x27efcb8a, pure, abi_params=[
   bb2:
     v5 = add v1, v2
     v6 = lt v5, v1
-    jumpi v6, bb9, bb10
-  bb10:
-    ret v5
+    jumpi v6, bb4, bb9
   bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    ret v5
   bb6:
     jump bb1
   bb4:
@@ -341,9 +313,9 @@ fn @conditionSideEffects() -> u256 [selector=0xb44652e6, pure, abi_params=[], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb8: v0]
-    v1 = phi [bb0: 0], [bb8: v3]
-    v2 = phi [bb0: 0], [bb8: v5]
+    v0 = phi [bb0: 0], [bb7: v0]
+    v1 = phi [bb0: 0], [bb7: v3]
+    v2 = phi [bb0: 0], [bb7: v5]
     v3 = add v1, 1
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
@@ -352,11 +324,11 @@ fn @conditionSideEffects() -> u256 [selector=0xb44652e6, pure, abi_params=[], ab
   bb3:
     v5 = add v2, 1
     v6 = lt v5, v2
-    jumpi v6, bb6, bb7
-  bb7:
+    jumpi v6, bb4, bb6
+  bb6:
     v7 = lt v5, 2
-    jumpi v7, bb8, bb9
-  bb9:
+    jumpi v7, bb7, bb8
+  bb8:
     jump bb2
   bb2:
     v8 = mul v3, 10
@@ -365,32 +337,20 @@ fn @conditionSideEffects() -> u256 [selector=0xb44652e6, pure, abi_params=[], ab
     v11 = eq v10, v3
     v12 = or v9, v11
     v13 = iszero v12
-    jumpi v13, bb11, bb12
-  bb12:
+    jumpi v13, bb4, bb10
+  bb10:
     v14 = add v8, v5
     v15 = lt v14, v8
-    jumpi v15, bb13, bb14
-  bb14:
-    ret v14
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jumpi v15, bb4, bb11
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
+    ret v14
+  bb7:
     jump bb1
-  bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
+  bb9:
     invalid
 }
 
@@ -398,39 +358,39 @@ fn @nestedSideEffects() -> u256 [selector=0x31faa90c, pure, abi_params=[], abi_r
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb16: v7]
-    v1 = phi [bb0: 0], [bb16: v5]
-    v2 = phi [bb0: 0], [bb16: v9]
+    v0 = phi [bb0: 0], [bb14: v7]
+    v1 = phi [bb0: 0], [bb14: v5]
+    v2 = phi [bb0: 0], [bb14: v9]
     v3 = add v1, 1
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:
     jump bb6
   bb6:
-    v5 = phi [bb5: v3], [bb13: v5]
-    v6 = phi [bb5: 0], [bb13: v11]
-    v7 = phi [bb5: v0], [bb13: v7]
-    v8 = phi [bb5: v2], [bb13: v9]
+    v5 = phi [bb5: v3], [bb11: v5]
+    v6 = phi [bb5: 0], [bb11: v11]
+    v7 = phi [bb5: v0], [bb11: v7]
+    v8 = phi [bb5: v2], [bb11: v9]
     v9 = add v8, 1
     v10 = lt v9, v8
-    jumpi v10, bb9, bb10
-  bb10:
+    jumpi v10, bb4, bb9
+  bb9:
     jump bb8
   bb8:
     v11 = add v6, 1
     v12 = lt v11, v6
-    jumpi v12, bb11, bb12
-  bb12:
+    jumpi v12, bb4, bb10
+  bb10:
     v13 = lt v11, 2
-    jumpi v13, bb13, bb14
-  bb14:
+    jumpi v13, bb11, bb12
+  bb12:
     jump bb7
   bb7:
     jump bb3
   bb3:
     v14 = lt v5, 2
-    jumpi v14, bb16, bb17
-  bb17:
+    jumpi v14, bb14, bb15
+  bb15:
     jump bb2
   bb2:
     v15 = mul v5, 10
@@ -439,40 +399,24 @@ fn @nestedSideEffects() -> u256 [selector=0x31faa90c, pure, abi_params=[], abi_r
     v18 = eq v17, v5
     v19 = or v16, v18
     v20 = iszero v19
-    jumpi v20, bb19, bb20
-  bb20:
+    jumpi v20, bb4, bb17
+  bb17:
     v21 = add v15, v9
     v22 = lt v21, v15
-    jumpi v22, bb21, bb22
-  bb22:
+    jumpi v22, bb4, bb18
+  bb18:
     ret v21
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb19:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb16:
+  bb14:
     jump bb1
-  bb13:
-    jump bb6
   bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb6
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb15:
+  bb13:
     invalid
-  bb18:
+  bb16:
     invalid
 }
 
@@ -480,8 +424,8 @@ fn @checkedDecrementLatch() -> u256 [selector=0x9d033d28, pure, abi_params=[], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb10: v4]
-    v1 = phi [bb0: 4], [bb10: v6]
+    v0 = phi [bb0: 0], [bb9: v4]
+    v1 = phi [bb0: 4], [bb9: v6]
     v2 = eq v1, 0
     v3 = iszero v2
     jumpi v3, bb4, bb5
@@ -500,13 +444,9 @@ fn @checkedDecrementLatch() -> u256 [selector=0x9d033d28, pure, abi_params=[], a
   bb3:
     v6 = sub v1, 1
     v7 = lt v1, 1
-    jumpi v7, bb9, bb10
-  bb10:
-    jump bb1
+    jumpi v7, bb7, bb9
   bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

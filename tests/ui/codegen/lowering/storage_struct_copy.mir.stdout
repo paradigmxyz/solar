@@ -104,19 +104,19 @@ fn @load_storage_packed_array_4_2(arg0: u256) -> memoryarray {
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
     v10 = storage_array_data_slot arg0
-    jump bb5
-  bb5:
-    v11 = phi [bb4: 0], [bb6: v21]
+    jump bb4
+  bb4:
+    v11 = phi [bb3: 0], [bb5: v21]
     v12 = lt v11, v0
-    jumpi v12, bb6, bb7
-  bb7:
-    ret v9
+    jumpi v12, bb5, bb6
   bb6:
+    ret v9
+  bb5:
     v13 = shr 3, v11
     v14 = and v11, 7
     v15 = add v10, v13
@@ -127,11 +127,7 @@ fn @load_storage_packed_array_4_2(arg0: u256) -> memoryarray {
     v20 = shl 224, v19
     memory_object_store_element memoryarray<1>, v9, v11, v20
     v21 = add v11, 1
-    jump bb5
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb4
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

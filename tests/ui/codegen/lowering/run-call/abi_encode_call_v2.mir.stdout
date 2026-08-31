@@ -75,15 +75,15 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v50 = calldataload v49
     v51 = eq v50, 0
     v52 = iszero v51
-    jumpi v52, bb21, bb22
-  bb22:
+    jumpi v52, bb9, bb21
+  bb21:
     v53 = slice_ptr arg0
     v54 = add v53, 0
     v55 = calldatasize
     v56 = sub v55, v54
     v57 = slt v56, 32
-    jumpi v57, bb23, bb24
-  bb24:
+    jumpi v57, bb22, bb23
+  bb23:
     v58 = calldataload v54
     v59 = add v53, v58
     v60 = calldatasize
@@ -91,40 +91,40 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v62 = sub v61, 31
     v63 = slt v58, v62
     v64 = iszero v63
-    jumpi v64, bb25, bb26
-  bb26:
+    jumpi v64, bb24, bb25
+  bb25:
     v65 = calldataload v59
     v66 = gt v65, 0xffffffffffffffff
-    jumpi v66, bb27, bb28
-  bb28:
+    jumpi v66, bb26, bb27
+  bb27:
     v67 = mul v65, 32
     v68 = add v59, 32
     v69 = calldatasize
     v70 = sub v69, v67
     v71 = sgt v68, v70
-    jumpi v71, bb29, bb30
-  bb30:
+    jumpi v71, bb28, bb29
+  bb29:
     v72 = add v59, 32
     v73 = make_calldata_slice v72, v65
     v74 = slice_len v73
     v75 = lt 1, v74
     v76 = iszero v75
-    jumpi v76, bb31, bb32
-  bb32:
+    jumpi v76, bb19, bb30
+  bb30:
     v77 = slice_ptr v73
     v78 = add v77, 32
     v79 = calldataload v78
     v80 = eq v79, 1
     v81 = iszero v80
-    jumpi v81, bb33, bb34
-  bb34:
+    jumpi v81, bb9, bb31
+  bb31:
     v82 = slice_ptr arg0
     v83 = add v82, 0
     v84 = calldatasize
     v85 = sub v84, v83
     v86 = slt v85, 32
-    jumpi v86, bb35, bb36
-  bb36:
+    jumpi v86, bb32, bb33
+  bb33:
     v87 = calldataload v83
     v88 = add v82, v87
     v89 = calldatasize
@@ -132,47 +132,47 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v91 = sub v90, 31
     v92 = slt v87, v91
     v93 = iszero v92
-    jumpi v93, bb37, bb38
-  bb38:
+    jumpi v93, bb34, bb35
+  bb35:
     v94 = calldataload v88
     v95 = gt v94, 0xffffffffffffffff
-    jumpi v95, bb39, bb40
-  bb40:
+    jumpi v95, bb36, bb37
+  bb37:
     v96 = mul v94, 32
     v97 = add v88, 32
     v98 = calldatasize
     v99 = sub v98, v96
     v100 = sgt v97, v99
-    jumpi v100, bb41, bb42
-  bb42:
+    jumpi v100, bb38, bb39
+  bb39:
     v101 = add v88, 32
     v102 = make_calldata_slice v101, v94
     v103 = slice_len v102
     v104 = lt 2, v103
     v105 = iszero v104
-    jumpi v105, bb43, bb44
-  bb44:
+    jumpi v105, bb19, bb40
+  bb40:
     v106 = slice_ptr v102
     v107 = add v106, 64
     v108 = calldataload v107
     v109 = eq v108, 2
     v110 = iszero v109
-    jumpi v110, bb45, bb46
-  bb46:
+    jumpi v110, bb9, bb41
+  bb41:
     v111 = slice_ptr arg0
     v112 = add v111, 32
     v113 = calldataload v112
     v114 = eq v113, 6
     v115 = iszero v114
-    jumpi v115, bb47, bb48
-  bb48:
+    jumpi v115, bb9, bb42
+  bb42:
     v116 = slice_ptr arg0
     v117 = add v116, 64
     v118 = calldatasize
     v119 = sub v118, v117
     v120 = slt v119, 32
-    jumpi v120, bb49, bb50
-  bb50:
+    jumpi v120, bb43, bb44
+  bb44:
     v121 = calldataload v117
     v122 = add v116, v121
     v123 = calldatasize
@@ -180,36 +180,36 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v125 = sub v124, 31
     v126 = slt v121, v125
     v127 = iszero v126
-    jumpi v127, bb51, bb52
-  bb52:
+    jumpi v127, bb45, bb46
+  bb46:
     v128 = calldataload v122
     v129 = gt v128, 0xffffffffffffffff
-    jumpi v129, bb53, bb54
-  bb54:
+    jumpi v129, bb47, bb48
+  bb48:
     v130 = mul v128, 1
     v131 = add v122, 32
     v132 = calldatasize
     v133 = sub v132, v130
     v134 = sgt v131, v133
-    jumpi v134, bb55, bb56
-  bb56:
+    jumpi v134, bb49, bb50
+  bb50:
     v135 = add v122, 32
     v136 = make_calldata_slice v135, v128
     v137 = slice_ptr v136
     v138 = slice_len v136
     v139 = gt v138, 0xffffffffffffffff
-    jumpi v139, bb57, bb58
-  bb58:
+    jumpi v139, bb51, bb52
+  bb52:
     v140 = calldatasize
     v141 = sub v140, v138
     v142 = sgt v137, v141
-    jumpi v142, bb59, bb60
-  bb60:
+    jumpi v142, bb53, bb54
+  bb54:
     v143 = slice_len v136
     v144 = add v143, 63
     v145 = lt v144, v143
-    jumpi v145, bb61, bb62
-  bb62:
+    jumpi v145, bb55, bb56
+  bb56:
     v146 = not 31
     v147 = and v144, v146
     v148 = alloc memorybytes, exact, uninitialized, infallible, v147
@@ -218,15 +218,15 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v149 = keccak256_bytes v148
     v150 = eq v149, 0x11ce95a13e5b883da5f0f79593758519cc5e26f9a173963da8261265dfb9a2d6
     v151 = iszero v150
-    jumpi v151, bb63, bb64
-  bb64:
+    jumpi v151, bb9, bb57
+  bb57:
     v152 = slice_ptr arg0
     v153 = add v152, 96
     v154 = calldatasize
     v155 = sub v154, v153
     v156 = slt v155, 32
-    jumpi v156, bb65, bb66
-  bb66:
+    jumpi v156, bb58, bb59
+  bb59:
     v157 = calldataload v153
     v158 = add v152, v157
     v159 = calldatasize
@@ -234,36 +234,36 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v161 = sub v160, 31
     v162 = slt v157, v161
     v163 = iszero v162
-    jumpi v163, bb67, bb68
-  bb68:
+    jumpi v163, bb60, bb61
+  bb61:
     v164 = calldataload v158
     v165 = gt v164, 0xffffffffffffffff
-    jumpi v165, bb69, bb70
-  bb70:
+    jumpi v165, bb62, bb63
+  bb63:
     v166 = mul v164, 1
     v167 = add v158, 32
     v168 = calldatasize
     v169 = sub v168, v166
     v170 = sgt v167, v169
-    jumpi v170, bb71, bb72
-  bb72:
+    jumpi v170, bb64, bb65
+  bb65:
     v171 = add v158, 32
     v172 = make_calldata_slice v171, v164
     v173 = slice_ptr v172
     v174 = slice_len v172
     v175 = gt v174, 0xffffffffffffffff
-    jumpi v175, bb73, bb74
-  bb74:
+    jumpi v175, bb66, bb67
+  bb67:
     v176 = calldatasize
     v177 = sub v176, v174
     v178 = sgt v173, v177
-    jumpi v178, bb75, bb76
-  bb76:
+    jumpi v178, bb68, bb69
+  bb69:
     v179 = slice_len v172
     v180 = add v179, 63
     v181 = lt v180, v179
-    jumpi v181, bb77, bb78
-  bb78:
+    jumpi v181, bb55, bb70
+  bb70:
     v182 = not 31
     v183 = and v180, v182
     v184 = alloc memorybytes, exact, uninitialized, infallible, v183
@@ -272,77 +272,47 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
     v185 = keccak256_bytes v184
     v186 = eq v185, 0x387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7
     v187 = iszero v186
-    jumpi v187, bb79, bb80
-  bb80:
+    jumpi v187, bb9, bb71
+  bb71:
     v188 = slice_ptr arg0
     v189 = add v188, 128
     v190 = calldataload v189
     v191 = lt v190, 3
     v192 = iszero v191
-    jumpi v192, bb81, bb82
-  bb82:
+    jumpi v192, bb72, bb73
+  bb73:
     v193 = eq v190, 1
     v194 = iszero v193
-    jumpi v194, bb83, bb84
-  bb84:
+    jumpi v194, bb9, bb74
+  bb74:
     v195 = eq arg1, 5
     v196 = iszero v195
-    jumpi v196, bb85, bb86
-  bb86:
+    jumpi v196, bb9, bb75
+  bb75:
     v197 = keccak256_bytes arg2
     v198 = eq v197, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
     v199 = iszero v198
-    jumpi v199, bb87, bb88
-  bb88:
+    jumpi v199, bb9, bb76
+  bb76:
     stop
-  bb87:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb85:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb83:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb81:
+  bb72:
     revert 0, 0
-  bb79:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb77:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb75:
+  bb68:
     revert 0, 0
-  bb73:
+  bb66:
     revert 0, 0
-  bb71:
+  bb64:
     revert 0, 0
-  bb69:
+  bb62:
     revert 0, 0
-  bb67:
+  bb60:
     revert 0, 0
-  bb65:
-    revert 0, 0
-  bb63:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb61:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb59:
-    revert 0, 0
-  bb57:
+  bb58:
     revert 0, 0
   bb55:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb53:
     revert 0, 0
   bb51:
@@ -350,45 +320,27 @@ fn @callMeMaybe(arg0: calldataslice, arg1: i256, arg2: memorybytes) [selector=0x
   bb49:
     revert 0, 0
   bb47:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb45:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
+    revert 0, 0
   bb43:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb41:
     revert 0, 0
-  bb39:
+  bb38:
     revert 0, 0
-  bb37:
+  bb36:
     revert 0, 0
-  bb35:
+  bb34:
     revert 0, 0
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
-  bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb29:
+  bb32:
     revert 0, 0
-  bb27:
+  bb28:
     revert 0, 0
-  bb25:
+  bb26:
     revert 0, 0
-  bb23:
+  bb24:
     revert 0, 0
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 1 !metadata(memory=scratch)
-    revert 0, 36
+  bb22:
+    revert 0, 0
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -436,15 +388,15 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     v7 = memory_object_len memoryarray, v6
     v8 = lt 1, v7
     v9 = iszero v8
-    jumpi v9, bb3, bb4
-  bb4:
+    jumpi v9, bb1, bb3
+  bb3:
     memory_object_store_element memoryarray<1>, v6, 1, 1
     v10 = memory_object_load_field memorystruct<5>, v0, 0
     v11 = memory_object_len memoryarray, v10
     v12 = lt 2, v11
     v13 = iszero v12
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb1, bb4
+  bb4:
     memory_object_store_element memoryarray<1>, v10, 2, 2
     memory_object_store_field memorystruct<5>, v0, 1, 6
     v14 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -470,14 +422,6 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     v25 = memory_object_len memorybytes, v23
     v26 = call v20, v19, 0, v24, v25, 0, 0
     ret v26
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

@@ -58,8 +58,8 @@ fn @slice(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x8b150516, 
     v37 = slice_len v30
     v38 = add v37, 63
     v39 = lt v38, v37
-    jumpi v39, bb15, bb16
-  bb16:
+    jumpi v39, bb7, bb15
+  bb15:
     v40 = not 31
     v41 = and v38, v40
     v42 = alloc memorybytes, exact, uninitialized, infallible, v41
@@ -81,10 +81,6 @@ fn @slice(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x8b150516, 
     memory_object_copy_from_slice_at memorybytes, v48, v51, v53
     v54 = add v51, v43
     ret v48
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb13:
     revert 0, 0
   bb11:

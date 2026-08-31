@@ -14,17 +14,13 @@ fn @constructor() [constructor] {
     v5 = sload 3 !metadata(storage=slot(3))
     v6 = add v5, 1
     v7 = lt v6, v5
-    jumpi v7, bb3, bb4
-  bb4:
+    jumpi v7, bb1, bb3
+  bb3:
     v8 = storage_array_data_slot 3
     v9 = add v8, v5
     sstore v9, 22 !metadata(storage=symbolic(v9))
     sstore 3, v6 !metadata(storage=slot(3))
     stop
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

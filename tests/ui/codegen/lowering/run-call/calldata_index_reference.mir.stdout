@@ -34,28 +34,20 @@ fn @staticFixed(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc2cb46f3,
     v7 = slice_len v5
     v8 = lt 0, v7
     v9 = iszero v8
-    jumpi v9, bb3, bb4
-  bb4:
+    jumpi v9, bb1, bb3
+  bb3:
     v10 = slice_ptr v5
     v11 = add v10, 0
     v12 = calldataload v11
     v13 = slice_len v5
     v14 = lt 1, v13
     v15 = iszero v14
-    jumpi v15, bb5, bb6
-  bb6:
+    jumpi v15, bb1, bb4
+  bb4:
     v16 = slice_ptr v5
     v17 = add v16, 32
     v18 = calldataload v17
     ret v6, v12, v18
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -103,16 +95,12 @@ fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f
     v26 = slice_len v23
     v27 = lt 1, v26
     v28 = iszero v27
-    jumpi v28, bb11, bb12
-  bb12:
+    jumpi v28, bb1, bb11
+  bb11:
     v29 = slice_ptr v23
     v30 = add v29, 32
     v31 = calldataload v30
     ret v24, v25, v31
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     revert 0, 0
   bb7:
@@ -168,18 +156,14 @@ fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10
     v26 = slice_len v23
     v27 = lt 1, v26
     v28 = iszero v27
-    jumpi v28, bb11, bb12
-  bb12:
+    jumpi v28, bb1, bb11
+  bb11:
     v29 = slice_ptr v23
     v30 = calldata_slice_load_word calldata, v23, 1
     v31 = byte 0, v30
     v32 = shl 248, v31
     v33 = shr 248, v32
     ret v24, v25, v33
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     revert 0, 0
   bb7:

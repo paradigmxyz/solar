@@ -64,14 +64,14 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     v11 = memory_object_len memorybytes, v10
     v12 = add v6, v11
     v13 = lt v12, v6
-    jumpi v13, bb3, bb4
-  bb4:
+    jumpi v13, bb1, bb3
+  bb3:
     v14 = memory_object_data memorybytes, v10
     v15 = make_memory_slice v14, v11
     v16 = add v12, 63
     v17 = lt v16, v12
-    jumpi v17, bb5, bb6
-  bb6:
+    jumpi v17, bb1, bb4
+  bb4:
     v18 = not 31
     v19 = and v16, v18
     v20 = alloc memorybytes, exact, uninitialized, infallible, v19
@@ -79,33 +79,17 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     memory_object_copy_from_slice_at memorybytes, v20, 0, v9
     v21 = add 0, v5
     v22 = lt v21, 0
-    jumpi v22, bb7, bb8
-  bb8:
+    jumpi v22, bb1, bb5
+  bb5:
     memory_object_copy_from_slice_at memorybytes, v20, v21, v15
     v23 = add v21, v11
     v24 = lt v23, v21
-    jumpi v24, bb9, bb10
-  bb10:
+    jumpi v24, bb1, bb6
+  bb6:
     v25 = internal_call @deploy, 1, v20
     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
     v27 = eq v26, 0
     ret v27
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

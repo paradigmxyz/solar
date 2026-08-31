@@ -13,57 +13,57 @@ fn @cleanup() -> (u256, u256) [selector=0x3cecd719, abi_params=[], abi_returns=[
     v4 = memory_object_len memoryarray, v0
     v5 = lt 1, v4
     v6 = iszero v5
-    jumpi v6, bb3, bb4
-  bb4:
+    jumpi v6, bb1, bb3
+  bb3:
     memory_object_store_element memoryarray<1>, v0, 1, 2
     v7 = memory_object_len memoryarray, v0
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gt v8, v7
-    jumpi v9, bb5, bb6
-  bb5:
-    jump bb7
-  bb7:
-    v10 = phi [bb5: v7], [bb8: v14]
-    v11 = lt v10, v8
-    jumpi v11, bb8, bb9
-  bb9:
+    jumpi v9, bb4, bb5
+  bb4:
     jump bb6
   bb6:
+    v10 = phi [bb4: v7], [bb7: v14]
+    v11 = lt v10, v8
+    jumpi v11, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
     sstore 0, v7 !metadata(storage=slot(0))
-    jump bb10
-  bb10:
-    v15 = phi [bb6: 0], [bb11: v20]
+    jump bb9
+  bb9:
+    v15 = phi [bb5: 0], [bb10: v20]
     v16 = lt v15, v7
-    jumpi v16, bb11, bb12
-  bb12:
+    jumpi v16, bb10, bb11
+  bb11:
     v21 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v21, 1
     v22 = memory_object_len memoryarray, v21
     v23 = lt 0, v22
     v24 = iszero v23
-    jumpi v24, bb13, bb14
-  bb14:
+    jumpi v24, bb1, bb12
+  bb12:
     memory_object_store_element memoryarray<1>, v21, 0, 3
     v25 = memory_object_len memoryarray, v21
     v26 = sload 0 !metadata(storage=slot(0))
     v27 = gt v26, v25
-    jumpi v27, bb15, bb16
+    jumpi v27, bb13, bb14
+  bb13:
+    jump bb15
   bb15:
-    jump bb17
-  bb17:
-    v28 = phi [bb15: v25], [bb18: v32]
+    v28 = phi [bb13: v25], [bb16: v32]
     v29 = lt v28, v26
-    jumpi v29, bb18, bb19
-  bb19:
-    jump bb16
-  bb16:
+    jumpi v29, bb16, bb17
+  bb17:
+    jump bb14
+  bb14:
     sstore 0, v25 !metadata(storage=slot(0))
-    jump bb20
-  bb20:
-    v33 = phi [bb16: 0], [bb21: v38]
+    jump bb18
+  bb18:
+    v33 = phi [bb14: 0], [bb19: v38]
     v34 = lt v33, v25
-    jumpi v34, bb21, bb22
-  bb22:
+    jumpi v34, bb19, bb20
+  bb20:
     mstore 0, 0 !metadata(memory=scratch)
     v39 = keccak256 0, 32 !metadata(memory=scratch)
     v40 = add v39, 1
@@ -71,50 +71,38 @@ fn @cleanup() -> (u256, u256) [selector=0x3cecd719, abi_params=[], abi_returns=[
     v42 = sload 0 !metadata(storage=slot(0))
     v43 = lt 0, v42
     v44 = iszero v43
-    jumpi v44, bb23, bb24
-  bb24:
+    jumpi v44, bb1, bb21
+  bb21:
     v45 = storage_array_data_slot 0
     v46 = add v45, 0
     v47 = sload v46 !metadata(storage=symbolic(v45))
     ret v47, v41
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
+  bb19:
     v35 = memory_object_load_element memoryarray<1>, v21, v33
     v36 = storage_array_data_slot 0
     v37 = add v36, v33
     sstore v37, v35 !metadata(storage=symbolic(v37))
     v38 = add v33, 1
-    jump bb20
-  bb18:
+    jump bb18
+  bb16:
     v30 = storage_array_data_slot 0
     v31 = add v30, v28
     sstore v31, 0 !metadata(storage=symbolic(v31))
     v32 = add v28, 1
-    jump bb17
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb11:
+    jump bb15
+  bb10:
     v17 = memory_object_load_element memoryarray<1>, v0, v15
     v18 = storage_array_data_slot 0
     v19 = add v18, v15
     sstore v19, v17 !metadata(storage=symbolic(v19))
     v20 = add v15, 1
-    jump bb10
-  bb8:
+    jump bb9
+  bb7:
     v12 = storage_array_data_slot 0
     v13 = add v12, v10
     sstore v13, 0 !metadata(storage=symbolic(v13))
     v14 = add v10, 1
-    jump bb7
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb6
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

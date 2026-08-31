@@ -97,8 +97,8 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v110 = sload 1 !metadata(storage=slot(1))
     v111 = lt 9, v110
     v112 = iszero v111
-    jumpi v112, bb23, bb24
-  bb24:
+    jumpi v112, bb11, bb23
+  bb23:
     v113 = storage_array_data_slot 1
     v114 = div 9, 4
     v115 = add v113, v114
@@ -110,10 +110,6 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v121 = and v120, 0xffffffffffffffff
     v122 = internal_call @internal_dispatcher_p_none_r_u256, 1, v121
     ret v122
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb19:
     v85 = memory_object_load_element memoryarray<1>, v63, v83
     v86 = storage_array_data_slot 1
@@ -208,19 +204,19 @@ fn @load_storage_packed_array_8_0(arg0: u256) -> memoryarray {
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
     v10 = storage_array_data_slot arg0
-    jump bb5
-  bb5:
-    v11 = phi [bb4: 0], [bb6: v20]
+    jump bb4
+  bb4:
+    v11 = phi [bb3: 0], [bb5: v20]
     v12 = lt v11, v0
-    jumpi v12, bb6, bb7
-  bb7:
-    ret v9
+    jumpi v12, bb5, bb6
   bb6:
+    ret v9
+  bb5:
     v13 = shr 2, v11
     v14 = and v11, 3
     v15 = add v10, v13
@@ -230,11 +226,7 @@ fn @load_storage_packed_array_8_0(arg0: u256) -> memoryarray {
     v19 = and v18, 0xffffffffffffffff
     memory_object_store_element memoryarray<1>, v9, v11, v19
     v20 = add v11, 1
-    jump bb5
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb4
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -62,15 +62,11 @@ fn @sliceIndex(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> u256 
     v21 = eq v20, arg3
     v22 = or v19, v21
     v23 = iszero v22
-    jumpi v23, bb7, bb8
-  bb8:
+    jumpi v23, bb3, bb7
+  bb7:
     v24 = add v17, v18
     v25 = calldataload v24
     ret v25
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -158,16 +154,12 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     v23 = eq v22, arg3
     v24 = or v21, v23
     v25 = iszero v24
-    jumpi v25, bb7, bb8
-  bb8:
+    jumpi v25, bb3, bb7
+  bb7:
     v26 = add v14, v20
     v27 = make_calldata_slice v26, v19
     v28 = slice_len v27
     ret v28
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     revert 0, 0
   bb3:
@@ -258,15 +250,11 @@ fn @startSliceIndex(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [select
     v21 = eq v20, arg2
     v22 = or v19, v21
     v23 = iszero v22
-    jumpi v23, bb7, bb8
-  bb8:
+    jumpi v23, bb3, bb7
+  bb7:
     v24 = add v17, v18
     v25 = calldataload v24
     ret v25
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

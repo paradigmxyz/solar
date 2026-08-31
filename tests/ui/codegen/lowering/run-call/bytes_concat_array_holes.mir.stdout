@@ -23,15 +23,11 @@ fn @chunksAndHash() -> (memoryarray, bytes32) [pure] {
     v9 = memory_object_len memoryarray, v0
     v10 = lt 15, v9
     v11 = iszero v10
-    jumpi v11, bb3, bb4
-  bb4:
+    jumpi v11, bb1, bb3
+  bb3:
     memory_object_store_element memoryarray<1>, v0, 15, v7
     v12 = shl 0, 7
     ret v0, v12
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

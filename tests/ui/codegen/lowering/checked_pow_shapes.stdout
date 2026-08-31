@@ -4,9 +4,9 @@ fn @upow(arg0: u256, arg1: u256) -> u256 [selector=0x11698b2f, pure, abi_params=
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb7: v12]
-    v1 = phi [bb0: arg0], [bb7: v14]
-    v2 = phi [bb0: arg1], [bb7: v13]
+    v0 = phi [bb0: 1], [bb6: v12]
+    v1 = phi [bb0: arg0], [bb6: v14]
+    v2 = phi [bb0: arg1], [bb6: v13]
     v3 = gt v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -32,13 +32,9 @@ fn @upow(arg0: u256, arg1: u256) -> u256 [selector=0x11698b2f, pure, abi_params=
     v19 = iszero v18
     v20 = gt v13, 0
     v21 = and v20, v19
-    jumpi v21, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v21, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -49,9 +45,9 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb7: v20]
-    v1 = phi [bb0: arg0], [bb7: v22]
-    v2 = phi [bb0: arg1], [bb7: v21]
+    v0 = phi [bb0: 1], [bb6: v20]
+    v1 = phi [bb0: arg0], [bb6: v22]
+    v2 = phi [bb0: arg1], [bb6: v21]
     v3 = gt v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -93,13 +89,9 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=
     v35 = or v31, v34
     v36 = gt v21, 0
     v37 = and v36, v35
-    jumpi v37, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v37, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -110,9 +102,9 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, pure, abi_params=[u8, 
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb7: v14]
-    v1 = phi [bb0: arg0], [bb7: v16]
-    v2 = phi [bb0: arg1], [bb7: v15]
+    v0 = phi [bb0: 1], [bb6: v14]
+    v1 = phi [bb0: arg0], [bb6: v16]
+    v2 = phi [bb0: arg1], [bb6: v15]
     v3 = gt v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -142,13 +134,9 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, pure, abi_params=[u8, 
     v23 = or v21, v22
     v24 = gt v15, 0
     v25 = and v24, v23
-    jumpi v25, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v25, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -159,9 +147,9 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, 
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb7: v20]
-    v1 = phi [bb0: arg0], [bb7: v22]
-    v2 = phi [bb0: arg1], [bb7: v21]
+    v0 = phi [bb0: 1], [bb6: v20]
+    v1 = phi [bb0: arg0], [bb6: v22]
+    v2 = phi [bb0: arg1], [bb6: v21]
     v3 = gt v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -203,13 +191,9 @@ fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, 
     v35 = or v31, v34
     v36 = gt v21, 0
     v37 = and v36, v35
-    jumpi v37, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v37, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -220,9 +204,9 @@ fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, pure, abi_params=[u256], ab
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb7: v12]
-    v1 = phi [bb0: 2], [bb7: v14]
-    v2 = phi [bb0: arg0], [bb7: v13]
+    v0 = phi [bb0: 1], [bb6: v12]
+    v1 = phi [bb0: 2], [bb6: v14]
+    v2 = phi [bb0: arg0], [bb6: v13]
     v3 = gt v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -248,13 +232,9 @@ fn @const2(arg0: u256) -> u256 [selector=0xb253ebfa, pure, abi_params=[u256], ab
     v19 = iszero v18
     v20 = gt v13, 0
     v21 = and v20, v19
-    jumpi v21, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v21, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -265,9 +245,9 @@ fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, pure, abi_params=[u256], a
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb7: v12]
-    v1 = phi [bb0: 10], [bb7: v14]
-    v2 = phi [bb0: arg0], [bb7: v13]
+    v0 = phi [bb0: 1], [bb6: v12]
+    v1 = phi [bb0: 10], [bb6: v14]
+    v2 = phi [bb0: arg0], [bb6: v13]
     v3 = gt v2, 0
     jumpi v3, bb2, bb3
   bb3:
@@ -293,13 +273,9 @@ fn @const10(arg0: u256) -> u256 [selector=0xd325f19a, pure, abi_params=[u256], a
     v19 = iszero v18
     v20 = gt v13, 0
     v21 = and v20, v19
-    jumpi v21, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v21, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -311,9 +287,9 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     v0 = sub 0, 2
     jump bb1
   bb1:
-    v1 = phi [bb0: 1], [bb7: v21]
-    v2 = phi [bb0: v0], [bb7: v23]
-    v3 = phi [bb0: arg0], [bb7: v22]
+    v1 = phi [bb0: 1], [bb6: v21]
+    v2 = phi [bb0: v0], [bb6: v23]
+    v3 = phi [bb0: arg0], [bb6: v22]
     v4 = gt v3, 0
     jumpi v4, bb2, bb3
   bb3:
@@ -355,13 +331,9 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
     v36 = or v32, v35
     v37 = gt v22, 0
     v38 = and v37, v36
-    jumpi v38, bb6, bb7
-  bb7:
-    jump bb1
+    jumpi v38, bb4, bb6
   bb6:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb1
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

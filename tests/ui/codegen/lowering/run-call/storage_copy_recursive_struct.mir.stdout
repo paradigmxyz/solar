@@ -43,8 +43,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v28 = sload v27 !metadata(storage=slot(2))
     v29 = lt 0, v28
     v30 = iszero v29
-    jumpi v30, bb5, bb6
-  bb6:
+    jumpi v30, bb3, bb5
+  bb5:
     v31 = storage_array_data_slot v27
     v32 = mul 0, 3
     v33 = add v31, v32
@@ -52,8 +52,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v35 = sload v34 !metadata(storage=offset(v33, 2))
     v36 = add v35, 1
     v37 = lt v36, v35
-    jumpi v37, bb7, bb8
-  bb8:
+    jumpi v37, bb1, bb6
+  bb6:
     v38 = storage_array_data_slot v34
     v39 = mul v35, 3
     v40 = add v38, v39
@@ -62,8 +62,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v42 = sload v41 !metadata(storage=slot(2))
     v43 = lt 0, v42
     v44 = iszero v43
-    jumpi v44, bb9, bb10
-  bb10:
+    jumpi v44, bb3, bb7
+  bb7:
     v45 = storage_array_data_slot v41
     v46 = mul 0, 3
     v47 = add v45, v46
@@ -71,8 +71,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v49 = sload v48 !metadata(storage=offset(v47, 2))
     v50 = lt 0, v49
     v51 = iszero v50
-    jumpi v51, bb11, bb12
-  bb12:
+    jumpi v51, bb3, bb8
+  bb8:
     v52 = storage_array_data_slot v48
     v53 = mul 0, 3
     v54 = add v52, v53
@@ -86,8 +86,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v61 = sload v60 !metadata(storage=slot(2))
     v62 = add v61, 1
     v63 = lt v62, v61
-    jumpi v63, bb13, bb14
-  bb14:
+    jumpi v63, bb1, bb9
+  bb9:
     v64 = storage_array_data_slot v60
     v65 = mul v61, 3
     v66 = add v64, v65
@@ -96,8 +96,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v68 = sload v67 !metadata(storage=slot(2))
     v69 = lt 1, v68
     v70 = iszero v69
-    jumpi v70, bb15, bb16
-  bb16:
+    jumpi v70, bb3, bb10
+  bb10:
     v71 = storage_array_data_slot v67
     v72 = mul 1, 3
     v73 = add v71, v72
@@ -121,8 +121,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v87 = sload 6 !metadata(storage=slot(6))
     v88 = add v87, 1
     v89 = lt v88, v87
-    jumpi v89, bb17, bb18
-  bb18:
+    jumpi v89, bb1, bb11
+  bb11:
     v90 = storage_array_data_slot 6
     v91 = mul v87, 3
     v92 = add v90, v91
@@ -137,8 +137,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v98 = add 0, 2
     v99 = sload v98 !metadata(storage=slot(2))
     v100 = eq v99, 0
-    jumpi v100, bb19, bb20
-  bb20:
+    jumpi v100, bb12, bb13
+  bb13:
     v101 = sub v99, 1
     sstore v98, v101 !metadata(storage=slot(2))
     v102 = storage_array_data_slot v98
@@ -149,8 +149,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v106 = sload v105 !metadata(storage=slot(2))
     v107 = lt 0, v106
     v108 = iszero v107
-    jumpi v108, bb21, bb22
-  bb22:
+    jumpi v108, bb3, bb14
+  bb14:
     v109 = storage_array_data_slot v105
     v110 = mul 0, 3
     v111 = add v109, v110
@@ -174,8 +174,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v125 = sload 6 !metadata(storage=slot(6))
     v126 = add v125, 1
     v127 = lt v126, v125
-    jumpi v127, bb23, bb24
-  bb24:
+    jumpi v127, bb1, bb15
+  bb15:
     v128 = storage_array_data_slot 6
     v129 = mul v125, 3
     v130 = add v128, v129
@@ -185,8 +185,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v132 = sload v131 !metadata(storage=slot(2))
     v133 = lt 0, v132
     v134 = iszero v133
-    jumpi v134, bb25, bb26
-  bb26:
+    jumpi v134, bb3, bb16
+  bb16:
     v135 = storage_array_data_slot v131
     v136 = mul 0, 3
     v137 = add v135, v136
@@ -210,8 +210,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v151 = sload 6 !metadata(storage=slot(6))
     v152 = lt 0, v151
     v153 = iszero v152
-    jumpi v153, bb27, bb28
-  bb28:
+    jumpi v153, bb3, bb17
+  bb17:
     v154 = storage_array_data_slot 6
     v155 = mul 0, 3
     v156 = add v154, v155
@@ -230,8 +230,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v165 = sload 6 !metadata(storage=slot(6))
     v166 = add v165, 1
     v167 = lt v166, v165
-    jumpi v167, bb29, bb30
-  bb30:
+    jumpi v167, bb1, bb18
+  bb18:
     v168 = storage_array_data_slot 6
     v169 = mul v165, 3
     v170 = add v168, v169
@@ -241,8 +241,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v172 = sload 6 !metadata(storage=slot(6))
     v173 = lt 0, v172
     v174 = iszero v173
-    jumpi v174, bb31, bb32
-  bb32:
+    jumpi v174, bb3, bb19
+  bb19:
     v175 = storage_array_data_slot 6
     v176 = mul 0, 3
     v177 = add v175, v176
@@ -251,8 +251,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v180 = sload 6 !metadata(storage=slot(6))
     v181 = lt 0, v180
     v182 = iszero v181
-    jumpi v182, bb33, bb34
-  bb34:
+    jumpi v182, bb3, bb20
+  bb20:
     v183 = storage_array_data_slot 6
     v184 = mul 0, 3
     v185 = add v183, v184
@@ -261,8 +261,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v188 = sload 6 !metadata(storage=slot(6))
     v189 = lt 0, v188
     v190 = iszero v189
-    jumpi v190, bb35, bb36
-  bb36:
+    jumpi v190, bb3, bb21
+  bb21:
     v191 = storage_array_data_slot 6
     v192 = mul 0, 3
     v193 = add v191, v192
@@ -270,8 +270,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v195 = sload v194 !metadata(storage=offset(v193, 2))
     v196 = lt 0, v195
     v197 = iszero v196
-    jumpi v197, bb37, bb38
-  bb38:
+    jumpi v197, bb3, bb22
+  bb22:
     v198 = storage_array_data_slot v194
     v199 = mul 0, 3
     v200 = add v198, v199
@@ -280,8 +280,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v203 = sload 6 !metadata(storage=slot(6))
     v204 = lt 0, v203
     v205 = iszero v204
-    jumpi v205, bb39, bb40
-  bb40:
+    jumpi v205, bb3, bb23
+  bb23:
     v206 = storage_array_data_slot 6
     v207 = mul 0, 3
     v208 = add v206, v207
@@ -289,8 +289,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v210 = sload v209 !metadata(storage=offset(v208, 2))
     v211 = lt 0, v210
     v212 = iszero v211
-    jumpi v212, bb41, bb42
-  bb42:
+    jumpi v212, bb3, bb24
+  bb24:
     v213 = storage_array_data_slot v209
     v214 = mul 0, 3
     v215 = add v213, v214
@@ -299,8 +299,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v218 = sload 6 !metadata(storage=slot(6))
     v219 = lt 0, v218
     v220 = iszero v219
-    jumpi v220, bb43, bb44
-  bb44:
+    jumpi v220, bb3, bb25
+  bb25:
     v221 = storage_array_data_slot 6
     v222 = mul 0, 3
     v223 = add v221, v222
@@ -308,8 +308,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v225 = sload v224 !metadata(storage=offset(v223, 2))
     v226 = lt 0, v225
     v227 = iszero v226
-    jumpi v227, bb45, bb46
-  bb46:
+    jumpi v227, bb3, bb26
+  bb26:
     v228 = storage_array_data_slot v224
     v229 = mul 0, 3
     v230 = add v228, v229
@@ -317,8 +317,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v232 = sload v231 !metadata(storage=offset(v230, 2))
     v233 = lt 0, v232
     v234 = iszero v233
-    jumpi v234, bb47, bb48
-  bb48:
+    jumpi v234, bb3, bb27
+  bb27:
     v235 = storage_array_data_slot v231
     v236 = mul 0, 3
     v237 = add v235, v236
@@ -327,8 +327,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v240 = sload 6 !metadata(storage=slot(6))
     v241 = lt 0, v240
     v242 = iszero v241
-    jumpi v242, bb49, bb50
-  bb50:
+    jumpi v242, bb3, bb28
+  bb28:
     v243 = storage_array_data_slot 6
     v244 = mul 0, 3
     v245 = add v243, v244
@@ -338,8 +338,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v249 = sload 6 !metadata(storage=slot(6))
     v250 = lt 1, v249
     v251 = iszero v250
-    jumpi v251, bb51, bb52
-  bb52:
+    jumpi v251, bb3, bb29
+  bb29:
     v252 = storage_array_data_slot 6
     v253 = mul 1, 3
     v254 = add v252, v253
@@ -347,8 +347,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v256 = sload v255 !metadata(storage=offset(v254, 2))
     v257 = lt 0, v256
     v258 = iszero v257
-    jumpi v258, bb53, bb54
-  bb54:
+    jumpi v258, bb3, bb30
+  bb30:
     v259 = storage_array_data_slot v255
     v260 = mul 0, 3
     v261 = add v259, v260
@@ -357,8 +357,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v264 = sload 6 !metadata(storage=slot(6))
     v265 = lt 2, v264
     v266 = iszero v265
-    jumpi v266, bb55, bb56
-  bb56:
+    jumpi v266, bb3, bb31
+  bb31:
     v267 = storage_array_data_slot 6
     v268 = mul 2, 3
     v269 = add v267, v268
@@ -367,8 +367,8 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v272 = sload 6 !metadata(storage=slot(6))
     v273 = lt 1, v272
     v274 = iszero v273
-    jumpi v274, bb57, bb58
-  bb58:
+    jumpi v274, bb3, bb32
+  bb32:
     v275 = storage_array_data_slot 6
     v276 = mul 1, 3
     v277 = add v275, v276
@@ -376,113 +376,9 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v279 = internal_call @load_storage_bytes, 1, v278
     v280 = memory_object_len memorybytes, v279
     ret v171, v179, v187, v202, v217, v239, v248, v263, v271, v280
-  bb57:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb55:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb53:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb51:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb49:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb47:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb45:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb43:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb41:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb39:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb37:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb35:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb29:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb27:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb23:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb21:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb19:
+  bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
-    revert 0, 36
-  bb17:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -669,20 +565,20 @@ fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
     v6 = eq v5, v1
     v7 = or v4, v6
     v8 = iszero v7
-    jumpi v8, bb3, bb4
-  bb4:
+    jumpi v8, bb1, bb3
+  bb3:
     v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
     set_memory_object_len memoryarray, v9, v0
     v10 = storage_array_data_slot arg0
-    jump bb5
-  bb5:
-    v11 = phi [bb4: 0], [bb6: v22]
-    v12 = phi [bb4: v10], [bb6: v23]
+    jump bb4
+  bb4:
+    v11 = phi [bb3: 0], [bb5: v22]
+    v12 = phi [bb3: v10], [bb5: v23]
     v13 = lt v11, v0
-    jumpi v13, bb6, bb7
-  bb7:
-    ret v9
+    jumpi v13, bb5, bb6
   bb6:
+    ret v9
+  bb5:
     v14 = alloc memorystruct<3>, exact, uninitialized, panic, 96
     v15 = sload v12 !metadata(storage=symbolic(v12))
     v16 = and v15, 0xffffffffffffffffffffffffffffffff
@@ -697,11 +593,7 @@ fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v22 = add v11, 1
     v23 = add v12, 3
-    jump bb5
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    jump bb4
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

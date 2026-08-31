@@ -40,8 +40,8 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_params=[tupl
   bb10:
     v26 = add 32, v20
     v27 = lt v26, 32
-    jumpi v27, bb11, bb12
-  bb12:
+    jumpi v27, bb9, bb11
+  bb11:
     v28 = alloc memoryarray<1>, exact, uninitialized, infallible, v26
     set_memory_object_len memoryarray, v28, v12
     v29 = make_calldata_slice v19, v20
@@ -49,10 +49,6 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x59862edc, abi_params=[tupl
     memory_object_store_field memorystruct<1>, v1, 0, v28
     v30 = abi_encode [tuple<memory_array<word>>], object, args v1
     ret v30
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -109,8 +105,8 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
   bb10:
     v28 = add 32, v22
     v29 = lt v28, 32
-    jumpi v29, bb11, bb12
-  bb12:
+    jumpi v29, bb9, bb11
+  bb11:
     v30 = alloc memoryarray<1>, exact, uninitialized, infallible, v28
     set_memory_object_len memoryarray, v30, v14
     v31 = make_calldata_slice v21, v22
@@ -120,15 +116,15 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
     v33 = slice_ptr v32
     v34 = slice_len v32
     v35 = call v1, v0, 0, v33, v34, 0, 0
-    jumpi v35, bb14, bb13
-  bb13:
+    jumpi v35, bb13, bb12
+  bb12:
     revert_returndata
-  bb14:
+  bb13:
     v36 = returndatasize
     v37 = add v36, 63
     v38 = lt v37, v36
-    jumpi v38, bb15, bb16
-  bb16:
+    jumpi v38, bb9, bb14
+  bb14:
     v39 = not 31
     v40 = and v37, v39
     v41 = alloc memorybytes, exact, uninitialized, infallible, v40
@@ -137,14 +133,6 @@ fn @g(arg0: calldataslice) -> memorybytes [selector=0x397cf2ca, abi_params=[tupl
     memory_object_copy_from_slice memorybytes, v41, v42
     v43 = abi_decode [bytes], v41
     ret v43
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

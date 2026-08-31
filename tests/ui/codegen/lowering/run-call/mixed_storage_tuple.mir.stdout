@@ -19,18 +19,14 @@ fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = add v8, 1
     v10 = lt v9, v8
-    jumpi v10, bb3, bb4
-  bb4:
+    jumpi v10, bb1, bb3
+  bb3:
     v11 = storage_array_data_slot 0
     v12 = add v11, v8
     v13 = memory_object_load_field memorystruct<1>, v7, 0
     sstore v12, v13 !metadata(storage=symbolic(v12))
     sstore 0, v9 !metadata(storage=slot(0))
     stop
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -76,16 +72,12 @@ fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_params=[], abi_returns=[w
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = lt 1, v13
     v15 = iszero v14
-    jumpi v15, bb3, bb4
-  bb4:
+    jumpi v15, bb1, bb3
+  bb3:
     v16 = storage_array_data_slot 0
     v17 = add v16, 1
     v18 = sload v17 !metadata(storage=offset(v16, 1))
     ret v12, v18
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
