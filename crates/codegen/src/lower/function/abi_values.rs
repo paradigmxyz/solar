@@ -320,81 +320,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<Vec<ValueId>> {
         // data, layout = lower_decode_layout(data, types)
-        // if static {
-        //     first = abi_decode(layout, data)
-        //     values = [first] | load_multi_return_values(first, ...)
-        // } else {
-        //     values = decode_memory_tuple(data, layout)
-        // }
+        // first = abi_decode(layout, data)
+        // values = [first] | load_multi_return_values(first, ...)
         let memory_types = types
             .iter()
             .copied()
             .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
             .collect::<Vec<_>>();
         let (data, layout) = self.lower_abi_decode_layout(data, &memory_types, span)?;
-        if !layout.types.iter().any(AbiParamType::has_dynamic_child) {
-            let layout = self.context.module.intern_abi_param_layout(layout);
-            let first = self.builder.abi_decode(layout, data);
-            if memory_types.len() == 1 {
-                return Some(vec![first]);
-            }
-            let base = self.multi_return_buffer_base();
-            return Some(self.load_multi_return_values(
-                first,
-                base,
-                memory_types.len(),
-                memory_types.iter().skip(1).copied().map(Some),
-            ));
+        let layout = self.context.module.intern_abi_param_layout(layout);
+        let first = self.builder.abi_decode(layout, data);
+        if memory_types.len() == 1 {
+            return Some(vec![first]);
         }
-        let length = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
-        let base = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
-        let mut counts = FxHashMap::default();
-        for ty in &layout.types {
-            Self::count_dynamic_tuple_types(ty, &mut counts);
-        }
-        let mut helpers = FxHashMap::default();
-        for (ty, count) in counts {
-            if count >= 2 {
-                let helper = crate::transform::lower_abi::synthesize_memory_decode_helper(
-                    self.context.module,
-                    ty.clone(),
-                    self.context.gcx.sess.opts.evm_version.has_bitwise_shifting(),
-                );
-                helpers.insert(ty, helper);
-            }
-        }
-        crate::transform::lower_abi::decode_memory_tuple(
-            &mut self.builder,
+        let base = self.multi_return_buffer_base();
+        Some(self.load_multi_return_values(
+            first,
             base,
-            length,
-            &layout,
-            false,
-            (!helpers.is_empty()).then_some(&helpers),
-            self.context.gcx.sess.opts.evm_version.has_bitwise_shifting(),
-        )
-    }
-
-    fn count_dynamic_tuple_types(
-        ty: &crate::mir::AbiParamType,
-        counts: &mut FxHashMap<crate::mir::AbiParamType, usize>,
-    ) {
-        match ty {
-            crate::mir::AbiParamType::FixedArray { element, .. }
-            | crate::mir::AbiParamType::DynamicArray(element) => {
-                Self::count_dynamic_tuple_types(element, counts)
-            }
-            crate::mir::AbiParamType::Tuple(fields) => {
-                if ty.has_dynamic_child() {
-                    *counts.entry(ty.clone()).or_default() += 1;
-                }
-                for field in fields {
-                    Self::count_dynamic_tuple_types(field, counts);
-                }
-            }
-            crate::mir::AbiParamType::Scalar(_)
-            | crate::mir::AbiParamType::Enum { .. }
-            | crate::mir::AbiParamType::Bytes => {}
-        }
+            memory_types.len(),
+            memory_types.iter().skip(1).copied().map(Some),
+        ))
     }
 
     pub(super) fn revert_external_call(&mut self, success: ValueId) {

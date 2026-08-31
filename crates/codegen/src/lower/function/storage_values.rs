@@ -6,7 +6,7 @@ use super::*;
 enum StorageArrayElement {
     Bytes(FunctionId),
     Word,
-    Packed { bytes: u8, encoding: StorageEncoding },
+    Packed { bytes: u8, encoding: StorageEncoding, enum_variants: Option<u64> },
 }
 
 /// Builds the helper for decoding one storage `bytes`/`string` slot.
@@ -59,8 +59,13 @@ fn build_storage_array_helper(function: &mut Function, element: StorageArrayElem
             let element_slot = builder.add(data_slot, index);
             builder.sload(element_slot)
         }
-        StorageArrayElement::Packed { bytes, encoding } => {
-            load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding)
+        StorageArrayElement::Packed { bytes, encoding, enum_variants } => {
+            let value =
+                load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding);
+            if let Some(variants) = enum_variants {
+                builder.validate_enum_value(variants, value);
+            }
+            value
         }
     };
     builder.memory_object_store_element(object, layout, index, value);
@@ -83,19 +88,7 @@ fn load_packed_storage_array_element(
     // storage_slot = data_slot + index / per_slot
     // shift = (index % per_slot) * bytes * 8
     // value = decode(sload(storage_slot), shift, encoding)
-    let per_slot = u64::from(32 / bytes);
-    let per_slot_value = builder.imm_u64(per_slot);
-    let (slot_index, index_in_slot) = if per_slot.is_power_of_two() {
-        let slot_shift = builder.imm_u64(u64::from(per_slot.trailing_zeros()));
-        let slot_index = builder.shr(slot_shift, index);
-        let slot_mask = builder.imm_u64(per_slot - 1);
-        let index_in_slot = builder.and(index, slot_mask);
-        (slot_index, index_in_slot)
-    } else {
-        let slot_index = builder.div(index, per_slot_value);
-        let index_in_slot = builder.mod_(index, per_slot_value);
-        (slot_index, index_in_slot)
-    };
+    let (slot_index, index_in_slot) = packed_storage_array_position(builder, index, bytes);
     let storage_slot = builder.add(data_slot, slot_index);
     let word = builder.sload(storage_slot);
     let byte_shift = u64::from(bytes) * 8;
@@ -108,6 +101,26 @@ fn load_packed_storage_array_element(
     };
     let size = TypeSize::new_int_bits(u16::from(bytes) * 8);
     StorageLocation::packed_word(size, encoding).load_word(builder, word, Some(shift))
+}
+
+fn packed_storage_array_position(
+    builder: &mut FunctionBuilder<'_>,
+    index: ValueId,
+    bytes: u8,
+) -> (ValueId, ValueId) {
+    let per_slot = u64::from(32 / bytes);
+    if per_slot.is_power_of_two() {
+        let slot_shift = builder.imm_u64(u64::from(per_slot.trailing_zeros()));
+        let slot_index = builder.shr(slot_shift, index);
+        let slot_mask = builder.imm_u64(per_slot - 1);
+        let index_in_slot = builder.and(index, slot_mask);
+        (slot_index, index_in_slot)
+    } else {
+        let per_slot_value = builder.imm_u64(per_slot);
+        let slot_index = builder.div(index, per_slot_value);
+        let index_in_slot = builder.mod_(index, per_slot_value);
+        (slot_index, index_in_slot)
+    }
 }
 
 /// Builds the helper for clearing the data words of a storage bytes value.
@@ -975,20 +988,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && self.types.memory_layout(element).is_none()
         {
             let bytes = size.bytes();
+            let enum_variants = match element.peel_refs().kind {
+                TyKind::Enum(id) => Some(self.context.gcx.hir.enumm(id).variants.len() as u64),
+                _ => None,
+            };
+            let name = match enum_variants {
+                Some(variants) => helper_name(
+                    sym::load_storage_packed_array,
+                    format!("{bytes}_{}_enum_{variants}", encoding as u8),
+                ),
+                None => helper_name(
+                    sym::load_storage_packed_array,
+                    format!("{bytes}_{}", encoding as u8),
+                ),
+            };
             let helper = self
-                .lazy_helper(
-                    helper_name(
-                        sym::load_storage_packed_array,
-                        format!("{bytes}_{}", encoding as u8),
-                    ),
-                    |_, function| {
-                        build_storage_array_helper(
-                            function,
-                            StorageArrayElement::Packed { bytes, encoding },
-                        );
-                        Some(())
-                    },
-                )
+                .lazy_helper(name, |_, function| {
+                    build_storage_array_helper(
+                        function,
+                        StorageArrayElement::Packed { bytes, encoding, enum_variants },
+                    );
+                    Some(())
+                })
                 .expect("packed storage array helper construction cannot fail");
             return Some(helper);
         }
@@ -1322,13 +1343,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // for i < new_length { store(source_element[i], element[i]) }
         let source_ty = source_ty.peel_refs();
         let source_layout = self.types.memory_layout(source_ty)?;
-        let (source_element, length) = match source_ty.kind {
+        let (source_element, length, fixed_length) = match source_ty.kind {
             TyKind::DynArray(source_element) | TyKind::Slice(source_element) => {
-                (source_element, self.builder.memory_object_len(object, source_layout.kind()))
+                (source_element, self.builder.memory_object_len(object, source_layout.kind()), None)
             }
             TyKind::Array(source_element, source_len) => {
-                let source_len = self.builder.imm_u64(u64::try_from(source_len).ok()?);
-                (source_element, source_len)
+                let source_len = u64::try_from(source_len).ok()?;
+                (source_element, self.builder.imm_u64(source_len), Some(source_len))
             }
             _ => return report_unsupported(self.context.gcx, span, "storage array conversion"),
         };
@@ -1388,7 +1409,56 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.jump(header);
         self.builder.add_phi_incoming(index, backedge, next);
         self.builder.switch_to_block(exit);
+
+        if let Some((size, _)) = self.context.storage.packed_encoding(element)
+            && 32 / size.bytes() > 1
+        {
+            // Packed element stores preserve neighboring bits, including stale values past the
+            // logical length.
+            let per_slot = u64::from(32 / size.bytes());
+            if let Some(length) = fixed_length {
+                let remainder = (length % per_slot) as u16;
+                if remainder != 0 {
+                    let slot_index = self.builder.imm_u64(length / per_slot);
+                    let used_bits = size.bits() * remainder;
+                    let mask = (U256::from(1) << used_bits) - U256::from(1);
+                    let mask = self.builder.imm_u256(mask);
+                    self.clear_unused_packed_array_elements(slot, slot_index, mask);
+                }
+            } else {
+                let (slot_index, remainder) =
+                    packed_storage_array_position(&mut self.builder, length, size.bytes());
+                let no_partial_slot = self.builder.iszero(remainder);
+                let cleanup_block = self.builder.create_block();
+                let merge_block = self.builder.create_block();
+                self.builder.branch(no_partial_slot, merge_block, cleanup_block);
+
+                self.builder.switch_to_block(cleanup_block);
+                let element_bits = self.builder.imm_u64(u64::from(size.bits()));
+                let used_bits = self.builder.mul(remainder, element_bits);
+                let one = self.builder.imm_u64(1);
+                let high_bit = self.builder.shl(used_bits, one);
+                let mask = self.builder.sub(high_bit, one);
+                self.clear_unused_packed_array_elements(slot, slot_index, mask);
+                self.builder.jump(merge_block);
+
+                self.builder.switch_to_block(merge_block);
+            }
+        }
         Some(())
+    }
+
+    fn clear_unused_packed_array_elements(
+        &mut self,
+        slot: ValueId,
+        slot_index: ValueId,
+        mask: ValueId,
+    ) {
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let partial_slot = self.builder.add(data_slot, slot_index);
+        let word = self.builder.sload(partial_slot);
+        let word = self.builder.and(word, mask);
+        self.builder.sstore(partial_slot, word);
     }
 
     fn store_storage_struct_fields_with_source(

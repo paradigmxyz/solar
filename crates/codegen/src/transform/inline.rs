@@ -500,7 +500,8 @@ impl MirInliner {
                 && summary.block_count == 1
                 && summary.instruction_count <= self.max_instructions
                 && !summary.has_internal_call
-                && !summary.has_reference_return;
+                && !summary.has_reference_return
+                && !summary.has_control_flow;
         }
 
         if !single_call
@@ -625,8 +626,9 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             match kind {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
-                // Dynamic values encode through copy loops and padding branches once
-                // `lower-abi-encode` runs, so a leaf holding such an encode is not tiny.
+                // ABI decoding validates its input through branches, and dynamic encoding
+                // emits copy loops and padding branches, so neither operation is a tiny leaf.
+                InstKind::AbiDecode { .. } => summary.has_control_flow = true,
                 InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
                     summary.has_control_flow = true;
                 }
