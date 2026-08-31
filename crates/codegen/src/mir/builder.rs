@@ -195,9 +195,9 @@ impl<'a> FunctionBuilder<'a> {
         let code = self.imm(code.as_u64());
         let zero = self.imm(U256::ZERO);
         self.mstore(zero, selector);
-        let four = self.imm(U256::from(4));
+        let four = self.imm(4);
         self.mstore(four, code);
-        let size = self.imm(U256::from(36));
+        let size = self.imm(36);
         self.revert(zero, size);
     }
 

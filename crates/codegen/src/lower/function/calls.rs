@@ -383,7 +383,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         function_value: ValueId,
     ) -> (ValueId, ValueId) {
-        let selector_mask = self.builder.imm(U256::from(u32::MAX));
+        let selector_mask = self.builder.imm(u32::MAX);
         let selector = self.builder.and(function_value, selector_mask);
         let selector_shift = self.builder.imm(224);
         let selector = self.builder.shl(selector_shift, selector);

@@ -109,7 +109,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_constant_variable(id, expr.span);
         }
         if let Some(index) = resolved.enum_variant_index(&self.context.gcx.hir) {
-            return Some(self.builder.imm(U256::from(index)));
+            return Some(self.builder.imm(index));
         }
         if variable.is_state_variable() {
             return self.load_variable(id, expr.span);
@@ -240,7 +240,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return match name.name {
                 kw::Address => Some(self.external_function_address(value)),
                 sym::selector => {
-                    let mask = self.builder.imm(U256::from(u32::MAX));
+                    let mask = self.builder.imm(u32::MAX);
                     Some(self.builder.and(value, mask))
                 }
                 _ => self.context.report_unsupported(expr.span, "Yul function member"),

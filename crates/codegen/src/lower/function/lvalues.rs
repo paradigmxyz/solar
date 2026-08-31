@@ -371,7 +371,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             let pointer = self.load_variable(id, span)?;
-            let mask = self.builder.imm(U256::from(u32::MAX));
+            let mask = self.builder.imm(u32::MAX);
             let value = match name.name {
                 kw::Address => {
                     let address_mask = self.builder.imm(U256::MAX >> 96);

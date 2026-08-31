@@ -500,7 +500,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let selector = self.builder.shr(selector_shift, selector_word);
         let error_selector =
             self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
-        let panic_selector = self.builder.imm(U256::from(0x4e48_7b71_u64));
+        let panic_selector = self.builder.imm(0x4e48_7b71_u64);
         let error_selector_matches = self.builder.eq(selector, error_selector);
         let error_matches = if catch_clauses
             .iter()

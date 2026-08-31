@@ -198,7 +198,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     );
                 }
                 let function_value = self.lower_expr(function)?;
-                let mask = self.builder.imm(U256::from(u32::MAX));
+                let mask = self.builder.imm(u32::MAX);
                 let selector = self.builder.and(function_value, mask);
                 let shift = self.builder.imm(224);
                 (self.builder.shl(shift, selector), function_ty.parameters.to_vec())
@@ -444,7 +444,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.switch_to_block(check_offset);
             let payload_ptr = builder.add_u64_offset(data_ptr, 4);
             let offset = builder.mload(payload_ptr);
-            let max_u64 = builder.imm(U256::from(u64::MAX));
+            let max_u64 = builder.imm(u64::MAX);
             let offset_too_large = builder.gt(offset, max_u64);
             let message_data_offset = builder.add_u64_offset(offset, 36);
             let head_out_of_range = builder.gt(message_data_offset, data_len);
@@ -1444,7 +1444,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let value = self.builder.memory_slice_load_word(output_slice, zero);
         Some(if builtin == Builtin::Ripemd160 {
             // result = result << 96
-            let scale = self.builder.imm(U256::from(1) << 96);
+            let scale = self.builder.imm(1_u128 << 96);
             self.builder.mul(scale, value)
         } else {
             value

@@ -608,7 +608,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let ty = self.context.gcx.type_of_expr(value.id);
                     let old = self.load_lvalue_place(&place)?;
                     let old = ty.map_or(old, |ty| self.normalize_dirty_scalar(old, ty));
-                    let one = self.builder.imm(U256::from(1));
+                    let one = self.builder.imm(1);
                     let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
                         BinOpKind::Add
                     } else {

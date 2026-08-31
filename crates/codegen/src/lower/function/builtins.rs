@@ -377,7 +377,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         true => {
                             // selector = (function & 0xffffffff) << 224
                             let value = self.lower_expr(receiver)?;
-                            let mask = self.builder.imm(U256::from(u32::MAX));
+                            let mask = self.builder.imm(u32::MAX);
                             let selector = self.builder.and(value, mask);
                             let shift = self.builder.imm(224);
                             Some(self.builder.shl(shift, selector))
@@ -759,7 +759,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.keccak256_bytes(value)
             }
         };
-        let one = self.builder.imm(U256::from(1));
+        let one = self.builder.imm(1);
         let inner = self.builder.sub(inner, one);
         let zero = self.builder.imm(U256::ZERO);
         let word_size = self.builder.imm(32);
