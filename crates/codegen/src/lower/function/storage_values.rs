@@ -33,47 +33,32 @@ fn build_storage_array_helper(function: &mut Function, element: StorageArrayElem
         builder.alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
 
     let data_slot = builder.storage_array_data_slot(slot);
-    let preheader = builder.current_block();
-    let header = builder.create_block();
-    let body = builder.create_block();
-    let exit = builder.create_block();
-    builder.jump(header);
-    builder.switch_to_block(header);
-    let zero = builder.imm_u64(0);
-    let index = builder.phi(vec![(preheader, zero)]);
-    let condition = builder.lt(index, length);
-    builder.branch(condition, body, exit);
-
-    builder.switch_to_block(body);
-    let value = match element {
-        StorageArrayElement::Bytes(helper) => {
-            let element_slot = builder.add(data_slot, index);
-            builder.internal_call(
-                helper,
-                vec![element_slot],
-                MirType::MemoryObject(MemoryObjectKind::Bytes),
-                1,
-            )
-        }
-        StorageArrayElement::Word => {
-            let element_slot = builder.add(data_slot, index);
-            builder.sload(element_slot)
-        }
-        StorageArrayElement::Packed { bytes, encoding, enum_variants } => {
-            let value =
-                load_packed_storage_array_element(&mut builder, data_slot, index, bytes, encoding);
-            if let Some(variants) = enum_variants {
-                builder.validate_enum_value(variants, value);
+    builder.counted_loop(length, |builder, index| {
+        let value = match element {
+            StorageArrayElement::Bytes(helper) => {
+                let element_slot = builder.add(data_slot, index);
+                builder.internal_call(
+                    helper,
+                    vec![element_slot],
+                    MirType::MemoryObject(MemoryObjectKind::Bytes),
+                    1,
+                )
             }
-            value
-        }
-    };
-    builder.memory_object_store_element(object, layout, index, value);
-    let next = builder.add_u64_offset(index, 1);
-    let backedge = builder.current_block();
-    builder.jump(header);
-    builder.add_phi_incoming(index, backedge, next);
-    builder.switch_to_block(exit);
+            StorageArrayElement::Word => {
+                let element_slot = builder.add(data_slot, index);
+                builder.sload(element_slot)
+            }
+            StorageArrayElement::Packed { bytes, encoding, enum_variants } => {
+                let value =
+                    load_packed_storage_array_element(builder, data_slot, index, bytes, encoding);
+                if let Some(variants) = enum_variants {
+                    builder.validate_enum_value(variants, value);
+                }
+                value
+            }
+        };
+        builder.memory_object_store_element(object, layout, index, value);
+    });
     builder.ret([object]);
 }
 
@@ -230,25 +215,12 @@ fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: Funct
     // `copy_byte_array_to_storage`: the memory object's padding bytes are not
     // guaranteed to be zero, and a whole-word store would persist them.
     let full_words = builder.div(length, word_size);
-    let preheader = builder.current_block();
-    let header_block = builder.create_block();
-    let body = builder.create_block();
-    let exit = builder.create_block();
-    builder.jump(header_block);
-    builder.switch_to_block(header_block);
-    let index = builder.phi(vec![(preheader, zero)]);
-    let condition = builder.lt(index, full_words);
-    builder.branch(condition, body, exit);
-    builder.switch_to_block(body);
-    let byte_offset = builder.mul(index, word_size);
-    let value = builder.memory_slice_load_word(data, byte_offset);
-    let element_slot = builder.add(data_slot, index);
-    builder.sstore(element_slot, value);
-    let next = builder.add(index, one);
-    let backedge = builder.current_block();
-    builder.jump(header_block);
-    builder.add_phi_incoming(index, backedge, next);
-    builder.switch_to_block(exit);
+    builder.counted_loop(full_words, |builder, index| {
+        let byte_offset = builder.mul(index, word_size);
+        let value = builder.memory_slice_load_word(data, byte_offset);
+        let element_slot = builder.add(data_slot, index);
+        builder.sstore(element_slot, value);
+    });
     let partial_block = builder.create_block();
     let remainder = builder.and(length, thirty_one);
     let has_partial = builder.iszero(remainder);
@@ -1720,7 +1692,6 @@ fn decode_storage_bytes_header(
 
 fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
     let (header, is_long, length) = decode_storage_bytes_header(builder, slot);
-    let one = builder.imm_u64(1);
     let thirty_two = builder.imm_u64(32);
     let thirty_one = builder.imm_u64(31);
     let rounded = builder.add(length, thirty_one);
@@ -1741,25 +1712,12 @@ fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) 
 
     builder.switch_to_block(long_block);
     let data_slot = builder.storage_array_data_slot(slot);
-    let preheader = builder.current_block();
-    let header_block = builder.create_block();
-    let body = builder.create_block();
-    let exit = builder.create_block();
-    builder.jump(header_block);
-    builder.switch_to_block(header_block);
-    let index = builder.phi(vec![(preheader, zero)]);
-    let condition = builder.lt(index, words);
-    builder.branch(condition, body, exit);
-    builder.switch_to_block(body);
-    let element_slot = builder.add(data_slot, index);
-    let value = builder.sload(element_slot);
-    let byte_offset = builder.mul(index, thirty_two);
-    builder.memory_object_store_word(object, byte_offset, value);
-    let next = builder.add(index, one);
-    let backedge = builder.current_block();
-    builder.jump(header_block);
-    builder.add_phi_incoming(index, backedge, next);
-    builder.switch_to_block(exit);
+    builder.counted_loop(words, |builder, index| {
+        let element_slot = builder.add(data_slot, index);
+        let value = builder.sload(element_slot);
+        let byte_offset = builder.mul(index, thirty_two);
+        builder.memory_object_store_word(object, byte_offset, value);
+    });
     builder.jump(merge_block);
 
     builder.switch_to_block(merge_block);

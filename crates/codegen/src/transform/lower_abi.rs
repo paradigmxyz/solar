@@ -2047,38 +2047,21 @@ impl LowerAbiCx {
         options: DecodeOptions<'_>,
     ) {
         let word = builder.imm_u64(32);
-        let preheader = *current;
-        let header = builder.create_block();
-        let body = builder.create_block();
-        let done = builder.create_block();
-        builder.switch_to_block(preheader);
-        builder.jump(header);
-
-        builder.switch_to_block(header);
-        let zero = builder.imm_u64(0);
-        let index = builder.phi(vec![(preheader, zero)]);
-        let more = builder.lt(index, len);
-        builder.branch(more, body, done);
-
-        builder.switch_to_block(body);
-        let offset = builder.mul(index, word);
-        let position = builder.add(data, offset);
-        let mut element_current = builder.current_block();
-        let _ = Self::decode_source_scalar(
-            builder,
-            element,
-            position,
-            &mut element_current,
-            options.checked(),
-        );
-        builder.switch_to_block(element_current);
-        let next_index = builder.add_u64_offset(index, 1);
-        let backedge = builder.current_block();
-        builder.jump(header);
-        builder.add_phi_incoming(index, backedge, next_index);
-
-        builder.switch_to_block(done);
-        *current = done;
+        builder.switch_to_block(*current);
+        builder.counted_loop(len, |builder, index| {
+            let offset = builder.mul(index, word);
+            let position = builder.add(data, offset);
+            let mut element_current = builder.current_block();
+            let _ = Self::decode_source_scalar(
+                builder,
+                element,
+                position,
+                &mut element_current,
+                options.checked(),
+            );
+            builder.switch_to_block(element_current);
+        });
+        *current = builder.current_block();
     }
 
     fn decode_static_aggregate(
