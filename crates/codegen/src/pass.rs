@@ -91,29 +91,52 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
 }
 
-struct OptimizationOnly<P, const GAS: bool>(P);
+struct SizeOnly<P>(P);
 
-type SizeOnly<P> = OptimizationOnly<P, false>;
-type GasOnly<P> = OptimizationOnly<P, true>;
-
-impl<P, const GAS: bool> OptimizationOnly<P, GAS> {
+impl<P> SizeOnly<P> {
     const fn new(pass: P) -> Self {
         Self(pass)
     }
 }
 
-impl<P: MirPass, const GAS: bool> MirPass for OptimizationOnly<P, GAS> {
+impl<P: MirPass> MirPass for SizeOnly<P> {
     fn name(&self) -> &'static str {
         self.0.name()
     }
 
     fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
-        let optimization_matches = if GAS {
-            gcx.sess.opts.optimization.is_gas()
-        } else {
-            gcx.sess.opts.optimization.is_size()
-        };
-        optimization_matches && self.0.is_enabled(gcx, module)
+        gcx.sess.opts.optimization.is_size() && self.0.is_enabled(gcx, module)
+    }
+
+    fn is_required(&self) -> bool {
+        self.0.is_required()
+    }
+
+    fn run_pass(
+        &self,
+        gcx: solar_sema::Gcx<'_>,
+        module: &mut Module,
+        analyses: &mut ModuleAnalyses,
+    ) -> bool {
+        self.0.run_pass(gcx, module, analyses)
+    }
+}
+
+struct GasOnly<P>(P);
+
+impl<P> GasOnly<P> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
+    }
+}
+
+impl<P: MirPass> MirPass for GasOnly<P> {
+    fn name(&self) -> &'static str {
+        self.0.name()
+    }
+
+    fn is_enabled(&self, gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
+        gcx.sess.opts.optimization.is_gas() && self.0.is_enabled(gcx, module)
     }
 
     fn is_required(&self) -> bool {
