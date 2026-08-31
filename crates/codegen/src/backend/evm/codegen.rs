@@ -2752,18 +2752,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         if module.is_interface {
             return EvmArtifact::default();
         }
-        // @module Library {}
-        if module.is_library
-            && !self.capture_mir
-            && !module.functions.iter().any(|func| {
-                Self::is_external_entry(func)
-                    || func.attributes.is_constructor
-                    || func.attributes.is_dispatch_entry
-            })
-        {
-            module.functions.clear();
-            module.function_name_index.clear();
-        }
         if let Some(func) = module.functions.iter().find(|func| func.blocks.is_empty()) {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }

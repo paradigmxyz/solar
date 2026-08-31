@@ -122,8 +122,6 @@ pub struct Module {
     library_links: Vec<LibraryLink>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
-    /// Whether this is a library.
-    pub(crate) is_library: bool,
     /// The lowering phase this module is in.
     pub(crate) phase: MirPhase,
 }
@@ -149,7 +147,6 @@ impl Module {
             immutables: IndexVec::new(),
             library_links: Vec::new(),
             is_interface: false,
-            is_library: false,
             phase: MirPhase::Built,
         }
     }
