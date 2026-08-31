@@ -1,7 +1,7 @@
 //@ revisions: mir size runtime paris
 //@[mir] compile-flags: -O none -Zdump=mir
 //@[mir] filecheck:
-//@[size] compile-flags: -Osize -Zdump=mir
+//@[size] compile-flags: -Osize -Zdump=mir,evm-ir-runtime
 //@[size] filecheck: --check-prefixes=SIZE,SPLAT
 //@[runtime] compile-flags: -Ogas
 //@[paris] compile-flags: -Osize --evm-version paris
@@ -77,3 +77,6 @@ contract C {
         return keccak256(splatData());
     }
 }
+
+// SIZE-LABEL: (runtime) ===
+// SIZE: push_data literal_0

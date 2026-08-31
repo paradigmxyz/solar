@@ -1,0 +1,23 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module codesize_observes_data
+
+// `CODESIZE - 1` reads the final trailer byte. Keep the indirectly read entry
+// even though no `push_data` refers to it.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}codesize
+// CHECK: @data literal_0 hex"42"
+// CHECK: @data literal_1 hex"99"
+bb0:
+  push_data literal_0
+  pop
+  push 1
+  codesize
+  push 1
+  sub
+  push 0
+  codecopy
+  stop
+
+@data literal_0 hex"42"
+@data literal_1 hex"99"

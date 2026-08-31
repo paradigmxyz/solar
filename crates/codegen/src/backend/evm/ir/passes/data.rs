@@ -58,7 +58,9 @@ impl EvmPass for PackData {
         let materialized = materialize_data(gcx, module, groups);
         if materialized {
             let references = data_references(module);
-            pack_data(module, &references, true);
+            if !references.layout_is_observable() {
+                pack_data(module, &references, true);
+            }
         }
         packed || materialized
     }
@@ -424,6 +426,7 @@ enum DataStackValue {
 struct DataReferences {
     counts: IndexVec<DataId, usize>,
     subslice_safe: IndexVec<DataId, bool>,
+    layout_observable: bool,
 }
 
 impl DataReferences {
@@ -431,14 +434,17 @@ impl DataReferences {
         Self {
             counts: IndexVec::from_vec(vec![0; module.data.len()]),
             subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
+            layout_observable: false,
         }
     }
 
     fn layout_is_observable(&self) -> bool {
-        self.counts
-            .iter()
-            .zip(&self.subslice_safe)
-            .any(|(&count, &subslice_safe)| count != 0 && !subslice_safe)
+        self.layout_observable
+            || self
+                .counts
+                .iter()
+                .zip(&self.subslice_safe)
+                .any(|(&count, &subslice_safe)| count != 0 && !subslice_safe)
     }
 }
 
@@ -493,6 +499,9 @@ fn track_data_reference(
     stack: &mut Vec<DataStackValue>,
     references: &mut DataReferences,
 ) {
+    if inst.opcode == op::CODESIZE {
+        references.layout_observable = true;
+    }
     if let Some(data) = inst.pushed_data() {
         references.counts[data.id] += 1;
         stack.push(DataStackValue::Data(data));

@@ -237,3 +237,460 @@ fn @entry() [entry] {
   bb12:
     revert 0, 0
 }
+// === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb12
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xd00d797
+  eq
+  push bb30
+  jumpi
+  dup 1
+  push 0x1b3012a3
+  eq
+  push bb17
+  jumpi
+  dup 1
+  push 0x38f844b9
+  eq
+  push bb32
+  jumpi
+  dup 1
+  push 0x4c092794
+  eq
+  push bb22
+  jumpi
+  dup 1
+  push 0x672c8259
+  eq
+  push bb28
+  jumpi
+  dup 1
+  push 0x6ec059cd
+  eq
+  push bb19
+  jumpi
+  dup 1
+  push 0x73d4a13a
+  eq
+  push bb13
+  jumpi
+  dup 1
+  push 0xb9ad073e
+  eq
+  push bb15
+  jumpi
+  dup 1
+  push 0xe1910fda
+  eq
+  push bb25
+  jumpi
+  dup 1
+  push 0xe5a3e763
+  eq
+  push bb18
+  jumpi
+  jump bb12
+bb12 [cold]:
+  push 0
+  dup 1
+  revert
+bb13:
+  push 416
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 192
+  mstore
+  push 320
+  dup 2
+  add
+  push 64
+  mstore
+  push 257
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 256
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  push 257
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  pop
+  push bb53
+  jump bb52
+bb52:
+  push 64
+  mload
+  dup 1
+  push 128
+  mstore
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  swap 1
+  pop
+  swap 1
+  jump
+bb15:
+  push 416
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 192
+  mstore
+  push 224
+  dup 2
+  add
+  push 64
+  mstore
+  push 161
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 160
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  push 161
+  dup 2
+  push_data literal_0+64
+  swap 1
+  codecopy
+  pop
+  push bb54
+  jump bb52
+bb16:
+  jump bb14
+bb14:
+  dup 1
+  push 160
+  jump bb41
+bb41:
+  mstore
+  push 128
+  mload
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb17:
+  push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
+  jump bb40
+bb40:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb18:
+  push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
+  jump bb40
+bb19:
+  push 416
+  push 64
+  mstore
+  push bb20
+  jump bb34
+bb34:
+  push bb44
+  jump bb43
+bb43:
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 160
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  swap 1
+  swap 2
+  jump
+bb20:
+  push bb45
+  swap 1
+  jump bb42
+bb42:
+  dup 1
+  push 160
+  mstore
+  push bb55
+  jump bb52
+bb22:
+  push 416
+  push 64
+  mstore
+  push bb23
+  jump bb35
+bb35:
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
+  push 32
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  swap 1
+  jump
+bb23:
+  push bb46
+  swap 1
+  jump bb42
+bb24:
+  jump bb21
+bb21:
+  dup 1
+  push 192
+  jump bb41
+bb25:
+  push 416
+  push 64
+  mstore
+  push bb26
+  jump bb36
+bb36:
+  push bb47
+  jump bb43
+bb26:
+  push bb48
+  swap 1
+  jump bb42
+bb27:
+  jump bb21
+bb28:
+  push 288
+  push 64
+  mstore
+  push bb29
+  jump bb34
+bb30:
+  push 288
+  push 64
+  mstore
+  push bb31
+  jump bb35
+bb31:
+  jump bb29
+bb29:
+  dup 1
+  push 160
+  mstore
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  keccak256
+  jump bb40
+bb32:
+  push 288
+  push 64
+  mstore
+  push bb33
+  jump bb36
+bb33:
+  jump bb29
+bb44:
+  push 160
+  calldatasize
+  dup 3
+  calldatacopy
+  pop
+  swap 1
+  jump
+bb45:
+  push bb21
+  swap 2
+  swap 1
+  jump bb37
+bb37:
+  dup 2
+  mload
+  dup 1
+  push 320
+  mstore
+  dup 2
+  dup 2
+  dup 2
+  mstore
+  push 31
+  dup 3
+  add
+  push 31
+  not
+  and
+  dup 1
+  push 352
+  mstore
+  push 32
+  dup 3
+  add
+  dup 1
+  push 384
+  mstore
+  swap 2
+  pop
+  swap 3
+  pop
+  push 384
+  mstore
+  pop
+  iszero
+  push bb39
+  jumpi
+  push 32
+  push 352
+  mload
+  sub
+  push 384
+  mload
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb39
+bb39:
+  push 352
+  mload
+  push 384
+  mload
+  add
+  swap 1
+  push 32
+  add
+  push 320
+  mload
+  dup 2
+  push 384
+  mload
+  mcopy
+  pop
+  swap 1
+  jump
+bb46:
+  push bb24
+  swap 2
+  swap 1
+  jump bb37
+bb47:
+  push bb51
+  jump bb49
+bb49:
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  swap 1
+  jump
+bb48:
+  push bb27
+  swap 2
+  swap 1
+  jump bb37
+bb50:
+  swap 1
+  mstore
+  push 64
+  dup 2
+  add
+  push 64
+  dup 3
+  dup 3
+  mcopy
+  pop
+  push 128
+  dup 2
+  add
+  push 32
+  dup 3
+  dup 3
+  mcopy
+  pop
+  pop
+  swap 1
+  jump
+bb51:
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push bb50
+  jump bb49
+bb53:
+  push bb14
+  swap 2
+  swap 1
+  jump bb37
+bb54:
+  push bb16
+  swap 2
+  swap 1
+  jump bb37
+bb55:
+  swap 1
+  swap 2
+  jump
+
+@data literal_0 hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
