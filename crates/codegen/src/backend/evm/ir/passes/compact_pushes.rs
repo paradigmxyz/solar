@@ -17,12 +17,11 @@
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module},
+    ir::{Instruction, Metadata, Module},
     op::{self, WORD_BYTES},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
-use solar_interface::Span;
 use solar_sema::Gcx;
 
 pub(super) struct CompactPushes;
@@ -64,11 +63,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
             } else {
-                materialize_selected(
-                    &mut block.instructions,
-                    materialization,
-                    inst.metadata.source_spans(),
-                );
+                materialize_selected(&mut block.instructions, materialization, &inst.metadata);
                 changed = true;
             }
         }
@@ -177,21 +172,25 @@ pub(super) fn materialize_immediate(
     evm_version: EvmVersion,
     value: U256,
 ) {
-    materialize_selected(instructions, ImmediateMaterialization::new(evm_version, value), &[]);
+    materialize_selected(
+        instructions,
+        ImmediateMaterialization::new(evm_version, value),
+        &Metadata::default(),
+    );
 }
 
-/// Every replacement carries the source origins of the push it materializes.
+/// Every replacement carries the source debug information of the push it materializes.
 fn materialize_selected(
     instructions: &mut Vec<Instruction>,
     materialization: ImmediateMaterialization,
-    source_spans: &[Span],
+    source: &Metadata,
 ) {
     materialization.for_each(|op| {
         let mut replacement = match op {
             ImmediateMaterializationOp::Push(value) => push(value),
             ImmediateMaterializationOp::Opcode(opcode) => Instruction::opcode(opcode),
         };
-        replacement.metadata.set_source_spans(source_spans.iter().copied());
+        replacement.metadata.copy_source_debug_from(source);
         instructions.push(replacement);
     });
 }

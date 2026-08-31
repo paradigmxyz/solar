@@ -69,9 +69,9 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
         let target_metadata = target.metadata.clone();
         *target = Instruction::push_block(shared);
-        target.metadata.set_source_spans(target_metadata.source_spans().iter().copied());
+        target.metadata.copy_source_debug_from(&target_metadata);
         let mut terminator = Terminator::new(TerminatorKind::Jump(continuation));
-        terminator.metadata.set_source_spans(terminator_metadata.source_spans().iter().copied());
+        terminator.metadata.copy_source_debug_from(&terminator_metadata);
         block.terminator = Some(terminator);
         let condition_end = block.instructions.len() - 2;
         match block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode) {
@@ -81,7 +81,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
             Some(op::EQ) => block.instructions[condition_end - 1].opcode = op::SUB,
             _ => {
                 let mut iszero = Instruction::opcode(op::ISZERO);
-                iszero.metadata.set_source_spans(branch_metadata.source_spans().iter().copied());
+                iszero.metadata.copy_source_debug_from(&branch_metadata);
                 block.instructions.insert(condition_end, iszero);
             }
         }

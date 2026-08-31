@@ -59,11 +59,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     inst.metadata.source_span().is_some()
                         || inst.metadata.function_invoke().is_some()
                         || inst.metadata.function_exit().is_some()
+                        || inst.metadata.modifier_depth() != 0
                 })
                 || block.terminator.as_ref().is_some_and(|term| {
                     term.metadata.source_span().is_some()
                         || term.metadata.function_invoke().is_some()
                         || term.metadata.function_exit().is_some()
+                        || term.metadata.modifier_depth() != 0
                 })
         });
         if tracks_debug_info {
@@ -490,6 +492,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     return Err(self.parser.error("expected `return` or `revert`"));
                 };
                 metadata.set_function_exit(exit);
+            } else if key == sym::modifier_depth {
+                self.parser.expect(TokenKind::Eq)?;
+                let depth = self.parser.parse_uint()?;
+                let depth = u32::try_from(depth)
+                    .map_err(|_| self.parser.error("modifier depth does not fit in u32"))?;
+                metadata.set_modifier_depth(depth);
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }

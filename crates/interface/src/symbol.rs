@@ -1147,6 +1147,7 @@ symbols! {
         metadata,
         min,
         mir_type,
+        modifier_depth,
         module,
         msg,
         multi_return,

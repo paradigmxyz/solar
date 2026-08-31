@@ -132,7 +132,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             let target = *then_block;
             let metadata = metadata.clone();
             let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.set_source_spans(metadata.source_spans().iter().copied());
+            pop.metadata.copy_source_debug_from(&metadata);
             block.instructions.push(pop);
             let mut terminator = Terminator::new(TerminatorKind::Jump(target));
             terminator.metadata = metadata;
@@ -149,10 +149,10 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && jumpi.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
         {
-            let source_spans = jumpi.metadata.source_spans().to_vec();
+            let metadata = jumpi.metadata.clone();
             block.instructions.truncate(block.instructions.len() - 2);
             let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.set_source_spans(source_spans);
+            pop.metadata.copy_source_debug_from(&metadata);
             block.instructions.push(pop);
             changed = true;
         }

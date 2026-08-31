@@ -60,8 +60,13 @@ impl SourceMapEncoder {
             '-'
         };
 
-        // The current debug metadata does not model modifier stack depth.
-        SourceMapEntry { start, length, source, jump, modifier_depth: 0 }
+        SourceMapEntry {
+            start,
+            length,
+            source,
+            jump,
+            modifier_depth: i64::from(instruction.modifier_depth),
+        }
     }
 }
 

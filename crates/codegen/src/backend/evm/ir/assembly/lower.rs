@@ -189,6 +189,11 @@ fn lower_evm_ir_once(
     let mut program = Program::with_debug_info(capture_debug_info);
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
+        let block_modifier_depth = block.instructions.first().map_or_else(
+            || block.terminator.as_ref().map_or(0, |term| term.metadata.modifier_depth()),
+            |inst| inst.metadata.modifier_depth(),
+        );
+        program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
@@ -198,6 +203,7 @@ fn lower_evm_ir_once(
         let mut pending_invoke = None;
         for inst in &block.instructions {
             program.set_source_spans(inst.metadata.source_spans());
+            program.set_modifier_depth(inst.metadata.modifier_depth());
             lower_instruction(assembler, &mut program, inst, module, labels);
             let function_invoke = inst.metadata.function_invoke();
             if let Some((index, function)) = pending_invoke.take()
@@ -231,6 +237,7 @@ fn lower_evm_ir_once(
 
         if let Some(terminator) = &block.terminator {
             program.set_source_spans(terminator.metadata.source_spans());
+            program.set_modifier_depth(terminator.metadata.modifier_depth());
             lower_terminator(
                 assembler,
                 &mut program,
@@ -265,6 +272,13 @@ fn lower_evm_ir_once(
             .and_then(|block| block.terminator.as_ref())
             .map_or(&[][..], |term| term.metadata.source_spans());
         program.set_source_spans(spans);
+        program.set_modifier_depth(
+            module
+                .blocks
+                .last()
+                .and_then(|block| block.terminator.as_ref())
+                .map_or(0, |term| term.metadata.modifier_depth()),
+        );
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);

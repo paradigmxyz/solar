@@ -46,4 +46,6 @@ pub struct DebugInstruction {
     pub function_invoke: Option<DebugFunction>,
     /// Function activation closed after this instruction executes.
     pub function_exit: Option<DebugFunctionExit>,
+    /// Legacy source-map modifier nesting depth for this instruction.
+    pub modifier_depth: u32,
 }
