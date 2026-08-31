@@ -11,15 +11,17 @@
 // CHECK: + [[REQUIRED:v[0-9]+]] = add [[BASE]], 160
 // CHECK: + {{v[0-9]+}} = gt [[REQUIRED]], [[END]]
 // CHECK: + [[OUTER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
-// CHECK: + [[FIRST:v[0-9]+]] = alloc memoryfixedarray<2, 1>
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[FIRST]], 0, arg0
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[FIRST]], 1, arg1
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], 0, [[FIRST]]
-// CHECK: + [[SECOND:v[0-9]+]] = alloc memoryfixedarray<2, 1>
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[SECOND]], 0, arg2
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[SECOND]], 1, arg3
-// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], 1, [[SECOND]]
+// CHECK: + [[OUTER_INDEX:v[0-9]+]] = phi
+// CHECK: + {{v[0-9]+}} = lt [[OUTER_INDEX]], 2
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg4
+// CHECK: + {{v[0-9]+}} = mul [[OUTER_INDEX]], 64
+// CHECK: + [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
+// CHECK: + [[INNER_INDEX:v[0-9]+]] = phi
+// CHECK: + {{v[0-9]+}} = lt [[INNER_INDEX]], 2
+// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[OUTER]], [[OUTER_INDEX]], [[INNER]]
+// CHECK: + {{v[0-9]+}} = mul [[INNER_INDEX]], 32
+// CHECK: + [[WORD:v[0-9]+]] = mload
+// CHECK: + memory_object_store_element memoryfixedarray<2, 1>, [[INNER]], [[INNER_INDEX]], [[WORD]]
 @module LowerAbiConstructorParams
 
 fn @constructor(arg0: memoryfixedarray, arg1: u256) [abi_params=[array<2, array<2, u256>>, u256]] {

@@ -26,35 +26,29 @@ fn @second() [selector=0x5a8ac02d, view] {
     returndata 128, v6
 }
 
-fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
+fn @_anonymous(arg0: u256, arg1: u256, arg2: u256) [constructor] {
   bb0:
-    v25 = callvalue
-    jumpi v25, bb13, bb1
+    v32 = callvalue
+    jumpi v32, bb13, bb1
   bb1:
     v17 = constructor_args_base
     v18 = constructor_args_end
     v19 = add v17, 96
     v20 = gt v19, v18
-    jumpi v20, bb6, bb5
-  bb5:
-    v21 = lt arg0, 2
-    jumpi v21, bb7, bb8
-  bb8:
-    revert 0, 0
+    jumpi v20, bb5, bb6
+  bb6:
+    v21 = mload v17
+    v22 = lt v21, 2
+    jumpi v22, bb7, bb5
   bb7:
-    v22 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v23 = lt arg1, 2
-    jumpi v23, bb9, bb10
+    v23 = add v17, 32
+    v24 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    jump bb8
+  bb8:
+    v25 = phi [bb7: 0], [bb11: v31]
+    v26 = lt v25, 2
+    jumpi v26, bb9, bb10
   bb10:
-    revert 0, 0
-  bb9:
-    memory_object_store_element memoryfixedarray<2, 1>, v22, 0, arg1
-    v24 = lt arg2, 2
-    jumpi v24, bb11, bb12
-  bb12:
-    revert 0, 0
-  bb11:
-    memory_object_store_element memoryfixedarray<2, 1>, v22, 1, arg2
     jump bb2
   bb2:
     v0 = sload 0 !metadata(storage=slot(0))
@@ -67,7 +61,7 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
     v6 = iszero v5
     jumpi v6, bb3, bb4
   bb4:
-    v7 = memory_object_load_element memoryfixedarray<2, 1>, v22, 1
+    v7 = memory_object_load_element memoryfixedarray<2, 1>, v24, 1
     v8 = eq v7, 0
     v9 = iszero v8
     v10 = shl 8, 255
@@ -83,7 +77,19 @@ fn @_anonymous(arg0: bool, arg1: bool, arg2: bool) [constructor] {
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
+  bb9:
+    v27 = mul v25, 32
+    v28 = add v23, v27
+    v29 = mload v28
+    v30 = lt v29, 2
+    jumpi v30, bb11, bb12
+  bb12:
+    revert 0, 0
+  bb11:
+    memory_object_store_element memoryfixedarray<2, 1>, v24, v25, v29
+    v31 = add v25, 1
+    jump bb8
+  bb5:
     revert 0, 0
   bb13:
     revert 0, 0

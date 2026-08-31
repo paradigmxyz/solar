@@ -152,7 +152,6 @@ impl LowerAbiCx {
 
         let mut targets = Vec::new();
         let mut constructors = Vec::new();
-        let mut wrapped_constructors = Vec::new();
         let mut bytes_fallback = None;
         let mut has_decodes = false;
         let mut has_revert_returndata = false;
@@ -172,10 +171,8 @@ impl LowerAbiCx {
                     rejecting_constructor = Some(id);
                 }
                 if func.abi_params.is_some() {
-                    if Self::can_decode_constructor_params(func) {
+                    if Self::can_wrap_constructor_params(func) {
                         constructors.push(id);
-                    } else if Self::can_wrap_constructor_params(func) {
-                        wrapped_constructors.push(id);
                     } else {
                         return false;
                     }
@@ -201,7 +198,6 @@ impl LowerAbiCx {
 
         if targets.is_empty()
             && constructors.is_empty()
-            && wrapped_constructors.is_empty()
             && !has_decodes
             && !has_revert_returndata
             && bytes_fallback.is_none()
@@ -253,9 +249,6 @@ impl LowerAbiCx {
         let hoist_callvalue = callvalue.hoists();
 
         for id in constructors {
-            self.decode_constructor_params(module.function_mut(id));
-        }
-        for id in wrapped_constructors {
             let layout = module.function_mut(id).abi_params.take();
             self.inject_abi_prologue(module.function_mut(id), layout.as_ref(), true, false);
             Self::clear_abi_inputs(module.function_mut(id));
@@ -323,18 +316,6 @@ impl LowerAbiCx {
         }
     }
 
-    fn can_decode_constructor_params(func: &Function) -> bool {
-        Self::can_wrap_constructor_params(func)
-            && func.abi_params.as_ref().is_some_and(|layout| {
-                layout.types.iter().all(Self::is_constructor_array_element)
-                    && layout.types.iter().any(|ty| matches!(ty, AbiParamType::FixedArray { .. }))
-                    && layout.checked_head_size().is_some_and(|head_size| {
-                        head_size != 0
-                            && usize::try_from(head_size / EvmMemoryLayout::WORD_SIZE).is_ok()
-                    })
-            })
-    }
-
     fn can_wrap_constructor_params(func: &Function) -> bool {
         let Some(layout) = &func.abi_params else { return false };
         func.params.len() == layout.types.len()
@@ -343,16 +324,6 @@ impl LowerAbiCx {
                 .iter()
                 .zip(&func.params)
                 .all(|(abi_ty, &param_ty)| abi_ty.mir_type() == param_ty)
-    }
-
-    fn is_constructor_array_element(ty: &AbiParamType) -> bool {
-        ty.is_scalar_word()
-            || matches!(
-                ty,
-                AbiParamType::FixedArray { element, len }
-                    if *len <= u64::from(u16::MAX)
-                        && Self::is_constructor_array_element(element)
-            )
     }
 
     fn lower_decode_instructions(&self, module: &mut Module) -> bool {
@@ -980,100 +951,6 @@ impl LowerAbiCx {
             return false;
         };
         offset == field.saturating_mul(EvmMemoryLayout::WORD_SIZE)
-    }
-
-    /// Materializes fixed constructor inputs while preserving the physical
-    /// word parameters consumed by deployment codegen.
-    fn decode_constructor_params(&self, func: &mut Function) {
-        let layout = func.abi_params.take().expect("checked constructor ABI layout");
-        let old_entry = BlockId::ENTRY;
-        let arg_uses = func.arg_uses();
-        let head_size = layout.checked_head_size().expect("checked constructor ABI head size");
-        let physical_words = usize::try_from(head_size / EvmMemoryLayout::WORD_SIZE)
-            .expect("checked constructor ABI word count");
-        let mut params = IndexVec::with_capacity(physical_words);
-        for ty in &layout.types {
-            Self::push_constructor_param_types(&mut params, ty);
-        }
-        func.set_params(params);
-        let physical_args = (0..func.params.len())
-            .map(|index| func.alloc_arg(ArgIdx::from_usize(index)))
-            .collect::<Vec<_>>();
-
-        let mut replacements = FxHashMap::default();
-        let guard = {
-            let mut builder = FunctionBuilder::new(func);
-            let guard = builder.create_block();
-            let decode = builder.create_block();
-            let revert = builder.create_block();
-            builder.switch_to_block(guard);
-            let base = builder.constructor_args_base();
-            let end = builder.constructor_args_end();
-            let required = builder.add_u64_offset(base, head_size);
-            let invalid = builder.gt(required, end);
-            builder.branch(invalid, revert, decode);
-
-            builder.switch_to_block(revert);
-            let zero = builder.imm_u64(0);
-            builder.revert(zero, zero);
-
-            builder.switch_to_block(decode);
-            let mut physical_index = 0;
-            for (logical_index, ty) in layout.types.iter().enumerate() {
-                let value = Self::decode_constructor_param(
-                    &mut builder,
-                    ty,
-                    &physical_args,
-                    &mut physical_index,
-                    self.has_bitwise_shifting,
-                );
-                for &use_value in arg_uses.get(ArgIdx::new(logical_index)).into_iter().flatten() {
-                    replacements.insert(use_value, value);
-                }
-            }
-            debug_assert_eq!(physical_index, physical_args.len());
-            builder.jump(old_entry);
-            guard
-        };
-        func.replace_uses_canonicalized(&replacements);
-        Self::clear_abi_inputs(func);
-        let order = std::iter::once(guard)
-            .chain(func.blocks.indices().filter(|&block| block != guard))
-            .collect::<Vec<_>>();
-        crate::mir::utils::remap_block_order(func, &order);
-    }
-
-    fn decode_constructor_param(
-        builder: &mut FunctionBuilder<'_>,
-        ty: &AbiParamType,
-        physical_args: &[ValueId],
-        physical_index: &mut usize,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        if ty.is_scalar_word() {
-            let value = physical_args[*physical_index];
-            *physical_index += 1;
-            return Self::validate_constructor_word(builder, value, ty, has_bitwise_shifting);
-        }
-
-        let AbiParamType::FixedArray { element, len } = ty else {
-            unreachable!("checked constructor ABI parameter")
-        };
-        let (ptr, layout) =
-            builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
-        for index in 0..*len {
-            let value = Self::decode_constructor_param(
-                builder,
-                element,
-                physical_args,
-                physical_index,
-                has_bitwise_shifting,
-            );
-            let value = Self::encode_memory_scalar(builder, element, value);
-            let index = builder.imm_u64(index);
-            builder.memory_object_store_element(ptr, layout, index, value);
-        }
-        ptr
     }
 
     /// Rewrites one external function into a self-decoding form, keeping a
@@ -2923,32 +2800,6 @@ impl LowerAbiCx {
 
     fn is_scalar_or_enum(ty: &crate::mir::AbiParamType) -> bool {
         ty.is_scalar_word() && ty.mir_type() != MirType::Function
-    }
-
-    fn push_constructor_param_types(
-        params: &mut IndexVec<ArgIdx, MirType>,
-        ty: &crate::mir::AbiParamType,
-    ) {
-        if ty.is_scalar_word() {
-            params.push(ty.mir_type());
-        } else if let crate::mir::AbiParamType::FixedArray { element, len } = ty {
-            for _ in 0..*len {
-                Self::push_constructor_param_types(params, element);
-            }
-        } else {
-            unreachable!("checked constructor ABI parameter");
-        }
-    }
-
-    fn validate_constructor_word(
-        builder: &mut FunctionBuilder<'_>,
-        value: ValueId,
-        ty: &AbiParamType,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        let Some(validator) = ty.word_validator() else { return value };
-        let value = Self::validate_abi_word(builder, value, validator, has_bitwise_shifting);
-        Self::normalize_abi_word(builder, ty, value)
     }
 
     fn normalize_abi_word(

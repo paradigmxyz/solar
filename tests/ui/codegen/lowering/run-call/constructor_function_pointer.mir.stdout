@@ -120,53 +120,57 @@ fn @fArray() -> bool [selector=0x33554e3e, abi_params=[], abi_returns=[word<bool
     memory_object_store_element memoryfixedarray<1, 1>, v0, 0, v6
     v7 = abi_encode [array<1, function>], args v0
     v8 = not 31
-    v9 = and 274, v8
+    v9 = and 341, v8
     v10 = alloc raw, exact, uninitialized, infallible, v9
-    mstore v10, 0x60d338038060d360e03960e001601f017fffffffffffffffffffffffffffffff
+    mstore v10, 0x6101163803806101166101803961018001601f017fffffffffffffffffffffff
     v11 = add v10, 32
-    mstore v11, 0xffffffffffffffffffffffffffffffffe0166040523460955760e060e060d338
+    mstore v11, 0xffffffffffffffffffffffffffffffffffffffffe0166040523460d857610180
     v12 = add v10, 64
-    mstore v12, 0x30160208201915081119050156061576079565b60c0518060c052515f556099
+    mstore v12, 0x6101806101163803016020820111156069576065565b61010051806101005251
     v13 = add v10, 96
-    mstore v13, 0x565b6040516020810160405260e05160c01b15607d576091565b5f80fd5b60e0
+    mstore v13, 0x5f5560dc565b5f80fd5b5f810190506040518061010052806101005260208101
     v14 = add v10, 128
-    mstore v14, 0x5160401c60401b8160c0528152506053565b5f80fd5b5f80fd5b60308060a35f
+    mstore v14, 0x6040525f5b600181101560ad5760208102830151806101405280610140528061
     v15 = add v10, 160
-    mstore v15, 0x395ff334601a575f3560e01c8063c096a63214601657601a565b601e565b5f80
+    mstore v15, 0x1405260c01b1560b45760d4565b5050506055565b6101405180610140526040
     v16 = add v10, 192
-    mstore v16, 0xfd5b5f546080526020608001608090036080f300000000000000000000000000
-    v17 = slice_ptr v7
-    v18 = add v10, 211
-    mcopy v18, v17, 32 !metadata(memory=heap)
-    v19 = create 0, v10, 243
-    jumpi v19, bb4, bb3
+    mstore v16, 0x1c60401b602082028301526001810190506084565b5f80fd5b5f80fd5b603080
+    v17 = add v10, 224
+    mstore v17, 0x60e65f395ff334601a575f3560e01c8063c096a63214601657601a565b601e56
+    v18 = add v10, 256
+    mstore v18, 0x5b5f80fd5b5f546080526020608001608090036080f300000000000000000000
+    v19 = slice_ptr v7
+    v20 = add v10, 278
+    mcopy v20, v19, 32 !metadata(memory=heap)
+    v21 = create 0, v10, 310
+    jumpi v21, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v20 = address
-    v21 = shl 96, v20
-    v22 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
-    v23 = shl 64, v22
-    v24 = or v21, v23
-    v25 = gas
-    v26 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
-    v27 = slice_ptr v26
-    v28 = slice_len v26
-    v29 = staticcall v25, v19, v27, v28, 0, 32
-    jumpi v29, bb6, bb5
+    v22 = address
+    v23 = shl 96, v22
+    v24 = shr 224, 0x990227f100000000000000000000000000000000000000000000000000000000
+    v25 = shl 64, v24
+    v26 = or v23, v25
+    v27 = gas
+    v28 = abi_encode [], selector 0xc096a63200000000000000000000000000000000000000000000000000000000
+    v29 = slice_ptr v28
+    v30 = slice_len v28
+    v31 = staticcall v27, v21, v29, v30, 0, 32
+    jumpi v31, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v30 = returndatasize
-    v31 = lt v30, 32
-    jumpi v31, bb7, bb8
+    v32 = returndatasize
+    v33 = lt v32, 32
+    jumpi v33, bb7, bb8
   bb8:
-    v32 = add 0, 0
-    v33 = mload v32
     v34 = add 0, 0
     v35 = mload v34
-    v36 = eq v35, v24
-    ret v36
+    v36 = add 0, 0
+    v37 = mload v36
+    v38 = eq v37, v26
+    ret v38
   bb7:
     revert 0, 0
   bb1:
