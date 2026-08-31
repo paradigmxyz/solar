@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 // ported-from: test/utils/mocks/MockReentrancyGuard.sol
 
 // `abi.encodeWithSignature` with a signature that is not a string literal.

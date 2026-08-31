@@ -1,0 +1,6 @@
+// === ROOT/tests/ui/codegen/lowering/time_passes.sol:TimePasses ===
+@module TimePasses
+fn @f() {
+  bb0:
+    stop
+}

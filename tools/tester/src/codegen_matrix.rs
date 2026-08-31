@@ -1,3 +1,4 @@
+use regex::bytes::Regex;
 use ui_test::{
     CommentParser, Config, Revisioned,
     spanned::{Span, Spanned},
@@ -47,19 +48,22 @@ pub(crate) fn apply(config: &mut Config, src: &str) -> bool {
         }
     }
     config.comment_defaults.revisions = Some(revisions);
+    let artifact_stdout = Regex::new(r"(?s).+").unwrap();
+    let mir_stdout = Regex::new(r"\n(\n)$").unwrap();
     for (revision, flags) in [
         ("none", &["-O", "none", "--emit=abi,bin"] as &[&str]),
         ("gas", &["-O", "gas", "--emit=abi,bin"]),
         ("size", &["-O", "size", "--emit=abi,bin"]),
         ("mir", &["-O", "none", "-Zdump=mir"]),
     ] {
-        config
-            .comment_defaults
-            .revisioned
-            .entry(vec![revision.to_owned()])
-            .or_default()
-            .compile_flags
-            .extend(flags.iter().map(|flag| (*flag).to_owned()));
+        let defaults =
+            config.comment_defaults.revisioned.entry(vec![revision.to_owned()]).or_default();
+        defaults.compile_flags.extend(flags.iter().map(|flag| (*flag).to_owned()));
+        if revision == "mir" {
+            defaults.normalize_stdout.push((mir_stdout.clone().into(), b"$1".to_vec()));
+        } else {
+            defaults.normalize_stdout.push((artifact_stdout.clone().into(), vec![]));
+        }
     }
     true
 }
@@ -97,6 +101,10 @@ mod tests {
         assert_eq!(
             config.comment_defaults.revisioned[&["mir".to_owned()][..]].compile_flags,
             ["-O", "none", "-Zdump=mir"].map(str::to_owned)
+        );
+        assert_eq!(
+            config.comment_defaults.revisioned[&["mir".to_owned()][..]].normalize_stdout.len(),
+            1
         );
     }
 
