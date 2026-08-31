@@ -3831,9 +3831,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
-        // Stack-phi planning starts with loop analysis, but cannot produce a
-        // plan without a phi. Avoid that analysis for the overwhelmingly
-        // common phi-free function.
+        // Plan phi transfers and values kept on the stack through acyclic joins.
         let mut stack_phi_plan = StackPhiPlan::analyze(func, liveness, &self.cold_functions);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let existing_stack_only_values = self.stack_only_values(func_id, true);

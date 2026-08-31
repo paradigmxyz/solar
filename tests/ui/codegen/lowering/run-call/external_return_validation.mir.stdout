@@ -194,166 +194,38 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
     set_memory_object_len memorybytes, v11, v6
     v12 = make_returndata_slice 0, v6
     memory_object_copy_from_slice memorybytes, v11, v12
-    v13 = memory_object_len memorybytes, v11
-    v14 = memory_object_data memorybytes, v11
-    v15 = add v14, v13
-    v16 = lt v15, v14
-    v17 = lt v13, 64
-    v18 = or v16, v17
-    jumpi v18, bb6, bb5
-  bb5:
-    v19 = mload v14
-    v20 = add v14, v19
-    v21 = sub v15, v14
-    v22 = gt v19, v21
-    jumpi v22, bb8, bb7
-  bb7:
-    v23 = sub v15, v20
-    v24 = gt 32, v23
-    jumpi v24, bb10, bb9
-  bb9:
-    v25 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v26 = mload v20
-    v27 = add v20, v26
-    v28 = add v27, 32
-    v29 = gt v26, 0xffffffffffffffff
-    v30 = gt v28, v15
-    v31 = or v29, v30
-    jumpi v31, bb12, bb11
-  bb11:
-    v32 = mload v27
-    v33 = add v27, 32
-    v34 = add v32, 1
-    v35 = lt v34, v32
-    jumpi v35, bb13, bb14
-  bb14:
-    v36 = mul v34, 32
-    v37 = iszero 32
-    v38 = div v36, 32
-    v39 = eq v38, v34
-    v40 = or v37, v39
-    v41 = iszero v40
-    jumpi v41, bb15, bb16
-  bb16:
-    v42 = alloc memoryarray<1>, exact, uninitialized, panic, v36
-    set_memory_object_len memoryarray, v42, v32
-    v43 = sub v15, v33
-    v44 = shr 5, v43
-    v45 = gt v32, v44
-    jumpi v45, bb18, bb17
-  bb17:
-    v46 = mul v32, 32
-    v47 = make_memory_slice v33, v46
-    memory_object_copy_from_slice memoryarray, v42, v47
-    memory_object_store_field memorystruct<1>, v25, 0, v42
-    v48 = add v14, 32
-    v49 = mload v48
-    v50 = add v14, v49
-    v51 = sub v15, v14
-    v52 = gt v49, v51
-    jumpi v52, bb20, bb19
-  bb19:
-    v53 = sub v15, v50
-    v54 = gt 32, v53
-    jumpi v54, bb22, bb21
-  bb21:
-    v55 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v56 = mload v50
-    v57 = add v50, v56
-    v58 = add v57, 32
-    v59 = gt v56, 0xffffffffffffffff
-    v60 = gt v58, v15
-    v61 = or v59, v60
-    jumpi v61, bb24, bb23
-  bb23:
-    v62 = mload v57
-    v63 = add v57, 32
-    v64 = add v62, 1
-    v65 = lt v64, v62
-    jumpi v65, bb25, bb26
-  bb26:
-    v66 = mul v64, 32
-    v67 = iszero 32
-    v68 = div v66, 32
-    v69 = eq v68, v64
-    v70 = or v67, v69
-    v71 = iszero v70
-    jumpi v71, bb27, bb28
-  bb28:
-    v72 = alloc memoryarray<1>, exact, uninitialized, panic, v66
-    set_memory_object_len memoryarray, v72, v62
-    v73 = sub v15, v63
-    v74 = shr 5, v73
-    v75 = gt v62, v74
-    jumpi v75, bb30, bb29
-  bb29:
-    v76 = mul v62, 32
-    v77 = make_memory_slice v63, v76
-    memory_object_copy_from_slice memoryarray, v72, v77
-    memory_object_store_field memorystruct<1>, v55, 0, v72
-    v78 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v79 = memory_object_data memoryfixedarray, v78
-    frame_store multi_return, word, 0, v79 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v78, 1, v55
-    v80 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v81 = memory_object_load_element memoryfixedarray<2, 1>, v80, 1
-    v82 = memory_object_load_field memorystruct<1>, v25, 0
-    v83 = memory_object_len memoryarray, v82
-    v84 = lt 0, v83
-    v85 = iszero v84
-    jumpi v85, bb31, bb32
-  bb32:
-    memory_object_store_element memoryarray<1>, v82, 0, 9
-    v86 = memory_object_load_field memorystruct<1>, v81, 0
-    v87 = memory_object_len memoryarray, v86
-    v88 = lt 0, v87
-    v89 = iszero v88
-    jumpi v89, bb33, bb34
-  bb34:
-    v90 = memory_object_load_element memoryarray<1>, v86, 0
-    ret v90
-  bb33:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb31:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb30:
-    revert 0, 0
-  bb27:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb25:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb24:
-    revert 0, 0
-  bb22:
-    revert 0, 0
-  bb20:
-    revert 0, 0
-  bb18:
-    revert 0, 0
-  bb15:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb13:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb12:
-    revert 0, 0
-  bb10:
-    revert 0, 0
-  bb8:
-    revert 0, 0
+    v13 = abi_decode [tuple<array<_, u256>>, tuple<array<_, u256>>], v11
+    v14 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v15 = memory_object_load_element memoryfixedarray<2, 1>, v14, 1
+    v16 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v17 = memory_object_data memoryfixedarray, v16
+    frame_store multi_return, word, 0, v17 !metadata(memory=scratch)
+    memory_object_store_element memoryfixedarray<2, 1>, v16, 1, v15
+    v18 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v19 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
+    v20 = memory_object_load_field memorystruct<1>, v13, 0
+    v21 = memory_object_len memoryarray, v20
+    v22 = lt 0, v21
+    v23 = iszero v22
+    jumpi v23, bb5, bb6
   bb6:
-    revert 0, 0
+    memory_object_store_element memoryarray<1>, v20, 0, 9
+    v24 = memory_object_load_field memorystruct<1>, v19, 0
+    v25 = memory_object_len memoryarray, v24
+    v26 = lt 0, v25
+    v27 = iszero v26
+    jumpi v27, bb7, bb8
+  bb8:
+    v28 = memory_object_load_element memoryarray<1>, v24, 0
+    ret v28
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -857,44 +729,4 @@ fn @dynamicArrayLengthOverflowTarget() [selector=0x839ae554, pure, abi_params=[]
     mstore 0, 32 !metadata(memory=scratch)
     mstore 32, 0x10000000000000000 !metadata(memory=scratch)
     returndata 0, 64
-}
-
-fn @decode_memory_type(arg0: u256, arg1: u256, arg2: u256) -> memorystruct {
-  bb0:
-    v0 = mload arg0
-    v1 = add arg1, v0
-    v2 = sub arg2, arg1
-    v3 = gt v0, v2
-    jumpi v3, bb2, bb1
-  bb1:
-    v4 = sub arg2, v1
-    v5 = gt 32, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    v6 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v7 = mload v1
-    v8 = add v1, v7
-    v9 = add v8, 32
-    v10 = gt v7, 0xffffffffffffffff
-    v11 = gt v9, arg2
-    v12 = or v10, v11
-    jumpi v12, bb6, bb5
-  bb5:
-    v13 = mload v8
-    v14 = add v8, 32
-    v15 = sub arg2, v14
-    v16 = shr 5, v15
-    v17 = gt v13, v16
-    jumpi v17, bb8, bb7
-  bb7:
-    memory_object_store_field memorystruct<1>, v6, 0, v8
-    ret v6
-  bb8:
-    revert 0, 0
-  bb6:
-    revert 0, 0
-  bb4:
-    revert 0, 0
-  bb2:
-    revert 0, 0
 }

@@ -4,6 +4,9 @@
 //@ run-call: references 42 => 42, 84, 4096
 //@ run-call: nestedPush 2, 64 => 64
 //@ run-call: bytesPush => 71, 0x00
+//@ run-call: bytesPushLvalue 1 => 2, 0x00, 0xfe
+//@ run-call: bytesPushLvalue 70 => 71, 0x45, 0xfe
+//@ run-call: bytesPushTuple => 2, 0xaa, 0xbb
 //@ run-call: bytesTransition => 0
 //@ run-call: pushPreservesStorage => 42
 // ported-from: test/libsolidity/semanticTests/array/push/push_no_args_struct.sol
@@ -62,5 +65,16 @@ contract StorageArrayPushReferences {
         }
         entries.push();
         return entries[0].value;
+    }
+
+    function bytesPushLvalue(uint256 count) external returns (uint256, bytes1, bytes1) {
+        for (uint256 i; i < count; ++i) byteValues.push() = bytes1(uint8(i));
+        byteValues.push() = 0xfe;
+        return (byteValues.length, byteValues[count - 1], byteValues[count]);
+    }
+
+    function bytesPushTuple() external returns (uint256, bytes1, bytes1) {
+        (byteValues.push(), byteValues.push()) = (bytes1(0xaa), bytes1(0xbb));
+        return (byteValues.length, byteValues[0], byteValues[1]);
     }
 }

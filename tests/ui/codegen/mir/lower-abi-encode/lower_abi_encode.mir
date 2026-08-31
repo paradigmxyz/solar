@@ -46,6 +46,15 @@ fn @nested_dynamic_array(arg0: memoryarray) -> memoryslice {
     ret v0
 }
 
+// A fixed array expands one encoder site per element.
+// CHECK-LABEL: {{^[ +].*}}fn @fixed_nested_dynamic_arrays{{[( ]}}
+// CHECK: + {{v[0-9]+}} = internal_call @encode_abi_array
+fn @fixed_nested_dynamic_arrays(arg0: memoryfixedarray) -> memoryslice {
+  bb0:
+    v0 = abi_encode [array<2, memory_array<word<u8>>>], args arg0
+    ret v0
+}
+
 fn @returndata_bytes() -> memoryslice {
   bb0:
     v0 = returndatasize

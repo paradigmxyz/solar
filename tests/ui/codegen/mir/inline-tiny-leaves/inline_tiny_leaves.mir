@@ -54,3 +54,17 @@ fn @storage_identity(arg0: storageptr) -> storageptr [pure] {
   bb0:
     ret arg0
 }
+
+// ABI decode expands into validation branches and must stay out of tiny-leaf inlining.
+// CHECK-NOT: - {{.*}}internal_call @decode_dynamic
+fn @decode_caller(arg0: memorybytes) -> memoryarray {
+  bb0:
+    v0 = internal_call @decode_dynamic, 1, arg0
+    ret v0
+}
+
+fn @decode_dynamic(arg0: memorybytes) -> memoryarray {
+  bb0:
+    v0 = abi_decode [array<_, u256>], arg0
+    ret v0
+}

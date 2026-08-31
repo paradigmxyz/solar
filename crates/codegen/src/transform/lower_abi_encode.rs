@@ -75,6 +75,7 @@ fn synthesize_array_helpers(module: &mut Module) -> EncodeHelpers {
         func: &Function,
         ty: &AbiType,
         value: Option<ValueId>,
+        occurrences: usize,
         counts: &mut FxHashMap<ArrayHelperKey, (usize, usize)>,
     ) {
         match ty {
@@ -86,17 +87,23 @@ fn synthesize_array_helpers(module: &mut Module) -> EncodeHelpers {
                         .and_then(|value| func.value_ty(value))
                         .unwrap_or_else(MirType::uint256);
                     let next = counts.len();
-                    counts
+                    let count = counts
                         .entry(ArrayHelperKey { element: element.as_ref().clone(), value_ty })
-                        .or_insert((0, next))
-                        .0 += 1;
+                        .or_insert((0, next));
+                    count.0 = count.0.saturating_add(occurrences).min(2);
                 }
-                count_sites(func, element, None, counts);
+                count_sites(func, element, None, occurrences, counts);
             }
-            AbiType::FixedArray { element, .. } => count_sites(func, element, None, counts),
+            AbiType::FixedArray { element, len } => count_sites(
+                func,
+                element,
+                None,
+                occurrences.saturating_mul(usize::try_from(*len).unwrap_or(usize::MAX)).min(2),
+                counts,
+            ),
             AbiType::Tuple(fields) => {
                 for field in fields {
-                    count_sites(func, field, None, counts);
+                    count_sites(func, field, None, occurrences, counts);
                 }
             }
             AbiType::Word(_) | AbiType::Function | AbiType::Bytes(_) => {}
@@ -108,7 +115,7 @@ fn synthesize_array_helpers(module: &mut Module) -> EncodeHelpers {
         for inst in func.instructions() {
             let InstKind::AbiEncode { args, layout, .. } = &func.inst(inst).kind else { continue };
             for (&arg, ty) in args.iter().zip(&layout.types) {
-                count_sites(func, ty, Some(arg), &mut counts);
+                count_sites(func, ty, Some(arg), 1, &mut counts);
             }
         }
     }
