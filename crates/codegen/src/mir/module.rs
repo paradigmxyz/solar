@@ -334,7 +334,7 @@ impl Module {
                 writeln!(f, "data:")?;
                 for (id, data) in self.iter_data() {
                     if let Some(name) = self.data_name(id) {
-                        write!(f, "  {}", crate::display_data_name(name, id.index()))?;
+                        write!(f, "  {}", crate::utils::display_data_name(name, id.index()))?;
                     } else {
                         write!(f, "  {}", id.index())?;
                     }

@@ -27,13 +27,6 @@ pub use contract::{
 
 mod ir_parse;
 
-pub(crate) fn display_data_name(
-    name: solar_interface::Symbol,
-    index: usize,
-) -> impl std::fmt::Display {
-    std::fmt::from_fn(move |f| write!(f, "{name}_{index}"))
-}
-
 pub mod lower;
 
 pub mod pass;
