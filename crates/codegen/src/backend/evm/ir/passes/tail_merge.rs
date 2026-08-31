@@ -91,6 +91,23 @@ impl RunState {
                 self.representatives.push(block_id);
             }
         }
+
+        // A group with several suffix lengths creates a chain of shared tails. Each tail-to-tail
+        // jump also pushes its target, so prove its headroom for every source that reaches it.
+        let mut rejected = Vec::new();
+        for merge in &self.merges {
+            if !rejected.contains(&merge.representative)
+                && !tail_chain_has_jump_headroom(
+                    &mut depths,
+                    module,
+                    merge.representative,
+                    &self.merges,
+                )
+            {
+                rejected.push(merge.representative);
+            }
+        }
+        self.merges.retain(|merge| !rejected.contains(&merge.representative));
     }
 
     fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
@@ -187,6 +204,34 @@ impl RunState {
         debug_assert!(labels.next().is_none());
         true
     }
+}
+
+fn tail_chain_has_jump_headroom(
+    depths: &mut Option<Option<StackDepths>>,
+    module: &Module,
+    representative: BlockId,
+    merges: &[Merge],
+) -> bool {
+    let mut commons = merges
+        .iter()
+        .filter(|merge| merge.representative == representative)
+        .map(|merge| merge.common)
+        .collect::<Vec<_>>();
+    commons.sort_unstable();
+    commons.dedup();
+
+    for (index, &common) in commons.iter().enumerate().skip(1) {
+        let previous = commons[index - 1];
+        if !split_has_jump_headroom(depths, module, representative, previous)
+            || merges
+                .iter()
+                .filter(|merge| merge.representative == representative && merge.common >= common)
+                .any(|merge| !split_has_jump_headroom(depths, module, merge.block, previous))
+        {
+            return false;
+        }
+    }
+    true
 }
 
 fn split_has_jump_headroom(
