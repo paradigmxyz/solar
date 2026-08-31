@@ -138,4 +138,3 @@ fn @get_allowance(arg0: address, arg1: address) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

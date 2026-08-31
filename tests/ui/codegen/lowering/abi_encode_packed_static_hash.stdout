@@ -32,4 +32,3 @@ fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

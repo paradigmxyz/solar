@@ -39,4 +39,3 @@ fn @get() -> u256 [abi_returns=[word]] {
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
-

@@ -1,6 +1,7 @@
-//@ compile-flags: --emit=bin-runtime -Zmir-pipeline=lower-abi,lower-abi-encode,lower-aggregates,lower-slices,lower-dispatch,lower-memory-objects,lower-alloc,lower-evm-shaped
+//@ codegen-matrix: standard
+//@ compile-flags: -Zmir-pipeline=lower-abi,lower-abi-encode,lower-aggregates,lower-slices,lower-dispatch,lower-memory-objects,lower-alloc,lower-evm-shaped
 
-contract StoreImmutableRequiresLowering { //~ ERROR: immutable assignments must be lowered before EVM codegen
+contract StoreImmutableRequiresLowering { //~[none,gas,size] ERROR: immutable assignments must be lowered before EVM codegen
     uint256 immutable value;
 
     constructor(uint256 value_) {

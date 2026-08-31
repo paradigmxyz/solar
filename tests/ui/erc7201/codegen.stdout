@@ -151,4 +151,3 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v26 = sub v19, 1
     jump bb4
 }
-

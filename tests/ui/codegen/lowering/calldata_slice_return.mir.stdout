@@ -1,0 +1,196 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_return.sol:CalldataSliceReturn ===
+@module CalldataSliceReturn
+fn @whole(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = gt v5, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = slice_len arg0
+    v17 = add v16, 31
+    v18 = lt v17, v16
+    jumpi v18, bb9, bb10
+  bb10:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = iszero v20
+    v22 = select v21, 32, v20
+    v23 = add 32, v22
+    v24 = lt v23, v22
+    jumpi v24, bb11, bb12
+  bb12:
+    v25 = alloc memorybytes, exact, uninitialized, infallible, v23
+    set_memory_object_len memorybytes, v25, v16
+    v26 = memory_object_data memorybytes, v25
+    v27 = sub v22, 32
+    v28 = add v26, v27
+    mstore v28, 0
+    v29 = slice_ptr arg0
+    calldatacopy v26, v29, v16 !metadata(memory=heap)
+    ret v25
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @tail(arg0: calldataslice) -> memorybytes [abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = gt v5, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = slice_ptr arg0
+    v17 = slice_len arg0
+    v18 = lt v17, 4
+    jumpi v18, bb9, bb10
+  bb10:
+    v19 = sub v17, 4
+    v20 = add v16, 4
+    v21 = make_calldata_slice v20, v19
+    v22 = slice_len v21
+    v23 = add v22, 31
+    v24 = lt v23, v22
+    jumpi v24, bb11, bb12
+  bb12:
+    v25 = not 31
+    v26 = and v23, v25
+    v27 = iszero v26
+    v28 = select v27, 32, v26
+    v29 = add 32, v28
+    v30 = lt v29, v28
+    jumpi v30, bb13, bb14
+  bb14:
+    v31 = alloc memorybytes, exact, uninitialized, infallible, v29
+    set_memory_object_len memorybytes, v31, v22
+    v32 = memory_object_data memorybytes, v31
+    v33 = sub v28, 32
+    v34 = add v32, v33
+    mstore v34, 0
+    v35 = slice_ptr v21
+    calldatacopy v32, v35, v22 !metadata(memory=heap)
+    ret v31
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @words(arg0: calldataslice) -> memoryarray [abi_returns=[memory_array<word>]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = slice_ptr arg0
+    v5 = slice_len arg0
+    v6 = lt v4, 32
+    v7 = sub v4, 32
+    v8 = lt v7, 4
+    v9 = or v6, v8
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = gt v7, v3
+    v11 = sub v3, v7
+    v12 = gt 32, v11
+    v13 = or v10, v12
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = sub v3, v4
+    v15 = div v14, 32
+    v16 = gt v5, v15
+    jumpi v16, bb7, bb8
+  bb8:
+    v17 = slice_len arg0
+    v18 = slice_ptr arg0
+    v19 = shr 251, v17
+    jumpi v19, bb9, bb10
+  bb10:
+    v20 = mul v17, 32
+    v21 = add 32, v20
+    v22 = alloc memoryarray<1>, exact, uninitialized, infallible, v21
+    set_memory_object_len memoryarray, v22, v17
+    v23 = memory_object_data memoryarray, v22
+    calldatacopy v23, v18, v20 !metadata(memory=heap)
+    ret v22
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    revert 0, 0
+  bb5:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}

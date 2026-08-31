@@ -89,4 +89,3 @@ fn @decode(arg0: calldataslice) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

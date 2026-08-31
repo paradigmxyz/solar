@@ -28,4 +28,3 @@ fn @pair() -> (u256, u256) [abi_returns=[word, word]] {
     v9 = mload v8
     ret v6, v9
 }
-

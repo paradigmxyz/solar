@@ -14,4 +14,3 @@ fn @get() -> bytes32 [abi_returns=[word]] {
     v0 = loadimmutable value
     ret v0
 }
-

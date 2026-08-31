@@ -1304,7 +1304,7 @@ impl<'gcx> Lowerer<'gcx> {
         let check_expr_errors = std::mem::replace(&mut self.check_expr_errors, self.hir_has_errors);
         let hir_func = self.gcx.hir.function(func_id);
 
-        let func_name = hir_func.name.unwrap_or_else(|| Ident::new(sym::_anonymous, Span::DUMMY));
+        let func_name = Ident::new(hir_func.name_or_kind(), Span::DUMMY);
 
         // Reserve and register the MIR id before lowering the body so recursive
         // self-calls can resolve to this function.

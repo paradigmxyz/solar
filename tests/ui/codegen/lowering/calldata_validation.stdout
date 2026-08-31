@@ -179,4 +179,3 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

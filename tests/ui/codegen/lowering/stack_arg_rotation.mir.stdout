@@ -1,0 +1,108 @@
+// === ROOT/tests/ui/codegen/lowering/stack_arg_rotation.sol:StackArgRotation ===
+@module StackArgRotation
+fn @sink() -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @run(arg0: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb2:
+    mstore 128, 0
+    v3 = add arg0, 1
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb4:
+    v5 = xor arg0, 7
+    v6 = internal_call @mix, 1, v3, v5
+    mstore 128, v6
+    v7 = internal_call @mix, 1, arg0, 1
+    v8 = mload 128
+    v9 = add v8, v7
+    v10 = lt v9, v8
+    jumpi v10, bb5, bb6
+  bb6:
+    mstore 128, v9
+    v11 = internal_call @mix, 1, arg0, 2
+    v12 = mload 128
+    v13 = add v12, v11
+    v14 = lt v13, v12
+    jumpi v14, bb7, bb8
+  bb8:
+    mstore 128, v13
+    v15 = internal_call @mix, 1, arg0, 3
+    v16 = mload 128
+    v17 = add v16, v15
+    v18 = lt v17, v16
+    jumpi v18, bb9, bb10
+  bb10:
+    mstore 128, v17
+    v19 = mload 128
+    ret v19
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @mix(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = internal_frame_addr 160
+    mstore v1, v0 !metadata(memory=internal_frame)
+    v2 = mul arg0, 3
+    v3 = internal_frame_addr 192
+    mstore v3, v2 !metadata(memory=internal_frame)
+    v4 = internal_frame_addr 192
+    v5 = mload v4 !metadata(memory=internal_frame)
+    v6 = xor v5, arg1
+    v7 = internal_frame_addr 224
+    mstore v7, v6 !metadata(memory=internal_frame)
+    v8 = internal_frame_addr 160
+    v9 = mload v8 !metadata(memory=internal_frame)
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = xor v10, v9
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = internal_frame_addr 160
+    v14 = mload v13 !metadata(memory=internal_frame)
+    v15 = add v14, v12
+    v16 = internal_frame_addr 160
+    mstore v16, v15 !metadata(memory=internal_frame)
+    v17 = internal_frame_addr 160
+    v18 = mload v17 !metadata(memory=internal_frame)
+    v19 = internal_frame_addr 192
+    v20 = mload v19 !metadata(memory=internal_frame)
+    v21 = xor v20, v18
+    v22 = internal_frame_addr 192
+    mstore v22, v21 !metadata(memory=internal_frame)
+    v23 = internal_frame_addr 192
+    v24 = mload v23 !metadata(memory=internal_frame)
+    v25 = internal_frame_addr 224
+    v26 = mload v25 !metadata(memory=internal_frame)
+    v27 = add v26, v24
+    v28 = internal_frame_addr 224
+    mstore v28, v27 !metadata(memory=internal_frame)
+    v29 = internal_frame_addr 224
+    v30 = mload v29 !metadata(memory=internal_frame)
+    ret v30
+}

@@ -476,4 +476,3 @@ fn @_split(arg0: calldataslice) -> (memorybytes, memorybytes) {
   bb1:
     revert 0, 0
 }
-

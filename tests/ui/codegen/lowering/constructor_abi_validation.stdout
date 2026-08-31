@@ -15,7 +15,7 @@ fn @second() -> bool [abi_returns=[word]] {
     ret v2
 }
 
-fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
+fn @constructor(arg0: bool, arg1: u256, arg2: u256) {
   bb0:
     v0 = constructor_args_base
     v1 = add v0, 0
@@ -65,4 +65,3 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
     sstore 0, v29 !metadata(storage=slot(0))
     stop
 }
-

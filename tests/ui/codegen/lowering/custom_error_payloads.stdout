@@ -125,4 +125,3 @@ fn @require_named(arg0: bool) {
   bb1:
     revert 0, 0
 }
-

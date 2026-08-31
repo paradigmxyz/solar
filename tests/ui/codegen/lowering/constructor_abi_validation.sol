@@ -11,7 +11,7 @@ contract ConstructorAbiValidation {
     // CHECK: and {{v[0-9]+}}, 255
     bool public second;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: [[BASE:v[0-9]+]] = constructor_args_base
     // CHECK: [[FIRST:v[0-9]+]] = add [[BASE]], 0
     // CHECK-NEXT: {{v[0-9]+}} = mload [[FIRST]]
