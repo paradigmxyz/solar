@@ -47,6 +47,12 @@ contract SwitchLowerings {
     // BUCKETSSIZE-NEXT: dup 2
     // BUCKETSSIZE-NEXT: mod
     // BUCKETSSIZE-NEXT: indexed_jump
+    // BUCKETSSIZE: PUSH1 0x18
+    // BUCKETSSIZE-NEXT: ADD
+    // BUCKETSSIZE-NEXT: PUSH8
+    // BUCKETSSIZE-NEXT: SWAP1
+    // BUCKETSSIZE-NEXT: BYTE
+    // BUCKETSSIZE-NEXT: JUMP ; unknown
 
     // DENSE-LABEL: @module runtime
     // DENSE: push 8
