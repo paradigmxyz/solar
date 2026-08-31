@@ -1,3 +1,4 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
 //@ filecheck:
 // CHECK-LABEL: "bytecode": {
 // CHECK-NEXT: "ethdebug": {

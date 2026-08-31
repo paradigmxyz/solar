@@ -13,9 +13,10 @@
 -   swap 1 !metadata(span=70..80)
 -   mstore !metadata(span=70..80)
 +   push 64 !metadata(span=70..80)
-+   push_data 0 !metadata(span=70..80)
++   push_data literal_0 !metadata(span=70..80)
 +   dup 3 !metadata(span=70..80)
 +   codecopy !metadata(span=70..80)
     stop
-+ @code_data 0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
++ 
++ @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
   
