@@ -8,6 +8,7 @@ use super::{
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_data_structures::map::FxHashMap;
 
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
@@ -30,12 +31,20 @@ impl PanicCode {
     }
 }
 
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum RevertKind {
+    Empty,
+    Panic(PanicCode),
+}
+
 /// A builder for constructing MIR functions.
 pub(crate) struct FunctionBuilder<'a> {
     /// The function being built.
     func: &'a mut Function,
     /// The current block.
     current_block: BlockId,
+    /// Revert blocks shared within this function.
+    revert_blocks: FxHashMap<RevertKind, BlockId>,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -55,7 +64,7 @@ impl CountedLoop {
 impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
-        Self { func, current_block: BlockId::ENTRY }
+        Self { func, current_block: BlockId::ENTRY, revert_blocks: FxHashMap::default() }
     }
 
     /// Returns the current block.
@@ -156,22 +165,12 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is true.
     pub(crate) fn panic_if(&mut self, condition: ValueId, code: PanicCode) {
-        let panic_block = self.create_block();
-        let continue_block = self.create_block();
-        self.branch(condition, panic_block, continue_block);
-        self.switch_to_block(panic_block);
-        self.panic(code);
-        self.switch_to_block(continue_block);
+        self.branch_to_revert(condition, false, RevertKind::Panic(code));
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload when `condition` is zero.
     pub(crate) fn panic_if_zero(&mut self, condition: ValueId, code: PanicCode) {
-        let panic_block = self.create_block();
-        let continue_block = self.create_block();
-        self.branch(condition, continue_block, panic_block);
-        self.switch_to_block(panic_block);
-        self.panic(code);
-        self.switch_to_block(continue_block);
+        self.branch_to_revert(condition, true, RevertKind::Panic(code));
     }
 
     /// Reverts with empty data when `condition` is true.
@@ -185,18 +184,43 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn revert_if_with(&mut self, condition: ValueId, condition_is_zero: bool) -> BlockId {
+        self.branch_to_revert(condition, condition_is_zero, RevertKind::Empty)
+    }
+
+    fn branch_to_revert(
+        &mut self,
+        condition: ValueId,
+        condition_is_zero: bool,
+        kind: RevertKind,
+    ) -> BlockId {
+        let (revert, new_revert) = self.revert_block(kind);
         let continue_block = self.create_block();
-        let revert = self.create_block();
         if condition_is_zero {
             self.branch(condition, continue_block, revert);
         } else {
             self.branch(condition, revert, continue_block);
         }
-        self.switch_to_block(revert);
-        let zero = self.imm_u64(0);
-        self.revert(zero, zero);
+        if new_revert {
+            self.switch_to_block(revert);
+            match kind {
+                RevertKind::Empty => {
+                    let zero = self.imm_u64(0);
+                    self.revert(zero, zero);
+                }
+                RevertKind::Panic(code) => self.panic(code),
+            }
+        }
         self.switch_to_block(continue_block);
         continue_block
+    }
+
+    fn revert_block(&mut self, kind: RevertKind) -> (BlockId, bool) {
+        if let Some(&block) = self.revert_blocks.get(&kind) {
+            return (block, false);
+        }
+        let block = self.create_block();
+        self.revert_blocks.insert(kind, block);
+        (block, true)
     }
 
     /// Reverts with `PanicCode::EnumConversion` when `value` is not a valid variant index.
