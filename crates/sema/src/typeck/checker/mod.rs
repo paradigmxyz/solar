@@ -661,8 +661,8 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
                 // TODO: Does mobile need to return None?
-                let true_ty = self.check_expr_with(true_, expected).mobile(self.gcx);
-                let false_ty = self.check_expr_with(false_, expected).mobile(self.gcx);
+                let true_ty = self.check_expr_with_noexpect(true_, expected).mobile(self.gcx);
+                let false_ty = self.check_expr_with_noexpect(false_, expected).mobile(self.gcx);
                 match (true_ty, false_ty) {
                     (Some(true_ty), Some(false_ty)) => {
                         true_ty.common_type(false_ty, self.gcx).unwrap_or_else(|| {

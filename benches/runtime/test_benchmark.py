@@ -91,6 +91,25 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(json.loads(overridden)["settings"]["evmVersion"], "amsterdam")
         self.assertEqual(benchmark.with_evm_version(original, None), original)
 
+    def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
+        first = json.dumps(
+            {
+                "contracts": {"A.sol": {"A": {}}},
+                "errors": [{"message": "a"}, {"message": "b"}],
+            }
+        )
+        second = json.dumps(
+            {
+                "errors": [{"message": "b"}, {"message": "a"}],
+                "contracts": {"A.sol": {"A": {}}},
+            }
+        )
+
+        self.assertEqual(
+            benchmark.compiler_output_fingerprint(first),
+            benchmark.compiler_output_fingerprint(second),
+        )
+
     def test_select_tests(self) -> None:
         heavy = [case for case in benchmark.TEST_CASES if case.suite == "heavy"]
         micro = [case for case in benchmark.TEST_CASES if case.suite == "micro"]
