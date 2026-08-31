@@ -185,8 +185,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             if bits == 256 {
                                 self.builder.lt(result, lhs)
                             } else {
-                                let max =
-                                    self.builder.imm((U256::from(1) << bits) - U256::ONE);
+                                let max = self.builder.imm((U256::from(1) << bits) - U256::ONE);
                                 self.builder.gt(result, max)
                             }
                         }
@@ -336,7 +335,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.clean_bit_not_result(result, ty)
             }
             UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec => {
-                return self.context.report_unsupported(span, "increment or decrement");
+                return self.cx.report_unsupported(span, "increment or decrement");
             }
         })
     }

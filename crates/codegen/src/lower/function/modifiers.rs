@@ -65,32 +65,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if modifier.id.as_contract().is_some() {
             return self.lower_modifier_at(modifiers, body, index + 1);
         }
-        let Some(modifier_id) =
-            self.context.gcx.resolve_modifier_target(self.context.contract_id, modifier)
+        let Some(modifier_id) = self.cx.gcx.resolve_modifier_target(self.cx.contract_id, modifier)
         else {
-            return self.context.report_unsupported(modifier.span,
-                "base constructor modifier",
-            );
+            return self.cx.report_unsupported(modifier.span, "base constructor modifier");
         };
-        let modifier_function = self.context.gcx.hir.function(modifier_id);
+        let modifier_function = self.cx.gcx.hir.function(modifier_id);
         if modifier_function.kind == hir::FunctionKind::Constructor {
             return self.lower_modifier_at(modifiers, body, index + 1);
         }
         if !modifier_function.kind.is_modifier() {
-            return self.context.report_unsupported(modifier.span, "modifier target");
+            return self.cx.report_unsupported(modifier.span, "modifier target");
         }
         let Some(modifier_body) = modifier_function.body else {
-            return self.context.report_unsupported(modifier.span, "modifier body");
+            return self.cx.report_unsupported(modifier.span, "modifier body");
         };
         if modifier.args.len() != modifier_function.parameters.len() {
-            return self.context.report_unsupported(modifier.span, "modifier argument list");
+            return self.cx.report_unsupported(modifier.span, "modifier argument list");
         }
         let incoming_returns = self.snapshot_bindings(&self.returns);
         let local_ids = self.modifier_local_ids(modifier_body);
         let saved_locals = self.snapshot_bindings(&local_ids);
         let parameter_names = match modifier.args.kind {
             hir::CallArgsKind::Named(_) => {
-                Some(self.context.gcx.callable_param_names(CallableParamSource::Function {
+                Some(self.cx.gcx.callable_param_names(CallableParamSource::Function {
                     id: modifier_id,
                     skips_receiver: false,
                 }))
@@ -102,14 +99,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 modifier.args.argument_for_parameter(index, parameter_names.as_deref())
             else {
-                return self.context.report_unsupported(modifier.span,
-                    "named modifier argument",
-                );
+                return self.cx.report_unsupported(modifier.span, "named modifier argument");
             };
-            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
+            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             if Self::is_storage_parameter(parameter_ty) {
                 let Some(access) = self.storage_access(argument) else {
-                    return self.context.report_unsupported(argument.span, "storage access");
+                    return self.cx.report_unsupported(argument.span, "storage access");
                 };
                 self.storage_refs.insert(parameter, access);
             } else {
@@ -140,8 +135,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn modifier_local_ids(&self, body: hir::Block<'gcx>) -> Vec<hir::VariableId> {
-        let mut visitor =
-            ModifierLocalIds { hir: &self.context.gcx.hir, ids: FxHashSet::default() };
+        let mut visitor = ModifierLocalIds { hir: &self.cx.gcx.hir, ids: FxHashSet::default() };
         for stmt in body.stmts {
             let _ = visitor.visit_stmt(stmt);
         }
@@ -155,23 +149,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         constructor: &'gcx hir::Function<'gcx>,
     ) -> Option<()> {
         let Some(body) = constructor.body else {
-            return self.context.report_unsupported(modifier.span, "base constructor body");
+            return self.cx.report_unsupported(modifier.span, "base constructor body");
         };
         if modifier.args.len() != constructor.parameters.len() {
-            return self.context.report_unsupported(modifier.span,
-                "base constructor arguments",
-            );
+            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
         }
         let contract_id = constructor.contract;
         let Some(values) = self.constructor_arguments.remove(&constructor_id) else {
-            return self.context.report_unsupported(modifier.span,
-                "base constructor arguments",
-            );
+            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
         };
         if values.len() != constructor.parameters.len() {
-            return self.context.report_unsupported(modifier.span,
-                "base constructor arguments",
-            );
+            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
         }
         let saved_parameters = self.snapshot_bindings(constructor.parameters);
         for (&parameter, value) in constructor.parameters.iter().zip(values) {
@@ -201,7 +189,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
         let Some(context) = self.modifiers.pop() else {
-            return self.context.report_unsupported(span, "modifier placeholder");
+            return self.cx.report_unsupported(span, "modifier placeholder");
         };
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();

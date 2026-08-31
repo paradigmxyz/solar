@@ -208,7 +208,7 @@ pub(super) fn lower_synthetic_constructor(
 /// one object makes scope changes explicit. Child lowering methods do not need
 /// to pass a growing collection of loosely related maps and flags.
 struct FunctionLowerer<'gcx, 'ctx> {
-    context: LoweringContext<'gcx, 'ctx>,
+    cx: LoweringContext<'gcx, 'ctx>,
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
@@ -386,10 +386,10 @@ fn internal_function_pointer_id(function_id: hir::FunctionId) -> u64 {
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    fn new(context: LoweringContext<'gcx, 'ctx>, function: &'ctx mut Function) -> Self {
-        let gcx = context.gcx;
+    fn new(cx: LoweringContext<'gcx, 'ctx>, function: &'ctx mut Function) -> Self {
+        let gcx = cx.gcx;
         Self {
-            context,
+            cx,
             builder: FunctionBuilder::new(function),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
@@ -419,23 +419,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // build(id)
         // if build fails { invalid(id); remove helpers[name] }
         // return id
-        if let Some(&id) = self.context.state.helpers.get(&name) {
+        if let Some(&id) = self.cx.state.helpers.get(&name) {
             return Some(id);
         }
 
         let ident = Ident::with_dummy_span(name);
-        let id = self.context.module.add_function(Function::new(ident));
-        self.context.state.helpers.insert(name, id);
+        let id = self.cx.module.add_function(Function::new(ident));
+        self.cx.state.helpers.insert(name, id);
 
         let mut function = Function::new(ident);
         if build(self, &mut function).is_none() {
             FunctionBuilder::new(&mut function).invalid();
-            *self.context.module.function_mut(id) = function;
-            self.context.state.helpers.remove(&name);
+            *self.cx.module.function_mut(id) = function;
+            self.cx.state.helpers.remove(&name);
             return None;
         }
-        function.name = self.context.module.function(id).name;
-        *self.context.module.function_mut(id) = function;
+        function.name = self.cx.module.function(id).name;
+        *self.cx.module.function_mut(id) = function;
         Some(id)
     }
 
@@ -466,12 +466,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
-                    self.lower_typed_expr(&option.value, self.context.gcx.types.uint(256))?;
+                    self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
                 match option.name.name {
                     kw::Gas => gas = option_value,
                     sym::value if allow_value => value = option_value,
                     _ => {
-                        return self.context.report_unsupported(option.name.span, diagnostic);
+                        return self.cx.report_unsupported(option.name.span, diagnostic);
                     }
                 }
             }
@@ -481,8 +481,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {
         let TyKind::Enum(id) = ty.peel_refs().kind else { return };
-        self.builder
-            .validate_enum_value(self.context.gcx.hir.enumm(id).variants.len() as u64, value);
+        self.builder.validate_enum_value(self.cx.gcx.hir.enumm(id).variants.len() as u64, value);
     }
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -490,16 +489,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
             ExprKind::Ident(_) => {
-                if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
+                if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
                     return self.lower_builtin_value(expr, builtin);
                 }
                 if let Some(value) = self.lower_internal_function_value(expr) {
                     return Some(value);
                 }
-                let id = self.context.gcx.resolved_variable(expr)?;
+                let id = self.cx.gcx.resolved_variable(expr)?;
                 let value = self.load_variable(id, expr.span)?;
-                if self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
-                    && self.context.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
+                if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
+                    && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
                         self.builder.func().value_ty(value),
                         Some(MirType::Slice(SliceLocation::Calldata))
@@ -514,20 +513,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
-                if let Some(function_id) = self.context.gcx.user_operator(expr.id) {
+                if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
                     let lhs = self.lower_expr(lhs)?;
                     let rhs = self.lower_expr(rhs)?;
                     return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
                 }
-                if self.context.gcx.unsupported_udvt_operator(expr.id) {
+                if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let lhs_ty = self.context.gcx.type_of_expr(lhs.id);
+                let lhs_ty = self.cx.gcx.type_of_expr(lhs.id);
                 let mut lhs = self.lower_expr(lhs)?;
                 if let Some(ty) = lhs_ty {
                     lhs = self.normalize_dirty_scalar(lhs, ty);
                 }
-                let rhs_ty = self.context.gcx.type_of_expr(rhs.id);
+                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
                 let mut rhs = self.lower_expr(rhs)?;
                 if let Some(ty) = rhs_ty {
                     rhs = self.normalize_dirty_scalar(rhs, ty);
@@ -558,7 +557,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     _ => (lhs, rhs),
                 };
-                let expr_ty = self.context.gcx.type_of_expr(expr.id);
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id);
                 let lhs_is_literal =
                     lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
                 let rhs_is_literal =
@@ -569,7 +568,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .zip(rhs_ty)
                         .is_some_and(|(lhs, rhs)| lhs.is_signed() || rhs.is_signed());
                 let ty = if signed_literal_arithmetic {
-                    Some(self.context.gcx.types.int(256))
+                    Some(self.cx.gcx.types.int(256))
                 } else {
                     match op.kind {
                         BinOpKind::Lt | BinOpKind::Gt | BinOpKind::Le | BinOpKind::Ge
@@ -605,7 +604,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
                 ) {
                     let place = self.resolve_lvalue_place(value)?;
-                    let ty = self.context.gcx.type_of_expr(value.id);
+                    let ty = self.cx.gcx.type_of_expr(value.id);
                     let old = self.load_lvalue_place(&place)?;
                     let old = ty.map_or(old, |ty| self.normalize_dirty_scalar(old, ty));
                     let one = self.builder.imm(1);
@@ -622,21 +621,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         old
                     });
                 }
-                if let Some(function_id) = self.context.gcx.user_operator(expr.id) {
+                if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
                     let value = self.lower_expr(value)?;
                     return self.lower_user_operator(expr.span, function_id, &[value]);
                 }
-                if self.context.gcx.unsupported_udvt_operator(expr.id) {
+                if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let ty = self.context.gcx.type_of_expr(value.id);
+                let ty = self.cx.gcx.type_of_expr(value.id);
                 let value = self.lower_expr(value)?;
                 let value = ty.map_or(value, |ty| self.normalize_dirty_scalar(value, ty));
-                self.unary(op.kind, value, expr.span, self.context.gcx.type_of_expr(expr.id))
+                self.unary(op.kind, value, expr.span, self.cx.gcx.type_of_expr(expr.id))
             }
             ExprKind::Assign(lhs, op, rhs) => {
                 let compound_op = op.map(|op| op.kind);
-                if compound_op.is_some() && self.context.gcx.unsupported_udvt_operator(expr.id) {
+                if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
                 if op.is_none()
@@ -647,20 +646,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
                     let Some(access) = self.storage_access(rhs) else {
-                        return self.context.report_unsupported(rhs.span, "storage access");
+                        return self.cx.report_unsupported(rhs.span, "storage access");
                     };
-                    let Some(id) = self.context.gcx.resolved_variable(lhs) else {
-                        return self.context.report_unsupported(lhs.span,
-                            "storage reference target",
-                        );
+                    let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
+                        return self.cx.report_unsupported(lhs.span, "storage reference target");
                     };
                     self.storage_refs.insert(id, access);
                     return Some(self.builder.imm(U256::ZERO));
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
-                let rhs_ty = self.context.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
-                let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 let rhs_value = if self.in_inline_assembly {
                     self.lower_yul_word_expr(rhs)?
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
@@ -719,15 +716,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),
-            _ if self.context.gcx.dcx().has_errors().is_err() => {
-                Some(self.builder.imm(U256::ZERO))
-            }
-            _ => self.context.report_unsupported(expr.span, "expression"),
+            _ if self.cx.gcx.dcx().has_errors().is_err() => Some(self.builder.imm(U256::ZERO)),
+            _ => self.cx.report_unsupported(expr.span, "expression"),
         }
     }
 
     fn report_unsupported_udvt_operator(&self, span: Span) -> Option<ValueId> {
-        self.context
+        self.cx
             .gcx
             .dcx()
             .err("user-defined operators are not supported in this codegen path")

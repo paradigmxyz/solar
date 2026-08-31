@@ -852,9 +852,8 @@ impl LowerAbiCx {
             AbiParamType::FixedArray { element, len } => {
                 let length = builder.imm(*len);
                 builder.counted_loop(length, |builder, index| {
-                    let stride = builder.imm(
-                        element.checked_head_size().expect("ABI head size exceeds u64 range"),
-                    );
+                    let stride = builder
+                        .imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
                     let offset = builder.mul(index, stride);
                     let element_head = builder.add(head, offset);
                     let mut element_invalid = builder.imm_bool(false);

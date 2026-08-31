@@ -72,8 +72,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
         for expr in exprs {
-            let ty = self.context.gcx.type_of_expr(expr.id)?;
-            let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+            let ty = self.cx.gcx.type_of_expr(expr.id)?;
+            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let value = self.lower_typed_expr(expr, memory_ty)?;
             let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                 AbiType::Bytes(SliceLocation::Memory)
@@ -96,7 +96,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.lower_expr(expr)?
         };
-        let fixed_bytes = self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+        let fixed_bytes = self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
             matches!(
                 ty.peel_refs().kind,
                 TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(_))
@@ -142,7 +142,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // selector = keccak256(materialize(signature))[0..4] << 224
-        let signature_ty = self.context.gcx.type_of_expr(signature.id);
+        let signature_ty = self.cx.gcx.type_of_expr(signature.id);
         let signature = self.lower_expr(signature)?;
         if let Some(signature_ty) = signature_ty
             && let Some(abi_type) = self.types.abi_type(signature_ty)
@@ -172,30 +172,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let function = &args[0];
         let tuple = &args[1];
         let (selector, parameter_types) =
-            if let Some(function_id) = self.context.gcx.resolved_function(function) {
-                let selector = self.context.gcx.function_selector(function_id).0;
+            if let Some(function_id) = self.cx.gcx.resolved_function(function) {
+                let selector = self.cx.gcx.function_selector(function_id).0;
                 let parameter_types = self
-                    .context
+                    .cx
                     .gcx
                     .hir
                     .function(function_id)
                     .parameters
                     .iter()
-                    .map(|&parameter| self.context.gcx.type_of_item(parameter.into()))
+                    .map(|&parameter| self.cx.gcx.type_of_item(parameter.into()))
                     .collect::<Vec<_>>();
                 (self.builder.imm(U256::from_be_slice(&selector) << 224), parameter_types)
             } else {
                 let Some(TyKind::Fn(function_ty)) =
-                    self.context.gcx.type_of_expr(function.id).map(|ty| ty.kind)
+                    self.cx.gcx.type_of_expr(function.id).map(|ty| ty.kind)
                 else {
-                    return self.context.report_unsupported(function.span,
-                        "abi.encodeCall function",
-                    );
+                    return self.cx.report_unsupported(function.span, "abi.encodeCall function");
                 };
                 if !function_ty.is_external() {
-                    return self.context.report_unsupported(function.span,
-                        "abi.encodeCall function",
-                    );
+                    return self.cx.report_unsupported(function.span, "abi.encodeCall function");
                 }
                 let function_value = self.lower_expr(function)?;
                 let mask = self.builder.imm(u32::MAX);
@@ -208,15 +204,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => vec![tuple],
         };
         if exprs.len() != parameter_types.len() {
-            return self.context.report_unsupported(tuple.span,
-                "abi.encodeCall argument list",
-            );
+            return self.cx.report_unsupported(tuple.span, "abi.encodeCall argument list");
         }
         let mut values = Vec::with_capacity(exprs.len());
         let mut types = Vec::with_capacity(exprs.len());
         for (index, expr) in exprs.into_iter().enumerate() {
             let ty = parameter_types[index];
-            let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let value = self.lower_typed_expr(expr, memory_ty)?;
             let abi_type = self.types.abi_type(ty)?;
             let (value, abi_type) = self.prepare_abi_encode_argument(expr, ty, value, abi_type)?;
@@ -253,33 +247,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let types = match args[1].kind {
             ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
             _ => {
-                return self.context.report_unsupported(args[1].span,
-                    "abi.decode target type",
-                );
+                return self.cx.report_unsupported(args[1].span, "abi.decode target type");
             }
         };
         if types.is_empty() {
-            return self.context.report_unsupported(args[1].span, "abi.decode target type");
+            return self.cx.report_unsupported(args[1].span, "abi.decode target type");
         }
         let mut decoded_types = Vec::with_capacity(types.len());
         for ty_expr in &types {
-            let Some(TyKind::Type(ty)) =
-                self.context.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
+            let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
             else {
-                return self.context.report_unsupported(ty_expr.span,
-                    "abi.decode target type",
-                );
+                return self.cx.report_unsupported(ty_expr.span, "abi.decode target type");
             };
-            decoded_types.push(ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory));
+            decoded_types.push(ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory));
         }
 
         let data_expr = &args[0];
-        let data_ty = self.context.gcx.type_of_expr(data_expr.id)?;
-        let memory_ty = data_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+        let data_ty = self.cx.gcx.type_of_expr(data_expr.id)?;
+        let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let data = self.lower_typed_expr(data_expr, memory_ty)?;
         let data = self.materialize_memory_argument(memory_ty, data, data_expr.span)?;
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
-        let layout = self.context.module.intern_abi_param_layout(layout);
+        let layout = self.cx.module.intern_abi_param_layout(layout);
         Some(self.builder.abi_decode(layout, data))
     }
 
@@ -296,7 +285,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut abi_types = Vec::with_capacity(types.len());
         for &ty in types {
             let Some(abi_type) = self.types.abi_param_type(ty) else {
-                return self.context.report_unsupported(span, "abi.decode target type");
+                return self.cx.report_unsupported(span, "abi.decode target type");
             };
             abi_types.push(abi_type);
         }
@@ -315,10 +304,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let memory_types = types
             .iter()
             .copied()
-            .map(|ty| ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory))
+            .map(|ty| ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory))
             .collect::<Vec<_>>();
         let (data, layout) = self.lower_abi_decode_layout(data, &memory_types, span)?;
-        let layout = self.context.module.intern_abi_param_layout(layout);
+        let layout = self.cx.module.intern_abi_param_layout(layout);
         let first = self.builder.abi_decode(layout, data);
         if memory_types.len() == 1 {
             return Some(vec![first]);
@@ -365,7 +354,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns the current call's returndata size, or zero before Byzantium.
     pub(super) fn current_returndata_size(&mut self) -> ValueId {
-        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
+        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
             self.builder.returndatasize()
         } else {
             self.builder.imm(U256::ZERO)
@@ -383,7 +372,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let payload_slice =
             self.builder.make_slice(payload_ptr, payload_len, SliceLocation::Memory);
         let payload = self.materialize_memory_slice(payload_slice);
-        let layout = self.context.module.intern_abi_param_layout(AbiParamLayout::new(
+        let layout = self.cx.module.intern_abi_param_layout(AbiParamLayout::new(
             vec![AbiParamType::Bytes].into_boxed_slice(),
         ));
         Some(self.builder.abi_decode(layout, payload))
@@ -654,7 +643,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             return true;
         }
-        let Some(ty) = self.context.gcx.type_of_expr(expr.id) else { return false };
+        let Some(ty) = self.cx.gcx.type_of_expr(expr.id) else { return false };
         self.packed_static_shape(ty).is_some() || self.is_dynamic_bytes_type(ty)
     }
 
@@ -694,7 +683,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut total = self.builder.imm(0);
         let mut pieces = Vec::with_capacity(exprs.len());
         for expr in exprs {
-            let ty = self.context.gcx.type_of_expr(expr.id)?;
+            let ty = self.cx.gcx.type_of_expr(expr.id)?;
             if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
@@ -705,7 +694,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
 
-            let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
             self.validate_enum(ty, value);
             if let Some(abi_type) = self.types.abi_type(ty) {
@@ -753,9 +742,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
 
             let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
-                return self.context.report_unsupported(expr.span,
-                    "abi.encodePacked argument",
-                );
+                return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
             };
             let value = self.normalize_abi_scalar(value, ty);
             let signed = is_signed_packed_scalar(ty);
@@ -897,9 +884,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::DynArray(element) | TyKind::Array(element, _) => {
                 self.inplace_dynamic_shape(element)
             }
-            TyKind::Struct(id) => self.context.gcx.hir.strukt(id).fields.iter().all(|&field| {
-                self.inplace_dynamic_shape(self.context.gcx.type_of_item(field.into()))
-            }),
+            TyKind::Struct(id) => {
+                self.cx.gcx.hir.strukt(id).fields.iter().all(|&field| {
+                    self.inplace_dynamic_shape(self.cx.gcx.type_of_item(field.into()))
+                })
+            }
             TyKind::Fn(function) => function.is_external(),
             TyKind::Elementary(
                 solar_sema::hir::ElementaryType::Bytes | solar_sema::hir::ElementaryType::String,
@@ -948,7 +937,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.count_inplace_array(ty, value, nullable_memory)
             }
             TyKind::Struct(id) => {
-                let gcx = self.context.gcx;
+                let gcx = self.cx.gcx;
                 let fields = gcx.hir.strukt(id).fields;
                 let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let non_null = self.memory_non_null_mask(value, nullable_memory);
@@ -1043,7 +1032,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.copy_inplace_array(ty, value, output, offset, nullable_memory);
             }
             TyKind::Struct(id) => {
-                let gcx = self.context.gcx;
+                let gcx = self.cx.gcx;
                 let fields = gcx.hir.strukt(id).fields;
                 let layout = MemoryObjectLayout::structure(fields.len() as u64);
                 let non_null = self.memory_non_null_mask(value, nullable_memory);
@@ -1408,7 +1397,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Contract(_) => Some((20, false)),
             TyKind::Fn(function) if function.is_external() => Some((24, false)),
             TyKind::Enum(id) => {
-                let variants = self.context.gcx.hir.enumm(id).variants.len().max(1);
+                let variants = self.cx.gcx.hir.enumm(id).variants.len().max(1);
                 let bits = (usize::BITS - (variants - 1).leading_zeros()).max(1);
                 Some((u64::from(bits.div_ceil(8)), false))
             }
@@ -1425,7 +1414,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
-        let memory_ty = self.context.gcx.types.bytes_ref.memory;
+        let memory_ty = self.cx.gcx.types.bytes_ref.memory;
         // input = materialize(bytes)
         let input = self.lower_typed_expr(input, memory_ty)?;
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
@@ -1515,7 +1504,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         output_ptr: ValueId,
         output_size: ValueId,
     ) {
-        let evm_version = self.context.gcx.sess.opts.evm_version;
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
         let gas = crate::utils::precompile_gas(&mut self.builder, evm_version);
         if evm_version.has_static_call() {
             // staticcall(precompile_gas, address, input, output)

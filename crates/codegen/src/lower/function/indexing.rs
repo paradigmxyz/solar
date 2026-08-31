@@ -35,7 +35,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn array_element_type(&self, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
         match ty.peel_refs().kind {
             TyKind::DynArray(element) | TyKind::Array(element, _) => Some(element),
-            TyKind::Slice(_) => ty.base_type(self.context.gcx),
+            TyKind::Slice(_) => ty.base_type(self.cx.gcx),
             _ => None,
         }
     }
@@ -55,10 +55,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_storage_access(expr, access);
         }
         let Some(index) = index else {
-            return self.context.report_unsupported(expr.span, "index");
+            return self.cx.report_unsupported(expr.span, "index");
         };
-        let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
-        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
+        let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+        let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
         let object = self.lower_expr(receiver)?;
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             receiver_ty.peel_refs().kind
@@ -84,9 +84,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
                         SliceLocation::Returndata => {
-                            return self.context.report_unsupported(expr.span,
-                                "returndata index",
-                            );
+                            return self.cx.report_unsupported(expr.span, "returndata index");
                         }
                     };
                     let zero = self.builder.imm(0);
@@ -97,15 +95,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // head = slice.data + index * element_head_size
                     // value = decode_calldata_element(head, slice.data)
                     if location != SliceLocation::Calldata {
-                        return self.context.report_unsupported(expr.span,
-                            "memory array slice index",
-                        );
+                        return self.cx.report_unsupported(expr.span, "memory array slice index");
                     }
                     let element = self
-                        .context
+                        .cx
                         .gcx
                         .type_of_expr(expr.id)?
-                        .with_loc_if_ref(self.context.gcx, DataLocation::Calldata);
+                        .with_loc_if_ref(self.cx.gcx, DataLocation::Calldata);
                     let head_size = self.builder.imm(self.types.abi_type(element)?.head_size());
                     let offset = self.builder.checked_mul(index, head_size);
                     let head = self.builder.add(base, offset);
@@ -122,7 +118,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         validate_bounds,
                     )
                 }
-                _ => self.context.report_unsupported(expr.span, "slice index"),
+                _ => self.cx.report_unsupported(expr.span, "slice index"),
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;
@@ -133,7 +129,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some((element, length)) =
                     self.array_element_and_length(receiver_ty, object, layout)
                 else {
-                    return self.context.report_unsupported(expr.span, "array index");
+                    return self.cx.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
@@ -151,7 +147,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {
-                self.context.report_unsupported(expr.span, "struct index")
+                self.cx.report_unsupported(expr.span, "struct index")
             }
         }
     }
@@ -163,14 +159,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         start: Option<&hir::Expr<'_>>,
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
+        let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
         let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {
             Some(MirType::Slice(location)) => (value, location),
             _ => {
                 let layout = self.types.memory_layout(receiver_ty)?;
                 if layout != MemoryObjectLayout::Bytes {
-                    return self.context.report_unsupported(expr.span, "slice");
+                    return self.cx.report_unsupported(expr.span, "slice");
                 }
                 let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
                 let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
@@ -186,7 +182,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_))
             || location != SliceLocation::Calldata
         {
-            return self.context.report_unsupported(expr.span, "slice");
+            return self.cx.report_unsupported(expr.span, "slice");
         } else {
             let element = self.array_element_type(receiver_ty)?;
             // The semantic checker rejects range access on arrays with
@@ -199,12 +195,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // start = provided_start | 0
         // end = provided_end | base.length
         let start = if let Some(start) = start {
-            self.lower_typed_expr(start, self.context.gcx.types.uint(256))?
+            self.lower_typed_expr(start, self.cx.gcx.types.uint(256))?
         } else {
             self.builder.imm(0)
         };
         let end = if let Some(end) = end {
-            self.lower_typed_expr(end, self.context.gcx.types.uint(256))?
+            self.lower_typed_expr(end, self.cx.gcx.types.uint(256))?
         } else {
             base_len
         };

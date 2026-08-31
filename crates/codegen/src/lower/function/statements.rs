@@ -6,14 +6,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
-                let initializer = self.context.gcx.hir.variable(*id).initializer;
-                let ty = self.context.gcx.type_of_item((*id).into());
+                let initializer = self.cx.gcx.hir.variable(*id).initializer;
+                let ty = self.cx.gcx.type_of_item((*id).into());
                 if ty.is_ref_at(DataLocation::Storage) {
                     let Some(initializer) = initializer else { return Some(()) };
                     let Some(access) = self.storage_access(initializer) else {
-                        return self.context.report_unsupported(initializer.span,
-                            "storage access",
-                        );
+                        return self.cx.report_unsupported(initializer.span, "storage access");
                     };
                     self.storage_refs.insert(*id, access);
                     return Some(());
@@ -50,32 +48,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // Memory declarations must also route through the copy
                     // path: the generic path would bind the callee's raw
                     // storage slot as if it were a memory pointer.
-                    let ty = self.context.gcx.type_of_item(id.into());
+                    let ty = self.cx.gcx.type_of_item(id.into());
                     ty.is_ref_at(DataLocation::Storage) || ty.is_ref_at(DataLocation::Memory)
                 }) && let Some(values) = self.lower_storage_reference_call(expr.peel_parens())
                 {
                     if values.len() != ids.len() {
-                        return self.context.report_unsupported(expr.span,
-                            "storage reference tuple",
-                        );
+                        return self.cx.report_unsupported(expr.span, "storage reference tuple");
                     }
                     for (id, (value, _, access)) in ids.iter().zip(values) {
                         let Some(id) = id else { continue };
-                        let ty = self.context.gcx.type_of_item((*id).into());
+                        let ty = self.cx.gcx.type_of_item((*id).into());
                         if let Some(access) = access {
                             if !ty.is_ref_at(DataLocation::Storage) {
                                 // A storage-reference return declared into a
                                 // non-storage local copies the referenced
                                 // value, matching solc; the reference itself
                                 // only binds to a storage variable.
-                                let span = self.context.gcx.hir.variable(*id).span;
+                                let span = self.cx.gcx.hir.variable(*id).span;
                                 let value = self.load_storage_object(ty, value, span)?;
                                 self.values.insert(*id, value);
                                 continue;
                             }
                             self.storage_refs.insert(*id, access);
                         } else if ty.is_ref_at(DataLocation::Storage) {
-                            return self.context.report_unsupported(self.context.gcx.hir.variable(*id).span,
+                            return self.cx.report_unsupported(
+                                self.cx.gcx.hir.variable(*id).span,
                                 "mixed storage tuple",
                             );
                         } else {
@@ -90,9 +87,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     for (id, value) in ids.iter().zip(values.iter()) {
                         let Some(value) = value else {
                             if id.is_some() {
-                                return self.context.report_unsupported(expr.span,
-                                    "tuple declaration value",
-                                );
+                                return self
+                                    .cx
+                                    .report_unsupported(expr.span, "tuple declaration value");
                             }
                             continue;
                         };
@@ -100,12 +97,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             self.lower_expr(value)?;
                             continue;
                         };
-                        let ty = self.context.gcx.type_of_item((*id).into());
+                        let ty = self.cx.gcx.type_of_item((*id).into());
                         if ty.is_ref_at(DataLocation::Storage) {
                             let Some(access) = self.storage_access(value) else {
-                                return self.context.report_unsupported(value.span,
-                                    "storage access",
-                                );
+                                return self.cx.report_unsupported(value.span, "storage access");
                             };
                             self.storage_refs.insert(*id, access);
                             continue;
@@ -131,9 +126,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let values = self.lower_values(expr)?;
                 if values.len() != ids.len() {
-                    return self.context.report_unsupported(expr.span,
-                        "tuple declaration arity",
-                    );
+                    return self.cx.report_unsupported(expr.span, "tuple declaration arity");
                 }
                 for (id, value) in ids.iter().zip(values) {
                     if let Some(id) = id {
@@ -144,13 +137,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             StmtKind::Expr(expr) => {
                 let expr = expr.peel_parens();
                 let is_item_reference = matches!(
-                    self.context.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                    self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
                     Some(TyKind::Type(_))
                 ) || matches!(
                     expr.kind,
                     ExprKind::Member(receiver, _)
                         if matches!(
-                            self.context.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                            self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
                             Some(TyKind::Type(_))
                         )
                 );
@@ -163,7 +156,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.lower_constant_storage_assignment(lhs, rhs)?;
                     return Some(());
                 }
-                if self.context.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
+                if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
                     self.lower_values(expr)?;
                 } else {
                     self.lower_expr(expr)?;
@@ -184,7 +177,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             StmtKind::Loop(block, source) => self.lower_loop(*block, *source)?,
             StmtKind::Break => {
                 let Some(target) = self.loops.last().map(|targets| targets.break_block) else {
-                    return self.context.report_unsupported(stmt.span, "break outside loop");
+                    return self.cx.report_unsupported(stmt.span, "break outside loop");
                 };
                 let state = self.snapshot_loop_state(self.builder.current_block());
                 self.loops.last_mut().expect("loop target exists").break_states.push(state);
@@ -192,9 +185,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Continue => {
                 let Some(target) = self.loops.last().map(|targets| targets.continue_block) else {
-                    return self.context.report_unsupported(stmt.span,
-                        "continue outside loop",
-                    );
+                    return self.cx.report_unsupported(stmt.span, "continue outside loop");
                 };
                 let state = self.snapshot_loop_state(self.builder.current_block());
                 self.loops.last_mut().expect("loop target exists").continue_states.push(state);
@@ -205,13 +196,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let values =
                     expr.map_or_else(|| Some(Vec::new()), |expr| self.lower_return_values(expr))?;
                 if !values.is_empty() && values.len() != self.returns.len() {
-                    return self.context.report_unsupported(stmt.span, "return value count");
+                    return self.cx.report_unsupported(stmt.span, "return value count");
                 }
                 if let Some(target) = self.return_targets.last().map(|target| target.block) {
                     if !values.is_empty() {
                         let return_ids = self.returns.clone();
                         for (id, value) in return_ids.into_iter().zip(values) {
-                            let ty = self.context.gcx.type_of_item(id.into());
+                            let ty = self.cx.gcx.type_of_item(id.into());
                             if ty.is_ref_at(DataLocation::Storage) {
                                 let access =
                                     self.storage_refs.get(&id).copied().unwrap_or(StorageAccess {
@@ -239,7 +230,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .into_iter()
                             .zip(values)
                             .map(|(id, value)| {
-                                let ty = self.context.gcx.type_of_item(id.into());
+                                let ty = self.cx.gcx.type_of_item(id.into());
                                 if ty.is_ref_at(DataLocation::Storage) {
                                     Some(value)
                                 } else {
@@ -264,7 +255,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             StmtKind::Emit(expr) => self.lower_emit(expr)?,
             StmtKind::Try(try_stmt) => self.lower_try(try_stmt)?,
             StmtKind::Err(_) => {
-                return self.context.report_unsupported(stmt.span, "statement");
+                return self.cx.report_unsupported(stmt.span, "statement");
             }
         }
         Some(())
@@ -282,7 +273,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<PreparedRevertPayload> {
         if let ExprKind::Call(callee, args, _) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Error(error_id))) =
-                self.context.gcx.resolved_expr(callee)
+                self.cx.gcx.resolved_expr(callee)
         {
             return self.prepare_custom_error_payload(error_id, *args);
         }
@@ -304,8 +295,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(PreparedRevertPayload::EmptyString);
         }
 
-        let ty = self.context.gcx.type_of_expr(expr.id)?;
-        let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         let value = self.lower_typed_expr(expr, memory_ty)?;
         let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
         Some(PreparedRevertPayload::ErrorString(value))
@@ -369,8 +360,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(*bytes);
                 }
                 ExprKind::Ident(_) | ExprKind::Member(..) => {
-                    let variable_id = self.context.gcx.resolved_variable(expr)?;
-                    let variable = self.context.gcx.hir.variable(variable_id);
+                    let variable_id = self.cx.gcx.resolved_variable(expr)?;
+                    let variable = self.cx.gcx.hir.variable(variable_id);
                     if !variable.is_constant() {
                         return None;
                     }
@@ -413,21 +404,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         error_id: hir::ErrorId,
         args: hir::CallArgs<'_>,
     ) -> Option<PreparedRevertPayload> {
-        let parameters = self.context.gcx.item_parameters(hir::ItemId::Error(error_id));
+        let parameters = self.cx.gcx.item_parameters(hir::ItemId::Error(error_id));
         if args.len() != parameters.len() {
-            return self.context.report_unsupported(args.span, "error arguments");
+            return self.cx.report_unsupported(args.span, "error arguments");
         }
         let parameter_names =
-            self.context.gcx.callable_param_names(CallableParamSource::Error(error_id));
+            self.cx.gcx.callable_param_names(CallableParamSource::Error(error_id));
         let mut values = Vec::with_capacity(parameters.len());
         let mut types = Vec::with_capacity(parameters.len());
         for (index, &parameter) in parameters.iter().enumerate() {
             let Some(argument) =
                 args.argument_for_parameter(index, Some(parameter_names.as_slice()))
             else {
-                return self.context.report_unsupported(args.span, "error argument");
+                return self.cx.report_unsupported(args.span, "error argument");
             };
-            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
+            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let (mut value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
             if matches!(abi_type, AbiType::Word(_)) {
                 value = self.lower_word_value(parameter_ty, argument, value);
@@ -438,7 +429,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let selector = self
             .builder
-            .imm(U256::from_be_slice(&self.context.gcx.function_selector(error_id).0) << 224);
+            .imm(U256::from_be_slice(&self.cx.gcx.function_selector(error_id).0) << 224);
         Some(PreparedRevertPayload::CustomError {
             selector,
             layout,
@@ -448,24 +439,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_emit(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
         let ExprKind::Call(callee, args, _) = &expr.kind else {
-            return self.context.report_unsupported(expr.span, "event emission");
+            return self.cx.report_unsupported(expr.span, "event emission");
         };
-        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) =
-            self.context.gcx.resolved_expr(callee)
+        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = self.cx.gcx.resolved_expr(callee)
         else {
-            return self.context.report_unsupported(expr.span, "event emission");
+            return self.cx.report_unsupported(expr.span, "event emission");
         };
 
-        let event = self.context.gcx.hir.event(event_id);
+        let event = self.cx.gcx.hir.event(event_id);
         let max_indexed = if event.anonymous { 4 } else { 3 };
-        let indexed_count = event
-            .parameters
-            .iter()
-            .filter(|&&id| self.context.gcx.hir.variable(id).indexed)
-            .count();
+        let indexed_count =
+            event.parameters.iter().filter(|&&id| self.cx.gcx.hir.variable(id).indexed).count();
         if indexed_count > max_indexed {
-            if self.context.state.invalid_event_topics.insert(event_id) {
-                self.context
+            if self.cx.state.invalid_event_topics.insert(event_id) {
+                self.cx
                     .gcx
                     .dcx()
                     .err(format!("event cannot have more than {max_indexed} indexed parameters"))
@@ -475,17 +462,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if args.len() != event.parameters.len() {
-            return self.context.report_unsupported(args.span, "event arguments");
+            return self.cx.report_unsupported(args.span, "event arguments");
         }
 
         let parameter_names =
-            self.context.gcx.callable_param_names(CallableParamSource::Event(event_id));
+            self.cx.gcx.callable_param_names(CallableParamSource::Event(event_id));
         // topics = anonymous ? [] : [event_selector]
         let mut topics = Vec::with_capacity(indexed_count + usize::from(!event.anonymous));
         if !event.anonymous {
-            topics.push(self.builder.imm(U256::from_be_slice(
-                self.context.gcx.event_selector(event_id).as_slice(),
-            )));
+            topics.push(
+                self.builder
+                    .imm(U256::from_be_slice(self.cx.gcx.event_selector(event_id).as_slice())),
+            );
         }
         let mut data_values = Vec::new();
         let mut data_types = Vec::new();
@@ -493,12 +481,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 args.argument_for_parameter(index, Some(parameter_names.as_slice()))
             else {
-                return self.context.report_unsupported(args.span, "event argument");
+                return self.cx.report_unsupported(args.span, "event argument");
             };
-            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
-            let variable = self.context.gcx.hir.variable(parameter);
+            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
+            let variable = self.cx.gcx.hir.variable(parameter);
             let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-            if let Some(argument_ty) = self.context.gcx.type_of_expr(argument.id)
+            if let Some(argument_ty) = self.cx.gcx.type_of_expr(argument.id)
                 && let Some(argument_abi_type) = self.types.abi_type(argument_ty)
             {
                 self.validate_calldata_bytes_argument(value, &argument_abi_type);
@@ -543,7 +531,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 topics.push(self.builder.keccak256_bytes(packed));
                                 continue;
                             }
-                            return self.context.report_unsupported(argument.span,
+                            return self.cx.report_unsupported(
+                                argument.span,
                                 "indexed event aggregate encoding",
                             );
                         }
@@ -597,7 +586,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             &[topic1, topic2, topic3, topic4] => {
                 self.builder.log4(data_ptr, data_size, topic1, topic2, topic3, topic4)
             }
-            _ => return self.context.report_unsupported(args.span, "event topics"),
+            _ => return self.cx.report_unsupported(args.span, "event topics"),
         }
         Some(())
     }
@@ -628,8 +617,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         let StmtKind::DeclSingle(id) = stmt.kind else { return None };
-        let variable = self.context.gcx.hir.variable(id);
-        let ty = self.context.gcx.type_of_item(id.into());
+        let variable = self.cx.gcx.hir.variable(id);
+        let ty = self.cx.gcx.type_of_item(id.into());
         if !ty.is_ref_at(DataLocation::Memory) || !self.is_dynamic_bytes_type(ty) {
             return None;
         }
@@ -637,7 +626,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ExprKind::Call(callee, args, _) = &variable.initializer?.peel_parens().kind else {
             return None;
         };
-        if self.context.gcx.resolved_builtin(callee) != Some(Builtin::AbiEncodePacked) {
+        if self.cx.gcx.resolved_builtin(callee) != Some(Builtin::AbiEncodePacked) {
             return None;
         }
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, args)?;
@@ -649,9 +638,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ExprKind::Call(callee, hash_args, _) = &expr.peel_parens().kind else {
             return None;
         };
-        match (self.context.gcx.resolved_builtin(callee), hash_args.kind, self.returns.as_slice()) {
+        match (self.cx.gcx.resolved_builtin(callee), hash_args.kind, self.returns.as_slice()) {
             (Some(Builtin::Keccak256), hir::CallArgsKind::Unnamed([arg]), [_])
-                if self.context.gcx.resolved_variable(arg) == Some(id) =>
+                if self.cx.gcx.resolved_variable(arg) == Some(id) =>
             {
                 Some(*args)
             }

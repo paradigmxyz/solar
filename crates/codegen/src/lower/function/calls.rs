@@ -19,7 +19,7 @@ enum ExternalReturnMode {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn uses_static_call(&self, state_mutability: hir::StateMutability) -> bool {
         matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
-            && self.context.gcx.sess.opts.evm_version.has_static_call()
+            && self.cx.gcx.sess.opts.evm_version.has_static_call()
     }
 
     pub(super) fn lower_user_operator(
@@ -28,15 +28,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function_id: hir::FunctionId,
         values: &[ValueId],
     ) -> Option<ValueId> {
-        let function = self.context.gcx.hir.function(function_id);
+        let function = self.cx.gcx.hir.function(function_id);
         if function.parameters.len() != values.len() || function.returns.len() != 1 {
-            return self.context.report_unsupported(span, "user-defined operator signature");
+            return self.cx.report_unsupported(span, "user-defined operator signature");
         }
-        let Some(&mir_id) = self.context.function_ids.get(&function_id) else {
-            return self.context.report_unsupported(span, "user-defined operator function");
+        let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
+            return self.cx.report_unsupported(span, "user-defined operator function");
         };
         let result_ty = types::TypeLowerer::mir_return_type(
-            self.context.gcx.type_of_item(function.returns[0].into()),
+            self.cx.gcx.type_of_item(function.returns[0].into()),
         );
         Some(self.builder.internal_call(mir_id, values.to_vec(), result_ty, 1))
     }
@@ -48,7 +48,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        if let Some(struct_id) = self.context.gcx.resolved_expr(callee).and_then(|res| match res {
+        if let Some(struct_id) = self.cx.gcx.resolved_expr(callee).and_then(|res| match res {
             hir::Res::Item(item) => item.as_struct(),
             _ => None,
         }) {
@@ -56,22 +56,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_struct_constructor(expr, struct_id, args);
         }
         let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
-            || self.context.gcx.resolved_expr(callee).is_some_and(|res| {
+            || self.cx.gcx.resolved_expr(callee).is_some_and(|res| {
                 matches!(res, hir::Res::Item(hir::ItemId::Contract(_) | hir::ItemId::Enum(_)))
             });
         if is_type_conversion {
             // result = convert(callee, args)
             if args.len() != 1 {
-                return self.context.report_unsupported(expr.span, "type conversion");
+                return self.cx.report_unsupported(expr.span, "type conversion");
             }
             let Some(arg) = args.exprs().next() else {
-                return self.context.report_unsupported(expr.span, "type conversion");
+                return self.cx.report_unsupported(expr.span, "type conversion");
             };
-            let source_ty = self.context.gcx.type_of_expr(arg.id)?;
-            let target_ty = self.context.gcx.type_of_expr(expr.id).or_else(|| {
-                self.context.gcx.resolved_expr(callee).and_then(|res| match res {
+            let source_ty = self.cx.gcx.type_of_expr(arg.id)?;
+            let target_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
+                self.cx.gcx.resolved_expr(callee).and_then(|res| match res {
                     hir::Res::Item(id @ (hir::ItemId::Contract(_) | hir::ItemId::Enum(_))) => {
-                        Some(self.context.gcx.type_of_item(id))
+                        Some(self.cx.gcx.type_of_item(id))
                     }
                     _ => None,
                 })
@@ -89,7 +89,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 ) {
                 let Some(access) = self.storage_access(arg) else {
-                    return self.context.report_unsupported(arg.span, "storage access");
+                    return self.cx.report_unsupported(arg.span, "storage access");
                 };
                 self.load_storage_bytes(access.slot)
             } else {
@@ -98,18 +98,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(self.coerce_value(value, source_ty, target_ty));
         }
         if let ExprKind::New(ty) = &callee.kind {
-            if let TyKind::Contract(contract_id) = self.context.gcx.type_of_hir_ty(ty).kind {
+            if let TyKind::Contract(contract_id) = self.cx.gcx.type_of_hir_ty(ty).kind {
                 // result = create_contract(callee, args, opts)
                 return self.lower_new_contract(expr, ty, contract_id, args, call_opts);
             }
             if args.len() != 1 {
-                return self.context.report_unsupported(expr.span, "dynamic allocation");
+                return self.cx.report_unsupported(expr.span, "dynamic allocation");
             }
             let Some(arg) = args.exprs().next() else {
-                return self.context.report_unsupported(expr.span, "dynamic allocation");
+                return self.cx.report_unsupported(expr.span, "dynamic allocation");
             };
             let len = self.lower_expr(arg)?;
-            let ty = self.context.gcx.type_of_expr(expr.id)?;
+            let ty = self.cx.gcx.type_of_expr(expr.id)?;
             let layout = self.types.memory_layout(ty)?;
             let size = match layout {
                 MemoryObjectLayout::Bytes => self.builder.checked_padded_size(len),
@@ -121,7 +121,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let word_size = self.builder.imm(32);
                     self.builder.checked_mul(words, word_size)
                 }
-                _ => return self.context.report_unsupported(expr.span, "allocation type"),
+                _ => return self.cx.report_unsupported(expr.span, "allocation type"),
             };
             // result = alloc(size, zeroed)
             // result.length = length
@@ -130,12 +130,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.set_memory_object_len(object, len, layout.kind());
             return Some(object);
         }
-        if let Some(builtin) = self.context.gcx.resolved_builtin(callee) {
+        if let Some(builtin) = self.cx.gcx.resolved_builtin(callee) {
             // result = builtin(callee, args, opts)
             return self.lower_builtin_call(expr, callee, builtin, args, call_opts);
         }
-        if let Some(TyKind::Fn(function)) =
-            self.context.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+        if let Some(TyKind::Fn(function)) = self.cx.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
             && function.function_id.is_none()
         {
             if function.is_external() {
@@ -148,14 +147,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.lower_internal_function_pointer_call(expr, callee, function, args);
             }
         }
-        if let Some(function_id) = self.context.gcx.resolved_function(callee) {
+        if let Some(function_id) = self.cx.gcx.resolved_function(callee) {
             // result = function_call(callee, args, opts)
             return self.lower_function_call(expr, callee, function_id, args, call_opts);
         }
-        if self.context.gcx.dcx().has_errors().is_err() {
+        if self.cx.gcx.dcx().has_errors().is_err() {
             return Some(self.builder.imm(U256::ZERO));
         }
-        self.context.report_unsupported(expr.span, "function call")
+        self.cx.report_unsupported(expr.span, "function call")
     }
 
     pub(super) fn lower_new_contract(
@@ -178,14 +177,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let contract = self.context.gcx.hir.contract(contract_id);
+        let contract = self.cx.gcx.hir.contract(contract_id);
         let bytecode = self
-            .context
+            .cx
             .child_bytecodes
             .get(&contract_id)
             .and_then(super::super::data::ContractBytecodes::deployment)
             .ok_or_else(|| {
-                self.context
+                self.cx
                     .gcx
                     .dcx()
                     .err(format!(
@@ -205,18 +204,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match option.name.name {
                     sym::value => {
                         call_value =
-                            self.lower_typed_expr(&option.value, self.context.gcx.types.uint(256))?;
+                            self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
                     }
                     sym::salt => {
-                        salt = Some(self.lower_typed_expr(
-                            &option.value,
-                            self.context.gcx.types.fixed_bytes(32),
-                        )?);
+                        salt =
+                            Some(self.lower_typed_expr(
+                                &option.value,
+                                self.cx.gcx.types.fixed_bytes(32),
+                            )?);
                     }
                     _ => {
-                        return self.context.report_unsupported(option.name.span,
-                            "creation option",
-                        );
+                        return self.cx.report_unsupported(option.name.span, "creation option");
                     }
                 }
             }
@@ -225,10 +223,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (parameters, parameter_names) = contract
             .ctor
             .map(|id| {
-                let constructor = self.context.gcx.hir.function(id);
+                let constructor = self.cx.gcx.hir.function(id);
                 (
                     constructor.parameters,
-                    self.context.gcx.callable_param_names(CallableParamSource::Function {
+                    self.cx.gcx.callable_param_names(CallableParamSource::Function {
                         id,
                         skips_receiver: false,
                     }),
@@ -236,7 +234,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })
             .unwrap_or((&[], Vec::new().into()));
         if args.len() != parameters.len() {
-            return self.context.report_unsupported(args.span, "constructor arguments");
+            return self.cx.report_unsupported(args.span, "constructor arguments");
         }
 
         let mut values = Vec::with_capacity(parameters.len());
@@ -245,9 +243,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 args.argument_for_parameter(index, Some(parameter_names.as_slice()))
             else {
-                return self.context.report_unsupported(args.span, "constructor argument");
+                return self.cx.report_unsupported(args.span, "constructor argument");
             };
-            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
+            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
             values.push(value);
             types.push(abi_type);
@@ -273,17 +271,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
         super::super::data::copy_data_to_memory(
-            self.context.gcx,
-            self.context.module,
+            self.cx.gcx,
+            self.cx.module,
             &mut self.builder,
             data,
             bytecode,
             bytecode.len(),
-            Some(super::super::data::contract_bytecode_data_name(
-                self.context.gcx,
-                contract_id,
-                true,
-            )),
+            Some(super::super::data::contract_bytecode_data_name(self.cx.gcx, contract_id, true)),
         );
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
@@ -319,7 +313,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Vec<ValueId>> {
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
-            return self.context.report_unsupported(args.span, "external function arguments");
+            return self.cx.report_unsupported(args.span, "external function arguments");
         }
         let function_value = self.lower_expr(callee)?;
         // address, selector = split_function_pointer(function)
@@ -400,21 +394,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         if args.len() != function.parameters.len() {
-            return self.context.report_unsupported(expr.span, "internal function arguments");
+            return self.cx.report_unsupported(expr.span, "internal function arguments");
         }
         let function_value = self.lower_expr(callee)?;
         let parameter_names = self
-            .context
+            .cx
             .gcx
             .call_param_source(callee)
-            .map(|source| self.context.gcx.callable_param_names(source));
+            .map(|source| self.cx.gcx.callable_param_names(source));
         let mut values = Vec::with_capacity(function.parameters.len());
         for (index, &parameter) in function.parameters.iter().enumerate() {
             let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
             else {
-                return self.context.report_unsupported(expr.span,
-                    "named internal function argument",
-                );
+                return self.cx.report_unsupported(expr.span, "named internal function argument");
             };
             let value = self.lower_typed_expr(argument, parameter)?;
             let value = self.normalize_internal_call_argument(value, parameter);
@@ -439,19 +431,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
     ) -> Option<ValueId> {
-        let TyKind::Fn(function) = self.context.gcx.type_of_expr(expr.id)?.kind else {
+        let TyKind::Fn(function) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
             return None;
         };
         if !function.is_internal() {
             return None;
         }
-        let hir::Res::Item(hir::ItemId::Function(function_id)) =
-            self.context.gcx.resolved_expr(expr)?
+        let hir::Res::Item(hir::ItemId::Function(function_id)) = self.cx.gcx.resolved_expr(expr)?
         else {
             return None;
         };
         let function_id = self.resolve_call_target(expr, function_id);
-        self.context.state.pointer_registry.targets.insert(function_id);
+        self.cx.state.pointer_registry.targets.insert(function_id);
         Some(self.builder.imm(internal_function_pointer_id(function_id)))
     }
 
@@ -617,9 +608,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.builder.iszero(is_zero);
         }
         let validator = match peeled.kind {
-            TyKind::Enum(id) => Some(AbiWordValidator::EnumRange(
-                self.context.gcx.hir.enumm(id).variants.len() as u64,
-            )),
+            TyKind::Enum(id) => {
+                Some(AbiWordValidator::EnumRange(self.cx.gcx.hir.enumm(id).variants.len() as u64))
+            }
             TyKind::Fn(_) => None,
             _ => AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty)),
         };
@@ -684,24 +675,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        let function = self.context.gcx.hir.function(function_id);
-        let attached =
-            self.context.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
-        let delegate_call = self.context.gcx.type_of_expr(callee.id).is_some_and(
+        let function = self.cx.gcx.hir.function(function_id);
+        let attached = self.cx.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
+        let delegate_call = self.cx.gcx.type_of_expr(callee.id).is_some_and(
             |ty| matches!(ty.kind, TyKind::Fn(function) if function.is_delegate_call()),
         );
         let attached_receiver = if attached {
             let ExprKind::Member(receiver, _) = callee.kind else {
-                return self.context.report_unsupported(expr.span,
-                    "attached function receiver",
-                );
+                return self.cx.report_unsupported(expr.span, "attached function receiver");
             };
             Some(receiver)
         } else {
             None
         };
         if let ExprKind::Member(receiver, _) = callee.kind
-            && self.context.gcx.resolved_builtin(receiver) == Some(Builtin::This)
+            && self.cx.gcx.resolved_builtin(receiver) == Some(Builtin::This)
         {
             // result = external_abi_call(this, function, args, opts)
             let function_id = self.resolve_call_target(callee, function_id);
@@ -710,12 +698,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !attached
             && let ExprKind::Member(receiver, _) = callee.kind
             && self
-                .context
+                .cx
                 .gcx
                 .type_of_expr(receiver.id)
                 .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::Contract(_)))
             && !matches!(
-                function.contract.map(|id| self.context.gcx.hir.contract(id).kind),
+                function.contract.map(|id| self.cx.gcx.hir.contract(id).kind),
                 Some(hir::ContractKind::Library)
             )
         {
@@ -723,7 +711,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
         let function_id = self.resolve_call_target(callee, function_id);
-        let function = self.context.gcx.hir.function(function_id);
+        let function = self.cx.gcx.hir.function(function_id);
         if delegate_call {
             // result = delegatecall(library, function, args)
             let address = self.library_address(function_id);
@@ -732,19 +720,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // call_args = materialize(receiver, args)
         let receiver_count = usize::from(attached);
         if args.len() + receiver_count != function.parameters.len() {
-            return self.context.report_unsupported(expr.span, "function argument list");
+            return self.cx.report_unsupported(expr.span, "function argument list");
         }
         let parameter_names = self
-            .context
+            .cx
             .gcx
             .call_param_source(callee)
-            .map(|source| self.context.gcx.callable_param_names(source));
+            .map(|source| self.cx.gcx.callable_param_names(source));
         let mut values = Vec::with_capacity(function.parameters.len());
         if let Some(receiver) = attached_receiver {
-            let parameter_ty = self.context.gcx.type_of_item(function.parameters[0].into());
+            let parameter_ty = self.cx.gcx.type_of_item(function.parameters[0].into());
             let value = if Self::is_storage_parameter(parameter_ty) {
                 let Some(access) = self.storage_access(receiver) else {
-                    return self.context.report_unsupported(receiver.span, "storage access");
+                    return self.cx.report_unsupported(receiver.span, "storage access");
                 };
                 access.slot
             } else {
@@ -763,12 +751,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 args.argument_for_parameter(index - receiver_count, parameter_names.as_deref())
             else {
-                return self.context.report_unsupported(expr.span, "named function argument");
+                return self.cx.report_unsupported(expr.span, "named function argument");
             };
-            let parameter_ty = self.context.gcx.type_of_item(parameter.into());
+            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let value = if Self::is_storage_parameter(parameter_ty) {
                 let Some(access) = self.storage_access(argument) else {
-                    return self.context.report_unsupported(argument.span, "storage access");
+                    return self.cx.report_unsupported(argument.span, "storage access");
                 };
                 access.slot
             } else {
@@ -779,7 +767,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
         values.extend(arguments.into_iter().map(|value| value.expect("argument lowered")));
-        let Some(&mir_id) = self.context.function_ids.get(&function_id) else {
+        let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
         if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
@@ -791,7 +779,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.internal_call_void(mir_id, values, 0);
             return Some(self.builder.imm(U256::ZERO));
         }
-        let first_ty = self.context.gcx.type_of_item((*function.returns.first()?).into());
+        let first_ty = self.cx.gcx.type_of_item((*function.returns.first()?).into());
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
         // result = internal_call(function, call_args)
         let result = self.builder.internal_call(mir_id, values, result_ty, function.returns.len());
@@ -811,7 +799,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return None;
         }
-        let return_ty = self.context.gcx.type_of_item(function.returns[0].into());
+        let return_ty = self.cx.gcx.type_of_item(function.returns[0].into());
         if !return_ty.is_ref_at(DataLocation::Memory) {
             return None;
         }
@@ -822,7 +810,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let ExprKind::Call(constructor, args, None) = return_expr.peel_parens().kind else {
             return None;
         };
-        let Some(hir::Res::Item(item)) = self.context.gcx.resolved_expr(constructor) else {
+        let Some(hir::Res::Item(item)) = self.cx.gcx.resolved_expr(constructor) else {
             return None;
         };
         let struct_id = item.as_struct()?;
@@ -848,20 +836,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = callee.kind else {
-            return self.context.report_unsupported(expr.span, "external function target");
+            return self.cx.report_unsupported(expr.span, "external function target");
         };
-        let function = self.context.gcx.hir.function(function_id);
+        let function = self.cx.gcx.hir.function(function_id);
         if args.len() != function.parameters.len() {
-            return self.context.report_unsupported(expr.span, "external function arguments");
+            return self.cx.report_unsupported(expr.span, "external function arguments");
         }
         let address = self.lower_expr(receiver)?;
         let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
-        let parameter_names =
-            self.context.gcx.callable_param_names(CallableParamSource::Function {
-                id: function_id,
-                skips_receiver: false,
-            });
-        let gcx = self.context.gcx;
+        let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
+            id: function_id,
+            skips_receiver: false,
+        });
+        let gcx = self.cx.gcx;
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
         let (values, types) = self.lower_abi_call_arguments(
@@ -873,7 +860,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             false,
         )?;
         // input = abi_encode(selector, args)
-        let selector = self.context.gcx.function_selector(function_id).0;
+        let selector = self.cx.gcx.function_selector(function_id).0;
         let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
@@ -882,14 +869,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_tys = function
             .returns
             .iter()
-            .map(|&ret| self.context.gcx.type_of_item(ret.into()))
+            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, zero, &return_tys);
         if returns == 0
             && (self.builder.func().attributes.is_constructor
-                || self.context.gcx.resolved_builtin(receiver) != Some(Builtin::This))
+                || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This))
         {
             self.revert_if_no_code(address);
         }
@@ -942,12 +929,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, parameter_ty)| {
                 let argument = args
                     .argument_for_parameter(index, parameter_names)
-                    .or_else(|| self.context.report_unsupported(span, error))?;
+                    .or_else(|| self.cx.report_unsupported(span, error))?;
                 if storage_parameters && Self::is_storage_parameter(parameter_ty) {
                     let Some(access) = self.storage_access(argument) else {
-                        return self.context.report_unsupported(argument.span,
-                            "storage access",
-                        );
+                        return self.cx.report_unsupported(argument.span, "storage access");
                     };
                     Some((access.slot, AbiType::Word(None)))
                 } else {
@@ -961,24 +946,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> U256 {
         let contract_id = self
-            .context
+            .cx
             .gcx
             .hir
             .function(function_id)
             .contract
             .expect("library function must have a contract");
-        let contract = self.context.gcx.hir.contract(contract_id);
+        let contract = self.cx.gcx.hir.contract(contract_id);
         assert_eq!(contract.kind, hir::ContractKind::Library);
-        let source = self.context.gcx.hir.source(contract.source).file.name.display().to_string();
+        let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
         if let Some(address) = self
-            .context
+            .cx
             .gcx
             .sess
             .opts
             .libraries
             .iter()
             .find(|library| {
-                library.name == contract.name.as_str_in(self.context.gcx.sess)
+                library.name == contract.name.as_str_in(self.cx.gcx.sess)
                     && library.source.as_ref().is_none_or(|path| source.ends_with(path))
             })
             .map(|library| U256::from_be_slice(library.address.as_slice()))
@@ -986,11 +971,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return address;
         }
 
-        let name = contract.name.as_str_in(self.context.gcx.sess).to_string();
+        let name = contract.name.as_str_in(self.cx.gcx.sess).to_string();
         let hash = keccak256(format!("{source}:{name}"));
         let mut placeholder = <[u8; 20]>::try_from(&hash[..20]).unwrap();
         placeholder[0] |= 0x80;
-        self.context.module.add_library_link(LibraryLink { source, name, placeholder });
+        self.cx.module.add_library_link(LibraryLink { source, name, placeholder });
         U256::from_be_slice(&placeholder)
     }
 
@@ -1002,17 +987,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         address: U256,
     ) -> Option<ValueId> {
-        let function = self.context.gcx.hir.function(function_id);
+        let function = self.cx.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
         if args.len() + receiver_count != function.parameters.len() {
-            return self.context.report_unsupported(expr.span, "library arguments");
+            return self.cx.report_unsupported(expr.span, "library arguments");
         }
-        let parameter_names =
-            self.context.gcx.callable_param_names(CallableParamSource::Function {
-                id: function_id,
-                skips_receiver: receiver.is_some(),
-            });
-        let gcx = self.context.gcx;
+        let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
+            id: function_id,
+            skips_receiver: receiver.is_some(),
+        });
+        let gcx = self.cx.gcx;
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
         let mut parameter_types = parameter_types.skip(receiver_count);
@@ -1032,7 +1016,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         // input = abi_encode(selector, args)
-        let selector = self.context.gcx.function_selector(function_id).0;
+        let selector = self.cx.gcx.function_selector(function_id).0;
         let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
@@ -1055,7 +1039,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_types = function
             .returns
             .iter()
-            .map(|&ret| self.context.gcx.type_of_item(ret.into()))
+            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let values = self.finish_external_call(
             ExternalReturnPlan {
@@ -1079,7 +1063,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<(ValueId, AbiType)> {
         if Self::is_storage_parameter(parameter_ty) {
             let Some(access) = self.storage_access(receiver) else {
-                return self.context.report_unsupported(receiver.span, "storage access");
+                return self.cx.report_unsupported(receiver.span, "storage access");
             };
             Some((access.slot, AbiType::Word(None)))
         } else {
@@ -1153,8 +1137,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.revert_if_short_returndata(size);
             Some(data)
         } else if decode_returndata {
-            if !self.context.gcx.sess.opts.evm_version.supports_returndata() {
-                return report_error(self.context.gcx, span, unsupported_returndata);
+            if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+                return report_error(self.cx.gcx, span, unsupported_returndata);
             }
             Some(self.materialize_returndata_bytes())
         } else {
@@ -1167,7 +1151,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_decoded_return_value(data, return_tys, span).map(|value| vec![value])
             };
         }
-        if self.context.gcx.sess.opts.evm_version.supports_returndata() {
+        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
             self.validate_static_returndata(offset, return_tys);
         }
         if returns > 1 {
@@ -1260,9 +1244,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn validate_external_return_value(&mut self, ty: Ty<'gcx>, value: ValueId) {
         let validator = match ty.peel_refs().kind {
-            TyKind::Enum(id) => Some(AbiWordValidator::EnumRange(
-                self.context.gcx.hir.enumm(id).variants.len() as u64,
-            )),
+            TyKind::Enum(id) => {
+                Some(AbiWordValidator::EnumRange(self.cx.gcx.hir.enumm(id).variants.len() as u64))
+            }
             TyKind::Fn(_) => None,
             _ => AbiWordValidator::from_return_mir_type(types::TypeLowerer::mir_return_type(ty)),
         };
@@ -1279,19 +1263,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: hir::FunctionId,
     ) -> hir::FunctionId {
         if let ExprKind::Member(base, _) = callee.kind
-            && let Some(TyKind::Type(ty)) = self.context.gcx.type_of_expr(base.id).map(|ty| ty.kind)
+            && let Some(TyKind::Type(ty)) = self.cx.gcx.type_of_expr(base.id).map(|ty| ty.kind)
         {
             return match ty.kind {
                 TyKind::Contract(_) => function,
-                TyKind::Super(defining_contract) => self.context.gcx.resolve_super_function(
-                    self.context.contract_id,
+                TyKind::Super(defining_contract) => self.cx.gcx.resolve_super_function(
+                    self.cx.contract_id,
                     defining_contract,
                     function,
                 ),
-                _ => self.context.gcx.resolve_virtual_function(self.context.contract_id, function),
+                _ => self.cx.gcx.resolve_virtual_function(self.cx.contract_id, function),
             };
         }
-        self.context.gcx.resolve_virtual_function(self.context.contract_id, function)
+        self.cx.gcx.resolve_virtual_function(self.cx.contract_id, function)
     }
 }
 

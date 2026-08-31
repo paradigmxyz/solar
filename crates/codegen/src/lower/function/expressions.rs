@@ -44,7 +44,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LitKind::Rational(value) if *value.denom() == U256::from(1) => {
                 Some(self.builder.imm(*value.numer()))
             }
-            _ => self.context.report_unsupported(span, "literal"),
+            _ => self.cx.report_unsupported(span, "literal"),
         }
     }
 
@@ -54,7 +54,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         name: Ident,
     ) -> Option<ValueId> {
-        if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
+        if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
             // value = lower_builtin(member)
             return self.lower_builtin_value(expr, builtin);
         }
@@ -62,15 +62,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // value = internal_function_pointer(member)
             return Some(value);
         }
-        if let Some(TyKind::Fn(function)) = self.context.gcx.type_of_expr(expr.id).map(|ty| ty.kind)
+        if let Some(TyKind::Fn(function)) = self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind)
             && function.is_external()
-            && let Some(function_id) = self.context.gcx.resolved_function(expr)
+            && let Some(function_id) = self.cx.gcx.resolved_function(expr)
         {
             // value = address(receiver) << 32 | selector(function)
             let address = self.lower_expr(receiver)?;
             let address_shift = self.builder.imm(32);
             let address = self.builder.shl(address_shift, address);
-            let selector = self.context.gcx.function_selector(function_id).0;
+            let selector = self.cx.gcx.function_selector(function_id).0;
             let selector = self.builder.imm(U256::from_be_slice(&selector));
             return Some(self.builder.or(address, selector));
         }
@@ -86,7 +86,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_storage_access(expr, access);
         }
         if name.name == sym::length {
-            let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
+            let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
             if matches!(
                 receiver_ty.peel_refs().kind,
                 TyKind::StringLiteral(..)
@@ -102,20 +102,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_array_length(receiver, receiver_ty, expr.span, "length member");
         }
 
-        let resolved = self.context.gcx.resolved_expr(expr)?;
+        let resolved = self.cx.gcx.resolved_expr(expr)?;
         let id = resolved.as_variable()?;
-        let variable = self.context.gcx.hir.variable(id);
+        let variable = self.cx.gcx.hir.variable(id);
         if variable.is_constant() {
             return self.lower_constant_variable(id, expr.span);
         }
-        if let Some(index) = resolved.enum_variant_index(&self.context.gcx.hir) {
+        if let Some(index) = resolved.enum_variant_index(&self.cx.gcx.hir) {
             return Some(self.builder.imm(index));
         }
         if variable.is_state_variable() {
             return self.load_variable(id, expr.span);
         }
-        let Some(field) = resolved.struct_field_index(&self.context.gcx.hir) else {
-            return self.context.report_unsupported(expr.span, "struct field");
+        let Some(field) = resolved.struct_field_index(&self.cx.gcx.hir) else {
+            return self.cx.report_unsupported(expr.span, "struct field");
         };
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         let object = self.lower_expr(receiver)?;
@@ -125,16 +125,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // head = receiver.ptr + field_offset
             // value = decode_calldata(field, head, receiver.ptr)
             let AbiType::Tuple(fields) = self.types.abi_type(receiver_ty)? else {
-                return self.context.report_unsupported(expr.span, "calldata struct field");
+                return self.cx.report_unsupported(expr.span, "calldata struct field");
             };
-            let offset = self.builder.imm(fields[..field].iter().map(AbiType::head_size).sum::<u64>());
+            let offset =
+                self.builder.imm(fields[..field].iter().map(AbiType::head_size).sum::<u64>());
             let base = self.builder.slice_ptr(object);
             let head = self.builder.add(base, offset);
             let field_ty = self
-                .context
+                .cx
                 .gcx
                 .type_of_item(id.into())
-                .with_loc_if_ref(self.context.gcx, DataLocation::Calldata);
+                .with_loc_if_ref(self.cx.gcx, DataLocation::Calldata);
             let validate_bounds = fields[field].is_dynamic();
             return self.materialize_calldata_value_at_inner(
                 field_ty,
@@ -148,7 +149,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // value = normalize(mload_field(object, field))
         let layout = self.types.memory_layout(receiver_ty)?;
         let value = self.builder.memory_object_load_field(object, layout, field as u64);
-        let field_ty = self.context.gcx.type_of_item(id.into());
+        let field_ty = self.cx.gcx.type_of_item(id.into());
         if receiver_ty.is_ref_at(DataLocation::Calldata)
             && let TyKind::Fn(function) = field_ty.peel_refs().kind
             && function.is_external()
@@ -190,7 +191,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let object = self.load_storage_bytes(access.slot);
                         Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                     }
-                    _ => self.context.report_unsupported(span, what),
+                    _ => self.cx.report_unsupported(span, what),
                 };
             }
             let object = self.lower_expr(receiver)?;
@@ -199,7 +200,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // length = object.len
                     Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                 }
-                _ => self.context.report_unsupported(span, what),
+                _ => self.cx.report_unsupported(span, what),
             };
         }
         let object = self.lower_expr(receiver)?;
@@ -213,7 +214,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // length = object.len
                 Some(self.builder.memory_object_len(object, layout.kind()))
             }
-            _ => self.context.report_unsupported(span, what),
+            _ => self.cx.report_unsupported(span, what),
         }
     }
 
@@ -229,7 +230,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return match name.name {
                 sym::offset => Some(self.builder.slice_ptr(value)),
                 sym::length => Some(self.builder.slice_len(value)),
-                _ => self.context.report_unsupported(expr.span, "Yul calldata member"),
+                _ => self.cx.report_unsupported(expr.span, "Yul calldata member"),
             };
         }
 
@@ -243,12 +244,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let mask = self.builder.imm(u32::MAX);
                     Some(self.builder.and(value, mask))
                 }
-                _ => self.context.report_unsupported(expr.span, "Yul function member"),
+                _ => self.cx.report_unsupported(expr.span, "Yul function member"),
             };
         }
 
         let Some(access) = self.storage_access(receiver) else {
-            return self.context.report_unsupported(expr.span, "Yul storage member");
+            return self.cx.report_unsupported(expr.span, "Yul storage member");
         };
         match name.name {
             sym::slot => Some(access.slot),
@@ -257,21 +258,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .offset
                     .unwrap_or_else(|| self.builder.imm(u64::from(access.location.offset))),
             ),
-            _ => self.context.report_unsupported(expr.span, "Yul storage member"),
+            _ => self.cx.report_unsupported(expr.span, "Yul storage member"),
         }
     }
 
     pub(super) fn type_of_expr_or_variable(&self, expr: &hir::Expr<'_>) -> Option<Ty<'gcx>> {
-        self.context.gcx.type_of_expr(expr.id).or_else(|| {
-            self.context
-                .gcx
-                .resolved_variable(expr)
-                .map(|id| self.context.gcx.type_of_item(id.into()))
+        self.cx.gcx.type_of_expr(expr.id).or_else(|| {
+            self.cx.gcx.resolved_variable(expr).map(|id| self.cx.gcx.type_of_item(id.into()))
         })
     }
 
     pub(super) fn normalize_byte_value(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
-        let Some(ty) = self.context.gcx.type_of_expr(expr.id) else { return value };
+        let Some(ty) = self.cx.gcx.type_of_expr(expr.id) else { return value };
         self.normalize_byte_type(ty, value)
     }
 
@@ -307,12 +305,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         id: VariableId,
         span: Span,
     ) -> Option<ValueId> {
-        let variable = self.context.gcx.hir.variable(id);
+        let variable = self.cx.gcx.hir.variable(id);
         let Some(initializer) = variable.initializer else {
-            return self.context.report_unsupported(span, "constant initializer");
+            return self.cx.report_unsupported(span, "constant initializer");
         };
-        let ty = self.context.gcx.type_of_item(id.into());
-        if let Ok(value) = self.context.gcx.try_eval_const_value(initializer) {
+        let ty = self.cx.gcx.type_of_item(id.into());
+        if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
                 ConstValue::Integer(value) => {
@@ -327,7 +325,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 }
                 ConstValue::String(value) => {
-                    let bytes = value.as_byte_str_in(self.context.gcx.sess);
+                    let bytes = value.as_byte_str_in(self.cx.gcx.sess);
                     if matches!(
                         ty.peel_refs().kind,
                         TyKind::Elementary(ElementaryType::FixedBytes(_))
