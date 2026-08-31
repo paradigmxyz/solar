@@ -2,6 +2,7 @@
 
 use super::Lowerer;
 use crate::{
+    backend::evm::{data_copy_cost, data_copy_is_profitable, ir::immediate_materialization_cost},
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, ValueId},
 };
@@ -9,9 +10,6 @@ use alloy_primitives::{Bytes, U256};
 use solar_interface::Symbol;
 use solar_sema::hir::ContractId;
 use std::borrow::Cow;
-
-/// Maximum constant word count emitted as individual stores.
-const MAX_INLINE_DATA_WORDS: usize = 4;
 
 #[derive(Clone, Debug)]
 pub struct ContractBytecodes {
@@ -53,28 +51,10 @@ impl<'gcx> Lowerer<'gcx> {
             builder.memory_zero(dest, size);
             return;
         }
-        if data_is_inline(padded_size)
-            && padded_size <= data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize)
-        {
-            self.store_data_words(builder, dest, data);
-            return;
-        }
-        let data = if name.is_some()
+        let separate_tail = name.is_some()
             && padded_size > data.len()
-            && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize)
-        {
-            let word_size = EvmMemoryLayout::WORD_SIZE as usize;
-            let tail_offset = data.len() / word_size * word_size;
-            let tail = if tail_offset == 0 {
-                dest
-            } else {
-                let offset = builder.imm_u64(tail_offset as u64);
-                builder.add(dest, offset)
-            };
-            let zero = builder.imm_u64(0);
-            builder.mstore(tail, zero);
-            Cow::Borrowed(data)
-        } else if padded_size == data.len() {
+            && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
+        let data = if separate_tail || padded_size == data.len() {
             Cow::Borrowed(data)
         } else {
             let mut padded = Vec::with_capacity(padded_size);
@@ -85,9 +65,65 @@ impl<'gcx> Lowerer<'gcx> {
         if self.copy_splat_to_memory(builder, dest, &data) {
             return;
         }
+        if !self.data_copy_is_profitable(&data, separate_tail) {
+            self.store_data_words(builder, dest, &data);
+            return;
+        }
+        if separate_tail {
+            let word_size = EvmMemoryLayout::WORD_SIZE as usize;
+            let tail_offset = data.len() / word_size * word_size;
+            let tail = if tail_offset == 0 {
+                dest
+            } else {
+                let offset = builder.imm_u64(tail_offset as u64);
+                builder.add(dest, offset)
+            };
+            let zero = builder.imm_u64(0);
+            builder.mstore(tail, zero);
+        }
         let size = builder.imm_u64(data.len() as u64);
         let data = self.module.intern_data(data, name);
         builder.data_copy(data, dest, size);
+    }
+
+    fn data_copy_is_profitable(&self, data: &[u8], separate_tail: bool) -> bool {
+        let evm_version = self.gcx.sess.opts.evm_version;
+        let word_size = EvmMemoryLayout::WORD_SIZE as usize;
+        let mut old_size = 0;
+        let mut old_gas = 0;
+        for (index, chunk) in data.chunks(word_size).enumerate() {
+            let value = U256::from_be_bytes(padded_data_word(chunk));
+            let (value_size, value_gas) = immediate_materialization_cost(evm_version, value);
+            if index == 0 {
+                old_size += value_size + 2;
+                old_gas += value_gas + 6;
+            } else {
+                let (offset_size, offset_gas) =
+                    immediate_materialization_cost(evm_version, U256::from(index * word_size));
+                old_size += offset_size + value_size + 4;
+                old_gas += offset_gas + value_gas + 12;
+            }
+        }
+
+        // Reserve PUSH3 for the unresolved data address so final relocation
+        // cannot turn a selected rewrite into code growth.
+        let (copy_size, copy_gas) = data_copy_cost(evm_version, data.len());
+        let mut new_size = data.len() + copy_size;
+        let mut new_gas = copy_gas;
+        if separate_tail {
+            let tail_offset = data.len() / word_size * word_size;
+            let (offset_size, offset_gas) =
+                immediate_materialization_cost(evm_version, U256::from(tail_offset));
+            let (zero_size, zero_gas) = immediate_materialization_cost(evm_version, U256::ZERO);
+            new_size += offset_size + zero_size + 3;
+            new_gas += offset_gas + zero_gas + 9;
+        }
+
+        data_copy_is_profitable(
+            self.gcx.sess.opts.optimization,
+            old_gas as i128 - new_gas as i128,
+            old_size as i128 - new_size as i128,
+        )
     }
 
     /// Stores data as words for short values and word-level constant pooling.
@@ -147,10 +183,6 @@ impl<'gcx> Lowerer<'gcx> {
         let kind = if creation { "initcode" } else { "runtime_code" };
         Symbol::intern(&format!("{}_{kind}", self.gcx.hir.contract(contract_id).name))
     }
-}
-
-fn data_is_inline(size: usize) -> bool {
-    size <= EvmMemoryLayout::WORD_SIZE as usize * MAX_INLINE_DATA_WORDS
 }
 
 fn padded_data_word(data: &[u8]) -> [u8; EvmMemoryLayout::WORD_SIZE as usize] {

@@ -1,0 +1,64 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/high_fanout.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/high_fanout.evmir (after pack-data) ===
+  @module high_fanout
+  bb0:
+    push 128
+    push 0x11112222333344445555666677778888
+    dup 2
+    mstore
+    push 32
+    dup 2
+    add
+    push 0x9999aaaabbbbccccddddeeeeffff0000
+    swap 1
+    mstore
+    stop
+  bb1:
+    push 256
+    push 0x11112222333344445555666677778888
+    dup 2
+    mstore
+    push 32
+    dup 2
+    add
+    push 0x9999aaaabbbbccccddddeeeeffff0000
+    swap 1
+    mstore
+    stop
+  bb2:
+    push 384
+    push 0x11112222333344445555666677778888
+    dup 2
+    mstore
+    push 32
+    dup 2
+    add
+    push 0x9999aaaabbbbccccddddeeeeffff0000
+    swap 1
+    mstore
+    stop
+  bb3:
+    push 512
+    push 0x11112222333344445555666677778888
+    dup 2
+    mstore
+    push 32
+    dup 2
+    add
+    push 0x9999aaaabbbbccccddddeeeeffff0000
+    swap 1
+    mstore
+    stop
+  bb4:
+    push 640
+    push 0x11112222333344445555666677778888
+    dup 2
+    mstore
+    push 32
+    dup 2
+    add
+    push 0x9999aaaabbbbccccddddeeeeffff0000
+    swap 1
+    mstore
+    stop
+  

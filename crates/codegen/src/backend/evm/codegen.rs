@@ -1942,6 +1942,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     0
                 };
             self.asm.set_unknown_target_stack_headroom(outline_stack_headroom);
+            let data_copy_has_headroom = if size_focused {
+                outline_stack_headroom >= ir::DATA_COPY_STACK_HEADROOM
+            } else {
+                self.recursive_stack_functions.is_empty()
+                    && self.caller_stack_prefixes_fit(
+                        module,
+                        MAX_STACK_DEPTH - ir::DATA_COPY_STACK_HEADROOM,
+                    )
+            };
+            self.asm.set_data_copy_has_headroom(data_copy_has_headroom);
             self.asm.set_enable_size_outlining(code_size_rescue);
 
             let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);

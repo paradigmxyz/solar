@@ -150,7 +150,7 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
 }
 
 /// Returns the byte length and gas cost of the selected immediate materialization.
-pub(in crate::backend::evm) fn immediate_materialization_cost(
+pub(crate) fn immediate_materialization_cost(
     evm_version: EvmVersion,
     value: U256,
 ) -> (usize, usize) {

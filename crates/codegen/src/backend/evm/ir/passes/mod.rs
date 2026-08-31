@@ -75,7 +75,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &peephole::Peephole,
     &coalesce_copies::CoalesceCopies,
     &cfg_simplify::CfgSimplify,
-    &data::PackData,
+    &data::PackExistingData,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
     &block_layout::BlockLayout,
@@ -122,6 +122,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
+    &data::MaterializeData,
     // Finalize the referenced data pool after all code transforms.
     &data::FinalizeData,
 ];

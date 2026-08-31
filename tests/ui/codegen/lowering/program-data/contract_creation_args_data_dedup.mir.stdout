@@ -1,5 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:ChildWithArg ===
 @module ChildWithArg
+data:
+  literal_0: hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+
 immutables:
   value: u256
 
@@ -20,20 +23,14 @@ fn @payload() -> memorybytes [abi_returns=[memory_bytes]] {
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160
     set_memory_object_len memorybytes, v0, 128
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-    v2 = add v1, 32
-    mstore v2, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-    v3 = add v1, 64
-    mstore v3, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
-    v4 = add v1, 96
-    mstore v4, 0xffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100
+    data_copy literal_0, v1, 128
     ret v0
 }
 
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs ===
 @module FactoryWithArgs
 data:
-  ChildWithArg_initcode_0: hex"61022038038061022060e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260e05160c0526101d080605060e03960c05161010e5260e0f3346028575f3560e01c80633fa4f245146020578063a878f858146024576028565b602c565b6056565b5f80fd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b6101406040526040518061010052806101005260a0810160405260808152602081017fffeeddccbbaa99887766554433221100ffeeddccbbaa998877665544332211008152602081017fffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100815250604081017fffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100815250606090017fffeeddccbbaa99887766554433221100ffeeddccbbaa998877665544332211008152506040518060e0528060e05260208101818060e05281038252828061010052518060805280608052806080528152601f19601f60805101168060a0528060a052602082018060c05291508160c0528060a0521590509050905061017e57602060a0510360c051015f8152505b6020610100510160a0518060a05260c05101608051806080528260c0518060c0525e905060e0518060e05290035f9001601f8101601f1981169050604051806101205281810191508160405290508181f3"
+  ChildWithArg_initcode_0: hex"61020d38038061020d60e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260e05160c0526101bd80605060e03960c05161010e5260e0f3346028575f3560e01c80633fa4f245146020578063a878f858146024576028565b602c565b6056565b5f80fd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b6101406040526040518061010052806101005260a08101604052608081526020810160808161013d9039506040518060e0528060e05260208101818060e05281038252828061010052518060805280608052806080528152601f19601f60805101168060a0528060a052602082018060c05291508160c0528060a0521590509050905060eb57602060a0510360c051015f8152505b6020610100510160a0518060a05260c05101608051806080528260c0518060c0525e905060e0518060e05290035f9001601f8101601f1981169050604051806101205281810191508160405290508181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 fn @plain() -> u256 [abi_returns=[word]] {
   bb0:
@@ -44,10 +41,10 @@ fn @plain() -> u256 [abi_returns=[word]] {
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = fmp
-    data_copy ChildWithArg_initcode_0, v6, 544
-    v7 = add v6, 544
+    data_copy ChildWithArg_initcode_0, v6, 525
+    v7 = add v6, 525
     mcopy v7, v4, v5 !metadata(memory=heap)
-    v8 = add 544, v5
+    v8 = add 525, v5
     v9 = add v8, 31
     v10 = and v9, 0xffffffffffffffe0
     v11 = add v6, v10
@@ -90,10 +87,10 @@ fn @salted() -> u256 [abi_returns=[word]] {
     v4 = slice_ptr v3
     v5 = slice_len v3
     v6 = fmp
-    data_copy ChildWithArg_initcode_0, v6, 544
-    v7 = add v6, 544
+    data_copy ChildWithArg_initcode_0, v6, 525
+    v7 = add v6, 525
     mcopy v7, v4, v5 !metadata(memory=heap)
-    v8 = add 544, v5
+    v8 = add 525, v5
     v9 = add v8, 31
     v10 = and v9, 0xffffffffffffffe0
     v11 = add v6, v10
@@ -133,10 +130,10 @@ fn @pair() -> u256 [abi_returns=[word]] {
     v1 = slice_ptr v0
     v2 = slice_len v0
     v3 = fmp
-    data_copy ChildWithArg_initcode_0, v3, 544
-    v4 = add v3, 544
+    data_copy ChildWithArg_initcode_0, v3, 525
+    v4 = add v3, 525
     mcopy v4, v1, v2 !metadata(memory=heap)
-    v5 = add 544, v2
+    v5 = add 525, v2
     v6 = add v5, 31
     v7 = and v6, 0xffffffffffffffe0
     v8 = add v3, v7
@@ -153,10 +150,10 @@ fn @pair() -> u256 [abi_returns=[word]] {
     v13 = slice_ptr v12
     v14 = slice_len v12
     v15 = fmp
-    data_copy ChildWithArg_initcode_0, v15, 544
-    v16 = add v15, 544
+    data_copy ChildWithArg_initcode_0, v15, 525
+    v16 = add v15, 525
     mcopy v16, v13, v14 !metadata(memory=heap)
-    v17 = add 544, v14
+    v17 = add 525, v14
     v18 = add v17, 31
     v19 = and v18, 0xffffffffffffffe0
     v20 = add v15, v19

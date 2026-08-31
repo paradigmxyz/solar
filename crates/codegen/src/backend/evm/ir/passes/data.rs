@@ -2,11 +2,12 @@
 
 use super::{EvmPass, utils::StackDepths};
 use crate::backend::evm::{
+    data_copy_cost, data_copy_gas, data_copy_is_profitable,
     ir::{
-        BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
+        BlockId, DATA_COPY_STACK_HEADROOM, Data, DataId, DataRef, Instruction, Module, PushValue,
         default_instruction_stack_effect, immediate_materialization_cost,
     },
-    op, push_len,
+    op,
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -19,6 +20,37 @@ use solar_sema::Gcx;
 
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
 const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
+
+/// Bounds rewrites whose local cost does not model lost global code sharing.
+const MAX_SHARED_DATA_COPY_SITES: usize = 4;
+
+pub(super) struct PackExistingData;
+
+impl EvmPass for PackExistingData {
+    fn name(&self) -> &'static str {
+        "pack-existing-data"
+    }
+
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        pack_existing_data(module)
+    }
+}
+
+pub(super) struct MaterializeData;
+
+impl EvmPass for MaterializeData {
+    fn name(&self) -> &'static str {
+        "materialize-data"
+    }
+
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let (references, groups) = data_references_and_runs(gcx, module);
+        if references.layout_is_observable() {
+            return false;
+        }
+        materialize_data(gcx, module, &references, groups)
+    }
+}
 
 pub(super) struct PackData;
 
@@ -57,11 +89,7 @@ impl EvmPass for FinalizeData {
     }
 
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let references = data_references(module);
-        if references.layout_is_observable() {
-            return false;
-        }
-        pack_data(module, &references)
+        pack_existing_data(module)
     }
 }
 
@@ -231,7 +259,13 @@ fn materialize_data(
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
     for (data, mut rewrites) in groups {
-        rewrites.retain(|rewrite| depths.has_headroom(rewrite.block, rewrite.start, 3));
+        if rewrites.len() > MAX_SHARED_DATA_COPY_SITES {
+            continue;
+        }
+        rewrites.retain(|rewrite| {
+            module.data_copy_has_headroom
+                || depths.has_headroom(rewrite.block, rewrite.start, DATA_COPY_STACK_HEADROOM)
+        });
         if rewrites.is_empty() {
             continue;
         }
@@ -361,13 +395,17 @@ fn rewrite_improvement(
 }
 
 fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
-    if gcx.sess.opts.optimization.is_gas() {
-        // Static sites have no execution-frequency estimate, so never buy gas
-        // by growing code for a copy that may stay cold.
-        improvement.runtime_gas > 0 && improvement.bytes >= 0
-    } else {
-        improvement.bytes > 0
+    // Static sites have no execution-frequency estimate, so never buy gas by
+    // growing code for a copy that may stay cold.
+    data_copy_is_profitable(gcx.sess.opts.optimization, improvement.runtime_gas, improvement.bytes)
+}
+
+fn pack_existing_data(module: &mut Module) -> bool {
+    let references = data_references(module);
+    if references.layout_is_observable() {
+        return false;
     }
+    pack_data(module, &references)
 }
 
 fn placement_additional_bytes(placement: &Placement) -> isize {
@@ -522,7 +560,10 @@ fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, R
                 && let Some((data, rewrite)) = find_run(gcx, block_id, &block.instructions, index)
             {
                 next_run_start = rewrite.end;
-                groups.entry(data).or_default().push(rewrite);
+                let rewrites = groups.entry(data).or_default();
+                if rewrites.len() <= MAX_SHARED_DATA_COPY_SITES {
+                    rewrites.push(rewrite);
+                }
             }
             track_data_reference(module, inst, &mut stack, &mut references);
         }
@@ -639,13 +680,7 @@ fn encoded_len(gcx: Gcx<'_>, inst: &Instruction) -> usize {
 }
 
 fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {
-    // Use PUSH3 for the unresolved data address so this estimate cannot grow
-    // an EIP-170-sized program if the final address crosses the PUSH2 boundary.
-    push_len(gcx.sess.opts.evm_version, U256::from(size)) + 4 + 2
-}
-
-fn data_copy_gas(size: usize) -> usize {
-    12 + 3 * size.div_ceil(32)
+    data_copy_cost(gcx.sess.opts.evm_version, size).0
 }
 
 fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {

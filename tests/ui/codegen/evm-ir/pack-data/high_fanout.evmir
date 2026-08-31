@@ -1,0 +1,87 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module high_fanout
+
+// Highly shared stores stay available to global code sharing instead of
+// taking a locally profitable rewrite that can grow the complete program.
+// CHECK-NOT: push_data
+// CHECK-NOT: @data
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: mstore
+// CHECK: mstore
+bb0:
+  push 128
+  push 0x11112222333344445555666677778888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999aaaabbbbccccddddeeeeffff0000
+  swap 1
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: mstore
+// CHECK: mstore
+bb1:
+  push 256
+  push 0x11112222333344445555666677778888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999aaaabbbbccccddddeeeeffff0000
+  swap 1
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: mstore
+// CHECK: mstore
+bb2:
+  push 384
+  push 0x11112222333344445555666677778888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999aaaabbbbccccddddeeeeffff0000
+  swap 1
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: mstore
+// CHECK: mstore
+bb3:
+  push 512
+  push 0x11112222333344445555666677778888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999aaaabbbbccccddddeeeeffff0000
+  swap 1
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: mstore
+// CHECK: mstore
+bb4:
+  push 640
+  push 0x11112222333344445555666677778888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999aaaabbbbccccddddeeeeffff0000
+  swap 1
+  mstore
+  stop

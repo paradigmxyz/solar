@@ -25,13 +25,15 @@ mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
+pub(crate) use passes::compact_pushes::immediate_materialization_cost;
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
-pub(in crate::backend::evm) use passes::{
-    LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::immediate_materialization_cost, legalize_shifts,
-};
+pub(in crate::backend::evm) use passes::{LEGACY_SHIFT_STACK_HEADROOM, legalize_shifts};
 
 /// Maximum stack reserve used by parameterized machine-run outlining.
 pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;
+
+/// Peak stack growth when replacing memory stores with a program-data copy.
+pub(in crate::backend::evm) const DATA_COPY_STACK_HEADROOM: usize = 3;
 
 /// Validates the invariants of an EVM IR module.
 pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
@@ -109,6 +111,8 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Data>,
     /// Backend-proven growth available even across opaque physical jumps.
     pub(crate) unknown_target_stack_headroom: usize,
+    /// Whether the backend reserved stack growth for program-data copies.
+    pub(crate) data_copy_has_headroom: bool,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
 }
@@ -130,6 +134,7 @@ impl Module {
             blocks: IndexVec::new(),
             data: IndexVec::new(),
             unknown_target_stack_headroom: 0,
+            data_copy_has_headroom: false,
             enable_size_outlining: false,
         }
     }
