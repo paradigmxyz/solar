@@ -57,6 +57,12 @@ type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
 type UsingDirectiveKey = usize;
 
+#[derive(Default)]
+struct DocumentationCache {
+    dev: FxOnceMap<hir::ContractId, Arc<crate::output::Documentation>>,
+    user: FxOnceMap<hir::ContractId, Arc<crate::output::Documentation>>,
+}
+
 /// A function exported by a contract.
 #[derive(Clone, Copy, Debug)]
 pub struct InterfaceFunction<'gcx> {
@@ -351,6 +357,7 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
+    documentation: DocumentationCache,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -386,12 +393,31 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
+            documentation: Default::default(),
             override_index: OnceLock::new(),
         }
     }
 }
 
 impl<'gcx> Gcx<'gcx> {
+    /// Returns the developer documentation for the given contract.
+    pub fn dev_documentation(self, contract_id: hir::ContractId) -> crate::output::Documentation {
+        self.documentation
+            .dev
+            .insert_cloned(contract_id, |_| Arc::new(self.build_dev_documentation(contract_id)))
+            .as_ref()
+            .clone()
+    }
+
+    /// Returns the user documentation for the given contract.
+    pub fn user_documentation(self, contract_id: hir::ContractId) -> crate::output::Documentation {
+        self.documentation
+            .user
+            .insert_cloned(contract_id, |_| Arc::new(self.build_user_documentation(contract_id)))
+            .as_ref()
+            .clone()
+    }
+
     pub(crate) fn new(gcx: &'gcx GlobalCtxt<'gcx>) -> Self {
         Self(gcx)
     }
@@ -1519,16 +1545,6 @@ macro_rules! cached {
 }
 
 cached! {
-/// Returns the developer documentation for the given contract.
-pub fn dev_documentation(gcx: _, id: hir::ContractId) -> crate::output::Documentation {
-    gcx.build_dev_documentation(id)
-}
-
-/// Returns the user documentation for the given contract.
-pub fn user_documentation(gcx: _, id: hir::ContractId) -> crate::output::Documentation {
-    gcx.build_user_documentation(id)
-}
-
 fn virtual_function_target(
     gcx: _,
     key: (hir::ContractId, hir::FunctionId)
@@ -2043,19 +2059,19 @@ fn is_value_ns(id: hir::ItemId) -> bool {
     )
 }
 
-/// `OnceMap::insert` but with `Copy` keys.
+/// `OnceMap::insert` but with `Copy` keys and values.
 #[inline]
 fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
 where
     K: Copy + Eq + Hash,
-    V: Clone,
+    V: Copy,
 {
     map.map_insert(key, make_val, cache_insert_with_result)
 }
 
 #[inline]
-fn cache_insert_with_result<K, V: Clone>(_: &K, v: &V) -> V {
-    v.clone()
+fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
+    *v
 }
 
 #[cfg(false)]
