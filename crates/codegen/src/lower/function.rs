@@ -74,6 +74,15 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             share_storage_bytes: self.share_storage_bytes,
         }
     }
+
+    pub(super) fn report_unsupported<T>(&self, span: Span, what: &str) -> Option<T> {
+        self.gcx
+            .dcx()
+            .err(format!("codegen rewrite does not support this {what} yet"))
+            .span(span)
+            .emit();
+        None
+    }
 }
 
 /// Mutable registries shared by all functions lowered for one contract.
@@ -112,7 +121,7 @@ pub(super) fn lower(
             .map(|&param| type_lowerer.abi_param_type(gcx.type_of_item(param.into())))
             .collect::<Option<Vec<_>>>();
         let Some(input_shapes) = input_shapes else {
-            return report_unsupported(gcx, hir_function.span, "function parameter shape");
+            return context.report_unsupported(hir_function.span, "function parameter shape");
         };
         mir.abi_params = Some(AbiParamLayout::new(input_shapes.into_boxed_slice()));
         mir.abi_param_locations = Some(
@@ -136,7 +145,7 @@ pub(super) fn lower(
                 let Some((output_shape, output_param_shape)) =
                     type_lowerer.abi_return_shapes(gcx.type_of_item(ret.into()))
                 else {
-                    return report_unsupported(gcx, hir_function.span, "function return shape");
+                    return context.report_unsupported(hir_function.span, "function return shape");
                 };
                 output_shapes.push(output_shape);
                 output_param_shapes.push(output_param_shape);
@@ -161,7 +170,7 @@ pub(super) fn lower(
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
-            return report_unsupported(gcx, hir_function.span, "free constructor");
+            return context.report_unsupported(hir_function.span, "free constructor");
         };
         lowerer.lower_implicit_base_constructors(contract_id)?;
         lowerer.lower_state_initializers(contract_id)?;
@@ -462,7 +471,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     kw::Gas => gas = option_value,
                     sym::value if allow_value => value = option_value,
                     _ => {
-                        return report_unsupported(self.context.gcx, option.name.span, diagnostic);
+                        return self.context.report_unsupported(option.name.span, diagnostic);
                     }
                 }
             }
@@ -638,12 +647,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
                     let Some(access) = self.storage_access(rhs) else {
-                        return report_unsupported(self.context.gcx, rhs.span, "storage access");
+                        return self.context.report_unsupported(rhs.span, "storage access");
                     };
                     let Some(id) = self.context.gcx.resolved_variable(lhs) else {
-                        return report_unsupported(
-                            self.context.gcx,
-                            lhs.span,
+                        return self.context.report_unsupported(lhs.span,
                             "storage reference target",
                         );
                     };
@@ -715,7 +722,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ if self.context.gcx.dcx().has_errors().is_err() => {
                 Some(self.builder.imm(U256::ZERO))
             }
-            _ => report_unsupported(self.context.gcx, expr.span, "expression"),
+            _ => self.context.report_unsupported(expr.span, "expression"),
         }
     }
 
@@ -853,11 +860,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         }
         *module.function_mut(dispatcher) = function;
     }
-}
-
-fn report_unsupported<T>(gcx: Gcx<'_>, span: Span, what: &str) -> Option<T> {
-    gcx.dcx().err(format!("codegen rewrite does not support this {what} yet")).span(span).emit();
-    None
 }
 
 fn arithmetic_kind(ty: Ty<'_>) -> Option<ArithmeticKind> {

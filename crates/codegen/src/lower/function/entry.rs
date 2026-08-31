@@ -90,9 +90,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             };
             if args.len() != constructor.parameters.len() {
-                return report_unsupported(
-                    self.context.gcx,
-                    constructor.span,
+                return self.context.report_unsupported(constructor.span,
                     "base constructor arguments",
                 );
             }
@@ -106,9 +104,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(argument) =
                     args.argument_for_parameter(index, Some(parameter_names.as_slice()))
                 else {
-                    return report_unsupported(
-                        self.context.gcx,
-                        constructor.span,
+                    return self.context.report_unsupported(constructor.span,
                         "named base constructor argument",
                     );
                 };

@@ -38,12 +38,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .type_of_expr_or_variable(receiver)
                             .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata)))
                 {
-                    return report_unsupported(self.context.gcx, expr.span, "l-value");
+                    return self.context.report_unsupported(expr.span, "l-value");
                 }
                 let resolved = self.context.gcx.resolved_expr(expr)?;
                 let id = resolved.as_variable()?;
                 let Some(field) = resolved.struct_field_index(&self.context.gcx.hir) else {
-                    return report_unsupported(self.context.gcx, name.span, "struct field l-value");
+                    return self.context.report_unsupported(name.span, "struct field l-value");
                 };
                 let object = self.lower_expr(receiver)?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
@@ -53,7 +53,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Index(receiver, index) => {
                 let Some(index) = index else {
-                    return report_unsupported(self.context.gcx, expr.span, "index l-value");
+                    return self.context.report_unsupported(expr.span, "index l-value");
                 };
                 let object = self.lower_expr(receiver)?;
                 let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
@@ -65,9 +65,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let Some((ty, length)) =
                             self.array_element_and_length(receiver_ty, object, layout)
                         else {
-                            return report_unsupported(
-                                self.context.gcx,
-                                expr.span,
+                            return self.context.report_unsupported(expr.span,
                                 "index l-value",
                             );
                         };
@@ -81,11 +79,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(LValuePlace::MemoryByte { object, index, ty })
                     }
                     MemoryObjectLayout::Struct { .. } => {
-                        report_unsupported(self.context.gcx, expr.span, "struct index l-value")
+                        self.context.report_unsupported(expr.span, "struct index l-value")
                     }
                 }
             }
-            _ => report_unsupported(self.context.gcx, expr.span, "l-value"),
+            _ => self.context.report_unsupported(expr.span, "l-value"),
         }
     }
 
@@ -175,7 +173,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })
         {
             let Some(access) = self.storage_access(receiver) else {
-                return report_unsupported(self.context.gcx, receiver.span, "storage access");
+                return self.context.report_unsupported(receiver.span, "storage access");
             };
             let (object, index) = self.grow_storage_bytes(access.slot);
             let ty = self.type_of_expr_or_variable(expr)?;
@@ -194,7 +192,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let receiver = self.peel_bytes_conversion(receiver);
         let Some(access) = self.storage_access(receiver) else {
-            return report_unsupported(self.context.gcx, receiver.span, "storage access");
+            return self.context.report_unsupported(receiver.span, "storage access");
         };
         let object = self.load_storage_bytes(access.slot);
         let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
@@ -237,7 +235,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(location) = self.context.storage.get(id) {
             let ty = self.context.gcx.type_of_item(id.into());
             if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
-                return report_unsupported(self.context.gcx, span, "mapping value");
+                return self.context.report_unsupported(span, "mapping value");
             }
             let slot = self.builder.imm(location.slot);
             return self.load_storage_value(
@@ -246,7 +244,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 span,
             );
         }
-        report_unsupported(self.context.gcx, span, "identifier")
+        self.context.report_unsupported(span, "identifier")
     }
 
     pub(super) fn store_variable(
@@ -284,7 +282,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.context.storage.store(&mut self.builder, location, value);
             return Some(());
         }
-        report_unsupported(self.context.gcx, span, "assignment target")
+        self.context.report_unsupported(span, "assignment target")
     }
 
     pub(super) fn store_state_variable(
@@ -296,7 +294,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         let ty = self.context.gcx.type_of_item(id.into());
         let Some(location) = self.context.storage.get(id) else {
-            return report_unsupported(self.context.gcx, span, "state initializer target");
+            return self.context.report_unsupported(span, "state initializer target");
         };
         if self.types.memory_layout(ty).is_some() {
             let slot = self.builder.imm(location.slot);
@@ -356,7 +354,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slice = match name.name {
                 sym::offset => self.builder.make_slice(value, length, SliceLocation::Calldata),
                 sym::length => self.builder.make_slice(pointer, value, SliceLocation::Calldata),
-                _ => return report_unsupported(self.context.gcx, span, "Yul calldata assignment"),
+                _ => return self.context.report_unsupported(span, "Yul calldata assignment"),
             };
             return self.store_lvalue(receiver, slice);
         }
@@ -368,9 +366,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // pointer = name == address ? (value, pointer.selector) : (pointer.address, value)
             // store(receiver, pointer)
             let Some(id) = self.context.gcx.resolved_variable(receiver) else {
-                return report_unsupported(
-                    self.context.gcx,
-                    span,
+                return self.context.report_unsupported(span,
                     "Yul function assignment target",
                 );
             };
@@ -391,26 +387,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let address = self.builder.and(pointer, address_mask);
                     self.builder.or(address, selector)
                 }
-                _ => return report_unsupported(self.context.gcx, span, "Yul function assignment"),
+                _ => return self.context.report_unsupported(span, "Yul function assignment"),
             };
             return self.store_variable(id, value, span);
         }
 
         if name.name != sym::slot {
-            return report_unsupported(self.context.gcx, span, "Yul storage assignment");
+            return self.context.report_unsupported(span, "Yul storage assignment");
         }
         let Some(id) = self.context.gcx.resolved_variable(receiver) else {
-            return report_unsupported(self.context.gcx, span, "Yul storage assignment target");
+            return self.context.report_unsupported(span, "Yul storage assignment target");
         };
         if self.context.gcx.hir.variable(id).is_state_variable() {
-            return report_unsupported(
-                self.context.gcx,
-                span,
+            return self.context.report_unsupported(span,
                 "Yul state-variable slot assignment",
             );
         }
         let Some(access) = self.storage_refs.get(&id).copied() else {
-            return report_unsupported(self.context.gcx, span, "Yul storage assignment target");
+            return self.context.report_unsupported(span, "Yul storage assignment target");
         };
 
         // storage_ref.slot = value

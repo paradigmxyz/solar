@@ -223,10 +223,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                     Some(self.materialize_memory_slice(value))
                 }
-                _ => report_unsupported(self.context.gcx, span, "memory slice materialization"),
+                _ => self.context.report_unsupported(span, "memory slice materialization"),
             },
             SliceLocation::Returndata => {
-                report_unsupported(self.context.gcx, span, "returndata slice materialization")
+                self.context.report_unsupported(span, "returndata slice materialization")
             }
         }
     }
@@ -262,7 +262,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
         {
             let Some(access) = self.storage_access(source_expr) else {
-                return report_unsupported(self.context.gcx, source_expr.span, "storage access");
+                return self.context.report_unsupported(source_expr.span, "storage access");
             };
             return self.load_storage_object(ty, access.slot, expr.span);
         }
@@ -403,7 +403,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::DynArray(_) | TyKind::Slice(_) => {
                 // object = materialize_calldata_array(data)
                 let element = self.array_element_type(ty).or_else(|| {
-                    report_unsupported(self.context.gcx, span, "calldata argument materialization")
+                    self.context.report_unsupported(span, "calldata argument materialization")
                 })?;
                 let element_type = self.types.abi_type(element)?;
                 let length = self.builder.slice_len(value);
@@ -432,7 +432,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let base = self.builder.slice_ptr(value);
                 self.materialize_calldata_fields(field_types, base, span, true)
             }
-            _ => report_unsupported(self.context.gcx, span, "calldata argument materialization"),
+            _ => self.context.report_unsupported(span, "calldata argument materialization"),
         }
     }
 

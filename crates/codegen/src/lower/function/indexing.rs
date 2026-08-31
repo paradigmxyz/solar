@@ -55,7 +55,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_storage_access(expr, access);
         }
         let Some(index) = index else {
-            return report_unsupported(self.context.gcx, expr.span, "index");
+            return self.context.report_unsupported(expr.span, "index");
         };
         let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
@@ -84,9 +84,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
                         SliceLocation::Returndata => {
-                            return report_unsupported(
-                                self.context.gcx,
-                                expr.span,
+                            return self.context.report_unsupported(expr.span,
                                 "returndata index",
                             );
                         }
@@ -99,9 +97,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // head = slice.data + index * element_head_size
                     // value = decode_calldata_element(head, slice.data)
                     if location != SliceLocation::Calldata {
-                        return report_unsupported(
-                            self.context.gcx,
-                            expr.span,
+                        return self.context.report_unsupported(expr.span,
                             "memory array slice index",
                         );
                     }
@@ -126,7 +122,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         validate_bounds,
                     )
                 }
-                _ => report_unsupported(self.context.gcx, expr.span, "slice index"),
+                _ => self.context.report_unsupported(expr.span, "slice index"),
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;
@@ -137,7 +133,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some((element, length)) =
                     self.array_element_and_length(receiver_ty, object, layout)
                 else {
-                    return report_unsupported(self.context.gcx, expr.span, "array index");
+                    return self.context.report_unsupported(expr.span, "array index");
                 };
                 self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_element(object, layout, index);
@@ -155,7 +151,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_byte_value(expr, value))
             }
             MemoryObjectLayout::Struct { .. } => {
-                report_unsupported(self.context.gcx, expr.span, "struct index")
+                self.context.report_unsupported(expr.span, "struct index")
             }
         }
     }
@@ -174,7 +170,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => {
                 let layout = self.types.memory_layout(receiver_ty)?;
                 if layout != MemoryObjectLayout::Bytes {
-                    return report_unsupported(self.context.gcx, expr.span, "slice");
+                    return self.context.report_unsupported(expr.span, "slice");
                 }
                 let length = self.builder.memory_object_len(value, MemoryObjectKind::Bytes);
                 let pointer = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
@@ -190,7 +186,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else if !matches!(receiver_ty.peel_refs().kind, TyKind::DynArray(_) | TyKind::Slice(_))
             || location != SliceLocation::Calldata
         {
-            return report_unsupported(self.context.gcx, expr.span, "slice");
+            return self.context.report_unsupported(expr.span, "slice");
         } else {
             let element = self.array_element_type(receiver_ty)?;
             // The semantic checker rejects range access on arrays with

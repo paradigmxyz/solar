@@ -188,16 +188,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(TyKind::Fn(function_ty)) =
                     self.context.gcx.type_of_expr(function.id).map(|ty| ty.kind)
                 else {
-                    return report_unsupported(
-                        self.context.gcx,
-                        function.span,
+                    return self.context.report_unsupported(function.span,
                         "abi.encodeCall function",
                     );
                 };
                 if !function_ty.is_external() {
-                    return report_unsupported(
-                        self.context.gcx,
-                        function.span,
+                    return self.context.report_unsupported(function.span,
                         "abi.encodeCall function",
                     );
                 }
@@ -212,9 +208,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => vec![tuple],
         };
         if exprs.len() != parameter_types.len() {
-            return report_unsupported(
-                self.context.gcx,
-                tuple.span,
+            return self.context.report_unsupported(tuple.span,
                 "abi.encodeCall argument list",
             );
         }
@@ -259,24 +253,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let types = match args[1].kind {
             ExprKind::Tuple(types) => types.iter().flatten().copied().collect::<Vec<_>>(),
             _ => {
-                return report_unsupported(
-                    self.context.gcx,
-                    args[1].span,
+                return self.context.report_unsupported(args[1].span,
                     "abi.decode target type",
                 );
             }
         };
         if types.is_empty() {
-            return report_unsupported(self.context.gcx, args[1].span, "abi.decode target type");
+            return self.context.report_unsupported(args[1].span, "abi.decode target type");
         }
         let mut decoded_types = Vec::with_capacity(types.len());
         for ty_expr in &types {
             let Some(TyKind::Type(ty)) =
                 self.context.gcx.type_of_expr(ty_expr.id).map(|ty| ty.kind)
             else {
-                return report_unsupported(
-                    self.context.gcx,
-                    ty_expr.span,
+                return self.context.report_unsupported(ty_expr.span,
                     "abi.decode target type",
                 );
             };
@@ -306,7 +296,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut abi_types = Vec::with_capacity(types.len());
         for &ty in types {
             let Some(abi_type) = self.types.abi_param_type(ty) else {
-                return report_unsupported(self.context.gcx, span, "abi.decode target type");
+                return self.context.report_unsupported(span, "abi.decode target type");
             };
             abi_types.push(abi_type);
         }
@@ -763,9 +753,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
 
             let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
+                return self.context.report_unsupported(expr.span,
                     "abi.encodePacked argument",
                 );
             };

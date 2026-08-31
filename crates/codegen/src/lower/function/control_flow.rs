@@ -169,11 +169,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
         let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
-            return report_unsupported(self.context.gcx, try_stmt.expr.span, "try expression");
+            return self.context.report_unsupported(try_stmt.expr.span, "try expression");
         };
         let target = if let ExprKind::New(ty) = &callee.kind {
             let TyKind::Contract(contract_id) = self.context.gcx.type_of_hir_ty(ty).kind else {
-                return report_unsupported(self.context.gcx, try_stmt.expr.span, "try target");
+                return self.context.report_unsupported(try_stmt.expr.span, "try target");
             };
             let contract = self.context.gcx.hir.contract(contract_id);
             let (parameters, parameter_names) = contract
@@ -201,7 +201,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         } else if let ExprKind::Member(receiver, _) = callee.kind {
             let Some(function_id) = self.context.gcx.resolved_function(callee) else {
-                return report_unsupported(self.context.gcx, try_stmt.expr.span, "try target");
+                return self.context.report_unsupported(try_stmt.expr.span, "try target");
             };
             let function = self.context.gcx.hir.function(function_id);
             let is_external_library = function.contract.is_some_and(|contract| {
@@ -279,19 +279,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 static_call: self.uses_static_call(function.state_mutability),
             }
         } else {
-            return report_unsupported(self.context.gcx, try_stmt.expr.span, "try target");
+            return self.context.report_unsupported(try_stmt.expr.span, "try target");
         };
         let Some((returns_clause, catch_clauses)) = try_stmt.clauses.split_first() else {
-            return report_unsupported(self.context.gcx, try_stmt.expr.span, "try/catch clauses");
+            return self.context.report_unsupported(try_stmt.expr.span, "try/catch clauses");
         };
         if catch_clauses.is_empty() {
-            return report_unsupported(self.context.gcx, try_stmt.expr.span, "try/catch clauses");
+            return self.context.report_unsupported(try_stmt.expr.span, "try/catch clauses");
         }
         let creation_binding = if matches!(target.callee, TryCallee::Creation { .. }) {
             if returns_clause.name.is_some() || returns_clause.args.len() > 1 {
-                return report_unsupported(
-                    self.context.gcx,
-                    returns_clause.span,
+                return self.context.report_unsupported(returns_clause.span,
                     "try return bindings",
                 );
             }
@@ -301,9 +299,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 || (!returns_clause.args.is_empty()
                     && returns_clause.args.len() != target.return_types.len())
             {
-                return report_unsupported(
-                    self.context.gcx,
-                    returns_clause.span,
+                return self.context.report_unsupported(returns_clause.span,
                     "try return bindings",
                 );
             }
@@ -313,10 +309,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
             if catch_clause.name.is_some() && !catch_error && !catch_panic {
-                return report_unsupported(self.context.gcx, catch_clause.span, "try catch clause");
+                return self.context.report_unsupported(catch_clause.span, "try catch clause");
             }
             if catch_clause.args.len() > 1 {
-                return report_unsupported(self.context.gcx, catch_clause.span, "try catch clause");
+                return self.context.report_unsupported(catch_clause.span, "try catch clause");
             }
             if let Some(&binding) = catch_clause.args.first() {
                 let ty = self.context.gcx.type_of_item(binding.into());
@@ -328,9 +324,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::Elementary(ElementaryType::Bytes)
                 };
                 if ty.peel_refs().kind != expected {
-                    return report_unsupported(
-                        self.context.gcx,
-                        catch_clause.span,
+                    return self.context.report_unsupported(catch_clause.span,
                         "try catch clause",
                     );
                 }
@@ -344,7 +338,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         if args.len() != target.parameter_types.len() {
-            return report_unsupported(self.context.gcx, args.span, "try arguments");
+            return self.context.report_unsupported(args.span, "try arguments");
         }
 
         let (success, creation_value) = if let TryCallee::Creation { ty, contract_id } =
@@ -373,9 +367,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if let Some(receiver) = receiver {
                         let function = self.context.gcx.hir.function(function);
                         let Some(&parameter) = function.parameters.first() else {
-                            return report_unsupported(
-                                self.context.gcx,
-                                receiver.span,
+                            return self.context.report_unsupported(receiver.span,
                                 "attached library receiver",
                             );
                         };
@@ -456,9 +448,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(binding) = creation_binding {
             // success.address = address
             let Some(value) = creation_value else {
-                return report_unsupported(
-                    self.context.gcx,
-                    returns_clause.span,
+                return self.context.report_unsupported(returns_clause.span,
                     "try return bindings",
                 );
             };
@@ -583,7 +573,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let LitKind::Str(_, bytes, _) = &lit.kind {
             let bytes = bytes.as_byte_str();
             if bytes.len() > 32 {
-                return report_unsupported(self.context.gcx, lit.span, "switch literal");
+                return self.context.report_unsupported(lit.span, "switch literal");
             }
             return Some(self.lower_string_literal_word(bytes));
         }
@@ -726,7 +716,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && !else_branch.terminated
             && then_branch.value.len() != else_branch.value.len()
         {
-            return report_unsupported(self.context.gcx, then_expr.span, "ternary value count");
+            return self.context.report_unsupported(then_expr.span, "ternary value count");
         }
         // values = then_values | else_values | phi(then_i, else_i)
         let values = match (then_branch.terminated, else_branch.terminated) {

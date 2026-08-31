@@ -333,7 +333,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         let ty = self.context.gcx.type_of_expr(lhs.id)?.peel_refs();
         let Some(access) = self.storage_access(lhs) else {
-            return report_unsupported(self.context.gcx, lhs.span, "storage access");
+            return self.context.report_unsupported(lhs.span, "storage access");
         };
         self.store_constant_storage_value(ty, access, rhs)
     }
@@ -577,7 +577,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         argument: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
-            return report_unsupported(self.context.gcx, expr.span, "storage array push target");
+            return self.context.report_unsupported(expr.span, "storage array push target");
         };
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         if matches!(
@@ -591,7 +591,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_storage_bytes_push(receiver, argument);
         }
         let Some((base, element)) = self.storage_array_base(receiver) else {
-            return report_unsupported(self.context.gcx, expr.span, "storage array push target");
+            return self.context.report_unsupported(expr.span, "storage array push target");
         };
         let value = if let Some(argument) = argument {
             let (value, source_ty) = if self.types.memory_layout(element).is_some() {
@@ -636,7 +636,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object[old.len] = byte
         // store_storage_bytes(slot, object)
         let Some(access) = self.storage_access(receiver) else {
-            return report_unsupported(self.context.gcx, receiver.span, "storage access");
+            return self.context.report_unsupported(receiver.span, "storage access");
         };
         let value = if let Some(argument) = argument {
             let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
@@ -657,7 +657,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         callee: &hir::Expr<'_>,
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
-            return report_unsupported(self.context.gcx, expr.span, "storage array pop target");
+            return self.context.report_unsupported(expr.span, "storage array pop target");
         };
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         if matches!(
@@ -665,7 +665,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
             let Some(access) = self.storage_access(receiver) else {
-                return report_unsupported(self.context.gcx, receiver.span, "storage access");
+                return self.context.report_unsupported(receiver.span, "storage access");
             };
 
             // if old.len == 0 { panic(EmptyArrayPop) }
@@ -692,7 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
 
         let Some((base, element)) = self.storage_array_base(receiver) else {
-            return report_unsupported(self.context.gcx, expr.span, "storage array pop target");
+            return self.context.report_unsupported(expr.span, "storage array pop target");
         };
 
         // if length == 0 { panic(EmptyArrayPop) }
@@ -716,7 +716,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
         let Some(base) = self.storage_access(receiver) else {
-            return report_unsupported(self.context.gcx, receiver.span, "storage access");
+            return self.context.report_unsupported(receiver.span, "storage access");
         };
         let ty = self.context.gcx.type_of_expr(receiver.id)?.peel_refs();
         let TyKind::DynArray(element) = ty.kind else { return None };
@@ -938,7 +938,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(object)
             }
             TyKind::DynArray(element) => self.load_dynamic_storage_object(element, slot, span),
-            _ => report_unsupported(self.context.gcx, span, "storage object copy"),
+            _ => self.context.report_unsupported(span, "storage object copy"),
         }
     }
 
@@ -1134,13 +1134,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Struct(struct_id) => {
                 // store_storage_struct(slot, object)
                 let TyKind::Struct(source_struct_id) = source_ty.peel_refs().kind else {
-                    return report_unsupported(self.context.gcx, span, "storage struct conversion");
+                    return self.context.report_unsupported(span, "storage struct conversion");
                 };
                 let fields = self.context.gcx.hir.strukt(struct_id).fields.len() as u64;
                 let source_fields =
                     self.context.gcx.hir.strukt(source_struct_id).fields.len() as u64;
                 if fields != source_fields {
-                    return report_unsupported(self.context.gcx, span, "storage struct conversion");
+                    return self.context.report_unsupported(span, "storage struct conversion");
                 }
                 if self.storage_struct_is_recursive(struct_id) {
                     let helper = self.ensure_recursive_storage_helper(
@@ -1164,7 +1164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Array(element, len) => {
                 // for i in 0..len { store_storage(element_slot(i), object[i]) }
                 let TyKind::Array(source_element, source_len) = source_ty.peel_refs().kind else {
-                    return report_unsupported(self.context.gcx, span, "storage array conversion");
+                    return self.context.report_unsupported(span, "storage array conversion");
                 };
                 let len = u64::try_from(len).ok()?;
                 let source_len = u64::try_from(source_len).ok()?;
@@ -1204,7 +1204,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::DynArray(element) => {
                 self.store_dynamic_storage_object(element, source_ty, slot, object, span)
             }
-            _ => report_unsupported(self.context.gcx, span, "storage object copy"),
+            _ => self.context.report_unsupported(span, "storage object copy"),
         }
     }
 
@@ -1329,7 +1329,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let source_len = u64::try_from(source_len).ok()?;
                 (source_element, self.builder.imm(source_len), Some(source_len))
             }
-            _ => return report_unsupported(self.context.gcx, span, "storage array conversion"),
+            _ => return self.context.report_unsupported(span, "storage array conversion"),
         };
 
         let old_length = self.builder.sload(slot);

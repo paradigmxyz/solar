@@ -30,10 +30,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let function = self.context.gcx.hir.function(function_id);
         if function.parameters.len() != values.len() || function.returns.len() != 1 {
-            return report_unsupported(self.context.gcx, span, "user-defined operator signature");
+            return self.context.report_unsupported(span, "user-defined operator signature");
         }
         let Some(&mir_id) = self.context.function_ids.get(&function_id) else {
-            return report_unsupported(self.context.gcx, span, "user-defined operator function");
+            return self.context.report_unsupported(span, "user-defined operator function");
         };
         let result_ty = types::TypeLowerer::mir_return_type(
             self.context.gcx.type_of_item(function.returns[0].into()),
@@ -62,10 +62,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if is_type_conversion {
             // result = convert(callee, args)
             if args.len() != 1 {
-                return report_unsupported(self.context.gcx, expr.span, "type conversion");
+                return self.context.report_unsupported(expr.span, "type conversion");
             }
             let Some(arg) = args.exprs().next() else {
-                return report_unsupported(self.context.gcx, expr.span, "type conversion");
+                return self.context.report_unsupported(expr.span, "type conversion");
             };
             let source_ty = self.context.gcx.type_of_expr(arg.id)?;
             let target_ty = self.context.gcx.type_of_expr(expr.id).or_else(|| {
@@ -89,7 +89,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                 ) {
                 let Some(access) = self.storage_access(arg) else {
-                    return report_unsupported(self.context.gcx, arg.span, "storage access");
+                    return self.context.report_unsupported(arg.span, "storage access");
                 };
                 self.load_storage_bytes(access.slot)
             } else {
@@ -103,10 +103,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.lower_new_contract(expr, ty, contract_id, args, call_opts);
             }
             if args.len() != 1 {
-                return report_unsupported(self.context.gcx, expr.span, "dynamic allocation");
+                return self.context.report_unsupported(expr.span, "dynamic allocation");
             }
             let Some(arg) = args.exprs().next() else {
-                return report_unsupported(self.context.gcx, expr.span, "dynamic allocation");
+                return self.context.report_unsupported(expr.span, "dynamic allocation");
             };
             let len = self.lower_expr(arg)?;
             let ty = self.context.gcx.type_of_expr(expr.id)?;
@@ -121,7 +121,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let word_size = self.builder.imm(32);
                     self.builder.checked_mul(words, word_size)
                 }
-                _ => return report_unsupported(self.context.gcx, expr.span, "allocation type"),
+                _ => return self.context.report_unsupported(expr.span, "allocation type"),
             };
             // result = alloc(size, zeroed)
             // result.length = length
@@ -155,7 +155,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.context.gcx.dcx().has_errors().is_err() {
             return Some(self.builder.imm(U256::ZERO));
         }
-        report_unsupported(self.context.gcx, expr.span, "function call")
+        self.context.report_unsupported(expr.span, "function call")
     }
 
     pub(super) fn lower_new_contract(
@@ -214,9 +214,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         )?);
                     }
                     _ => {
-                        return report_unsupported(
-                            self.context.gcx,
-                            option.name.span,
+                        return self.context.report_unsupported(option.name.span,
                             "creation option",
                         );
                     }
@@ -238,7 +236,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })
             .unwrap_or((&[], Vec::new().into()));
         if args.len() != parameters.len() {
-            return report_unsupported(self.context.gcx, args.span, "constructor arguments");
+            return self.context.report_unsupported(args.span, "constructor arguments");
         }
 
         let mut values = Vec::with_capacity(parameters.len());
@@ -247,7 +245,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 args.argument_for_parameter(index, Some(parameter_names.as_slice()))
             else {
-                return report_unsupported(self.context.gcx, args.span, "constructor argument");
+                return self.context.report_unsupported(args.span, "constructor argument");
             };
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
@@ -321,7 +319,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Vec<ValueId>> {
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
-            return report_unsupported(self.context.gcx, args.span, "external function arguments");
+            return self.context.report_unsupported(args.span, "external function arguments");
         }
         let function_value = self.lower_expr(callee)?;
         // address, selector = split_function_pointer(function)
@@ -402,7 +400,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         if args.len() != function.parameters.len() {
-            return report_unsupported(self.context.gcx, expr.span, "internal function arguments");
+            return self.context.report_unsupported(expr.span, "internal function arguments");
         }
         let function_value = self.lower_expr(callee)?;
         let parameter_names = self
@@ -414,9 +412,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, &parameter) in function.parameters.iter().enumerate() {
             let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
             else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
+                return self.context.report_unsupported(expr.span,
                     "named internal function argument",
                 );
             };
@@ -696,9 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         );
         let attached_receiver = if attached {
             let ExprKind::Member(receiver, _) = callee.kind else {
-                return report_unsupported(
-                    self.context.gcx,
-                    expr.span,
+                return self.context.report_unsupported(expr.span,
                     "attached function receiver",
                 );
             };
@@ -738,7 +732,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // call_args = materialize(receiver, args)
         let receiver_count = usize::from(attached);
         if args.len() + receiver_count != function.parameters.len() {
-            return report_unsupported(self.context.gcx, expr.span, "function argument list");
+            return self.context.report_unsupported(expr.span, "function argument list");
         }
         let parameter_names = self
             .context
@@ -750,7 +744,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let parameter_ty = self.context.gcx.type_of_item(function.parameters[0].into());
             let value = if Self::is_storage_parameter(parameter_ty) {
                 let Some(access) = self.storage_access(receiver) else {
-                    return report_unsupported(self.context.gcx, receiver.span, "storage access");
+                    return self.context.report_unsupported(receiver.span, "storage access");
                 };
                 access.slot
             } else {
@@ -769,12 +763,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 args.argument_for_parameter(index - receiver_count, parameter_names.as_deref())
             else {
-                return report_unsupported(self.context.gcx, expr.span, "named function argument");
+                return self.context.report_unsupported(expr.span, "named function argument");
             };
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             let value = if Self::is_storage_parameter(parameter_ty) {
                 let Some(access) = self.storage_access(argument) else {
-                    return report_unsupported(self.context.gcx, argument.span, "storage access");
+                    return self.context.report_unsupported(argument.span, "storage access");
                 };
                 access.slot
             } else {
@@ -854,11 +848,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let ExprKind::Member(receiver, _) = callee.kind else {
-            return report_unsupported(self.context.gcx, expr.span, "external function target");
+            return self.context.report_unsupported(expr.span, "external function target");
         };
         let function = self.context.gcx.hir.function(function_id);
         if args.len() != function.parameters.len() {
-            return report_unsupported(self.context.gcx, expr.span, "external function arguments");
+            return self.context.report_unsupported(expr.span, "external function arguments");
         }
         let address = self.lower_expr(receiver)?;
         let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
@@ -948,12 +942,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, parameter_ty)| {
                 let argument = args
                     .argument_for_parameter(index, parameter_names)
-                    .or_else(|| report_unsupported(self.context.gcx, span, error))?;
+                    .or_else(|| self.context.report_unsupported(span, error))?;
                 if storage_parameters && Self::is_storage_parameter(parameter_ty) {
                     let Some(access) = self.storage_access(argument) else {
-                        return report_unsupported(
-                            self.context.gcx,
-                            argument.span,
+                        return self.context.report_unsupported(argument.span,
                             "storage access",
                         );
                     };
@@ -1013,7 +1005,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let function = self.context.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
         if args.len() + receiver_count != function.parameters.len() {
-            return report_unsupported(self.context.gcx, expr.span, "library arguments");
+            return self.context.report_unsupported(expr.span, "library arguments");
         }
         let parameter_names =
             self.context.gcx.callable_param_names(CallableParamSource::Function {
@@ -1087,7 +1079,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<(ValueId, AbiType)> {
         if Self::is_storage_parameter(parameter_ty) {
             let Some(access) = self.storage_access(receiver) else {
-                return report_unsupported(self.context.gcx, receiver.span, "storage access");
+                return self.context.report_unsupported(receiver.span, "storage access");
             };
             Some((access.slot, AbiType::Word(None)))
         } else {

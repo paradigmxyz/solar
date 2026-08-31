@@ -68,9 +68,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(modifier_id) =
             self.context.gcx.resolve_modifier_target(self.context.contract_id, modifier)
         else {
-            return report_unsupported(
-                self.context.gcx,
-                modifier.span,
+            return self.context.report_unsupported(modifier.span,
                 "base constructor modifier",
             );
         };
@@ -79,13 +77,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_modifier_at(modifiers, body, index + 1);
         }
         if !modifier_function.kind.is_modifier() {
-            return report_unsupported(self.context.gcx, modifier.span, "modifier target");
+            return self.context.report_unsupported(modifier.span, "modifier target");
         }
         let Some(modifier_body) = modifier_function.body else {
-            return report_unsupported(self.context.gcx, modifier.span, "modifier body");
+            return self.context.report_unsupported(modifier.span, "modifier body");
         };
         if modifier.args.len() != modifier_function.parameters.len() {
-            return report_unsupported(self.context.gcx, modifier.span, "modifier argument list");
+            return self.context.report_unsupported(modifier.span, "modifier argument list");
         }
         let incoming_returns = self.snapshot_bindings(&self.returns);
         let local_ids = self.modifier_local_ids(modifier_body);
@@ -104,16 +102,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(argument) =
                 modifier.args.argument_for_parameter(index, parameter_names.as_deref())
             else {
-                return report_unsupported(
-                    self.context.gcx,
-                    modifier.span,
+                return self.context.report_unsupported(modifier.span,
                     "named modifier argument",
                 );
             };
             let parameter_ty = self.context.gcx.type_of_item(parameter.into());
             if Self::is_storage_parameter(parameter_ty) {
                 let Some(access) = self.storage_access(argument) else {
-                    return report_unsupported(self.context.gcx, argument.span, "storage access");
+                    return self.context.report_unsupported(argument.span, "storage access");
                 };
                 self.storage_refs.insert(parameter, access);
             } else {
@@ -159,27 +155,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         constructor: &'gcx hir::Function<'gcx>,
     ) -> Option<()> {
         let Some(body) = constructor.body else {
-            return report_unsupported(self.context.gcx, modifier.span, "base constructor body");
+            return self.context.report_unsupported(modifier.span, "base constructor body");
         };
         if modifier.args.len() != constructor.parameters.len() {
-            return report_unsupported(
-                self.context.gcx,
-                modifier.span,
+            return self.context.report_unsupported(modifier.span,
                 "base constructor arguments",
             );
         }
         let contract_id = constructor.contract;
         let Some(values) = self.constructor_arguments.remove(&constructor_id) else {
-            return report_unsupported(
-                self.context.gcx,
-                modifier.span,
+            return self.context.report_unsupported(modifier.span,
                 "base constructor arguments",
             );
         };
         if values.len() != constructor.parameters.len() {
-            return report_unsupported(
-                self.context.gcx,
-                modifier.span,
+            return self.context.report_unsupported(modifier.span,
                 "base constructor arguments",
             );
         }
@@ -211,7 +201,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
         let Some(context) = self.modifiers.pop() else {
-            return report_unsupported(self.context.gcx, span, "modifier placeholder");
+            return self.context.report_unsupported(span, "modifier placeholder");
         };
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();

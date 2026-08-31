@@ -112,7 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.context.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
                 let Some(access) = self.storage_access(expr) else {
-                    return report_unsupported(self.context.gcx, expr.span, "storage access");
+                    return self.context.report_unsupported(expr.span, "storage access");
                 };
                 return Some(vec![access.slot]);
             }
@@ -131,9 +131,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let ty = self.context.gcx.type_of_item(id.into());
                     if ty.is_ref_at(DataLocation::Storage) {
                         let Some(access) = self.storage_access(value) else {
-                            return report_unsupported(
-                                self.context.gcx,
-                                value.span,
+                            return self.context.report_unsupported(value.span,
                                 "storage access",
                             );
                         };
@@ -165,7 +163,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }) && let Some(values) = self.lower_storage_reference_call(rhs)
         {
             if values.len() != elements.len() {
-                return report_unsupported(self.context.gcx, rhs.span, "storage reference tuple");
+                return self.context.report_unsupported(rhs.span, "storage reference tuple");
             }
             let mut assignments = Vec::with_capacity(elements.len());
             for (element, (value, source_ty, access)) in elements.iter().zip(values) {
@@ -181,9 +179,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = self.prepare_tuple_rhs(element, value)?;
                     assignments.push((*element, value));
                 } else if self.is_storage_reference_binding(element) {
-                    return report_unsupported(
-                        self.context.gcx,
-                        element.span,
+                    return self.context.report_unsupported(element.span,
                         "mixed storage tuple",
                     );
                 } else {
@@ -209,9 +205,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             for (lhs, rhs) in elements.iter().zip(rhs_elements.iter()) {
                 let Some(rhs) = rhs else {
                     if lhs.is_some() {
-                        return report_unsupported(
-                            self.context.gcx,
-                            tuple_span,
+                        return self.context.report_unsupported(tuple_span,
                             "storage reference tuple",
                         );
                     }
@@ -222,15 +216,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     continue;
                 };
                 if !self.is_storage_reference_binding(lhs) {
-                    return report_unsupported(self.context.gcx, lhs.span, "mixed storage tuple");
+                    return self.context.report_unsupported(lhs.span, "mixed storage tuple");
                 }
                 let Some(access) = self.storage_access(rhs) else {
-                    return report_unsupported(self.context.gcx, rhs.span, "storage access");
+                    return self.context.report_unsupported(rhs.span, "storage access");
                 };
                 let Some(id) = self.context.gcx.resolved_variable(lhs) else {
-                    return report_unsupported(
-                        self.context.gcx,
-                        lhs.span,
+                    return self.context.report_unsupported(lhs.span,
                         "storage reference target",
                     );
                 };
@@ -246,7 +238,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 elements.first().is_some_and(Option::is_none),
             )?;
             if values.len() != elements.iter().flatten().count() {
-                return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
+                return self.context.report_unsupported(rhs.span, "tuple assignment arity");
             }
             return self.store_tuple_values(
                 elements
@@ -279,7 +271,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let values = self.lower_values(rhs)?;
         if values.len() < elements.len() {
-            return report_unsupported(self.context.gcx, rhs.span, "tuple assignment arity");
+            return self.context.report_unsupported(rhs.span, "tuple assignment arity");
         }
         self.store_tuple_values(
             elements
@@ -340,9 +332,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(match value {
                     TupleAssignmentRhs::StorageReference { access } => {
                         let Some(id) = self.context.gcx.resolved_variable(element) else {
-                            return report_unsupported(
-                                self.context.gcx,
-                                element.span,
+                            return self.context.report_unsupported(element.span,
                                 "storage reference target",
                             );
                         };
@@ -405,13 +395,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         values: &mut Vec<(&'hir hir::Expr<'hir>, TupleAssignmentRhs<'gcx>)>,
     ) -> Option<()> {
         if rhs_elements.len() < elements.len() {
-            return report_unsupported(self.context.gcx, span, "tuple assignment arity");
+            return self.context.report_unsupported(span, "tuple assignment arity");
         }
         for (index, rhs) in rhs_elements.iter().enumerate() {
             let lhs = elements.get(index).copied().flatten();
             let Some(rhs) = rhs else {
                 if lhs.is_some() {
-                    return report_unsupported(self.context.gcx, span, "tuple assignment value");
+                    return self.context.report_unsupported(span, "tuple assignment value");
                 }
                 continue;
             };
@@ -422,17 +412,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let Some(TyKind::Tuple(rhs_types)) =
                         self.context.gcx.type_of_expr(rhs.id).map(|ty| ty.kind)
                     else {
-                        return report_unsupported(
-                            self.context.gcx,
-                            rhs.span,
+                        return self.context.report_unsupported(rhs.span,
                             "nested tuple assignment value",
                         );
                     };
                     let rhs_values = self.lower_values(rhs)?;
                     if rhs_values.len() != nested_lhs.len() || rhs_types.len() != nested_lhs.len() {
-                        return report_unsupported(
-                            self.context.gcx,
-                            rhs.span,
+                        return self.context.report_unsupported(rhs.span,
                             "tuple assignment arity",
                         );
                     }
@@ -440,9 +426,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     {
                         let Some(lhs) = lhs else { continue };
                         if matches!(lhs.peel_parens().kind, ExprKind::Tuple(_)) {
-                            return report_unsupported(
-                                self.context.gcx,
-                                lhs.span,
+                            return self.context.report_unsupported(lhs.span,
                                 "nested tuple assignment target",
                             );
                         }
@@ -483,9 +467,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             && source_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
                         {
                             let Some(access) = self.storage_access(rhs) else {
-                                return report_unsupported(
-                                    self.context.gcx,
-                                    rhs.span,
+                                return self.context.report_unsupported(rhs.span,
                                     "storage access",
                                 );
                             };
@@ -495,9 +477,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 && self.types.memory_layout(ty).is_some()
                         }) {
                             let Some(access) = self.storage_access(rhs) else {
-                                return report_unsupported(
-                                    self.context.gcx,
-                                    rhs.span,
+                                return self.context.report_unsupported(rhs.span,
                                     "storage access",
                                 );
                             };
@@ -525,7 +505,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             };
             let ExprKind::Tuple(nested_lhs) = &lhs.peel_parens().kind else {
-                return report_unsupported(self.context.gcx, lhs.span, "tuple assignment target");
+                return self.context.report_unsupported(lhs.span, "tuple assignment target");
             };
             self.lower_tuple_assignment_values(nested_lhs, nested_rhs, rhs.span, values)?;
         }
