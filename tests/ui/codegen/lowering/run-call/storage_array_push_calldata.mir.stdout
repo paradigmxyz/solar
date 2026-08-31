@@ -231,10 +231,12 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v23 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     jump bb11
   bb11:
-    v24 = phi [bb10: 0], [bb15: v33]
+    v24 = phi [bb10: 0], [bb15: v32]
     v25 = lt v24, 3
     jumpi v25, bb12, bb13
   bb13:
+    v33 = make_calldata_slice v19, 96
+    memory_object_copy_from_slice memoryfixedarray, v23, v33
     memory_object_store_field memorystruct<4>, v1, 2, v23
     v34 = add v0, 160
     v35 = calldatasize
@@ -627,9 +629,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     v31 = iszero v30
     jumpi v31, bb14, bb15
   bb15:
-    v32 = and v28, 0xffff
-    memory_object_store_element memoryfixedarray<3, 1>, v23, v24, v32
-    v33 = add v24, 1
+    v32 = add v24, 1
     jump bb11
   bb14:
     revert 0, 0

@@ -490,13 +490,13 @@ fn encode_static_array(
     });
 
     let length = builder.imm_u64(len);
+    let stride = builder.imm_u64(element.head_size());
     builder.counted_loop(length, |builder, index| {
         let element_value = builder.memory_object_load_element(
             value,
             MemoryObjectLayout::word_fixed_array(len),
             index,
         );
-        let stride = builder.imm_u64(element.head_size());
         let offset = builder.mul(index, stride);
         let element_head = builder.add(head_addr, offset);
         encode_static_impl(
@@ -599,8 +599,8 @@ fn encode_static_slice(
         }
         AbiType::FixedArray { element, len } => {
             let length = builder.imm_u64(*len);
+            let stride = builder.imm_u64(element.head_size());
             builder.counted_loop(length, |builder, index| {
-                let stride = builder.imm_u64(element.head_size());
                 let offset = builder.mul(index, stride);
                 let source_word = builder.add(source, offset);
                 let head = builder.add(head_addr, offset);

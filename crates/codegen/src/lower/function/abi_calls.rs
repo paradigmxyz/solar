@@ -89,8 +89,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return;
                 };
                 let length = self.builder.imm_u64(length);
+                let element_size = self.builder.imm_u64(element_size);
                 self.counted_loop(length, |this, index| {
-                    let element_size = this.builder.imm_u64(element_size);
                     let offset = this.builder.mul(index, element_size);
                     let position = this.builder.add(base, offset);
                     this.validate_calldata_static_value(element, position);
@@ -833,8 +833,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let head_size = self.builder.imm_u64(length.checked_mul(element_head_size)?);
             self.check_calldata_range(base, head_size);
         }
-        let _ = length.checked_mul(32)?;
+        let byte_length = length.checked_mul(32)?;
         let (object, layout) = self.builder.alloc_word_array(length, AllocationSemantics::INTERNAL);
+        if matches!(element_abi, AbiType::Word(_)) {
+            if !Self::calldata_word_is_full_width(element) {
+                let length = self.builder.imm_u64(length);
+                let word = self.builder.imm_u64(32);
+                self.counted_loop(length, |this, index| {
+                    let offset = this.builder.mul(index, word);
+                    let position = this.builder.add(base, offset);
+                    this.validate_calldata_static_value(element, position);
+                });
+            }
+            let byte_length = self.builder.imm_u64(byte_length);
+            let source = self.builder.make_slice(base, byte_length, SliceLocation::Calldata);
+            self.builder.memory_object_copy_from_slice(object, layout.kind(), source);
+            return Some(object);
+        }
         let nested_validate = validate_bounds && element_abi.is_dynamic();
         let length = self.builder.imm_u64(length);
         let element_head_size = self.builder.imm_u64(element_head_size);

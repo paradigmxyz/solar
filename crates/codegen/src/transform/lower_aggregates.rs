@@ -162,8 +162,8 @@ fn visit_storage_fields(
         }
         StorageLayout::Array { element, len } => {
             let length = builder.imm_u64(*len);
+            let stride = builder.imm_u64(element.storage_slots());
             builder.counted_loop(length, |builder, index| {
-                let stride = builder.imm_u64(element.storage_slots());
                 let offset = builder.mul(index, stride);
                 let slot = builder.add(storage, offset);
                 visit(

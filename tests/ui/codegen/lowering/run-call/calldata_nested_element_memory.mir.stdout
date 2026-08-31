@@ -783,10 +783,12 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v53 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb24
   bb24:
-    v54 = phi [bb23: 0], [bb28: v63]
+    v54 = phi [bb23: 0], [bb28: v62]
     v55 = lt v54, 2
     jumpi v55, bb25, bb26
   bb26:
+    v63 = make_calldata_slice v52, 64
+    memory_object_copy_from_slice memoryfixedarray, v53, v63
     memory_object_store_element memoryarray<1>, v43, v44, v53
     v64 = add v44, 1
     jump bb19
@@ -799,9 +801,7 @@ fn @test3(arg0: calldataslice) -> u256 [selector=0x6e607577, pure, abi_params=[a
     v61 = iszero v60
     jumpi v61, bb27, bb28
   bb28:
-    v62 = and v58, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v53, v54, v62
-    v63 = add v54, 1
+    v62 = add v54, 1
     jump bb24
   bb27:
     revert 0, 0

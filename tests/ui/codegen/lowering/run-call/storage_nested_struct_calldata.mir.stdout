@@ -590,10 +590,12 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v122 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb56
   bb56:
-    v123 = phi [bb55: 0], [bb60: v132]
+    v123 = phi [bb55: 0], [bb60: v131]
     v124 = lt v123, 2
     jumpi v124, bb57, bb58
   bb58:
+    v132 = make_calldata_slice v118, 64
+    memory_object_copy_from_slice memoryfixedarray, v122, v132
     memory_object_store_field memorystruct<2>, v75, 1, v122
     memory_object_store_element memoryarray<1>, v55, v56, v75
     v133 = add v56, 1
@@ -607,9 +609,7 @@ fn @copy(arg0: calldataslice) -> u256 [selector=0xc58b68ae, abi_params=[array<_,
     v130 = iszero v129
     jumpi v130, bb59, bb60
   bb60:
-    v131 = and v127, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v122, v123, v131
-    v132 = add v123, 1
+    v131 = add v123, 1
     jump bb56
   bb59:
     revert 0, 0
@@ -1381,10 +1381,12 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v102 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb48
   bb48:
-    v103 = phi [bb47: 0], [bb52: v112]
+    v103 = phi [bb47: 0], [bb52: v111]
     v104 = lt v103, 2
     jumpi v104, bb49, bb50
   bb50:
+    v112 = make_calldata_slice v98, 64
+    memory_object_copy_from_slice memoryfixedarray, v102, v112
     memory_object_store_field memorystruct<2>, v55, 1, v102
     memory_object_store_element memoryarray<1>, v35, v36, v55
     v113 = add v36, 1
@@ -1398,9 +1400,7 @@ fn @copyFixed(arg0: calldataslice) -> u256 [selector=0x39bd9a66, abi_params=[arr
     v110 = iszero v109
     jumpi v110, bb51, bb52
   bb52:
-    v111 = and v107, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v102, v103, v111
-    v112 = add v103, 1
+    v111 = add v103, 1
     jump bb48
   bb51:
     revert 0, 0
@@ -2111,10 +2111,12 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v104 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     jump bb48
   bb48:
-    v105 = phi [bb47: 0], [bb52: v114]
+    v105 = phi [bb47: 0], [bb52: v113]
     v106 = lt v105, 2
     jumpi v106, bb49, bb50
   bb50:
+    v114 = make_calldata_slice v100, 64
+    memory_object_copy_from_slice memoryfixedarray, v104, v114
     memory_object_store_field memorystruct<2>, v57, 1, v104
     memory_object_store_element memoryfixedarray<1, 1>, v42, v43, v57
     v115 = add v43, 1
@@ -2128,9 +2130,7 @@ fn @copyDynamicFixed(arg0: calldataslice) -> u256 [selector=0x62d70355, abi_para
     v112 = iszero v111
     jumpi v112, bb51, bb52
   bb52:
-    v113 = and v109, 255
-    memory_object_store_element memoryfixedarray<2, 1>, v104, v105, v113
-    v114 = add v105, 1
+    v113 = add v105, 1
     jump bb48
   bb51:
     revert 0, 0

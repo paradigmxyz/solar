@@ -2351,6 +2351,35 @@ impl LowerAbiCx {
         if matches!(ty, crate::mir::AbiParamType::Scalar(_)) {
             return builder.calldataload(head);
         }
+        if let AbiParamType::FixedArray { element, len } = ty
+            && Self::is_scalar_or_enum(element)
+            && element.mir_type() != MirType::Function
+        {
+            let (object, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
+            if element.word_validator().is_some() {
+                let length = builder.imm_u64(*len);
+                let stride = builder.imm_u64(EvmMemoryLayout::WORD_SIZE);
+                builder.counted_loop(length, |builder, index| {
+                    let offset = builder.mul(index, stride);
+                    let element_head = builder.add(head, offset);
+                    let mut current = builder.current_block();
+                    Self::decode_static_calldata_argument(
+                        builder,
+                        element,
+                        element_head,
+                        &mut current,
+                        has_bitwise_shifting,
+                    );
+                    builder.switch_to_block(current);
+                });
+            }
+            let byte_length = builder.imm_u64(
+                len.checked_mul(EvmMemoryLayout::WORD_SIZE).expect("checked static ABI array size"),
+            );
+            let source = builder.make_slice(head, byte_length, SliceLocation::Calldata);
+            builder.memory_object_copy_from_slice(object, layout.kind(), source);
+            return object;
+        }
         Self::decode_static_aggregate(builder, ty, head, |builder, ty, head, current| {
             Self::decode_static_calldata_argument(builder, ty, head, current, has_bitwise_shifting)
         })

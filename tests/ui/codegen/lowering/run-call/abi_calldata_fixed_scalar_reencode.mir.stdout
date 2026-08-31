@@ -72,10 +72,12 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     jump bb3
   bb3:
-    v5 = phi [bb2: 0], [bb7: v14]
+    v5 = phi [bb2: 0], [bb7: v13]
     v6 = lt v5, 3
     jumpi v6, bb4, bb5
   bb5:
+    v14 = make_calldata_slice v0, 96
+    memory_object_copy_from_slice memoryfixedarray, v4, v14
     v15 = abi_encode [array<3, word<u8>>], object, args v4
     ret v15
   bb4:
@@ -87,9 +89,7 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     v12 = iszero v11
     jumpi v12, bb6, bb7
   bb7:
-    v13 = and v9, 255
-    memory_object_store_element memoryfixedarray<3, 1>, v4, v5, v13
-    v14 = add v5, 1
+    v13 = add v5, 1
     jump bb3
   bb6:
     revert 0, 0
