@@ -37,7 +37,7 @@ pub fn compile_standard_json(
     mut opts: CompileOpts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut dyn Write,
-) {
+) -> io::Result<()> {
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(StandardJsonFileLoader { read_callback });
     let (emitter, diagnostics) = InMemoryEmitter::new();
@@ -65,8 +65,7 @@ pub fn compile_standard_json(
     };
 
     if let Some(json) = json {
-        let _ = out.write_all(&json);
-        return;
+        return out.write_all(&json);
     }
 
     let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map), opts.color)
@@ -81,12 +80,12 @@ pub fn compile_standard_json(
         output.contracts.clear();
     }
 
-    let result = if opts.pretty_json {
+    if opts.pretty_json {
         serde_json::to_writer_pretty(out, &output)
     } else {
         serde_json::to_writer(out, &output)
-    };
-    let _ = result;
+    }
+    .map_err(io::Error::other)
 }
 
 pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
@@ -100,7 +99,7 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
     };
     match result {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout),
+        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
             &mut stdout,

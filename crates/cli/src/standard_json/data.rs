@@ -180,13 +180,13 @@ impl Libraries<'_> {
 }
 
 #[derive(Debug, Default, Serialize)]
-pub(super) struct CompilerOutput<'a> {
+pub(super) struct CompilerOutput<'gcx> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) errors: Vec<SolcDiagnostic<'a>>,
+    pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) sources: FxIndexMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'a>>>,
+    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
     // `ethdebug` output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'a>>,
@@ -203,15 +203,15 @@ pub(super) struct SourceOutput {
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct ContractOutput<'a> {
+pub(super) struct ContractOutput<'gcx> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'a>>>,
+    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'gcx>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<&'a Documentation>,
+    pub(super) userdoc: Option<&'gcx Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) devdoc: Option<&'a Documentation>,
+    pub(super) devdoc: Option<&'gcx Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
