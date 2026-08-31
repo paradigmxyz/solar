@@ -53,11 +53,6 @@ Options:
           
           [possible values: abi, bin, bin-runtime, hashes]
 
-  -g, --debug-info[=<FORMAT>]
-          Emit debug information (`ethdebug` by default or legacy `source-maps`)
-          
-          [possible values: ethdebug, source-maps]
-
       --standard-json
           Switch to Standard JSON input/output mode
 

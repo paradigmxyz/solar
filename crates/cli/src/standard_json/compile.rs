@@ -433,7 +433,7 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     path.to_string_lossy()
 }
 
-pub(crate) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
+fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
     name.display().to_string().replace('\\', "/")
 }
 
@@ -657,7 +657,7 @@ fn make_bytecode_output(
     output
 }
 
-pub(crate) fn make_ethdebug_compilation(gcx: Gcx<'_>) -> EthdebugCompilation {
+fn make_ethdebug_compilation(gcx: Gcx<'_>) -> EthdebugCompilation {
     let language = if gcx.sess.opts.language.is_yul() { "Yul" } else { "Solidity" };
     let sources = gcx
         .hir
@@ -700,12 +700,12 @@ fn append_length_prefixed(output: &mut String, value: &str) {
     output.push_str(value);
 }
 
-pub(crate) fn ethdebug_compilation_id(compilation: &EthdebugCompilation) -> &str {
+fn ethdebug_compilation_id(compilation: &EthdebugCompilation) -> &str {
     let EthdebugId::Text(id) = &compilation.id else { unreachable!() };
     id
 }
 
-pub(crate) fn make_ethdebug_program(
+fn make_ethdebug_program(
     gcx: Gcx<'_>,
     contract_id: ContractId,
     artifact: &ContractArtifact,
@@ -764,10 +764,6 @@ pub(crate) fn make_ethdebug_program(
         environment: if deployed { EthdebugEnvironment::Call } else { EthdebugEnvironment::Create },
         instructions,
     })
-}
-
-pub(crate) fn make_ethdebug_resources(compilation: EthdebugCompilation) -> EthdebugResources {
-    EthdebugResources { compilation, types: Default::default(), pointers: Default::default() }
 }
 
 fn make_ethdebug_context(

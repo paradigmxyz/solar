@@ -1,4 +1,4 @@
-error: expected `cold` or `loop` block attribute
+error: expected `cold`, `loop`, or `invoke` block attribute
    ╭▸ ROOT/tests/ui/codegen/evm-ir/validation/parse_hotness_metadata.evmir:LL:CC
    │
 LL │ bb0 [hotness=cold]:

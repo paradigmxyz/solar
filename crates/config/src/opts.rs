@@ -1,9 +1,8 @@
 //! Solar CLI arguments.
 
 use crate::{
-    ColorChoice, CompilerOutput, CompilerStage, DebugInfoFormat, Dump, ErrorFormat, EvmVersion,
-    HumanEmitterKind, ImportRemapping, Language, LibraryAddress, OptimizationMode, SwitchLowering,
-    Threads,
+    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
+    ImportRemapping, Language, LibraryAddress, OptimizationMode, SwitchLowering, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -121,20 +120,6 @@ pub struct CompileOpts {
     /// Comma separated list of types of output for the compiler to emit.
     #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
-    /// Emit debug information (`ethdebug` by default or legacy `source-maps`).
-    #[cfg_attr(
-        feature = "clap",
-        arg(
-            short = 'g',
-            long = "debug-info",
-            value_enum,
-            num_args = 0..=1,
-            require_equals = true,
-            default_missing_value = "ethdebug",
-            value_name = "FORMAT"
-        )
-    )]
-    pub debug_info: Option<DebugInfoFormat>,
 
     /// Switch to Standard JSON input/output mode.
     #[cfg_attr(feature = "clap", arg(long))]
@@ -221,25 +206,7 @@ impl CompileOpts {
     /// Finishes argument parsing.
     #[cfg(feature = "clap")]
     pub fn finish(&mut self) -> Result<(), clap::Error> {
-        if self.debug_info.is_some()
-            && let Some((index, format)) = self
-                .input
-                .iter()
-                .enumerate()
-                .find_map(|(index, value)| value.parse().ok().map(|format| (index, format)))
-        {
-            self.debug_info = Some(format);
-            self.input.remove(index);
-        }
-
         if self.standard_json {
-            if self.debug_info.is_some() {
-                return Err(make_clap_error(
-                    clap::error::ErrorKind::ArgumentConflict,
-                    "The `-g`/`--debug-info` option is not accepted in Standard JSON mode\n\
-                     Request debug artifacts under `settings.outputSelection` instead",
-                ));
-            }
             if self.input.iter().any(|s| s.contains('=')) {
                 return Err(make_clap_error(
                     clap::error::ErrorKind::InvalidValue,
@@ -504,34 +471,6 @@ mod tests {
     }
 
     #[test]
-    fn debug_info() {
-        let mut opts = CompileOpts::try_parse_from(["solar", "-g", "a.sol"]).unwrap();
-        opts.finish().unwrap();
-        assert_eq!(opts.debug_info, Some(DebugInfoFormat::Ethdebug));
-        assert_eq!(opts.input, ["a.sol"]);
-    }
-
-    #[test]
-    fn debug_info_source_maps() {
-        let mut opts =
-            CompileOpts::try_parse_from(["solar", "-g", "source-maps", "a.sol"]).unwrap();
-        opts.finish().unwrap();
-        assert_eq!(opts.debug_info, Some(DebugInfoFormat::SourceMaps));
-        assert_eq!(opts.input, ["a.sol"]);
-
-        let mut opts =
-            CompileOpts::try_parse_from(["solar", "a.sol", "-g", "source-maps"]).unwrap();
-        opts.finish().unwrap();
-        assert_eq!(opts.debug_info, Some(DebugInfoFormat::SourceMaps));
-        assert_eq!(opts.input, ["a.sol"]);
-
-        let mut opts = CompileOpts::try_parse_from(["solar", "-g=source-maps", "a.sol"]).unwrap();
-        opts.finish().unwrap();
-        assert_eq!(opts.debug_info, Some(DebugInfoFormat::SourceMaps));
-        assert_eq!(opts.input, ["a.sol"]);
-    }
-
-    #[test]
     fn standard_json_input() {
         let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json"]).unwrap();
         opts.finish().unwrap();
@@ -554,13 +493,6 @@ mod tests {
                 .unwrap();
         let error = opts.finish().unwrap_err().render().ansi().to_string();
         assert!(error.contains("Too many input files for --standard-json."));
-    }
-
-    #[test]
-    fn standard_json_rejects_debug_info() {
-        let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json", "-g"]).unwrap();
-        let error = opts.finish().unwrap_err().render().ansi().to_string();
-        assert!(error.contains("Request debug artifacts under `settings.outputSelection`"));
     }
 
     #[test]

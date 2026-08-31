@@ -253,18 +253,6 @@ impl OptimizationMode {
 }
 
 str_enum! {
-    /// Debug information format.
-    #[strum(serialize_all = "kebab-case")]
-    #[non_exhaustive]
-    pub enum DebugInfoFormat {
-        /// ETHDebug program and resource artifacts.
-        Ethdebug,
-        /// Legacy Solidity instruction source maps.
-        SourceMaps,
-    }
-}
-
-str_enum! {
     /// Type of output for the compiler to emit.
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]

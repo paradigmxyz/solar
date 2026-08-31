@@ -204,6 +204,10 @@ impl RunState {
             for &common in commons.iter() {
                 let mut tail = Block::new(labels.next().expect("reserved one label per tail"));
                 tail.metadata.hotness = metadata.hotness;
+                tail.metadata.in_loop = metadata.in_loop
+                    || group.sites.iter().any(|&(site, site_common)| {
+                        site_common >= common && module.blocks[site].metadata.in_loop
+                    });
                 if !metadata.hotness.is_cold()
                     || max_hot_common.is_some_and(|hot_common| common <= hot_common)
                 {
