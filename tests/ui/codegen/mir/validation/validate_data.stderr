@@ -1,0 +1,8 @@
+error: [fn0] [bb0, inst0] data_copy size must be an immediate
+
+error: [fn1] [bb0, inst0] data_copy range 1..3 exceeds data size 2
+
+error: [fn2] [bb0, inst0] data_copy range 2..3 exceeds data size 2
+
+error: aborting due to 3 previous errors
+

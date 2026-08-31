@@ -150,14 +150,13 @@ fn @memParam(arg0: memorybytes, arg1: bool) -> u256 [abi_returns=[word]] {
     v11 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v11, 3
     v12 = memory_object_data memorybytes, v11
-    v13 = add v12, 0
-    mstore v13, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    mstore v12, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
     mstore 128, v11
     jump bb8
   bb8:
-    v14 = mload 128
-    v15 = mload v14
-    ret v15
+    v13 = mload 128
+    v14 = mload v13
+    ret v14
   bb3:
     revert 0, 0
   bb1:

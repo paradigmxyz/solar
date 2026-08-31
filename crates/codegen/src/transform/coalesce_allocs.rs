@@ -147,6 +147,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
             InstKind::MStore8(addr, _) => range_avoids_fmp(func, *addr, Some(1)),
             InstKind::MemoryZero(addr, len)
             | InstKind::CalldataCopy(addr, _, len)
+            | InstKind::DataCopy(_, addr, len)
             | InstKind::CodeCopy(addr, _, len)
             | InstKind::ReturnDataCopy(addr, _, len)
             | InstKind::ExtCodeCopy(_, addr, _, len) => {

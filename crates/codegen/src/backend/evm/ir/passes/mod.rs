@@ -9,7 +9,7 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
-mod constant_data;
+pub(super) mod data;
 mod dce;
 mod legalize_shifts;
 mod outline;
@@ -64,7 +64,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &stack_normalize::StackNormalize,
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
-    &constant_data::ConstantData,
+    &data::PackData,
     &dce::Dce,
     &legalize_shifts::LegalizeShifts,
     &cfg_simplify::CfgSimplify,
@@ -79,9 +79,9 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &coalesce_copies::CoalesceCopies,
-    &constant_data::ConstantData,
-    &peephole::Cleanup(compact_pushes::CompactPushes),
     &cfg_simplify::CfgSimplify,
+    &data::PackExistingData,
+    &peephole::Cleanup(compact_pushes::CompactPushes),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
@@ -130,8 +130,9 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
-    // Reordering can make a formerly unsafe compact recipe fit at its new stack depth.
-    // Compact once more after all structural rewrites so that recipe does not hide equal tails.
+    // Materialize constants and finalize the referenced data pool after all code transforms.
+    &data::PackData,
+    // Data packing can add compactable immediates and local stack shuffles.
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
     &stack_normalize::StackDedup,

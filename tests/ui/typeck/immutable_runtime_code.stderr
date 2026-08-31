@@ -1,0 +1,14 @@
+error[9274]: `runtimeCode` is not available for contracts containing immutable variables
+   ╭▸ ROOT/tests/ui/typeck/immutable_runtime_code.sol:LL:CC
+   │
+LL │         return type(DirectImmutable).runtimeCode;
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9274]: `runtimeCode` is not available for contracts containing immutable variables
+   ╭▸ ROOT/tests/ui/typeck/immutable_runtime_code.sol:LL:CC
+   │
+LL │         return type(InheritedImmutable).runtimeCode;
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

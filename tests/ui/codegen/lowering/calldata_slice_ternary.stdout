@@ -124,39 +124,38 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_b
     v20 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v20, 2
     v21 = memory_object_data memorybytes, v20
-    v22 = add v21, 0
-    mstore v22, 0xaabb000000000000000000000000000000000000000000000000000000000000
+    mstore v21, 0xaabb000000000000000000000000000000000000000000000000000000000000
     jumpi arg0, bb11, bb12
   bb12:
     mstore 0, v20 !metadata(memory=scratch)
     jump bb13
   bb11:
-    v23 = slice_len arg1
-    v24 = add v23, 31
-    v25 = lt v24, v23
-    jumpi v25, bb14, bb15
+    v22 = slice_len arg1
+    v23 = add v22, 31
+    v24 = lt v23, v22
+    jumpi v24, bb14, bb15
   bb15:
-    v26 = not 31
-    v27 = and v24, v26
-    v28 = iszero v27
-    v29 = select v28, 32, v27
-    v30 = add 32, v29
-    v31 = lt v30, v29
-    jumpi v31, bb16, bb17
+    v25 = not 31
+    v26 = and v23, v25
+    v27 = iszero v26
+    v28 = select v27, 32, v26
+    v29 = add 32, v28
+    v30 = lt v29, v28
+    jumpi v30, bb16, bb17
   bb17:
-    v32 = alloc memorybytes, exact, uninitialized, infallible, v30
-    set_memory_object_len memorybytes, v32, v23
-    v33 = memory_object_data memorybytes, v32
-    v34 = sub v29, 32
-    v35 = add v33, v34
-    mstore v35, 0
-    v36 = slice_ptr arg1
-    calldatacopy v33, v36, v23 !metadata(memory=heap)
-    mstore 0, v32 !metadata(memory=scratch)
+    v31 = alloc memorybytes, exact, uninitialized, infallible, v29
+    set_memory_object_len memorybytes, v31, v22
+    v32 = memory_object_data memorybytes, v31
+    v33 = sub v28, 32
+    v34 = add v32, v33
+    mstore v34, 0
+    v35 = slice_ptr arg1
+    calldatacopy v32, v35, v22 !metadata(memory=heap)
+    mstore 0, v31 !metadata(memory=scratch)
     jump bb13
   bb13:
-    v37 = mload 0 !metadata(memory=scratch)
-    ret v37
+    v36 = mload 0 !metadata(memory=scratch)
+    ret v36
   bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

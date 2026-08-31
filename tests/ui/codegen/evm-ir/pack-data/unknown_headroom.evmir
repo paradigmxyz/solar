@@ -1,6 +1,6 @@
-//@ compile-flags: -Ogas -Zevm-ir-pipeline=constant-data
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
-@module ConstantDataHeadroom
+@module PackDataUnknownHeadroom
 
 // An opaque jump can enter bb1 with 1,022 words. The original stores peak at
 // 1,024, while CODECOPY would need one more word.

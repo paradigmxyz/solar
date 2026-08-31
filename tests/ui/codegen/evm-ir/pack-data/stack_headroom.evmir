@@ -1,0 +1,24 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module StackHeadroom
+
+// Replacing either shared one-word store would raise the peak stack depth
+// from 1,024 to 1,025 words.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK-NOT: push_data
+// CHECK: mstore
+// CHECK: mstore
+bb0:
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  push 0
+  push 0
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 2
+  mstore
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 2
+  mstore
+  stop

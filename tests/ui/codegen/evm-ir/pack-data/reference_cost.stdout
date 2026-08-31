@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/reference_cost.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/reference_cost.evmir (after pack-data) ===
+  @module reference_cost
+  bb0:
+    push_data literal_0
+    pop
+    push_data literal_0
+    pop
+    push_data literal_0
+    pop
+    push_data literal_1
+    pop
+    push_data literal_2
+    pop
+    stop
+  
+  @data literal_0 hex"1122"
+  @data literal_1 hex"ff"
+  @data literal_2 hex"11223344"
+  

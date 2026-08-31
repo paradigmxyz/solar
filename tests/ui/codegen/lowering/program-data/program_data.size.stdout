@@ -1,0 +1,695 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C ===
+@module C
+@phase evm-shaped
+data:
+  literal_0: hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
+  literal_1: hex"303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a"
+
+fn @data() {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v17 = add v0, 320
+    mstore 64, v17 !metadata(memory=scratch)
+    mstore v0, 257
+    v1 = add v0, 32
+    v2 = add v1, 256
+    mstore v2, 0
+    data_copy literal_0, v1, 257
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = sub v7, v6
+    mstore v6, v8
+    v9 = internal_call @__abi_encode_0, 1, v0, v7
+    v10 = sub v9, v6
+    v12 = add v10, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v18 = add v15, v14
+    mstore 64, v18 !metadata(memory=scratch)
+    returndata v15, v10
+}
+
+fn @subslice() {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v17 = add v0, 224
+    mstore 64, v17 !metadata(memory=scratch)
+    mstore v0, 161
+    v1 = add v0, 32
+    v2 = add v1, 160
+    mstore v2, 0
+    data_copy literal_1, v1, 161
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = sub v7, v6
+    mstore v6, v8
+    v9 = internal_call @__abi_encode_0, 1, v0, v7
+    v10 = sub v9, v6
+    v12 = add v10, 31
+    v14 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v18 = add v15, v14
+    mstore 64, v18 !metadata(memory=scratch)
+    returndata v15, v10
+}
+
+fn @dataHash() {
+  bb0:
+    mstore 128, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
+    returndata 128, 32
+}
+
+fn @subsliceHash() {
+  bb0:
+    mstore 128, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
+    returndata 128, 32
+}
+
+fn @zeroData.4() {
+  bb0:
+    v0 = internal_call @zeroData.5, 1
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = add v4, 32
+    v6 = sub v5, v4
+    mstore v4, v6
+    v7 = internal_call @__abi_encode_0, 1, v0, v5
+    v8 = sub v7, v4
+    v10 = add v8, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v15 = add v13, v12
+    mstore 64, v15 !metadata(memory=scratch)
+    returndata v13, v8
+}
+
+fn @zeroData.5() -> memptr {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v2 = add v0, 192
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v0, 160
+    v3 = calldatasize
+    v1 = add v0, 32
+    calldatacopy v1, v3, 160
+    ret v0
+}
+
+fn @zeroWord.6() {
+  bb0:
+    v0 = internal_call @zeroWord.7, 1
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = add v4, 32
+    v6 = sub v5, v4
+    mstore v4, v6
+    v7 = internal_call @__abi_encode_0, 1, v0, v5
+    v8 = sub v7, v4
+    v10 = add v8, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v15 = add v13, v12
+    mstore 64, v15 !metadata(memory=scratch)
+    returndata v13, v8
+}
+
+fn @zeroWord.7() -> memptr {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v2 = add v0, 64
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v0, 32
+    v1 = add v0, 32
+    mstore v1, 0
+    ret v0
+}
+
+fn @splatData.8() {
+  bb0:
+    v0 = internal_call @splatData.9, 1
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = add v4, 32
+    v6 = sub v5, v4
+    mstore v4, v6
+    v7 = internal_call @__abi_encode_0, 1, v0, v5
+    v8 = sub v7, v4
+    v10 = add v8, 31
+    v12 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v15 = add v13, v12
+    mstore 64, v15 !metadata(memory=scratch)
+    returndata v13, v8
+}
+
+fn @splatData.9() -> memptr {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v5 = add v0, 192
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v0, 160
+    v1 = add v0, 32
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v2 = add v1, 32
+    mstore v2, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v3 = add v1, 64
+    mcopy v3, v1, 64
+    v4 = add v1, 128
+    mcopy v4, v1, 32
+    ret v0
+}
+
+fn @zeroHash() {
+  bb0:
+    v0 = internal_call @zeroData.5, 1
+    v2 = mload v0
+    v3 = add v0, 32
+    v1 = keccak256 v3, v2
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @zeroWordHash() {
+  bb0:
+    v0 = internal_call @zeroWord.7, 1
+    v2 = mload v0
+    v3 = add v0, 32
+    v1 = keccak256 v3, v2
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @splatHash() {
+  bb0:
+    v0 = internal_call @splatData.9, 1
+    v2 = mload v0
+    v3 = add v0, 32
+    v1 = keccak256 v3, v2
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @__abi_encode_0(arg0: memptr, arg1: memptr) -> memptr {
+  bb0:
+    v0 = mload arg0
+    mstore arg1, v0
+    v2 = add v0, 31
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v4 = add arg1, 32
+    jumpi v3, bb1, bb2
+  bb1:
+    v6 = sub v3, 32
+    v7 = add v4, v6
+    mstore v7, 0
+    jump bb2
+  bb2:
+    v9 = add v4, v3
+    v8 = add arg0, 32
+    mcopy v4, v8, v0 !metadata(memory=heap)
+    ret v9
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb12, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb12, [0xd00d797 => bb2, 0x1b3012a3 => bb3, 0x38f844b9 => bb4, 0x4c092794 => bb5, 0x672c8259 => bb6, 0x6ec059cd => bb7, 0x73d4a13a => bb8, 0xb9ad073e => bb9, 0xe1910fda => bb10, 0xe5a3e763 => bb11]
+  bb11:
+    tail_call @subsliceHash
+  bb10:
+    tail_call @splatData.8
+  bb9:
+    tail_call @subslice
+  bb8:
+    tail_call @data
+  bb7:
+    tail_call @zeroData.4
+  bb6:
+    tail_call @zeroHash
+  bb5:
+    tail_call @zeroWord.6
+  bb4:
+    tail_call @splatHash
+  bb3:
+    tail_call @dataHash
+  bb2:
+    tail_call @zeroWordHash
+  bb12:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb12
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xd00d797
+  eq
+  push bb30
+  jumpi
+  dup 1
+  push 0x1b3012a3
+  eq
+  push bb17
+  jumpi
+  dup 1
+  push 0x38f844b9
+  eq
+  push bb32
+  jumpi
+  dup 1
+  push 0x4c092794
+  eq
+  push bb22
+  jumpi
+  dup 1
+  push 0x672c8259
+  eq
+  push bb28
+  jumpi
+  dup 1
+  push 0x6ec059cd
+  eq
+  push bb19
+  jumpi
+  dup 1
+  push 0x73d4a13a
+  eq
+  push bb13
+  jumpi
+  dup 1
+  push 0xb9ad073e
+  eq
+  push bb15
+  jumpi
+  dup 1
+  push 0xe1910fda
+  eq
+  push bb25
+  jumpi
+  dup 1
+  push 0xe5a3e763
+  eq
+  push bb18
+  jumpi
+  jump bb12
+bb12 [cold]:
+  push 0
+  dup 1
+  revert
+bb13:
+  push 416
+  push 64
+  mstore
+  push 64
+  mload
+  dup 1
+  push 192
+  mstore
+  push 320
+  dup 2
+  add
+  push 64
+  mstore
+  push 257
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 256
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  push 257
+  push_data literal_0
+  dup 3
+  codecopy
+  pop
+  push bb53
+  jump bb52
+bb52:
+  push 64
+  mload
+  dup 1
+  push 128
+  mstore
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  swap 1
+  pop
+  swap 1
+  jump
+bb15:
+  push 416
+  push 64
+  mstore
+  push 64
+  mload
+  dup 1
+  push 192
+  mstore
+  push 224
+  dup 2
+  add
+  push 64
+  mstore
+  push 161
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 160
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  push 161
+  push_data literal_0+64
+  dup 3
+  codecopy
+  pop
+  push bb54
+  jump bb52
+bb16:
+  jump bb14
+bb14:
+  dup 1
+  push 160
+  jump bb41
+bb41:
+  mstore
+  push 128
+  mload
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb17:
+  push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
+  jump bb40
+bb40:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb18:
+  push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
+  jump bb40
+bb19:
+  push 416
+  push 64
+  mstore
+  push bb20
+  jump bb34
+bb34:
+  push bb44
+  jump bb43
+bb43:
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 160
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  swap 1
+  swap 2
+  jump
+bb20:
+  push bb45
+  swap 1
+  jump bb42
+bb42:
+  dup 1
+  push 160
+  mstore
+  push bb55
+  jump bb52
+bb22:
+  push 416
+  push 64
+  mstore
+  push bb23
+  jump bb35
+bb35:
+  push 64
+  mload
+  dup 1
+  push 256
+  mstore
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
+  push 32
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  swap 1
+  jump
+bb23:
+  push bb46
+  swap 1
+  jump bb42
+bb24:
+  jump bb21
+bb21:
+  dup 1
+  push 192
+  jump bb41
+bb25:
+  push 416
+  push 64
+  mstore
+  push bb26
+  jump bb36
+bb36:
+  push bb47
+  jump bb43
+bb26:
+  push bb48
+  swap 1
+  jump bb42
+bb27:
+  jump bb21
+bb28:
+  push 288
+  push 64
+  mstore
+  push bb29
+  jump bb34
+bb30:
+  push 288
+  push 64
+  mstore
+  push bb31
+  jump bb35
+bb31:
+  jump bb29
+bb29:
+  dup 1
+  push 160
+  mstore
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  keccak256
+  jump bb40
+bb32:
+  push 288
+  push 64
+  mstore
+  push bb33
+  jump bb36
+bb33:
+  jump bb29
+bb44:
+  push 160
+  calldatasize
+  dup 3
+  calldatacopy
+  pop
+  swap 1
+  jump
+bb45:
+  push bb21
+  swap 2
+  swap 1
+  jump bb37
+bb37:
+  dup 2
+  mload
+  dup 1
+  push 320
+  mstore
+  dup 2
+  dup 2
+  dup 2
+  mstore
+  push 31
+  dup 3
+  add
+  push 31
+  not
+  and
+  dup 1
+  push 352
+  mstore
+  push 32
+  dup 3
+  add
+  dup 1
+  push 384
+  mstore
+  swap 2
+  pop
+  swap 3
+  pop
+  push 384
+  mstore
+  pop
+  iszero
+  push bb39
+  jumpi
+  push 0
+  push 32
+  push 352
+  mload
+  sub
+  push 384
+  mload
+  add
+  mstore
+  jump bb39
+bb39:
+  push 352
+  mload
+  push 384
+  mload
+  add
+  swap 1
+  push 32
+  add
+  push 320
+  mload
+  dup 2
+  push 384
+  mload
+  mcopy
+  pop
+  swap 1
+  jump
+bb46:
+  push bb24
+  swap 2
+  swap 1
+  jump bb37
+bb47:
+  push bb51
+  jump bb49
+bb49:
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  swap 1
+  jump
+bb48:
+  push bb27
+  swap 2
+  swap 1
+  jump bb37
+bb50:
+  swap 1
+  mstore
+  push 64
+  dup 2
+  add
+  push 64
+  dup 3
+  dup 3
+  mcopy
+  pop
+  push 128
+  dup 2
+  add
+  push 32
+  dup 3
+  dup 3
+  mcopy
+  pop
+  pop
+  swap 1
+  jump
+bb51:
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push bb50
+  jump bb49
+bb53:
+  push bb14
+  swap 2
+  swap 1
+  jump bb37
+bb54:
+  push bb16
+  swap 2
+  swap 1
+  jump bb37
+bb55:
+  swap 1
+  swap 2
+  jump
+
+@data literal_0 hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"

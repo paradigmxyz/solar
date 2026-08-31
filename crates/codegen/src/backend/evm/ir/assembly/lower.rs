@@ -121,8 +121,15 @@ pub(in crate::backend::evm) fn lower_evm_ir(
         assembler.gcx.sess.opts.evm_version,
         assembler.gcx.sess.opts.optimization.is_size(),
     );
+    let data_layout_is_observable = module.data_layout_is_observable();
     for _ in 0..=32 {
-        let program = lower_evm_ir_once(assembler, module, labels, &indexed_jump_lowerings);
+        let program = lower_evm_ir_once(
+            assembler,
+            module,
+            labels,
+            &indexed_jump_lowerings,
+            data_layout_is_observable,
+        );
         let (label_offsets, _) = assembler.resolve_label_offsets(&program);
         if !indexed_jump::refine_indexed_jump_widths(
             module,
@@ -144,6 +151,7 @@ fn lower_evm_ir_once(
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
     indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
+    data_layout_is_observable: bool,
 ) -> Program {
     allocate_referenced_labels(assembler, module, labels);
 
@@ -151,11 +159,10 @@ fn lower_evm_ir_once(
     for block in &module.blocks {
         for inst in &block.instructions {
             if let Some(ir::PushValue::Data(data)) = inst.value {
-                referenced_data.insert(data);
+                referenced_data.insert(data.id);
             }
         }
     }
-
     let mut program = Program::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
@@ -179,16 +186,22 @@ fn lower_evm_ir_once(
             );
         }
     }
-    if !referenced_data.is_empty()
-        && let Some(block) = module.blocks.last()
-        && let Some(terminator) = &block.terminator
-        && matches!(&terminator.kind, ir::TerminatorKind::Op(opcode) if *opcode == op::STOP)
-    {
+    // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
+    let ends_with_terminal = program.instructions.last().is_some_and(
+        |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
+    );
+    if !referenced_data.is_empty() && !ends_with_terminal {
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
-    for data in referenced_data.iter() {
-        program.append_data(data);
+    if data_layout_is_observable {
+        for data in module.data.indices() {
+            program.append_data(data);
+        }
+    } else {
+        for data in referenced_data.iter() {
+            program.append_data(data);
+        }
     }
     program
 }
@@ -247,7 +260,7 @@ fn lower_instruction(
             Some(ir::PushValue::Block(block)) => {
                 AsmInst::push_label(label_for_block(assembler, module, *block, labels))
             }
-            Some(ir::PushValue::Data(data)) => AsmInst::push_data(*data),
+            Some(ir::PushValue::Data(data)) => AsmInst::push_data(program.push_data_ref(*data)),
             _ => unreachable!("push must have one immediate, block, or data operand"),
         }
     } else if let Some(stack_op) = inst.as_stack_op() {
@@ -345,7 +358,7 @@ pub(super) fn label_for_block(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::evm::{assembler::AsmInstKind, ir::Block};
+    use crate::backend::evm::ir::Block;
     use solar_interface::{Session, sym};
     use solar_sema::Compiler;
 

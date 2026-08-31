@@ -1,6 +1,6 @@
-- // === ROOT/tests/ui/codegen/evm-ir/constant-data/unknown_headroom.evmir (before constant-data) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/constant-data/unknown_headroom.evmir (after constant-data) ===
-  @module ConstantDataHeadroom
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/unknown_headroom.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/unknown_headroom.evmir (after pack-data) ===
+  @module PackDataUnknownHeadroom
   bb0:
     callf !meta(stack=0->255)
     callf !meta(stack=0->255)

@@ -1,0 +1,220 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:ChildWithArg ===
+@module ChildWithArg
+data:
+  literal_0: hex"ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+
+immutables:
+  value: u256
+
+fn @value() -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = loadimmutable value
+    ret v0
+}
+
+fn @constructor(arg0: u256) {
+  bb0:
+    storeimmutable value, arg0
+    stop
+}
+
+fn @payload() -> memorybytes [abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 160
+    set_memory_object_len memorybytes, v0, 128
+    v1 = memory_object_data memorybytes, v0
+    data_copy literal_0, v1, 128
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs ===
+@module FactoryWithArgs
+data:
+  ChildWithArg_initcode_0: hex"61028d38038061028d60e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260e05160c0526101bd8060d060e03960c05161010e5260e0f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100346028575f3560e01c80633fa4f245146020578063a878f858146024576028565b602c565b6056565b5f80fd5b7f000000000000000000000000000000000000000000000000000000000000000060805260206080f35b6101406040526040518061010052806101005260a08101604052608081526020810160808161013d9039506040518060e0528060e05260208101818060e05281038252828061010052518060805280608052806080528152601f19601f60805101168060a0528060a052602082018060c05291508160c0528060a0521590509050905060eb57602060a0510360c051015f8152505b6020610100510160a0518060a05260c05101608051806080528260c0518060c0525e905060e0518060e05290035f9001601f8101601f1981169050604051806101205281810191508160405290508181f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+
+fn @plain() -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = abi_encode [word], args 11
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = fmp
+    data_copy ChildWithArg_initcode_0, v6, 653
+    v7 = add v6, 653
+    mcopy v7, v4, v5 !metadata(memory=heap)
+    v8 = add 653, v5
+    v9 = add v8, 31
+    v10 = and v9, 0xffffffffffffffe0
+    v11 = add v6, v10
+    set_fmp v11
+    v12 = create 0, v6, v8
+    jumpi v12, bb2, bb1
+  bb1:
+    v13 = returndatasize
+    returndatacopy 0, 0, v13 !metadata(memory=abi_return)
+    v14 = returndatasize
+    revert 0, v14
+  bb2:
+    v15 = gas
+    v16 = staticcall v15, v12, v1, v2, 0, 32
+    jumpi v16, bb4, bb3
+  bb3:
+    v17 = returndatasize
+    returndatacopy 0, 0, v17 !metadata(memory=abi_return)
+    v18 = returndatasize
+    revert 0, v18
+  bb4:
+    v19 = returndatasize
+    v20 = lt v19, 32
+    jumpi v20, bb5, bb6
+  bb6:
+    v21 = add 0, 0
+    v22 = mload v21
+    mstore v21, v22
+    ret v22
+  bb5:
+    revert 0, 0
+}
+
+fn @salted() -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = abi_encode [word], args 22
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = fmp
+    data_copy ChildWithArg_initcode_0, v6, 653
+    v7 = add v6, 653
+    mcopy v7, v4, v5 !metadata(memory=heap)
+    v8 = add 653, v5
+    v9 = add v8, 31
+    v10 = and v9, 0xffffffffffffffe0
+    v11 = add v6, v10
+    set_fmp v11
+    v12 = create2 0, v6, v8, 1
+    jumpi v12, bb2, bb1
+  bb1:
+    v13 = returndatasize
+    returndatacopy 0, 0, v13 !metadata(memory=abi_return)
+    v14 = returndatasize
+    revert 0, v14
+  bb2:
+    v15 = gas
+    v16 = staticcall v15, v12, v1, v2, 0, 32
+    jumpi v16, bb4, bb3
+  bb3:
+    v17 = returndatasize
+    returndatacopy 0, 0, v17 !metadata(memory=abi_return)
+    v18 = returndatasize
+    revert 0, v18
+  bb4:
+    v19 = returndatasize
+    v20 = lt v19, 32
+    jumpi v20, bb5, bb6
+  bb6:
+    v21 = add 0, 0
+    v22 = mload v21
+    mstore v21, v22
+    ret v22
+  bb5:
+    revert 0, 0
+}
+
+fn @pair() -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], args 3
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = fmp
+    data_copy ChildWithArg_initcode_0, v3, 653
+    v4 = add v3, 653
+    mcopy v4, v1, v2 !metadata(memory=heap)
+    v5 = add 653, v2
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffe0
+    v8 = add v3, v7
+    set_fmp v8
+    v9 = create 0, v3, v5
+    jumpi v9, bb2, bb1
+  bb1:
+    v10 = returndatasize
+    returndatacopy 0, 0, v10 !metadata(memory=abi_return)
+    v11 = returndatasize
+    revert 0, v11
+  bb2:
+    v12 = abi_encode [word], args 4
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = fmp
+    data_copy ChildWithArg_initcode_0, v15, 653
+    v16 = add v15, 653
+    mcopy v16, v13, v14 !metadata(memory=heap)
+    v17 = add 653, v14
+    v18 = add v17, 31
+    v19 = and v18, 0xffffffffffffffe0
+    v20 = add v15, v19
+    set_fmp v20
+    v21 = create 0, v15, v17
+    jumpi v21, bb4, bb3
+  bb3:
+    v22 = returndatasize
+    returndatacopy 0, 0, v22 !metadata(memory=abi_return)
+    v23 = returndatasize
+    revert 0, v23
+  bb4:
+    v24 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = gas
+    v28 = staticcall v27, v9, v25, v26, 0, 32
+    jumpi v28, bb6, bb5
+  bb5:
+    v29 = returndatasize
+    returndatacopy 0, 0, v29 !metadata(memory=abi_return)
+    v30 = returndatasize
+    revert 0, v30
+  bb6:
+    v31 = returndatasize
+    v32 = lt v31, 32
+    jumpi v32, bb7, bb8
+  bb8:
+    v33 = add 0, 0
+    v34 = mload v33
+    mstore v33, v34
+    v35 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v36 = slice_ptr v35
+    v37 = slice_len v35
+    v38 = gas
+    v39 = staticcall v38, v21, v36, v37, 0, 32
+    jumpi v39, bb10, bb9
+  bb9:
+    v40 = returndatasize
+    returndatacopy 0, 0, v40 !metadata(memory=abi_return)
+    v41 = returndatasize
+    revert 0, v41
+  bb10:
+    v42 = returndatasize
+    v43 = lt v42, 32
+    jumpi v43, bb11, bb12
+  bb12:
+    v44 = add 0, 0
+    v45 = mload v44
+    mstore v44, v45
+    v46 = add v34, v45
+    v47 = lt v46, v34
+    jumpi v47, bb13, bb14
+  bb14:
+    ret v46
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+}

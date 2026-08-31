@@ -1,0 +1,28 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module reference_cost
+
+// Keep a heavily referenced early entry separate when moving it into a later
+// container could cost more PUSH bytes than the entry saves.
+// CHECK: push_data literal_0
+// CHECK: push_data literal_0
+// CHECK: push_data literal_0
+bb0:
+  push_data literal_0
+  pop
+  push_data literal_0
+  pop
+  push_data literal_0
+  pop
+  push_data literal_1
+  pop
+  push_data literal_2
+  pop
+  stop
+
+// CHECK: @data literal_0 hex"1122"
+// CHECK: @data literal_1 hex"ff"
+// CHECK: @data literal_2 hex"11223344"
+@data literal_0 hex"1122"
+@data literal_1 hex"ff"
+@data literal_2 hex"11223344"

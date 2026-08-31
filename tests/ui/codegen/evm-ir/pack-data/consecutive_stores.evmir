@@ -1,10 +1,10 @@
-//@ compile-flags: -Ogas -Zevm-ir-pipeline=constant-data
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
 //@ filecheck:
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 64
-// CHECK-NEXT: {{^[ +].*}}push_data 0
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
 // CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
@@ -22,4 +22,4 @@ bb0:
   mstore
   stop
 
-// CHECK: @code_data 0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+// CHECK: @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"

@@ -1,6 +1,6 @@
 //! Call and member-call lowering.
 
-use super::{InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
+use super::{ContractBytecodes, InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
@@ -952,22 +952,24 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         // Look up pre-compiled bytecode
-        let bytecode = match self.contract_bytecodes.get(&contract_id) {
-            Some(bc) => bc.clone(),
-            None => {
-                let guar = self
-                    .gcx
-                    .dcx()
-                    .err(format!(
-                        "codegen is missing creation bytecode for `new {}`",
-                        self.gcx.hir.contract(contract_id).name
-                    ))
-                    .span(ty.span)
-                    .note("the deployed contract did not compile or was not lowered first")
-                    .emit();
-                return builder.error_value(guar);
-            }
-        };
+        let bytecode =
+            match self.contract_bytecodes.get(&contract_id).and_then(ContractBytecodes::deployment)
+            {
+                Some(bytecode) => bytecode.clone(),
+                None => {
+                    let guar = self
+                        .gcx
+                        .dcx()
+                        .err(format!(
+                            "codegen is missing creation bytecode for `new {}`",
+                            self.gcx.hir.contract(contract_id).name
+                        ))
+                        .span(ty.span)
+                        .note("the deployed contract did not compile or was not lowered first")
+                        .emit();
+                    return builder.error_value(guar);
+                }
+            };
 
         let bytecode_len = bytecode.len();
 
@@ -1018,17 +1020,8 @@ impl<'gcx> Lowerer<'gcx> {
         // Allocate memory for bytecode + constructor args from free memory pointer
         let mem_offset = builder.fmp();
 
-        // Copy bytecode to memory using MSTORE
-        // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
-        for (i, chunk) in bytecode.chunks(32).enumerate() {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let value = U256::from_be_bytes(padded);
-            let val_id = builder.imm_u256(value);
-            let chunk_offset = builder.imm_u64((i as u64) * 32);
-            let dest = builder.add(mem_offset, chunk_offset);
-            builder.mstore(dest, val_id);
-        }
+        let data_name = self.contract_bytecode_data_name(contract_id, true);
+        self.copy_data_to_memory(builder, mem_offset, &bytecode, bytecode_len, Some(data_name));
 
         // Append the encoded constructor arguments after the creation code.
         let bytecode_len_val = builder.imm_u64(bytecode_len as u64);
@@ -3055,18 +3048,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             let ptr = builder.fmp();
-            for (i, chunk) in bytes.chunks(32).enumerate() {
-                let mut padded = [0u8; 32];
-                padded[..chunk.len()].copy_from_slice(chunk);
-                let value = builder.imm_u256(U256::from_be_bytes(padded));
-                let dest = if i == 0 {
-                    ptr
-                } else {
-                    let offset = builder.imm_u64((i * 32) as u64);
-                    builder.add(ptr, offset)
-                };
-                builder.mstore(dest, value);
-            }
+            self.copy_data_to_memory(builder, ptr, bytes, bytes.len(), None);
             return Ok((ptr, builder.imm_u64(bytes.len() as u64)));
         }
 

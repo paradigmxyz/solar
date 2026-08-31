@@ -40,7 +40,6 @@ impl<'a> Verifier<'a> {
             self.error("program has no blocks");
             return;
         }
-
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !labels.insert(block.label) {
@@ -104,10 +103,19 @@ impl<'a> Verifier<'a> {
                         self.error_in_block(block_id, "`push_data` must carry a data ID");
                         return;
                     };
-                    if data.index() >= module.data.len() {
+                    if data.id.index() >= module.data.len() {
                         self.error_in_block(
                             block_id,
-                            format_args!("program data `{}` is out of range", data.index()),
+                            format_args!("program data `{}` is out of range", data.id.index()),
+                        );
+                    } else if data.offset as usize > module.data[data.id].bytes.len() {
+                        self.error_in_block(
+                            block_id,
+                            format_args!(
+                                "program data offset `{}` exceeds data size `{}`",
+                                data.offset,
+                                module.data[data.id].bytes.len()
+                            ),
                         );
                     }
                 }
