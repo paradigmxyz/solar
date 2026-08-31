@@ -92,6 +92,7 @@ pub(crate) fn resynthesize_physical_ops(
     } else {
         shuffler.run_greedy()
     }
+    .filter(|result| result.ops.iter().all(|op| op.lowering(evm_version).is_some()))
     .map(|result| result.ops);
     match (permutation, shuffled) {
         (Some(permutation), Some(shuffled)) => Some(

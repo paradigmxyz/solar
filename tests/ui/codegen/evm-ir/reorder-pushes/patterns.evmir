@@ -271,3 +271,90 @@ bb17:
   swap 1
   sub
   stop
+
+// Writes and copies are barriers even when their result does not use the extra stack word.
+// CHECK-LABEL: {{^[ +].*}}bb18:
+// CHECK: {{^    create}}
+// CHECK-NEXT: {{^    push 10}}
+// CHECK-NEXT: {{^    swap 1}}
+bb18:
+  push 0
+  push 0
+  push 0
+  create
+  push 10
+  swap 1
+  sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb19:
+// CHECK: {{^    create2}}
+// CHECK-NEXT: {{^    push 10}}
+// CHECK-NEXT: {{^    swap 1}}
+bb19:
+  push 0
+  push 0
+  push 0
+  push 0
+  create2
+  push 10
+  swap 1
+  sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb20:
+// CHECK: {{^    log0}}
+// CHECK-NEXT: {{^    push 10}}
+// CHECK-NEXT: {{^    swap 1}}
+bb20:
+  push 0
+  push 0
+  push 0
+  log0
+  push 10
+  swap 1
+  sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb21:
+// CHECK: {{^    mstore}}
+// CHECK-NEXT: {{^    push 10}}
+// CHECK-NEXT: {{^    swap 1}}
+bb21:
+  push 0
+  push 0
+  push 0
+  mstore
+  push 10
+  swap 1
+  sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb22:
+// CHECK: {{^    sstore}}
+// CHECK-NEXT: {{^    push 10}}
+// CHECK-NEXT: {{^    swap 1}}
+bb22:
+  push 0
+  push 0
+  push 0
+  sstore
+  push 10
+  swap 1
+  sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb23:
+// CHECK: {{^    calldatacopy}}
+// CHECK-NEXT: {{^    push 10}}
+// CHECK-NEXT: {{^    swap 1}}
+bb23:
+  push 0
+  push 0
+  push 0
+  push 0
+  calldatacopy
+  push 10
+  swap 1
+  sub
+  stop
