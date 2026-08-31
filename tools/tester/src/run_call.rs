@@ -72,17 +72,22 @@ struct ParsedCall<'a> {
     settings: CallSettings,
 }
 
-pub(crate) fn is_directive(line: &str) -> bool {
-    let Some(mut directive) = line.trim_start().strip_prefix("//@") else {
-        return false;
-    };
-    directive = directive.trim_start();
-    if let Some(revision) = directive.strip_prefix('[')
-        && let Some((_, rest)) = revision.split_once(']')
-    {
+pub(crate) fn parse_directive(line: &str) -> Option<(&str, Option<&str>)> {
+    let mut directive = line.trim_start().strip_prefix("//@")?.trim_start();
+    let revisions = if let Some(scoped) = directive.strip_prefix('[') {
+        let (revisions, rest) = scoped.split_once(']')?;
         directive = rest.trim_start();
-    }
-    directive.starts_with("run-call:") || directive.starts_with("run-call-fail:")
+        Some(revisions)
+    } else {
+        None
+    };
+    Some((directive, revisions))
+}
+
+pub(crate) fn is_directive(line: &str) -> bool {
+    parse_directive(line).is_some_and(|(directive, _)| {
+        directive.starts_with("run-call:") || directive.starts_with("run-call-fail:")
+    })
 }
 
 impl RunCall {
@@ -368,8 +373,25 @@ fn display_call(call: &str, function: Option<&Function>) -> String {
 }
 
 fn parse_artifacts(output: &[u8]) -> Result<Vec<Artifact>, String> {
-    let output: Value = serde_json::from_slice(output)
-        .map_err(|err| format!("failed to parse compiler output: {err}"))?;
+    let output: Value = match serde_json::from_slice(output) {
+        Ok(output) => output,
+        Err(err) => {
+            let marker = br#""contracts""#;
+            let Some(contracts) = output.windows(marker.len()).rposition(|window| window == marker)
+            else {
+                return Err(format!("failed to parse compiler output: {err}"));
+            };
+            let Some(start) = output[..contracts].iter().rposition(|&byte| byte == b'{') else {
+                return Err(format!("failed to parse compiler output: {err}"));
+            };
+            serde_json::Deserializer::from_slice(&output[start..])
+                .into_iter()
+                .next()
+                .transpose()
+                .map_err(|_| format!("failed to parse compiler output: {err}"))?
+                .ok_or_else(|| format!("failed to parse compiler output: {err}"))?
+        }
+    };
     let contracts = output
         .get("contracts")
         .and_then(Value::as_object)
@@ -752,6 +774,28 @@ mod tests {
                 },
             })
         );
+    }
+
+    #[test]
+    fn parses_artifacts_after_mir_dump() {
+        let output = br#"@module Test
+
+{"contracts":{"source.sol:Test":{"abi":[],"bin":"00"}}}"#;
+        let artifacts = parse_artifacts(output).unwrap();
+        assert_eq!(artifacts[0].name, "source.sol:Test");
+        assert_eq!(artifacts[0].bytecode, [0]);
+    }
+
+    #[test]
+    fn parses_artifacts_before_evm_ir_dump() {
+        let output = br#"{
+  "contracts": {"source.sol:Test": {"abi": [], "bin": "00"}}
+}
+
+@module runtime"#;
+        let artifacts = parse_artifacts(output).unwrap();
+        assert_eq!(artifacts[0].name, "source.sol:Test");
+        assert_eq!(artifacts[0].bytecode, [0]);
     }
 
     #[test]

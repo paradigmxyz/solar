@@ -306,17 +306,27 @@ revert status and exact returndata. Keeping one target address preserves
 `address(this)`, external self-calls, storage ownership, and log emitters.
 A generated symbolic bound is raised as needed to hold both runtime bytecode
 blobs and is recorded in `result.json`.
-A mismatch is reported only after Foundry concretely replays the symbolic
-counterexample. The generated replay project, compiler input, and `result.json`
-are kept under `target/solsymdiff/`.
+A symbolic suffix mismatch is reported only after Foundry concretely replays
+the counterexample. A prefix mismatch already comes from executing the supplied
+concrete calls. The generated project, compiler input, and `result.json` are
+kept under `target/solsymdiff/`.
 
 Pure functions are enabled by default. `--include-view` allows a selected view
 function with zero-initialized storage. `--include-stateful` allows a selected
 nonpayable function under a zero-initialized, single-call model and additionally
-compares emitted logs and every written target-storage slot. Constructors,
-nonzero initial state, payable calls, and multi-call sequences remain outside
-this lane; the stateful result does not compare side effects in external
-contracts.
+compares emitted logs and every written target-storage slot. Repeat
+`--prefix-calldata 0x...` to prepare fixed zero-value calls to the same target
+before a symbolic view or nonpayable call. The tool executes and compares both
+compiler prefixes once during concrete setup, then hydrates their finite target
+storage writes before comparing the symbolic suffix. Prefix success,
+returndata, ordered logs, and final target storage must agree.
+
+Prefix calldata includes the selector and ABI-encoded arguments; `0x` targets
+receive or fallback. View suffixes still require `--include-view`, while
+nonpayable suffixes require `--include-stateful`. Constructors, payable calls,
+arbitrary callers, and side effects in external contracts remain outside this
+lane. Prefixes are fixed state preparation, not symbolic transaction-sequence
+exploration.
 
 For real projects, use `--project-root`, repeat `--include-path`, and pass
 `--remapping prefix=target` as needed. Solc resolves the import closure once;

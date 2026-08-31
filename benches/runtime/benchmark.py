@@ -101,6 +101,17 @@ def display_command(cmd: Sequence[str | Path]) -> str:
     return " ".join(sanitized)
 
 
+def compiler_output_fingerprint(output: str) -> str:
+    payload = json.loads(output)
+    if errors := payload.get("errors"):
+        payload["errors"] = sorted(
+            errors,
+            key=lambda error: json.dumps(error, sort_keys=True, separators=(",", ":")),
+        )
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 def verbose_log(enabled: bool, message: str) -> None:
     if enabled:
         print(message, flush=True)
@@ -271,6 +282,7 @@ def compile_case(
     test_case: TestCase,
     prepared_input: tuple[str, int, str] | None,
     compile_repeats: int = 1,
+    repeat_long_compiles: bool = False,
 ) -> dict[str, object]:
     result = {
         "compiler_id": spec.compiler_id,
@@ -297,6 +309,8 @@ def compile_case(
     result["input_fingerprint"] = input_fingerprint
     cmd = [str(spec.path), "--standard-json"]
     samples = []
+    reference_output = None
+    output_fingerprint = None
     proc = None
     for _ in range(max(1, compile_repeats)):
         started = time.monotonic()
@@ -309,9 +323,19 @@ def compile_case(
         samples.append(time.monotonic() - started)
         if proc.returncode != 0:
             break
+        if reference_output is None:
+            reference_output = proc.stdout
+        elif proc.stdout != reference_output:
+            output_fingerprint = output_fingerprint or compiler_output_fingerprint(
+                reference_output
+            )
+            if compiler_output_fingerprint(proc.stdout) != output_fingerprint:
+                result["status"] = "failed"
+                result["error"] = "compiler output changed across repeated runs"
+                return result
         # One sample is representative for long compiles; repeating a
         # minute-scale solc run per repeat would dominate the whole benchmark.
-        if samples[-1] >= LONG_COMPILE_CUTOFF_SECONDS:
+        if not repeat_long_compiles and samples[-1] >= LONG_COMPILE_CUTOFF_SECONDS:
             break
     result["compile_time_seconds"] = statistics.median(samples)
     result["compile_time_samples"] = samples
@@ -321,6 +345,10 @@ def compile_case(
         result["status"] = "failed"
         result["error"] = (proc.stderr or proc.stdout or "compiler failed")[:1000]
         return result
+
+    result["output_fingerprint"] = output_fingerprint or compiler_output_fingerprint(
+        reference_output
+    )
 
     if test_case.whole_project:
         compiled, objects, error = parse_whole_project_output(proc.stdout)
@@ -1327,6 +1355,7 @@ def run_test_case(
     compile_repeats: int = 1,
     evm_version: str | None = None,
     reference_solc_path: Path | None = None,
+    repeat_long_compiles: bool = False,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1349,7 +1378,13 @@ def run_test_case(
     )
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
-        compiled = compile_case(spec, test_case, prepared_input, compile_repeats)
+        compiled = compile_case(
+            spec,
+            test_case,
+            prepared_input,
+            compile_repeats,
+            repeat_long_compiles,
+        )
         compiler_entry = dict(compiled)
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
@@ -1529,6 +1564,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=int,
         default=1,
         help="Compile each test this many times and record the median time (default: 1)",
+    )
+    parser.add_argument(
+        "--repeat-long-compiles",
+        action="store_true",
+        help="Do not stop repeats after a compile takes at least 10 seconds",
     )
     parser.add_argument(
         "--evm-version",
@@ -1785,6 +1825,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.compile_repeats,
                     args.evm_version,
                     solc,
+                    args.repeat_long_compiles,
                 )
             except Exception as exc:
                 print(
