@@ -19,10 +19,12 @@ contract CodeTarget {
 // MIR: data:
 // MIR: CodeTarget_initcode_0: hex"
 // MIR: CodeTarget_runtime_code_[[RUNTIME:[0-9]+]]: hex"
+// MIR-NOT: CodeTarget_initcode_1:
 // OPT-LABEL: contract_code_data.sol:CodeFactory (runtime) ===
 // OPT: @module runtime
+// OPT: push_data CodeTarget_initcode_0+{{[0-9]+}}
 // OPT: @data CodeTarget_initcode_0 hex"
-// OPT: @data CodeTarget_runtime_code_1 hex"
+// OPT-NOT: @data CodeTarget_runtime_code_
 contract CodeFactory {
     // MIR-LABEL: fn @deployCreationCode{{[( ]}}
     // MIR: data_copy CodeTarget_initcode_0,
@@ -36,6 +38,7 @@ contract CodeFactory {
     }
 
     // MIR-LABEL: fn @runtimeCodeMatches{{[( ]}}
+    // MIR: data_copy CodeTarget_initcode_0,
     // MIR: data_copy CodeTarget_runtime_code_[[RUNTIME]],
     function runtimeCodeMatches() external returns (bool) {
         CodeTarget deployed = new CodeTarget();

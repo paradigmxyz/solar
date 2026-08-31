@@ -408,6 +408,21 @@ impl<'gcx> Lowerer<'gcx> {
             && padded_size <= data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize)
         {
             self.store_data_words(builder, dest, data);
+        } else if name.is_some()
+            && padded_size > data.len()
+            && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize)
+        {
+            let word_size = EvmMemoryLayout::WORD_SIZE as usize;
+            let tail_offset = data.len() / word_size * word_size;
+            let tail = if tail_offset == 0 {
+                dest
+            } else {
+                let offset = builder.imm_u64(tail_offset as u64);
+                builder.add(dest, offset)
+            };
+            let zero = builder.imm_u64(0);
+            builder.mstore(tail, zero);
+            self.copy_nonzero_data_to_memory(builder, dest, Bytes::copy_from_slice(data), name);
         } else {
             let mut padded = Vec::with_capacity(padded_size);
             padded.extend_from_slice(data);
