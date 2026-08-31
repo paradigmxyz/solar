@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/constant_headroom.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/constant_headroom.evmir (after peephole) ===
+  @module ConstantFoldHeadroom
+  bb0:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
+    push 0
+    push 0
+    push bb1
+-   not
+-   not
+    jump
+  bb1:
+    push 1
+    push 2
+    add
+    stop
+  

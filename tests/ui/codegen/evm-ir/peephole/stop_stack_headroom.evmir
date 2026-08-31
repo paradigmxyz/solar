@@ -1,0 +1,27 @@
+//@compile-flags: -Zevm-ir-pipeline=stop-stack-cleanup
+//@filecheck:
+@module StopStackHeadroom
+
+// The dynamic target reaches bb1 with 1,023 words. Removing its physical
+// suffix would change an overflow into a successful STOP.
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push 0
+  push bb1
+  not
+  not
+  jump
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK-NEXT: {{^[ +].*}}stop
+bb1:
+  push 1
+  dup 1
+  stop

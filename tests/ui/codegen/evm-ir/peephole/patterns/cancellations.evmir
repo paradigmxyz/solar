@@ -107,8 +107,6 @@ bb7:
   swap 16
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb8:
-// CHECK-COUNT-2: - pop
 bb8:
   calldatasize
   calldatasize
@@ -202,7 +200,7 @@ bb13:
 // CHECK: +   exchange 1, 2
 // CHECK-NEXT: {{^[ +].*}}pop
 // CHECK-NEXT: {{^[ +].*}}swap 1
-// CHECK-NEXT: -   pop
+// CHECK-NEXT: {{^[ +].*}}pop
 bb14:
   push 0
   push 1

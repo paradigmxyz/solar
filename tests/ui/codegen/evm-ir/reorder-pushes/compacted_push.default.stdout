@@ -10,9 +10,8 @@ bb0:
   push bb1
   jump
 bb1:
-  push 1
-  push 128
-  shl
   calldatasize
+  push 0x100000000000000000000000000000000
+  swap 1
   sub
   stop

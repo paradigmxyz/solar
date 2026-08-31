@@ -81,8 +81,8 @@
   bb8:
     calldatasize
     calldatasize
--   pop
--   pop
+    pop
+    pop
     stop
   bb9:
     push 1
@@ -143,6 +143,6 @@
 +   exchange 1, 2
     pop
     swap 1
--   pop
+    pop
     stop
   

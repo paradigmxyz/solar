@@ -23,6 +23,7 @@
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
+    utils::StackDepths,
 };
 use crate::{
     backend::evm::{
@@ -52,7 +53,11 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        optimize_module(gcx, module)
+        let stack_headroom = module.unknown_target_stack_headroom;
+        let depths = (stack_headroom < 2 && has_constant_fold_candidate(module))
+            .then(|| StackDepths::new(module))
+            .flatten();
+        optimize_module(gcx, module, stack_headroom, depths.as_ref())
     }
 }
 
@@ -90,30 +95,55 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+    stack_headroom: usize,
+    depths: Option<&StackDepths>,
+) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
-        let mut rewrites = optimize(gcx, &mut block.instructions, &mut scratch, block.label);
-        if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
-            && remove_trailing_pops(&mut block.instructions)
-        {
-            rewrites += 1;
-        }
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+        let entry_depth = depths.and_then(|depths| depths.entry_depth(block_id));
+        let headroom_proven =
+            stack_headroom >= 2 || depths.is_some_and(|depths| depths.has_headroom(block_id, 0, 1));
+        let rewrites = optimize(
+            gcx,
+            &mut block.instructions,
+            &mut scratch,
+            block.label,
+            entry_depth,
+            stack_headroom,
+            headroom_proven,
+        );
         changed |= rewrites != 0;
     }
     changed
 }
 
 fn cleanup_stop_stacks(module: &mut Module) -> bool {
-    let mut changed = false;
-    for block in &mut module.blocks {
-        if !block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal) {
-            continue;
+    let stack_headroom = module.unknown_target_stack_headroom;
+    let mut suffixes = Vec::new();
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
+            && let Some(suffix) = self_contained_stack_suffix(&block.instructions)
+        {
+            suffixes.push((block_id, suffix));
         }
-        changed |= remove_trailing_pops(&mut block.instructions);
-        if let Some(start) = self_contained_stack_suffix_start(&block.instructions) {
-            block.instructions.truncate(start);
+    }
+    let depths = suffixes
+        .iter()
+        .any(|(_, suffix)| suffix.peak > stack_headroom)
+        .then(|| StackDepths::new(module))
+        .flatten();
+    let mut changed = false;
+    for (block_id, suffix) in suffixes {
+        if suffix.peak <= stack_headroom
+            || depths
+                .as_ref()
+                .is_some_and(|depths| depths.has_headroom(block_id, suffix.start, suffix.peak))
+        {
+            module.blocks[block_id].instructions.truncate(suffix.start);
             changed = true;
         }
     }
@@ -125,15 +155,7 @@ const fn is_explicit_stack_unobservable_terminal(terminator: &Terminator) -> boo
         && matches!(terminator.kind, TerminatorKind::Op(op::STOP | op::INVALID))
 }
 
-fn remove_trailing_pops(instructions: &mut Vec<Instruction>) -> bool {
-    let original_len = instructions.len();
-    while instructions.last().is_some_and(|inst| inst.as_legacy_opcode() == Some(op::POP)) {
-        instructions.pop();
-    }
-    instructions.len() != original_len
-}
-
-fn self_contained_stack_suffix_start(instructions: &[Instruction]) -> Option<usize> {
+fn self_contained_stack_suffix(instructions: &[Instruction]) -> Option<StackSuffix> {
     let start = instructions
         .iter()
         .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
@@ -142,6 +164,7 @@ fn self_contained_stack_suffix_start(instructions: &[Instruction]) -> Option<usi
 
     let mut depth = 0isize;
     let mut required = 0isize;
+    let mut peak = 0isize;
     for inst in &instructions[start..] {
         if !inst.has_canonical_stack_effect() {
             return None;
@@ -151,8 +174,14 @@ fn self_contained_stack_suffix_start(instructions: &[Instruction]) -> Option<usi
             inst.as_stack_op().map_or(usize::from(effect.inputs), PhysicalStackOp::required_depth);
         required = required.max(inputs as isize - depth);
         depth += isize::from(effect.outputs) - isize::from(effect.inputs);
+        peak = peak.max(depth);
     }
-    (required == 0).then_some(start)
+    (required == 0).then_some(StackSuffix { start, peak: peak.try_into().ok()? })
+}
+
+struct StackSuffix {
+    start: usize,
+    peak: usize,
 }
 
 fn optimize(
@@ -160,21 +189,44 @@ fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
+    entry_depth: Option<usize>,
+    stack_headroom: usize,
+    headroom_proven: bool,
 ) -> usize {
     scratch.clear();
     std::mem::swap(instructions, scratch);
     instructions.reserve(scratch.len());
     let mut rewrites = 0;
+    let mut relative_depth = 0isize;
     for inst in scratch.drain(..) {
+        relative_depth += inst
+            .effective_stack_effect()
+            .map_or(0, |effect| isize::from(effect.outputs) - isize::from(effect.inputs));
         instructions.push(inst);
-        while try_peephole(gcx, instructions, block) {
+        while try_peephole(
+            gcx,
+            instructions,
+            block,
+            entry_depth,
+            stack_headroom,
+            headroom_proven,
+            relative_depth,
+        ) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -> bool {
+fn try_peephole(
+    gcx: Gcx<'_>,
+    instructions: &mut Vec<Instruction>,
+    block: u32,
+    entry_depth: Option<usize>,
+    stack_headroom: usize,
+    headroom_proven: bool,
+    relative_depth: isize,
+) -> bool {
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
@@ -244,7 +296,8 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         let input_size = lhs_size + rhs_size + 1;
         // TODO: Include the evaluated opcode's gas once opcode metadata exposes it.
         let input_gas = lhs_gas + rhs_gas;
-        if result_size <= input_size
+        if constant_fold_fits(entry_depth, stack_headroom, headroom_proven, relative_depth)
+            && result_size <= input_size
             && result_gas <= input_gas
             && (result_size < input_size || result_gas < input_gas)
         {
@@ -518,6 +571,31 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
     }
 
     false
+}
+
+fn constant_fold_fits(
+    entry_depth: Option<usize>,
+    stack_headroom: usize,
+    headroom_proven: bool,
+    relative_depth: isize,
+) -> bool {
+    if stack_headroom >= 2 {
+        return true;
+    }
+    let Some(relative_peak) = relative_depth.checked_add(1) else { return false };
+    headroom_proven
+        && entry_depth
+            .and_then(|entry_depth| entry_depth.checked_add_signed(relative_peak))
+            .is_some_and(|depth| depth <= crate::backend::evm::stack::MAX_STACK_DEPTH)
+}
+
+fn has_constant_fold_candidate(module: &Module) -> bool {
+    module.blocks.iter().any(|block| {
+        block.instructions.windows(3).any(|instructions| {
+            instructions[0].concrete_immediate().is_some()
+                && instructions[1].concrete_immediate().is_some()
+        })
+    })
 }
 
 const MAX_STACK_PEEPHOLE_WINDOW: usize = 24;

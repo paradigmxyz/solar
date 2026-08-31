@@ -15,6 +15,7 @@ bb1:
   push 0
   revert
 bb2:
+  pop
   stop
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
 @module runtime

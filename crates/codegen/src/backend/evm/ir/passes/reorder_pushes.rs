@@ -131,11 +131,16 @@ fn reorder(
             && let Some((dup_node, rebased)) =
                 rebasable_dup_before(&sequence, pushed.start, evm_version)
         {
-            sequence.replace_stack_op(dup_node, rebased);
-            sequence.move_range_before(pushed.start, pushed_end, dup_node);
-            expressions.clear();
-            changed = true;
-            continue;
+            let source_peak = 1 + pushed.peak;
+            let reordered_peak = pushed.peak.max(2);
+            if source_peak <= reordered_peak || source_peak_fits(depth, source_peak) {
+                sequence.replace_stack_op(dup_node, rebased);
+                sequence.move_range_before(pushed.start, pushed_end, dup_node);
+                expressions.clear();
+                changed = true;
+                continue;
+            }
+            needs_depths |= depth.is_none();
         }
 
         if reorder_expressions
@@ -146,6 +151,7 @@ fn reorder(
             && let Some(pushed_end) = sequence.last
         {
             let (producer, pushed) = (*producer, *pushed);
+            let source_peak = producer.peak.max(1 + pushed.peak);
             let reordered_peak = pushed.peak.max(1 + producer.peak);
             let added_peak = reordered_peak - 2;
             let local_peak_fits = high_water.is_some_and(|high_water| {
@@ -153,7 +159,10 @@ fn reorder(
                     .checked_add_unsigned(added_peak)
                     .is_some_and(|peak| peak <= high_water)
             });
-            if added_peak == 0 || local_peak_fits || reordered_peak_fits(depth, added_peak) {
+            let source_fits = source_peak <= reordered_peak || source_peak_fits(depth, source_peak);
+            if source_fits
+                && (added_peak == 0 || local_peak_fits || reordered_peak_fits(depth, added_peak))
+            {
                 sequence.move_range_before(pushed.start, pushed_end, producer.start);
                 let len = expressions.len();
                 expressions.swap(len - 2, len - 1);
@@ -213,6 +222,13 @@ fn rebasable_dup_before(
 fn reordered_peak_fits(depth: Option<usize>, added_peak: usize) -> bool {
     depth
         .and_then(|depth| depth.checked_add(added_peak))
+        .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
+}
+
+fn source_peak_fits(depth: Option<usize>, source_peak: usize) -> bool {
+    depth
+        .and_then(|depth| depth.checked_sub(2))
+        .and_then(|depth| depth.checked_add(source_peak))
         .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
 }
 

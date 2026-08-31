@@ -1,0 +1,29 @@
+//@compile-flags: -Zevm-ir-pipeline=peephole
+//@filecheck:
+@module ConstantFoldHeadroom
+
+// The dynamic target reaches bb1 with 1,023 words. Folding its two pushes
+// would change an overflow into a successful result.
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push 0
+  push bb1
+  not
+  not
+  jump
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}push 2
+// CHECK-NEXT: {{^[ +].*}}add
+// CHECK-NEXT: {{^[ +].*}}stop
+bb1:
+  push 1
+  push 2
+  add
+  stop

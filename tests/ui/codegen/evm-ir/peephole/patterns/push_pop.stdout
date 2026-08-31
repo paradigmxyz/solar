@@ -14,8 +14,8 @@
     dup 1
     push 2
 -   swap 1
--   pop
--   pop
+    pop
+    pop
     stop
   bb3:
     dup 1
@@ -41,6 +41,8 @@
 -   push 1
 -   dup 1
 -   push 2
+-   pop
+-   pop
     stop
   bb3:
     dup 1
