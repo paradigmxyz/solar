@@ -7,7 +7,7 @@ use super::{
         ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback,
         print_standard_json_stats, strip_json_comments,
     },
-    metadata::{self, ContractMetadata},
+    metadata::Metadata,
 };
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
@@ -56,7 +56,7 @@ pub fn compile_standard_json(
             if opts.unstable.standard_json_stats {
                 print_standard_json_stats(&input, &compiler_input);
             }
-            compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
+            compile(&compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
         }
         Err(e) => {
             dcx.err(format!("JSON parse error: {e}")).emit();
@@ -116,7 +116,7 @@ fn standard_json_error_output(message: String, out: &mut dyn Write) -> io::Resul
 }
 
 fn compile(
-    input: CompilerInput<'_>,
+    input: &CompilerInput<'_>,
     opts: &mut CompileOpts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
@@ -144,7 +144,7 @@ fn compile(
     }
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
-    for remapping in &remappings {
+    for remapping in remappings {
         match remapping.parse::<ImportRemapping>() {
             Ok(remapping) => parsed_remappings.push(remapping),
             Err(e) => {
@@ -188,7 +188,7 @@ fn compile(
     if let Some(Optimizer { enabled, runs }) = optimizer {
         // 200 runs is the default value if unspecified in solc.
         // Treat lower values as Size.
-        opts.optimization = if enabled {
+        opts.optimization = if *enabled {
             if runs.is_none_or(|x| x >= 200) {
                 OptimizationMode::Gas
             } else {
@@ -201,10 +201,10 @@ fn compile(
     }
 
     opts.libraries = Vec::with_capacity(libraries.len());
-    for (source, libraries) in libraries.0 {
-        opts.libraries.extend(libraries.into_iter().map(|(name, address)| LibraryAddress {
+    for (source, libraries) in &libraries.0 {
+        opts.libraries.extend(libraries.iter().map(|(name, &address)| LibraryAddress {
             source: (!source.is_empty()).then(|| source.to_string()),
-            name: name.into(),
+            name: name.to_string(),
             address,
         }));
     }
@@ -224,7 +224,7 @@ fn compile(
                 |pcx| {
                     let mut files = Vec::with_capacity(sources.len());
                     for (name, source) in sources {
-                        let Some(content) = source.content else {
+                        let Some(content) = &source.content else {
                             let message = if source.urls.is_empty() {
                                 format!("source `{name}` is missing `content`")
                             } else {
@@ -232,7 +232,7 @@ fn compile(
                             };
                             return Err(pcx.dcx().err(message).emit());
                         };
-                        files.push((PathBuf::from(name.as_ref()), content));
+                        files.push((PathBuf::from(name.as_ref()), content.to_string()));
                     }
                     pcx.par_load_files_with_contents(files)
                 },
@@ -243,23 +243,9 @@ fn compile(
             }
 
             let gcx = compiler.gcx();
-            let bytecode_contracts = requested_bytecode_contracts(gcx, &output_selection);
-            let metadata_requested = gcx.hir.contracts_enumerated().any(|(_, contract)| {
-                let source = gcx.hir.source(contract.source);
-                let source_name = standard_json_source_name(&source.file.name);
-                output_selection
-                    .contract(&source_name, contract.name.as_str())
-                    .contains(OutputSelectionFlags::METADATA)
-            });
-            let contract_metadata = if metadata_requested || !bytecode_contracts.is_empty() {
-                metadata::build(gcx, metadata)
-            } else {
-                FxHashMap::default()
-            };
-            let appended_data = contract_metadata
-                .iter()
-                .map(|(&contract_id, metadata)| (contract_id, metadata.cbor.clone()))
-                .collect();
+            let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
+            let contract_metadata = Metadata::new(gcx, input);
+            let appended_data = |contract_id| contract_metadata.cbor(contract_id);
 
             crate::commands::compile::warn_experimental_codegen(
                 gcx.sess,
@@ -280,7 +266,7 @@ fn compile(
                     contract_id,
                     contract_selection,
                     bytecodes.as_ref(),
-                    contract_metadata.get(&contract_id),
+                    &contract_metadata,
                 );
                 if !contract_output.is_empty() {
                     output
@@ -391,7 +377,7 @@ fn make_contract_output(
     contract_id: solar_sema::hir::ContractId,
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
-    metadata: Option<&ContractMetadata>,
+    metadata: &Metadata<'_, '_, '_>,
 ) -> ContractOutput<'static> {
     let mut output = ContractOutput::default();
 
@@ -399,7 +385,7 @@ fn make_contract_output(
         output.abi = Some(gcx.contract_abi(contract_id));
     }
     if output_selection.contains(OutputSelectionFlags::METADATA) {
-        output.metadata = metadata.map(|metadata| metadata.json.clone());
+        output.metadata = Some(metadata.json(contract_id).to_string());
     }
     if output_selection.contains(OutputSelectionFlags::USERDOC) {
         output.userdoc = Some(gcx.user_documentation(contract_id));

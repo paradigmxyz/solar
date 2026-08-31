@@ -118,13 +118,13 @@ impl ContractSelection {
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
 /// configured and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
-/// Entries in `appended_data` are emitted as trailing runtime program data.
+/// Values returned by `appended_data` are emitted as trailing runtime program data.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
     contracts: &ContractSelection,
     capture_mir: &ContractSelection,
     capture_evm_ir: &ContractSelection,
-    appended_data: Option<&FxHashMap<ContractId, Bytes>>,
+    appended_data: Option<&(dyn Fn(ContractId) -> Bytes + Sync)>,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
     let captures = ContractCaptures {
         bytecode: contracts,
@@ -191,7 +191,7 @@ struct ContractCaptures<'a> {
     bytecode: &'a ContractSelection,
     mir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
-    appended_data: Option<&'a FxHashMap<ContractId, Bytes>>,
+    appended_data: Option<&'a (dyn Fn(ContractId) -> Bytes + Sync)>,
 }
 
 struct ContractGraph {
@@ -441,11 +441,9 @@ fn generate_contract_bytecode(
 fn append_contract_data(
     module: &mut Module,
     contract_id: ContractId,
-    appended_data: Option<&FxHashMap<ContractId, Bytes>>,
+    appended_data: Option<&(dyn Fn(ContractId) -> Bytes + Sync)>,
 ) {
-    if let Some(data) =
-        appended_data.and_then(|all| all.get(&contract_id)).filter(|x| !x.is_empty())
-    {
-        module.append_runtime_data(data.clone(), None);
+    if let Some(data) = appended_data.map(|get| get(contract_id)).filter(|x| !x.is_empty()) {
+        module.append_runtime_data(data, None);
     }
 }

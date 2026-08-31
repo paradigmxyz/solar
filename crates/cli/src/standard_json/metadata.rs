@@ -1,90 +1,98 @@
 //! Solidity contract metadata and bytecode auxiliary data.
 
-use super::data::{MetadataHash, MetadataSettings};
+use super::data::{CompilerInput, MetadataHash};
 use alloy_primitives::{Bytes, keccak256};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use solar_config::{OptimizationMode, version::SEMVER_VERSION};
-use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
 use solar_sema::{
     Gcx,
     hir::{ContractId, SourceId},
 };
+use std::sync::OnceLock;
 
-/// Metadata emitted for one contract.
-pub(super) struct ContractMetadata {
-    pub(super) json: String,
-    pub(super) cbor: Bytes,
+/// Lazily computed metadata for a Standard JSON compilation.
+pub(super) struct Metadata<'a, 'input, 'gcx> {
+    gcx: Gcx<'gcx>,
+    input: &'a CompilerInput<'input>,
+    contracts: IndexVec<ContractId, ContractMetadata>,
+    sources: IndexVec<SourceId, OnceLock<Value>>,
 }
 
-pub(super) fn build(
-    gcx: Gcx<'_>,
-    settings: MetadataSettings,
-) -> FxHashMap<ContractId, ContractMetadata> {
-    gcx.hir
-        .contracts_enumerated()
-        .map(|(contract_id, _)| {
-            let json = metadata_json(gcx, contract_id, settings);
-            let cbor = settings.append_cbor.then(|| cbor_metadata(&json, settings.bytecode_hash));
-            (contract_id, ContractMetadata { json, cbor: cbor.unwrap_or_default().into() })
-        })
-        .collect()
+#[derive(Default)]
+struct ContractMetadata {
+    json: OnceLock<String>,
+    cbor: OnceLock<Bytes>,
 }
 
-fn metadata_json(gcx: Gcx<'_>, contract_id: ContractId, metadata: MetadataSettings) -> String {
+impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
+    pub(super) fn new(gcx: Gcx<'gcx>, input: &'a CompilerInput<'input>) -> Self {
+        let contracts = IndexVec::from_vec(
+            (0..gcx.hir.contract_ids().len()).map(|_| Default::default()).collect(),
+        );
+        let sources =
+            IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
+        Self { gcx, input, contracts, sources }
+    }
+
+    pub(super) fn json(&self, contract_id: ContractId) -> &str {
+        self.contracts[contract_id].json.get_or_init(|| metadata_json(self, contract_id))
+    }
+
+    pub(super) fn cbor(&self, contract_id: ContractId) -> Bytes {
+        let settings = self.input.settings.metadata;
+        if !settings.append_cbor {
+            return Bytes::new();
+        }
+        self.contracts[contract_id]
+            .cbor
+            .get_or_init(|| cbor_metadata(self.json(contract_id), settings.bytecode_hash).into())
+            .clone()
+    }
+
+    fn source(&self, source_id: SourceId) -> &Value {
+        self.sources[source_id].get_or_init(|| source_metadata(self, source_id))
+    }
+}
+
+fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> String {
+    let gcx = metadata.gcx;
+    let settings = metadata.input.settings.metadata;
     let contract = gcx.hir.contract(contract_id);
     let target_source_name = source_name(gcx, contract.source);
     let mut sources = Map::new();
     for source_id in referenced_sources(gcx, contract.source) {
-        let source = gcx.hir.source(source_id);
-        let content = source.file.src.as_str();
-        let mut value = Map::new();
-        value.insert("keccak256".into(), json!(format!("{:#x}", keccak256(content.as_bytes()))));
-        if let Some(license) = source_license(content) {
-            value.insert("license".into(), json!(license));
-        }
-        if metadata.use_literal_content {
-            value.insert("content".into(), json!(content));
-        } else {
-            let swarm = bzzr1_hash(content.as_bytes());
-            let ipfs = ipfs_hash(content.as_bytes());
-            value.insert(
-                "urls".into(),
-                json!([
-                    format!("bzz-raw://{}", alloy_primitives::hex::encode(swarm)),
-                    format!("dweb:/ipfs/{}", bs58::encode(ipfs).into_string()),
-                ]),
-            );
-        }
-        sources.insert(source_name(gcx, source_id), Value::Object(value));
+        sources.insert(source_name(gcx, source_id), metadata.source(source_id).clone());
     }
 
     let opts = &gcx.sess.opts;
     let mut metadata_settings = Map::new();
-    if !metadata.append_cbor {
+    if !settings.append_cbor {
         metadata_settings.insert("appendCBOR".into(), Value::Bool(false));
     }
     metadata_settings.insert(
         "bytecodeHash".into(),
-        json!(match metadata.bytecode_hash {
+        json!(match settings.bytecode_hash {
             MetadataHash::Ipfs => "ipfs",
             MetadataHash::Bzzr1 => "bzzr1",
             MetadataHash::None => "none",
         }),
     );
-    if metadata.use_literal_content {
+    if settings.use_literal_content {
         metadata_settings.insert("useLiteralContent".into(), Value::Bool(true));
     }
 
     let mut libraries = Map::new();
-    for library in &opts.libraries {
-        let name = library
-            .source
-            .as_ref()
-            .map_or_else(|| library.name.clone(), |source| format!("{source}:{}", library.name));
-        libraries.insert(name, json!(format!("{:#x}", library.address)));
+    for (source, source_libraries) in &metadata.input.settings.libraries.0 {
+        for (name, address) in source_libraries {
+            let name =
+                if source.is_empty() { name.to_string() } else { format!("{source}:{name}") };
+            libraries.insert(name, json!(format!("{address:#x}")));
+        }
     }
-    let mut remappings = opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>();
+    let mut remappings =
+        metadata.input.settings.remappings.iter().map(ToString::to_string).collect::<Vec<_>>();
     remappings.sort_unstable();
 
     let optimizer_enabled = !matches!(opts.optimization, OptimizationMode::None);
@@ -111,6 +119,37 @@ fn metadata_json(gcx: Gcx<'_>, contract_id: ContractId, metadata: MetadataSettin
         "version": 1,
     });
     serde_json::to_string(&value).expect("contract metadata must serialize")
+}
+
+fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Value {
+    let gcx = metadata.gcx;
+    let source = gcx.hir.source(source_id);
+    let name = source_name(gcx, source_id);
+    let content = metadata
+        .input
+        .sources
+        .get(name.as_str())
+        .and_then(|source| source.content.as_deref())
+        .unwrap_or(source.file.src.as_str());
+    let mut value = Map::new();
+    value.insert("keccak256".into(), json!(format!("{:#x}", keccak256(content.as_bytes()))));
+    if let Some(license) = source_license(content) {
+        value.insert("license".into(), json!(license));
+    }
+    if metadata.input.settings.metadata.use_literal_content {
+        value.insert("content".into(), json!(content));
+    } else {
+        let swarm = bzzr1_hash(content.as_bytes());
+        let ipfs = ipfs_hash(content.as_bytes());
+        value.insert(
+            "urls".into(),
+            json!([
+                format!("bzz-raw://{}", alloy_primitives::hex::encode(swarm)),
+                format!("dweb:/ipfs/{}", bs58::encode(ipfs).into_string()),
+            ]),
+        );
+    }
+    Value::Object(value)
 }
 
 fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
