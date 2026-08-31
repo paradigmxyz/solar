@@ -1,3 +1,8 @@
+// CHECK: "userdoc": {
+// CHECK: "f(uint256)": {
+// CHECK: "notice": "Returns x"
+// CHECK: "count()": {
+// CHECK: "notice": "Returns the count"
 // CHECK: "devdoc": {
 // CHECK: "details": "Base function"
 // CHECK: "stateVariables": {
@@ -11,11 +16,6 @@
 // CHECK: "label": "low"
 // CHECK: "offset": 16
 // CHECK: "slot": "1"
-// CHECK: "userdoc": {
-// CHECK: "f(uint256)": {
-// CHECK: "notice": "Returns x"
-// CHECK: "count()": {
-// CHECK: "notice": "Returns the count"
 {
   "language": "Solidity",
   "settings": {

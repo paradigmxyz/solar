@@ -385,10 +385,10 @@ fn make_contract_output(
         output.metadata = Some(metadata.json(contract_id).to_string());
     }
     if output_selection.contains(OutputSelectionFlags::USERDOC) {
-        output.userdoc = Some(gcx.user_documentation(contract_id));
+        output.userdoc = Some(metadata.userdoc(contract_id).clone());
     }
     if output_selection.contains(OutputSelectionFlags::DEVDOC) {
-        output.devdoc = Some(gcx.dev_documentation(contract_id));
+        output.devdoc = Some(metadata.devdoc(contract_id).clone());
     }
     if output_selection.contains(OutputSelectionFlags::STORAGE_LAYOUT) {
         output.storage_layout = Some(gcx.storage_layout(contract_id));

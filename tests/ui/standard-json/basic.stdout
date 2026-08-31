@@ -47,6 +47,7 @@
             "stateMutability": "nonpayable"
           }
         ],
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"name\":\"setNumber\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"Counter\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0xaf8d3f3b739b6d673bd61f63e23dfd3be0734fd7799c07d60f73ed1ea3b14256\",\"urls\":[\"bzz-raw://bf0f8bb4540c2a37926e066295366cb8308399999b4c42773b068b64ef6b475b\",\"dweb:/ipfs/Qme5eqv4aQrN89FBnpXXFUHUc4hmZP3nMe3n3KFoMvz8a7\"]}},\"version\":1}",
         "evm": {
           "methodIdentifiers": {
             "number()": "8381f58a",
@@ -58,8 +59,7 @@
           "deployedBytecode": {
             "object": "346028575f3560e01c80633fb5c1cb1460205780638381f58a146024576028565b6037565b602c565b5f80fd5b5f5460805260206080f35b6004360360209012156047575f80fd5b6004355f55fea26469706673582212208732cc202dd39e056953430110087b8cb9720324caa6df3226e080303d9e02ac64736f6c63430002000033"
           }
-        },
-        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"name\":\"setNumber\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"Counter\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0xaf8d3f3b739b6d673bd61f63e23dfd3be0734fd7799c07d60f73ed1ea3b14256\",\"urls\":[\"bzz-raw://bf0f8bb4540c2a37926e066295366cb8308399999b4c42773b068b64ef6b475b\",\"dweb:/ipfs/Qme5eqv4aQrN89FBnpXXFUHUc4hmZP3nMe3n3KFoMvz8a7\"]}},\"version\":1}"
+        }
       }
     }
   }

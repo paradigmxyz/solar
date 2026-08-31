@@ -12,6 +12,7 @@ use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
 use solar_sema::{
     Gcx,
     hir::{ContractId, SourceId},
+    output::Documentation,
 };
 use std::sync::OnceLock;
 
@@ -28,8 +29,10 @@ pub(super) struct Metadata<'a, 'input, 'gcx> {
 
 #[derive(Default)]
 struct ContractMetadata {
+    devdoc: OnceLock<Documentation>,
     json: OnceLock<String>,
     runtime_suffix: OnceLock<Bytes>,
+    userdoc: OnceLock<Documentation>,
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
@@ -46,6 +49,14 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
 
     pub(super) fn json(&self, contract_id: ContractId) -> &str {
         self.contracts[contract_id].json.get_or_init(|| metadata_json(self, contract_id))
+    }
+
+    pub(super) fn devdoc(&self, contract_id: ContractId) -> &Documentation {
+        self.contracts[contract_id].devdoc.get_or_init(|| self.gcx.dev_documentation(contract_id))
+    }
+
+    pub(super) fn userdoc(&self, contract_id: ContractId) -> &Documentation {
+        self.contracts[contract_id].userdoc.get_or_init(|| self.gcx.user_documentation(contract_id))
     }
 
     pub(super) fn runtime_suffix(&self, contract_id: ContractId) -> Bytes {
@@ -110,12 +121,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
             libraries.insert(name, json!(format!("{address:#x}")));
         }
     }
-    let mut remappings = opts
-        .import_remappings
-        .iter()
-        // Solc includes the context separator when the context is empty.
-        .map(|remapping| format!("{}:{}={}", remapping.context, remapping.prefix, remapping.path))
-        .collect::<Vec<_>>();
+    let mut remappings = opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>();
     remappings.sort_unstable();
 
     let (optimizer_enabled, optimizer_runs) =
@@ -125,8 +131,8 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
         "language": "Solidity",
         "output": {
             "abi": gcx.contract_abi(contract_id),
-            "devdoc": gcx.dev_documentation(contract_id),
-            "userdoc": gcx.user_documentation(contract_id),
+            "devdoc": metadata.devdoc(contract_id),
+            "userdoc": metadata.userdoc(contract_id),
         },
         "settings": {
             "compilationTarget": { target_source_name: contract.name.as_str() },

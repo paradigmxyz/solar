@@ -1,8 +1,8 @@
-// CHECK: "object":
 // CHECK: "metadata":
 // CHECK: \"appendCBOR\":false
 // CHECK: \"bytecodeHash\":\"ipfs\"
 // CHECK: \"useLiteralContent\":true
+// CHECK: "object":
 {
   "language": "Solidity",
   "sources": {

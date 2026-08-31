@@ -7,6 +7,18 @@
   "contracts": {
     "A.sol": {
       "A": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f(uint256)": {
+              "notice": "Returns x"
+            },
+            "count()": {
+              "notice": "Returns the count"
+            }
+          },
+          "version": 1
+        },
         "devdoc": {
           "kind": "dev",
           "methods": {
@@ -162,18 +174,6 @@
               "numberOfBytes": "20"
             }
           }
-        },
-        "userdoc": {
-          "kind": "user",
-          "methods": {
-            "f(uint256)": {
-              "notice": "Returns x"
-            },
-            "count()": {
-              "notice": "Returns the count"
-            }
-          },
-          "version": 1
         }
       }
     }

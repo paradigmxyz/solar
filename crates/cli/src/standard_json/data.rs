@@ -207,17 +207,17 @@ pub(super) struct ContractOutput<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'a>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) devdoc: Option<Documentation>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) evm: Option<EvmOutput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) metadata: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) userdoc: Option<Documentation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) devdoc: Option<Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) transient_storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<Documentation>,
+    pub(super) evm: Option<EvmOutput>,
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
