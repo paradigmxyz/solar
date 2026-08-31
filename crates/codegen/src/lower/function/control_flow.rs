@@ -645,11 +645,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
         let condition = self.lower_expr(condition)?;
+        let then_ty = self.context.gcx.type_of_expr(then_expr.id)?;
+        let else_ty = self.context.gcx.type_of_expr(else_expr.id)?;
+        let ty = then_ty.common_type(else_ty, self.context.gcx)?;
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
-            |this| this.lower_expr(then_expr),
-            |this| this.lower_expr(else_expr),
+            |this| this.lower_ternary_value(then_expr, ty),
+            |this| this.lower_ternary_value(else_expr, ty),
         )?;
         match (then_branch.terminated, else_branch.terminated) {
             (true, false) => Some(else_branch.value),
@@ -660,6 +663,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 (else_branch.block, else_branch.value),
             ])),
         }
+    }
+
+    fn lower_ternary_value(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<ValueId> {
+        let source_ty = self.context.gcx.type_of_expr(expr.id)?;
+        let value = self.lower_expr(expr)?;
+        let value = if ty.is_ref_at(DataLocation::Memory) {
+            self.materialize_memory_argument(ty, value, expr.span)?
+        } else {
+            value
+        };
+        Some(self.coerce_value(value, source_ty, ty))
     }
 
     pub(super) fn lower_logical(
