@@ -79,4 +79,3 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
   bb1:
     revert 0, 0
 }
-

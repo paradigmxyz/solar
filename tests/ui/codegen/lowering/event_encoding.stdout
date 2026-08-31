@@ -134,4 +134,3 @@ fn @emitNamed() {
     log1 0, 64, 0x7d268c864ab74dc3ecd16b07321ad677da79fbcb3fd2c22d5bfe5d4b81c67d23
     stop
 }
-

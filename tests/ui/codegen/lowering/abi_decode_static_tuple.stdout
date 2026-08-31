@@ -117,4 +117,3 @@ fn @__abi_decode_calldata_0(arg0: u256) -> memorybytes {
   bb1:
     revert 0, 0
 }
-

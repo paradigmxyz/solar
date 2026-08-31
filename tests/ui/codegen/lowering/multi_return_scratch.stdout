@@ -73,4 +73,3 @@ fn @assign(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [abi_returns=[wor
   bb1:
     revert 0, 0
 }
-

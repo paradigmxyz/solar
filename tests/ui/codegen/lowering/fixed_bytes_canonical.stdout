@@ -132,4 +132,3 @@ fn @narrow(arg0: bytes4) -> bytes2 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

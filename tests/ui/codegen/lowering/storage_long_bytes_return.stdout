@@ -58,7 +58,7 @@ fn @b() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @_anonymous() {
+fn @constructor() {
   bb0:
     sstore 0, 65 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
@@ -84,4 +84,3 @@ fn @getB() -> memorybytes [abi_returns=[memory_bytes]] {
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
 }
-

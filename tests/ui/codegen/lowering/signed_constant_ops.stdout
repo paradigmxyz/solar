@@ -32,4 +32,3 @@ fn @shr() -> i256 [abi_returns=[word]] {
     v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8
     ret v0
 }
-

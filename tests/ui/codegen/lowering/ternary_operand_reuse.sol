@@ -1,5 +1,6 @@
-//@compile-flags: --emit=bin-runtime -Zdump=evm-ir-runtime
-//@filecheck:
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
+//@[ir] filecheck:
 
 contract TernaryOperandReuse {
     // The planner may consume `caller()` as the modulus because the return can

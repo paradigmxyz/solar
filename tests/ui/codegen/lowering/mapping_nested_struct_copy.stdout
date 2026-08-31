@@ -76,4 +76,3 @@ fn @clear(arg0: u256) {
   bb1:
     revert 0, 0
 }
-

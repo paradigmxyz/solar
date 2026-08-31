@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 
 contract CalldataSliceReturn {
     function whole(bytes calldata data) external pure returns (bytes calldata) {

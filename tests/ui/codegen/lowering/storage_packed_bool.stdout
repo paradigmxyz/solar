@@ -68,4 +68,3 @@ fn @both() -> bool [abi_returns=[word]] {
     v5 = phi [bb0: 0], [bb1: v4]
     ret v5
 }
-

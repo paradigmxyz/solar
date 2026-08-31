@@ -49,4 +49,3 @@ fn @target.5() -> u256 {
   bb0:
     ret 1
 }
-

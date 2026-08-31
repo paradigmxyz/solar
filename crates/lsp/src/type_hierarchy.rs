@@ -304,11 +304,7 @@ fn node_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<String> {
                 name.push_str(gcx.hir.contract(contract_id).name.as_str());
                 name.push('.');
             }
-            if let Some(function_name) = function.name {
-                name.push_str(function_name.as_str());
-            } else {
-                name.push_str(function.kind.to_str());
-            }
+            name.push_str(function.name_or_kind().as_str());
 
             if function.kind != FunctionKind::Modifier {
                 name.push('(');

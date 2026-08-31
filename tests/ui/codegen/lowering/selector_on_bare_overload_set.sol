@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 // ported-from: test/foundry/utils/TestTokenMinter.sol
 
 // `.selector` on a bare function name inherited through an override chain.

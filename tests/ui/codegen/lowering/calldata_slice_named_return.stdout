@@ -55,4 +55,3 @@ fn @entry() [entry] {
   bb3:
     revert 0, 0
 }
-

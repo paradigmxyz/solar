@@ -305,7 +305,7 @@ fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
+fn @constructor(arg0: memorybytes, arg1: memorybytes) {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = constructor_args_base
@@ -610,7 +610,7 @@ fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
+fn @constructor(arg0: memorybytes, arg1: memorybytes) {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = constructor_args_base
@@ -857,7 +857,7 @@ fn @_anonymous(arg0: memorybytes, arg1: memorybytes) {
 
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_elements.sol:StorageStringDerived ===
 @module StorageStringDerived
-fn @_anonymous() {
+fn @constructor() {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 9
@@ -1280,4 +1280,3 @@ fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
 }
-

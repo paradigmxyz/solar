@@ -126,6 +126,9 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - **Unit tests**: In source files
 - **UI tests**: In `tests/ui/`, verify compiler output
+- For codegen tests, prefer `//@ codegen-matrix: standard`, which covers the
+  `none`, `gas`, `size`, and `mir` revisions; use custom revisions only when
+  the standard matrix cannot express the test.
 - Prefer UI tests over unit tests for end-to-end Solidity behavior, especially
   diagnostics, semantic analysis, and compiler-output checks.
 - For Rust tests that assert formatted output, use `snapbox` snapshots instead

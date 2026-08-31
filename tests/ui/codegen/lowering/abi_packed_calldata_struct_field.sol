@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 // ported-from: contracts/metatx/ERC2771Forwarder.sol
 
 // Packing a dynamic field of a calldata struct. The prologue decodes the

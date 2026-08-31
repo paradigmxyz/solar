@@ -19,4 +19,3 @@ fn @stringLiteral() -> memorybytes [abi_returns=[memory_bytes]] {
     mstore v2, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }
-

@@ -1,6 +1,6 @@
-//@ compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 
-contract FallbackBytesUnsupported { //~ ERROR: codegen does not support `fallback(bytes) returns (bytes)` yet
+contract FallbackBytesUnsupported { //~[none,gas,size] ERROR: codegen does not support `fallback(bytes) returns (bytes)` yet
     fallback(bytes calldata input) external returns (bytes memory) {
         return input;
     }

@@ -61,4 +61,3 @@ fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) [abi_returns=[word, word]] {
   bb1:
     revert 0, 0
 }
-
