@@ -14,6 +14,7 @@ import platform
 import subprocess
 import sys
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -161,6 +162,34 @@ def baseline_regression_details(
                 f"{pct_increase(solar_size, base_solar_size)} worse)"
             )
 
+        solar_deploy_gas = deploy_gas(result, "solar")
+        base_solar_deploy_gas = deploy_gas(base, "solar")
+        if (
+            solar_deploy_gas is not None
+            and base_solar_deploy_gas is not None
+            and solar_deploy_gas > base_solar_deploy_gas
+        ):
+            details.append(
+                f"{test_id} solar deployment gas regressed vs previous Solar run: "
+                f"{base_solar_deploy_gas:,} -> {solar_deploy_gas:,} "
+                f"({absolute_delta(solar_deploy_gas, base_solar_deploy_gas)}, "
+                f"{pct_increase(solar_deploy_gas, base_solar_deploy_gas)} worse)"
+            )
+
+        solar_creation_size = creation_size(result, "solar")
+        base_solar_creation_size = creation_size(base, "solar")
+        if (
+            solar_creation_size is not None
+            and base_solar_creation_size is not None
+            and solar_creation_size > base_solar_creation_size
+        ):
+            details.append(
+                f"{test_id} solar creation size regressed vs previous Solar run: "
+                f"{base_solar_creation_size:,}B -> {solar_creation_size:,}B "
+                f"({absolute_delta(solar_creation_size, base_solar_creation_size)}B, "
+                f"{pct_increase(solar_creation_size, base_solar_creation_size)} worse)"
+            )
+
     return details
 
 
@@ -250,6 +279,24 @@ def has_codegen_changes(
         ):
             return True
 
+        solar_deploy_gas = deploy_gas(result, "solar")
+        base_solar_deploy_gas = deploy_gas(base, "solar")
+        if (
+            solar_deploy_gas is not None
+            and base_solar_deploy_gas is not None
+            and solar_deploy_gas != base_solar_deploy_gas
+        ):
+            return True
+
+        solar_creation_size = creation_size(result, "solar")
+        base_solar_creation_size = creation_size(base, "solar")
+        if (
+            solar_creation_size is not None
+            and base_solar_creation_size is not None
+            and solar_creation_size != base_solar_creation_size
+        ):
+            return True
+
     return False
 
 
@@ -310,18 +357,26 @@ def compiler_data(result: dict[str, Any], compiler: str) -> dict[str, Any]:
 
 
 def total_gas(result: dict[str, Any], compiler: str) -> int | None:
-    data = compiler_data(result, compiler)
-    if data.get("status") != "ok":
-        return None
-    value = data.get("total_gas")
-    return value if isinstance(value, int) else None
+    return compiler_metric(result, compiler, "total_gas")
+
+
+def deploy_gas(result: dict[str, Any], compiler: str) -> int | None:
+    return compiler_metric(result, compiler, "deploy_gas")
+
+
+def creation_size(result: dict[str, Any], compiler: str) -> int | None:
+    return compiler_metric(result, compiler, "bytecode_size")
 
 
 def runtime_size(result: dict[str, Any], compiler: str) -> int | None:
+    return compiler_metric(result, compiler, "runtime_size")
+
+
+def compiler_metric(result: dict[str, Any], compiler: str, metric: str) -> int | None:
     data = compiler_data(result, compiler)
     if data.get("status") != "ok":
         return None
-    value = data.get("runtime_size")
+    value = data.get(metric)
     return value if isinstance(value, int) else None
 
 
@@ -462,16 +517,31 @@ def fmt_value_with_delta_vs_current(
 def benchmark_rows(
     results: list[dict[str, Any]], baseline: dict[tuple[str, str], dict[str, Any]]
 ) -> list[str]:
+    return metric_rows(results, baseline, total_gas, runtime_size)
+
+
+def deployment_rows(
+    results: list[dict[str, Any]], baseline: dict[tuple[str, str], dict[str, Any]]
+) -> list[str]:
+    return metric_rows(results, baseline, deploy_gas, creation_size)
+
+
+def metric_rows(
+    results: list[dict[str, Any]],
+    baseline: dict[tuple[str, str], dict[str, Any]],
+    gas_metric: Callable[[dict[str, Any], str], int | None],
+    size_metric: Callable[[dict[str, Any], str], int | None],
+) -> list[str]:
     rows = []
     for result in results:
         test_id = str(result.get("test_id", "<unknown>"))
         base = baseline.get(suite_key(result), {})
-        solar_gas = total_gas(result, "solar")
-        solc_gas = total_gas(result, "solc")
-        base_solar_gas = total_gas(base, "solar") if base else None
-        solar_size = runtime_size(result, "solar")
-        solc_size = runtime_size(result, "solc")
-        base_solar_size = runtime_size(base, "solar") if base else None
+        solar_gas = gas_metric(result, "solar")
+        solc_gas = gas_metric(result, "solc")
+        base_solar_gas = gas_metric(base, "solar") if base else None
+        solar_size = size_metric(result, "solar")
+        solc_size = size_metric(result, "solc")
+        base_solar_size = size_metric(base, "solar") if base else None
 
         if all(value is None for value in (solar_gas, solc_gas, solar_size, solc_size)):
             continue
@@ -623,7 +693,8 @@ def compile_time_report(
     solar_sum = sum(solar for _, solar in paired)
 
     return [
-        "### Compilation time",
+        "<details>",
+        "<summary>Compilation time</summary>",
         "",
         f"| bench | time (vs {baseline_label}) | solc |",
         "| ----- | --------------------- | ---- |",
@@ -632,6 +703,8 @@ def compile_time_report(
             f"| **sum of medians** | **{fmt_duration(solar_sum)}** | "
             f"**{fmt_duration(solc_sum)} ({fmt_pct_vs_current(solar_sum, solc_sum)})** |"
         ),
+        "",
+        "</details>",
         "",
     ]
 
@@ -662,6 +735,18 @@ def report_section(
                 f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
                 "| ----- | ------------- | ---- | -------------- | ---- |",
                 *rows,
+                "",
+            ]
+        )
+    deployment = deployment_rows(results, baseline)
+    if deployment:
+        lines.extend(
+            [
+                "### Deployment",
+                "",
+                f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
+                "| ----- | ------------- | ---- | -------------- | ---- |",
+                *deployment,
                 "",
             ]
         )
