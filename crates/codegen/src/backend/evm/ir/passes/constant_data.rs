@@ -1,6 +1,9 @@
 //! Replace consecutive constant memory stores with program-data copies.
 
-use super::EvmPass;
+use super::{
+    EvmPass,
+    utils::{StackDepths, relative_stack_depths},
+};
 use crate::backend::evm::{
     ir::{BlockId, Instruction, Module, PushValue},
     op,
@@ -28,8 +31,11 @@ struct Rewrite {
 }
 
 fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let depths = StackDepths::new(module);
     let mut rewrites = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        let relative_depths = relative_stack_depths(&block.instructions);
+        let high_water = relative_depths.as_ref().and_then(|depths| depths.iter().copied().max());
         let mut start = 0;
         while start < block.instructions.len() {
             let Some(rewrite) = find_run(gcx, block_id, &block.instructions, start) else {
@@ -37,7 +43,17 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             };
             start = rewrite.end;
-            rewrites.push(rewrite);
+            let fits_existing_peak = relative_depths.as_ref().is_some_and(|relative_depths| {
+                high_water
+                    .is_some_and(|high_water| relative_depths[rewrite.start] + 3 <= high_water)
+            });
+            let fits = fits_existing_peak
+                || depths
+                    .as_ref()
+                    .is_some_and(|depths| depths.has_headroom(block_id, rewrite.start, 3));
+            if fits {
+                rewrites.push(rewrite);
+            }
         }
     }
     if rewrites.is_empty() {

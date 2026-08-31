@@ -5,7 +5,10 @@
 //! keeps the first body and redirects later copies to it. CFG simplification
 //! then redirects references and removes the temporary jump thunks.
 
-use super::{EvmPass, utils::is_terminal_boundary};
+use super::{
+    EvmPass,
+    utils::{StackDepths, is_terminal_boundary, relative_stack_high_water},
+};
 use crate::backend::evm::ir::{
     Block, BlockId, Hotness, Module, PushValue, Terminator, TerminatorKind,
 };
@@ -31,13 +34,19 @@ struct RunState {
 }
 
 fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let depths = StackDepths::new(module);
     let mut state = RunState::default();
-
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
         let Some(key) = terminal_block_key(block) else { continue };
         match state.canonical.entry(key) {
-            StdEntry::Occupied(entry) => state.redirects.push((block_id, *entry.get())),
+            StdEntry::Occupied(entry) => {
+                let fits = body_provides_jump_headroom(block)
+                    || depths.as_ref().is_some_and(|depths| depths.has_headroom(block_id, 0, 1));
+                if fits {
+                    state.redirects.push((block_id, *entry.get()));
+                }
+            }
             StdEntry::Vacant(entry) => {
                 entry.insert(block_id);
             }
@@ -53,6 +62,10 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
     }
     changed
+}
+
+fn body_provides_jump_headroom(block: &Block) -> bool {
+    relative_stack_high_water(&block.instructions).is_some_and(|peak| peak >= 1)
 }
 
 fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {

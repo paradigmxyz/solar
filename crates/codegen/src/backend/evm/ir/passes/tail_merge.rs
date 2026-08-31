@@ -2,7 +2,10 @@
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_terminal_boundary},
+    utils::{
+        FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound,
+        is_terminal_boundary, relative_stack_depths,
+    },
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
@@ -55,6 +58,7 @@ struct RunState {
 
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
+        let depths = StackDepths::new(module);
         self.representatives.clear();
         self.merges.clear();
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -79,6 +83,8 @@ impl RunState {
             if let Some((representative, common)) = matched
                 && common > 0
                 && suffix_size(gcx, module, block_id, common) > 5
+                && split_has_jump_headroom(depths.as_ref(), module, representative, common)
+                && split_has_jump_headroom(depths.as_ref(), module, block_id, common)
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
@@ -181,6 +187,20 @@ impl RunState {
         debug_assert!(labels.next().is_none());
         true
     }
+}
+
+fn split_has_jump_headroom(
+    depths: Option<&StackDepths>,
+    module: &Module,
+    block_id: BlockId,
+    common: usize,
+) -> bool {
+    let block = &module.blocks[block_id];
+    let split = block.instructions.len() - common;
+    let local_headroom = relative_stack_depths(&block.instructions).is_some_and(|depths| {
+        depths.get(split).is_some_and(|depth| depths.iter().any(|peak| peak > depth))
+    });
+    local_headroom || depths.is_some_and(|depths| depths.has_headroom(block_id, split, 1))
 }
 
 fn is_candidate(block: &Block) -> bool {

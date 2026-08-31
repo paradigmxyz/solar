@@ -21,9 +21,12 @@
 //! resynthesis and cache keys independent of function size.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Module},
-    stack::{StackOp, lowered_stack_cost, resynthesize_physical_ops},
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Module},
+        stack::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops},
+    },
+    mir::ValueId,
 };
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
@@ -33,6 +36,8 @@ use solar_sema::Gcx;
 const MAX_STACK_RUN_LEN: usize = 24;
 
 pub(super) struct StackNormalize;
+
+pub(super) struct StackDedup;
 
 impl EvmPass for StackNormalize {
     fn name(&self) -> &'static str {
@@ -54,6 +59,21 @@ impl EvmPass for StackNormalize {
                 &mut normalizations,
                 &mut guaranteed_depths,
             );
+        }
+        changed
+    }
+}
+
+impl EvmPass for StackDedup {
+    fn name(&self) -> &'static str {
+        "stack-dedup"
+    }
+
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let mut changed = false;
+        let mut remove = Vec::new();
+        for block in &mut module.blocks {
+            changed |= remove_redundant_permutations(&mut block.instructions, &mut remove);
         }
         changed
     }
@@ -217,4 +237,94 @@ fn compute_guaranteed_depths(instructions: &[Instruction], depths: &mut Vec<usiz
         relative_depth += isize::from(effect.outputs) - isize::from(effect.inputs);
         depths.push((required_entry + relative_depth) as usize);
     }
+}
+
+fn remove_redundant_permutations(
+    instructions: &mut Vec<Instruction>,
+    remove: &mut Vec<usize>,
+) -> bool {
+    remove.clear();
+    let mut start = 0;
+    while start < instructions.len() {
+        let mut end = start;
+        while end < instructions.len() && symbolic_stack_op(&instructions[end]).is_some() {
+            end += 1;
+        }
+        if end != start {
+            find_redundant_permutations(&instructions[start..end], start, remove);
+        }
+        start = end + 1;
+    }
+    if remove.is_empty() {
+        return false;
+    }
+    let mut index = 0;
+    let mut removed = remove.iter().copied().peekable();
+    instructions.retain(|_| {
+        let keep = removed.peek().copied() != Some(index);
+        if !keep {
+            removed.next();
+        }
+        index += 1;
+        keep
+    });
+    true
+}
+
+fn find_redundant_permutations(
+    instructions: &[Instruction],
+    offset: usize,
+    remove: &mut Vec<usize>,
+) {
+    let mut depth = 0isize;
+    let mut required = 0isize;
+    for op in instructions.iter().filter_map(symbolic_stack_op) {
+        match op {
+            SymbolicStackOp::Push => depth += 1,
+            SymbolicStackOp::Physical(op) => {
+                required = required.max(op.required_depth() as isize - depth);
+                depth += op.net_growth();
+            }
+        }
+    }
+    let source_depth = required as usize;
+    let mut stack = StackModel::from_top_to_bottom(
+        (0..source_depth).map(|index| Some(ValueId::from_usize(index))),
+    );
+    let mut next_value = source_depth;
+    for (index, op) in instructions.iter().filter_map(symbolic_stack_op).enumerate() {
+        match op {
+            SymbolicStackOp::Push => {
+                stack.push(ValueId::from_usize(next_value));
+                next_value += 1;
+            }
+            SymbolicStackOp::Physical(StackOp::Swap(depth))
+                if stack.top() == stack.peek(usize::from(depth)) =>
+            {
+                remove.push(offset + index);
+            }
+            SymbolicStackOp::Physical(StackOp::Exchange(first, second))
+                if stack.peek(usize::from(first)) == stack.peek(usize::from(second)) =>
+            {
+                remove.push(offset + index);
+            }
+            SymbolicStackOp::Physical(op) => stack.apply(op),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum SymbolicStackOp {
+    Push,
+    Physical(StackOp),
+}
+
+fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
+    if !inst.has_canonical_stack_effect() {
+        return None;
+    }
+    if inst.is_encoded_push() {
+        return Some(SymbolicStackOp::Push);
+    }
+    inst.as_stack_op().map(SymbolicStackOp::Physical)
 }

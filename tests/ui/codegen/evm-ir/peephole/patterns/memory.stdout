@@ -12,12 +12,12 @@
     stop
   bb1:
     push 1
-    dup 1
+-   dup 1
     push 32
     mstore
 -   pop
--   push 32
--   mload
+    push 32
+    mload
     stop
   bb2:
     push 32

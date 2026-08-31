@@ -202,9 +202,10 @@ bb69:
   push 32
   dup 2
   add
-  dup 1
   push 64
   mstore
+  push 64
+  mload
   dup 1
   push 704
   mstore

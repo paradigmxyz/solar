@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-dedup/runs.evmir (before stack-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-dedup/runs.evmir (after stack-dedup) ===
+  @module StackDedup
+  bb0:
+    push 45
+    dup 1
+    push 46
+    push 47
+    swap 3
+-   swap 2
+    stop
+  

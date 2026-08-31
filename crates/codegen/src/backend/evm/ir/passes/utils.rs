@@ -282,6 +282,33 @@ impl StackDepths {
     }
 }
 
+/// Returns relative stack depths before the first instruction and after every instruction.
+///
+/// Returns `None` when an instruction has no known stack effect.
+pub(super) fn relative_stack_depths(instructions: &[Instruction]) -> Option<Vec<isize>> {
+    let mut depths = Vec::with_capacity(instructions.len() + 1);
+    let mut depth = 0isize;
+    depths.push(depth);
+    for inst in instructions {
+        let effect = inst.effective_stack_effect()?;
+        depth += isize::from(effect.outputs) - isize::from(effect.inputs);
+        depths.push(depth);
+    }
+    Some(depths)
+}
+
+/// Returns the greatest relative stack depth reached by an instruction sequence.
+pub(super) fn relative_stack_high_water(instructions: &[Instruction]) -> Option<isize> {
+    let mut depth = 0isize;
+    let mut high_water = 0isize;
+    for inst in instructions {
+        let effect = inst.effective_stack_effect()?;
+        depth += isize::from(effect.outputs) - isize::from(effect.inputs);
+        high_water = high_water.max(depth);
+    }
+    Some(high_water)
+}
+
 fn reachable_stack_blocks(
     start: BlockId,
     successors: &IndexVec<BlockId, DenseBitSet<BlockId>>,
@@ -342,6 +369,7 @@ fn analyze_block(
             targets.push((target, stack.clone()));
         }
     }
+    instruction_depths.push(stack.depth());
 
     let term = block.terminator.as_ref()?;
     let lowering_growth = terminator_lowering_growth(module, block_id)?;

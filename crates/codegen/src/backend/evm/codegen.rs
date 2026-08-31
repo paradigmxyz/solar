@@ -1941,18 +1941,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             let size_focused = self.gcx.sess.opts.optimization.is_size() || code_size_rescue;
-            let outline_stack_headroom =
-                if size_focused && self.recursive_stack_functions.is_empty() {
-                    (1..=ir::MAX_OUTLINE_STACK_HEADROOM)
-                        .rev()
-                        .find(|&headroom| {
-                            self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH - headroom)
-                        })
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
-            self.asm.set_unknown_target_stack_headroom(outline_stack_headroom);
+            let max_headroom = if size_focused { ir::MAX_OUTLINE_STACK_HEADROOM } else { 2 };
+            let stack_headroom = if self.recursive_stack_functions.is_empty() {
+                (1..=max_headroom)
+                    .rev()
+                    .find(|&headroom| {
+                        self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH - headroom)
+                    })
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+            self.asm.set_unknown_target_stack_headroom(stack_headroom);
             self.asm.set_enable_size_outlining(code_size_rescue);
 
             let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
@@ -5102,7 +5102,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         inst_idx: usize,
     ) {
         let (inputs, outputs) = op::stack_io(opcode).expect("MIR opcode has no stack effect");
-        debug_assert_eq!(usize::from(inputs), operands.len());
+        assert_eq!(usize::from(inputs), operands.len(), "MIR opcode operand count mismatch");
 
         match (inputs, outputs) {
             (0, 1) => {
@@ -9113,7 +9113,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_stack_op(stack_op);
                 }
                 ScheduledOp::PushImmediate(imm) => {
-                    self.asm.emit_push(imm);
+                    self.asm.emit_scheduled_push(imm);
                 }
                 ScheduledOp::RematerializeNullary(opcode) => {
                     self.asm.emit_op(opcode);

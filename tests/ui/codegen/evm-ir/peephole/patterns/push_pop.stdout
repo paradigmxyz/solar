@@ -10,5 +10,45 @@
 -   pop
     stop
   bb2:
+    push 1
+    dup 1
+    push 2
+-   swap 1
+-   pop
+-   pop
+    stop
+  bb3:
+    dup 1
+    stop
+  bb4:
+    push 1
+    invalid
+  bb5:
+-   push 1
+-   push 2
+-   add
++   push 3
+    stop
+  
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (before stop-stack-cleanup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/push_pop.evmir (after stop-stack-cleanup) ===
+  @module module
+  bb0:
+    stop
+  bb1:
+    stop
+  bb2:
+-   push 1
+-   dup 1
+-   push 2
+    stop
+  bb3:
+    dup 1
+    stop
+  bb4:
+-   push 1
+    invalid
+  bb5:
+-   push 3
     stop
   

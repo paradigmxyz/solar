@@ -27,7 +27,9 @@ pub(in crate::backend::evm) mod assembly;
 
 pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
 pub(in crate::backend::evm) use passes::{
-    LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::immediate_materialization_cost, legalize_shifts,
+    LEGACY_SHIFT_STACK_HEADROOM,
+    compact_pushes::{ImmediateMaterialization, immediate_materialization_cost},
+    legalize_shifts,
 };
 
 /// Maximum stack reserve used by parameterized machine-run outlining.
@@ -258,6 +260,14 @@ impl Instruction {
         Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH)
     }
 
+    /// Marks an immediate whose selected materialization peak was included by stack scheduling.
+    #[must_use]
+    pub(in crate::backend::evm) fn scheduled_push_value(value: U256) -> Self {
+        let mut inst = Self::push_value(value);
+        inst.metadata.compact_headroom = true;
+        inst
+    }
+
     /// Creates an encoded block-address push instruction.
     #[must_use]
     pub(crate) fn push_block(block: BlockId) -> Self {
@@ -279,7 +289,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), compact_headroom: false },
         }
     }
 
@@ -313,7 +323,7 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), compact_headroom: false },
         }
     }
 
@@ -460,13 +470,21 @@ pub(crate) struct Terminator {
     pub(crate) kind: TerminatorKind,
     /// Terminator metadata.
     pub(crate) metadata: Metadata,
+    /// Whether the builder inserted `STOP` for a raw assembler fragment that ran out of blocks.
+    pub(crate) implicit_stop: bool,
 }
 
 impl Terminator {
     /// Creates a terminator without metadata.
     #[must_use]
     pub(crate) const fn new(kind: TerminatorKind) -> Self {
-        Self { kind, metadata: Metadata::EMPTY }
+        Self { kind, metadata: Metadata::EMPTY, implicit_stop: false }
+    }
+
+    /// Creates the artificial `STOP` that closes a raw assembler fragment.
+    #[must_use]
+    pub(in crate::backend::evm) const fn implicit_stop() -> Self {
+        Self { kind: TerminatorKind::Op(op::STOP), metadata: Metadata::EMPTY, implicit_stop: true }
     }
 }
 
@@ -572,11 +590,13 @@ enum PushValue {
 pub(crate) struct Metadata {
     /// Optional stack effect.
     pub(crate) stack: Option<StackEffect>,
+    /// Whether scheduling included the selected compact immediate's transient stack peak.
+    pub(crate) compact_headroom: bool,
 }
 
 impl Metadata {
     /// Empty metadata value.
-    pub(crate) const EMPTY: Self = Self { stack: None };
+    pub(crate) const EMPTY: Self = Self { stack: None, compact_headroom: false };
 }
 
 /// Stack effect metadata for one EVM IR operation.

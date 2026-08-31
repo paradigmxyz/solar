@@ -1,4 +1,15 @@
-//! Machine-level EVM control-flow simplification.
+//! Simplify machine-level EVM control flow before block layout and assembly.
+//!
+//! The pass truncates instructions after a terminal opcode, folds branches whose two edges have
+//! the same target, redirects label-only jump thunks, removes unreachable blocks, and merges an
+//! unconditional predecessor into its sole unaddressed successor. It repeats these steps because
+//! each rewrite can expose another. Degenerate branches include both structural
+//! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
+//! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.
+//!
+//! Address-taken blocks remain distinct, and block merging requires one reference so changing a
+//! predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
+//! `POP`; later dead-code elimination may remove the pure condition computation.
 
 use super::{
     EvmPass,
@@ -103,19 +114,33 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        let Some(TerminatorKind::JumpI { then_block, else_block }) =
+        if let Some(TerminatorKind::JumpI { then_block, else_block }) =
             block.terminator.as_ref().map(|term| &term.kind)
-        else {
-            continue;
-        };
-        if then_block != else_block {
+            && then_block == else_block
+        {
+            let target = *then_block;
+            block
+                .instructions
+                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
+            block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+            changed = true;
             continue;
         }
 
-        let target = *then_block;
-        block.instructions.push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
-        block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
-        changed = true;
+        if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
+            && let [.., pushed, jumpi] = block.instructions.as_slice()
+            && pushed.has_canonical_stack_effect()
+            && pushed.is_encoded_push()
+            && pushed.value == Some(PushValue::Block(*target))
+            && jumpi.has_canonical_stack_effect()
+            && jumpi.as_legacy_opcode() == Some(op::JUMPI)
+        {
+            block.instructions.truncate(block.instructions.len() - 2);
+            block
+                .instructions
+                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
+            changed = true;
+        }
     }
     changed
 }

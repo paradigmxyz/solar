@@ -1,0 +1,26 @@
+//@compile-flags: -Zevm-ir-pipeline=compact-pushes
+//@filecheck:
+@module CompactPushHeadroom
+
+// An opaque jump can enter bb1 with 1,023 words. A literal push fits there,
+// but its compact two-push recipe does not.
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push 0
+  push bb1
+  not
+  not
+  jump
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 0x100000000000000000000000000000000
+// CHECK-NOT: shl
+// CHECK: {{^[ +].*}}stop
+bb1:
+  push 0x100000000000000000000000000000000
+  stop

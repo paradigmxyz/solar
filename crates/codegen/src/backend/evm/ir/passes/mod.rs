@@ -57,8 +57,10 @@ pub trait EvmPass: Sync {
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
     &peephole::Peephole,
+    &peephole::StopStackCleanup,
     &reorder_pushes::REORDER_PUSHES,
     &share_reverts::ShareReverts,
+    &stack_normalize::StackDedup,
     &stack_normalize::StackNormalize,
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
@@ -129,6 +131,12 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
+    // Reordering can make a formerly unsafe compact recipe fit at its new stack depth.
+    // Compact once more after all structural rewrites so that recipe does not hide equal tails.
+    &compact_pushes::CompactPushes,
+    &peephole::Peephole,
+    &stack_normalize::StackDedup,
+    &peephole::StopStackCleanup,
 ];
 
 /// Finds an EVM IR pass by command-line name.

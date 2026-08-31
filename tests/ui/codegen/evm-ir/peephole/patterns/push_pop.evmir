@@ -1,4 +1,4 @@
-//@compile-flags: -Zevm-ir-pipeline=peephole
+//@compile-flags: -Zevm-ir-pipeline=peephole,stop-stack-cleanup
 //@filecheck:
 @module module
 
@@ -17,5 +17,47 @@ bb1:
   push bb2
   pop
   stop
+
+// STOP cannot observe a self-contained physical stack suffix.
+// CHECK-LABEL: after stop-stack-cleanup
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-NOT: {{^[ +].*}}push
+// CHECK-NOT: {{^[ +].*}}dup
+// CHECK-NOT: {{^[ +].*}}swap
+// CHECK: {{^[ +].*}}stop
 bb2:
+  push 1
+  dup 1
+  push 2
+  swap 1
+  pop
+  pop
+  stop
+
+// Do not make an underflowing suffix executable.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}dup 1
+// CHECK: {{^[ +].*}}stop
+bb3:
+  dup 1
+  stop
+
+// INVALID also cannot observe a self-contained stack suffix.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-NOT: {{^[ +].*}}push
+// CHECK: {{^[ +].*}}invalid
+bb4:
+  push 1
+  invalid
+
+// Peephole first reduces a self-contained calculation to a push, then the
+// terminal cleanup removes it.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK-NOT: {{^[ +].*}}push
+// CHECK-NOT: {{^[ +].*}}add
+// CHECK: {{^[ +].*}}stop
+bb5:
+  push 1
+  push 2
+  add
   stop

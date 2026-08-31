@@ -103,7 +103,10 @@ use super::{
 };
 use crate::{
     analysis::Liveness,
-    backend::evm::op::{self, StackOp},
+    backend::evm::{
+        ir::{ImmediateMaterialization, immediate_materialization_cost},
+        op::{self, StackOp},
+    },
     mir::{ArgIdx, BlockId, Function, InstKind, Value, ValueId},
 };
 use smallvec::SmallVec;
@@ -283,11 +286,12 @@ pub(crate) enum ScheduledOp {
 }
 
 impl ScheduledOp {
-    fn stack_peak_growth(&self, cost_model: OperandCostModel) -> usize {
+    fn stack_peak_growth(&self, cost_model: OperandCostModel, evm_version: EvmVersion) -> usize {
         match self {
-            Self::Stack(StackOp::Dup(_))
-            | Self::PushImmediate(_)
-            | Self::RematerializeNullary(_) => 1,
+            Self::PushImmediate(value) => {
+                ImmediateMaterialization::new(evm_version, *value).stack_peak()
+            }
+            Self::Stack(StackOp::Dup(_)) | Self::RematerializeNullary(_) => 1,
             Self::LoadSpill(_) => usize::from(cost_model.spill_load_stack_growth),
             Self::LoadArg(_) => usize::from(cost_model.arg_load_stack_growth),
             Self::Stack(_) => 0,
@@ -467,14 +471,8 @@ impl ScheduleCost {
         }
         let (static_gas, encoded_bytes) = match op {
             ScheduledOp::PushImmediate(value) => {
-                if value.is_zero() && evm_version.has_push0() {
-                    (2, 1)
-                } else {
-                    let bytes = value.to_be_bytes::<32>();
-                    let immediate_bytes =
-                        bytes.iter().position(|&byte| byte != 0).map_or(1, |i| 32 - i);
-                    (3, (immediate_bytes + 1) as u32)
-                }
+                let (bytes, gas) = immediate_materialization_cost(evm_version, *value);
+                (gas as u32, bytes as u32)
             }
             ScheduledOp::RematerializeNullary(_) => (2, 1),
             ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
@@ -709,7 +707,8 @@ impl StackScheduler {
     ) -> usize {
         let mut peak = depth;
         for op in ops {
-            peak = peak.max(depth.saturating_add(op.stack_peak_growth(cost_model)));
+            peak =
+                peak.max(depth.saturating_add(op.stack_peak_growth(cost_model, self.evm_version)));
             depth = depth.saturating_add_signed(op.net_stack_growth());
         }
         self.stack.observe_peak(peak);
@@ -1126,7 +1125,10 @@ impl StackScheduler {
         let plan = plan.fold_exchanges(self.evm_version);
         let mut stack = self.stack.clone();
         for action in &plan.actions {
-            if stack.depth().checked_add(action.op.stack_peak_growth(cost_model))? > MAX_STACK_DEPTH
+            if stack
+                .depth()
+                .checked_add(action.op.stack_peak_growth(cost_model, self.evm_version))?
+                > MAX_STACK_DEPTH
             {
                 return None;
             }
@@ -1225,7 +1227,7 @@ impl StackScheduler {
         let mut consider = |op: ScheduledOp, pushed| {
             if stack
                 .len()
-                .checked_add(op.stack_peak_growth(cost_model))
+                .checked_add(op.stack_peak_growth(cost_model, evm_version))
                 .is_none_or(|depth| depth > MAX_STACK_DEPTH)
             {
                 return;
@@ -1842,7 +1844,7 @@ impl StackScheduler {
         actions.retain(|action| {
             stack
                 .len()
-                .checked_add(action.op.stack_peak_growth(cost_model))
+                .checked_add(action.op.stack_peak_growth(cost_model, context.evm_version))
                 .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
         });
         actions
@@ -3201,6 +3203,29 @@ mod tests {
         let peak =
             scheduler.observe_scheduled_ops_peak(start_depth, &ops, OperandCostModel::DIRECT);
         assert_eq!(peak, MAX_STACK_DEPTH + 1);
+    }
+
+    #[test]
+    fn compact_immediate_accounts_for_transient_peak() {
+        let mut func = Function::new(Ident::DUMMY);
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+        let shifted = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE << 128)));
+        let mut scheduler = StackScheduler::new();
+        for _ in 0..MAX_STACK_DEPTH - 1 {
+            scheduler.stack.push(filler);
+        }
+
+        let ops = scheduler.ensure_on_top(shifted, &func).to_vec();
+        assert_eq!(
+            scheduler.observe_scheduled_ops_peak(
+                MAX_STACK_DEPTH - 1,
+                &ops,
+                OperandCostModel::DIRECT,
+            ),
+            MAX_STACK_DEPTH + 1
+        );
     }
 
     #[test]

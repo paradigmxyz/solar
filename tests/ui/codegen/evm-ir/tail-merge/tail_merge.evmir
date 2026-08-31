@@ -3,12 +3,12 @@
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: {{^[ +].*}}jump bb2
+// CHECK: {{^[ +].*}}jump bb7
 bb0:
   push 1
   push bb1
   jumpi
-  jump bb2
+  jump bb7
 
 // CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
 // CHECK: {{^[ +].*}}push 11
@@ -54,6 +54,13 @@ bb6 [cold]:
   push 444
   push 555
   revert
+
+// Give both stack-limit candidates an exact zero-depth entry.
+bb7:
+  push 1
+  push bb13
+  jumpi
+  jump bb14
 
 // The maximum textual label is valid and must not overflow synthetic-label allocation.
 // CHECK-LABEL: {{^[ +].*}}bb4294967295:
@@ -144,6 +151,45 @@ bb12:
   push 5
   push 6
   exchange 1, 2
+  pop
+  pop
+  stop
+
+// Do not add a target push before a shrinking suffix that can start at the stack limit.
+// CHECK-LABEL: {{^[ +].*}}bb13:
+// CHECK-NOT: jump
+// CHECK-COUNT-5: {{^[ +].*}}pop
+bb13:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 1
+  push 2
+  push 3
+  push 4
+  pop
+  pop
+  pop
+  pop
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb14:
+// CHECK-NOT: jump
+// CHECK-COUNT-5: {{^[ +].*}}pop
+bb14:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 1
+  push 2
+  push 3
+  push 5
+  pop
+  pop
+  pop
   pop
   pop
   stop

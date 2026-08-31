@@ -3,8 +3,7 @@
 //! This pass repeatedly applies ordered, bounded rewrites to the end of each block's instruction
 //! prefix until it reaches a local fixed point. The rules cover constant arithmetic, comparison
 //! canonicalization, redundant pushes and copies, target-aware `DUP`/`SWAP`/`EXCHANGE` identities,
-//! and short symbolic stack sequences whose net effect is the identity. It also removes trailing
-//! `POP`s before `STOP`, which cannot observe the remaining stack.
+//! and short symbolic stack sequences whose net effect is the identity.
 //!
 //! Rules match only canonical EVM IR instructions and preserve instruction metadata on retained or
 //! replacement operations. Constant materializations use the same target-dependent cost model as
@@ -16,6 +15,10 @@
 //! instructions. [`Cleanup`] couples such a pass with peephole only when the wrapped pass reports a
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
 //! to assembly.
+//!
+//! [`StopStackCleanup`] runs once after the final layout. It removes a physical stack suffix that
+//! a zero-input terminal cannot observe, but only when the suffix constructs every word it reads.
+//! Keeping it late avoids changing the stack shapes used by structural sharing and layout passes.
 
 use super::{
     EvmPass,
@@ -23,7 +26,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, PushValue, TerminatorKind},
+        ir::{Instruction, Module, PushValue, Terminator, TerminatorKind},
         op,
         stack::StackOp as PhysicalStackOp,
     },
@@ -37,6 +40,9 @@ use tracing::trace;
 
 pub(super) struct Peephole;
 
+/// Removes self-contained physical stack suffixes before zero-input terminals after final layout.
+pub(super) struct StopStackCleanup;
+
 /// Runs peephole cleanup only when the wrapped pass changes the module.
 pub(super) struct Cleanup<T>(pub(super) T);
 
@@ -47,6 +53,16 @@ impl EvmPass for Peephole {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         optimize_module(gcx, module)
+    }
+}
+
+impl EvmPass for StopStackCleanup {
+    fn name(&self) -> &'static str {
+        "stop-stack-cleanup"
+    }
+
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        cleanup_stop_stacks(module)
     }
 }
 
@@ -79,23 +95,64 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
         let mut rewrites = optimize(gcx, &mut block.instructions, &mut scratch, block.label);
-        // `STOP` does not observe the stack, so trailing cleanup `POP`s only spend gas.
-        if matches!(
-            block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Op(op::STOP))
-        ) {
-            while block
-                .instructions
-                .last()
-                .is_some_and(|inst| inst.as_legacy_opcode() == Some(op::POP))
-            {
-                block.instructions.pop();
-                rewrites += 1;
-            }
+        if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
+            && remove_trailing_pops(&mut block.instructions)
+        {
+            rewrites += 1;
         }
         changed |= rewrites != 0;
     }
     changed
+}
+
+fn cleanup_stop_stacks(module: &mut Module) -> bool {
+    let mut changed = false;
+    for block in &mut module.blocks {
+        if !block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal) {
+            continue;
+        }
+        changed |= remove_trailing_pops(&mut block.instructions);
+        if let Some(start) = self_contained_stack_suffix_start(&block.instructions) {
+            block.instructions.truncate(start);
+            changed = true;
+        }
+    }
+    changed
+}
+
+const fn is_explicit_stack_unobservable_terminal(terminator: &Terminator) -> bool {
+    !terminator.implicit_stop
+        && matches!(terminator.kind, TerminatorKind::Op(op::STOP | op::INVALID))
+}
+
+fn remove_trailing_pops(instructions: &mut Vec<Instruction>) -> bool {
+    let original_len = instructions.len();
+    while instructions.last().is_some_and(|inst| inst.as_legacy_opcode() == Some(op::POP)) {
+        instructions.pop();
+    }
+    instructions.len() != original_len
+}
+
+fn self_contained_stack_suffix_start(instructions: &[Instruction]) -> Option<usize> {
+    let start = instructions
+        .iter()
+        .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
+        .map_or(0, |index| index + 1);
+    (start < instructions.len()).then_some(())?;
+
+    let mut depth = 0isize;
+    let mut required = 0isize;
+    for inst in &instructions[start..] {
+        if !inst.has_canonical_stack_effect() {
+            return None;
+        }
+        let effect = inst.effective_stack_effect()?;
+        let inputs =
+            inst.as_stack_op().map_or(usize::from(effect.inputs), PhysicalStackOp::required_depth);
+        required = required.max(inputs as isize - depth);
+        depth += isize::from(effect.outputs) - isize::from(effect.inputs);
+    }
+    (required == 0).then_some(start)
 }
 
 fn optimize(
@@ -384,17 +441,6 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         return rewrite(instructions, 6, Edit::Keep(3), block);
     }
 
-    // `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
-    if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
-        && let Some(a) = store_addr.concrete_immediate()
-        && store.as_legacy_opcode() == Some(op::MSTORE)
-        && let Some(b) = load_addr.concrete_immediate()
-        && load.as_legacy_opcode() == Some(op::MLOAD)
-        && a == b
-    {
-        return rewrite(instructions, 4, Edit::ReloadStoredValue, block);
-    }
-
     // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop] = instructions.as_slice()
         && dup.as_legacy_opcode() == Some(op::DUP1)
@@ -554,7 +600,6 @@ enum Edit {
     OverwriteTwo(u8),
     MergeSwapPop(u8),
     DropDiscardedSwap,
-    ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
     FoldConstants(U256, EvmVersion),
@@ -597,12 +642,6 @@ impl Edit {
                 let end = instructions.len();
                 overwrite_raw(&mut instructions[start], op::POP);
                 instructions.truncate(end - 1);
-            }
-            Self::ReloadStoredValue => {
-                instructions.swap(start, start + 3);
-                instructions.swap(start + 1, start + 2);
-                overwrite_raw(&mut instructions[start], op::DUP1);
-                instructions.truncate(start + 3);
             }
             Self::DropDoubleIszero => {
                 instructions.drain(start..start + 2);

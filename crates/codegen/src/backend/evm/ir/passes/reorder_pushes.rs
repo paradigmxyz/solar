@@ -8,8 +8,7 @@
 //! The expression-range rewrite handles compact multi-instruction immediate recipes, whether the
 //! recipe is the producer or the value that must move before it. A separate backward matcher turns
 //! `DUPn; unary*; immediate recipe; SWAP1` into `immediate recipe; DUP(n+1); unary*`. The exact
-//! `PUSH; SWAP1; POP` form becomes `POP; PUSH`. These rewrites keep or lower the stack peak. DUP
-//! rebasing checks target reach and accepts only a Pareto improvement after target-specific
+//! DUP rebasing checks target reach and accepts only a Pareto improvement after target-specific
 //! stack-op lowering.
 //!
 //! The expression tracker accepts only known one-result operations, rejects physical stack
@@ -165,22 +164,6 @@ fn reorder(
             }
         }
 
-        if inst.as_stack_op() == Some(StackOp::Pop)
-            && inst.has_canonical_stack_effect()
-            && let Some(swap) = sequence.last
-            && sequence.instruction(swap).as_stack_op() == Some(StackOp::Swap(1))
-            && sequence.instruction(swap).has_canonical_stack_effect()
-            && let Some(pushed) = sequence.previous(swap)
-            && sequence.instruction(pushed).is_encoded_push()
-            && sequence.instruction(pushed).has_canonical_stack_effect()
-        {
-            sequence.remove(swap);
-            let pop = sequence.push(inst);
-            sequence.move_before(pop, pushed);
-            expressions.clear();
-            changed = true;
-            continue;
-        }
         let node = sequence.push(inst);
         update_expressions(&mut expressions, &sequence, node, evm_version);
     }
@@ -356,28 +339,6 @@ impl InstructionSequence {
         replacement.metadata = metadata;
         replacement.metadata.stack = None;
         self.nodes[index].instruction = Some(replacement);
-    }
-
-    fn remove(&mut self, node: usize) {
-        let previous = self.nodes[node].previous;
-        let next = self.nodes[node].next;
-        if let Some(previous) = previous {
-            self.nodes[previous].next = next;
-        } else {
-            self.first = next;
-        }
-        if let Some(next) = next {
-            self.nodes[next].previous = previous;
-        } else {
-            self.last = previous;
-        }
-        self.nodes[node].previous = None;
-        self.nodes[node].next = None;
-        self.nodes[node].instruction = None;
-    }
-
-    fn move_before(&mut self, node: usize, before: usize) {
-        self.move_range_before(node, node, before);
     }
 
     fn move_range_before(&mut self, start: usize, end: usize, before: usize) {

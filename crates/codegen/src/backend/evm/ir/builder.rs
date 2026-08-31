@@ -67,6 +67,11 @@ impl<'gcx> Assembler<'gcx> {
         self.push_ir_instruction(ir::Instruction::push_value(value));
     }
 
+    /// Emits an immediate whose transient materialization peak was included by the scheduler.
+    pub(crate) fn emit_scheduled_push(&mut self, value: U256) {
+        self.push_ir_instruction(ir::Instruction::scheduled_push_value(value));
+    }
+
     /// Returns optimistic and block-layout byte sizes for the entry trace through
     /// the current block.
     pub(crate) fn current_trace_size_bounds(
@@ -400,28 +405,33 @@ impl<'gcx> Assembler<'gcx> {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
             let block = &mut module.blocks[block_id];
-            let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
+            let (terminator, remove) = if let [.., push, jump] = block.instructions.as_slice()
                 && !jump.is_encoded_push()
                 && jump.opcode == op::JUMP
                 && let Some(target) = push.pushed_block()
                 && push.is_encoded_push()
             {
-                (ir::TerminatorKind::Jump(target), 2)
+                (ir::Terminator::new(ir::TerminatorKind::Jump(target)), 2)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && last.opcode == op::STOP
             {
-                (ir::TerminatorKind::Op(op::STOP), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)), 1)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
             {
-                (ir::TerminatorKind::Op(last.opcode), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1)
             } else {
-                (next.map_or(ir::TerminatorKind::Op(op::STOP), ir::TerminatorKind::Jump), 0)
+                (
+                    next.map_or_else(ir::Terminator::implicit_stop, |target| {
+                        ir::Terminator::new(ir::TerminatorKind::Jump(target))
+                    }),
+                    0,
+                )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            block.terminator = Some(ir::Terminator::new(kind));
+            block.terminator = Some(terminator);
         }
 
         for (block, targets) in self.indexed_jump_relocations.drain(..) {

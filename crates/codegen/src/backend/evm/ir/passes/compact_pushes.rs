@@ -17,10 +17,13 @@
 //! merging and outlining profit from the concrete instruction shape. Push reordering and
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
-use super::EvmPass;
+use super::{
+    EvmPass,
+    utils::{StackDepths, relative_stack_high_water},
+};
 use crate::backend::evm::{
     EVM_WORD_BYTES,
-    ir::{Instruction, Module},
+    ir::{BlockId, Instruction, Module},
     op,
 };
 use alloy_primitives::U256;
@@ -45,9 +48,12 @@ const VERY_LOW_GAS: usize = 3;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
+    let depths = StackDepths::new(module);
     let mut changed = false;
     let mut scratch = Vec::new();
-    for block in &mut module.blocks {
+    for index in 0..module.blocks.len() {
+        let block_id = BlockId::from_usize(index);
+        let block = &mut module.blocks[block_id];
         if !block.instructions.iter().any(|inst| {
             immediate(inst)
                 .is_some_and(|value| !matches!(select(evm_version, value), CompactPush::Literal))
@@ -57,21 +63,57 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         scratch.clear();
         std::mem::swap(&mut block.instructions, &mut scratch);
         block.instructions.reserve(scratch.len());
-        for inst in scratch.drain(..) {
+        let high_water = relative_stack_high_water(&scratch);
+        let mut relative_depth = 0isize;
+        for (index, inst) in scratch.drain(..).enumerate() {
             let Some(value) = immediate(&inst) else {
+                update_relative_depth(&inst, &mut relative_depth);
                 block.instructions.push(inst);
                 continue;
             };
             let materialization = ImmediateMaterialization::new(evm_version, value);
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
-            } else {
+            } else if materialization_fits(
+                inst.metadata.compact_headroom,
+                depths.as_ref(),
+                block_id,
+                index,
+                relative_depth,
+                high_water,
+                materialization.stack_peak(),
+            ) {
                 materialize_selected(&mut block.instructions, materialization);
                 changed = true;
+            } else {
+                block.instructions.push(inst);
             }
+            relative_depth += 1;
         }
     }
     changed
+}
+
+fn update_relative_depth(inst: &Instruction, depth: &mut isize) {
+    if let Some(effect) = inst.effective_stack_effect() {
+        *depth += isize::from(effect.outputs) - isize::from(effect.inputs);
+    }
+}
+
+fn materialization_fits(
+    scheduled_headroom: bool,
+    depths: Option<&StackDepths>,
+    block: BlockId,
+    index: usize,
+    relative_depth: isize,
+    high_water: Option<isize>,
+    peak: usize,
+) -> bool {
+    scheduled_headroom
+        || high_water.is_some_and(|high_water| {
+            relative_depth.checked_add_unsigned(peak).is_some_and(|depth| depth <= high_water)
+        })
+        || depths.is_some_and(|depths| depths.has_headroom(block, index, peak))
 }
 
 fn immediate(inst: &Instruction) -> Option<U256> {

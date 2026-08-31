@@ -25,15 +25,6 @@
     sub
     stop
   bb3:
-    callf !meta(stack=0->1)
--   push bb4
--   swap 1
-    pop
-+   push bb4
-    stop
-  bb4:
-    stop
-  bb5:
     push 1
 -   dup 1
     push 10
@@ -41,7 +32,7 @@
 +   dup 2
     pop
     stop
-  bb6:
+  bb4:
     push 1
 -   dup 1
 -   iszero
@@ -75,19 +66,12 @@
     sub
     stop
   bb3:
-    callf !meta(stack=0->1)
-    pop
-    push bb4
-    stop
-  bb4:
-    stop
-  bb5:
     push 1
     push 10
 -   dup 2
 -   pop
     stop
-  bb6:
+  bb4:
     push 1
     push 32
     dup 2
