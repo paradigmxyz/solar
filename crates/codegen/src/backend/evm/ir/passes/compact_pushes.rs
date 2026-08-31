@@ -48,7 +48,11 @@ const VERY_LOW_GAS: usize = 3;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let depths = StackDepths::new(module);
+    let unknown_target_headroom = module.unknown_target_stack_headroom;
+    // Most selected recipes already fit their block's original high-water mark. Avoid the
+    // whole-module fixed-point analysis unless a candidate needs a CFG proof.
+    let depths =
+        needs_stack_depths(module, evm_version).then(|| StackDepths::new(module)).flatten();
     let mut changed = false;
     let mut scratch = Vec::new();
     for index in 0..module.blocks.len() {
@@ -75,7 +79,8 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
             } else if materialization_fits(
-                inst.metadata.compact_headroom,
+                inst.metadata.compact_headroom
+                    || materialization.stack_peak() <= unknown_target_headroom,
                 depths.as_ref(),
                 block_id,
                 index,
@@ -94,6 +99,33 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     changed
 }
 
+fn needs_stack_depths(module: &Module, evm_version: EvmVersion) -> bool {
+    module.blocks.iter().any(|block| {
+        let high_water = relative_stack_high_water(&block.instructions);
+        let mut relative_depth = 0isize;
+        for inst in &block.instructions {
+            if let Some(value) = immediate(inst) {
+                let materialization = ImmediateMaterialization::new(evm_version, value);
+                if !matches!(materialization.recipe, CompactPush::Literal)
+                    && !inst.metadata.compact_headroom
+                    && module.unknown_target_stack_headroom < materialization.stack_peak()
+                    && !fits_relative_high_water(
+                        relative_depth,
+                        high_water,
+                        materialization.stack_peak(),
+                    )
+                {
+                    return true;
+                }
+                relative_depth += 1;
+            } else {
+                update_relative_depth(inst, &mut relative_depth);
+            }
+        }
+        false
+    })
+}
+
 fn update_relative_depth(inst: &Instruction, depth: &mut isize) {
     if let Some(effect) = inst.effective_stack_effect() {
         *depth += isize::from(effect.outputs) - isize::from(effect.inputs);
@@ -101,7 +133,7 @@ fn update_relative_depth(inst: &Instruction, depth: &mut isize) {
 }
 
 fn materialization_fits(
-    scheduled_headroom: bool,
+    headroom_proven: bool,
     depths: Option<&StackDepths>,
     block: BlockId,
     index: usize,
@@ -109,11 +141,15 @@ fn materialization_fits(
     high_water: Option<isize>,
     peak: usize,
 ) -> bool {
-    scheduled_headroom
-        || high_water.is_some_and(|high_water| {
-            relative_depth.checked_add_unsigned(peak).is_some_and(|depth| depth <= high_water)
-        })
+    headroom_proven
+        || fits_relative_high_water(relative_depth, high_water, peak)
         || depths.is_some_and(|depths| depths.has_headroom(block, index, peak))
+}
+
+fn fits_relative_high_water(relative_depth: isize, high_water: Option<isize>, peak: usize) -> bool {
+    high_water.is_some_and(|high_water| {
+        relative_depth.checked_add_unsigned(peak).is_some_and(|depth| depth <= high_water)
+    })
 }
 
 fn immediate(inst: &Instruction) -> Option<U256> {

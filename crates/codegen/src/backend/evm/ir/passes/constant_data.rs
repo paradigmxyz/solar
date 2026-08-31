@@ -31,7 +31,7 @@ struct Rewrite {
 }
 
 fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let depths = StackDepths::new(module);
+    let mut depths = None;
     let mut rewrites = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let relative_depths = relative_stack_depths(&block.instructions);
@@ -49,6 +49,7 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
             });
             let fits = fits_existing_peak
                 || depths
+                    .get_or_insert_with(|| StackDepths::new(module))
                     .as_ref()
                     .is_some_and(|depths| depths.has_headroom(block_id, rewrite.start, 3));
             if fits {

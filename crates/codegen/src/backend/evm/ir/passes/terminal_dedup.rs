@@ -34,7 +34,7 @@ struct RunState {
 }
 
 fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
-    let depths = StackDepths::new(module);
+    let mut depths = None;
     let mut state = RunState::default();
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
@@ -42,7 +42,10 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         match state.canonical.entry(key) {
             StdEntry::Occupied(entry) => {
                 let fits = body_provides_jump_headroom(block)
-                    || depths.as_ref().is_some_and(|depths| depths.has_headroom(block_id, 0, 1));
+                    || depths
+                        .get_or_insert_with(|| StackDepths::new(module))
+                        .as_ref()
+                        .is_some_and(|depths| depths.has_headroom(block_id, 0, 1));
                 if fits {
                     state.redirects.push((block_id, *entry.get()));
                 }

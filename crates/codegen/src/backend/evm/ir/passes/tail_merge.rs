@@ -58,7 +58,7 @@ struct RunState {
 
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
-        let depths = StackDepths::new(module);
+        let mut depths = None;
         self.representatives.clear();
         self.merges.clear();
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -83,8 +83,8 @@ impl RunState {
             if let Some((representative, common)) = matched
                 && common > 0
                 && suffix_size(gcx, module, block_id, common) > 5
-                && split_has_jump_headroom(depths.as_ref(), module, representative, common)
-                && split_has_jump_headroom(depths.as_ref(), module, block_id, common)
+                && split_has_jump_headroom(&mut depths, module, representative, common)
+                && split_has_jump_headroom(&mut depths, module, block_id, common)
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
@@ -190,7 +190,7 @@ impl RunState {
 }
 
 fn split_has_jump_headroom(
-    depths: Option<&StackDepths>,
+    depths: &mut Option<Option<StackDepths>>,
     module: &Module,
     block_id: BlockId,
     common: usize,
@@ -200,7 +200,11 @@ fn split_has_jump_headroom(
     let local_headroom = relative_stack_depths(&block.instructions).is_some_and(|depths| {
         depths.get(split).is_some_and(|depth| depths.iter().any(|peak| peak > depth))
     });
-    local_headroom || depths.is_some_and(|depths| depths.has_headroom(block_id, split, 1))
+    local_headroom
+        || depths
+            .get_or_insert_with(|| StackDepths::new(module))
+            .as_ref()
+            .is_some_and(|depths| depths.has_headroom(block_id, split, 1))
 }
 
 fn is_candidate(block: &Block) -> bool {

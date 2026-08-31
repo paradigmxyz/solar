@@ -76,8 +76,7 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
         return false;
     }
     if breaks_original_fallthrough(module, &state.order) {
-        let depths = StackDepths::new(module);
-        preserve_required_fallthroughs(module, depths.as_ref(), &mut state.order)
+        preserve_required_fallthroughs(module, &mut state.order)
     }
     if state.order.iter().copied().eq(module.blocks.indices()) {
         return false;
@@ -100,11 +99,8 @@ fn breaks_original_fallthrough(module: &Module, order: &[BlockId]) -> bool {
     })
 }
 
-fn preserve_required_fallthroughs(
-    module: &Module,
-    depths: Option<&StackDepths>,
-    order: &mut Vec<BlockId>,
-) {
+fn preserve_required_fallthroughs(module: &Module, order: &mut Vec<BlockId>) {
+    let mut depths = None;
     let mut predecessors = IndexVec::from_vec(vec![None; module.blocks.len()]);
     let mut successors = IndexVec::from_vec(vec![None; module.blocks.len()]);
     for block in module.blocks.indices() {
@@ -114,9 +110,9 @@ fn preserve_required_fallthroughs(
             continue;
         };
         let needs_fallthrough = !jump_has_local_headroom(&module.blocks[block])
-            && !depths.is_some_and(|depths| {
-                depths.has_headroom(block, module.blocks[block].instructions.len(), 1)
-            });
+            && !depths.get_or_insert_with(|| StackDepths::new(module)).as_ref().is_some_and(
+                |depths| depths.has_headroom(block, module.blocks[block].instructions.len(), 1),
+            );
         if module.next_block(block) != Some(*target) || !needs_fallthrough {
             continue;
         }
