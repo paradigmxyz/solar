@@ -1519,6 +1519,16 @@ macro_rules! cached {
 }
 
 cached! {
+/// Returns the developer documentation for the given contract.
+pub fn dev_documentation(gcx: _, id: hir::ContractId) -> crate::output::Documentation {
+    gcx.build_dev_documentation(id)
+}
+
+/// Returns the user documentation for the given contract.
+pub fn user_documentation(gcx: _, id: hir::ContractId) -> crate::output::Documentation {
+    gcx.build_user_documentation(id)
+}
+
 fn virtual_function_target(
     gcx: _,
     key: (hir::ContractId, hir::FunctionId)
@@ -2033,19 +2043,19 @@ fn is_value_ns(id: hir::ItemId) -> bool {
     )
 }
 
-/// `OnceMap::insert` but with `Copy` keys and values.
+/// `OnceMap::insert` but with `Copy` keys.
 #[inline]
 fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
 where
     K: Copy + Eq + Hash,
-    V: Copy,
+    V: Clone,
 {
     map.map_insert(key, make_val, cache_insert_with_result)
 }
 
 #[inline]
-fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
-    *v
+fn cache_insert_with_result<K, V: Clone>(_: &K, v: &V) -> V {
+    v.clone()
 }
 
 #[cfg(false)]

@@ -81,8 +81,7 @@ impl DocumentationItem {
 }
 
 impl<'gcx> Gcx<'gcx> {
-    /// Returns the developer documentation for the given contract.
-    pub fn dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
+    pub(crate) fn build_dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
         let contract_doc = dev_doc_item(self, contract.doc);
         let mut documentation = Documentation::new(DocumentationKind::Dev);
@@ -172,8 +171,7 @@ impl<'gcx> Gcx<'gcx> {
         documentation
     }
 
-    /// Returns the user documentation for the given contract.
-    pub fn user_documentation(self, contract_id: hir::ContractId) -> Documentation {
+    pub(crate) fn build_user_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
         let mut documentation = Documentation::new(DocumentationKind::User);
         documentation.notice =
