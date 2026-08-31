@@ -32,7 +32,7 @@ struct CombinedJson<'a> {
 #[serde(rename_all = "kebab-case")]
 struct CombinedJsonContract<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<Vec<AbiItem<'a>>>,
+    abi: Option<&'a [AbiItem<'a>]>,
     #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
     bin: Option<Bytes>,
     #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
