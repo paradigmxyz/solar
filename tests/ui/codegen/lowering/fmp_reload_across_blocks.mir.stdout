@@ -1,0 +1,330 @@
+// === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
+@module ExcessReturnDataRecipient
+fn @setRevertDataSize(arg0: u256) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @ln(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, arg0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 160
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v2 = internal_frame_addr 128
+    v3 = mload v2 !metadata(memory=internal_frame)
+    v4 = internal_frame_addr 128
+    v5 = mload v4 !metadata(memory=internal_frame)
+    v6 = sub v5, 1
+    v7 = internal_frame_addr 128
+    mstore v7, v6 !metadata(memory=internal_frame)
+    v8 = internal_frame_addr 128
+    v9 = mload v8 !metadata(memory=internal_frame)
+    v10 = div v9, 2
+    v11 = internal_frame_addr 128
+    v12 = mload v11 !metadata(memory=internal_frame)
+    v13 = or v12, v10
+    v14 = internal_frame_addr 128
+    mstore v14, v13 !metadata(memory=internal_frame)
+    v15 = internal_frame_addr 128
+    v16 = mload v15 !metadata(memory=internal_frame)
+    v17 = div v16, 4
+    v18 = internal_frame_addr 128
+    v19 = mload v18 !metadata(memory=internal_frame)
+    v20 = or v19, v17
+    v21 = internal_frame_addr 128
+    mstore v21, v20 !metadata(memory=internal_frame)
+    v22 = internal_frame_addr 128
+    v23 = mload v22 !metadata(memory=internal_frame)
+    v24 = div v23, 16
+    v25 = internal_frame_addr 128
+    v26 = mload v25 !metadata(memory=internal_frame)
+    v27 = or v26, v24
+    v28 = internal_frame_addr 128
+    mstore v28, v27 !metadata(memory=internal_frame)
+    v29 = internal_frame_addr 128
+    v30 = mload v29 !metadata(memory=internal_frame)
+    v31 = div v30, 256
+    v32 = internal_frame_addr 128
+    v33 = mload v32 !metadata(memory=internal_frame)
+    v34 = or v33, v31
+    v35 = internal_frame_addr 128
+    mstore v35, v34 !metadata(memory=internal_frame)
+    v36 = internal_frame_addr 128
+    v37 = mload v36 !metadata(memory=internal_frame)
+    v38 = div v37, 0x10000
+    v39 = internal_frame_addr 128
+    v40 = mload v39 !metadata(memory=internal_frame)
+    v41 = or v40, v38
+    v42 = internal_frame_addr 128
+    mstore v42, v41 !metadata(memory=internal_frame)
+    v43 = internal_frame_addr 128
+    v44 = mload v43 !metadata(memory=internal_frame)
+    v45 = div v44, 0x100000000
+    v46 = internal_frame_addr 128
+    v47 = mload v46 !metadata(memory=internal_frame)
+    v48 = or v47, v45
+    v49 = internal_frame_addr 128
+    mstore v49, v48 !metadata(memory=internal_frame)
+    v50 = internal_frame_addr 128
+    v51 = mload v50 !metadata(memory=internal_frame)
+    v52 = div v51, 0x10000000000000000
+    v53 = internal_frame_addr 128
+    v54 = mload v53 !metadata(memory=internal_frame)
+    v55 = or v54, v52
+    v56 = internal_frame_addr 128
+    mstore v56, v55 !metadata(memory=internal_frame)
+    v57 = internal_frame_addr 128
+    v58 = mload v57 !metadata(memory=internal_frame)
+    v59 = div v58, 0x100000000000000000000000000000000
+    v60 = internal_frame_addr 128
+    v61 = mload v60 !metadata(memory=internal_frame)
+    v62 = or v61, v59
+    v63 = internal_frame_addr 128
+    mstore v63, v62 !metadata(memory=internal_frame)
+    v64 = internal_frame_addr 128
+    v65 = mload v64 !metadata(memory=internal_frame)
+    v66 = add v65, 1
+    v67 = internal_frame_addr 128
+    mstore v67, v66 !metadata(memory=internal_frame)
+    v68 = mload 64 !metadata(memory=scratch)
+    mstore v68, 0xf8f9cbfae6cc78fbefe7cdc3a1793dfcf4f0e8bbd8cec470b6a28a7a5a3e1efd
+    v69 = add v68, 32
+    mstore v69, 0xf5ecf1b3e9debc68e1d9cfabc5997135bfb7a7a3938b7b606b5b4b3f2f1f0ffe
+    v70 = add v68, 64
+    mstore v70, 0xf6e4ed9ff2d6b458eadcdf97bd91692de2d4da8fd2d0ac50c6ae9a8272523616
+    v71 = add v68, 96
+    mstore v71, 0xc8c0b887b0a8a4489c948c7f847c6125746c645c544c444038302820181008ff
+    v72 = add v68, 128
+    mstore v72, 0xf7cae577eec2a03cf3bad76fb589591debb2dd67e0aa9834bea6925f6a4a2e0e
+    v73 = add v68, 160
+    mstore v73, 0xe39ed557db96902cd38ed14fad815115c786af479b7e83247363534337271707
+    v74 = add v68, 192
+    mstore v74, 0xc976c13bb96e881cb166a933a55e490d9d56952b8d4e801485467d2362422606
+    v75 = add v68, 224
+    mstore v75, 0x753a6d1b65325d0c552a4d1345224105391a310b29122104190a110309020100
+    v76 = add v68, 256
+    mstore 64, v76 !metadata(memory=scratch)
+    v77 = internal_frame_addr 128
+    v78 = mload v77 !metadata(memory=internal_frame)
+    v79 = mul v78, 0x818283848586878898a8b8c8d8e8f929395969799a9b9d9e9faaeb6bedeeff
+    v80 = div v79, 0x100000000000000000000000000000000000000000000000000000000000000
+    v81 = sub 255, v80
+    v82 = add v68, v81
+    v83 = mload v82
+    v84 = div v83, 0x100000000000000000000000000000000000000000000000000000000000000
+    v85 = internal_frame_addr 160
+    mstore v85, v84 !metadata(memory=internal_frame)
+    v86 = gt v3, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v87 = mul 256, v86
+    v88 = internal_frame_addr 160
+    v89 = mload v88 !metadata(memory=internal_frame)
+    v90 = add v89, v87
+    v91 = internal_frame_addr 160
+    mstore v91, v90 !metadata(memory=internal_frame)
+    v92 = internal_frame_addr 160
+    v93 = mload v92 !metadata(memory=internal_frame)
+    v94 = mul v93, 0x2386f26fc10000
+    v95 = internal_frame_addr 160
+    mstore v95, v94 !metadata(memory=internal_frame)
+    v96 = internal_frame_addr 160
+    v97 = mload v96 !metadata(memory=internal_frame)
+    v98 = div v97, 0x33413c26506520
+    v99 = internal_frame_addr 160
+    mstore v99, v98 !metadata(memory=internal_frame)
+    v100 = internal_frame_addr 160
+    v101 = mload v100 !metadata(memory=internal_frame)
+    ret v101
+}
+
+fn @sqrt(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = gt arg0, 3
+    switch v1, default bb1, [1 => bb2, 0 => bb3]
+  bb3:
+    v24 = internal_frame_addr 128
+    mstore v24, 1 !metadata(memory=internal_frame)
+    jump bb1
+  bb2:
+    v2 = internal_frame_addr 128
+    mstore v2, arg0 !metadata(memory=internal_frame)
+    v3 = add arg0, 1
+    v4 = div v3, 2
+    v5 = internal_frame_addr 160
+    mstore v5, v4 !metadata(memory=internal_frame)
+    jump bb4
+  bb4:
+    v6 = internal_frame_addr 128
+    v7 = mload v6 !metadata(memory=internal_frame)
+    v8 = internal_frame_addr 160
+    v9 = mload v8 !metadata(memory=internal_frame)
+    v10 = lt v9, v7
+    v11 = eq v10, 0
+    v12 = iszero v11
+    jumpi v12, bb6, bb8
+  bb8:
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    v13 = internal_frame_addr 160
+    v14 = mload v13 !metadata(memory=internal_frame)
+    v15 = internal_frame_addr 128
+    mstore v15, v14 !metadata(memory=internal_frame)
+    v16 = internal_frame_addr 160
+    v17 = mload v16 !metadata(memory=internal_frame)
+    v18 = internal_frame_addr 160
+    v19 = mload v18 !metadata(memory=internal_frame)
+    v20 = div arg0, v19
+    v21 = add v20, v17
+    v22 = div v21, 2
+    v23 = internal_frame_addr 160
+    mstore v23, v22 !metadata(memory=internal_frame)
+    jump bb7
+  bb7:
+    jump bb4
+  bb1:
+    v25 = internal_frame_addr 128
+    v26 = mload v25 !metadata(memory=internal_frame)
+    ret v26
+}
+
+fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 160
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v7 = calldataload 36
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v10 = slice_ptr arg4
+    v11 = slice_len arg4
+    v12 = lt v10, 32
+    v13 = sub v10, 32
+    v14 = lt v13, 4
+    v15 = or v12, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = gt v13, v3
+    v17 = sub v3, v13
+    v18 = gt 32, v17
+    v19 = or v16, v18
+    jumpi v19, bb9, bb10
+  bb10:
+    v20 = sub v3, v10
+    v21 = gt v11, v20
+    jumpi v21, bb11, bb12
+  bb12:
+    mstore 128, 0
+    mstore 128, 0xf23a6e6100000000000000000000000000000000000000000000000000000000
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = gt v22, 0
+    jumpi v23, bb13, bb14
+  bb14:
+    v51 = mload 128
+    ret v51
+  bb13:
+    v24 = gas
+    v25 = internal_call @ln, 1, v24
+    v26 = mul 54, v25
+    v27 = iszero v25
+    v28 = div v26, v25
+    v29 = eq v28, 54
+    v30 = or v27, v29
+    v31 = iszero v30
+    jumpi v31, bb15, bb16
+  bb16:
+    v32 = add v26, 0x4b0
+    v33 = lt v32, v26
+    jumpi v33, bb17, bb18
+  bb18:
+    v34 = gas
+    v35 = sub v34, v32
+    v36 = lt v34, v32
+    jumpi v36, bb19, bb20
+  bb20:
+    v37 = mul 0x800, v35
+    v38 = iszero v35
+    v39 = div v37, v35
+    v40 = eq v39, 0x800
+    v41 = or v38, v40
+    v42 = iszero v41
+    jumpi v42, bb21, bb22
+  bb22:
+    v43 = add v37, 0x8fe800
+    v44 = lt v43, v37
+    jumpi v44, bb23, bb24
+  bb24:
+    v45 = internal_call @sqrt, 1, v43
+    v46 = sub v45, 0xc00
+    v47 = lt v45, 0xc00
+    jumpi v47, bb25, bb26
+  bb26:
+    jumpi 4, bb28, bb27
+  bb27:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb28:
+    v48 = div v46, 4
+    v49 = mul v48, 32
+    v50 = mul v48, 32
+    calldatacopy 0, 0, v50 !metadata(memory=scratch)
+    revert 0, v49
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}

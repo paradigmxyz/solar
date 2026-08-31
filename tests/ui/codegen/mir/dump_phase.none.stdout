@@ -19,4 +19,3 @@ fn @f(arg0: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 
 contract CalldataSliceReturnUnsupported {
     // A calldata slice returned from an internal function is inlined at the

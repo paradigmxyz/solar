@@ -151,4 +151,3 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
   bb1:
     revert 0, 0
 }
-

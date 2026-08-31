@@ -94,4 +94,3 @@ fn @readPointer(arg0: function) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

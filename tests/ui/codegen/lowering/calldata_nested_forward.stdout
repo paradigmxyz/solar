@@ -263,4 +263,3 @@ fn @__abi_decode_calldata_1(arg0: u256) -> memptr {
     mstore v7, arg0
     ret v0
 }
-

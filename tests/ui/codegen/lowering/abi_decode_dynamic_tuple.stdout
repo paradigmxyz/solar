@@ -602,4 +602,3 @@ fn @decodeBytes(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
   bb1:
     revert 0, 0
 }
-

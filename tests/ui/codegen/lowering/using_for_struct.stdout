@@ -50,4 +50,3 @@ fn @hashLib(arg0: memorystruct) -> bytes32 {
     v15 = keccak256 v9, 101
     ret v15
 }
-

@@ -1,0 +1,12 @@
+error: recursive contract creation bytecode dependency
+   ╭▸ ROOT/tests/ui/codegen/lowering/contract_creation_self_cycle.sol:LL:CC
+   │
+LL │ ┏ contract SelfCycle {
+LL │ ┃     function create() external {
+LL │ ┃         new SelfCycle();
+LL │ ┃     }
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 1 previous error
+

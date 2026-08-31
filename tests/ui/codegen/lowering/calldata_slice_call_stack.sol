@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 
 interface SliceToken {
     function balanceOf(address account) external view returns (uint256);

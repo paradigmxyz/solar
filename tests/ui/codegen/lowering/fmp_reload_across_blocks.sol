@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 // ported-from: contracts/test/ExcessReturnDataRecipient.sol
 
 // A free-memory-pointer load whose only reload path is its spill slot: the

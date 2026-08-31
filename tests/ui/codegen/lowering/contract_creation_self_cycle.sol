@@ -1,4 +1,4 @@
-//@ compile-flags: --emit=bin
+//@ codegen-matrix: standard
 
 contract SelfCycle { //~ ERROR: recursive contract creation bytecode dependency
     function create() external {

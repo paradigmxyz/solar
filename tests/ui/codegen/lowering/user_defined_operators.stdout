@@ -75,4 +75,3 @@ fn @entry() [entry] {
   bb4:
     revert 0, 0
 }
-

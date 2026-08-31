@@ -146,4 +146,3 @@ fn @all() -> memorybytes [abi_returns=[memory_bytes]] {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
-

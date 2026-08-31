@@ -539,4 +539,3 @@ fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

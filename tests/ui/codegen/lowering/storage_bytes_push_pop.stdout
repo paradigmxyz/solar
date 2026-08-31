@@ -557,4 +557,3 @@ fn @get() -> memorybytes [abi_returns=[memory_bytes]] {
     v0 = internal_call @__load_storage_bytes, 1, 0
     ret v0
 }
-

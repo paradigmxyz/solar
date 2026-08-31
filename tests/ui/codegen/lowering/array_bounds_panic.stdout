@@ -302,4 +302,3 @@ fn @cdBytes(arg0: calldataslice, arg1: u256) -> bytes1 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

@@ -71,4 +71,3 @@ fn @higher0.7() -> u256 {
   bb0:
     ret 2
 }
-

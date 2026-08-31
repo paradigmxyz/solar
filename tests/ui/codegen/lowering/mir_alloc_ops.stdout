@@ -102,4 +102,3 @@ fn @rawAssembly() -> u256 [abi_returns=[word]] {
     v2 = mload 128
     ret v2
 }
-

@@ -174,4 +174,3 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [abi_returns=[memory_b
   bb1:
     revert 0, 0
 }
-

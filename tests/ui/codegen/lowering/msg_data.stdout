@@ -163,4 +163,3 @@ fn @tail(arg0: u256, arg1: u256) -> memorybytes [abi_returns=[memory_bytes]] {
   bb1:
     revert 0, 0
 }
-

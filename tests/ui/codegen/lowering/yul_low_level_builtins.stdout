@@ -94,4 +94,3 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

@@ -1,0 +1,264 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_call_stack.sol:CalldataSliceCallStack ===
+@module CalldataSliceCallStack
+fn @fees(arg0: address) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = mapping_slot arg0, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    ret v7
+  bb1:
+    revert 0, 0
+}
+
+fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 128
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = calldataload 4
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = eq v4, v5
+    jumpi v6, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v7 = calldataload 36
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = eq v7, v8
+    jumpi v9, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v10 = slice_ptr arg3
+    v11 = slice_len arg3
+    v12 = lt v10, 32
+    v13 = sub v10, 32
+    v14 = lt v13, 4
+    v15 = or v12, v14
+    jumpi v15, bb7, bb8
+  bb8:
+    v16 = gt v13, v3
+    v17 = sub v3, v13
+    v18 = gt 32, v17
+    v19 = or v16, v18
+    jumpi v19, bb9, bb10
+  bb10:
+    v20 = sub v3, v10
+    v21 = gt v11, v20
+    jumpi v21, bb11, bb12
+  bb12:
+    v22 = address
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
+    v25 = abi_encode [word], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v24
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = gas
+    v29 = staticcall v28, arg1, v26, v27, 0, 32
+    jumpi v29, bb14, bb13
+  bb13:
+    v30 = returndatasize
+    returndatacopy 0, 0, v30 !metadata(memory=abi_return)
+    v31 = returndatasize
+    revert 0, v31
+  bb14:
+    v32 = returndatasize
+    v33 = lt v32, 32
+    jumpi v33, bb15, bb16
+  bb16:
+    v34 = add 0, 0
+    v35 = mload v34
+    mstore v34, v35
+    mstore 128, v35
+    v36 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v37 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, arg2 !metadata(memory=scratch)
+    log3 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, v36, v37
+    v38 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v39 = and v38, 0xffffffffffffffffffffffffffffffffffffffff
+    v40 = abi_encode [word, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args v39, arg2
+    v41 = slice_ptr v40
+    v42 = slice_len v40
+    v43 = gas
+    v44 = call v43, arg1, 0, v41, v42, 0, 32
+    jumpi v44, bb18, bb17
+  bb17:
+    v45 = returndatasize
+    returndatacopy 0, 0, v45 !metadata(memory=abi_return)
+    v46 = returndatasize
+    revert 0, v46
+  bb18:
+    v47 = returndatasize
+    v48 = lt v47, 32
+    jumpi v48, bb19, bb20
+  bb20:
+    v49 = add 0, 0
+    v50 = mload v49
+    v51 = iszero v50
+    v52 = iszero v51
+    v53 = eq v50, v52
+    jumpi v53, bb22, bb21
+  bb21:
+    revert 0, 0
+  bb22:
+    mstore v49, v50
+    v54 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v55 = abi_encode [word, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args v54, arg2, arg3
+    v56 = slice_ptr v55
+    v57 = slice_len v55
+    v58 = gas
+    v59 = call v58, arg0, 0, v56, v57, 0, 0
+    jumpi v59, bb24, bb23
+  bb23:
+    v60 = returndatasize
+    returndatacopy 0, 0, v60 !metadata(memory=abi_return)
+    v61 = returndatasize
+    revert 0, v61
+  bb24:
+    v62 = mload 128
+    v63 = internal_call @getFee.2, 1, arg1, arg2
+    v64 = add v62, v63
+    v65 = lt v64, v62
+    jumpi v65, bb25, bb26
+  bb26:
+    v66 = address
+    v67 = and v66, 0xffffffffffffffffffffffffffffffffffffffff
+    v68 = and v67, 0xffffffffffffffffffffffffffffffffffffffff
+    v69 = abi_encode [word], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v68
+    v70 = slice_ptr v69
+    v71 = slice_len v69
+    v72 = gas
+    v73 = staticcall v72, arg1, v70, v71, 0, 32
+    jumpi v73, bb28, bb27
+  bb27:
+    v74 = returndatasize
+    returndatacopy 0, 0, v74 !metadata(memory=abi_return)
+    v75 = returndatasize
+    revert 0, v75
+  bb28:
+    v76 = returndatasize
+    v77 = lt v76, 32
+    jumpi v77, bb29, bb30
+  bb30:
+    v78 = add 0, 0
+    v79 = mload v78
+    mstore v78, v79
+    v80 = gt v64, v79
+    jumpi v80, bb31, bb32
+  bb32:
+    stop
+  bb31:
+    revert 0, 0
+  bb29:
+    revert 0, 0
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    revert 0, 0
+  bb15:
+    revert 0, 0
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb1:
+    revert 0, 0
+}
+
+fn @getFee.2(arg0: address, arg1: u256) -> u256 {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = eq v1, 0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = mapping_slot arg0, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = mul arg1, v4
+    v6 = iszero v4
+    v7 = div v5, v4
+    v8 = eq v7, arg1
+    v9 = or v6, v8
+    v10 = iszero v9
+    jumpi v10, bb3, bb4
+  bb4:
+    jumpi 0x2710, bb6, bb5
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v11 = div v5, 0x2710
+    ret v11
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    ret 0
+}
+
+fn @getFee.3(arg0: address, arg1: u256) -> u256 [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    jumpi v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = mapping_slot arg0, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = eq v7, 0
+    jumpi v8, bb5, bb6
+  bb6:
+    v9 = mapping_slot arg0, 0
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = mul arg1, v10
+    v12 = iszero v10
+    v13 = div v11, v10
+    v14 = eq v13, arg1
+    v15 = or v12, v14
+    v16 = iszero v15
+    jumpi v16, bb7, bb8
+  bb8:
+    jumpi 0x2710, bb10, bb9
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v17 = div v11, 0x2710
+    ret v17
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    ret 0
+  bb1:
+    revert 0, 0
+}
