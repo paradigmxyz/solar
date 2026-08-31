@@ -25,6 +25,10 @@ fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_return
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalContract ===
 @module InternalContract
+fn @value() -> u256 [pure] {
+  bb0:
+    ret 1
+}
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:ConstructorOnly ===
 @module ConstructorOnly
 fn @_anonymous() [constructor] {
@@ -33,6 +37,10 @@ fn @_anonymous() [constructor] {
 }
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary ===
 @module InternalLibrary
+fn @value() -> u256 [pure] {
+  bb0:
+    ret 1
+}
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:EmptyContractRuntime ===
 @module EmptyContractRuntime
 fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], abi_returns=[word<bool>]] {

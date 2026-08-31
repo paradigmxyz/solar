@@ -1,6 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
+//@ compile-flags: -Zcodegen-all-functions
 //@ run-call: B::nonEmptyCode() => true
 //@ run-call: EmptyContractRuntime::hasNonCallableRuntime() => true
 //@ run-call: EmptyContractRuntime::deploysRevertingRuntime() => true

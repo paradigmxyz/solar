@@ -235,6 +235,7 @@ pub(super) fn lower(
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;
     }
+    module.is_library = contract.kind == hir::ContractKind::Library;
     module
 }
 
