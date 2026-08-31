@@ -146,17 +146,17 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     if groups.is_empty() {
         return false;
     }
-    let Some(depths) = StackDepths::new(module) else { return false };
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
         (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
     });
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
+    let mut depths = None;
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
-            if !depths.has_headroom(site.block, site.start, site.added_peak) {
+            if !has_headroom(module, &mut depths, site.block, site.start, site.added_peak) {
                 continue;
             }
             let end = site.start + site.len;
@@ -309,8 +309,10 @@ fn outline_parametric_machine_runs(
         }
     }
 
-    let Some(depths) = StackDepths::new(module) else { return false };
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
+    if groups.is_empty() {
+        return false;
+    }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
         (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
@@ -318,6 +320,7 @@ fn outline_parametric_machine_runs(
 
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
+    let mut depths = None;
     for (_, sites) in groups {
         let mut free = SmallVec::<[ParamSite; 2]>::new();
         for site in sites {
@@ -368,7 +371,7 @@ fn outline_parametric_machine_runs(
             continue;
         }
         let added_peak = parameters.len() + 2;
-        free.retain(|site| depths.has_headroom(site.block, site.start, added_peak));
+        free.retain(|site| has_headroom(module, &mut depths, site.block, site.start, added_peak));
         if free.len() < 2 {
             continue;
         }
@@ -570,9 +573,9 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     if values.is_empty() {
         return false;
     }
-    let Some(depths) = StackDepths::new(module) else { return false };
+    let mut depths = None;
     for occurrences in sites.values_mut() {
-        occurrences.retain(|site| depths.has_headroom(site.0, site.1, 2));
+        occurrences.retain(|site| has_headroom(module, &mut depths, site.0, site.1, 2));
     }
     values.retain(|(value, push_size)| {
         let occurrences = &sites[value];
@@ -602,6 +605,20 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
+}
+
+fn has_headroom(
+    module: &Module,
+    depths: &mut Option<Option<StackDepths>>,
+    block: BlockId,
+    index: usize,
+    growth: usize,
+) -> bool {
+    growth <= module.unknown_target_stack_headroom
+        || depths
+            .get_or_insert_with(|| StackDepths::new(module))
+            .as_ref()
+            .is_some_and(|depths| depths.has_headroom(block, index, growth))
 }
 
 fn apply_outline_edits(
