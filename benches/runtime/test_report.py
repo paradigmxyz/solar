@@ -158,6 +158,21 @@ class ReportFormattingTests(unittest.TestCase):
             "| micro | 10 (~0%) | n/a (n/a) | 20B (~0%) | n/a (n/a) |\n",
         )
 
+    def test_codegen_report_adds_deployment_table(self):
+        current = result(status="ok", deploy_gas=110, bytecode_size=210)
+        baseline = result(status="ok", deploy_gas=100, bytecode_size=200)
+        report = benchmark.codegen_report([current], [baseline])
+        self.assertEqual(
+            report,
+            "## Codegen benchmark\n"
+            "\n"
+            "### Deployment\n"
+            "\n"
+            "| bench | gas (vs main) | solc | size (vs main) | solc |\n"
+            "| ----- | ------------- | ---- | -------------- | ---- |\n"
+            "| test | 110 (❌ +10.00%) | n/a (n/a) | 210B (❌ +5.00%) | n/a (n/a) |\n",
+        )
+
     def test_codegen_report_labels_failed_revision(self):
         def timed_result(test_id, solar_status):
             return {
@@ -449,12 +464,13 @@ class CompileTimeReportTests(unittest.TestCase):
         ]
         lines = benchmark.compile_time_report(results, {}, "`main`")
         text = "\n".join(lines)
-        self.assertIn("### Compilation time", text)
+        self.assertIn("<summary>Compilation time</summary>", text)
         self.assertIn("| fast | 5.0 ms (n/a) | 100.0 ms (✅ +1900.00%) |", text)
         self.assertIn("| slow | 55.0 ms (n/a) | 1.500 s (✅ +2627.27%) |", text)
         self.assertIn(
             "| **sum of medians** | **60.0 ms** | **1.600 s (✅ +2566.67%)** |", text
         )
+        self.assertTrue(text.endswith("\n</details>\n"))
 
     def test_compile_time_sum_skips_unpaired_results(self):
         results = [
@@ -567,6 +583,13 @@ class CompileTimeReportTests(unittest.TestCase):
         current = [result(status="ok", total_gas=2)]
         base = [result(status="ok", total_gas=1)]
         self.assertTrue(benchmark.has_codegen_changes(current, base))
+
+    def test_deployment_changes_trigger_comments(self):
+        for metric in ("deploy_gas", "bytecode_size"):
+            with self.subTest(metric=metric):
+                current = [result(status="ok", **{metric: 2})]
+                base = [result(status="ok", **{metric: 1})]
+                self.assertTrue(benchmark.has_codegen_changes(current, base))
 
     def test_compile_time_report_empty_without_pairs(self):
         results = [self.timed_result("failed", 0.400, 0.010, solar_status="failed")]
