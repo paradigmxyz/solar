@@ -1,14 +1,19 @@
 //! Final EVM instruction locations used by source-level debug formats.
 
-use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_interface::{Span, Symbol};
 
 /// Source origins associated with one machine instruction.
 pub type DebugSpans = SmallVec<[Span; 2]>;
 
+/// Maximum number of source origins retained for one optimized instruction.
+///
+/// Keeping this bounded prevents a large number of equivalent optimization
+/// sites from turning debug metadata into an unbounded side channel.
+pub const MAX_DEBUG_SPANS: usize = 8;
+
 /// Source-language identity of a function activation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DebugFunction {
     /// Function identifier in the source language.
     pub identifier: Symbol,
@@ -17,7 +22,7 @@ pub struct DebugFunction {
 }
 
 /// Function activation transition associated with an instruction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DebugFunctionExit {
     /// Successful return from the active function.
     Return,
@@ -29,11 +34,9 @@ pub enum DebugFunctionExit {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DebugInstruction {
     /// Byte offset of the opcode in the artifact.
-    pub offset: usize,
+    pub offset: u32,
     /// Raw EVM opcode byte.
     pub opcode: u8,
-    /// Encoded immediate bytes, excluding the opcode.
-    pub argument: Bytes,
     /// Source spans associated with the instruction.
     ///
     /// More than one span means an optimization shared this instruction

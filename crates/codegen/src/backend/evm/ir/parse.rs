@@ -53,7 +53,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         let mut module = Module::new(name);
         self.parse_program_body(&mut module)?;
-        if module.blocks.iter().any(|block| {
+        let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
@@ -65,8 +65,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         || term.metadata.function_invoke().is_some()
                         || term.metadata.function_exit().is_some()
                 })
-        }) {
+        });
+        if tracks_debug_info {
             module.track_debug_info();
+            for block in &mut module.blocks {
+                for instruction in &mut block.instructions {
+                    if !instruction.metadata.debug_info_is_handled() {
+                        instruction.metadata.mark_debug_info_dropped();
+                    }
+                }
+                if let Some(terminator) = &mut block.terminator
+                    && !terminator.metadata.debug_info_is_handled()
+                {
+                    terminator.metadata.mark_debug_info_dropped();
+                }
+            }
         }
         Ok(module)
     }

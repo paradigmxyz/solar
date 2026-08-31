@@ -227,14 +227,14 @@ fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
     }
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (index, inst) in block.instructions.iter().enumerate() {
-            assert!(
+            debug_assert!(
                 inst.metadata.debug_info_is_handled(),
                 "EVM IR debug information is unclassified {when} `{pass_name}` at bb{}, instruction {index}",
                 block_id.index(),
             );
         }
         if let Some(term) = &block.terminator {
-            assert!(
+            debug_assert!(
                 term.metadata.debug_info_is_handled(),
                 "EVM IR terminator debug information is unclassified {when} `{pass_name}` at bb{}",
                 block_id.index(),

@@ -12,7 +12,7 @@
 //! tests and debugging; the IR itself is not defined by that serialization.
 
 use super::{
-    DebugFunction, DebugFunctionExit, DebugSpans,
+    DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS,
     op::{self, StackOp},
 };
 use crate::mir::{ImmutableId, TypeSize};
@@ -252,6 +252,28 @@ impl Instruction {
             return Self::stack_op(stack_op);
         }
         Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::default() }
+    }
+
+    /// Replaces this instruction's metadata explicitly.
+    #[must_use]
+    pub(crate) fn with_metadata(mut self, metadata: Metadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Replaces this instruction's source metadata explicitly.
+    pub(crate) fn with_source_spans(
+        mut self,
+        spans: impl IntoIterator<Item = solar_interface::Span>,
+    ) -> Self {
+        self.metadata.set_source_spans(spans);
+        self
+    }
+
+    /// Replaces this instruction while preserving its debug metadata.
+    pub(crate) fn replace_preserving_metadata(&mut self, replacement: Self) {
+        let metadata = std::mem::take(&mut self.metadata);
+        *self = replacement.with_metadata(metadata);
     }
 
     /// Creates a logical stack operation.
@@ -677,6 +699,9 @@ impl Metadata {
         for span in spans {
             if !span.is_dummy() && !self.source_spans.contains(&span) {
                 self.source_spans.push(span);
+                if self.source_spans.len() == MAX_DEBUG_SPANS {
+                    break;
+                }
             }
         }
         self.debug_info_handled = true;
@@ -685,6 +710,9 @@ impl Metadata {
     /// Adds origins from another operation without changing machine semantics.
     pub(crate) fn merge_source_spans(&mut self, other: &Self) {
         for &span in other.source_spans() {
+            if self.source_spans.len() == MAX_DEBUG_SPANS {
+                break;
+            }
             if !self.source_spans.contains(&span) {
                 self.source_spans.push(span);
             }

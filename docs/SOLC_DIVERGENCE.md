@@ -206,3 +206,16 @@ No intentional divergences documented yet.
   index type before checking bounds. This preserves the normal implicit
   conversion rule for narrow values.
 - Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`.
+
+### CODEGEN-006: Legacy source-map modifier depth is not emitted
+
+- ID: CODEGEN-006
+- Status: parity debt
+- Difference: Legacy `sourceMap` output uses modifier depth `0` for every
+  instruction. `solc` increments the `m` field while entering nested modifier
+  bodies.
+- Rationale: The debug metadata model currently records function activations,
+  but not modifier frames. Keeping the field explicit and stable is safer than
+  inferring depth from optimized control flow; ETHDebug output is the richer
+  format for callers that need source contexts.
+- Coverage: `tests/ui/standard-json/source-maps`.

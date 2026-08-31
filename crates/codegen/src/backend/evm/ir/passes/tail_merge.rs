@@ -1,6 +1,7 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
 //!
-//! The pass groups blocks by their terminator and indexes representative tails
+//! The pass groups blocks by their terminator and function activation and
+//! indexes representative tails
 //! in reverse. This finds each block's longest shared suffix without comparing
 //! it with every earlier block. It then splits profitable suffixes into shared
 //! tail blocks until no new merges remain. Each candidate includes the cost of its new jumps and
@@ -11,6 +12,7 @@ use super::{
     utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_terminal_boundary},
 };
 use crate::backend::evm::{
+    DebugFunction,
     ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
     op::{StackOp, push_len},
 };
@@ -56,7 +58,7 @@ struct RunState {
     groups: Vec<MergeGroup>,
     commons: Vec<usize>,
     tails: Vec<(usize, BlockId)>,
-    tail_roots: FxHashMap<TerminatorKind, usize>,
+    tail_roots: FxHashMap<(TerminatorKind, Option<DebugFunction>), usize>,
     tail_nodes: Vec<TailNode>,
     tail_node_pool: Vec<TailNode>,
 }
@@ -98,7 +100,8 @@ impl RunState {
 
     fn longest_common_tail(&self, block: &Block) -> Option<(BlockId, usize)> {
         let terminator = &block.terminator.as_ref()?.kind;
-        let mut node = *self.tail_roots.get(terminator)?;
+        let mut node =
+            *self.tail_roots.get(&(terminator.clone(), block.metadata.function_invoke))?;
         let mut matched = None;
         for (common, inst) in block.instructions.iter().rev().enumerate() {
             let Some(&child) = self.tail_nodes[node].children.get(&MachineInstKey::new(inst))
@@ -115,7 +118,7 @@ impl RunState {
 
     fn insert_tail(&mut self, block_id: BlockId, block: &Block) {
         let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
-        let mut node = self.tail_root(terminator);
+        let mut node = self.tail_root(terminator, block.metadata.function_invoke);
         self.tail_nodes[node].representative.get_or_insert(block_id);
         for inst in block.instructions.iter().rev() {
             node = self.tail_child(node, MachineInstKey::new(inst));
@@ -123,12 +126,17 @@ impl RunState {
         }
     }
 
-    fn tail_root(&mut self, terminator: &TerminatorKind) -> usize {
-        if let Some(&root) = self.tail_roots.get(terminator) {
+    fn tail_root(
+        &mut self,
+        terminator: &TerminatorKind,
+        function_invoke: Option<DebugFunction>,
+    ) -> usize {
+        let key = (terminator.clone(), function_invoke);
+        if let Some(&root) = self.tail_roots.get(&key) {
             return root;
         }
         let root = self.new_tail_node();
-        self.tail_roots.insert(terminator.clone(), root);
+        self.tail_roots.insert(key, root);
         root
     }
 

@@ -89,6 +89,18 @@ impl Program {
         }
     }
 
+    pub(in crate::backend::evm) fn set_function_invoke(
+        &mut self,
+        index: usize,
+        function: Option<DebugFunction>,
+    ) {
+        if let Some(function_invokes) = &mut self.function_invokes
+            && let Some(slot) = function_invokes.get_mut(index)
+        {
+            *slot = function;
+        }
+    }
+
     pub(in crate::backend::evm) fn mark_last_function_exit(
         &mut self,
         exit: Option<DebugFunctionExit>,

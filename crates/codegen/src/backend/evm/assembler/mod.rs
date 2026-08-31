@@ -16,7 +16,7 @@ use crate::{
     },
     mir::{ImmutableId, TypeSize},
 };
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::{Span, Symbol, sym};
 use solar_sema::Gcx;
@@ -703,9 +703,8 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     fn record_instruction(&mut self, offset: usize, source_spans: &[Span]) {
         let Some(debug_info) = &mut self.debug_info else { return };
         debug_info.push(DebugInstruction {
-            offset,
+            offset: offset.try_into().expect("EVM bytecode offset exceeds u32"),
             opcode: self.bytecode[offset],
-            argument: Bytes::copy_from_slice(&self.bytecode[offset + 1..]),
             source_spans: source_spans.iter().copied().collect(),
             function_invoke: self.function_invoke,
             function_exit: self.function_exit,

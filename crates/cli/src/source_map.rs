@@ -49,7 +49,10 @@ impl SourceMapEncoder {
             Some((source.data.start as i64, source.data.len() as i64, source_id))
         });
         let (start, length, source) = location.unwrap_or((-1, -1, -1));
-        let jump = if instruction.function_invoke.is_some() {
+        // `i` denotes an internal transfer and is meaningful only on a jump.
+        // `o` also covers RETURN, which is the external function's terminal transfer.
+        let is_jump = matches!(instruction.opcode, 0x56 | 0x57);
+        let jump = if is_jump && instruction.function_invoke.is_some() {
             'i'
         } else if instruction.function_exit == Some(DebugFunctionExit::Return) {
             'o'

@@ -1,16 +1,4 @@
 {
-  "errors": [
-    {
-      "sourceLocation": null,
-      "secondarySourceLocations": [],
-      "type": "Warning",
-      "component": "general",
-      "severity": "warning",
-      "errorCode": "2264",
-      "message": "code generation is experimental",
-      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
-    }
-  ],
   "sources": {
     "A.sol": {
       "id": 0
@@ -24,7 +12,7 @@
             "sourceMap": ":::-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
-            "sourceMap": ":::-:0;;;;;;;;;;;;:::i;:::-;;;;70:5:0;;;;;;;;;;-1:-1:-1;;;;:::o;:::-;;;;;70:5:0;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;;;;;;;;;:::i;:::-;;;;;70:5:0;;;;;;;;;;-1:-1:-1;;;;:::o;:::-;;;;;70:5:0;;;;;;;;;;"
           }
         }
       }
