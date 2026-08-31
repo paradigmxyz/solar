@@ -93,6 +93,7 @@ fn lower_function(func: &mut Function) -> bool {
     let blocks: Vec<_> = func.blocks.indices().collect();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        let terminator = func.blocks[block].terminator.take();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
@@ -110,11 +111,14 @@ fn lower_function(func: &mut Function) -> bool {
                     lower_clear_storage(&mut builder, &layout, storage);
                 }
                 _ => {
-                    builder.func_mut().blocks[block].instructions.push(inst);
+                    let current = builder.current_block();
+                    builder.func_mut().blocks[current].instructions.push(inst);
                     continue;
                 }
             }
         }
+        let current = builder.current_block();
+        builder.func_mut().blocks[current].terminator = terminator;
     }
     true
 }
@@ -125,26 +129,28 @@ fn lower_storage_to_memory(
     storage: ValueId,
     memory: ValueId,
 ) {
-    visit_storage_fields(builder, layout, memory, |builder, field, offset, destination| {
-        lower_storage_field_to_memory(builder, field, storage, offset, destination);
+    visit_storage_fields(builder, layout, storage, memory, |builder, field, slot, destination| {
+        lower_storage_field_to_memory(builder, field, slot, destination);
     });
 }
 
 fn visit_storage_fields(
     builder: &mut FunctionBuilder<'_>,
     layout: &StorageLayout,
+    storage: ValueId,
     memory: ValueId,
-    mut visit: impl FnMut(&mut FunctionBuilder<'_>, &StorageField, u64, MemoryObjectAccess),
+    mut visit: impl FnMut(&mut FunctionBuilder<'_>, &StorageField, ValueId, MemoryObjectAccess),
 ) {
     let memory_layout = memory_object_layout(layout);
     match layout {
         StorageLayout::Struct(fields) => {
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
+                let slot = builder.add_u64_offset(storage, storage_offset);
                 visit(
                     builder,
                     field,
-                    storage_offset,
+                    slot,
                     MemoryObjectAccess::Field {
                         object: memory,
                         layout: memory_layout,
@@ -155,21 +161,18 @@ fn visit_storage_fields(
             }
         }
         StorageLayout::Array { element, len } => {
-            let mut storage_offset = 0;
-            for index in 0..*len {
-                let index_value = builder.imm_u64(index);
+            let length = builder.imm_u64(*len);
+            builder.counted_loop(length, |builder, index| {
+                let stride = builder.imm_u64(element.storage_slots());
+                let offset = builder.mul(index, stride);
+                let slot = builder.add(storage, offset);
                 visit(
                     builder,
                     element,
-                    storage_offset,
-                    MemoryObjectAccess::Element {
-                        object: memory,
-                        layout: memory_layout,
-                        index: index_value,
-                    },
+                    slot,
+                    MemoryObjectAccess::Element { object: memory, layout: memory_layout, index },
                 );
-                storage_offset += element.storage_slots();
-            }
+            });
         }
     }
 }
@@ -177,11 +180,9 @@ fn visit_storage_fields(
 fn lower_storage_field_to_memory(
     builder: &mut FunctionBuilder<'_>,
     field: &StorageField,
-    storage: ValueId,
-    storage_offset: u64,
+    slot: ValueId,
     dest: MemoryObjectAccess,
 ) {
-    let slot = builder.add_u64_offset(storage, storage_offset);
     match field {
         StorageField::Word => {
             let value = builder.sload(slot);
@@ -206,8 +207,8 @@ fn lower_memory_to_storage(
     memory: ValueId,
     storage: ValueId,
 ) {
-    visit_storage_fields(builder, layout, memory, |builder, field, offset, source| {
-        lower_memory_field_to_storage(builder, field, source, storage, offset);
+    visit_storage_fields(builder, layout, storage, memory, |builder, field, slot, source| {
+        lower_memory_field_to_storage(builder, field, source, slot);
     });
 }
 
@@ -215,10 +216,8 @@ fn lower_memory_field_to_storage(
     builder: &mut FunctionBuilder<'_>,
     field: &StorageField,
     source: MemoryObjectAccess,
-    storage: ValueId,
-    storage_offset: u64,
+    slot: ValueId,
 ) {
-    let slot = builder.add_u64_offset(storage, storage_offset);
     let value = load_memory_object_word(builder, source);
     match field {
         StorageField::Word => builder.sstore(slot, value),
@@ -234,8 +233,9 @@ fn lower_clear_storage(
     storage: ValueId,
 ) {
     let zero = builder.imm_u64(0);
-    for offset in 0..layout.storage_slots() {
-        let slot = builder.add_u64_offset(storage, offset);
+    let slots = builder.imm_u64(layout.storage_slots());
+    builder.counted_loop(slots, |builder, offset| {
+        let slot = builder.add(storage, offset);
         builder.sstore(slot, zero);
-    }
+    });
 }

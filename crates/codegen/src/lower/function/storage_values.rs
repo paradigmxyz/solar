@@ -943,14 +943,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     layout,
                     AllocationSemantics::SOLIDITY_UNINITIALIZED,
                 );
-                for index in 0..len {
-                    let index_value = self.builder.imm_u64(index);
+                let len = self.builder.imm_u64(len);
+                self.counted_loop(len, |this, index| {
                     let access =
-                        self.storage_array_element_access(slot, index_value, element, false, span)?;
-                    let value = self.load_storage_value(element, access, span)?;
-                    let value = self.encode_memory_scalar(element, value);
-                    self.builder.memory_object_store_element(object, layout, index_value, value);
-                }
+                        this.storage_array_element_access(slot, index, element, false, span)?;
+                    let value = this.load_storage_value(element, access, span)?;
+                    let value = this.encode_memory_scalar(element, value);
+                    this.builder.memory_object_store_element(object, layout, index, value);
+                    Some(())
+                })?;
                 Some(object)
             }
             TyKind::DynArray(element) => self.load_dynamic_storage_object(element, slot, span),
@@ -1199,26 +1200,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let len = u64::try_from(len).ok()?;
                 let source_len = u64::try_from(source_len).ok()?;
                 let layout = self.types.memory_layout(source_ty)?;
-                for index in 0..len {
-                    let index_value = self.builder.imm_u64(index);
+                let len = self.builder.imm_u64(len);
+                let source_len = self.builder.imm_u64(source_len);
+                self.counted_loop(len, |this, index| {
                     let access =
-                        self.storage_array_element_access(slot, index_value, element, false, span)?;
-                    if index < source_len {
-                        let value =
-                            self.builder.memory_object_load_element(object, layout, index_value);
-                        let value = self.decode_memory_scalar(source_element, value);
-                        self.store_storage_value_with_source(
-                            element,
-                            source_element,
-                            access,
-                            value,
-                            span,
-                        )?;
-                    } else {
-                        let value = self.default_value(element);
-                        self.store_storage_value(element, access, value, span)?;
-                    }
-                }
+                        this.storage_array_element_access(slot, index, element, false, span)?;
+                    let source = this.builder.create_block();
+                    let default = this.builder.create_block();
+                    let done = this.builder.create_block();
+                    let has_source = this.builder.lt(index, source_len);
+                    this.builder.branch(has_source, source, default);
+
+                    this.builder.switch_to_block(source);
+                    let value = this.builder.memory_object_load_element(object, layout, index);
+                    let value = this.decode_memory_scalar(source_element, value);
+                    this.store_storage_value_with_source(
+                        element,
+                        source_element,
+                        access,
+                        value,
+                        span,
+                    )?;
+                    this.builder.jump(done);
+
+                    this.builder.switch_to_block(default);
+                    let value = this.default_value(element);
+                    this.store_storage_value(element, access, value, span)?;
+                    this.builder.jump(done);
+                    this.builder.switch_to_block(done);
+                    Some(())
+                })?;
                 Some(())
             }
             TyKind::DynArray(element) => {
@@ -1589,25 +1600,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && size.bits() < 256
                 {
                     let slots = self.context.storage.element_slots(ty, span);
-                    for index in 0..slots {
-                        let slot = self.add_storage_offset(access.slot, U256::from(index));
-                        self.builder.sstore(slot, zero);
-                    }
+                    let slots = self.builder.imm_u64(slots);
+                    self.counted_loop(slots, |this, index| {
+                        let slot = this.builder.add(access.slot, index);
+                        this.builder.sstore(slot, zero);
+                    });
                     return Some(());
                 }
 
                 let len = u64::try_from(len).ok()?;
-                for index in 0..len {
-                    let index = self.builder.imm_u64(index);
-                    let element_access = self.storage_array_element_access(
+                let len = self.builder.imm_u64(len);
+                self.counted_loop(len, |this, index| {
+                    let element_access = this.storage_array_element_access(
                         access.slot,
                         index,
                         element,
                         false,
                         span,
                     )?;
-                    self.clear_storage_access(element, element_access, span)?;
-                }
+                    this.clear_storage_access(element, element_access, span)
+                })?;
             }
             TyKind::Mapping(..) => {}
             _ => {

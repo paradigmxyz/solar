@@ -88,11 +88,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 else {
                     return;
                 };
-                for index in 0..length {
-                    let position =
-                        self.builder.add_u64_offset(base, index.saturating_mul(element_size));
-                    self.validate_calldata_static_value(element, position);
-                }
+                let length = self.builder.imm_u64(length);
+                self.counted_loop(length, |this, index| {
+                    let element_size = this.builder.imm_u64(element_size);
+                    let offset = this.builder.mul(index, element_size);
+                    let position = this.builder.add(base, offset);
+                    this.validate_calldata_static_value(element, position);
+                });
             }
             TyKind::Struct(id) => {
                 let gcx = self.context.gcx;
@@ -833,20 +835,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let _ = length.checked_mul(32)?;
         let (object, layout) = self.builder.alloc_word_array(length, AllocationSemantics::INTERNAL);
-        for index in 0..length {
-            let index_value = self.builder.imm_u64(index);
-            let head_offset = self.builder.imm_u64(index.checked_mul(element_head_size)?);
-            let head = self.builder.add(base, head_offset);
-            let value = self.materialize_calldata_value_at_inner(
+        let nested_validate = validate_bounds && element_abi.is_dynamic();
+        let length = self.builder.imm_u64(length);
+        let element_head_size = self.builder.imm_u64(element_head_size);
+        self.counted_loop(length, |this, index| {
+            let head_offset = this.builder.mul(index, element_head_size);
+            let head = this.builder.add(base, head_offset);
+            let value = this.materialize_calldata_value_at_inner(
                 element,
                 head,
                 base,
                 span,
-                validate_bounds && element_abi.is_dynamic(),
+                nested_validate,
             )?;
-            let value = self.encode_memory_scalar(element, value);
-            self.builder.memory_object_store_element(object, layout, index_value, value);
-        }
+            let value = this.encode_memory_scalar(element, value);
+            this.builder.memory_object_store_element(object, layout, index, value);
+            Some(())
+        })?;
         Some(object)
     }
 

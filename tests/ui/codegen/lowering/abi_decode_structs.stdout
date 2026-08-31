@@ -183,13 +183,13 @@ fn @dNested() [selector=0xfc7ec666, pure] {
 
 fn @dFixed() [selector=0xc298c02b, pure] {
   bb0:
-    v27 = calldatasize
-    v28 = lt v27, 36
-    jumpi v28, bb4, bb7
-  bb7:
-    v29 = internal_call @decode_calldata_type, 1, 4
-    v11 = add v29, 32
-    v12 = mload v29
+    v30 = calldatasize
+    v31 = lt v30, 36
+    jumpi v31, bb4, bb10
+  bb10:
+    v32 = internal_call @decode_calldata_type, 1, 4
+    v11 = add v32, 32
+    v12 = mload v32
     v13 = add v11, v12
     v14 = lt v13, v11
     v15 = lt v12, 32
@@ -206,37 +206,49 @@ fn @dFixed() [selector=0xc298c02b, pure] {
     v22 = gt 64, v21
     jumpi v22, bb4, bb6
   bb6:
-    v23 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
-    v24 = internal_call @decode_memory_type, 1, v18, v18, v13
-    mstore v23, v24
-    v25 = add v18, 32
-    v26 = internal_call @decode_memory_type, 1, v25, v18, v13
-    v36 = add v23, 32
-    mstore v36, v26
-    v3 = mload v36
+    v23 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v43 = add v23, 64
+    mstore 64, v43 !metadata(memory=scratch)
+    jump bb7
+  bb7:
+    v24 = phi [bb6: 0], [bb8: v29]
+    v25 = lt v24, 2
+    jumpi v25, bb8, bb9
+  bb9:
+    v41 = add v23, 32
+    v3 = mload v41
     jumpi v3, bb2, bb1
   bb1:
     v5 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v38 = add v5, 160
-    mstore 64, v38 !metadata(memory=scratch)
+    v42 = add v5, 160
+    mstore 64, v42 !metadata(memory=scratch)
     mstore v5, 0
     v6 = add v5, 96
     mstore v6, 0
-    v32 = add v5, 32
-    mstore v32, v6
+    v35 = add v5, 32
+    mstore v35, v6
     v7 = add v5, 128
     mstore v7, 0
-    v33 = add v5, 64
-    mstore v33, v7
-    mstore v36, v5
+    v36 = add v5, 64
+    mstore v36, v7
+    mstore v41, v5
     jump bb2
   bb2:
-    v8 = phi [bb6: v3], [bb1: v5]
-    v35 = add v8, 64
-    v9 = mload v35
+    v8 = phi [bb9: v3], [bb1: v5]
+    v38 = add v8, 64
+    v9 = mload v38
     v10 = mload v9
     mstore 128, v10
     returndata 128, 32
+  bb8:
+    v26 = shl 5, v24
+    v27 = add v18, v26
+    v28 = internal_call @decode_memory_type, 1, v27, v18, v13
+    v39 = mul v24, 32
+    v40 = add v23, v39
+    mstore v40, v28
+    v29 = add v24, 1
+    jump bb7
   bb4:
     revert 0, 0
 }

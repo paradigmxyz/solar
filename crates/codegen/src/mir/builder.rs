@@ -38,6 +38,20 @@ pub(crate) struct FunctionBuilder<'a> {
     current_block: BlockId,
 }
 
+/// A counted loop whose body is the builder's current block.
+pub(crate) struct CountedLoop {
+    header: BlockId,
+    exit: BlockId,
+    index: ValueId,
+}
+
+impl CountedLoop {
+    /// Returns the loop index.
+    pub(crate) const fn index(&self) -> ValueId {
+        self.index
+    }
+}
+
 impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
@@ -58,6 +72,39 @@ impl<'a> FunctionBuilder<'a> {
     /// Creates a new basic block.
     pub(crate) fn create_block(&mut self) -> BlockId {
         self.func.alloc_block()
+    }
+
+    /// Starts `for index in 0..length` and switches to its body.
+    pub(crate) fn begin_counted_loop(&mut self, length: ValueId) -> CountedLoop {
+        let preheader = self.current_block();
+        let header = self.create_block();
+        let body = self.create_block();
+        let exit = self.create_block();
+        self.jump(header);
+
+        self.switch_to_block(header);
+        let zero = self.imm_u64(0);
+        let index = self.phi(vec![(preheader, zero)]);
+        let more = self.lt(index, length);
+        self.branch(more, body, exit);
+        self.switch_to_block(body);
+        CountedLoop { header, exit, index }
+    }
+
+    /// Finishes a counted loop and switches to its exit.
+    pub(crate) fn finish_counted_loop(&mut self, loop_: CountedLoop) {
+        let next = self.add_u64_offset(loop_.index, 1);
+        let backedge = self.current_block();
+        self.jump(loop_.header);
+        self.add_phi_incoming(loop_.index, backedge, next);
+        self.switch_to_block(loop_.exit);
+    }
+
+    /// Emits `for index in 0..length { body(index) }`.
+    pub(crate) fn counted_loop(&mut self, length: ValueId, body: impl FnOnce(&mut Self, ValueId)) {
+        let loop_ = self.begin_counted_loop(length);
+        body(self, loop_.index());
+        self.finish_counted_loop(loop_);
     }
 
     /// Adds an argument to the function.

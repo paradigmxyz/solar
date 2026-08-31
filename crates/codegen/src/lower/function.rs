@@ -432,6 +432,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(id)
     }
 
+    fn counted_loop<R>(
+        &mut self,
+        length: ValueId,
+        body: impl FnOnce(&mut Self, ValueId) -> R,
+    ) -> R {
+        let loop_ = self.builder.begin_counted_loop(length);
+        let result = body(self, loop_.index());
+        self.builder.finish_counted_loop(loop_);
+        result
+    }
+
     fn lower_call_options(
         &mut self,
         options: Option<&hir::CallOptions<'_>>,

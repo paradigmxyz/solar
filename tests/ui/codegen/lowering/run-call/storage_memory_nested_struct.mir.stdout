@@ -273,108 +273,122 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memoryarray, v187, v172
     jump bb63
   bb63:
-    v188 = phi [bb62: 0], [bb64: v230]
+    v188 = phi [bb62: 0], [bb68: v209]
     v189 = lt v188, v172
     jumpi v189, bb64, bb65
   bb65:
+    v210 = memory_object_len memoryarray, v187
+    v211 = lt 0, v210
+    v212 = iszero v211
+    jumpi v212, bb69, bb70
+  bb70:
+    v213 = memory_object_load_element memoryarray<1>, v187, 0
+    v214 = eq v213, 0
+    jumpi v214, bb71, bb72
+  bb71:
+    v215 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    jump bb73
+  bb73:
+    v216 = phi [bb71: 0], [bb74: v220]
+    v217 = lt v216, 3
+    jumpi v217, bb74, bb75
+  bb75:
+    memory_object_store_element memoryarray<1>, v187, 0, v215
+    jump bb72
+  bb72:
+    v221 = phi [bb70: v213], [bb75: v215]
+    v222 = lt 1, 3
+    v223 = iszero v222
+    jumpi v223, bb76, bb77
+  bb77:
+    v224 = memory_object_load_element memoryfixedarray<3, 1>, v221, 1
+    v225 = eq v224, 0
+    jumpi v225, bb78, bb79
+  bb78:
+    v226 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v226, 0, 0
+    memory_object_store_field memorystruct<3>, v226, 1, 0
+    v227 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v227, 0
+    memory_object_store_field memorystruct<3>, v226, 2, v227
+    memory_object_store_element memoryfixedarray<3, 1>, v221, 1, v226
+    jump bb79
+  bb79:
+    v228 = phi [bb77: v224], [bb78: v226]
+    v229 = memory_object_load_field memorystruct<3>, v228, 0
+    v230 = and v229, 255
     v231 = memory_object_len memoryarray, v187
     v232 = lt 0, v231
     v233 = iszero v232
-    jumpi v233, bb66, bb67
-  bb67:
+    jumpi v233, bb80, bb81
+  bb81:
     v234 = memory_object_load_element memoryarray<1>, v187, 0
     v235 = eq v234, 0
-    jumpi v235, bb68, bb69
-  bb68:
+    jumpi v235, bb82, bb83
+  bb82:
     v236 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v237 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v237, 0, 0
-    memory_object_store_field memorystruct<3>, v237, 1, 0
-    v238 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v238, 0
-    memory_object_store_field memorystruct<3>, v237, 2, v238
-    memory_object_store_element memoryfixedarray<3, 1>, v236, 0, v237
-    v239 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v239, 0, 0
-    memory_object_store_field memorystruct<3>, v239, 1, 0
-    v240 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v240, 0
-    memory_object_store_field memorystruct<3>, v239, 2, v240
-    memory_object_store_element memoryfixedarray<3, 1>, v236, 1, v239
-    v241 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v241, 0, 0
-    memory_object_store_field memorystruct<3>, v241, 1, 0
-    v242 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v242, 0
-    memory_object_store_field memorystruct<3>, v241, 2, v242
-    memory_object_store_element memoryfixedarray<3, 1>, v236, 2, v241
+    jump bb84
+  bb84:
+    v237 = phi [bb82: 0], [bb85: v241]
+    v238 = lt v237, 3
+    jumpi v238, bb85, bb86
+  bb86:
     memory_object_store_element memoryarray<1>, v187, 0, v236
-    jump bb69
-  bb69:
-    v243 = phi [bb67: v234], [bb68: v236]
-    v244 = lt 1, 3
-    v245 = iszero v244
-    jumpi v245, bb70, bb71
-  bb71:
-    v246 = memory_object_load_element memoryfixedarray<3, 1>, v243, 1
-    v247 = eq v246, 0
-    jumpi v247, bb72, bb73
-  bb72:
-    v248 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v248, 0, 0
-    memory_object_store_field memorystruct<3>, v248, 1, 0
-    v249 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v249, 0
-    memory_object_store_field memorystruct<3>, v248, 2, v249
-    memory_object_store_element memoryfixedarray<3, 1>, v243, 1, v248
-    jump bb73
-  bb73:
-    v250 = phi [bb71: v246], [bb72: v248]
-    v251 = memory_object_load_field memorystruct<3>, v250, 0
-    v252 = and v251, 255
-    v253 = memory_object_len memoryarray, v187
-    v254 = lt 0, v253
-    v255 = iszero v254
-    jumpi v255, bb74, bb75
-  bb75:
-    v256 = memory_object_load_element memoryarray<1>, v187, 0
-    v257 = eq v256, 0
-    jumpi v257, bb76, bb77
-  bb76:
-    v258 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v259 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v259, 0, 0
-    memory_object_store_field memorystruct<3>, v259, 1, 0
-    v260 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v260, 0
-    memory_object_store_field memorystruct<3>, v259, 2, v260
-    memory_object_store_element memoryfixedarray<3, 1>, v258, 0, v259
-    v261 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v261, 0, 0
-    memory_object_store_field memorystruct<3>, v261, 1, 0
-    v262 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v262, 0
-    memory_object_store_field memorystruct<3>, v261, 2, v262
-    memory_object_store_element memoryfixedarray<3, 1>, v258, 1, v261
-    v263 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v263, 0, 0
-    memory_object_store_field memorystruct<3>, v263, 1, 0
-    v264 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v264, 0
-    memory_object_store_field memorystruct<3>, v263, 2, v264
-    memory_object_store_element memoryfixedarray<3, 1>, v258, 2, v263
-    memory_object_store_element memoryarray<1>, v187, 0, v258
-    jump bb77
-  bb77:
-    v265 = phi [bb75: v256], [bb76: v258]
+    jump bb83
+  bb83:
+    v242 = phi [bb81: v234], [bb86: v236]
+    v243 = lt 1, 3
+    v244 = iszero v243
+    jumpi v244, bb87, bb88
+  bb88:
+    v245 = memory_object_load_element memoryfixedarray<3, 1>, v242, 1
+    v246 = eq v245, 0
+    jumpi v246, bb89, bb90
+  bb89:
+    v247 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v247, 0, 0
+    memory_object_store_field memorystruct<3>, v247, 1, 0
+    v248 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v248, 0
+    memory_object_store_field memorystruct<3>, v247, 2, v248
+    memory_object_store_element memoryfixedarray<3, 1>, v242, 1, v247
+    jump bb90
+  bb90:
+    v249 = phi [bb88: v245], [bb89: v247]
+    v250 = memory_object_load_field memorystruct<3>, v249, 1
+    v251 = and v250, 255
+    v252 = add v230, v251
+    v253 = gt v252, 255
+    jumpi v253, bb91, bb92
+  bb92:
+    v254 = memory_object_len memoryarray, v187
+    v255 = lt 0, v254
+    v256 = iszero v255
+    jumpi v256, bb93, bb94
+  bb94:
+    v257 = memory_object_load_element memoryarray<1>, v187, 0
+    v258 = eq v257, 0
+    jumpi v258, bb95, bb96
+  bb95:
+    v259 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    jump bb97
+  bb97:
+    v260 = phi [bb95: 0], [bb98: v264]
+    v261 = lt v260, 3
+    jumpi v261, bb98, bb99
+  bb99:
+    memory_object_store_element memoryarray<1>, v187, 0, v259
+    jump bb96
+  bb96:
+    v265 = phi [bb94: v257], [bb99: v259]
     v266 = lt 1, 3
     v267 = iszero v266
-    jumpi v267, bb78, bb79
-  bb79:
+    jumpi v267, bb100, bb101
+  bb101:
     v268 = memory_object_load_element memoryfixedarray<3, 1>, v265, 1
     v269 = eq v268, 0
-    jumpi v269, bb80, bb81
-  bb80:
+    jumpi v269, bb102, bb103
+  bb102:
     v270 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v270, 0, 0
     memory_object_store_field memorystruct<3>, v270, 1, 0
@@ -382,335 +396,291 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memoryarray, v271, 0
     memory_object_store_field memorystruct<3>, v270, 2, v271
     memory_object_store_element memoryfixedarray<3, 1>, v265, 1, v270
-    jump bb81
-  bb81:
-    v272 = phi [bb79: v268], [bb80: v270]
-    v273 = memory_object_load_field memorystruct<3>, v272, 1
-    v274 = and v273, 255
-    v275 = add v252, v274
-    v276 = gt v275, 255
-    jumpi v276, bb82, bb83
-  bb83:
-    v277 = memory_object_len memoryarray, v187
-    v278 = lt 0, v277
-    v279 = iszero v278
-    jumpi v279, bb84, bb85
-  bb85:
-    v280 = memory_object_load_element memoryarray<1>, v187, 0
-    v281 = eq v280, 0
-    jumpi v281, bb86, bb87
-  bb86:
-    v282 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v283 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v283, 0, 0
-    memory_object_store_field memorystruct<3>, v283, 1, 0
-    v284 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v284, 0
-    memory_object_store_field memorystruct<3>, v283, 2, v284
-    memory_object_store_element memoryfixedarray<3, 1>, v282, 0, v283
-    v285 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v285, 0, 0
-    memory_object_store_field memorystruct<3>, v285, 1, 0
-    v286 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v286, 0
-    memory_object_store_field memorystruct<3>, v285, 2, v286
-    memory_object_store_element memoryfixedarray<3, 1>, v282, 1, v285
-    v287 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v287, 0, 0
-    memory_object_store_field memorystruct<3>, v287, 1, 0
-    v288 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v288, 0
-    memory_object_store_field memorystruct<3>, v287, 2, v288
-    memory_object_store_element memoryfixedarray<3, 1>, v282, 2, v287
-    memory_object_store_element memoryarray<1>, v187, 0, v282
-    jump bb87
-  bb87:
-    v289 = phi [bb85: v280], [bb86: v282]
-    v290 = lt 1, 3
-    v291 = iszero v290
-    jumpi v291, bb88, bb89
-  bb89:
-    v292 = memory_object_load_element memoryfixedarray<3, 1>, v289, 1
-    v293 = eq v292, 0
-    jumpi v293, bb90, bb91
-  bb90:
-    v294 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v294, 0, 0
-    memory_object_store_field memorystruct<3>, v294, 1, 0
-    v295 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v295, 0
-    memory_object_store_field memorystruct<3>, v294, 2, v295
-    memory_object_store_element memoryfixedarray<3, 1>, v289, 1, v294
-    jump bb91
-  bb91:
-    v296 = phi [bb89: v292], [bb90: v294]
-    v297 = memory_object_load_field memorystruct<3>, v296, 2
-    v298 = memory_object_len memoryarray, v297
-    v299 = lt 0, v298
-    v300 = iszero v299
-    jumpi v300, bb92, bb93
-  bb93:
-    v301 = memory_object_load_element memoryarray<1>, v297, 0
-    v302 = add v275, v301
-    v303 = lt v302, v275
-    jumpi v303, bb94, bb95
-  bb95:
-    v304 = memory_object_len memoryarray, v187
-    v305 = lt 1, v304
-    v306 = iszero v305
-    jumpi v306, bb96, bb97
-  bb97:
-    v307 = memory_object_load_element memoryarray<1>, v187, 1
-    v308 = eq v307, 0
-    jumpi v308, bb98, bb99
-  bb98:
-    v309 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v310 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v310, 0, 0
-    memory_object_store_field memorystruct<3>, v310, 1, 0
-    v311 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v311, 0
-    memory_object_store_field memorystruct<3>, v310, 2, v311
-    memory_object_store_element memoryfixedarray<3, 1>, v309, 0, v310
-    v312 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v312, 0, 0
-    memory_object_store_field memorystruct<3>, v312, 1, 0
-    v313 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v313, 0
-    memory_object_store_field memorystruct<3>, v312, 2, v313
-    memory_object_store_element memoryfixedarray<3, 1>, v309, 1, v312
-    v314 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v314, 0, 0
-    memory_object_store_field memorystruct<3>, v314, 1, 0
-    v315 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v315, 0
-    memory_object_store_field memorystruct<3>, v314, 2, v315
-    memory_object_store_element memoryfixedarray<3, 1>, v309, 2, v314
-    memory_object_store_element memoryarray<1>, v187, 1, v309
-    jump bb99
-  bb99:
-    v316 = phi [bb97: v307], [bb98: v309]
-    v317 = lt 2, 3
-    v318 = iszero v317
-    jumpi v318, bb100, bb101
-  bb101:
-    v319 = memory_object_load_element memoryfixedarray<3, 1>, v316, 2
-    v320 = eq v319, 0
-    jumpi v320, bb102, bb103
-  bb102:
-    v321 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v321, 0, 0
-    memory_object_store_field memorystruct<3>, v321, 1, 0
-    v322 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v322, 0
-    memory_object_store_field memorystruct<3>, v321, 2, v322
-    memory_object_store_element memoryfixedarray<3, 1>, v316, 2, v321
     jump bb103
   bb103:
-    v323 = phi [bb101: v319], [bb102: v321]
-    v324 = memory_object_load_field memorystruct<3>, v323, 0
-    v325 = and v324, 255
-    v326 = add v302, v325
-    v327 = lt v326, v302
-    jumpi v327, bb104, bb105
+    v272 = phi [bb101: v268], [bb102: v270]
+    v273 = memory_object_load_field memorystruct<3>, v272, 2
+    v274 = memory_object_len memoryarray, v273
+    v275 = lt 0, v274
+    v276 = iszero v275
+    jumpi v276, bb104, bb105
   bb105:
-    v328 = memory_object_len memoryarray, v187
-    v329 = lt 1, v328
-    v330 = iszero v329
-    jumpi v330, bb106, bb107
+    v277 = memory_object_load_element memoryarray<1>, v273, 0
+    v278 = add v252, v277
+    v279 = lt v278, v252
+    jumpi v279, bb106, bb107
   bb107:
-    v331 = memory_object_load_element memoryarray<1>, v187, 1
-    v332 = eq v331, 0
-    jumpi v332, bb108, bb109
-  bb108:
-    v333 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v280 = memory_object_len memoryarray, v187
+    v281 = lt 1, v280
+    v282 = iszero v281
+    jumpi v282, bb108, bb109
+  bb109:
+    v283 = memory_object_load_element memoryarray<1>, v187, 1
+    v284 = eq v283, 0
+    jumpi v284, bb110, bb111
+  bb110:
+    v285 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    jump bb112
+  bb112:
+    v286 = phi [bb110: 0], [bb113: v290]
+    v287 = lt v286, 3
+    jumpi v287, bb113, bb114
+  bb114:
+    memory_object_store_element memoryarray<1>, v187, 1, v285
+    jump bb111
+  bb111:
+    v291 = phi [bb109: v283], [bb114: v285]
+    v292 = lt 2, 3
+    v293 = iszero v292
+    jumpi v293, bb115, bb116
+  bb116:
+    v294 = memory_object_load_element memoryfixedarray<3, 1>, v291, 2
+    v295 = eq v294, 0
+    jumpi v295, bb117, bb118
+  bb117:
+    v296 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v296, 0, 0
+    memory_object_store_field memorystruct<3>, v296, 1, 0
+    v297 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v297, 0
+    memory_object_store_field memorystruct<3>, v296, 2, v297
+    memory_object_store_element memoryfixedarray<3, 1>, v291, 2, v296
+    jump bb118
+  bb118:
+    v298 = phi [bb116: v294], [bb117: v296]
+    v299 = memory_object_load_field memorystruct<3>, v298, 0
+    v300 = and v299, 255
+    v301 = add v278, v300
+    v302 = lt v301, v278
+    jumpi v302, bb119, bb120
+  bb120:
+    v303 = memory_object_len memoryarray, v187
+    v304 = lt 1, v303
+    v305 = iszero v304
+    jumpi v305, bb121, bb122
+  bb122:
+    v306 = memory_object_load_element memoryarray<1>, v187, 1
+    v307 = eq v306, 0
+    jumpi v307, bb123, bb124
+  bb123:
+    v308 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    jump bb125
+  bb125:
+    v309 = phi [bb123: 0], [bb126: v313]
+    v310 = lt v309, 3
+    jumpi v310, bb126, bb127
+  bb127:
+    memory_object_store_element memoryarray<1>, v187, 1, v308
+    jump bb124
+  bb124:
+    v314 = phi [bb122: v306], [bb127: v308]
+    v315 = lt 2, 3
+    v316 = iszero v315
+    jumpi v316, bb128, bb129
+  bb129:
+    v317 = memory_object_load_element memoryfixedarray<3, 1>, v314, 2
+    v318 = eq v317, 0
+    jumpi v318, bb130, bb131
+  bb130:
+    v319 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v319, 0, 0
+    memory_object_store_field memorystruct<3>, v319, 1, 0
+    v320 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v320, 0
+    memory_object_store_field memorystruct<3>, v319, 2, v320
+    memory_object_store_element memoryfixedarray<3, 1>, v314, 2, v319
+    jump bb131
+  bb131:
+    v321 = phi [bb129: v317], [bb130: v319]
+    v322 = memory_object_load_field memorystruct<3>, v321, 1
+    v323 = and v322, 255
+    v324 = add v301, v323
+    v325 = lt v324, v301
+    jumpi v325, bb132, bb133
+  bb133:
+    v326 = memory_object_len memoryarray, v187
+    v327 = lt 1, v326
+    v328 = iszero v327
+    jumpi v328, bb134, bb135
+  bb135:
+    v329 = memory_object_load_element memoryarray<1>, v187, 1
+    v330 = eq v329, 0
+    jumpi v330, bb136, bb137
+  bb136:
+    v331 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    jump bb138
+  bb138:
+    v332 = phi [bb136: 0], [bb139: v336]
+    v333 = lt v332, 3
+    jumpi v333, bb139, bb140
+  bb140:
+    memory_object_store_element memoryarray<1>, v187, 1, v331
+    jump bb137
+  bb137:
+    v337 = phi [bb135: v329], [bb140: v331]
+    v338 = lt 2, 3
+    v339 = iszero v338
+    jumpi v339, bb141, bb142
+  bb142:
+    v340 = memory_object_load_element memoryfixedarray<3, 1>, v337, 2
+    v341 = eq v340, 0
+    jumpi v341, bb143, bb144
+  bb143:
+    v342 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v342, 0, 0
+    memory_object_store_field memorystruct<3>, v342, 1, 0
+    v343 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v343, 0
+    memory_object_store_field memorystruct<3>, v342, 2, v343
+    memory_object_store_element memoryfixedarray<3, 1>, v337, 2, v342
+    jump bb144
+  bb144:
+    v344 = phi [bb142: v340], [bb143: v342]
+    v345 = memory_object_load_field memorystruct<3>, v344, 2
+    v346 = memory_object_len memoryarray, v345
+    v347 = lt 0, v346
+    v348 = iszero v347
+    jumpi v348, bb145, bb146
+  bb146:
+    v349 = memory_object_load_element memoryarray<1>, v345, 0
+    v350 = add v324, v349
+    v351 = lt v350, v324
+    jumpi v351, bb147, bb148
+  bb148:
+    ret v350
+  bb147:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb145:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb141:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb139:
     v334 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v334, 0, 0
     memory_object_store_field memorystruct<3>, v334, 1, 0
     v335 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v335, 0
     memory_object_store_field memorystruct<3>, v334, 2, v335
-    memory_object_store_element memoryfixedarray<3, 1>, v333, 0, v334
-    v336 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v336, 0, 0
-    memory_object_store_field memorystruct<3>, v336, 1, 0
-    v337 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v337, 0
-    memory_object_store_field memorystruct<3>, v336, 2, v337
-    memory_object_store_element memoryfixedarray<3, 1>, v333, 1, v336
-    v338 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v338, 0, 0
-    memory_object_store_field memorystruct<3>, v338, 1, 0
-    v339 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v339, 0
-    memory_object_store_field memorystruct<3>, v338, 2, v339
-    memory_object_store_element memoryfixedarray<3, 1>, v333, 2, v338
-    memory_object_store_element memoryarray<1>, v187, 1, v333
-    jump bb109
-  bb109:
-    v340 = phi [bb107: v331], [bb108: v333]
-    v341 = lt 2, 3
-    v342 = iszero v341
-    jumpi v342, bb110, bb111
-  bb111:
-    v343 = memory_object_load_element memoryfixedarray<3, 1>, v340, 2
-    v344 = eq v343, 0
-    jumpi v344, bb112, bb113
-  bb112:
-    v345 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v345, 0, 0
-    memory_object_store_field memorystruct<3>, v345, 1, 0
-    v346 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v346, 0
-    memory_object_store_field memorystruct<3>, v345, 2, v346
-    memory_object_store_element memoryfixedarray<3, 1>, v340, 2, v345
-    jump bb113
-  bb113:
-    v347 = phi [bb111: v343], [bb112: v345]
-    v348 = memory_object_load_field memorystruct<3>, v347, 1
-    v349 = and v348, 255
-    v350 = add v326, v349
-    v351 = lt v350, v326
-    jumpi v351, bb114, bb115
-  bb115:
-    v352 = memory_object_len memoryarray, v187
-    v353 = lt 1, v352
-    v354 = iszero v353
-    jumpi v354, bb116, bb117
-  bb117:
-    v355 = memory_object_load_element memoryarray<1>, v187, 1
-    v356 = eq v355, 0
-    jumpi v356, bb118, bb119
-  bb118:
-    v357 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v358 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v358, 0, 0
-    memory_object_store_field memorystruct<3>, v358, 1, 0
-    v359 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v359, 0
-    memory_object_store_field memorystruct<3>, v358, 2, v359
-    memory_object_store_element memoryfixedarray<3, 1>, v357, 0, v358
-    v360 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v360, 0, 0
-    memory_object_store_field memorystruct<3>, v360, 1, 0
-    v361 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v361, 0
-    memory_object_store_field memorystruct<3>, v360, 2, v361
-    memory_object_store_element memoryfixedarray<3, 1>, v357, 1, v360
-    v362 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v362, 0, 0
-    memory_object_store_field memorystruct<3>, v362, 1, 0
-    v363 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v363, 0
-    memory_object_store_field memorystruct<3>, v362, 2, v363
-    memory_object_store_element memoryfixedarray<3, 1>, v357, 2, v362
-    memory_object_store_element memoryarray<1>, v187, 1, v357
-    jump bb119
-  bb119:
-    v364 = phi [bb117: v355], [bb118: v357]
-    v365 = lt 2, 3
-    v366 = iszero v365
-    jumpi v366, bb120, bb121
-  bb121:
-    v367 = memory_object_load_element memoryfixedarray<3, 1>, v364, 2
-    v368 = eq v367, 0
-    jumpi v368, bb122, bb123
-  bb122:
-    v369 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v369, 0, 0
-    memory_object_store_field memorystruct<3>, v369, 1, 0
-    v370 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v370, 0
-    memory_object_store_field memorystruct<3>, v369, 2, v370
-    memory_object_store_element memoryfixedarray<3, 1>, v364, 2, v369
-    jump bb123
-  bb123:
-    v371 = phi [bb121: v367], [bb122: v369]
-    v372 = memory_object_load_field memorystruct<3>, v371, 2
-    v373 = memory_object_len memoryarray, v372
-    v374 = lt 0, v373
-    v375 = iszero v374
-    jumpi v375, bb124, bb125
-  bb125:
-    v376 = memory_object_load_element memoryarray<1>, v372, 0
-    v377 = add v350, v376
-    v378 = lt v377, v350
-    jumpi v378, bb126, bb127
-  bb127:
-    ret v377
+    memory_object_store_element memoryfixedarray<3, 1>, v331, v332, v334
+    v336 = add v332, 1
+    jump bb138
+  bb134:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb132:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb128:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb126:
+    v311 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v311, 0, 0
+    memory_object_store_field memorystruct<3>, v311, 1, 0
+    v312 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v312, 0
+    memory_object_store_field memorystruct<3>, v311, 2, v312
+    memory_object_store_element memoryfixedarray<3, 1>, v308, v309, v311
+    v313 = add v309, 1
+    jump bb125
+  bb121:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb119:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb124:
+  bb115:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb120:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb116:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb114:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb110:
+  bb113:
+    v288 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v288, 0, 0
+    memory_object_store_field memorystruct<3>, v288, 1, 0
+    v289 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v289, 0
+    memory_object_store_field memorystruct<3>, v288, 2, v289
+    memory_object_store_element memoryfixedarray<3, 1>, v285, v286, v288
+    v290 = add v286, 1
+    jump bb112
+  bb108:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb106:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb104:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb100:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb96:
+  bb98:
+    v262 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v262, 0, 0
+    memory_object_store_field memorystruct<3>, v262, 1, 0
+    v263 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v263, 0
+    memory_object_store_field memorystruct<3>, v262, 2, v263
+    memory_object_store_element memoryfixedarray<3, 1>, v259, v260, v262
+    v264 = add v260, 1
+    jump bb97
+  bb93:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb94:
+  bb91:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb92:
+  bb87:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb88:
+  bb85:
+    v239 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v239, 0, 0
+    memory_object_store_field memorystruct<3>, v239, 1, 0
+    v240 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v240, 0
+    memory_object_store_field memorystruct<3>, v239, 2, v240
+    memory_object_store_element memoryfixedarray<3, 1>, v236, v237, v239
+    v241 = add v237, 1
+    jump bb84
+  bb80:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb84:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb82:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb78:
+  bb76:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb74:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb70:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb66:
+    v218 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v218, 0, 0
+    memory_object_store_field memorystruct<3>, v218, 1, 0
+    v219 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v219, 0
+    memory_object_store_field memorystruct<3>, v218, 2, v219
+    memory_object_store_element memoryfixedarray<3, 1>, v215, v216, v218
+    v220 = add v216, 1
+    jump bb73
+  bb69:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
@@ -719,57 +689,34 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v191 = mul v188, 6
     v192 = add v190, v191
     v193 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
-    v194 = mul 0, 2
-    v195 = add v192, v194
-    v196 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v197 = sload v195 !metadata(storage=symbolic(v195))
-    v198 = and v197, 255
-    v199 = and v198, 255
-    memory_object_store_field memorystruct<3>, v196, 0, v199
-    v200 = sload v195 !metadata(storage=symbolic(v195))
-    v201 = shr 8, v200
-    v202 = and v201, 255
-    v203 = and v202, 255
-    memory_object_store_field memorystruct<3>, v196, 1, v203
-    v204 = add v195, 1
-    v205 = internal_call @load_storage_word_array, 1, v204
-    memory_object_store_field memorystruct<3>, v196, 2, v205
-    memory_object_store_element memoryfixedarray<3, 1>, v193, 0, v196
-    v206 = mul 1, 2
-    v207 = add v192, v206
-    v208 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v209 = sload v207 !metadata(storage=symbolic(v207))
-    v210 = and v209, 255
-    v211 = and v210, 255
-    memory_object_store_field memorystruct<3>, v208, 0, v211
-    v212 = sload v207 !metadata(storage=symbolic(v207))
-    v213 = shr 8, v212
-    v214 = and v213, 255
-    v215 = and v214, 255
-    memory_object_store_field memorystruct<3>, v208, 1, v215
-    v216 = add v207, 1
-    v217 = internal_call @load_storage_word_array, 1, v216
-    memory_object_store_field memorystruct<3>, v208, 2, v217
-    memory_object_store_element memoryfixedarray<3, 1>, v193, 1, v208
-    v218 = mul 2, 2
-    v219 = add v192, v218
-    v220 = alloc memorystruct<3>, exact, uninitialized, panic, 96
-    v221 = sload v219 !metadata(storage=symbolic(v219))
-    v222 = and v221, 255
-    v223 = and v222, 255
-    memory_object_store_field memorystruct<3>, v220, 0, v223
-    v224 = sload v219 !metadata(storage=symbolic(v219))
-    v225 = shr 8, v224
-    v226 = and v225, 255
-    v227 = and v226, 255
-    memory_object_store_field memorystruct<3>, v220, 1, v227
-    v228 = add v219, 1
-    v229 = internal_call @load_storage_word_array, 1, v228
-    memory_object_store_field memorystruct<3>, v220, 2, v229
-    memory_object_store_element memoryfixedarray<3, 1>, v193, 2, v220
+    jump bb66
+  bb66:
+    v194 = phi [bb64: 0], [bb67: v208]
+    v195 = lt v194, 3
+    jumpi v195, bb67, bb68
+  bb68:
     memory_object_store_element memoryarray<1>, v187, v188, v193
-    v230 = add v188, 1
+    v209 = add v188, 1
     jump bb63
+  bb67:
+    v196 = mul v194, 2
+    v197 = add v192, v196
+    v198 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v199 = sload v197 !metadata(storage=symbolic(v197))
+    v200 = and v199, 255
+    v201 = and v200, 255
+    memory_object_store_field memorystruct<3>, v198, 0, v201
+    v202 = sload v197 !metadata(storage=symbolic(v197))
+    v203 = shr 8, v202
+    v204 = and v203, 255
+    v205 = and v204, 255
+    memory_object_store_field memorystruct<3>, v198, 1, v205
+    v206 = add v197, 1
+    v207 = internal_call @load_storage_word_array, 1, v206
+    memory_object_store_field memorystruct<3>, v198, 2, v207
+    memory_object_store_element memoryfixedarray<3, 1>, v193, v194, v198
+    v208 = add v194, 1
+    jump bb66
   bb61:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

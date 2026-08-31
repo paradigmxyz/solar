@@ -46,28 +46,19 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
   bb18:
     v27 = mul 0, 10
     v28 = add v13, v27
-    v29 = add v28, 0
-    sstore v29, 0 !metadata(storage=symbolic(v28))
-    v30 = add v28, 1
-    sstore v30, 0 !metadata(storage=offset(v28, 1))
-    v31 = add v28, 2
-    sstore v31, 0 !metadata(storage=offset(v28, 2))
-    v32 = add v28, 3
-    sstore v32, 0 !metadata(storage=offset(v28, 3))
-    v33 = add v28, 4
-    sstore v33, 0 !metadata(storage=offset(v28, 4))
-    v34 = add v28, 5
-    sstore v34, 0 !metadata(storage=offset(v28, 5))
-    v35 = add v28, 6
-    sstore v35, 0 !metadata(storage=offset(v28, 6))
-    v36 = add v28, 7
-    sstore v36, 0 !metadata(storage=offset(v28, 7))
-    v37 = add v28, 8
-    sstore v37, 0 !metadata(storage=offset(v28, 8))
-    v38 = add v28, 9
-    sstore v38, 0 !metadata(storage=offset(v28, 9))
-    v39 = sload 0 !metadata(storage=slot(0))
-    ret v9, v24, v39
+    jump bb19
+  bb19:
+    v29 = phi [bb18: 0], [bb20: v32]
+    v30 = lt v29, 10
+    jumpi v30, bb20, bb21
+  bb21:
+    v33 = sload 0 !metadata(storage=slot(0))
+    ret v9, v24, v33
+  bb20:
+    v31 = add v28, v29
+    sstore v31, 0 !metadata(storage=symbolic(v31))
+    v32 = add v29, 1
+    jump bb19
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

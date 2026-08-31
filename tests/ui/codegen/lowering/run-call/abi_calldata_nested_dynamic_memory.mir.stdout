@@ -241,7 +241,7 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     set_memory_object_len memoryarray, v19, v0
     jump bb9
   bb9:
-    v20 = phi [bb8: 0], [bb28: v71]
+    v20 = phi [bb8: 0], [bb28: v73]
     v21 = lt v20, v0
     jumpi v21, bb10, bb11
   bb11:
@@ -298,12 +298,12 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
     set_memory_object_len memoryarray, v55, v39
     jump bb26
   bb26:
-    v56 = phi [bb25: 0], [bb30: v70]
+    v56 = phi [bb25: 0], [bb33: v72]
     v57 = lt v56, v39
     jumpi v57, bb27, bb28
   bb28:
     memory_object_store_element memoryarray<1>, v19, v20, v55
-    v71 = add v20, 1
+    v73 = add v20, 1
     jump bb9
   bb27:
     v58 = mul v56, 64
@@ -316,15 +316,22 @@ fn @h(arg0: calldataslice) -> memoryarray [selector=0xba9ef85f, pure, abi_params
   bb30:
     v64 = add v46, v58
     v65 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v66 = add v64, 0
-    v67 = calldataload v66
-    memory_object_store_element memoryfixedarray<2, 1>, v65, 0, v67
-    v68 = add v64, 32
-    v69 = calldataload v68
-    memory_object_store_element memoryfixedarray<2, 1>, v65, 1, v69
+    jump bb31
+  bb31:
+    v66 = phi [bb30: 0], [bb32: v71]
+    v67 = lt v66, 2
+    jumpi v67, bb32, bb33
+  bb33:
     memory_object_store_element memoryarray<1>, v55, v56, v65
-    v70 = add v56, 1
+    v72 = add v56, 1
     jump bb26
+  bb32:
+    v68 = mul v66, 32
+    v69 = add v64, v68
+    v70 = calldataload v69
+    memory_object_store_element memoryfixedarray<2, 1>, v65, v66, v70
+    v71 = add v66, 1
+    jump bb31
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

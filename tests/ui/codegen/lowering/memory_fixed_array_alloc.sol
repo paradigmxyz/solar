@@ -28,9 +28,11 @@ contract MemoryFixedArrayAlloc {
 
     // CHECK-LABEL: fn @nested{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = alloc memoryfixedarray<3, 1>
-    // CHECK-COUNT-3: alloc memoryfixedarray<2, 1>
+    // CHECK: [[INDEX:v[0-9]+]] = phi
     // CHECK: memory_object_load_element memoryfixedarray<3, 1>, [[OUTER]], arg0
     // CHECK: memory_object_load_element memoryfixedarray<2, 1>, {{v[0-9]+}}, arg1
+    // CHECK: [[INNER:v[0-9]+]] = alloc memoryfixedarray<2, 1>
+    // CHECK: memory_object_store_element memoryfixedarray<3, 1>, [[OUTER]], [[INDEX]], [[INNER]]
     function nested(uint256 i, uint256 j) public pure returns (uint256) {
         uint256[2][3] memory x;
         x[0][0] = 1;

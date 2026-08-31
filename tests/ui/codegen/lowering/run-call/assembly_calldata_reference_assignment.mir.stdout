@@ -226,7 +226,7 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
     set_memory_object_len memoryarray, v25, v6
     jump bb9
   bb9:
-    v26 = phi [bb8: 0], [bb13: v40]
+    v26 = phi [bb8: 0], [bb16: v42]
     v27 = lt v26, v6
     jumpi v27, bb10, bb11
   bb11:
@@ -242,15 +242,22 @@ fn @dynamicFixed(arg0: calldataslice) -> memoryarray [selector=0x71cafd78, pure,
   bb13:
     v34 = add v7, v28
     v35 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v36 = add v34, 0
-    v37 = calldataload v36
-    memory_object_store_element memoryfixedarray<2, 1>, v35, 0, v37
-    v38 = add v34, 32
-    v39 = calldataload v38
-    memory_object_store_element memoryfixedarray<2, 1>, v35, 1, v39
+    jump bb14
+  bb14:
+    v36 = phi [bb13: 0], [bb15: v41]
+    v37 = lt v36, 2
+    jumpi v37, bb15, bb16
+  bb16:
     memory_object_store_element memoryarray<1>, v25, v26, v35
-    v40 = add v26, 1
+    v42 = add v26, 1
     jump bb9
+  bb15:
+    v38 = mul v36, 32
+    v39 = add v34, v38
+    v40 = calldataload v39
+    memory_object_store_element memoryfixedarray<2, 1>, v35, v36, v40
+    v41 = add v36, 1
+    jump bb14
   bb12:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

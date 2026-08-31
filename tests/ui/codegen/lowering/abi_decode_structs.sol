@@ -31,7 +31,9 @@ contract AbiDecodeStructs {
     }
 
     // ADS-LABEL: fn @dFixed
-    // ADS-COUNT-2: internal_call @[[FIXED_HELPER:decode_memory_type]]
+    // ADS: [[INDEX:v[0-9]+]] = phi
+    // ADS: lt [[INDEX]], 2
+    // ADS: internal_call @[[FIXED_HELPER:decode_memory_type]]
     function dFixed(bytes memory b) public pure returns (uint256) {
         Dyn[2] memory ds = abi.decode(b, (Dyn[2]));
         return ds[1].nums.length;

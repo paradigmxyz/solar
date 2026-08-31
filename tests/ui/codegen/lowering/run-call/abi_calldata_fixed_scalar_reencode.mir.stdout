@@ -70,40 +70,28 @@ fn @h(arg0: calldataslice) -> memorybytes [selector=0x94e17704, pure, abi_params
     jumpi v3, bb1, bb2
   bb2:
     v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v5 = add v0, 0
-    v6 = calldataload v5
-    v7 = and v6, 255
-    v8 = eq v6, v7
-    v9 = iszero v8
-    jumpi v9, bb3, bb4
-  bb4:
-    v10 = and v6, 255
-    memory_object_store_element memoryfixedarray<3, 1>, v4, 0, v10
-    v11 = add v0, 32
-    v12 = calldataload v11
-    v13 = and v12, 255
-    v14 = eq v12, v13
-    v15 = iszero v14
-    jumpi v15, bb5, bb6
-  bb6:
-    v16 = and v12, 255
-    memory_object_store_element memoryfixedarray<3, 1>, v4, 1, v16
-    v17 = add v0, 64
-    v18 = calldataload v17
-    v19 = and v18, 255
-    v20 = eq v18, v19
-    v21 = iszero v20
-    jumpi v21, bb7, bb8
-  bb8:
-    v22 = and v18, 255
-    memory_object_store_element memoryfixedarray<3, 1>, v4, 2, v22
-    v23 = abi_encode [array<3, word<u8>>], object, args v4
-    ret v23
-  bb7:
-    revert 0, 0
-  bb5:
-    revert 0, 0
+    jump bb3
   bb3:
+    v5 = phi [bb2: 0], [bb7: v14]
+    v6 = lt v5, 3
+    jumpi v6, bb4, bb5
+  bb5:
+    v15 = abi_encode [array<3, word<u8>>], object, args v4
+    ret v15
+  bb4:
+    v7 = mul v5, 32
+    v8 = add v0, v7
+    v9 = calldataload v8
+    v10 = and v9, 255
+    v11 = eq v9, v10
+    v12 = iszero v11
+    jumpi v12, bb6, bb7
+  bb7:
+    v13 = and v9, 255
+    memory_object_store_element memoryfixedarray<3, 1>, v4, v5, v13
+    v14 = add v5, 1
+    jump bb3
+  bb6:
     revert 0, 0
   bb1:
     revert 0, 0
@@ -135,56 +123,49 @@ fn @i(arg0: calldataslice, arg1: u256) -> memorybytes [selector=0x18e849a4, view
     v17 = slt v16, 96
     jumpi v17, bb5, bb6
   bb6:
-    v18 = calldataload v14
-    v19 = and v18, 255
-    v20 = eq v18, v19
-    v21 = iszero v20
-    jumpi v21, bb7, bb8
-  bb8:
-    v22 = add v14, 32
-    v23 = calldataload v22
-    v24 = and v23, 255
-    v25 = eq v23, v24
-    v26 = iszero v25
-    jumpi v26, bb9, bb10
-  bb10:
-    v27 = add v14, 64
-    v28 = calldataload v27
-    v29 = and v28, 255
-    v30 = eq v28, v29
-    v31 = iszero v30
-    jumpi v31, bb11, bb12
+    jump bb7
+  bb7:
+    v18 = phi [bb6: 0], [bb11: v26]
+    v19 = lt v18, 3
+    jumpi v19, bb8, bb9
+  bb9:
+    v27 = abi_encode [array<3, word<u8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v13
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = staticcall v1, v0, v28, v29, 0, 0
+    jumpi v30, bb13, bb12
   bb12:
-    v32 = abi_encode [array<3, word<u8>>], selector 0x94e1770400000000000000000000000000000000000000000000000000000000, args v13
-    v33 = slice_ptr v32
-    v34 = slice_len v32
-    v35 = staticcall v1, v0, v33, v34, 0, 0
-    jumpi v35, bb14, bb13
-  bb13:
     revert_returndata
-  bb14:
-    v36 = returndatasize
-    v37 = add v36, 63
-    v38 = lt v37, v36
-    jumpi v38, bb15, bb16
-  bb16:
-    v39 = not 31
-    v40 = and v37, v39
-    v41 = alloc memorybytes, exact, uninitialized, infallible, v40
-    set_memory_object_len memorybytes, v41, v36
-    v42 = make_returndata_slice 0, v36
-    memory_object_copy_from_slice memorybytes, v41, v42
-    v43 = abi_decode [bytes], v41
-    ret v43
+  bb13:
+    v31 = returndatasize
+    v32 = add v31, 63
+    v33 = lt v32, v31
+    jumpi v33, bb14, bb15
   bb15:
+    v34 = not 31
+    v35 = and v32, v34
+    v36 = alloc memorybytes, exact, uninitialized, infallible, v35
+    set_memory_object_len memorybytes, v36, v31
+    v37 = make_returndata_slice 0, v31
+    memory_object_copy_from_slice memorybytes, v36, v37
+    v38 = abi_decode [bytes], v36
+    ret v38
+  bb14:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
+  bb8:
+    v20 = mul v18, 32
+    v21 = add v14, v20
+    v22 = calldataload v21
+    v23 = and v22, 255
+    v24 = eq v22, v23
+    v25 = iszero v24
+    jumpi v25, bb10, bb11
   bb11:
-    revert 0, 0
-  bb9:
-    revert 0, 0
-  bb7:
+    v26 = add v18, 1
+    jump bb7
+  bb10:
     revert 0, 0
   bb5:
     revert 0, 0

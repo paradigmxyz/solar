@@ -303,14 +303,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let Ok(len) = u64::try_from(len) else { return Some(object) };
                 if self.types.memory_layout(element).is_some() {
-                    for index in 0..len {
-                        let Some(value) = self.default_object_with_mode(element, preserve_fmp)
-                        else {
-                            continue;
-                        };
-                        let index = self.builder.imm_u64(index);
-                        self.builder.memory_object_store_element(object, layout, index, value);
-                    }
+                    let len = self.builder.imm_u64(len);
+                    self.counted_loop(len, |this, index| {
+                        if let Some(value) = this.default_object_with_mode(element, preserve_fmp) {
+                            this.builder.memory_object_store_element(object, layout, index, value);
+                        }
+                    });
                 }
             }
             _ => {}

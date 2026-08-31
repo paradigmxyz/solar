@@ -868,18 +868,29 @@ impl LowerAbiCx {
         }
         match ty {
             AbiParamType::FixedArray { element, len } => {
-                let mut offset = 0_u64;
-                for _ in 0..*len {
-                    Self::validate_static_memory_child(
+                let length = builder.imm_u64(*len);
+                builder.counted_loop(length, |builder, index| {
+                    let stride = builder.imm_u64(
+                        element.checked_head_size().expect("ABI head size exceeds u64 range"),
+                    );
+                    let offset = builder.mul(index, stride);
+                    let element_head = builder.add(head, offset);
+                    let mut element_invalid = builder.imm_bool(false);
+                    let mut element_grouped = Vec::new();
+                    Self::validate_static_memory_argument(
                         builder,
                         element,
-                        head,
-                        &mut offset,
-                        invalid,
-                        grouped,
+                        element_head,
+                        &mut element_invalid,
+                        &mut element_grouped,
                         has_bitwise_shifting,
                     );
-                }
+                    for (validator, value) in element_grouped {
+                        let violation = validator.violation(builder, value, true);
+                        element_invalid = builder.or(element_invalid, violation);
+                    }
+                    builder.revert_if(element_invalid);
+                });
             }
             AbiParamType::Tuple(fields) => {
                 let mut offset = 0_u64;
@@ -1823,9 +1834,13 @@ impl LowerAbiCx {
                 }
                 let (ptr, layout) =
                     builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
-                let mut offset = 0;
-                for index in 0..*len {
-                    let word_pos = builder.add_u64_offset(base, offset);
+                let length = builder.imm_u64(*len);
+                let stride = builder
+                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+                builder.counted_loop(length, |builder, index| {
+                    *current = builder.current_block();
+                    let offset = builder.mul(index, stride);
+                    let word_pos = builder.add(base, offset);
                     let value = if element.is_scalar_word() {
                         Self::decode_source_scalar(
                             builder,
@@ -1845,11 +1860,11 @@ impl LowerAbiCx {
                             options.checked(),
                         )
                     };
+                    builder.switch_to_block(*current);
                     let value = Self::encode_memory_scalar(builder, element, value);
-                    let elem_index = builder.imm_u64(index);
-                    builder.memory_object_store_element(ptr, layout, elem_index, value);
-                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
-                }
+                    builder.memory_object_store_element(ptr, layout, index, value);
+                });
+                *current = builder.current_block();
                 ptr
             }
             crate::mir::AbiParamType::DynamicArray(element)
@@ -2193,21 +2208,29 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
         head: ValueId,
-        mut decode: impl FnMut(&mut FunctionBuilder<'_>, &crate::mir::AbiParamType, ValueId) -> ValueId,
+        mut decode: impl FnMut(
+            &mut FunctionBuilder<'_>,
+            &crate::mir::AbiParamType,
+            ValueId,
+            &mut BlockId,
+        ) -> ValueId,
     ) -> ValueId {
         match ty {
             crate::mir::AbiParamType::FixedArray { element, len } => {
                 let (object, layout) =
                     builder.alloc_word_array(*len, crate::mir::AllocationSemantics::INTERNAL);
-                let mut offset = 0;
-                for index in 0..*len {
-                    let field = builder.add_u64_offset(head, offset);
-                    let value = decode(builder, element, field);
+                let length = builder.imm_u64(*len);
+                let stride = builder
+                    .imm_u64(element.checked_head_size().expect("ABI head size exceeds u64 range"));
+                builder.counted_loop(length, |builder, index| {
+                    let offset = builder.mul(index, stride);
+                    let field = builder.add(head, offset);
+                    let mut current = builder.current_block();
+                    let value = decode(builder, element, field, &mut current);
+                    builder.switch_to_block(current);
                     let value = Self::encode_memory_scalar(builder, element, value);
-                    let index_value = builder.imm_u64(index);
-                    builder.memory_object_store_element(object, layout, index_value, value);
-                    offset += element.checked_head_size().expect("ABI head size exceeds u64 range");
-                }
+                    builder.memory_object_store_element(object, layout, index, value);
+                });
                 object
             }
             crate::mir::AbiParamType::Tuple(fields) => {
@@ -2216,9 +2239,11 @@ impl LowerAbiCx {
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
                 let mut offset = 0;
+                let mut current = builder.current_block();
                 for (index, field) in fields.iter().enumerate() {
                     let field_head = builder.add_u64_offset(head, offset);
-                    let value = decode(builder, field, field_head);
+                    let value = decode(builder, field, field_head, &mut current);
+                    builder.switch_to_block(current);
                     let value = Self::encode_memory_scalar(builder, field, value);
                     builder.memory_object_store_field(object, layout, index as u64, value);
                     offset += field.checked_head_size().expect("ABI head size exceeds u64 range");
@@ -2251,9 +2276,18 @@ impl LowerAbiCx {
         if matches!(ty, AbiParamType::Scalar(_)) {
             return builder.mload(head);
         }
-        Self::decode_static_aggregate(builder, ty, head, |builder, ty, head| {
-            Self::decode_static_memory_argument(builder, ty, head, current, has_bitwise_shifting)
-        })
+        let value =
+            Self::decode_static_aggregate(builder, ty, head, |builder, ty, head, current| {
+                Self::decode_static_memory_argument(
+                    builder,
+                    ty,
+                    head,
+                    current,
+                    has_bitwise_shifting,
+                )
+            });
+        *current = builder.current_block();
+        value
     }
 
     fn decode_calldata_bytes_slice_values(
@@ -2317,8 +2351,8 @@ impl LowerAbiCx {
         if matches!(ty, crate::mir::AbiParamType::Scalar(_)) {
             return builder.calldataload(head);
         }
-        Self::decode_static_aggregate(builder, ty, head, |builder, ty, head| {
-            Self::decode_static_calldata_value(builder, ty, head, valid, has_bitwise_shifting)
+        Self::decode_static_aggregate(builder, ty, head, |builder, ty, head, current| {
+            Self::decode_static_calldata_argument(builder, ty, head, current, has_bitwise_shifting)
         })
     }
 
@@ -3702,9 +3736,9 @@ fn canonicalize_return_value(
         }
         AbiParamType::FixedArray { element, len } => {
             let (output, layout) = builder.alloc_word_array(*len, AllocationSemantics::INTERNAL);
-            for index in 0..*len {
-                let index_value = builder.imm_u64(index);
-                let element_value = builder.memory_object_load_element(value, layout, index_value);
+            let length = builder.imm_u64(*len);
+            builder.counted_loop(length, |builder, index| {
+                let element_value = builder.memory_object_load_element(value, layout, index);
                 let element_value = canonicalize_return_value(
                     builder,
                     element,
@@ -3712,8 +3746,8 @@ fn canonicalize_return_value(
                     input_params,
                     ReturnValueSource::Memory,
                 );
-                builder.memory_object_store_element(output, layout, index_value, element_value);
-            }
+                builder.memory_object_store_element(output, layout, index, element_value);
+            });
             output
         }
         AbiParamType::DynamicArray(element) => {
@@ -4065,17 +4099,17 @@ fn materialize_calldata_return(
     let mut current = builder.current_block();
     LowerAbiCx::guard_input_range(builder, base, ty.data_head_size(), input_end, &mut current);
     let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
-    let object = LowerAbiCx::decode_static_aggregate(builder, ty, base, |builder, ty, head| {
-        LowerAbiCx::decode_aggregate_argument(
-            builder,
-            ty,
-            ty.mir_type(),
-            head,
-            base,
-            &mut current,
-            options,
-        )
-    });
-    builder.switch_to_block(current);
+    let object =
+        LowerAbiCx::decode_static_aggregate(builder, ty, base, |builder, ty, head, current| {
+            LowerAbiCx::decode_aggregate_argument(
+                builder,
+                ty,
+                ty.mir_type(),
+                head,
+                base,
+                current,
+                options,
+            )
+        });
     object
 }
