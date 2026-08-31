@@ -21,15 +21,9 @@ const INVALID: u8 = 0xfe;
 pub(super) struct Metadata<'a, 'input, 'gcx> {
     gcx: Gcx<'gcx>,
     input: &'a CompilerInput<'input>,
-    contracts: IndexVec<ContractId, ContractMetadata>,
+    contracts: IndexVec<ContractId, OnceLock<String>>,
     sources: IndexVec<SourceId, OnceLock<Value>>,
     referenced_sources: IndexVec<SourceId, OnceLock<Vec<SourceId>>>,
-}
-
-#[derive(Default)]
-struct ContractMetadata {
-    json: OnceLock<String>,
-    runtime_suffix: OnceLock<Bytes>,
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
@@ -45,7 +39,7 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
     }
 
     pub(super) fn json(&self, contract_id: ContractId) -> &str {
-        self.contracts[contract_id].json.get_or_init(|| metadata_json(self, contract_id))
+        self.contracts[contract_id].get_or_init(|| metadata_json(self, contract_id))
     }
 
     pub(super) fn runtime_suffix(&self, contract_id: ContractId) -> Bytes {
@@ -53,16 +47,11 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         if !settings.append_cbor {
             return Bytes::new();
         }
-        self.contracts[contract_id]
-            .runtime_suffix
-            .get_or_init(|| {
-                let cbor = cbor_metadata(self.json(contract_id), settings.bytecode_hash.value);
-                let mut suffix = Vec::with_capacity(cbor.len() + 1);
-                suffix.push(INVALID);
-                suffix.extend(cbor);
-                suffix.into()
-            })
-            .clone()
+        let cbor = cbor_metadata(self.json(contract_id), settings.bytecode_hash.value);
+        let mut suffix = Vec::with_capacity(cbor.len() + 1);
+        suffix.push(INVALID);
+        suffix.extend(cbor);
+        suffix.into()
     }
 
     fn source(&self, source_id: SourceId) -> &Value {
