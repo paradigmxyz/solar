@@ -316,7 +316,7 @@ jobs:
           cache-targets: false
       - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@b6b84cf49ebfe0176417bdce007c624f0db37f20 # v2.86.2
+        uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
         with:
           tool: cargo-codspeed
       - name: Build the benchmark targets
@@ -326,7 +326,7 @@ jobs:
           --bench criterion --bench lsp
           --features solar-lsp/bench
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
+        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
         with:
           run: >-
             cargo codspeed run -m simulation
