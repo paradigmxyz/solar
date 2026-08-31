@@ -4,7 +4,7 @@ use super::*;
 use crate::backend::evm::op;
 use solar_ast::{
     Arena,
-    token::{Delimiter, TokenKind, TokenLitKind},
+    token::{Delimiter, TokenKind},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
@@ -92,13 +92,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .parser
                 .error(format!("expected program data ID {}, found {id}", module.data.len())));
         }
-        let TokenKind::Literal(TokenLitKind::HexStr, bytes) = self.parser.token().kind else {
-            return Err(self.parser.error("expected hex string literal"));
-        };
-        let bytes = alloy_primitives::hex::decode(bytes.as_str())
-            .map_err(|err| self.parser.error(format!("invalid program data: {err}")))?;
-        self.parser.bump();
-        module.data.push(Data { bytes: bytes.into(), name });
+        let bytes = self.parser.parse_data_bytes()?;
+        module.data.push(Data { bytes, name });
         Ok(())
     }
 

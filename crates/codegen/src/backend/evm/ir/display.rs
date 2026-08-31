@@ -128,17 +128,11 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
     fmt::from_fn(move |f| match value {
         PushValue::Immediate(value) => write!(f, "{}", display_u256(*value)),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
-        PushValue::Data(data) => {
-            if let Some(name) = module.data[data.id].name {
-                write!(f, "{}", crate::utils::display_data_name(name, data.id.index()))?;
-            } else {
-                write!(f, "{}", data.id.index())?;
-            }
-            if data.offset != 0 {
-                write!(f, "+{}", data.offset)?;
-            }
-            Ok(())
-        }
+        PushValue::Data(data) => write!(
+            f,
+            "{}",
+            crate::utils::display_data_ref(module.data[data.id].name, data.id.index(), data.offset,)
+        ),
     })
 }
 

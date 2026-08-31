@@ -268,14 +268,14 @@ impl Module {
 
     /// Interns constant data and returns its stable identifier.
     pub(crate) fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
+        let name = name.unwrap_or(sym::literal);
         if let Some(&id) = self.data_index.get(data.as_ref()) {
-            let name = name.unwrap_or(sym::literal);
             if self.data[id].name.is_none_or(|old| old == sym::literal) {
                 self.data[id].name = Some(name);
             }
             return DataRef::new(id, 0);
         }
-        let id = self.add_data(Bytes::from(data.into_owned()), Some(name.unwrap_or(sym::literal)));
+        let id = self.add_data(Bytes::from(data.into_owned()), Some(name));
         DataRef::new(id, 0)
     }
 

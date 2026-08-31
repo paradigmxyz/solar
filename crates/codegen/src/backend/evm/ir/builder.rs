@@ -70,13 +70,10 @@ impl<'gcx> Assembler<'gcx> {
     /// Loads MIR constant data into the EVM IR module with matching IDs.
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
-        for (id, data) in module.iter_data() {
-            let allocated = self
-                .program
-                .data
-                .push(ir::Data { bytes: data.clone(), name: module.data_name(id) });
-            assert_eq!(allocated.index(), id.index(), "MIR and EVM IR data IDs must match");
-        }
+        self.program.data = module
+            .iter_data()
+            .map(|(id, data)| ir::Data { bytes: data.clone(), name: module.data_name(id) })
+            .collect();
     }
 
     /// Emits a relocatable constant-data address push.

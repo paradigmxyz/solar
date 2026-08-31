@@ -237,13 +237,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 return Err(self.parser.error(format!("expected data ID {expected}, found {id}")));
             }
             self.parser.expect(TokenKind::Colon)?;
-            let TokenKind::Literal(TokenLitKind::HexStr, bytes) = self.parser.token().kind else {
-                return Err(self.parser.error("expected hex string literal"));
-            };
-            let bytes = alloy_primitives::hex::decode(bytes.as_str())
-                .map_err(|err| self.parser.error(format!("invalid data: {err}")))?;
-            self.parser.bump();
-            module.add_data(bytes.into(), name);
+            let bytes = self.parser.parse_data_bytes()?;
+            module.add_data(bytes, name);
         }
         self.data_sizes = module.iter_data().map(|(_, data)| data.len()).collect();
         Ok(())

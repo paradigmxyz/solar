@@ -63,7 +63,6 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &legalize_shifts::LegalizeShifts,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
-    &data::FinalizeData,
     &terminal_dedup::TerminalDedup,
     &tail_merge::TailMerge,
     &block_layout::BlockLayout,
@@ -122,9 +121,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
-    &data::MaterializeData,
-    // Finalize the referenced data pool after all code transforms.
-    &data::FinalizeData,
+    // Materialize constants and finalize the referenced data pool after all code transforms.
+    &data::PackData,
 ];
 
 /// Finds an EVM IR pass by command-line name.

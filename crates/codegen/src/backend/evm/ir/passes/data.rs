@@ -36,22 +36,6 @@ impl EvmPass for PackExistingData {
     }
 }
 
-pub(super) struct MaterializeData;
-
-impl EvmPass for MaterializeData {
-    fn name(&self) -> &'static str {
-        "materialize-data"
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let (references, groups) = data_references_and_runs(gcx, module);
-        if references.layout_is_observable() {
-            return false;
-        }
-        materialize_data(gcx, module, &references, groups)
-    }
-}
-
 pub(super) struct PackData;
 
 impl EvmPass for PackData {
@@ -59,7 +43,15 @@ impl EvmPass for PackData {
         "pack-data"
     }
 
+    fn is_required(&self) -> bool {
+        true
+    }
+
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let optimization = gcx.sess.opts.optimization;
+        if !(optimization.is_gas() || optimization.is_size()) {
+            return pack_existing_data(module);
+        }
         let (mut references, groups) = data_references_and_runs(gcx, module);
         if references.layout_is_observable() {
             return false;
@@ -74,22 +66,6 @@ impl EvmPass for PackData {
             pack_data(module, &references);
         }
         packed || materialized
-    }
-}
-
-pub(super) struct FinalizeData;
-
-impl EvmPass for FinalizeData {
-    fn name(&self) -> &'static str {
-        "finalize-data"
-    }
-
-    fn is_required(&self) -> bool {
-        true
-    }
-
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        pack_existing_data(module)
     }
 }
 
@@ -183,8 +159,8 @@ impl DataPool {
             }
             if allow_absorption
                 && entry.subslice_safe
-                && memmem::find(data, &entry.bytes).is_some()
                 && entry.bytes.len() > total_reference_count
+                && memmem::find(data, &entry.bytes).is_some()
             {
                 contained.insert(entry.id);
                 removed += entry.bytes.len();
@@ -224,8 +200,7 @@ impl DataPool {
                 retain
             });
         }
-        let id = module.data.push(Data { bytes: bytes.clone(), name: None });
-        module.data[id].name = Some(sym::literal);
+        let id = module.data.push(Data { bytes: bytes.clone(), name: Some(sym::literal) });
         self.entries.push(PoolEntry {
             id,
             bytes: bytes.clone(),
@@ -401,6 +376,9 @@ fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
 }
 
 fn pack_existing_data(module: &mut Module) -> bool {
+    if module.data.is_empty() {
+        return false;
+    }
     let references = data_references(module);
     if references.layout_is_observable() {
         return false;
@@ -498,13 +476,14 @@ fn find_data(
     total_reference_count: usize,
 ) -> Option<DataRef> {
     data.iter_enumerated().find_map(|(id, known)| {
-        memmem::find(&known.bytes, needle).and_then(|offset| {
-            let cannot_widen = sources[id] < needle_id;
-            // A later address can widen its own PUSH and shift every other data
-            // relocation. Each can widen by at most one byte within EVM size limits.
-            (cannot_widen || needle.len() > total_reference_count)
-                .then(|| DataRef::new(id, data_offset(offset)))
-        })
+        let cannot_widen = sources[id] < needle_id;
+        // A later address can widen its own PUSH and shift every other data
+        // relocation. Each can widen by at most one byte within EVM size limits.
+        if cannot_widen || needle.len() > total_reference_count {
+            memmem::find(&known.bytes, needle).map(|offset| DataRef::new(id, data_offset(offset)))
+        } else {
+            None
+        }
     })
 }
 
@@ -537,40 +516,44 @@ impl DataReferences {
 }
 
 fn data_references(module: &Module) -> DataReferences {
+    scan_data_references(module, |_, _, _| {})
+}
+
+fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
+    let mut groups = RewriteGroups::default();
+    let mut next_run_start = 0;
+    let references = scan_data_references(module, |block_id, index, instructions| {
+        if index == 0 {
+            next_run_start = 0;
+        }
+        if index >= next_run_start
+            && let Some((data, rewrite)) = find_run(gcx, block_id, instructions, index)
+        {
+            next_run_start = rewrite.end;
+            let rewrites = groups.entry(data).or_default();
+            if rewrites.len() <= MAX_SHARED_DATA_COPY_SITES {
+                rewrites.push(rewrite);
+            }
+        }
+    });
+    (references, groups)
+}
+
+fn scan_data_references(
+    module: &Module,
+    mut visit: impl FnMut(BlockId, usize, &[Instruction]),
+) -> DataReferences {
     let mut references = DataReferences::new(module);
     let mut stack = Vec::new();
-    for block in &module.blocks {
-        for inst in &block.instructions {
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for (index, inst) in block.instructions.iter().enumerate() {
+            visit(block_id, index, &block.instructions);
             track_data_reference(module, inst, &mut stack, &mut references);
         }
         mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
         stack.clear();
     }
     references
-}
-
-fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
-    let mut references = DataReferences::new(module);
-    let mut groups = RewriteGroups::default();
-    let mut stack = Vec::new();
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        let mut next_run_start = 0;
-        for (index, inst) in block.instructions.iter().enumerate() {
-            if index >= next_run_start
-                && let Some((data, rewrite)) = find_run(gcx, block_id, &block.instructions, index)
-            {
-                next_run_start = rewrite.end;
-                let rewrites = groups.entry(data).or_default();
-                if rewrites.len() <= MAX_SHARED_DATA_COPY_SITES {
-                    rewrites.push(rewrite);
-                }
-            }
-            track_data_reference(module, inst, &mut stack, &mut references);
-        }
-        mark_stack_data_unsafe(&stack, &mut references.subslice_safe);
-        stack.clear();
-    }
-    (references, groups)
 }
 
 fn track_data_reference(

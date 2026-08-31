@@ -352,15 +352,12 @@ fn display_inst_kind<'a>(
             write!(f, "loadimmutable {}", display_immutable_ref(*id, module))
         }
         InstKind::DataCopy(id, dest, size) => {
-            write!(f, "data_copy ")?;
-            if let Some(name) = module.and_then(|module| module.data_name(id.id)) {
-                write!(f, "{}", crate::utils::display_data_name(name, id.id.index()))?;
-            } else {
-                write!(f, "{}", id.id.index())?;
-            }
-            if id.offset != 0 {
-                write!(f, "+{}", id.offset)?;
-            }
+            let name = module.and_then(|module| module.data_name(id.id));
+            write!(
+                f,
+                "data_copy {}",
+                crate::utils::display_data_ref(name, id.id.index(), id.offset)
+            )?;
             write!(f, ", {}, {}", display_val(*dest, func), display_val(*size, func))
         }
         InstKind::Alloc { size, kind, semantics } => {

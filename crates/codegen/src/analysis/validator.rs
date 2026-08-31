@@ -88,18 +88,17 @@ impl<'a> Validator<'a> {
     /// Validates a single function.
     #[cfg(test)]
     fn validate_standalone_function(mut self, func: &Function) {
-        self.validate_function_body(func);
+        self.validate_function_body(None, func);
     }
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
-        self.validate_function_body(func);
-        self.validate_data_references(module, func);
+        self.validate_function_body(Some(module), func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
         self.validate_function_phase(module, func);
     }
 
-    fn validate_function_body(&mut self, func: &Function) {
+    fn validate_function_body(&mut self, module: Option<&Module>, func: &Function) {
         let errors_before = self.error_count;
         let num_values = func.num_values();
         let num_blocks = func.blocks.len();
@@ -259,6 +258,10 @@ impl<'a> Validator<'a> {
                             inst_id,
                         );
                     }
+                }
+
+                if let Some(module) = module {
+                    self.validate_data_reference(module, func, block_id, inst_id);
                 }
 
                 // Phi-specific checks.
@@ -533,37 +536,38 @@ impl<'a> Validator<'a> {
         self.function = None;
     }
 
-    /// Checks references from live instructions into the module data table.
-    fn validate_data_references(&mut self, module: &Module, func: &Function) {
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                let InstKind::DataCopy(data, _, size) = &func.inst(inst_id).kind else { continue };
-                let Some(bytes) = module.get_data(data.id) else {
-                    self.emit_at_inst(
-                        format_args!("data_copy references nonexistent data{}", data.id.index()),
-                        block_id,
-                        inst_id,
-                    );
-                    continue;
-                };
-                let Some(size) = func.value_u256(*size) else {
-                    self.emit_at_inst("data_copy size must be an immediate", block_id, inst_id);
-                    continue;
-                };
-                let end = U256::from(data.offset).checked_add(size);
-                if end.is_none_or(|end| end > U256::from(bytes.len())) {
-                    self.emit_at_inst(
-                        format_args!(
-                            "data_copy range {}..{} exceeds data size {}",
-                            data.offset,
-                            end.map_or_else(|| "overflow".into(), |end| end.to_string()),
-                            bytes.len()
-                        ),
-                        block_id,
-                        inst_id,
-                    );
-                }
-            }
+    fn validate_data_reference(
+        &mut self,
+        module: &Module,
+        func: &Function,
+        block_id: BlockId,
+        inst_id: InstId,
+    ) {
+        let InstKind::DataCopy(data, _, size) = &func.inst(inst_id).kind else { return };
+        let Some(bytes) = module.get_data(data.id) else {
+            self.emit_at_inst(
+                format_args!("data_copy references nonexistent data{}", data.id.index()),
+                block_id,
+                inst_id,
+            );
+            return;
+        };
+        let Some(size) = func.value_u256(*size) else {
+            self.emit_at_inst("data_copy size must be an immediate", block_id, inst_id);
+            return;
+        };
+        let end = U256::from(data.offset).checked_add(size);
+        if end.is_none_or(|end| end > U256::from(bytes.len())) {
+            self.emit_at_inst(
+                format_args!(
+                    "data_copy range {}..{} exceeds data size {}",
+                    data.offset,
+                    end.map_or_else(|| "overflow".into(), |end| end.to_string()),
+                    bytes.len()
+                ),
+                block_id,
+                inst_id,
+            );
         }
     }
 

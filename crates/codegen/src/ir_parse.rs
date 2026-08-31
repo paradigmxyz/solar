@@ -1,4 +1,4 @@
-use alloy_primitives::U256;
+use alloy_primitives::{Bytes, U256};
 use solar_ast::{
     Arena,
     token::{BinOpToken, Token, TokenKind, TokenLitKind},
@@ -120,6 +120,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             0
         };
         Ok((id, offset, offset_span))
+    }
+
+    pub(crate) fn parse_data_bytes(&mut self) -> Result<Bytes, PErr<'sess>> {
+        let TokenKind::Literal(TokenLitKind::HexStr, bytes) = self.token().kind else {
+            return Err(self.error("expected hex string literal"));
+        };
+        let bytes = alloy_primitives::hex::decode(bytes.as_str())
+            .map_err(|err| self.error(format!("invalid data: {err}")))?;
+        self.bump();
+        Ok(bytes.into())
     }
 
     pub(crate) fn error(&self, message: impl Into<String>) -> PErr<'sess> {
