@@ -115,14 +115,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        for (i, chunk) in bytes.chunks(32).enumerate() {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let val = builder.imm_u256(U256::from_be_bytes(padded));
-            let off = builder.imm_u64((i * 32) as u64);
-            let dest = builder.add(data_start, off);
-            builder.mstore(dest, val);
-        }
+        self.copy_data_to_memory(builder, data_start, bytes, aligned, None);
 
         ptr
     }
@@ -1947,21 +1940,10 @@ impl<'gcx> Lowerer<'gcx> {
                 return Ok((builder.imm_u64(0), builder.imm_u64(0)));
             }
 
-            // Write the (left-aligned) bytes into a fresh allocation.
+            // Copy the bytes into a fresh allocation.
             let alloc_size = (len as u64).div_ceil(32) * 32;
             let ptr = self.allocate_memory(builder, alloc_size);
-            for (i, chunk) in bytes.chunks(32).enumerate() {
-                let mut padded = [0u8; 32];
-                padded[..chunk.len()].copy_from_slice(chunk);
-                let val = builder.imm_u256(U256::from_be_bytes(padded));
-                let addr = if i == 0 {
-                    ptr
-                } else {
-                    let offset_val = builder.imm_u64((i as u64) * 32);
-                    builder.add(ptr, offset_val)
-                };
-                builder.mstore(addr, val);
-            }
+            self.copy_data_to_memory(builder, ptr, bytes, bytes.len(), None);
 
             return Ok((ptr, builder.imm_u64(len as u64)));
         }

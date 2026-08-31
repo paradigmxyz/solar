@@ -4,7 +4,7 @@ use super::*;
 use crate::backend::evm::op;
 use solar_ast::{
     Arena,
-    token::{Delimiter, TokenKind, TokenLitKind},
+    token::{Delimiter, TokenKind},
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
@@ -58,7 +58,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut current_block = None;
         while !self.parser.is_eof() {
             if self.parser.eat(TokenKind::At) {
-                self.parse_code_data(module)?;
+                self.parse_data(module)?;
                 current_block = None;
                 continue;
             }
@@ -83,21 +83,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(())
     }
 
-    fn parse_code_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
-        self.parser.expect_keyword(sym::code_data)?;
-        let id = self.parse_assembly_id("program data")? as usize;
+    fn parse_data(&mut self, module: &mut Module) -> PResult<'sess, ()> {
+        self.parser.expect_keyword(sym::data)?;
+        let (id, name) = self.parse_data_id()?;
+        let id = id as usize;
         if id != module.data.len() {
             return Err(self
                 .parser
                 .error(format!("expected program data ID {}, found {id}", module.data.len())));
         }
-        let TokenKind::Literal(TokenLitKind::HexStr, bytes) = self.parser.token().kind else {
-            return Err(self.parser.error("expected hex string literal"));
-        };
-        let bytes = alloy_primitives::hex::decode(bytes.as_str())
-            .map_err(|err| self.parser.error(format!("invalid program data: {err}")))?;
-        self.parser.bump();
-        module.data.push(bytes.into());
+        let bytes = self.parser.parse_data_bytes()?;
+        module.data.push(Data { bytes, name });
         Ok(())
     }
 
@@ -205,8 +201,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
             },
             sym::push_data => {
-                let id = self.parse_assembly_id("program data")?;
-                Instruction::push_data(DataId::from_usize(id as usize))
+                let span = self.parser.token().span;
+                let (id, offset, _) = self.parser.parse_data_ref()?;
+                let id = self.check_assembly_id("program data", span, id)?;
+                Instruction::push_data(DataRef::new(DataId::from_usize(id as usize), offset))
             }
             sym::push_deferred => {
                 let id = self.parse_assembly_id("deferred constant")?;
@@ -332,6 +330,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_assembly_id(&mut self, name: &str) -> PResult<'sess, u32> {
         let span = self.parser.token().span;
         let value = self.parser.parse_uint()?;
+        self.check_assembly_id(name, span, value)
+    }
+
+    fn parse_data_id(&mut self) -> PResult<'sess, (u32, Option<Symbol>)> {
+        let span = self.parser.token().span;
+        let (value, name) = self.parser.parse_data_id()?;
+        self.check_assembly_id("program data", span, value).map(|id| (id, name))
+    }
+
+    fn check_assembly_id(&self, name: &str, span: Span, value: U256) -> PResult<'sess, u32> {
         let Ok(value) = u32::try_from(value) else {
             return Err(self
                 .parser

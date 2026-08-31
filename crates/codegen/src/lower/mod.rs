@@ -7,6 +7,9 @@ mod abi_packed;
 mod bytes;
 mod call;
 mod checked_arith;
+mod data;
+pub use data::ContractBytecodes;
+
 mod expr;
 mod index;
 mod stmt;
@@ -20,7 +23,7 @@ use crate::{
         MemoryObjectKind, MirType, Module, SliceLocation, StorageLayoutRef, TypeSize, ValueId,
     },
 };
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
@@ -251,8 +254,8 @@ pub(crate) struct Lowerer<'gcx> {
     pending_inline_returns: Option<Vec<ValueId>>,
     /// Next available memory offset for locals.
     next_local_memory_offset: u64,
-    /// Bytecodes of other contracts (for `new` expressions).
-    contract_bytecodes: FxHashMap<ContractId, Bytes>,
+    /// Bytecodes of other contracts used by creation and metatype expressions.
+    contract_bytecodes: FxHashMap<ContractId, ContractBytecodes>,
     /// Stack of loop contexts for nested loops.
     loop_stack: Vec<LoopContext>,
     /// Variables that are assigned after declaration (need memory storage).
@@ -595,11 +598,6 @@ impl<'gcx> Lowerer<'gcx> {
         id: ImmutableId,
     ) -> ValueId {
         builder.load_immutable(id, self.module.immutable_type(id))
-    }
-
-    /// Registers a contract's bytecode for use in `new` expressions.
-    pub(crate) fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Bytes) {
-        self.contract_bytecodes.insert(contract_id, bytecode);
     }
 
     /// Lowers a contract to MIR.
@@ -2795,15 +2793,15 @@ impl<'gcx> Lowerer<'gcx> {
 pub fn lower_contract(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, Bytes>,
+    child_bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
     share_public_bodies: bool,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut lowerer = Lowerer::new(gcx, contract.name, share_public_bodies);
 
     // Register all child contract bytecodes
-    for (&child_id, bytecode) in child_bytecodes {
-        lowerer.register_contract_bytecode(child_id, bytecode.clone());
+    for (&child_id, bytecodes) in child_bytecodes {
+        lowerer.register_contract_bytecodes(child_id, bytecodes.clone());
     }
 
     lowerer.lower_contract(contract_id);

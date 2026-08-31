@@ -1,0 +1,25 @@
+//@compile-flags: -Zmir-pipeline=none
+@module ValidateData
+data:
+  0: hex"aabb"
+
+fn @dynamic(arg0: u256) {
+  bb0:
+    data_copy 0, 0, arg0
+    //~? ERROR: [fn0] [bb0, inst0] data_copy size must be an immediate
+    stop
+}
+
+fn @past_end() {
+  bb0:
+    data_copy 0+1, 0, 2
+    //~? ERROR: [fn1] [bb0, inst0] data_copy range 1..3 exceeds data size 2
+    stop
+}
+
+fn @at_end() {
+  bb0:
+    data_copy 0+2, 0, 1
+    //~? ERROR: [fn2] [bb0, inst0] data_copy range 2..3 exceeds data size 2
+    stop
+}

@@ -1,0 +1,30 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module single_words
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 32
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
+// CHECK-NEXT: {{^[ +].*}}dup 3
+// CHECK-NEXT: {{^[ +].*}}codecopy
+bb0:
+  push 128
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 2
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 32
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
+// CHECK-NEXT: {{^[ +].*}}dup 3
+// CHECK-NEXT: {{^[ +].*}}codecopy
+// CHECK-NOT: {{^[ +].*}}mstore
+bb1:
+  push 256
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  dup 2
+  mstore
+  stop
+
+// CHECK: @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

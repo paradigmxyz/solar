@@ -128,6 +128,7 @@ impl CopyElisionCx {
                     }
                 }
                 InstKind::CalldataCopy(dest, _, _)
+                | InstKind::DataCopy(_, dest, _)
                 | InstKind::CodeCopy(dest, _, _)
                 | InstKind::ReturnDataCopy(dest, _, _) => {
                     if derived.contains(dest) {

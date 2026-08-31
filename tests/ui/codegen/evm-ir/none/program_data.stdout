@@ -9,5 +9,6 @@
     push 4
     push 0
     return
-  @code_data 0 hex"11223344"
+  
+  @data 0 hex"11223344"
   

@@ -526,6 +526,21 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match self.select_member_access(&possible_members) {
                     Ok(member) => {
+                        if matches!(
+                            member.res,
+                            Some(hir::Res::Builtin(Builtin::ContractRuntimeCode))
+                        ) && let TyKind::Meta(ty) = receiver_ty.kind
+                            && let TyKind::Contract(contract) = ty.kind
+                            && self.contract_has_immutables(contract)
+                        {
+                            return self.gcx.mk_ty_err(
+                                self.dcx()
+                                    .err("`runtimeCode` is not available for contracts containing immutable variables")
+                                    .code(error_code!(9274))
+                                    .span(expr.span)
+                                    .emit(),
+                            );
+                        }
                         self.register_resolved_member(expr, member);
                         member.ty
                     }
@@ -1758,6 +1773,16 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
         }
+    }
+
+    fn contract_has_immutables(&self, contract: hir::ContractId) -> bool {
+        self.gcx.hir.contract(contract).linearized_bases.iter().any(|&base| {
+            self.gcx
+                .hir
+                .contract(base)
+                .variables()
+                .any(|variable| self.gcx.hir.variable(variable).is_immutable())
+        })
     }
 
     fn register_resolved_member(

@@ -1,6 +1,5 @@
 #![allow(clippy::disallowed_methods)]
 
-use alloy_primitives::Bytes;
 use flate2::read::GzDecoder;
 use solar::{
     codegen::{self, Backend, EvmCodegen},
@@ -208,14 +207,14 @@ fn codegen_contracts(compiler: &mut CompilerRef<'_>) -> Result {
 fn ensure_contract_bytecode(
     gcx: solar::sema::Gcx<'_>,
     contract_id: solar::sema::hir::ContractId,
-    bytecodes: &mut FxHashMap<solar::sema::hir::ContractId, Bytes>,
+    bytecodes: &mut FxHashMap<solar::sema::hir::ContractId, codegen::lower::ContractBytecodes>,
 ) -> Result {
     if bytecodes.contains_key(&contract_id) {
         return Ok(());
     }
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
-    bytecodes.insert(contract_id, Bytes::new());
+    bytecodes.insert(contract_id, codegen::lower::ContractBytecodes::default());
     for dep in gcx.contract_bytecode_dependencies(contract_id) {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
@@ -227,7 +226,13 @@ fn ensure_contract_bytecode(
     );
     gcx.dcx().has_errors()?;
     let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
-    bytecodes.insert(contract_id, artifact.deployment.clone().into());
+    bytecodes.insert(
+        contract_id,
+        codegen::lower::ContractBytecodes::new(
+            artifact.deployment.clone().into(),
+            artifact.runtime.clone().into(),
+        ),
+    );
     black_box(artifact);
     Ok(())
 }

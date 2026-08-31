@@ -1,0 +1,29 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module subslices
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push_data small_0
+// CHECK: {{^[ +].*}}push_data small_0+1
+// CHECK: {{^[ +].*}}push_data container_1+1
+bb0:
+  push 5
+  push_data small_0
+  push 0
+  codecopy
+  push 2
+  push_data needle_1
+  push 32
+  codecopy
+  push 5
+  push_data container_2+1
+  push 64
+  codecopy
+  stop
+
+// CHECK: @data small_0 hex"1122334455"
+// CHECK: @data container_1 hex"00112233445566"
+// CHECK-NOT: @data needle_0
+@data small_0 hex"1122334455"
+@data needle_1 hex"2233"
+@data container_2 hex"00112233445566"

@@ -1710,6 +1710,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
+        self.asm.load_data(module);
         let runtime_offset = self.asm.new_deferred_const();
 
         // Find constructor function if it exists
@@ -1941,6 +1942,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                     0
                 };
             self.asm.set_unknown_target_stack_headroom(outline_stack_headroom);
+            let data_copy_has_headroom = if size_focused {
+                outline_stack_headroom >= ir::DATA_COPY_STACK_HEADROOM
+            } else {
+                self.recursive_stack_functions.is_empty()
+                    && self.caller_stack_prefixes_fit(
+                        module,
+                        MAX_STACK_DEPTH - ir::DATA_COPY_STACK_HEADROOM,
+                    )
+            };
+            self.asm.set_data_copy_has_headroom(data_copy_has_headroom);
             self.asm.set_enable_size_outlining(code_size_rescue);
 
             let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
@@ -1970,6 +1981,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn reset_runtime_codegen(&mut self, module: &Module) {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Runtime);
+        self.asm.load_data(module);
         self.block_labels.clear();
         self.function_labels.clear();
         self.empty_stop_functions = DenseBitSet::new_empty(module.functions.len());
@@ -5517,6 +5529,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             }
 
+            InstKind::DataCopy(data, dest, size) => {
+                self.emit_data_copy(func, *data, *dest, *size, liveness, block, inst_idx);
+            }
+
             InstKind::CodeCopy(dest, offset, size) => {
                 // CODECOPY(destOffset, offset, size)
                 self.emit_copy_op_live_aware(
@@ -7913,6 +7929,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::MStore8(addr, _) => end_of(addr, 1),
                 InstKind::MCopy(dest, src, size) => sized_end(dest, size).max(sized_end(src, size)),
                 InstKind::CalldataCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size)
                 | InstKind::ExtCodeCopy(_, dest, _, size)
@@ -8019,6 +8036,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         match func.inst(inst_id).kind {
             InstKind::CalldataCopy(dest, _, size)
+            | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ExtCodeCopy(_, dest, _, size)
             | InstKind::MCopy(dest, _, size) => dynamic_range(dest, size),
@@ -8312,6 +8330,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::MemoryZero(offset, size)
             | InstKind::Keccak256(offset, size)
             | InstKind::CalldataCopy(offset, _, size)
+            | InstKind::DataCopy(_, offset, size)
             | InstKind::CodeCopy(offset, _, size)
             | InstKind::ReturnDataCopy(offset, _, size)
             | InstKind::ExtCodeCopy(_, offset, _, size) => overlaps(*offset, *size),
@@ -10282,6 +10301,41 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
+    /// Emits a copy from relocatable module data to memory.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_data_copy(
+        &mut self,
+        func: &Function,
+        data: crate::mir::DataRef,
+        dest: ValueId,
+        size: ValueId,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        let operands = [size, dest];
+        self.preserve_stack_only_operands(&operands, liveness, block, inst_idx);
+
+        self.emit_value(func, size);
+        if !self.block_local_copy_survives(liveness, block, size, 1) {
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, size);
+        }
+
+        // Keep `dest` within DUP16 reach before the anonymous relocation push.
+        self.emit_operand(func, dest);
+        let dest_consumed = if dest == size { 2 } else { 1 };
+        if !self.block_local_copy_survives(liveness, block, dest, dest_consumed) {
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, dest);
+        }
+
+        self.asm.emit_push_data(data);
+        self.scheduler.stack.push_unknown();
+        self.emit_stack_op(StackOp::Swap(1));
+
+        self.asm.emit_op(op::CODECOPY);
+        self.scheduler.instruction_executed(3, None);
+    }
+
     /// Emits an operation with liveness awareness.
     #[allow(clippy::too_many_arguments)]
     fn emit_nary_op(
@@ -10692,7 +10746,10 @@ impl crate::backend::Backend for EvmCodegen<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value};
+    use crate::mir::{
+        DataRef, FunctionBuilder, Immediate, Instruction, MirType, TypeSize, Value,
+        utils as mir_utils,
+    };
     use solar_config::{CompileOpts, EvmVersion};
     use solar_interface::{Ident, Session, sym};
     use solar_sema::{Compiler, hir::Visibility};
@@ -10776,6 +10833,67 @@ mod tests {
             EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE
         )));
         assert!(!EvmCodegen::static_frame_offsets_are_local(&make_function(u64::MAX)));
+    }
+
+    #[test]
+    fn data_copy_reaches_destination_before_relocation_push() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut module = Module::new(Ident::DUMMY);
+            module.phase = MirPhase::EvmShaped;
+            let data = module.add_data(vec![0; 32].into(), None);
+
+            let mut function = Function::new(Ident::DUMMY);
+            let mut builder = FunctionBuilder::new(&mut function);
+            let one = builder.imm_u64(1);
+            let dest = builder.add(one, one);
+            let size = builder.imm_u64(32);
+            builder.data_copy(DataRef::new(data, 0), dest, size);
+            builder.stop();
+            let function = module.add_function(function);
+
+            codegen.asm.load_data(&module);
+            let function = &module.functions[function];
+            let liveness = Liveness::compute(function);
+            codegen.scheduler.stack.push(dest);
+            for _ in 0..MAX_STACK_ACCESS - 2 {
+                codegen.scheduler.stack.push_unknown();
+            }
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+
+            codegen.emit_data_copy(
+                function,
+                DataRef::new(data, 0),
+                dest,
+                size,
+                &liveness,
+                BlockId::ENTRY,
+                1,
+            );
+
+            assert_eq!(codegen.scheduler.stack.find(dest), Some(MAX_STACK_ACCESS - 2));
+        });
+    }
+
+    #[test]
+    fn data_copy_participates_in_memory_analysis() {
+        let data = DataRef::new(crate::mir::DataId::from_usize(0), 0);
+
+        let mut constant = Function::new(Ident::DUMMY);
+        let dest = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
+        let size = constant.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x20))));
+        let inst =
+            constant.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
+        constant.blocks[BlockId::ENTRY].instructions.push(inst);
+        assert_eq!(EvmCodegen::constant_memory_high_water_mark(&constant), 0x60);
+        assert!(EvmCodegen::function_may_observe_free_memory_slot(&constant));
+        assert!(mir_utils::is_memory_inst(&constant.inst(inst).kind));
+
+        let mut dynamic = Function::new(Ident::DUMMY);
+        let dest = dynamic.alloc_param(MirType::MemPtr);
+        let size = dynamic.alloc_param(MirType::uint256());
+        let inst = dynamic.alloc_inst(Instruction::new(InstKind::DataCopy(data, dest, size), None));
+        dynamic.blocks[BlockId::ENTRY].instructions.push(inst);
+        assert_eq!(EvmCodegen::dynamic_spill_write_dest(&dynamic, inst), Some(dest));
     }
 
     #[test]

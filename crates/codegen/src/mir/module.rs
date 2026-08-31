@@ -1,9 +1,10 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, Disambiguator, Function, FunctionId, ImmutableId, MangledSymbol,
-    MirType, StorageLayout, StorageLayoutRef,
+    AbiLayout, AbiLayoutRef, DataId, DataRef, Disambiguator, Function, FunctionId, ImmutableId,
+    MangledSymbol, MirType, StorageLayout, StorageLayoutRef,
 };
+use alloy_primitives::Bytes;
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
@@ -11,7 +12,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Symbol, sym};
 use solar_sema::hir::VariableId;
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
@@ -22,6 +23,13 @@ pub(crate) struct Immutable {
     pub(crate) ty: MirType,
     /// The source variable, when this module was lowered from Solidity.
     pub(crate) variable_id: Option<VariableId>,
+}
+
+/// One constant byte string and its optional display name.
+#[derive(Clone, Debug)]
+struct Data {
+    bytes: Bytes,
+    name: Option<Symbol>,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -107,6 +115,10 @@ pub struct Module {
     pub(crate) aggregate_layouts: Vec<StorageLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
+    /// Constant byte strings embedded in generated code.
+    data: IndexVec<DataId, Data>,
+    /// Exact data lookup used before the final subslice-packing pass.
+    data_index: FxHashMap<Bytes, DataId>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this is a library (internal-only libraries have no bytecode).
@@ -134,6 +146,8 @@ impl Module {
             abi_layouts: Vec::new(),
             aggregate_layouts: Vec::new(),
             immutables: IndexVec::new(),
+            data: IndexVec::new(),
+            data_index: FxHashMap::default(),
             is_interface: false,
             is_library: false,
             phase: MirPhase::Built,
@@ -252,6 +266,46 @@ impl Module {
         self.immutables.iter_enumerated()
     }
 
+    /// Interns constant data and returns its stable identifier.
+    pub(crate) fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
+        let name = name.unwrap_or(sym::literal);
+        if let Some(&id) = self.data_index.get(data.as_ref()) {
+            if self.data[id].name.is_none_or(|old| old == sym::literal) {
+                self.data[id].name = Some(name);
+            }
+            return DataRef::new(id, 0);
+        }
+        let id = self.add_data(Bytes::from(data.into_owned()), Some(name));
+        DataRef::new(id, 0)
+    }
+
+    pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
+        let id = self.data.push(Data { bytes: data.clone(), name });
+        self.data_index.entry(data).or_insert(id);
+        id
+    }
+
+    pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
+        self.data[id].name
+    }
+
+    /// Returns constant data if the identifier is allocated.
+    #[must_use]
+    pub(crate) fn get_data(&self, id: DataId) -> Option<&Bytes> {
+        self.data.get(id).map(|data| &data.bytes)
+    }
+
+    /// Returns the number of constant data entries.
+    #[must_use]
+    pub(crate) fn data_count(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns all constant data entries.
+    pub(crate) fn iter_data(&self) -> impl Iterator<Item = (DataId, &Bytes)> {
+        self.data.iter_enumerated().map(|(id, data)| (id, &data.bytes))
+    }
+
     /// Returns an iterator over all functions.
     pub(crate) fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
         self.functions.iter_enumerated()
@@ -263,6 +317,22 @@ impl Module {
             writeln!(f, "@module {}", self.name)?;
             if self.phase != MirPhase::default() {
                 writeln!(f, "@phase {}", self.phase.name())?;
+            }
+            if !self.data.is_empty() {
+                writeln!(f, "data:")?;
+                for (id, data) in self.iter_data() {
+                    if let Some(name) = self.data_name(id) {
+                        write!(f, "  {}", crate::utils::display_data_name(name, id.index()))?;
+                    } else {
+                        write!(f, "  {}", id.index())?;
+                    }
+                    write!(f, ": hex\"")?;
+                    for byte in data {
+                        write!(f, "{byte:02x}")?;
+                    }
+                    writeln!(f, "\"")?;
+                }
+                writeln!(f)?;
             }
             if !self.immutables.is_empty() {
                 writeln!(f, "immutables:")?;

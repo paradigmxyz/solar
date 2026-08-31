@@ -8,7 +8,7 @@ use crate::{
         op, push_len,
     },
     memory::EvmMemoryLayout,
-    mir::{ImmutableId, TypeSize},
+    mir::{DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::index::index_vec;
@@ -65,6 +65,23 @@ impl<'gcx> Assembler<'gcx> {
     /// Emits a push instruction with an immediate value.
     pub(crate) fn emit_push(&mut self, value: U256) {
         self.push_ir_instruction(ir::Instruction::push_value(value));
+    }
+
+    /// Loads MIR constant data into the EVM IR module with matching IDs.
+    pub(crate) fn load_data(&mut self, module: &MirModule) {
+        assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
+        self.program.data = module
+            .iter_data()
+            .map(|(id, data)| ir::Data { bytes: data.clone(), name: module.data_name(id) })
+            .collect();
+    }
+
+    /// Emits a relocatable constant-data address push.
+    pub(crate) fn emit_push_data(&mut self, data: MirDataRef) {
+        self.push_ir_instruction(ir::Instruction::push_data(ir::DataRef::new(
+            ir::DataId::from_usize(data.id.index()),
+            data.offset,
+        )));
     }
 
     /// Returns optimistic and block-layout byte sizes for the entry trace through

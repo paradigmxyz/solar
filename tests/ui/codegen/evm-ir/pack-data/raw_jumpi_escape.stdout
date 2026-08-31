@@ -1,0 +1,25 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/raw_jumpi_escape.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/raw_jumpi_escape.evmir (after pack-data) ===
+  @module raw_jumpi_escape
+  bb0:
+    push_data literal_0
+    push bb1
+    push 1
+    jumpi
+    push 0
+    push 1
+    swap 2
+    swap 1
+    codecopy
+    stop
+  bb1:
+    push 0
+    push 2
+    swap 2
+    swap 1
+    codecopy
+    stop
+  
+  @data literal_0 hex"22"
+  @data literal_1 hex"99"
+  

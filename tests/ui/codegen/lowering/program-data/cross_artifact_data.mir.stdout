@@ -1,0 +1,51 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C ===
+@module C
+data:
+  literal_0: hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  literal_1: hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+
+fn @constructor() {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 256
+    set_memory_object_len memorybytes, v0, 224
+    v1 = memory_object_data memorybytes, v0
+    data_copy literal_0, v1, 224
+    v2 = fmp
+    v3 = add v2, 32
+    v4 = sub v3, v2
+    mstore v2, v4
+    v5 = memory_object_len memorybytes, v0
+    mstore v3, v5
+    v6 = not 31
+    v7 = add v5, 31
+    v8 = and v7, v6
+    v9 = add v3, 32
+    v10 = iszero v8
+    jumpi v10, bb2, bb1
+  bb1:
+    v11 = sub v8, 32
+    v12 = add v9, v11
+    mstore v12, 0
+    jump bb2
+  bb2:
+    v13 = memory_object_data memorybytes, v0
+    v14 = add v9, v8
+    mcopy v9, v13, v5 !metadata(memory=heap)
+    v15 = sub v14, v2
+    v16 = add v15, 31
+    v17 = not 31
+    v18 = and v16, v17
+    v19 = add v2, v18
+    set_fmp v19
+    log1 v2, v15, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
+    stop
+}
+
+fn @runtimeData() -> memorybytes [abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 192
+    set_memory_object_len memorybytes, v0, 160
+    v1 = memory_object_data memorybytes, v0
+    data_copy literal_1, v1, 160
+    ret v0
+}

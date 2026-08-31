@@ -1757,23 +1757,15 @@ impl<'gcx> Lowerer<'gcx> {
             );
         };
 
-        // Look up pre-compiled bytecode
-        // For creationCode we use the deployment bytecode (initcode)
-        if !is_creation_code {
-            return self.err_value(
-                builder,
-                ty.span,
-                "codegen does not support `type(C).runtimeCode` yet",
-            );
-        }
-
-        let bytecode = match self.contract_bytecodes.get(&contract_id) {
-            Some(bc) => bc.clone(),
+        let bytecode = match self.contract_bytecodes.get(&contract_id).and_then(|bytecodes| {
+            if is_creation_code { bytecodes.deployment() } else { bytecodes.runtime() }
+        }) {
+            Some(bytecode) => bytecode.clone(),
             None => {
                 return self.err_value(
                     builder,
                     ty.span,
-                    "codegen is missing creation bytecode for `type(C).creationCode`",
+                    "codegen is missing bytecode for `type(C).creationCode`/`runtimeCode`",
                 );
             }
         };
@@ -1795,20 +1787,10 @@ impl<'gcx> Lowerer<'gcx> {
         let len_val = builder.imm_u64(bytecode_len as u64);
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
-        // Copy bytecode to ptr+32 using MSTORE loop
+        // Copy bytecode to the object payload.
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-
-        let mut offset = 0u64;
-        for chunk in bytecode.chunks(32) {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let value = U256::from_be_bytes(padded);
-            let val_id = builder.imm_u256(value);
-            let offset_id = builder.imm_u64(offset);
-            let dest = builder.add(data_start, offset_id);
-            builder.mstore(dest, val_id);
-            offset += 32;
-        }
+        let data_name = self.contract_bytecode_data_name(contract_id, is_creation_code);
+        self.copy_data_to_memory(builder, data_start, &bytecode, aligned_data_len, Some(data_name));
 
         // Return ptr (the bytes memory value)
         ptr
@@ -4225,14 +4207,7 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
     ) -> ValueId {
         let scratch = builder.fmp();
-        for (i, chunk) in bytes.chunks(32).enumerate() {
-            let mut padded = [0u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let val = builder.imm_u256(U256::from_be_bytes(padded));
-            let off = builder.imm_u64((i * 32) as u64);
-            let dest = builder.add(scratch, off);
-            builder.mstore(dest, val);
-        }
+        self.store_data_words(builder, scratch, bytes);
         let len = builder.imm_u64(bytes.len() as u64);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);

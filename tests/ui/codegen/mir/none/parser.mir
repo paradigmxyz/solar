@@ -2,6 +2,9 @@
 //@filecheck: --enable-var-scope
 
 @module Parser
+data:
+  payload_0: hex"11223344"
+
 immutables:
   fn: u8
 
@@ -43,6 +46,14 @@ fn @hash() -> u256 {
     mstore 32, 2
     v0 = keccak256 0, 64
     ret v0
+}
+
+// CHECK-LABEL: @copy_data
+// CHECK: {{^ +}}data_copy payload_0+1, 0, 3
+fn @copy_data() {
+  bb0:
+    data_copy payload_0+1, 0, 3
+    stop
 }
 
 // CHECK-LABEL: @environment
