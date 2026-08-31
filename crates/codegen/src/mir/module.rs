@@ -30,7 +30,6 @@ pub(crate) struct Immutable {
 struct Data {
     bytes: Bytes,
     name: Option<Symbol>,
-    emit_in_runtime: bool,
 }
 
 /// The lowering phase a [`Module`] is in.
@@ -281,26 +280,13 @@ impl Module {
     }
 
     pub(crate) fn add_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        self.push_data(data, name, false)
-    }
-
-    /// Adds opaque data that must be emitted at the end of the runtime program.
-    pub(crate) fn append_runtime_data(&mut self, data: Bytes, name: Option<Symbol>) -> DataId {
-        self.push_data(data, name, true)
-    }
-
-    fn push_data(&mut self, data: Bytes, name: Option<Symbol>, emit_in_runtime: bool) -> DataId {
-        let id = self.data.push(Data { bytes: data.clone(), name, emit_in_runtime });
+        let id = self.data.push(Data { bytes: data.clone(), name });
         self.data_index.entry(data).or_insert(id);
         id
     }
 
     pub(crate) fn data_name(&self, id: DataId) -> Option<Symbol> {
         self.data[id].name
-    }
-
-    pub(crate) fn data_is_emitted_in_runtime(&self, id: DataId) -> bool {
-        self.data[id].emit_in_runtime
     }
 
     /// Returns constant data if the identifier is allocated.

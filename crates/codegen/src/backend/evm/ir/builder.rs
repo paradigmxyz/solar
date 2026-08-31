@@ -3,7 +3,7 @@
 use super::{self as ir};
 use crate::{
     backend::evm::{
-        assembler::{ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label},
+        assembler::{Assembler, DeferredAllocResolution, DeferredConst, Label},
         ir::assembly::DeferredAlloc,
         op, push_len,
     },
@@ -72,12 +72,7 @@ impl<'gcx> Assembler<'gcx> {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");
         self.program.data = module
             .iter_data()
-            .map(|(id, data)| ir::Data {
-                bytes: data.clone(),
-                name: module.data_name(id),
-                emit_in_runtime: self.artifact_kind == ArtifactKind::Runtime
-                    && module.data_is_emitted_in_runtime(id),
-            })
+            .map(|(id, data)| ir::Data { bytes: data.clone(), name: module.data_name(id) })
             .collect();
     }
 

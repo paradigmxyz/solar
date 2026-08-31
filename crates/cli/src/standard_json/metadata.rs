@@ -1,10 +1,13 @@
 //! Solidity contract metadata and bytecode auxiliary data.
 
-use super::data::{CompilerInput, MetadataHash};
+use super::{
+    compile::standard_json_source_name,
+    data::{CompilerInput, MetadataHash, optimizer_settings},
+};
 use alloy_primitives::{Bytes, keccak256};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use solar_config::{OptimizationMode, version::SEMVER_VERSION};
+use solar_config::version::SEMVER_VERSION;
 use solar_data_structures::{bit_set::GrowableBitSet, index::IndexVec};
 use solar_sema::{
     Gcx,
@@ -12,18 +15,21 @@ use solar_sema::{
 };
 use std::sync::OnceLock;
 
+const INVALID: u8 = 0xfe;
+
 /// Lazily computed metadata for a Standard JSON compilation.
 pub(super) struct Metadata<'a, 'input, 'gcx> {
     gcx: Gcx<'gcx>,
     input: &'a CompilerInput<'input>,
     contracts: IndexVec<ContractId, ContractMetadata>,
     sources: IndexVec<SourceId, OnceLock<Value>>,
+    referenced_sources: IndexVec<SourceId, OnceLock<Vec<SourceId>>>,
 }
 
 #[derive(Default)]
 struct ContractMetadata {
     json: OnceLock<String>,
-    cbor: OnceLock<Bytes>,
+    runtime_suffix: OnceLock<Bytes>,
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
@@ -33,26 +39,39 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         );
         let sources =
             IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
-        Self { gcx, input, contracts, sources }
+        let referenced_sources =
+            IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
+        Self { gcx, input, contracts, sources, referenced_sources }
     }
 
     pub(super) fn json(&self, contract_id: ContractId) -> &str {
         self.contracts[contract_id].json.get_or_init(|| metadata_json(self, contract_id))
     }
 
-    pub(super) fn cbor(&self, contract_id: ContractId) -> Bytes {
+    pub(super) fn runtime_suffix(&self, contract_id: ContractId) -> Bytes {
         let settings = self.input.settings.metadata;
         if !settings.append_cbor {
             return Bytes::new();
         }
         self.contracts[contract_id]
-            .cbor
-            .get_or_init(|| cbor_metadata(self.json(contract_id), settings.bytecode_hash).into())
+            .runtime_suffix
+            .get_or_init(|| {
+                let cbor = cbor_metadata(self.json(contract_id), settings.bytecode_hash);
+                let mut suffix = Vec::with_capacity(cbor.len() + 1);
+                suffix.push(INVALID);
+                suffix.extend(cbor);
+                suffix.into()
+            })
             .clone()
     }
 
     fn source(&self, source_id: SourceId) -> &Value {
         self.sources[source_id].get_or_init(|| source_metadata(self, source_id))
+    }
+
+    fn referenced_sources(&self, source_id: SourceId) -> &[SourceId] {
+        self.referenced_sources[source_id]
+            .get_or_init(|| collect_referenced_sources(self.gcx, source_id))
     }
 }
 
@@ -62,7 +81,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     let contract = gcx.hir.contract(contract_id);
     let target_source_name = source_name(gcx, contract.source);
     let mut sources = Map::new();
-    for source_id in referenced_sources(gcx, contract.source) {
+    for &source_id in metadata.referenced_sources(contract.source) {
         sources.insert(source_name(gcx, source_id), metadata.source(source_id).clone());
     }
 
@@ -91,11 +110,16 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
             libraries.insert(name, json!(format!("{address:#x}")));
         }
     }
-    let mut remappings =
-        metadata.input.settings.remappings.iter().map(ToString::to_string).collect::<Vec<_>>();
+    let mut remappings = opts
+        .import_remappings
+        .iter()
+        // Solc includes the context separator when the context is empty.
+        .map(|remapping| format!("{}:{}={}", remapping.context, remapping.prefix, remapping.path))
+        .collect::<Vec<_>>();
     remappings.sort_unstable();
 
-    let optimizer_enabled = !matches!(opts.optimization, OptimizationMode::None);
+    let (optimizer_enabled, optimizer_runs) =
+        optimizer_settings(metadata.input.settings.optimizer.as_ref());
     let value = json!({
         "compiler": { "version": SEMVER_VERSION },
         "language": "Solidity",
@@ -111,7 +135,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
             "metadata": metadata_settings,
             "optimizer": {
                 "enabled": optimizer_enabled,
-                "runs": opts.optimizer_runs.unwrap_or(200),
+                "runs": optimizer_runs,
             },
             "remappings": remappings,
         },
@@ -124,13 +148,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
 fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Value {
     let gcx = metadata.gcx;
     let source = gcx.hir.source(source_id);
-    let name = source_name(gcx, source_id);
-    let content = metadata
-        .input
-        .sources
-        .get(name.as_str())
-        .and_then(|source| source.content.as_deref())
-        .unwrap_or(source.file.src.as_str());
+    let content = source.file.src.as_str();
     let mut value = Map::new();
     value.insert("keccak256".into(), json!(format!("{:#x}", keccak256(content.as_bytes()))));
     if let Some(license) = source_license(content) {
@@ -153,7 +171,7 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
 }
 
 fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
-    gcx.hir.source(source_id).file.name.display().to_string().replace('\\', "/")
+    standard_json_source_name(&gcx.hir.source(source_id).file.name)
 }
 
 fn source_license(source: &str) -> Option<&str> {
@@ -163,7 +181,7 @@ fn source_license(source: &str) -> Option<&str> {
     })
 }
 
-fn referenced_sources(gcx: Gcx<'_>, root: SourceId) -> impl Iterator<Item = SourceId> {
+fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {
     fn visit(gcx: Gcx<'_>, source_id: SourceId, sources: &mut GrowableBitSet<SourceId>) {
         if !sources.insert(source_id) {
             return;
@@ -177,7 +195,7 @@ fn referenced_sources(gcx: Gcx<'_>, root: SourceId) -> impl Iterator<Item = Sour
     visit(gcx, root, &mut sources);
     let mut sources = sources.iter().collect::<Vec<_>>();
     sources.sort_unstable_by_key(|&source_id| source_name(gcx, source_id));
-    sources.into_iter()
+    sources
 }
 
 fn cbor_metadata(metadata: &str, hash: MetadataHash) -> Vec<u8> {
@@ -240,17 +258,21 @@ struct IpfsChunk {
 }
 
 fn ipfs_leaf(input: &[u8]) -> IpfsChunk {
-    let mut protobuf = vec![0x08, 0x02];
+    let protobuf_len = 2
+        + if input.is_empty() { 0 } else { 1 + varint_len(input.len()) + input.len() }
+        + 1
+        + varint_len(input.len());
+    let mut block = Vec::with_capacity(1 + varint_len(protobuf_len) + protobuf_len);
+    block.push(0x0a);
+    push_varint(&mut block, protobuf_len);
+    block.extend([0x08, 0x02]);
     if !input.is_empty() {
-        protobuf.push(0x12);
-        push_varint(&mut protobuf, input.len());
-        protobuf.extend(input);
+        block.push(0x12);
+        push_varint(&mut block, input.len());
+        block.extend(input);
     }
-    protobuf.push(0x18);
-    push_varint(&mut protobuf, input.len());
-    let mut block = vec![0x0a];
-    push_varint(&mut block, protobuf.len());
-    block.extend(protobuf);
+    block.push(0x18);
+    push_varint(&mut block, input.len());
     IpfsChunk { hash: sha256_multihash(&block), size: input.len(), block_size: block.len() }
 }
 
@@ -298,6 +320,10 @@ fn push_varint(output: &mut Vec<u8>, mut value: usize) {
     output.push(value as u8);
 }
 
+fn varint_len(value: usize) -> usize {
+    ((usize::BITS - value.leading_zeros()).max(1) as usize).div_ceil(7)
+}
+
 fn bzzr1_hash(input: &[u8]) -> [u8; 32] {
     if input.is_empty() {
         return [0; 32];
@@ -306,22 +332,26 @@ fn bzzr1_hash(input: &[u8]) -> [u8; 32] {
 }
 
 fn bzzr1_chunk(input: &[u8], force_higher: bool) -> [u8; 32] {
+    let higher;
     let data = if input.len() < 0x1000 || input.len() == 0x1000 && !force_higher {
-        input.to_vec()
+        input
     } else {
         let mut represented = 0x1000;
         while represented * (0x1000 / 32) < input.len() {
             represented *= 0x1000 / 32;
         }
-        input
+        higher = input
             .chunks(represented)
             .flat_map(|chunk| bzzr1_chunk(chunk, represented > 0x1000))
-            .collect()
+            .collect::<Vec<_>>();
+        &higher
     };
-    let mut padded = data;
+    let mut padded = Vec::with_capacity(0x1000);
+    padded.extend_from_slice(data);
     padded.resize(0x1000, 0);
-    let mut value = (input.len() as u64).to_le_bytes().to_vec();
-    value.extend(bmt_hash(&padded));
+    let mut value = [0; 40];
+    value[..8].copy_from_slice(&(input.len() as u64).to_le_bytes());
+    value[8..].copy_from_slice(&bmt_hash(&padded));
     keccak256(value).into()
 }
 
@@ -330,8 +360,9 @@ fn bmt_hash(input: &[u8]) -> [u8; 32] {
         return keccak256(input).into();
     }
     let middle = input.len() / 2;
-    let mut value = bmt_hash(&input[..middle]).to_vec();
-    value.extend(bmt_hash(&input[middle..]));
+    let mut value = [0; 64];
+    value[..32].copy_from_slice(&bmt_hash(&input[..middle]));
+    value[32..].copy_from_slice(&bmt_hash(&input[middle..]));
     keccak256(value).into()
 }
 

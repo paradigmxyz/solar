@@ -93,7 +93,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .error(format!("expected program data ID {}, found {id}", module.data.len())));
         }
         let bytes = self.parser.parse_data_bytes()?;
-        module.data.push(Data { bytes, name, emit_in_runtime: false });
+        module.data.push(Data { bytes, name });
         Ok(())
     }
 

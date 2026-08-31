@@ -1,0 +1,34 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "src/B.sol": {
+      "id": 0
+    },
+    "A.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "deployedBytecode": {
+            "object": "346019575f3560e01c80633fa4f24503601957601d600190565b5f80fd5b8060a05260805260206080f3fea265627a7a72315820dcd815e598e59d4eaa7f67f8cbc4aae42cb426d8e040d8ad3b3f588a7e28507b64736f6c63430002000032"
+          }
+        },
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"value\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{\"src/B.sol:B\":\"0x1111111111111111111111111111111111111111\"},\"metadata\":{\"bytecodeHash\":\"bzzr1\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":1},\"remappings\":[\":lib/=src/\"]},\"sources\":{\"A.sol\":{\"content\":\"// SPDX-License-Identifier: MIT/nimport /\"lib/B.sol/\";/ncontract A { function value() external pure returns (uint256) { return B.value(); } }\",\"keccak256\":\"0xf6a12f9926e2aafb7ccf965b11968035adb7f6be65f5116c7ae1cf5ecf8e5f64\",\"license\":\"MIT\"},\"src/B.sol\":{\"content\":\"// SPDX-License-Identifier: Apache-2.0/nlibrary B { function value() internal pure returns (uint256) { return 1; } }\",\"keccak256\":\"0x18e89cad51893365eb4e5b72a14d369948f22b9edda18ebd4e92b33dfbc054e3\",\"license\":\"Apache-2.0\"}},\"version\":1}"
+      }
+    }
+  }
+}

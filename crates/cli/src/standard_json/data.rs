@@ -101,16 +101,12 @@ pub(super) struct Settings<'a> {
 }
 
 /// The solc Standard JSON `settings.metadata` object.
-#[derive(Clone, Copy, Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[derive(Clone, Copy, Debug)]
 pub(super) struct MetadataSettings {
-    #[serde(default = "default_true")]
-    #[serde(rename = "appendCBOR")]
     pub(super) append_cbor: bool,
-    #[serde(default)]
     pub(super) use_literal_content: bool,
-    #[serde(default)]
     pub(super) bytecode_hash: MetadataHash,
+    pub(super) bytecode_hash_set: bool,
 }
 
 impl Default for MetadataSettings {
@@ -119,7 +115,44 @@ impl Default for MetadataSettings {
             append_cbor: true,
             use_literal_content: false,
             bytecode_hash: MetadataHash::default(),
+            bytecode_hash_set: false,
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for MetadataSettings {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        struct Input {
+            #[serde(default = "default_true")]
+            #[serde(rename = "appendCBOR")]
+            append_cbor: bool,
+            #[serde(default)]
+            use_literal_content: bool,
+            #[serde(default, deserialize_with = "deserialize_metadata_hash")]
+            bytecode_hash: Option<MetadataHash>,
+        }
+
+        fn deserialize_metadata_hash<'de, D>(
+            deserializer: D,
+        ) -> Result<Option<MetadataHash>, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            MetadataHash::deserialize(deserializer).map(Some)
+        }
+
+        let input = Input::deserialize(deserializer)?;
+        Ok(Self {
+            append_cbor: input.append_cbor,
+            use_literal_content: input.use_literal_content,
+            bytecode_hash: input.bytecode_hash.unwrap_or_default(),
+            bytecode_hash_set: input.bytecode_hash.is_some(),
+        })
     }
 }
 
@@ -139,7 +172,7 @@ const fn default_true() -> bool {
 
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Optimizer {
     /// Whether the optimizer is enabled.
     #[serde(default)]
@@ -147,6 +180,13 @@ pub(super) struct Optimizer {
     /// Expected executions per deployment for optimizer tradeoffs.
     #[serde(default)]
     pub(super) runs: Option<u64>,
+}
+
+pub(super) fn optimizer_settings(optimizer: Option<&Optimizer>) -> (bool, u64) {
+    (
+        optimizer.is_some_and(|optimizer| optimizer.enabled),
+        optimizer.and_then(|optimizer| optimizer.runs).unwrap_or(200),
+    )
 }
 
 /// The solc Standard JSON `settings.libraries` object.
@@ -189,17 +229,17 @@ pub(super) struct ContractOutput<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'a>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) metadata: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<Documentation>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) devdoc: Option<Documentation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) evm: Option<EvmOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) transient_storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) evm: Option<EvmOutput>,
+    pub(super) userdoc: Option<Documentation>,
     //
     // Not supported.
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -827,6 +867,23 @@ mod tests {
     #[test]
     fn metadata_hash_rejects_null() {
         assert!(serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":null}"#).is_err());
+    }
+
+    #[test]
+    fn metadata_hash_tracks_presence() {
+        let omitted = serde_json::from_str::<MetadataSettings>("{}").unwrap();
+        assert_eq!(omitted.bytecode_hash, MetadataHash::Ipfs);
+        assert!(!omitted.bytecode_hash_set);
+
+        let explicit =
+            serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":"ipfs"}"#).unwrap();
+        assert_eq!(explicit.bytecode_hash, MetadataHash::Ipfs);
+        assert!(explicit.bytecode_hash_set);
+    }
+
+    #[test]
+    fn optimizer_rejects_unsupported_details() {
+        assert!(serde_json::from_str::<Optimizer>(r#"{"details":{"peephole":false}}"#).is_err());
     }
 
     fn selection_flags(input: &str) -> OutputSelectionFlags {

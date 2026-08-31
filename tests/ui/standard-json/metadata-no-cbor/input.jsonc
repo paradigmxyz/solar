@@ -1,8 +1,8 @@
+// CHECK: "object":
 // CHECK: "metadata":
 // CHECK: \"appendCBOR\":false
-// CHECK: \"bytecodeHash\":\"none\"
+// CHECK: \"bytecodeHash\":\"ipfs\"
 // CHECK: \"useLiteralContent\":true
-// CHECK: "object":
 {
   "language": "Solidity",
   "sources": {
@@ -13,7 +13,6 @@
   "settings": {
     "metadata": {
       "appendCBOR": false,
-      "bytecodeHash": "none",
       "useLiteralContent": true
     },
     "outputSelection": {

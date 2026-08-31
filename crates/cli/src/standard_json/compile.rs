@@ -3,8 +3,8 @@
 use super::{
     data::{
         BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
-        MetadataHash, OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags,
-        ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback,
+        MetadataHash, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
+        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
         print_standard_json_stats, strip_json_comments,
     },
     metadata::Metadata,
@@ -137,7 +137,10 @@ fn compile(
         libraries,
     } = settings;
 
-    if !metadata.append_cbor && metadata.bytecode_hash != MetadataHash::None {
+    if !metadata.append_cbor
+        && metadata.bytecode_hash_set
+        && metadata.bytecode_hash != MetadataHash::None
+    {
         dcx.err("when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`")
             .emit();
         return;
@@ -185,20 +188,14 @@ fn compile(
         return;
     }
 
-    if let Some(Optimizer { enabled, runs }) = optimizer {
-        // 200 runs is the default value if unspecified in solc.
-        // Treat lower values as Size.
-        opts.optimization = if *enabled {
-            if runs.is_none_or(|x| x >= 200) {
-                OptimizationMode::Gas
-            } else {
-                OptimizationMode::Size
-            }
-        } else {
-            OptimizationMode::None
-        };
-        opts.optimizer_runs = enabled.then_some(runs.unwrap_or(200));
-    }
+    let (optimizer_enabled, optimizer_runs) = optimizer_settings(optimizer.as_ref());
+    // Treat lower run counts as size optimization.
+    opts.optimization = if optimizer_enabled {
+        if optimizer_runs >= 200 { OptimizationMode::Gas } else { OptimizationMode::Size }
+    } else {
+        OptimizationMode::None
+    };
+    opts.optimizer_runs = optimizer_enabled.then_some(optimizer_runs);
 
     opts.libraries = Vec::with_capacity(libraries.len());
     for (source, libraries) in &libraries.0 {
@@ -245,14 +242,14 @@ fn compile(
             let gcx = compiler.gcx();
             let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
             let contract_metadata = Metadata::new(gcx, input);
-            let appended_data = |contract_id| contract_metadata.cbor(contract_id);
+            let runtime_suffix = |contract_id| contract_metadata.runtime_suffix(contract_id);
 
             crate::commands::compile::warn_experimental_codegen(
                 gcx.sess,
                 !bytecode_contracts.is_empty(),
             );
             let bytecodes =
-                crate::emit::emit_requested(compiler, bytecode_contracts, Some(&appended_data))?;
+                crate::emit::emit_requested(compiler, bytecode_contracts, Some(&runtime_suffix))?;
 
             gcx.dcx().has_errors()?;
 
@@ -348,7 +345,7 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     path.to_string_lossy()
 }
 
-fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
+pub(super) fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
     name.display().to_string().replace('\\', "/")
 }
 
