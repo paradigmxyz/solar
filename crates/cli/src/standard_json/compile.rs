@@ -138,8 +138,8 @@ fn compile(
     } = settings;
 
     if !metadata.append_cbor
-        && metadata.bytecode_hash_set
-        && metadata.bytecode_hash != MetadataHash::None
+        && metadata.bytecode_hash.is_explicit
+        && metadata.bytecode_hash.value != MetadataHash::None
     {
         dcx.err("when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`")
             .emit();

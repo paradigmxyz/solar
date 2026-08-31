@@ -101,58 +101,35 @@ pub(super) struct Settings<'a> {
 }
 
 /// The solc Standard JSON `settings.metadata` object.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct MetadataSettings {
+    #[serde(default = "default_true")]
     pub(super) append_cbor: bool,
+    #[serde(default)]
     pub(super) use_literal_content: bool,
-    pub(super) bytecode_hash: MetadataHash,
-    pub(super) bytecode_hash_set: bool,
+    #[serde(default)]
+    pub(super) bytecode_hash: MetadataHashSetting,
 }
 
 impl Default for MetadataSettings {
     fn default() -> Self {
-        Self {
-            append_cbor: true,
-            use_literal_content: false,
-            bytecode_hash: MetadataHash::default(),
-            bytecode_hash_set: false,
-        }
+        Self { append_cbor: true, use_literal_content: false, bytecode_hash: Default::default() }
     }
 }
 
-impl<'de> Deserialize<'de> for MetadataSettings {
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct MetadataHashSetting {
+    pub(super) value: MetadataHash,
+    pub(super) is_explicit: bool,
+}
+
+impl<'de> Deserialize<'de> for MetadataHashSetting {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        #[derive(Deserialize)]
-        #[serde(rename_all = "camelCase", deny_unknown_fields)]
-        struct Input {
-            #[serde(default = "default_true")]
-            #[serde(rename = "appendCBOR")]
-            append_cbor: bool,
-            #[serde(default)]
-            use_literal_content: bool,
-            #[serde(default, deserialize_with = "deserialize_metadata_hash")]
-            bytecode_hash: Option<MetadataHash>,
-        }
-
-        fn deserialize_metadata_hash<'de, D>(
-            deserializer: D,
-        ) -> Result<Option<MetadataHash>, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            MetadataHash::deserialize(deserializer).map(Some)
-        }
-
-        let input = Input::deserialize(deserializer)?;
-        Ok(Self {
-            append_cbor: input.append_cbor,
-            use_literal_content: input.use_literal_content,
-            bytecode_hash: input.bytecode_hash.unwrap_or_default(),
-            bytecode_hash_set: input.bytecode_hash.is_some(),
-        })
+        MetadataHash::deserialize(deserializer).map(|value| Self { value, is_explicit: true })
     }
 }
 
@@ -872,13 +849,13 @@ mod tests {
     #[test]
     fn metadata_hash_tracks_presence() {
         let omitted = serde_json::from_str::<MetadataSettings>("{}").unwrap();
-        assert_eq!(omitted.bytecode_hash, MetadataHash::Ipfs);
-        assert!(!omitted.bytecode_hash_set);
+        assert_eq!(omitted.bytecode_hash.value, MetadataHash::Ipfs);
+        assert!(!omitted.bytecode_hash.is_explicit);
 
         let explicit =
             serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":"ipfs"}"#).unwrap();
-        assert_eq!(explicit.bytecode_hash, MetadataHash::Ipfs);
-        assert!(explicit.bytecode_hash_set);
+        assert_eq!(explicit.bytecode_hash.value, MetadataHash::Ipfs);
+        assert!(explicit.bytecode_hash.is_explicit);
     }
 
     #[test]

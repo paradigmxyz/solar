@@ -56,7 +56,7 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         self.contracts[contract_id]
             .runtime_suffix
             .get_or_init(|| {
-                let cbor = cbor_metadata(self.json(contract_id), settings.bytecode_hash);
+                let cbor = cbor_metadata(self.json(contract_id), settings.bytecode_hash.value);
                 let mut suffix = Vec::with_capacity(cbor.len() + 1);
                 suffix.push(INVALID);
                 suffix.extend(cbor);
@@ -92,7 +92,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     }
     metadata_settings.insert(
         "bytecodeHash".into(),
-        json!(match settings.bytecode_hash {
+        json!(match settings.bytecode_hash.value {
             MetadataHash::Ipfs => "ipfs",
             MetadataHash::Bzzr1 => "bzzr1",
             MetadataHash::None => "none",
