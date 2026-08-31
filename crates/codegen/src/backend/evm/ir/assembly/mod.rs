@@ -4,8 +4,7 @@
 //! form only records labels, relocations, deferred pushes, opcodes, and opaque
 //! program data for byte encoding.
 
-use super::DataId;
-use alloy_primitives::Bytes;
+use super::{Data, DataId};
 use solar_data_structures::index::IndexVec;
 
 mod indexed_jump;
@@ -35,7 +34,7 @@ pub(in crate::backend::evm) struct PackedLabels {
 pub(in crate::backend::evm) struct Program {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
     pub(in crate::backend::evm) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
-    pub(in crate::backend::evm) data: IndexVec<DataId, Bytes>,
+    pub(in crate::backend::evm) data: IndexVec<DataId, Data>,
     pub(in crate::backend::evm) data_refs: IndexVec<DataRefId, super::DataRef>,
 }
 

@@ -407,7 +407,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Data(data) => {
                     data_offsets.insert(data, offset);
-                    offset += program.data[data].len();
+                    offset += program.data[data].bytes.len();
                 }
             }
         }
@@ -511,7 +511,7 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_op(op::JUMPDEST);
                 }
                 AsmInstKind::Data(data) => {
-                    out.bytecode.extend_from_slice(&program.data[data]);
+                    out.bytecode.extend_from_slice(&program.data[data].bytes);
                 }
             }
         }
@@ -531,7 +531,7 @@ fn resolve_data_offset(
     data_ref: assembly::DataRefId,
 ) -> usize {
     let data = program.data_refs[data_ref];
-    let data_size = program.data[data.id].len();
+    let data_size = program.data[data.id].bytes.len();
     assert!(
         data.offset as usize <= data_size,
         "program data offset {} exceeds data size {data_size}",

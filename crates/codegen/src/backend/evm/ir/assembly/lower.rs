@@ -186,7 +186,7 @@ fn lower_evm_ir_once(
     if !referenced_data.is_empty() && !ends_with_terminal {
         program.push_op(op::STOP);
     }
-    program.data = module.data.iter().map(|data| data.bytes.clone()).collect();
+    program.data.clone_from(&module.data);
     for data in referenced_data.iter() {
         program.append_data(data);
     }
