@@ -209,9 +209,9 @@ pub(super) struct ContractOutput<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<Documentation>,
+    pub(super) userdoc: Option<&'a Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) devdoc: Option<Documentation>,
+    pub(super) devdoc: Option<&'a Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
