@@ -1,0 +1,26 @@
+error: incompatible conditional types
+   ╭▸ ROOT/tests/ui/typeck/ternary_data_locations.sol:LL:CC
+   │
+LL │         words = condition ? a : b;
+   ╰╴                ━━━━━━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/ternary_data_locations.sol:LL:CC
+   │
+LL │         uint256[] storage pointer = condition ? words : a;
+   ╰╴                                    ━━━━━━━━━━━━━━━━━━━━━ expected `uint256[] storage`, found `uint256[] memory`
+
+error: incompatible conditional types
+   ╭▸ ROOT/tests/ui/typeck/ternary_data_locations.sol:LL:CC
+   │
+LL │         uint256 value = condition ? 1 : true;
+   ╰╴                        ━━━━━━━━━━━━━━━━━━━━
+
+error: incompatible conditional types
+   ╭▸ ROOT/tests/ui/typeck/ternary_data_locations.sol:LL:CC
+   │
+LL │         words = condition ? words : a;
+   ╰╴                ━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

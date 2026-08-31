@@ -40,9 +40,7 @@ contract EventErrorNestedContexts {
     function eventInTernary() public {
         uint x = true ? EmptyEvent() : EmptyEvent();
         //~^ ERROR: event invocations have to be prefixed by `emit`
-        //~| ERROR: mismatched types
         //~| ERROR: event invocations have to be prefixed by `emit`
-        //~| ERROR: mismatched types
         //~| ERROR: mismatched number of components
     }
 
