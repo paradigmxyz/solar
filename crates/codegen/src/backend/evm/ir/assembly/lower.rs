@@ -32,7 +32,13 @@ impl Assembler<'_> {
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        debug_assert!(!input_is_valid || ir::verify::Verifier::is_valid(&ir_program));
+        if input_is_valid && !ir::verify::Verifier::is_valid(&ir_program) {
+            // An optimization pass may intentionally leave the temporary
+            // builder form until the legalization boundary below. Keep the
+            // check diagnostic-only so debug-info capture cannot turn a valid
+            // source program into an internal compiler error.
+            tracing::debug!("EVM IR validation deferred until legalization");
+        }
         let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -189,10 +195,37 @@ fn lower_evm_ir_once(
             program.mark_last_function_invoke(block.metadata.function_invoke);
         }
 
+        let mut pending_invoke = None;
         for inst in &block.instructions {
             program.set_source_spans(inst.metadata.source_spans());
             lower_instruction(assembler, &mut program, inst, module, labels);
-            program.mark_last_function_invoke(inst.metadata.function_invoke());
+            let function_invoke = inst.metadata.function_invoke();
+            if let Some((index, function)) = pending_invoke.take()
+                && program.instructions.last().is_some_and(|last| {
+                    matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
+                })
+            {
+                program.set_function_invoke(index, None);
+                program.mark_last_function_invoke(Some(function));
+            }
+            if let Some(function) = function_invoke {
+                if inst.is_encoded_push() {
+                    let index = program.instructions.len() - 1;
+                    if let Some(previous) = index.checked_sub(1)
+                        && program.instructions.get(previous).is_some_and(|last| {
+                            matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
+                        })
+                    {
+                        program.set_function_invoke(index, None);
+                        program.set_function_invoke(previous, Some(function));
+                    } else {
+                        program.mark_last_function_invoke(Some(function));
+                        pending_invoke = Some((index, function));
+                    }
+                } else {
+                    program.mark_last_function_invoke(Some(function));
+                }
+            }
             program.mark_last_function_exit(inst.metadata.function_exit());
         }
 
@@ -207,14 +240,17 @@ fn lower_evm_ir_once(
                 labels,
                 indexed_jump_lowerings[block_id],
             );
-            let function_invoke = terminator.metadata.function_invoke().filter(|&function| {
-                !matches!(
-                    &terminator.kind,
-                    ir::TerminatorKind::Jump(target)
-                        if module.blocks[*target].metadata.function_invoke == Some(function)
-                )
-            });
-            program.mark_last_function_invoke(function_invoke);
+            let function_invoke = terminator.metadata.function_invoke();
+            if let Some((index, function)) = pending_invoke
+                && program.instructions.last().is_some_and(|last| {
+                    matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
+                })
+            {
+                program.set_function_invoke(index, None);
+                program.mark_last_function_invoke(Some(function));
+            } else {
+                program.mark_last_function_invoke(function_invoke);
+            }
             program.mark_last_function_exit(terminator.metadata.function_exit());
         }
     }

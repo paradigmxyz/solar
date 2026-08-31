@@ -11,7 +11,9 @@ mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen};
 
 mod debug_info;
-pub use debug_info::{DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans};
+pub use debug_info::{
+    DebugFunction, DebugFunctionExit, DebugInstruction, DebugSpans, MAX_DEBUG_SPANS,
+};
 
 mod disasm;
 pub use disasm::{disassemble, disassemble_standard_json};

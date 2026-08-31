@@ -306,6 +306,20 @@ pub(super) struct EthdebugFunctionInvoke {
     pub(super) identifier: Option<String>,
     pub(super) declaration: EthdebugSourceRange,
     pub(super) jump: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) target: Option<EthdebugInvocationTarget>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugInvocationTarget {
+    pub(super) pointer: EthdebugCodePointer,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct EthdebugCodePointer {
+    pub(super) location: &'static str,
+    pub(super) offset: usize,
+    pub(super) length: usize,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -501,13 +515,11 @@ bitflags::bitflags! {
             | Self::YUL_CFG_JSON.bits();
         const BYTECODE = Self::BYTECODE_OBJECT.bits()
             | Self::BYTECODE_OPCODES.bits()
-            | Self::BYTECODE_SOURCE_MAP.bits()
             | Self::BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::BYTECODE_GENERATED_SOURCES.bits()
             | Self::BYTECODE_LINK_REFERENCES.bits();
         const DEPLOYED_BYTECODE = Self::DEPLOYED_BYTECODE_OBJECT.bits()
             | Self::DEPLOYED_BYTECODE_OPCODES.bits()
-            | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
             | Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::DEPLOYED_BYTECODE_GENERATED_SOURCES.bits()
             | Self::DEPLOYED_BYTECODE_LINK_REFERENCES.bits()
@@ -531,6 +543,8 @@ bitflags::bitflags! {
             | Self::TRANSIENT_STORAGE_LAYOUT.bits()
             | Self::YUL.bits()
             | Self::EVM.bits()
+            | Self::BYTECODE_SOURCE_MAP.bits()
+            | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
             | Self::BYTECODE_ETHDEBUG.bits()
             | Self::DEPLOYED_BYTECODE_ETHDEBUG.bits();
         const GLOBAL = Self::ETHDEBUG_RESOURCES.bits() | Self::ETHDEBUG_COMPILATION.bits();

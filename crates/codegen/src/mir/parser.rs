@@ -229,10 +229,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
-        if module.iter_functions().any(|(_, func)| {
+        let tracks_debug_info = module.iter_functions().any(|(_, func)| {
             func.instructions().any(|inst| func.inst(inst).metadata.source_span().is_some())
-        }) {
+        });
+        if tracks_debug_info {
             module.set_debug_info_tracked(true);
+            for function_id in module.functions.indices() {
+                let function = &mut module.functions[function_id];
+                let instructions = function.instructions().collect::<Vec<_>>();
+                for instruction in instructions {
+                    let metadata = &mut function.inst_mut(instruction).metadata;
+                    if !metadata.debug_info_is_handled() {
+                        metadata.mark_debug_info_dropped();
+                    }
+                }
+            }
         }
         Ok(module)
     }

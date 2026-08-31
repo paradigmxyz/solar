@@ -521,16 +521,12 @@ impl<'gcx> Assembler<'gcx> {
                 .get(&label)
                 .copied()
                 .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-            let metadata = module.blocks[block].instructions[instruction].metadata.clone();
-            let mut replacement = ir::Instruction::push_block(target);
-            replacement.metadata = metadata;
-            module.blocks[block].instructions[instruction] = replacement;
+            let replacement = ir::Instruction::push_block(target);
+            module.blocks[block].instructions[instruction].replace_preserving_metadata(replacement);
         }
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            let metadata = module.blocks[block].instructions[instruction].metadata.clone();
-            let mut replacement = ir::Instruction::push_deferred(id);
-            replacement.metadata = metadata;
-            module.blocks[block].instructions[instruction] = replacement;
+            let replacement = ir::Instruction::push_deferred(id);
+            module.blocks[block].instructions[instruction].replace_preserving_metadata(replacement);
         }
         // Allocation placeholders expand to more than one instruction, so they
         // splice after every in-place relocation patch above. Descending
@@ -660,9 +656,7 @@ pub(in crate::backend::evm) fn resolve_known_deferred_constants(
         for inst in &mut block.instructions {
             let Some(id) = inst.deferred_push() else { continue };
             if let Some(&value) = values.get(&id) {
-                let metadata = inst.metadata.clone();
-                *inst = ir::Instruction::push_value(value);
-                inst.metadata = metadata;
+                inst.replace_preserving_metadata(ir::Instruction::push_value(value));
             }
         }
     }
