@@ -137,9 +137,7 @@ fn compile(
         libraries,
     } = settings;
 
-    if !metadata.append_cbor
-        && metadata.bytecode_hash.is_some_and(|hash| hash != MetadataHash::None)
-    {
+    if !metadata.append_cbor && metadata.bytecode_hash != MetadataHash::None {
         dcx.err("when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`")
             .emit();
         return;
@@ -258,7 +256,7 @@ fn compile(
             } else {
                 FxHashMap::default()
             };
-            let bytecode_metadata = contract_metadata
+            let appended_data = contract_metadata
                 .iter()
                 .map(|(&contract_id, metadata)| (contract_id, metadata.cbor.clone()))
                 .collect();
@@ -267,11 +265,8 @@ fn compile(
                 gcx.sess,
                 !bytecode_contracts.is_empty(),
             );
-            let bytecodes = crate::emit::emit_requested(
-                compiler,
-                bytecode_contracts,
-                Some(&bytecode_metadata),
-            )?;
+            let bytecodes =
+                crate::emit::emit_requested(compiler, bytecode_contracts, Some(&appended_data))?;
 
             gcx.dcx().has_errors()?;
 

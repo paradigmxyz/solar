@@ -19,7 +19,7 @@
   "contracts": {
     "A.sol": {
       "A": {
-        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"appendCBOR\":false,\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"content\":\"// SPDX-License-Identifier: MIT/ncontract A {}\",\"keccak256\":\"0xac52b041f111236733eb34cd68f2257256893cd77422d7b148660f9aba6bce00\",\"license\":\"MIT\"}},\"version\":1}",
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"appendCBOR\":false,\"bytecodeHash\":\"none\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"content\":\"// SPDX-License-Identifier: MIT/ncontract A {}\",\"keccak256\":\"0xac52b041f111236733eb34cd68f2257256893cd77422d7b148660f9aba6bce00\",\"license\":\"MIT\"}},\"version\":1}",
         "evm": {
           "bytecode": {
             "object": "60038060095f395ff35f80fd"

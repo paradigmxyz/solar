@@ -200,7 +200,11 @@ impl DataPool {
                 retain
             });
         }
-        let id = module.data.push(Data { bytes: bytes.clone(), name: Some(sym::literal) });
+        let id = module.data.push(Data {
+            bytes: bytes.clone(),
+            name: Some(sym::literal),
+            emit_in_runtime: false,
+        });
         self.entries.push(PoolEntry {
             id,
             bytes: bytes.clone(),
@@ -401,7 +405,7 @@ fn pack_data(module: &mut Module, references: &DataReferences) -> bool {
     let mut referenced = references
         .counts
         .iter_enumerated()
-        .filter_map(|(id, &count)| (count != 0).then_some(id))
+        .filter_map(|(id, &count)| (count != 0 || module.data[id].emit_in_runtime).then_some(id))
         .collect::<Vec<_>>();
     if referenced.is_empty() {
         module.data.clear();
@@ -420,7 +424,11 @@ fn pack_data(module: &mut Module, references: &DataReferences) -> bool {
     let mut remap = FxHashMap::default();
     for old_id in referenced {
         let data = &module.data[old_id];
-        let data_ref = if let Some(&id) = exact.get(&data.bytes) {
+        let data_ref = if data.emit_in_runtime {
+            let id = packed.push(data.clone());
+            sources.push(old_id);
+            DataRef::new(id, 0)
+        } else if let Some(&id) = exact.get(&data.bytes) {
             DataRef::new(id, 0)
         } else if let Some(data_ref) = (references.subslice_safe[old_id]
             && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
@@ -429,7 +437,11 @@ fn pack_data(module: &mut Module, references: &DataReferences) -> bool {
         {
             data_ref
         } else {
-            let id = packed.push(Data { bytes: data.bytes.clone(), name: data.name });
+            let id = packed.push(Data {
+                bytes: data.bytes.clone(),
+                name: data.name,
+                emit_in_runtime: false,
+            });
             sources.push(old_id);
             exact.insert(data.bytes.clone(), id);
             DataRef::new(id, 0)

@@ -1127,7 +1127,6 @@ pub struct EvmCodegen<'gcx> {
     emitting_entry: bool,
     /// Gas-mode switch growth still available in the current deployment artifact.
     switch_gas_code_growth_remaining: usize,
-    bytecode_metadata: Vec<u8>,
     capture_mir: bool,
     capture_evm_ir: bool,
 }
@@ -1188,16 +1187,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             in_internal_function: false,
             emitting_entry: false,
             switch_gas_code_growth_remaining,
-            bytecode_metadata: Vec::new(),
             capture_mir: false,
             capture_evm_ir: false,
         }
-    }
-
-    /// Sets the CBOR metadata appended to the runtime bytecode.
-    pub fn set_bytecode_metadata(&mut self, metadata: &[u8]) {
-        self.bytecode_metadata.clear();
-        self.bytecode_metadata.extend_from_slice(metadata);
     }
 
     fn static_call_abi_mut(&mut self, func_id: FunctionId, arg_count: usize) -> &mut StaticCallAbi {
@@ -1486,7 +1478,6 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module, &call_graph);
-        runtime_code.bytecode.extend_from_slice(&self.bytecode_metadata);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
             evm_ir.set_name(sym::runtime);
         }

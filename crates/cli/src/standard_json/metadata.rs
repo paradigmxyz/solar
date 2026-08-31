@@ -25,7 +25,7 @@ pub(super) fn build(
         .contracts_enumerated()
         .map(|(contract_id, _)| {
             let json = metadata_json(gcx, contract_id, settings);
-            let cbor = settings.append_cbor.then(|| cbor_metadata(&json, settings.bytecode_hash()));
+            let cbor = settings.append_cbor.then(|| cbor_metadata(&json, settings.bytecode_hash));
             (contract_id, ContractMetadata { json, cbor: cbor.unwrap_or_default().into() })
         })
         .collect()
@@ -66,7 +66,7 @@ fn metadata_json(gcx: Gcx<'_>, contract_id: ContractId, metadata: MetadataSettin
     }
     metadata_settings.insert(
         "bytecodeHash".into(),
-        json!(match metadata.bytecode_hash() {
+        json!(match metadata.bytecode_hash {
             MetadataHash::Ipfs => "ipfs",
             MetadataHash::Bzzr1 => "bzzr1",
             MetadataHash::None => "none",

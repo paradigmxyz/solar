@@ -1,6 +1,6 @@
 // CHECK: "metadata":
 // CHECK: \"appendCBOR\":false
-// CHECK: \"bytecodeHash\":\"ipfs\"
+// CHECK: \"bytecodeHash\":\"none\"
 // CHECK: \"useLiteralContent\":true
 // CHECK: "object":
 {
@@ -13,6 +13,7 @@
   "settings": {
     "metadata": {
       "appendCBOR": false,
+      "bytecodeHash": "none",
       "useLiteralContent": true
     },
     "outputSelection": {

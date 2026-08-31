@@ -109,18 +109,17 @@ pub(super) struct MetadataSettings {
     pub(super) append_cbor: bool,
     #[serde(default)]
     pub(super) use_literal_content: bool,
-    pub(super) bytecode_hash: Option<MetadataHash>,
+    #[serde(default)]
+    pub(super) bytecode_hash: MetadataHash,
 }
 
 impl Default for MetadataSettings {
     fn default() -> Self {
-        Self { append_cbor: true, use_literal_content: false, bytecode_hash: None }
-    }
-}
-
-impl MetadataSettings {
-    pub(super) fn bytecode_hash(self) -> MetadataHash {
-        self.bytecode_hash.unwrap_or_default()
+        Self {
+            append_cbor: true,
+            use_literal_content: false,
+            bytecode_hash: MetadataHash::default(),
+        }
     }
 }
 
@@ -824,6 +823,11 @@ pub(super) fn strip_json_comments(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metadata_hash_rejects_null() {
+        assert!(serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":null}"#).is_err());
+    }
 
     fn selection_flags(input: &str) -> OutputSelectionFlags {
         serde_json::from_str(input).unwrap()

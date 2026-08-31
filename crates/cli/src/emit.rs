@@ -44,7 +44,7 @@ struct CombinedJsonContract<'a> {
 pub(crate) fn emit_requested(
     compiler: &mut CompilerRef<'_>,
     bytecode_contracts: ContractSelection,
-    bytecode_metadata: Option<&FxHashMap<ContractId, Bytes>>,
+    appended_data: Option<&FxHashMap<ContractId, Bytes>>,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
     if !gcx.sess.opts.language.is_source() {
@@ -80,7 +80,7 @@ pub(crate) fn emit_requested(
             &generated_bytecode_contracts,
             &capture_mir,
             &capture_evm_ir,
-            bytecode_metadata,
+            appended_data,
         )?)
     } else {
         None

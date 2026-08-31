@@ -118,18 +118,19 @@ impl ContractSelection {
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
 /// configured and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
+/// Entries in `appended_data` are emitted as trailing runtime program data.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
     contracts: &ContractSelection,
     capture_mir: &ContractSelection,
     capture_evm_ir: &ContractSelection,
-    bytecode_metadata: Option<&FxHashMap<ContractId, Bytes>>,
+    appended_data: Option<&FxHashMap<ContractId, Bytes>>,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
     let captures = ContractCaptures {
         bytecode: contracts,
         mir: capture_mir,
         evm_ir: capture_evm_ir,
-        bytecode_metadata,
+        appended_data,
     };
     let mut requested = contracts.clone();
     requested.union_with(capture_mir);
@@ -190,7 +191,7 @@ struct ContractCaptures<'a> {
     bytecode: &'a ContractSelection,
     mir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
-    bytecode_metadata: Option<&'a FxHashMap<ContractId, Bytes>>,
+    appended_data: Option<&'a FxHashMap<ContractId, Bytes>>,
 }
 
 struct ContractGraph {
@@ -319,6 +320,7 @@ fn generate_contract_bytecode(
         .collect();
     let share_public_bodies = gcx.sess.opts.optimization.is_size();
     let mut module = lower::lower_contract(gcx, contract_id, &child_bytecodes, share_public_bodies);
+    append_contract_data(&mut module, contract_id, captures.appended_data);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
@@ -330,9 +332,6 @@ fn generate_contract_bytecode(
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
         let mut codegen = EvmCodegen::new(gcx);
-        if let Some(metadata) = captures.bytecode_metadata.and_then(|all| all.get(&contract_id)) {
-            codegen.set_bytecode_metadata(metadata);
-        }
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
         let mut artifact = codegen.lower_module(&mut module);
@@ -345,12 +344,9 @@ fn generate_contract_bytecode(
             let gas_first_module = module.clone();
             let gas_first_artifact = artifact;
             module = lower::lower_contract(gcx, contract_id, &child_bytecodes, true);
+            append_contract_data(&mut module, contract_id, captures.appended_data);
             gcx.dcx().has_errors()?;
             let mut codegen = EvmCodegen::new(gcx);
-            if let Some(metadata) = captures.bytecode_metadata.and_then(|all| all.get(&contract_id))
-            {
-                codegen.set_bytecode_metadata(metadata);
-            }
             codegen.set_capture_mir(capture_mir && !capture_built);
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             let size_rescue_artifact = codegen.lower_module(&mut module);
@@ -440,4 +436,16 @@ fn generate_contract_bytecode(
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,
     })
+}
+
+fn append_contract_data(
+    module: &mut Module,
+    contract_id: ContractId,
+    appended_data: Option<&FxHashMap<ContractId, Bytes>>,
+) {
+    if let Some(data) =
+        appended_data.and_then(|all| all.get(&contract_id)).filter(|x| !x.is_empty())
+    {
+        module.append_runtime_data(data.clone(), None);
+    }
 }
