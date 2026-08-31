@@ -216,7 +216,7 @@
 +     set_memory_object_len memoryarray, v9, v0
 +     jump bb4
 +   bb4:
-+     v10 = phi [bb3: 0], [bb11: v28]
++     v10 = phi [bb3: 0], [bb11: v32]
 +     v11 = lt v10, v0
 +     jumpi v11, bb5, bb6
 +   bb6:
@@ -224,34 +224,38 @@
 +   bb5:
 +     v12 = memory_object_load_element memoryarray<1>, arg0, v10
 +     v13 = memory_object_len memoryarray, v12
-+     v14 = add v13, 1
-+     v15 = lt v14, v13
-+     jumpi v15, bb1, bb7
++     v14 = iszero v12
++     v15 = iszero v14
++     v16 = mul v13, v15
++     v17 = add v16, 1
++     v18 = lt v17, v16
++     jumpi v18, bb1, bb7
 +   bb7:
-+     v16 = mul v14, 32
-+     v17 = iszero 32
-+     v18 = div v16, 32
-+     v19 = eq v18, v14
-+     v20 = or v17, v19
-+     v21 = iszero v20
-+     jumpi v21, bb1, bb8
++     v19 = mul v17, 32
++     v20 = iszero 32
++     v21 = div v19, 32
++     v22 = eq v21, v17
++     v23 = or v20, v22
++     v24 = iszero v23
++     jumpi v24, bb1, bb8
 +   bb8:
-+     v22 = alloc memoryarray<1>, exact, uninitialized, infallible, v16
-+     set_memory_object_len memoryarray, v22, v13
++     v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
++     set_memory_object_len memoryarray, v25, v16
 +     jump bb9
 +   bb9:
-+     v23 = phi [bb8: 0], [bb10: v27]
-+     v24 = lt v23, v13
-+     jumpi v24, bb10, bb11
++     v26 = phi [bb8: 0], [bb10: v31]
++     v27 = lt v26, v16
++     jumpi v27, bb10, bb11
 +   bb11:
-+     memory_object_store_element memoryarray<1>, v9, v10, v22
-+     v28 = add v10, 1
++     memory_object_store_element memoryarray<1>, v9, v10, v25
++     v32 = add v10, 1
 +     jump bb4
 +   bb10:
-+     v25 = memory_object_load_element memoryarray<1>, v12, v23
-+     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffff
-+     memory_object_store_element memoryarray<1>, v22, v23, v26
-+     v27 = add v23, 1
++     v28 = memory_object_load_element memoryarray<1>, v12, v26
++     v29 = mul v28, v15
++     v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
++     memory_object_store_element memoryarray<1>, v25, v26, v30
++     v31 = add v26, 1
 +     jump bb9
 +   bb1:
 +     revert 0, 0

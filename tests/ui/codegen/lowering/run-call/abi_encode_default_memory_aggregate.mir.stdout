@@ -54,3 +54,11 @@ fn @hashNestedTuple() -> bytes32 [selector=0xe4f5ccbe, pure, abi_params=[], abi_
     v4 = keccak256 v2, v3
     ret v4
 }
+
+fn @returnDefaultSmall() -> memoryarray [selector=0x443c486c, pure, abi_params=[], abi_returns=[memory_array<tuple<word<u8>>>], abi_return_params=[array<_, tuple<u8>>]] {
+  bb0:
+    mstore 0, 291 !metadata(memory=scratch)
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    ret v0
+}
