@@ -2043,7 +2043,7 @@ mod tests {
 
     #[test]
     fn models_locally_packed_indexed_jump_sizes() {
-        assert_eq!(estimated_indexed_jump_code_size(20, 1, 1, EvmVersion::Cancun, true), 30);
+        assert_eq!(estimated_indexed_jump_code_size(20, 1, 1, EvmVersion::Cancun, true), 27);
         assert_eq!(estimated_indexed_jump_code_size(33, 1, 1, EvmVersion::Cancun, true), 57);
         assert_eq!(estimated_indexed_jump_code_size(20, 2, 2, EvmVersion::Cancun, false), 108);
     }

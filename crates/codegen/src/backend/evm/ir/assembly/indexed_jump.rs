@@ -827,7 +827,14 @@ fn estimated_terminator_size(
 
 fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) -> usize {
     let table_len = if table.chunks == PackedTableChunks::One {
-        9 + table.len * usize::from(table.width) + usize::from(table.width)
+        if table.width == 1 {
+            let byte_offset = 32 - table.len;
+            4 + table.len
+                + usize::from(byte_offset != 0)
+                    * (push_len(evm_version, U256::from(byte_offset)) + 1)
+        } else {
+            9 + table.len * usize::from(table.width) + usize::from(table.width)
+        }
     } else {
         debug_assert_eq!(table.chunks, PackedTableChunks::Two);
 
@@ -896,23 +903,41 @@ pub(super) fn lower(
             );
             program.push_op(op::AND);
         }
-        if scale.is_power_of_two() {
-            program.push(
-                AsmInst::push_inline(scale.ilog2()).expect("indexed jump scale must fit inline"),
-            );
-            program.push_op(op::SHL);
-        } else {
-            program.push(AsmInst::push_inline(scale).expect("indexed jump scale must fit inline"));
-            program.push_op(op::MUL);
-        }
-        if table_encoding.packed_chunks == PackedTableChunks::One {
-            program.push_packed_labels(labels.into_boxed_slice(), base, target_width);
+        if table_encoding.packed_chunks == PackedTableChunks::One && target_width == 1 {
+            let byte_offset = 32 - labels.len();
+            if byte_offset != 0 {
+                program.push(
+                    AsmInst::push_inline(byte_offset as u32)
+                        .expect("indexed jump byte offset must fit inline"),
+                );
+                program.push_op(op::ADD);
+            }
+            let mut labels = labels.into_boxed_slice();
+            labels.reverse();
+            program.push_packed_labels(labels, base, target_width);
             program.push_op(op::SWAP1);
+            program.push_op(op::BYTE);
+        } else {
+            if scale.is_power_of_two() {
+                program.push(
+                    AsmInst::push_inline(scale.ilog2())
+                        .expect("indexed jump scale must fit inline"),
+                );
+                program.push_op(op::SHL);
+            } else {
+                program
+                    .push(AsmInst::push_inline(scale).expect("indexed jump scale must fit inline"));
+                program.push_op(op::MUL);
+            }
+            if table_encoding.packed_chunks == PackedTableChunks::One {
+                program.push_packed_labels(labels.into_boxed_slice(), base, target_width);
+                program.push_op(op::SWAP1);
+            }
+            program.push_op(op::SHR);
+            let mask = (U256::ONE << scale) - U256::ONE;
+            program.push(assembler.push_inst(mask));
+            program.push_op(op::AND);
         }
-        program.push_op(op::SHR);
-        let mask = (U256::ONE << scale) - U256::ONE;
-        program.push(assembler.push_inst(mask));
-        program.push_op(op::AND);
         if let Some(base) = base {
             program.push_label(base);
             program.push_op(op::ADD);
