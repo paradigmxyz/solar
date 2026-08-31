@@ -10,7 +10,9 @@ use solar_data_structures::{
     index::{Idx, IndexVec},
     newtype_index,
 };
-use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed, source_map::SourceFile};
+use solar_interface::{
+    Ident, Span, Symbol, diagnostics::ErrorGuaranteed, kw, source_map::SourceFile,
+};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
@@ -1059,6 +1061,20 @@ pub struct Function<'hir> {
 }
 
 impl Function<'_> {
+    /// Returns the function name or its kind when unnamed.
+    pub fn name_or_kind(&self) -> Symbol {
+        self.name.map_or_else(
+            || match self.kind {
+                FunctionKind::Constructor => kw::Constructor,
+                FunctionKind::Function => kw::Function,
+                FunctionKind::Fallback => kw::Fallback,
+                FunctionKind::Receive => kw::Receive,
+                FunctionKind::Modifier => kw::Modifier,
+            },
+            |name| name.name,
+        )
+    }
+
     /// Returns the span of the `kind` keyword.
     pub fn keyword_span(&self) -> Span {
         self.span.with_hi(self.span.lo() + self.kind.to_str().len() as u32)

@@ -6,7 +6,7 @@ contract C {
     // CHECK: {{v[0-9]+}} = loadimmutable owner
     address public immutable owner;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: storeimmutable owner, arg0
     constructor(address value) {
         owner = value;

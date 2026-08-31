@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/constructor_storage_mir.sol:ConstructorStoredFunctionPointer ===
 @module ConstructorStoredFunctionPointer
-fn @_anonymous() {
+fn @constructor() {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
