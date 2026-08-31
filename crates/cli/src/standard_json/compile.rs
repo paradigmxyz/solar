@@ -9,7 +9,6 @@ use super::{
     },
     metadata::Metadata,
 };
-use serde::Serialize;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
 use solar_config::{
@@ -52,61 +51,36 @@ pub fn compile_standard_json(
     } else {
         Cow::Borrowed(input)
     };
-    let json = match serde_json::from_str::<CompilerInput<'_>>(&input) {
+    match serde_json::from_str::<CompilerInput<'_>>(&input) {
         Ok(compiler_input) => {
             if opts.unstable.standard_json_stats {
                 print_standard_json_stats(&input, &compiler_input);
             }
-            compile(&compiler_input, &mut opts, Arc::clone(&source_map), dcx, &diagnostics)
+            compile(&compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
         }
         Err(e) => {
             dcx.err(format!("JSON parse error: {e}")).emit();
-            None
         }
-    };
+    }
 
-    let json =
-        json.unwrap_or_else(|| standard_json_output(&mut output, &opts, source_map, &diagnostics));
-    let _ = out.write_all(&json);
-}
-
-#[derive(Serialize)]
-struct StandardJsonOutput<'diagnostic, 'output, 'gcx> {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    errors: Vec<SolcDiagnostic<'diagnostic>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    sources: &'output FxIndexMap<String, SourceOutput>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    contracts: &'output FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
-}
-
-fn standard_json_output(
-    output: &mut CompilerOutput<'_>,
-    opts: &CompileOpts,
-    source_map: Arc<SourceMap>,
-    diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
-) -> Vec<u8> {
-    let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map, opts.color)
+    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map), opts.color)
         .ui_testing(opts.unstable.ui_testing)
         .human_kind(opts.error_format_human)
         .terminal_width(opts.diagnostic_width);
     let diagnostics = diagnostics.read();
-    let errors: Vec<_> =
+    output.errors =
         diagnostics.iter().map(|diagnostic| emitter.solc_diagnostic(diagnostic)).collect();
 
-    if errors.iter().any(SolcDiagnostic::is_error) {
+    if output.errors.iter().any(SolcDiagnostic::is_error) {
         output.contracts.clear();
     }
-    let output =
-        StandardJsonOutput { errors, sources: &output.sources, contracts: &output.contracts };
 
-    let mut json = Vec::new();
-    let _ = if opts.pretty_json {
-        serde_json::to_writer_pretty(&mut json, &output)
+    let result = if opts.pretty_json {
+        serde_json::to_writer_pretty(out, &output)
     } else {
-        serde_json::to_writer(&mut json, &output)
+        serde_json::to_writer(out, &output)
     };
-    json
+    let _ = result;
 }
 
 pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
@@ -146,8 +120,8 @@ fn compile(
     opts: &mut CompileOpts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
-    diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
-) -> Option<Vec<u8>> {
+    output: &mut CompilerOutput<'_>,
+) {
     let CompilerInput { language, sources, settings } = input;
     // Destructure `Settings` so every recognized field is handled explicitly;
     // fields we don't act on yet are bound with a leading underscore and a note.
@@ -169,7 +143,7 @@ fn compile(
     {
         dcx.err("when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`")
             .emit();
-        return None;
+        return;
     }
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
@@ -182,7 +156,7 @@ fn compile(
         }
     }
     if dcx.has_errors().is_err() {
-        return None;
+        return;
     }
 
     opts.import_remappings = parsed_remappings;
@@ -199,7 +173,7 @@ fn compile(
         "Yul" | "yul" => Language::Yul,
         language => {
             dcx.err(format!("unsupported language `{language}`")).emit();
-            return None;
+            return;
         }
     };
     if let Some(stage) = stop_after.as_deref() {
@@ -211,7 +185,7 @@ fn compile(
         }
     }
     if dcx.has_errors().is_err() {
-        return None;
+        return;
     }
 
     let (optimizer_enabled, optimizer_runs) = optimizer_settings(optimizer.as_ref());
@@ -239,83 +213,71 @@ fn compile(
         .opts(opts.clone())
         .build();
 
-    let mut json = Vec::new();
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
-            let mut output = CompilerOutput::default();
-            let result = (|| {
-                let control_flow = crate::commands::compile::run_pipeline(
-                    compiler,
-                    |pcx| {
-                        let mut files = Vec::with_capacity(sources.len());
-                        for (name, source) in sources {
-                            let Some(content) = &source.content else {
-                                let message = if source.urls.is_empty() {
-                                    format!("source `{name}` is missing `content`")
-                                } else {
-                                    format!("source URLs are not supported for `{name}`")
-                                };
-                                return Err(pcx.dcx().err(message).emit());
+            let control_flow = crate::commands::compile::run_pipeline(
+                compiler,
+                |pcx| {
+                    let mut files = Vec::with_capacity(sources.len());
+                    for (name, source) in sources {
+                        let Some(content) = &source.content else {
+                            let message = if source.urls.is_empty() {
+                                format!("source `{name}` is missing `content`")
+                            } else {
+                                format!("source URLs are not supported for `{name}`")
                             };
-                            files.push((PathBuf::from(name.as_ref()), content.to_string()));
-                        }
-                        pcx.par_load_files_with_contents(files)
-                    },
-                    |compiler| output.sources = source_outputs_from_compiler(compiler),
-                )?;
-                if control_flow.is_break() {
-                    return Ok(());
-                }
-
-                let gcx = compiler.gcx();
-                let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
-                let contract_metadata = Metadata::new(gcx, input);
-                let runtime_suffix = |contract_id| contract_metadata.runtime_suffix(contract_id);
-
-                crate::commands::compile::warn_experimental_codegen(
-                    gcx.sess,
-                    !bytecode_contracts.is_empty(),
-                );
-                let bytecodes = crate::emit::emit_requested(
-                    compiler,
-                    bytecode_contracts,
-                    Some(&runtime_suffix),
-                )?;
-
-                gcx.dcx().has_errors()?;
-
-                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-                    let source = gcx.hir.source(contract.source);
-                    let source_name = standard_json_source_name(&source.file.name);
-                    let contract_name = contract.name.as_str();
-                    let contract_selection = output_selection.contract(&source_name, contract_name);
-                    let contract_output = make_contract_output(
-                        gcx,
-                        contract_id,
-                        contract_selection,
-                        bytecodes.as_ref(),
-                        &contract_metadata,
-                    );
-                    if !contract_output.is_empty() {
-                        output
-                            .contracts
-                            .entry(source_name)
-                            .or_default()
-                            .insert(contract_name.to_string(), contract_output);
+                            return Err(pcx.dcx().err(message).emit());
+                        };
+                        files.push((PathBuf::from(name.as_ref()), content.to_string()));
                     }
+                    pcx.par_load_files_with_contents(files)
+                },
+                |compiler| output.sources = source_outputs_from_compiler(compiler),
+            )?;
+            if control_flow.is_break() {
+                return Ok(());
+            }
+
+            let gcx = compiler.gcx();
+            let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
+            let contract_metadata = Metadata::new(gcx, input);
+            let runtime_suffix = |contract_id| contract_metadata.runtime_suffix(contract_id);
+
+            crate::commands::compile::warn_experimental_codegen(
+                gcx.sess,
+                !bytecode_contracts.is_empty(),
+            );
+            let bytecodes =
+                crate::emit::emit_requested(compiler, bytecode_contracts, Some(&runtime_suffix))?;
+
+            gcx.dcx().has_errors()?;
+
+            for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+                let source = gcx.hir.source(contract.source);
+                let source_name = standard_json_source_name(&source.file.name);
+                let contract_name = contract.name.as_str();
+                let contract_selection = output_selection.contract(&source_name, contract_name);
+                let contract_output = make_contract_output(
+                    gcx,
+                    contract_id,
+                    contract_selection,
+                    bytecodes.as_ref(),
+                    &contract_metadata,
+                );
+                if !contract_output.is_empty() {
+                    output
+                        .contracts
+                        .entry(source_name)
+                        .or_default()
+                        .insert(contract_name.to_string(), contract_output);
                 }
+            }
 
-                Ok(())
-            })();
-
-            json = standard_json_output(&mut output, opts, Arc::clone(&source_map), diagnostics);
-
-            result
+            Ok(())
         },
         false,
     );
-    (!json.is_empty()).then_some(json)
 }
 
 struct StandardJsonFileLoader {
@@ -407,13 +369,13 @@ fn source_outputs_from_compiler(
         .collect()
 }
 
-fn make_contract_output<'gcx>(
-    gcx: Gcx<'gcx>,
+fn make_contract_output(
+    gcx: Gcx<'_>,
     contract_id: solar_sema::hir::ContractId,
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
-    metadata: &Metadata<'_, '_, 'gcx>,
-) -> ContractOutput<'gcx> {
+    metadata: &Metadata<'_, '_, '_>,
+) -> ContractOutput<'static> {
     let mut output = ContractOutput::default();
 
     if output_selection.contains(OutputSelectionFlags::ABI) {
@@ -423,10 +385,10 @@ fn make_contract_output<'gcx>(
         output.metadata = Some(metadata.json(contract_id).to_string());
     }
     if output_selection.contains(OutputSelectionFlags::USERDOC) {
-        output.userdoc = Some(gcx.user_documentation(contract_id));
+        output.userdoc = Some(gcx.user_documentation(contract_id).clone());
     }
     if output_selection.contains(OutputSelectionFlags::DEVDOC) {
-        output.devdoc = Some(gcx.dev_documentation(contract_id));
+        output.devdoc = Some(gcx.dev_documentation(contract_id).clone());
     }
     if output_selection.contains(OutputSelectionFlags::STORAGE_LAYOUT) {
         output.storage_layout = Some(gcx.storage_layout(contract_id));
