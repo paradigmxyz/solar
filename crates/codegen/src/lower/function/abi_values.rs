@@ -125,10 +125,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_signature_selector(&mut self, signature: &hir::Expr<'_>) -> Option<ValueId> {
-        // if literal { selector = imm(keccak256(bytes)[0..4] << 224) }
-        // if ternary { selector = select(condition, selector(then), selector(else)) }
-        // selector = shl(224, shr(224, keccak256_bytes(materialize(signature))))
         if let Some(selector) = Self::literal_signature_selector(signature) {
+            // selector = keccak256(literal)[0..4] << 224
             return Some(self.builder.imm_u256(selector));
         }
 
@@ -136,12 +134,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Some(then_selector) = Self::literal_signature_selector(then_expr)
             && let Some(else_selector) = Self::literal_signature_selector(else_expr)
         {
+            // selector = select(condition, selector(then), selector(else))
             let condition = self.lower_expr(condition)?;
             let then_selector = self.builder.imm_u256(then_selector);
             let else_selector = self.builder.imm_u256(else_selector);
             return Some(self.builder.select(condition, then_selector, else_selector));
         }
 
+        // selector = keccak256(materialize(signature))[0..4] << 224
         let signature_ty = self.context.gcx.type_of_expr(signature.id);
         let signature = self.lower_expr(signature)?;
         if let Some(signature_ty) = signature_ty
@@ -343,7 +343,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn revert_external_call(&mut self, success: ValueId) {
-        // if !success { revert_returndata() }
+        // if !success { revert(0, returndatasize()) }
         let revert = self.builder.create_block();
         let continue_block = self.builder.create_block();
         self.builder.branch(success, continue_block, revert);
@@ -489,16 +489,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_abi_encode_packed(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
-        // pieces, total = lower_packed_pieces(args)
-        // output = bytes(total)
-        // for piece { write_packed(output, piece) }
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
+        // pieces, total = lower_packed_pieces(args)
         let (pieces, total) = self.lower_packed_pieces(exprs, true)?;
 
+        // output = bytes(total)
         let output = self.builder.alloc_bytes_object(total, AllocationSemantics::INTERNAL);
 
         let mut offset = self.builder.imm_u64(0);
         let mut index = 0;
+        // for piece { write_packed(output, piece) }
         while index < pieces.len() {
             if let Some((consumed, length)) =
                 self.try_write_packed_word(output, offset, &pieces[index..])
@@ -511,6 +511,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             match &pieces[index] {
                 PackedPiece::Bytes(bytes) => {
+                    // for chunk { mstore(output + offset, chunk) }
                     for chunk in bytes.chunks(32) {
                         let mut padded = [0u8; 32];
                         padded[..chunk.len()].copy_from_slice(chunk);
@@ -521,6 +522,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 }
                 PackedPiece::Dynamic { source, length } => {
+                    // copy(source, output + offset)
                     self.builder.memory_object_copy_from_slice_at(
                         output,
                         MemoryObjectKind::Bytes,
@@ -530,10 +532,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     offset = self.builder.checked_add(offset, *length);
                 }
                 PackedPiece::Array { value, length, element, source } => {
+                    // offset = copy_packed_array(output, offset, value)
                     offset =
                         self.copy_packed_array(output, offset, *value, *length, element, *source);
                 }
                 PackedPiece::Static { value, length, fixed_bytes, .. } => {
+                    // mstore(output + offset, align(value, length))
                     let value = if *fixed_bytes || *length == 32 {
                         *value
                     } else {
@@ -555,17 +559,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        // pieces, total = lower_packed_pieces(args)
-        // base = has_dynamic ? fmp : (scratch_needed ? fmp : 0)
-        // write_packed(base, pieces)
-        // size = has_dynamic ? end(base) - base : total
-        // hash = keccak256(base, size)
         let exprs = self.variadic_builtin_args(Builtin::AbiEncodePacked, &args)?;
         if !exprs.iter().all(|expr| self.is_scratch_packed_expr(expr)) {
             return None;
         }
+        // pieces, total = lower_packed_pieces(args)
         let (pieces, total) = self.lower_packed_pieces(exprs, false)?;
         let has_dynamic = pieces.iter().any(|piece| matches!(piece, PackedPiece::Dynamic { .. }));
+        // base = has_dynamic ? fmp : (scratch_needed ? fmp : 0)
         let base = if has_dynamic {
             Some(self.builder.fmp())
         } else {
@@ -594,6 +595,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut offset = 0u64;
         let mut cursor = has_dynamic.then(|| base.expect("dynamic packed input has a base"));
         let mut index = 0;
+        // write_packed(base, pieces)
         while index < pieces.len() {
             if let Some((consumed, length, value)) = self.try_pack_packed_word(&pieces[index..]) {
                 let dest = self.packed_scratch_offset(cursor.or(base), offset);
@@ -606,6 +608,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let piece = &pieces[index];
             match piece {
                 PackedPiece::Bytes(bytes) => {
+                    // for chunk { mstore(base + offset, chunk) }
                     for chunk in bytes.chunks(32) {
                         let mut padded = [0u8; 32];
                         padded[..chunk.len()].copy_from_slice(chunk);
@@ -616,6 +619,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 }
                 PackedPiece::Dynamic { source, length } => {
+                    // copy(source, cursor + offset)
                     let dest = self.packed_scratch_offset(cursor, offset);
                     let location = self.builder.func().value_slice_location(*source)?;
                     let source_length = self.builder.slice_len(*source);
@@ -625,6 +629,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     offset = 0;
                 }
                 PackedPiece::Static { value, length, fixed_bytes, .. } => {
+                    // mstore(base + offset, align(value, length))
                     let value = if *fixed_bytes || *length == 32 {
                         *value
                     } else {
@@ -640,6 +645,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             index += 1;
         }
 
+        // size = has_dynamic ? end(base) - base : total
+        // hash = keccak256(base, size)
         let size = if has_dynamic {
             let cursor = cursor.expect("dynamic packed input has a cursor");
             let end = self.builder.add_u64_offset(cursor, offset);
@@ -1165,10 +1172,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         offset: ValueId,
         nullable_memory: bool,
     ) -> ValueId {
-        // padded_length = round_up(length, 32)
-        // if padded_length != 0 { zero(output, offset + padded_length - 32) }
-        // copy(value, output, offset)
-        // return_offset = offset + padded_length
         let length =
             self.inplace_memory_object_len(value, MemoryObjectKind::Bytes, nullable_memory);
         let word = self.builder.imm_u64(32);
@@ -1182,6 +1185,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(empty, copy_block, zero_block);
 
         self.builder.switch_to_block(zero_block);
+        // if padded_length != 0 { mstore(output + offset + padded_length - 32, 0) }
         let last_offset = self.builder.sub(padded, word);
         let last = self.builder.add(offset, last_offset);
         let zero = self.builder.imm_u64(0);
@@ -1189,6 +1193,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.jump(copy_block);
 
         self.builder.switch_to_block(copy_block);
+        // copy(value, output + offset)
+        // return_offset = offset + padded_length
         let data = self.builder.memory_object_data(value, MemoryObjectKind::Bytes);
         let source = self.builder.make_slice(data, length, SliceLocation::Memory);
         self.builder.memory_object_copy_from_slice_at(
@@ -1209,15 +1215,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: &PackedArrayElement<'gcx>,
         source: PackedArraySource,
     ) -> ValueId {
-        // for i {
-        //     if scalar {
-        //         value = load packed element[i]
-        //         value = normalize(value)
-        //         store(output, offset + i * width, value)
-        //     } else {
-        //         copy_packed_array(output, offset + i * width, element[i])
-        //     }
-        // }
         let element_bytes =
             Self::packed_array_element_bytes(&element.abi).expect("packed array shape");
         let element_bytes_value = self.builder.imm_u64(element_bytes);
@@ -1236,6 +1233,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => None,
         };
 
+        // for i in 0..length {
+        //     destination = output + offset + i * element_width
+        // }
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -1253,6 +1253,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let destination = self.builder.checked_add(offset, element_offset);
         match &element.abi {
             AbiType::Word(_) | AbiType::Function => {
+                // element = normalize(load_element(value, i))
+                // mstore(destination, element)
                 let element_value = match source {
                     PackedArraySource::Memory { layout } => {
                         self.builder.memory_object_load_element(value, layout, index)
@@ -1282,6 +1284,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.memory_object_store_word(output, destination, element_value);
             }
             AbiType::FixedArray { element: nested, len } => {
+                // copy_packed_array(output, destination, value[i])
                 let nested_length = self.builder.imm_u64(*len);
                 let (nested_value, nested_source) = match source {
                     PackedArraySource::Memory { layout } => {
@@ -1432,27 +1435,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         builtin: Builtin,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        // input = materialize(bytes)
-        // output = bytes(32)
-        // precompile_call(sha256 ? 2 : 3, input, output)
-        // result = load(output, 0)
-        // if ripemd160 { result *= 1 << 96 }
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
         let memory_ty = self.context.gcx.types.bytes_ref.memory;
+        // input = materialize(bytes)
         let input = self.lower_typed_expr(input, memory_ty)?;
         let input = self.materialize_memory_argument(memory_ty, input, span)?;
         let input_ptr = self.builder.memory_object_data(input, MemoryObjectKind::Bytes);
         let input_len = self.builder.memory_object_len(input, MemoryObjectKind::Bytes);
 
+        // output = bytes(32)
+        // precompile_call(sha256 ? 2 : 3, input, output)
         let (output_ptr, output_len) = self.alloc_precompile_output();
         let address = self.builder.imm_u64(if builtin == Builtin::Sha256 { 2 } else { 3 });
         let output_size = self.builder.imm_u64(32);
         self.lower_precompile_call(address, input_ptr, input_len, output_ptr, output_size);
         let zero = self.builder.imm_u64(0);
         let output_slice = self.builder.make_slice(output_ptr, output_len, SliceLocation::Memory);
+        // result = mload(output.data)
         let value = self.builder.memory_slice_load_word(output_slice, zero);
         Some(if builtin == Builtin::Ripemd160 {
+            // result = result << 96
             let scale = self.builder.imm_u256(U256::from(1) << 96);
             self.builder.mul(scale, value)
         } else {
@@ -1524,16 +1527,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         output_ptr: ValueId,
         output_size: ValueId,
     ) {
-        // if supports_staticcall {
-        //     staticcall(precompile_gas, address, input, output)
-        // } else {
-        //     call(precompile_gas, address, value=0, input, output)
-        // }
         let evm_version = self.context.gcx.sess.opts.evm_version;
         let gas = crate::utils::precompile_gas(&mut self.builder, evm_version);
         if evm_version.has_static_call() {
+            // staticcall(precompile_gas, address, input, output)
             self.builder.staticcall(gas, address, input_ptr, input_size, output_ptr, output_size);
         } else {
+            // call(precompile_gas, address, 0, input, output)
             let value = self.builder.imm_u256(U256::ZERO);
             self.builder.call(gas, address, value, input_ptr, input_size, output_ptr, output_size);
         }

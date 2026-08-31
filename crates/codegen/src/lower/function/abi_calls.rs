@@ -394,13 +394,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<ValueId> {
-        // object = materialize_calldata(ty, data)
         match ty.peel_refs().kind {
             _ if self.is_dynamic_bytes_type(ty.peel_refs()) => {
+                // object = materialize_calldata_bytes(data)
                 self.validate_calldata_bytes_slice(value);
                 Some(self.materialize_memory_slice(value))
             }
             TyKind::DynArray(_) | TyKind::Slice(_) => {
+                // object = materialize_calldata_array(data)
                 let element = self.array_element_type(ty).or_else(|| {
                     report_unsupported(self.context.gcx, span, "calldata argument materialization")
                 })?;
@@ -418,11 +419,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.materialize_calldata_nested_array(element, data, length, span, true)
             }
             TyKind::Array(element, length) => {
+                // object = materialize_calldata_fixed_array(data)
                 let length = u64::try_from(length).ok()?;
                 let data = self.builder.slice_ptr(value);
                 self.materialize_calldata_fixed_array(element, length, data, span, true)
             }
             TyKind::Struct(id) => {
+                // object = materialize_calldata_struct(data)
                 let gcx = self.context.gcx;
                 let field_types =
                     gcx.hir.strukt(id).fields.iter().map(|&field| gcx.type_of_item(field.into()));
@@ -524,8 +527,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // position = calldata_value_position(ty, head, tuple_base)
-        // value = decode_or_slice(ty, position, tuple_base)
         let is_calldata = ty.is_ref_at(DataLocation::Calldata);
         let ty = ty.peel_refs();
         if let TyKind::Udvt(inner, _) = ty.kind {
@@ -537,10 +538,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 validate_bounds,
             );
         }
+        // position = calldata_value_position(ty, head, tuple_base)
         let word = self.builder.imm_u64(32);
         let value_pos = self.calldata_value_position(ty, head, tuple_base, validate_bounds)?;
         match ty.kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if is_calldata => {
+                // value = calldata_slice(position + 32, calldataload(position))
                 let length = self.builder.calldataload(value_pos);
                 if validate_bounds {
                     let byte_stride = self.builder.imm_u64(1);
@@ -550,10 +553,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.make_slice(data, length, SliceLocation::Calldata))
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                // value = materialize_calldata_bytes(position)
                 Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds))
             }
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 if is_calldata {
+                    // value = calldata_slice(position + 32, calldataload(position))
                     let length = self.builder.calldataload(value_pos);
                     if validate_bounds {
                         let element_head_size =
@@ -563,6 +568,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let data = self.builder.add(value_pos, word);
                     return Some(self.builder.make_slice(data, length, SliceLocation::Calldata));
                 }
+                // value = materialize_calldata_array(position)
                 let length = self.builder.calldataload(value_pos);
                 let element_type = self.types.abi_type(element)?;
                 if validate_bounds {
@@ -587,6 +593,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Array(element, length) => {
                 let length = u64::try_from(length).ok()?;
                 if is_calldata {
+                    // value = calldata_slice(position, length)
                     let length = self.builder.imm_u64(length);
                     return Some(self.builder.make_slice(
                         value_pos,
@@ -594,6 +601,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         SliceLocation::Calldata,
                     ));
                 }
+                // value = materialize_calldata_fixed_array(position)
                 self.materialize_calldata_fixed_array(
                     element,
                     length,
@@ -615,18 +623,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         SliceLocation::Calldata,
                     ));
                 }
+                // value = materialize_calldata_struct(position)
                 let gcx = self.context.gcx;
                 let field_types =
                     gcx.hir.strukt(id).fields.iter().map(|&field| gcx.type_of_item(field.into()));
                 self.materialize_calldata_fields(field_types, value_pos, span, validate_bounds)
             }
-            TyKind::Tuple(fields) => self.materialize_calldata_fields(
-                fields.iter().copied(),
-                value_pos,
-                span,
-                validate_bounds,
-            ),
-            _ => Some(self.decode_calldata_word(ty, value_pos, validate_bounds)),
+            TyKind::Tuple(fields) => {
+                // value = materialize_calldata_tuple(position)
+                self.materialize_calldata_fields(
+                    fields.iter().copied(),
+                    value_pos,
+                    span,
+                    validate_bounds,
+                )
+            }
+            _ => {
+                // value = decode_calldata_word(position)
+                Some(self.decode_calldata_word(ty, value_pos, validate_bounds))
+            }
         }
     }
 
@@ -637,23 +652,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         tuple_base: ValueId,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // if !dynamic { position = head }
-        // if dynamic {
-        //     if validate_bounds { check_range(head, 32) }
-        //     offset = calldataload(head)
-        //     if validate_bounds && !(offset <s calldatasize() - tuple_base - (needed - 1)) {
-        //         revert(0, 0)
-        //     }
-        //     position = tuple_base + offset
-        // }
         let word = self.builder.imm_u64(32);
         let abi_type = self.types.abi_type(ty)?;
         if !abi_type.is_dynamic() {
+            // position = head
             return Some(head);
         }
         if validate_bounds {
             self.check_calldata_range(head, word);
         }
+        // offset = calldataload(head)
+        // position = tuple_base + offset
         let offset = self.builder.calldataload(head);
         let value_pos = self.builder.add(tuple_base, offset);
         if validate_bounds {
@@ -721,16 +730,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         position: ValueId,
         validate_bounds: bool,
     ) -> ValueId {
-        // if validate_bounds { check_range(position, 32) }
-        // word = calldataload(position)
-        // if validator && !valid(word) { revert(0, 0) }
-        // value = is_external_function ? word >> 64 : word
         let is_external_function =
             matches!(ty.kind, TyKind::Fn(function) if function.is_external());
         let word = self.builder.imm_u64(32);
         if validate_bounds {
             self.check_calldata_range(position, word);
         }
+        // value = calldataload(position)
         let value = self.builder.calldataload(position);
         let validator = if is_external_function {
             AbiWordValidator::from_mir_type(MirType::Function)
@@ -747,10 +753,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 },
             }
         };
+        // if !valid(value) { revert(0, 0) }
         let valid = validator.condition(&mut self.builder, value, false);
         let invalid = self.builder.iszero(valid);
         self.revert_if_invalid(invalid);
         if is_external_function {
+            // value = value >> 64
             let shift = self.builder.imm_u64(64);
             self.builder.shr(shift, value)
         } else {
@@ -805,18 +813,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // if validate_bounds { check_tail(base, length * element_head_size) }
-        // object = fixed_array(length)
-        // for i in 0..length {
-        //     head = base + i * element_head_size
-        //     object[i] = decode_at(element, head, base, validate_bounds && dynamic(element))
-        // }
         let element_abi = self.types.abi_type(element)?;
         let element_head_size = element_abi.head_size();
         if validate_bounds {
+            // check_range(base, length * element_head_size)
             let head_size = self.builder.imm_u64(length.checked_mul(element_head_size)?);
             self.check_calldata_range(base, head_size);
         }
+        // object = fixed_array(length)
         let byte_length = length.checked_mul(32)?;
         let (object, layout) = self.builder.alloc_word_array(length, AllocationSemantics::INTERNAL);
         if matches!(element_abi, AbiType::Word(_)) {
@@ -830,6 +834,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 });
             }
             let byte_length = self.builder.imm_u64(byte_length);
+            // copy(calldata(base, byte_length), object.data)
             let source = self.builder.make_slice(base, byte_length, SliceLocation::Calldata);
             self.builder.memory_object_copy_from_slice(object, layout.kind(), source);
             return Some(object);
@@ -837,6 +842,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let nested_validate = validate_bounds && element_abi.is_dynamic();
         let length = self.builder.imm_u64(length);
         let element_head_size = self.builder.imm_u64(element_head_size);
+        // for i in 0..length {
+        //     head = base + i * element_head_size
+        //     object[i] = decode_at(element, head, base)
+        // }
         self.counted_loop(length, |this, index| {
             let head_offset = this.builder.mul(index, element_head_size);
             let head = this.builder.add(base, head_offset);
@@ -861,12 +870,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         validate_bounds: bool,
     ) -> Option<ValueId> {
-        // fields = collect_fields()
-        // if validate_bounds && all_static { check_tail(base, head_size) }
-        // object = struct(fields.len)
-        // for i, field {
-        //     object[i] = decode_at(field, base + field_offset, base, nested_validate)
-        // }
         let fields = fields.into_iter().collect::<Vec<_>>();
         let mut head_size = 0_u64;
         let all_static = fields.iter().all(|&field| {
@@ -875,16 +878,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             !abi.is_dynamic()
         });
         let nested_validate = if validate_bounds && all_static {
+            // check_range(base, head_size)
             let head_size = self.builder.imm_u64(head_size);
             self.check_calldata_range(base, head_size);
             false
         } else {
             validate_bounds
         };
+        // object = struct(fields.length)
         let layout = MemoryObjectLayout::Struct { fields: fields.len() as u64 };
         let size = self.builder.imm_u64(fields.len().checked_mul(32)? as u64);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         let mut offset = 0u64;
+        // for field in fields {
+        //     object[field] = decode_at(field, base + field.offset, base)
+        // }
         for (index, field) in fields.iter().copied().enumerate() {
             let head = self.builder.add_u64_offset(base, offset);
             let value =

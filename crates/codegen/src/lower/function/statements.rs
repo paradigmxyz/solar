@@ -326,15 +326,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn emit_revert_payload(&mut self, payload: PreparedRevertPayload) {
-        // payload = empty | encode(Error(string)) | encode(custom_error)
-        // revert(pointer, length)
         match payload {
             PreparedRevertPayload::ShortString { length, data } => {
+                // revert(abi_encode(Error(string), length, data))
                 let helper = self.ensure_revert_error_helper();
                 self.builder.internal_call_void(helper, vec![length, data], 0);
                 self.builder.invalid();
             }
             PreparedRevertPayload::EmptyString => {
+                // payload = abi_encode(Error(string), "")
+                // revert(payload.data, payload.length)
                 let selector = keccak256("Error(string)");
                 let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
                 let zero = self.builder.imm_u64(0);
@@ -349,6 +350,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.revert(zero, size);
             }
             PreparedRevertPayload::ErrorString(value) => {
+                // payload = abi_encode(Error(string), value)
+                // revert(payload.data, payload.length)
                 let selector = keccak256("Error(string)");
                 let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
                 let layout = Arc::new(AbiLayout::new(
@@ -361,6 +364,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.revert(pointer, length);
             }
             PreparedRevertPayload::CustomError { selector, layout, values } => {
+                // payload = abi_encode(selector, values)
+                // revert(payload.data, payload.length)
                 let encoded = self.builder.abi_encode(layout, Some(selector), values);
                 let pointer = self.builder.slice_ptr(encoded);
                 let length = self.builder.slice_len(encoded);
@@ -456,9 +461,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_emit(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
-        // topics = (anonymous ? [] : [event_selector]) + indexed_encodings
-        // data = abi_encode(non_indexed_arguments)
-        // log0..log4(data.ptr, data.len, topics...)
         let ExprKind::Call(callee, args, _) = &expr.kind else {
             return report_unsupported(self.context.gcx, expr.span, "event emission");
         };
@@ -492,6 +494,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let parameter_names =
             self.context.gcx.callable_param_names(CallableParamSource::Event(event_id));
+        // topics = anonymous ? [] : [event_selector]
         let mut topics = Vec::with_capacity(indexed_count + usize::from(!event.anonymous));
         if !event.anonymous {
             topics.push(self.builder.imm_u256(U256::from_be_slice(
@@ -515,6 +518,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.validate_calldata_bytes_argument(value, &argument_abi_type);
             }
             if variable.indexed {
+                // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                         if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
@@ -568,6 +572,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => topics.push(self.lower_word_value(parameter_ty, argument, value)),
                 }
             } else {
+                // data_values += argument
                 let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
                 let validated_static = self.validate_calldata_static_argument(value, parameter_ty);
@@ -584,6 +589,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
 
+        // data = abi_encode(non_indexed_arguments)
         let (data_ptr, data_size) = if data_types.is_empty() {
             let zero = self.builder.imm_u256(U256::ZERO);
             (zero, zero)
@@ -596,6 +602,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());
             (self.builder.slice_ptr(encoded), self.builder.slice_len(encoded))
         };
+        // log0..log4(data.data, data.length, topics...)
         match topics.as_slice() {
             [] => self.builder.log0(data_ptr, data_size),
             &[topic] => self.builder.log1(data_ptr, data_size, topic),

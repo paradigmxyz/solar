@@ -739,13 +739,6 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
     function_ids: &FxHashMap<hir::FunctionId, FunctionId>,
     state: &LoweringState,
 ) {
-    // for target {
-    //     if function_id == target {
-    //         results = internal_call(target, arguments)
-    //         return results
-    //     }
-    // }
-    // panic(InvalidInternalFunction)
     let dispatchers = module
         .iter_functions()
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
@@ -787,6 +780,12 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.add_return(ty);
             }
 
+            // for target {
+            //     if function_id == target {
+            //         results = internal_call(target, arguments)
+            //         return results
+            //     }
+            // }
             for (function_id, mir_id, candidate_shape) in candidates {
                 let case_block = builder.create_block();
                 let next_block = builder.create_block();
@@ -851,6 +850,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 builder.switch_to_block(next_block);
             }
 
+            // panic(InvalidInternalFunction)
             builder.panic(PanicCode::InvalidInternalFunction);
         }
         *module.function_mut(dispatcher) = function;

@@ -54,20 +54,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         name: Ident,
     ) -> Option<ValueId> {
-        // if builtin_member { value = lower_builtin(...) }
-        // if function_member { value = function_pointer(...) }
-        // if storage_member { value = load_storage(...) }
-        // if struct_or_calldata_member { load/decode/normalize_field(...) }
         if let Some(builtin) = self.context.gcx.resolved_builtin(expr) {
+            // value = lower_builtin(member)
             return self.lower_builtin_value(expr, builtin);
         }
         if let Some(value) = self.lower_internal_function_value(expr) {
+            // value = internal_function_pointer(member)
             return Some(value);
         }
         if let Some(TyKind::Fn(function)) = self.context.gcx.type_of_expr(expr.id).map(|ty| ty.kind)
             && function.is_external()
             && let Some(function_id) = self.context.gcx.resolved_function(expr)
         {
+            // value = address(receiver) << 32 | selector(function)
             let address = self.lower_expr(receiver)?;
             let address_shift = self.builder.imm_u64(32);
             let address = self.builder.shl(address_shift, address);
@@ -83,6 +82,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_yul_member(expr, receiver, name);
         }
         if let Some(access) = self.storage_access(expr) {
+            // value = load_storage(member_slot)
             return self.load_storage_access(expr, access);
         }
         if name.name == sym::length {
@@ -122,6 +122,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if receiver_ty.is_ref_at(DataLocation::Calldata)
             && self.builder.func().value_slice_location(object) == Some(SliceLocation::Calldata)
         {
+            // head = receiver.ptr + field_offset
+            // value = decode_calldata(field, head, receiver.ptr)
             let AbiType::Tuple(fields) = self.types.abi_type(receiver_ty)? else {
                 return report_unsupported(self.context.gcx, expr.span, "calldata struct field");
             };
@@ -142,6 +144,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 validate_bounds,
             );
         }
+
+        // value = normalize(mload_field(object, field))
         let layout = self.types.memory_layout(receiver_ty)?;
         let value = self.builder.memory_object_load_field(object, layout, field as u64);
         let field_ty = self.context.gcx.type_of_item(id.into());
@@ -167,11 +171,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         what: &'static str,
     ) -> Option<ValueId> {
-        // if fixed_array { length = static_len }
-        // if storage_dynamic_array { length = sload(slot) }
-        // if storage_bytes_or_string { length = len(load_storage_bytes(slot)) }
-        // if slice_or_object { length = slice_len/object_len }
         if let TyKind::Array(_, len) = receiver_ty.peel_refs().kind {
+            // length = static_len
             if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                 self.lower_expr(receiver)?;
             }
@@ -180,8 +181,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if receiver_ty.is_ref_at(DataLocation::Storage) {
             if let Some(access) = self.storage_access(receiver) {
                 return match receiver_ty.peel_refs().kind {
-                    TyKind::DynArray(_) => Some(self.builder.sload(access.slot)),
+                    TyKind::DynArray(_) => {
+                        // length = sload(slot)
+                        Some(self.builder.sload(access.slot))
+                    }
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                        // length = load_storage_bytes(slot).len
                         let object = self.load_storage_bytes(access.slot);
                         Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                     }
@@ -191,6 +196,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let object = self.lower_expr(receiver)?;
             return match self.builder.func().value_ty(object) {
                 Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
+                    // length = object.len
                     Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
                 }
                 _ => report_unsupported(self.context.gcx, span, what),
@@ -198,11 +204,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let object = self.lower_expr(receiver)?;
         if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
+            // length = slice.len
             return Some(self.builder.slice_len(object));
         }
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout.kind() {
             MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => {
+                // length = object.len
                 Some(self.builder.memory_object_len(object, layout.kind()))
             }
             _ => report_unsupported(self.context.gcx, span, what),

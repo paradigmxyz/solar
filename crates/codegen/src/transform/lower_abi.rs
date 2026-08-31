@@ -305,11 +305,15 @@ impl LowerAbiCx {
                 builder.switch_to_block(block);
                 let zero = builder.imm_u256(U256::ZERO);
                 if evm_version.supports_returndata() {
+                    // size = returndatasize()
+                    // returndatacopy(0, 0, size)
+                    // revert(0, returndatasize())
                     let copy_size = builder.returndatasize();
                     builder.returndatacopy_abi_return(zero, zero, copy_size);
                     let revert_size = builder.returndatasize();
                     builder.revert(zero, revert_size);
                 } else {
+                    // revert(0, 0)
                     builder.revert(zero, zero);
                 }
             }

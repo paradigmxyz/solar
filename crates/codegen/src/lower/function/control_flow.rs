@@ -35,10 +35,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
-        // branch(condition, then, else)
-        // exits = nonterminated([then_exit, else_exit]) -> merge
-        // values = phi(then_values, else_values)
-        // storage_refs = phi(then_storage_refs, else_storage_refs)
         self.materialize_default_bindings();
         let first_block = self.builder.create_block();
         let second_block = self.builder.create_block();
@@ -47,6 +43,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let merge_block = self.builder.create_block();
         let before_values = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
+        // branch(condition, then, else)
         self.builder.branch(condition, then_block, else_block);
 
         self.builder.switch_to_block(then_block);
@@ -71,6 +68,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.jump(merge_block);
         }
 
+        // values = phi(then_values, else_values)
+        // storage_refs = phi(then_storage_refs, else_storage_refs)
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_values(
             before_values,
@@ -116,10 +115,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
-        // switch(selector, default_or_merge, cases)
-        // state = pre_switch_state
-        // exits = case_exits -> merge
-        // values/storage_refs = merge(exits)
         let selector = self.lower_yul_word_expr(switch.selector)?;
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
@@ -140,6 +135,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             body_blocks.push((case, block));
         }
+        // switch(selector, default_or_merge, cases)
         self.builder.switch(selector, default_block.unwrap_or(merge_block), case_blocks);
 
         let mut states =
@@ -164,6 +160,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
 
+        // values, storage_refs = phi(case_exits)
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_loop_values(before_values, &states, &FxHashMap::default());
         self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &states);
@@ -171,14 +168,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
-        // if CREATE { address = create(...); ok = address != 0 }
-        // if CALL/STATICCALL { ok = call(...) }
-        // branch(ok, success, catch)
-        // if CREATE { lower(success(address)) }
-        // if CALL/STATICCALL { returns = decode(); lower(success) }
-        // else { data = returndata(); catch = match(Error, Panic, raw, data) }
-        // if no_catch { revert(data) }
-        // exits -> merge
         let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
             return report_unsupported(self.context.gcx, try_stmt.expr.span, "try expression");
         };
@@ -361,6 +350,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (success, creation_value) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
+            // address = create(...)
+            // ok = address != 0
             let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
             let zero = self.builder.imm_u256(U256::ZERO);
             let failed = self.builder.eq(created, zero);
@@ -437,6 +428,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if check_code {
                 self.revert_if_no_code(address);
             }
+            // ok = delegatecall|staticcall|call(gas, address, input, 0, 0)
             let success = match target.callee {
                 TryCallee::LinkedLibrary { .. } => {
                     self.builder.delegatecall(gas, address, input, input_size, ret_offset, ret_size)
@@ -457,10 +449,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.materialize_default_bindings();
         let before = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
+        // branch(ok, success, catch)
         self.builder.branch(success, success_block, catch_block);
 
         self.builder.switch_to_block(success_block);
         if let Some(binding) = creation_binding {
+            // success.address = address
             let Some(value) = creation_value else {
                 return report_unsupported(
                     self.context.gcx,
@@ -470,6 +464,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             self.values.insert(binding, value);
         } else if !target.return_types.is_empty() {
+            // success.returns = abi_decode(returndata)
             let data = self.materialize_returndata_bytes();
             let values =
                 self.lower_abi_decode_values(data, &target.return_types, returns_clause.span)?;
@@ -497,6 +492,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
+        // data = returndata()
+        // selector = data.length >= 4 ? mload(data) >> 224 : 0
+        // error_matches = selector == Error(string) && valid_error_payload(data)
+        // panic_matches = selector == Panic(uint256) && data.length >= 36
         let catch_data = self.materialize_returndata_bytes();
         let catch_data_ptr = self.builder.memory_object_data(catch_data, MemoryObjectKind::Bytes);
         let catch_data_len = self.builder.memory_object_len(catch_data, MemoryObjectKind::Bytes);
@@ -528,6 +527,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
         let mut next_catch = self.builder.current_block();
         for catch_clause in catch_clauses {
+            // if catch_matches(clause, data) { lower(clause) } else { next_catch }
             self.builder.switch_to_block(next_catch);
             let clause_block = self.builder.create_block();
             let next_block = self.builder.create_block();
@@ -569,8 +569,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             next_catch = next_block;
         }
         self.builder.switch_to_block(next_catch);
+        // revert(data.data, data.length)
         self.builder.revert(catch_data_ptr, catch_data_len);
 
+        // values, storage_refs = phi(success, catches)
         self.builder.switch_to_block(merge_block);
         self.values = self.merge_many_values(before, &states);
         self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &states);
@@ -712,9 +714,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<Vec<ValueId>> {
-        // branch(condition, then, else)
-        // values = then_values | else_values | phi(then_i, else_i)
         let condition = self.lower_expr(condition)?;
+        // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -727,6 +728,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return report_unsupported(self.context.gcx, then_expr.span, "ternary value count");
         }
+        // values = then_values | else_values | phi(then_i, else_i)
         let values = match (then_branch.terminated, else_branch.terminated) {
             (true, false) => else_branch.value,
             (false, true) => then_branch.value,
@@ -755,13 +757,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut block: hir::Block<'_>,
         source: LoopSource<'_>,
     ) -> Option<()> {
-        // preheader -> header
-        // header -> body -> update? -> header
-        // header -> exit
-        // if for { update = step? }
-        // if while { body = condition ? body : break }
-        // if do_while { update = condition ? continue : break }
-        // break -> exit
         self.materialize_default_bindings();
         let update_stmt = match source {
             LoopSource::For { update: Some(update) } if matches!(&update.kind, StmtKind::Block(block) if block.is_empty()) => {
@@ -770,6 +765,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LoopSource::For { update } => update,
             LoopSource::While => None,
             LoopSource::DoWhile => {
+                // body = block[..-1]
+                // update = block[-1]
                 let (condition, body) =
                     block.stmts.split_last().expect("do while loop has a condition");
                 block.stmts = body;
@@ -780,6 +777,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let header = self.builder.create_block();
         let exit = self.builder.create_block();
         let update = update_stmt.map(|_| self.builder.create_block());
+        // preheader -> header
+        // header -> body -> update? -> header
+        // break -> exit
         self.builder.jump(header);
         self.builder.switch_to_block(header);
         let before_values = self.values.clone();
@@ -806,6 +806,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             continue_states: Vec::new(),
         });
         let update_state = if let Some(update_stmt) = update_stmt {
+            // body -> update
             self.lower_block(block)?;
             let normal_state = (!self.is_terminated())
                 .then(|| self.snapshot_loop_state(self.builder.current_block()));
@@ -830,6 +831,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.invalid();
                 None
             } else {
+                // update.values = phi(body, continues)
+                // update -> header
                 self.builder.switch_to_block(update.expect("loop update block exists"));
                 self.values = self.merge_loop_values(
                     header_values.clone(),
@@ -850,6 +853,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 update_state
             }
         } else {
+            // body -> header
             self.lower_block(block)?;
             let normal_state = (!self.is_terminated())
                 .then(|| self.snapshot_loop_state(self.builder.current_block()));
@@ -869,6 +873,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.add_loop_storage_phi_incoming(&header_storage_refs, state);
             }
         }
+        // exit.values = phi(breaks, header)
         self.builder.switch_to_block(exit);
         self.values =
             self.merge_loop_values(before_values, &loop_targets.break_states, &header_phis);
@@ -933,20 +938,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         incoming: Vec<(BlockId, StorageAccess)>,
     ) -> Option<StorageAccess> {
-        // slot = first_slot | phi(incoming_slots)
-        // offset = none | first_offset | phi(explicit/default_offsets)
-        // location, encoding = first.location, first.encoding
         let first = incoming.first().map(|&(_, access)| access)?;
         if incoming.iter().all(|&(_, access)| access == first) {
             return Some(first);
         }
 
+        // slot = first_slot | phi(incoming_slots)
         let slot = if incoming.iter().all(|&(_, access)| access.slot == first.slot) {
             first.slot
         } else {
             self.builder.phi(incoming.iter().map(|&(block, access)| (block, access.slot)).collect())
         };
 
+        // offset = none | first_offset | phi(explicit_or_default_offsets)
         let offset = if incoming.iter().all(|&(_, access)| access.offset.is_none()) {
             None
         } else {

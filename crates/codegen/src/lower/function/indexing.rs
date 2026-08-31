@@ -46,15 +46,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         receiver: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // if storage_byte_place { value = load_lvalue_place(...) }
-        // if storage_access { value = load_storage_access(...) }
-        // else { bounds_check(index) }
-        // value = load(fixed_bytes | slice | memory_object, index)
-        // value = normalize(value)
         if let Some(place) = self.resolve_storage_byte_place(expr) {
+            // value = load_storage_byte(place)
             return self.load_lvalue_place(&place);
         }
         if let Some(access) = self.storage_access(expr) {
+            // value = load_storage(access)
             return self.load_storage_access(expr, access);
         }
         let Some(index) = index else {
@@ -66,17 +63,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             receiver_ty.peel_refs().kind
         {
+            // bounds_check(index, width)
+            // value = byte(index, receiver)
             let length = self.builder.imm_u64(u64::from(size.bytes()));
             self.builder.bounds_check(index, length);
             let byte = self.builder.byte(index, object);
             return Some(self.normalize_byte_value(expr, byte));
         }
         if let Some(MirType::Slice(location)) = self.builder.func().value_ty(object) {
+            // bounds_check(index, slice.length)
             let length = self.builder.slice_len(object);
             self.builder.bounds_check(index, length);
             let base = self.builder.slice_ptr(object);
             return match receiver_ty.peel_refs().kind {
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                    // value = byte(0, load_word(slice, index))
                     let word = match location {
                         SliceLocation::Calldata => {
                             self.builder.calldata_slice_load_word(object, index)
@@ -95,6 +96,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(self.normalize_byte_value(expr, byte))
                 }
                 TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => {
+                    // head = slice.data + index * element_head_size
+                    // value = decode_calldata_element(head, slice.data)
                     if location != SliceLocation::Calldata {
                         return report_unsupported(
                             self.context.gcx,
@@ -129,6 +132,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = self.types.memory_layout(receiver_ty)?;
         match layout {
             MemoryObjectLayout::DynamicArray { .. } | MemoryObjectLayout::FixedArray { .. } => {
+                // bounds_check(index, object.length)
+                // value = load_element(object, index)
                 let Some((element, length)) =
                     self.array_element_and_length(receiver_ty, object, layout)
                 else {
@@ -142,6 +147,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.normalize_memory_scalar(element, value))
             }
             MemoryObjectLayout::Bytes => {
+                // bounds_check(index, object.length)
+                // value = load_byte(object, index)
                 let length = self.builder.memory_object_len(object, layout.kind());
                 self.builder.bounds_check(index, length);
                 let value = self.builder.memory_object_load_byte(object, index);
@@ -160,11 +167,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         start: Option<&hir::Expr<'_>>,
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // start = provided_start | 0
-        // end = provided_end | base_len
-        // if end > base_len || end < start { revert(0, 0) }
-        // pointer = base_ptr + start * stride
-        // slice(pointer, end - start, location)
         let receiver_ty = self.context.gcx.type_of_expr(receiver.id)?;
         let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {
@@ -198,6 +200,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let base_ptr = self.builder.slice_ptr(source);
         let base_len = self.builder.slice_len(source);
+        // start = provided_start | 0
+        // end = provided_end | base.length
         let start = if let Some(start) = start {
             self.lower_typed_expr(start, self.context.gcx.types.uint(256))?
         } else {
@@ -208,6 +212,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             base_len
         };
+        // if end > base.length || end < start { revert(0, 0) }
         let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
         let invalid = self.builder.or(past_end, backwards);
@@ -219,6 +224,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let stride = self.builder.imm_u64(element_stride);
             self.builder.checked_mul(start, stride)
         };
+        // result = slice(base.data + start * stride, end - start)
         let pointer = self.builder.add(base_ptr, start_offset);
         Some(self.builder.make_slice(pointer, length, location))
     }

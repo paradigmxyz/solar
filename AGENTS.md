@@ -362,6 +362,13 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - Avoid specifying type hints in variables unless absolutely necessary (e.g. `HashMap<_, Vec<_>>` for `x.entry(y).or_default().push(z)` where type inference won't work). Rely on the compiler.
 - When type hints are needed, prefer turbofish (`let x = Type::<X, Y>::new()`) over annotation (`let x: Type<X, Y> = Type::new()`).
 
+### IR construction and rewrites
+
+- Add an IR or pseudo-IR comment above lowering code and every transformation or rewrite that writes, moves, or rearranges IR. This includes builder sequences and helper bodies.
+- Put each comment at the narrowest useful scope that emits the described IR: immediately above the relevant match arm, `if` or `else` block, loop, or contiguous builder sequence. Do not collect comments at the top of a large function when separate paths emit the described IR later.
+- Write the comment as IR or concise pseudo-IR in emitted order, with one instruction per line when that makes the sequence easier to follow. Do not prefix it with labels such as `IR`, `pseudo-IR`, or an explanation of what the sequence does.
+- Pseudo-IR comments do not need a full stop.
+
 ## Notes
 
 - **Typed index collections**: Use `IndexVec<I, T>` for every collection indexed by an `I` index

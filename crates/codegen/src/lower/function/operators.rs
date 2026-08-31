@@ -12,7 +12,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         is_add: bool,
     ) -> ValueId {
         // overflow = signed_add_sub_signs(lhs, rhs, result)
-        // if bits < 256 { overflow |= result < min || result > max }
         let zero = self.builder.imm_u256(U256::ZERO);
         let lhs_negative = self.builder.slt(lhs, zero);
         let rhs_negative = self.builder.slt(rhs, zero);
@@ -22,6 +21,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let sign_condition = if is_add { self.builder.iszero(signs_differ) } else { signs_differ };
         let mut overflow = self.builder.and(sign_condition, result_changed_sign);
         if bits < 256 {
+            // overflow |= result < min || result > max
             let (min, max) = signed_bounds(bits, &mut self.builder);
             overflow = self.add_signed_range_check(overflow, result, min, max);
         }
@@ -37,9 +37,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> ValueId {
         // valid = rhs == 0 || (signed ? sdiv : div)(result, rhs) == lhs
         // overflow = !valid
-        // if signed { overflow |= result < min || result > max }
-        // if signed { overflow |= lhs == min && rhs == -1 }
-        // if unsigned_narrow { overflow |= result > max }
         let rhs_zero = self.builder.iszero(rhs);
         let quotient = match kind {
             ArithmeticKind::Unsigned(_) => self.builder.div(result, rhs),
@@ -49,6 +46,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let valid = self.builder.or(rhs_zero, exact);
         let mut overflow = self.builder.iszero(valid);
         if let ArithmeticKind::Signed(bits) = kind {
+            // overflow |= result < min || result > max
+            // overflow |= lhs == min && rhs == -1
             let (min, max) = signed_bounds(bits, &mut self.builder);
             overflow = self.add_signed_range_check(overflow, result, min, max);
             let minus_one = self.builder.imm_u256(U256::MAX);
@@ -59,6 +58,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else if let ArithmeticKind::Unsigned(bits) = kind
             && bits < 256
         {
+            // overflow |= result > max
             let max = self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
             let too_wide = self.builder.gt(result, max);
             overflow = self.builder.or(overflow, too_wide);
@@ -116,7 +116,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         exponent: ValueId,
         kind: ArithmeticKind,
     ) -> ValueId {
-        // power = 1; current_base = base; current_exponent = exponent
+        // power = 1
+        // current_base = base
+        // current_exponent = exponent
         // while current_exponent > 0 {
         //     if odd { power = checked_mul(power, current_base) }
         //     if current_exponent >> 1 > 0 {
@@ -124,7 +126,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     }
         //     current_exponent >>= 1
         // }
-        // result = power
         let one = self.builder.imm_u256(U256::ONE);
         let zero = self.builder.imm_u256(U256::ZERO);
         let preheader = self.builder.current_block();
@@ -171,9 +172,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: ValueId,
         ty: Option<Ty<'gcx>>,
     ) -> ValueId {
-        // result = opcode(lhs, rhs)
-        // if checked_arithmetic && overflow { panic(ArithmeticOverflowUnderflow) }
-        // if unchecked_narrow { result = truncate(result) }
         let arithmetic = ty.and_then(arithmetic_kind);
         match op {
             BinOpKind::Add => {

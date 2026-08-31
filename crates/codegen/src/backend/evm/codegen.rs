@@ -12698,6 +12698,9 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// reaching an unreachable arm in the backend.
     fn emit_revert_returndata(&mut self) {
         if self.gcx.sess.opts.evm_version.supports_returndata() {
+            // size = returndatasize()
+            // returndatacopy(0, 0, size)
+            // revert(0, returndatasize())
             self.asm.emit_push(U256::ZERO);
             self.scheduler.stack.push_unknown();
             self.asm.emit_push(U256::ZERO);
@@ -12725,6 +12728,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 StackPush::None,
             );
         } else {
+            // revert(0, 0)
             self.asm.emit_push(U256::ZERO);
             self.scheduler.stack.push_unknown();
             self.asm.emit_push(U256::ZERO);

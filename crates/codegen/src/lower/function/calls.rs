@@ -48,16 +48,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // result = lower_struct_ctor(callee, args)
-        // result = convert(callee, args)
-        // result = new(callee, args, opts)
-        // result = builtin(callee, args, opts)
-        // result = function_pointer_call(callee, args, opts)
-        // result = function_call(callee, args, opts)
         if let Some(struct_id) = self.context.gcx.resolved_expr(callee).and_then(|res| match res {
             hir::Res::Item(item) => item.as_struct(),
             _ => None,
         }) {
+            // result = lower_struct_ctor(callee, args)
             return self.lower_struct_constructor(expr, struct_id, args);
         }
         let is_type_conversion = matches!(callee.kind, ExprKind::TypeCall(_) | ExprKind::Type(_))
@@ -65,6 +60,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 matches!(res, hir::Res::Item(hir::ItemId::Contract(_) | hir::ItemId::Enum(_)))
             });
         if is_type_conversion {
+            // result = convert(callee, args)
             if args.len() != 1 {
                 return report_unsupported(self.context.gcx, expr.span, "type conversion");
             }
@@ -103,6 +99,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let ExprKind::New(ty) = &callee.kind {
             if let TyKind::Contract(contract_id) = self.context.gcx.type_of_hir_ty(ty).kind {
+                // result = create_contract(callee, args, opts)
                 return self.lower_new_contract(expr, ty, contract_id, args, call_opts);
             }
             if args.len() != 1 {
@@ -126,12 +123,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 _ => return report_unsupported(self.context.gcx, expr.span, "allocation type"),
             };
+            // result = alloc(size, zeroed)
+            // result.length = length
             let object =
                 self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
             self.builder.set_memory_object_len(object, len, layout.kind());
             return Some(object);
         }
         if let Some(builtin) = self.context.gcx.resolved_builtin(callee) {
+            // result = builtin(callee, args, opts)
             return self.lower_builtin_call(expr, callee, builtin, args, call_opts);
         }
         if let Some(TyKind::Fn(function)) =
@@ -139,14 +139,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.function_id.is_none()
         {
             if function.is_external() {
+                // result = external_function_pointer_call(callee, args, opts)
                 return self
                     .lower_external_function_pointer_call(callee, function, args, call_opts);
             }
             if function.is_internal() {
+                // result = internal_function_pointer_call(callee, args)
                 return self.lower_internal_function_pointer_call(expr, callee, function, args);
             }
         }
         if let Some(function_id) = self.context.gcx.resolved_function(callee) {
+            // result = function_call(callee, args, opts)
             return self.lower_function_call(expr, callee, function_id, args, call_opts);
         }
         if self.context.gcx.dcx().has_errors().is_err() {
@@ -175,8 +178,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // init = creation_bytecode ++ abi_encode(constructor_args)
-        // address = create|create2(value, init.data, init.len[, salt])
         let contract = self.context.gcx.hir.contract(contract_id);
         let bytecode = self.context.child_bytecodes.get(&contract_id).ok_or_else(|| {
             self.context
@@ -245,6 +246,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             values.push(value);
             types.push(abi_type);
         }
+        // arguments = abi_encode(constructor_args)
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
         let encoded_len = if layout.types.iter().any(AbiType::is_dynamic) {
@@ -264,6 +266,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let allocation_size = self.builder.and(rounded_len, mask);
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
+        // for chunk in creation_bytecode {
+        //     mstore(init + chunk.offset, chunk)
+        // }
         for (index, chunk) in bytecode.chunks(32).enumerate() {
             let offset = u64::try_from(index).ok()?.saturating_mul(32);
             let address = self.builder.add_u64_offset(data, offset);
@@ -272,7 +277,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
+        // init = creation_bytecode ++ arguments
         self.builder.copy_slice_data(SliceLocation::Memory, copy_dest, encoded_ptr, encoded_len);
+        // address = create|create2(value, init, init.length[, salt])
         let created = if let Some(salt) = salt {
             self.builder.create2(call_value, data, total_len, salt)
         } else {
@@ -300,17 +307,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<Vec<ValueId>> {
-        // address, selector = function_pointer
-        // input = abi_encode(selector, args)
-        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        // ok = CALL/STATICCALL(gas, address, value, input, ret_offset, ret_size)
-        // if !ok { revert_returndata() }
-        // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, args.span, "external function arguments");
         }
         let function_value = self.lower_expr(callee)?;
+        // address, selector = split_function_pointer(function)
         let (address, selector) = self.split_external_function_pointer(function_value);
 
         let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
@@ -322,16 +324,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             values.push(value);
             types.push(abi_type);
         }
+        // input = abi_encode(selector, args)
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
         let return_tys = function.returns;
         let returns = return_tys.len();
+        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, zero, return_tys);
         if returns == 0 {
             self.revert_if_no_code(address);
         }
+        // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
         let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(
                 gas,
@@ -352,7 +357,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return_plan.size,
             )
         };
+        // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
+        // results = decode_buffer | decode_returndata | load_words(ret_offset)
         self.finish_external_call(
             return_plan,
             return_tys,
@@ -382,14 +389,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         function: &TyFn<'gcx>,
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
-        // ptr = lower(function_ptr)
-        // args = materialize_args(...)
-        // if returns == 0 {
-        //     internal_call_void(dispatcher, [ptr, args])
-        //     result = 0
-        // } else {
-        //     result = internal_call(dispatcher, [ptr, args])
-        // }
         if args.len() != function.parameters.len() {
             return report_unsupported(self.context.gcx, expr.span, "internal function arguments");
         }
@@ -417,11 +416,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
         if function.returns.is_empty() {
+            // internal_call_void(dispatcher, function, args)
+            // result = 0
             self.builder.internal_call_void(dispatcher, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
         }
         let first_ty = function.returns[0];
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
+        // result = internal_call(dispatcher, function, args)
         Some(self.builder.internal_call(dispatcher, values, result_ty, function.returns.len()))
     }
 
@@ -470,13 +472,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn coerce_value(&mut self, value: ValueId, from: Ty<'gcx>, to: Ty<'gcx>) -> ValueId {
         // value = from != to ? normalize_dirty(value, from) : value
-        // if dynamic_bytes_to_fixed { value = mask(load_word(value), source_length) }
-        // if fixed_bytes_target && dynamic_bytes_calldata_source {
-        //     validate_calldata_bytes(value)
-        // }
-        // if narrowing_integer { value = normalize_integer(value, to) }
-        // if enum_target && from != to { validate_enum(to, value) }
-        // if fixed_bytes_target { value = clean_or_extend(value, to) }
         let value = if from.peel_refs() != to.peel_refs() {
             self.normalize_dirty_scalar(value, from)
         } else {
@@ -512,6 +507,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => None,
             };
             if let Some((word, length)) = word_and_length {
+                // value = word & mask(min(length, fixed_width))
                 let width = u64::from(size.bytes());
                 let fixed_mask =
                     self.builder.imm_u256(U256::MAX << (256 - usize::from(size.bytes()) * 8));
@@ -528,8 +524,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if destination_size.is_some()
             && let Some(abi_type) = self.types.abi_type(from)
         {
+            // validate_calldata_bytes(value)
             self.validate_calldata_bytes_argument(value, &abi_type);
         }
+        // value = fixed_bytes_to_scalar(value)
         let value = if let Some(size) = source_size
             && destination_size.is_none()
             && u64::from(32 - size.bytes()) * 8 != 0
@@ -559,10 +557,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => false,
         };
         if integer_conversion_needs_cleanup {
+            // value = normalize_integer(value, to)
             return self.normalize_abi_scalar(value, to);
         }
         if let TyKind::Enum(id) = to.peel_refs().kind {
             if !matches!(from.peel_refs().kind, TyKind::Enum(from_id) if from_id == id) {
+                // validate_enum(to, value)
                 self.validate_enum(to, value);
             }
             return value;
@@ -585,15 +585,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => None,
         };
         if let Some(value) = byte_value {
+            // value = mload(bytes.data)
             let zero = self.builder.imm_u256(U256::ZERO);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
         }
         if let Some(source_size) = source_size {
             if source_size.bytes() > size.bytes() {
+                // value = clean_fixed_bytes(value, to.width)
                 return self.clean_fixed_bytes(value, size.bytes());
             }
             return value;
         }
+        // value = value << (32 - to.width) * 8
         let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
         self.builder.shl(shift, value)
     }
@@ -673,10 +676,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // args = resolve_receiver_and_storage_args(...)
-        // result = internal_call[_void](function, args)
-        // result = external_abi_call(function, args, opts)
-        // result = delegatecall(library, args)
         let function = self.context.gcx.hir.function(function_id);
         let attached =
             self.context.gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached);
@@ -698,6 +697,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let ExprKind::Member(receiver, _) = callee.kind
             && self.context.gcx.resolved_builtin(receiver) == Some(Builtin::This)
         {
+            // result = external_abi_call(this, function, args, opts)
             let function_id = self.resolve_call_target(callee, function_id);
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
@@ -713,14 +713,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(hir::ContractKind::Library)
             )
         {
+            // result = external_abi_call(receiver, function, args, opts)
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         }
         let function_id = self.resolve_call_target(callee, function_id);
         let function = self.context.gcx.hir.function(function_id);
         if delegate_call {
+            // result = delegatecall(library, function, args)
             let address = self.library_address(function_id);
             return self.lower_library_call(expr, function_id, attached_receiver, args, address);
         }
+        // call_args = materialize(receiver, args)
         let receiver_count = usize::from(attached);
         if args.len() + receiver_count != function.parameters.len() {
             return report_unsupported(self.context.gcx, expr.span, "function argument list");
@@ -777,11 +780,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(value);
         }
         if function.returns.is_empty() {
+            // internal_call_void(function, call_args)
+            // result = 0
             self.builder.internal_call_void(mir_id, values, 0);
             return Some(self.builder.imm_u256(U256::ZERO));
         }
         let first_ty = self.context.gcx.type_of_item((*function.returns.first()?).into());
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
+        // result = internal_call(function, call_args)
         let result = self.builder.internal_call(mir_id, values, result_ty, function.returns.len());
         self.dirty_values.insert(result);
         Some(result)
@@ -835,11 +841,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
-        // input = abi_encode(selector, args)
-        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        // ok = CALL/STATICCALL(gas, address, value, input, ret_offset, ret_size)
-        // if !ok { revert_returndata() }
-        // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let ExprKind::Member(receiver, _) = callee.kind else {
             return report_unsupported(self.context.gcx, expr.span, "external function target");
         };
@@ -865,6 +866,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "external function argument",
             false,
         )?;
+        // input = abi_encode(selector, args)
         let selector = self.context.gcx.function_selector(function_id).0;
         let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
@@ -877,6 +879,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|&ret| self.context.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let returns = return_tys.len();
+        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, zero, &return_tys);
         if returns == 0
             && (self.builder.func().attributes.is_constructor
@@ -884,6 +887,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             self.revert_if_no_code(address);
         }
+        // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
         let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(
                 gas,
@@ -904,7 +908,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return_plan.size,
             )
         };
+        // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
+        // result = decode_buffer | decode_returndata | load_words(ret_offset)
         let values = self.finish_external_call(
             return_plan,
             &return_tys,
@@ -992,10 +998,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
         address: U256,
     ) -> Option<ValueId> {
-        // input = abi_encode(selector, args)
-        // ok = DELEGATECALL(gas, library, input, 0, 0)
-        // if !ok { revert_returndata() }
-        // result = abi_decode(returndata) | 0
         let function = self.context.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
         if args.len() + receiver_count != function.parameters.len() {
@@ -1025,6 +1027,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.insert(0, ty);
         }
 
+        // input = abi_encode(selector, args)
         let selector = self.context.gcx.function_selector(function_id).0;
         let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
@@ -1037,11 +1040,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if function.returns.is_empty() {
             self.revert_if_no_code(address);
         }
+        // ok = delegatecall(gas, library, input, 0, 0)
         let success = self.builder.delegatecall(gas, address, input, input_size, zero, zero);
+        // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
         if function.returns.is_empty() {
             return Some(zero);
         }
+        // result = abi_decode(returndata)
         let return_types = function
             .returns
             .iter()

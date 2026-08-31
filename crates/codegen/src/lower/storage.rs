@@ -83,24 +83,26 @@ impl StorageLocation {
         word: ValueId,
         shift: Option<ValueId>,
     ) -> ValueId {
-        // if !packed { value = word }
-        // else {
-        //     field = (shift ? word >> shift : word) & field_mask
-        //     value = unsigned ? field : signed ? sign_extend(field) : field << align_shift
-        // }
         if !self.packed() {
+            // value = word
             return word;
         }
+        // field = (shift ? word >> shift : word) & field_mask
         let shifted = shift.map_or(word, |shift| builder.shr(shift, word));
         let field_mask = builder.imm_u256(self.mask());
         let masked = builder.and(shifted, field_mask);
         match self.encoding {
-            StorageEncoding::Unsigned => masked,
+            StorageEncoding::Unsigned => {
+                // value = field
+                masked
+            }
             StorageEncoding::Signed => {
+                // value = sign_extend(field)
                 let index = builder.imm_u64(u64::from(self.size.bytes() - 1));
                 builder.signextend(index, masked)
             }
             StorageEncoding::FixedBytes => {
+                // value = field << align_shift
                 let shift = builder.imm_u64(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
                 builder.shl(shift, masked)
             }
@@ -272,12 +274,8 @@ impl<'gcx> StorageLayout<'gcx> {
         shift: Option<ValueId>,
         value: ValueId,
     ) {
-        // old = load(slot)
         // shifted_mask = shift ? field_mask << shift : field_mask
-        // cleared = old & !shifted_mask
-        // encoded = fixed_bytes ? value >> align_shift : value
-        // updated = cleared | (shift ? (encoded & field_mask) << shift : encoded & field_mask)
-        // store(slot, updated)
+        // cleared = load(slot) & !shifted_mask
         let field_mask = location.mask();
         let field_mask_value = builder.imm_u256(field_mask);
         let shifted_mask =
@@ -287,12 +285,15 @@ impl<'gcx> StorageLayout<'gcx> {
         let cleared = builder.and(old, keep_mask);
         let value = match location.encoding {
             StorageEncoding::FixedBytes => {
+                // encoded = value >> align_shift
                 let shift = builder
                     .imm_u64(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
                 builder.shr(shift, value)
             }
             StorageEncoding::Unsigned | StorageEncoding::Signed => value,
         };
+        // updated = cleared | (shift ? (encoded & field_mask) << shift : encoded & field_mask)
+        // store(slot, updated)
         let value = builder.and(value, field_mask_value);
         let value = shift.map_or(value, |shift| builder.shl(shift, value));
         let updated = builder.or(cleared, value);

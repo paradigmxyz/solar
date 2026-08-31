@@ -345,19 +345,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
-        // if calldata_member {
-        //     (pointer, length) = load_slice(receiver)
-        //     slice = (value, length) | (pointer, value)
-        //     store_slice(receiver, slice)
-        // }
-        // if external_function_member {
-        //     (address, selector) = load_function(receiver)
-        //     function = (value, selector) | (address, value)
-        //     store_function(receiver, function)
-        // }
-        // if storage_slot { storage_ref.slot = value }
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
         if receiver_ty.is_ref_at(DataLocation::Calldata) {
+            // pointer, length = slice(receiver)
+            // slice = name == offset ? (value, length) : (pointer, value)
+            // store(receiver, slice)
             let base = self.lower_expr(receiver)?;
             let pointer = self.builder.slice_ptr(base);
             let length = self.builder.slice_len(base);
@@ -372,6 +364,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let TyKind::Fn(function) = receiver_ty.peel_refs().kind
             && function.is_external()
         {
+            // pointer = load(receiver)
+            // pointer = name == address ? (value, pointer.selector) : (pointer.address, value)
+            // store(receiver, pointer)
             let Some(id) = self.context.gcx.resolved_variable(receiver) else {
                 return report_unsupported(
                     self.context.gcx,
@@ -417,6 +412,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(access) = self.storage_refs.get(&id).copied() else {
             return report_unsupported(self.context.gcx, span, "Yul storage assignment target");
         };
+
+        // storage_ref.slot = value
         self.storage_refs.insert(id, StorageAccess { slot: value, ..access });
         Some(())
     }

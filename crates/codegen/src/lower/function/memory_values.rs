@@ -10,9 +10,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         elements: &[hir::Expr<'_>],
     ) -> Option<ValueId> {
-        // object = alloc(array)
-        // if dynamic { object.len = element_count }
-        // object[i] = coerce(element_i)
         let ty = self.context.gcx.type_of_expr(expr.id)?;
         let TyKind::Array(element_ty, _) = ty.peel_refs().kind else {
             return report_unsupported(self.context.gcx, expr.span, "array literal");
@@ -30,12 +27,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => return report_unsupported(self.context.gcx, expr.span, "array literal"),
         };
+
+        // object = alloc(array)
         let size = self.builder.imm_u64(size);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if dynamic {
+            // object.len = element_count
             let length = self.builder.imm_u64(u64::try_from(elements.len()).ok()?);
             self.builder.set_memory_object_len(object, length, layout.kind());
         }
+
+        // for element, i { object[i] = coerce(element) }
         for (index, element) in elements.iter().enumerate() {
             let value = self.lower_expr(element)?;
             let value =
@@ -56,14 +58,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        // is_zero = value == 0
-        // if is_zero { allocated = default_object(element); object[i] = allocated }
-        // value = phi(value, allocated)
         let zero = self.builder.imm_u256(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
         let allocate = self.builder.create_block();
         let merge = self.builder.create_block();
+        // if value == 0 { allocated = default_object(element) }
         self.builder.branch(is_null, allocate, merge);
 
         self.builder.switch_to_block(allocate);
@@ -72,6 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let allocation_block = self.builder.current_block();
         self.builder.jump(merge);
 
+        // value = phi(value, allocated)
         self.builder.switch_to_block(merge);
         Some(self.builder.phi(vec![(preheader, value), (allocation_block, allocated)]))
     }
@@ -254,18 +255,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {
-        // if preserve_fmp && dynamic { object = ZERO_SLOT }
-        // else { object = alloc(default_layout) }
-        // if bytes_or_dynamic_array { object.len = 0 }
-        // if wide_preserved_struct { memory_zero(object, size) }
-        // if struct { object[reference_field] = default(reference_field) }
-        // if fixed_array { zero_uninitialized_elements(); object[i] = default(element) }
         let layout = self.types.memory_layout(ty)?;
         if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
+            // object = ZERO_SLOT
             return Some(self.builder.imm_u64(EvmMemoryLayout::ZERO_SLOT));
         }
+
+        // object = alloc(default_layout)
         let size = self.builder.imm_u64(Self::default_object_size(layout)?);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if preserve_fmp {
@@ -277,6 +275,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             | TyKind::DynArray(_) => {
+                // object.len = 0
                 let zero = self.builder.imm_u256(U256::ZERO);
                 self.builder.set_memory_object_len(object, zero, layout.kind());
             }
@@ -284,9 +283,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let fields = self.context.gcx.hir.strukt(id).fields;
                 let bulk_zero = preserve_fmp && fields.len() >= MIN_BULK_ZERO_STRUCT_FIELDS;
                 if bulk_zero {
+                    // memory_zero(object, size)
                     self.builder.memory_zero(object, size);
                 }
                 let zero = self.builder.imm_u256(U256::ZERO);
+
+                // for reference_field { object[field] = default(reference_field) }
                 for (index, &field) in fields.iter().enumerate() {
                     let field_ty = self.context.gcx.type_of_item(field.into());
                     if bulk_zero && field_ty.peel_refs().is_value_type() {
@@ -299,10 +301,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Array(element, len) => {
                 if !self.default_object_is_fully_initialized(ty) {
+                    // memory_zero(object, size)
                     self.builder.memory_zero(object, size);
                 }
                 let Ok(len) = u64::try_from(len) else { return Some(object) };
                 if self.types.memory_layout(element).is_some() {
+                    // for i in 0..len { object[i] = default(element) }
                     let len = self.builder.imm_u64(len);
                     self.counted_loop(len, |this, index| {
                         if let Some(value) = this.default_object_with_mode(element, preserve_fmp) {
