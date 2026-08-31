@@ -85,7 +85,7 @@ pub fn compile_standard_json(
     } else {
         serde_json::to_writer(out, &output)
     }
-    .map_err(io::Error::other)
+    .map_err(Into::into)
 }
 
 pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
