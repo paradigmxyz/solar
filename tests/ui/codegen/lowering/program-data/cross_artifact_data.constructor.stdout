@@ -3,10 +3,9 @@
 @module deployment
 bb0:
   push 384
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 352
   mstore
@@ -114,9 +113,9 @@ bb2:
   push 224
   mload
   log1
-  push 338
+  push 336
   dup 1
-  push 427
+  push 425
   push 0
   codecopy
   push 0
@@ -140,10 +139,9 @@ bb0:
   push bb3
   jumpi
   push 320
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 288
   mstore

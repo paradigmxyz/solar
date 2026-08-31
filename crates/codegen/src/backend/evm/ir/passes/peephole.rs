@@ -54,10 +54,7 @@ impl EvmPass for Peephole {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let stack_headroom = module.unknown_target_stack_headroom;
-        let depths = (stack_headroom < 2 && has_constant_fold_candidate(module))
-            .then(|| StackDepths::new(module))
-            .flatten();
-        optimize_module(gcx, module, stack_headroom, depths.as_ref())
+        optimize_module(gcx, module, stack_headroom)
     }
 }
 
@@ -95,30 +92,48 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    stack_headroom: usize,
-    depths: Option<&StackDepths>,
-) -> bool {
-    let mut changed = false;
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, stack_headroom: usize) -> bool {
+    let mut result = OptimizeResult::default();
     let mut scratch = Vec::new();
-    for (block_id, block) in module.blocks.iter_mut_enumerated() {
-        let entry_depth = depths.and_then(|depths| depths.entry_depth(block_id));
-        let headroom_proven =
-            stack_headroom >= 2 || depths.is_some_and(|depths| depths.has_headroom(block_id, 0, 1));
-        let rewrites = optimize(
+    for (_, block) in module.blocks.iter_mut_enumerated() {
+        result.combine(optimize(
             gcx,
             &mut block.instructions,
             &mut scratch,
             block.label,
-            entry_depth,
             stack_headroom,
-            headroom_proven,
-        );
-        changed |= rewrites != 0;
+            None,
+        ));
     }
-    changed
+    if !result.needs_depths {
+        return result.changed;
+    }
+
+    let Some(depths) = StackDepths::new(module) else { return result.changed };
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+        result.combine(optimize(
+            gcx,
+            &mut block.instructions,
+            &mut scratch,
+            block.label,
+            stack_headroom,
+            depths.entry_depth(block_id),
+        ));
+    }
+    result.changed
+}
+
+#[derive(Default)]
+struct OptimizeResult {
+    changed: bool,
+    needs_depths: bool,
+}
+
+impl OptimizeResult {
+    fn combine(&mut self, other: Self) {
+        self.changed |= other.changed;
+        self.needs_depths |= other.needs_depths;
+    }
 }
 
 fn cleanup_stop_stacks(module: &mut Module) -> bool {
@@ -189,14 +204,13 @@ fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
-    entry_depth: Option<usize>,
     stack_headroom: usize,
-    headroom_proven: bool,
-) -> usize {
+    entry_depth: Option<usize>,
+) -> OptimizeResult {
     scratch.clear();
     std::mem::swap(instructions, scratch);
     instructions.reserve(scratch.len());
-    let mut rewrites = 0;
+    let mut result = OptimizeResult::default();
     let mut relative_depth = 0isize;
     for inst in scratch.drain(..) {
         relative_depth += inst
@@ -209,13 +223,13 @@ fn optimize(
             block,
             entry_depth,
             stack_headroom,
-            headroom_proven,
             relative_depth,
+            &mut result.needs_depths,
         ) {
-            rewrites += 1;
+            result.changed = true;
         }
     }
-    rewrites
+    result
 }
 
 fn try_peephole(
@@ -224,9 +238,17 @@ fn try_peephole(
     block: u32,
     entry_depth: Option<usize>,
     stack_headroom: usize,
-    headroom_proven: bool,
     relative_depth: isize,
+    needs_depths: &mut bool,
 ) -> bool {
+    let mut context =
+        RewriteContext { block, entry_depth, stack_headroom, relative_depth, needs_depths };
+    macro_rules! rewrite {
+        ($skip:expr, $edit:expr) => {
+            rewrite_if_safe(instructions, $skip, $edit, &mut context)
+        };
+    }
+
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
@@ -240,10 +262,10 @@ fn try_peephole(
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT
             )
         {
-            return rewrite(instructions, 3, Edit::RemoveFirstKeep(1), block);
+            return rewrite!(3, Edit::RemoveFirstKeep(1));
         }
         if value == U256::ONE && opcode == op::EXP {
-            return rewrite(instructions, 3, Edit::RemoveFirstKeep(1), block);
+            return rewrite!(3, Edit::RemoveFirstKeep(1));
         }
     }
 
@@ -259,21 +281,21 @@ fn try_peephole(
         if value.is_zero() {
             match opcode {
                 op::ADD | op::OR | op::XOR | op::SHL | op::SHR | op::SAR => {
-                    return rewrite(instructions, 2, Edit::Keep(0), block);
+                    return rewrite!(2, Edit::Keep(0));
                 }
                 op::EQ => {
-                    return rewrite(instructions, 2, Edit::RemoveFirstOverwrite(op::ISZERO), block);
+                    return rewrite!(2, Edit::RemoveFirstOverwrite(op::ISZERO));
                 }
                 op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT => {
-                    return rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block);
+                    return rewrite!(2, Edit::SwapOverwrite(op::POP));
                 }
                 _ => {}
             }
         }
         if value == U256::ONE {
             match opcode {
-                op::MUL => return rewrite(instructions, 2, Edit::Keep(0), block),
-                op::EXP => return rewrite(instructions, 2, Edit::SwapOverwrite(op::POP), block),
+                op::MUL => return rewrite!(2, Edit::Keep(0)),
+                op::EXP => return rewrite!(2, Edit::SwapOverwrite(op::POP)),
                 _ => {}
             }
         }
@@ -296,12 +318,11 @@ fn try_peephole(
         let input_size = lhs_size + rhs_size + 1;
         // TODO: Include the evaluated opcode's gas once opcode metadata exposes it.
         let input_gas = lhs_gas + rhs_gas;
-        if constant_fold_fits(entry_depth, stack_headroom, headroom_proven, relative_depth)
-            && result_size <= input_size
+        if result_size <= input_size
             && result_gas <= input_gas
             && (result_size < input_size || result_gas < input_gas)
         {
-            return rewrite(instructions, 3, Edit::FoldConstants(result, evm_version), block);
+            return rewrite!(3, Edit::FoldConstants(result, evm_version));
         }
     }
 
@@ -310,7 +331,7 @@ fn try_peephole(
         && is_removable_push(pushed)
         && pop.as_legacy_opcode() == Some(op::POP)
     {
-        return rewrite(instructions, 2, Edit::Keep(0), block);
+        return rewrite!(2, Edit::Keep(0));
     }
 
     // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or an involutive stack operation twice -> ∅.
@@ -324,7 +345,7 @@ fn try_peephole(
                     Some(op::StackOp::Swap(_) | op::StackOp::Exchange(_, _))
                 )))
     {
-        return rewrite(instructions, 2, Edit::Keep(0), block);
+        return rewrite!(2, Edit::Keep(0));
     }
 
     // `DUPn SWAPn -> DUPn` because the swapped values are equal.
@@ -333,7 +354,7 @@ fn try_peephole(
         && (op::DUP1..=op::DUP16).contains(&dup)
         && swap.as_legacy_opcode() == Some(op::swap(dup - op::DUP1 + 1))
     {
-        return rewrite(instructions, 2, Edit::Keep(1), block);
+        return rewrite!(2, Edit::Keep(1));
     }
 
     // `ISZERO ISZERO ISZERO -> ISZERO`.
@@ -342,7 +363,7 @@ fn try_peephole(
         && second.as_legacy_opcode() == Some(op::ISZERO)
         && third.as_legacy_opcode() == Some(op::ISZERO)
     {
-        return rewrite(instructions, 3, Edit::OverwriteOne(op::ISZERO), block);
+        return rewrite!(3, Edit::OverwriteOne(op::ISZERO));
     }
 
     // `SWAP1 COMMUTATIVE_OP -> COMMUTATIVE_OP`.
@@ -351,7 +372,7 @@ fn try_peephole(
         && let Some(opcode) = instruction.as_legacy_opcode()
         && is_commutative(opcode)
     {
-        return rewrite(instructions, 2, Edit::RemoveFirstKeep(1), block);
+        return rewrite!(2, Edit::RemoveFirstKeep(1));
     }
 
     // `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
@@ -360,7 +381,7 @@ fn try_peephole(
         && let Some(comparison) = comparison.as_legacy_opcode()
         && let Some(flipped) = flipped_comparison(comparison)
     {
-        return rewrite(instructions, 2, Edit::RemoveFirstOverwrite(flipped), block);
+        return rewrite!(2, Edit::RemoveFirstOverwrite(flipped));
     }
 
     // `DUP2 OP SWAP1 POP -> OP`.
@@ -372,7 +393,7 @@ fn try_peephole(
         && pop.as_legacy_opcode() == Some(op::POP)
     {
         if is_commutative(binop) {
-            return rewrite(instructions, 4, Edit::OverwriteOne(binop), block);
+            return rewrite!(4, Edit::OverwriteOne(binop));
         }
         if matches!(
             binop,
@@ -393,7 +414,7 @@ fn try_peephole(
                 | op::SAR
                 | op::KECCAK256
         ) {
-            return rewrite(instructions, 4, Edit::OverwriteTwo(binop), block);
+            return rewrite!(4, Edit::OverwriteTwo(binop));
         }
     }
 
@@ -404,7 +425,7 @@ fn try_peephole(
         && matches!(opcode, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE | op::LOG0)
         && pop.as_legacy_opcode() == Some(op::POP)
     {
-        return rewrite(instructions, 3, Edit::OverwriteTwo(opcode), block);
+        return rewrite!(3, Edit::OverwriteTwo(opcode));
     }
 
     // `SWAP1 POP SWAP2 POP -> SWAP3 POP POP`.
@@ -414,7 +435,7 @@ fn try_peephole(
         && second_swap.as_legacy_opcode() == Some(op::SWAP2)
         && second_pop.as_legacy_opcode() == Some(op::POP)
     {
-        return rewrite(instructions, 4, Edit::MergeSwapPop(3), block);
+        return rewrite!(4, Edit::MergeSwapPop(3));
     }
 
     if instructions.last().and_then(Instruction::as_stack_op) == Some(PhysicalStackOp::Pop) {
@@ -431,12 +452,7 @@ fn try_peephole(
                 && instructions[instructions.len() - 2].as_legacy_opcode() == Some(op::SWAP1)
             {
                 let merged_depth = depth + 1;
-                return rewrite(
-                    instructions,
-                    input_len,
-                    Edit::MergeSwapPop(merged_depth as u8),
-                    block,
-                );
+                return rewrite!(input_len, Edit::MergeSwapPop(merged_depth as u8));
             }
         }
 
@@ -451,7 +467,7 @@ fn try_peephole(
                     .iter()
                     .all(|inst| inst.as_legacy_opcode() == Some(op::POP))
             {
-                return rewrite(instructions, input_len, Edit::DropDiscardedSwap, block);
+                return rewrite!(input_len, Edit::DropDiscardedSwap);
             }
         }
     }
@@ -466,7 +482,7 @@ fn try_peephole(
         && store_b.as_legacy_opcode() == Some(op::MSTORE)
         && a == b
     {
-        return rewrite(instructions, 6, Edit::Keep(3), block);
+        return rewrite!(6, Edit::Keep(3));
     }
 
     // `PUSH x MLOAD DUP1 PUSH x MSTORE -> PUSH x MLOAD`.
@@ -478,7 +494,7 @@ fn try_peephole(
         && store.as_legacy_opcode() == Some(op::MSTORE)
         && a == b
     {
-        return rewrite(instructions, 5, Edit::Keep(2), block);
+        return rewrite!(5, Edit::Keep(2));
     }
 
     // `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
@@ -491,7 +507,25 @@ fn try_peephole(
         && load.as_legacy_opcode() == Some(op::MLOAD)
         && a == b
     {
-        return rewrite(instructions, 6, Edit::Keep(3), block);
+        return rewrite!(6, Edit::Keep(3));
+    }
+
+    // `PUSH value PUSH x MSTORE PUSH x MLOAD -> PUSH value DUP1 PUSH x MSTORE`.
+    //
+    // Keeping the stored value saves a push and MLOAD, but adds one transient stack word. Do
+    // not turn a successful execution into a stack overflow.
+    if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
+        && store_addr.has_canonical_stack_effect()
+        && store.has_canonical_stack_effect()
+        && load_addr.has_canonical_stack_effect()
+        && load.has_canonical_stack_effect()
+        && let Some(store_addr) = store_addr.concrete_immediate()
+        && store.as_legacy_opcode() == Some(op::MSTORE)
+        && let Some(load_addr) = load_addr.concrete_immediate()
+        && load.as_legacy_opcode() == Some(op::MLOAD)
+        && store_addr == load_addr
+    {
+        return rewrite!(4, Edit::ReloadStoredValue);
     }
 
     // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
@@ -501,7 +535,7 @@ fn try_peephole(
         && store.as_legacy_opcode() == Some(op::MSTORE)
         && pop.as_legacy_opcode() == Some(op::POP)
     {
-        return rewrite(instructions, 4, Edit::RemoveFirstKeep(2), block);
+        return rewrite!(4, Edit::RemoveFirstKeep(2));
     }
 
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
@@ -511,7 +545,7 @@ fn try_peephole(
         && is_block_push(target)
         && jump.as_legacy_opcode() == Some(op::JUMPI)
     {
-        return rewrite(instructions, 4, Edit::DropDoubleIszero, block);
+        return rewrite!(4, Edit::DropDoubleIszero);
     }
 
     // `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
@@ -521,11 +555,11 @@ fn try_peephole(
         && is_block_push(target)
         && jump.as_legacy_opcode() == Some(op::JUMPI)
     {
-        return rewrite(instructions, 4, Edit::EqIszeroJumpi, block);
+        return rewrite!(4, Edit::EqIszeroJumpi);
     }
 
     if let Some(len) = noop_stack_suffix_len(instructions) {
-        return rewrite(instructions, len, Edit::Keep(0), block);
+        return rewrite!(len, Edit::Keep(0));
     }
 
     // `EXCHANGE n, m SWAPn -> SWAPn SWAPm`.
@@ -550,11 +584,9 @@ fn try_peephole(
             _ => None,
         }
     {
-        return rewrite(
-            instructions,
+        return rewrite!(
             2,
-            Edit::StackOps(op::StackOp::Swap(first_depth), op::StackOp::Swap(second_depth)),
-            block,
+            Edit::StackOps(op::StackOp::Swap(first_depth), op::StackOp::Swap(second_depth))
         );
     }
 
@@ -567,35 +599,10 @@ fn try_peephole(
         ) = (first.as_stack_op(), second.as_stack_op(), third.as_stack_op())
         && let Some(exchange) = op::StackOp::from_swaps(first, second, third)
     {
-        return rewrite(instructions, 3, Edit::StackOp(exchange), block);
+        return rewrite!(3, Edit::StackOp(exchange));
     }
 
     false
-}
-
-fn constant_fold_fits(
-    entry_depth: Option<usize>,
-    stack_headroom: usize,
-    headroom_proven: bool,
-    relative_depth: isize,
-) -> bool {
-    if stack_headroom >= 2 {
-        return true;
-    }
-    let Some(relative_peak) = relative_depth.checked_add(1) else { return false };
-    headroom_proven
-        && entry_depth
-            .and_then(|entry_depth| entry_depth.checked_add_signed(relative_peak))
-            .is_some_and(|depth| depth <= crate::backend::evm::stack::MAX_STACK_DEPTH)
-}
-
-fn has_constant_fold_candidate(module: &Module) -> bool {
-    module.blocks.iter().any(|block| {
-        block.instructions.windows(3).any(|instructions| {
-            instructions[0].concrete_immediate().is_some()
-                && instructions[1].concrete_immediate().is_some()
-        })
-    })
 }
 
 const MAX_STACK_PEEPHOLE_WINDOW: usize = 24;
@@ -649,17 +656,82 @@ fn stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
     inst.as_stack_op().map(SymbolicStackOp::Physical)
 }
 
+struct StackSummary {
+    net: isize,
+    peak: isize,
+}
+
+struct RewriteContext<'a> {
+    block: u32,
+    entry_depth: Option<usize>,
+    stack_headroom: usize,
+    relative_depth: isize,
+    needs_depths: &'a mut bool,
+}
+
+fn stack_summary(instructions: &[Instruction]) -> Option<StackSummary> {
+    let mut net = 0;
+    let mut peak = 0;
+    for inst in instructions {
+        let effect = inst.effective_stack_effect()?;
+        net += isize::from(effect.outputs) - isize::from(effect.inputs);
+        peak = peak.max(net);
+    }
+    Some(StackSummary { net, peak })
+}
+
+fn peak_fits(entry_depth: Option<usize>, start: isize, peak: isize) -> bool {
+    entry_depth
+        .and_then(|entry_depth| {
+            start.checked_add(peak).and_then(|peak| entry_depth.checked_add_signed(peak))
+        })
+        .is_some_and(|depth| depth <= crate::backend::evm::stack::MAX_STACK_DEPTH)
+}
+
 // Keep trace formatting out of the hot matcher's stack frame.
 #[inline(never)]
-fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: u32) -> bool {
+fn rewrite_if_safe(
+    instructions: &mut Vec<Instruction>,
+    skip: usize,
+    edit: Edit,
+    context: &mut RewriteContext<'_>,
+) -> bool {
     let start = instructions.len() - skip;
+    let Some(source) = stack_summary(&instructions[start..]) else { return false };
+    let Some(start_depth) = context.relative_depth.checked_sub(source.net) else { return false };
+    let mut replacement = instructions[start..].to_vec();
+    edit.apply(&mut replacement, 0);
+    let Some(target) = stack_summary(&replacement) else { return false };
+    debug_assert_eq!(source.net, target.net);
+    if source.net != target.net {
+        return false;
+    }
+
+    // A lower replacement peak could erase an overflow that the source must retain. A higher
+    // peak needs room beyond the source's peak. Use codegen's reserved headroom first, then the
+    // exact CFG depth when the first sweep found a candidate that needs it.
+    let fits = if target.peak > source.peak {
+        let added = target.peak - source.peak;
+        context.stack_headroom >= added as usize
+            || peak_fits(context.entry_depth, start_depth, target.peak)
+    } else if target.peak < source.peak {
+        context.stack_headroom >= source.peak as usize
+            || peak_fits(context.entry_depth, start_depth, source.peak)
+    } else {
+        true
+    };
+    if !fits {
+        *context.needs_depths |= context.entry_depth.is_none();
+        return false;
+    }
+
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
         .then(|| instructions[start..].to_vec());
     edit.apply(instructions, start);
     if let Some(input) = input {
         trace!(
             target: TRACE_TARGET,
-            block,
+            block = context.block,
             input = %format_args!("\"{}\"", InstructionSequence(&input)),
             output = %format_args!("\"{}\"", InstructionSequence(&instructions[start..])),
             "rewrite"
@@ -678,6 +750,7 @@ enum Edit {
     OverwriteTwo(u8),
     MergeSwapPop(u8),
     DropDiscardedSwap,
+    ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
     FoldConstants(U256, EvmVersion),
@@ -720,6 +793,12 @@ impl Edit {
                 let end = instructions.len();
                 overwrite_raw(&mut instructions[start], op::POP);
                 instructions.truncate(end - 1);
+            }
+            Self::ReloadStoredValue => {
+                instructions.swap(start, start + 3);
+                instructions.swap(start + 1, start + 2);
+                overwrite_raw(&mut instructions[start], op::DUP1);
+                instructions.truncate(start + 3);
             }
             Self::DropDoubleIszero => {
                 instructions.drain(start..start + 2);
