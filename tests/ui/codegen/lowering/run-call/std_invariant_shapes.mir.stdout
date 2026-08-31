@@ -68,6 +68,21 @@ fn @targetSelector(arg0: memorystruct) {
     v35 = lt v34, v14
     jumpi v35, bb9, bb10
   bb10:
+    v52 = shr 3, v14
+    v53 = and v14, 7
+    v54 = iszero v53
+    jumpi v54, bb12, bb11
+  bb11:
+    v55 = mul v53, 32
+    v56 = shl v55, 1
+    v57 = sub v56, 1
+    v58 = storage_array_data_slot v12
+    v59 = add v58, v52
+    v60 = sload v59 !metadata(storage=symbolic(v59))
+    v61 = and v60, v57
+    sstore v59, v61 !metadata(storage=symbolic(v59))
+    jump bb12
+  bb12:
     sstore 1, v1 !metadata(storage=slot(1))
     stop
   bb9:
