@@ -14,6 +14,17 @@ use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
+// Unrolling large fixed arrays leaves at least one value live per element until it is encoded,
+// eventually exhausting the EVM stack. 116 is the latest general gas crossover among the
+// representative layouts: isolated wider structs save less than 0.12% at 119 to 121 but add roughly
+// 15 KiB of code, so larger arrays use a bounded loop instead.
+const MAX_UNROLLED_FIXED_ARRAY_LEN: u64 = 116;
+
+// Dynamic elements make each unrolled iteration substantially larger. Unrolling wins through eight
+// for bytes and strings and through seventeen for nested dynamic arrays; using the wider cutoff
+// preserves every measured small-array gas win, while the loop is smaller and cheaper above it.
+const MAX_UNROLLED_DYNAMIC_FIXED_ARRAY_LEN: u64 = 17;
+
 /// Lowers `abi_encode` after the main optimization pipeline.
 pub(crate) struct LowerAbiEncode;
 
@@ -428,28 +439,15 @@ fn encode_static_impl(
             }
         }
         AbiType::FixedArray { element, len } => {
-            let (child_source, non_null) = source.descend_memory(builder, value);
-            let mut element_head = head_addr;
-            for index in 0..*len {
-                let index = builder.imm_u64(index);
-                let mut element_value = builder.memory_object_load_element(
-                    value,
-                    MemoryObjectLayout::word_fixed_array(*len),
-                    index,
-                );
-                if let Some(non_null) = non_null {
-                    element_value = builder.mul(element_value, non_null);
-                }
-                encode_static_impl(
-                    builder,
-                    element,
-                    element_value,
-                    element_head,
-                    allow_slice_fast_path,
-                    child_source,
-                );
-                element_head = offset_ptr(builder, element_head, element.head_size());
-            }
+            encode_static_array(
+                builder,
+                element,
+                *len,
+                value,
+                head_addr,
+                allow_slice_fast_path,
+                source,
+            );
         }
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
@@ -475,6 +473,86 @@ fn encode_static_impl(
             unreachable!("dynamic ABI values are not static")
         }
     }
+}
+
+fn encode_static_array(
+    builder: &mut FunctionBuilder<'_>,
+    element: &AbiType,
+    len: u64,
+    value: ValueId,
+    head_addr: ValueId,
+    allow_slice_fast_path: bool,
+    source: AbiValueSource,
+) {
+    let (child_source, non_null) = source.descend_memory(builder, value);
+    if len <= MAX_UNROLLED_FIXED_ARRAY_LEN {
+        let mut element_head = head_addr;
+        for index in 0..len {
+            let index = builder.imm_u64(index);
+            let mut element_value = builder.memory_object_load_element(
+                value,
+                MemoryObjectLayout::word_fixed_array(len),
+                index,
+            );
+            if let Some(non_null) = non_null {
+                element_value = builder.mul(element_value, non_null);
+            }
+            encode_static_impl(
+                builder,
+                element,
+                element_value,
+                element_head,
+                allow_slice_fast_path,
+                child_source,
+            );
+            element_head = offset_ptr(builder, element_head, element.head_size());
+        }
+        return;
+    }
+
+    let preheader = builder.current_block();
+    let cond = builder.create_block();
+    let body = builder.create_block();
+    let done = builder.create_block();
+    if let Some(non_null) = non_null {
+        let encode_zero = builder.create_block();
+        builder.branch(non_null, cond, encode_zero);
+
+        builder.switch_to_block(encode_zero);
+        let size = builder.imm_u64(element.head_size() * len);
+        builder.memory_zero(head_addr, size);
+        builder.jump(done);
+    } else {
+        builder.jump(cond);
+    }
+
+    builder.switch_to_block(cond);
+    let zero = builder.imm_u64(0);
+    let index = builder.phi(vec![(preheader, zero)]);
+    let element_head = builder.phi(vec![(preheader, head_addr)]);
+    let length = builder.imm_u64(len);
+    let more = builder.lt(index, length);
+    builder.branch(more, body, done);
+
+    builder.switch_to_block(body);
+    let element_value =
+        builder.memory_object_load_element(value, MemoryObjectLayout::word_fixed_array(len), index);
+    encode_static_impl(
+        builder,
+        element,
+        element_value,
+        element_head,
+        allow_slice_fast_path,
+        child_source,
+    );
+    let next_index = builder.add_u64_offset(index, 1);
+    let next_head = offset_ptr(builder, element_head, element.head_size());
+    let backedge = builder.current_block();
+    builder.jump(cond);
+    builder.add_phi_incoming(index, backedge, next_index);
+    builder.add_phi_incoming(element_head, backedge, next_head);
+
+    builder.switch_to_block(done);
 }
 
 fn encode_tuple(
@@ -673,22 +751,33 @@ fn encode_dynamic_body(
         }
         AbiType::FixedArray { element, len } => {
             let (child_source, non_null) = source.descend_memory(builder, value);
-            let mut values = Vec::with_capacity(*len as usize);
-            for index in 0..*len {
-                let index_value = builder.imm_u64(index);
-                let mut element_value = builder.memory_object_load_element(
-                    value,
-                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
-                    index_value,
-                );
-                if let Some(non_null) = non_null {
-                    element_value = builder.mul(element_value, non_null);
+            if *len <= MAX_UNROLLED_DYNAMIC_FIXED_ARRAY_LEN {
+                let mut values = Vec::with_capacity(*len as usize);
+                for index in 0..*len {
+                    let index_value = builder.imm_u64(index);
+                    let mut element_value = builder.memory_object_load_element(
+                        value,
+                        MemoryObjectLayout::word_fixed_array(*len),
+                        index_value,
+                    );
+                    if let Some(non_null) = non_null {
+                        element_value = builder.mul(element_value, non_null);
+                    }
+                    values.push(element_value);
                 }
-                values.push(element_value);
+                let types = vec![element.as_ref().clone(); *len as usize];
+                let size = encode_tuple_impl(builder, &values, &types, dest, child_source, helpers);
+                return builder.add(dest, size);
             }
-            let types = vec![element.as_ref().clone(); *len as usize];
-            let size = encode_tuple_impl(builder, &values, &types, dest, child_source, helpers);
-            builder.add(dest, size)
+            encode_memory_array_elements(
+                builder,
+                element,
+                value,
+                dest,
+                MemoryObjectLayout::word_fixed_array(*len),
+                non_null,
+                helpers,
+            )
         }
         AbiType::Tuple(fields) => {
             let (child_source, non_null) = source.descend_memory(builder, value);
@@ -755,29 +844,47 @@ fn encode_memory_array(
     helpers: &EncodeHelpers,
 ) -> ValueId {
     match array_loop_element(element) {
-        Some(None) => encode_dynamic_array(builder, element, value, dest, helpers),
+        Some(None) => encode_memory_array_elements(
+            builder,
+            element,
+            value,
+            dest,
+            MemoryObjectLayout::WORD_ARRAY,
+            None,
+            helpers,
+        ),
         cleanup => {
             encode_word_array(builder, value, dest, SliceLocation::Memory, cleanup.flatten())
         }
     }
 }
 
-fn encode_dynamic_array(
+fn encode_memory_array_elements(
     builder: &mut FunctionBuilder<'_>,
     element: &AbiType,
     value: ValueId,
     dest: ValueId,
+    layout: MemoryObjectLayout,
+    non_null: Option<ValueId>,
     helpers: &EncodeHelpers,
 ) -> ValueId {
-    let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
-    builder.mstore(dest, len);
-
-    let word = builder.imm_u64(32);
-    let element_area = builder.add(dest, word);
+    let (len, element_area) = match layout {
+        MemoryObjectLayout::DynamicArray { .. } => {
+            let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
+            builder.mstore(dest, len);
+            let word = builder.imm_u64(32);
+            (len, builder.add(dest, word))
+        }
+        MemoryObjectLayout::FixedArray { len, .. } => (builder.imm_u64(len), dest),
+        MemoryObjectLayout::Bytes | MemoryObjectLayout::Struct { .. } => {
+            unreachable!("ABI array encoding requires an array memory layout")
+        }
+    };
     let element_head_size = builder.imm_u64(element.head_size());
     let head_bytes = builder.mul(len, element_head_size);
     let initial_tail = builder.add(element_area, head_bytes);
-    let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
+    let source_cursor = builder.memory_object_data(value, layout.kind());
+    let word = builder.imm_u64(32);
 
     let preheader = builder.current_block();
     let cond = builder.create_block();
@@ -795,7 +902,10 @@ fn encode_dynamic_array(
     builder.branch(has_next, body, done);
 
     builder.switch_to_block(body);
-    let element_value = builder.mload(source);
+    let mut element_value = builder.mload(source);
+    if let Some(non_null) = non_null {
+        element_value = builder.mul(element_value, non_null);
+    }
     let new_tail = encode_value(
         builder,
         element,
