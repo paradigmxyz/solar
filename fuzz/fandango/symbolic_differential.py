@@ -17,7 +17,6 @@ from typing import Any
 
 SCHEMA = "solar:solsymdiff@v1"
 TEST_NAME = "checkSymbolicDifferential"
-PREFIX_TEST_NAME = "testPrefixDifferential"
 DEFAULT_DYNAMIC_LENGTHS = (0, 1, 2, 3)
 MAX_DYNAMIC_LENGTH = 256
 MAX_RETURNDATA_BYTES = 256
@@ -25,8 +24,6 @@ SYMBOLIC_QUERY_TIMEOUT = 30
 SYMBOLIC_MAX_SOLVER_QUERIES = 10_000
 SYMBOLIC_MAX_CALLDATA_BYTES = 4096
 CALL_GAS = 10_000_000
-TARGET_ADDRESS = "0x1000000000000000000000000000000000000001"
-STATE_MIRROR_ADDRESS = "0x1000000000000000000000000000000000000004"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -259,7 +256,6 @@ def run(
         report,
         function["selector"],
         bounds,
-        prefix_enabled=bool(prefix_calldata),
     )
     result.update(
         {
@@ -792,12 +788,7 @@ def _write_project(
         )
         for offset in range(0, max_returndata_bytes, 32)
     )
-    prefix_state = ""
-    setup = "        vm.etch(TARGET, SOLAR_CODE);"
-    prefix_test = ""
-    prefix_import = ""
-    prefix_restore = ""
-    prefix_helper = ""
+    prefix_setup = ""
     if prefix_calldata:
         prefix_calls_a = []
         prefix_calls_b = []
@@ -807,7 +798,7 @@ def _write_project(
                 (
                     "        {",
                     "            (bool ok, bytes memory ret) =",
-                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
+                    f'                solcTarget.call{{gas: CALL_GAS}}(hex"{payload}");',
                     f"            prefixResults[{index}] =",
                     "                keccak256(abi.encode(ok, ret));",
                     "        }",
@@ -817,49 +808,17 @@ def _write_project(
                 (
                     "        {",
                     "            (bool ok, bytes memory ret) =",
-                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
-                    "            if (",
-                    f"                prefixResults[{index}] !=",
-                    "                    keccak256(abi.encode(ok, ret))",
-                    "            ) prefixMismatch = true;",
+                    f'                solarTarget.call{{gas: CALL_GAS}}(hex"{payload}");',
+                    f"            assert(prefixResults[{index}] ==",
+                    "                keccak256(abi.encode(ok, ret)));",
                     "        }",
                 )
             )
-        prefix_state = (
-            "\n    bool private prefixMismatch;\n"
-            "    bytes32[] private prefixSlots;"
-        )
-        setup = _PREFIX_SETUP_TEMPLATE.format(
+        prefix_setup = _PREFIX_SETUP_TEMPLATE.format(
             prefix_count=len(prefix_calldata),
             prefix_calls_a="\n".join(prefix_calls_a),
             prefix_calls_b="\n".join(prefix_calls_b),
         )
-        prefix_test = f"""    function {PREFIX_TEST_NAME}() public view {{
-        assert(!prefixMismatch);
-    }}
-
-"""
-        prefix_import = """\
-        if (prefixMismatch) return;
-        for (uint256 i; i < prefixSlots.length; ++i) {
-            bytes32 slot = prefixSlots[i];
-            vm.store(TARGET, slot, vm.load(TARGET, slot));
-        }
-"""
-        prefix_restore = """\
-        for (uint256 i; i < prefixSlots.length; ++i) {
-            bytes32 slot = prefixSlots[i];
-            vm.store(TARGET, slot, vm.load(STATE_MIRROR, slot));
-        }
-"""
-        prefix_helper = """    function _rememberPrefixSlot(bytes32 slot) private {
-        for (uint256 i; i < prefixSlots.length; ++i) {
-            if (prefixSlots[i] == slot) return;
-        }
-        prefixSlots.push(slot);
-    }
-
-"""
     if function.get("mutability") == "nonpayable" or prefix_calldata:
         template = _STATEFUL_TEST_TEMPLATE
         suffix_comparison = (
@@ -880,16 +839,9 @@ def _write_project(
         selector=function["selector"],
         solc_runtime=solc_runtime.removeprefix("0x"),
         solar_runtime=solar_runtime.removeprefix("0x"),
-        target_address=TARGET_ADDRESS,
-        state_mirror_address=STATE_MIRROR_ADDRESS,
         call_gas=CALL_GAS,
         max_returndata=max_returndata_bytes,
-        prefix_state=prefix_state,
-        setup=setup,
-        prefix_test=prefix_test,
-        prefix_import=prefix_import,
-        prefix_restore=prefix_restore,
-        prefix_helper=prefix_helper,
+        prefix_setup=prefix_setup,
         suffix_comparison=suffix_comparison,
         word_checks=word_checks,
     )
@@ -934,11 +886,7 @@ def _run_forge(
         capture_output=True,
         timeout=args.timeout,
     ).stdout
-    test_pattern = (
-        f"^({TEST_NAME}|{PREFIX_TEST_NAME})"
-        if args.prefix_calldata
-        else f"^{TEST_NAME}"
-    )
+    test_pattern = f"^{TEST_NAME}"
     command = [
         forge,
         "test",
@@ -972,6 +920,7 @@ def _run_forge(
     home = project / ".home"
     home.mkdir()
     env = os.environ.copy()
+    svm_home = _host_svm_home(env)
     for name in list(env):
         if name.startswith(("FOUNDRY_", "DAPP_")) or name == "SVM_HOME":
             del env[name]
@@ -983,6 +932,10 @@ def _run_forge(
             "XDG_DATA_HOME": str(home / ".local" / "share"),
         }
     )
+    if svm_home.is_dir():
+        isolated_svm_home = home / ".local" / "share" / "svm"
+        isolated_svm_home.parent.mkdir(parents=True, exist_ok=True)
+        isolated_svm_home.symlink_to(svm_home, target_is_directory=True)
     result = subprocess.run(
         command,
         check=False,
@@ -1004,15 +957,20 @@ def _run_forge(
     return report
 
 
+def _host_svm_home(env: dict[str, str]) -> pathlib.Path:
+    if path := env.get("SVM_HOME"):
+        return pathlib.Path(path)
+    if path := env.get("XDG_DATA_HOME"):
+        return pathlib.Path(path) / "svm"
+    return pathlib.Path(env["HOME"]) / ".local" / "share" / "svm"
+
+
 def _classify(
     report: dict[str, Any],
     target_selector: str,
     expected_bounds: dict[str, Any] | None = None,
-    *,
-    prefix_enabled: bool = False,
 ) -> dict[str, Any]:
     matches = []
-    prefix_results = []
     for suite in report.values():
         if not isinstance(suite, dict):
             continue
@@ -1020,23 +978,9 @@ def _classify(
         if not isinstance(results, dict):
             continue
         for test_name, result in results.items():
-            if test_name == f"{PREFIX_TEST_NAME}()" and isinstance(result, dict):
-                prefix_results.append(result)
             symbolic = result.get("symbolic") if isinstance(result, dict) else None
             if isinstance(symbolic, dict):
                 matches.append((test_name, result, symbolic))
-    if prefix_enabled:
-        if len(prefix_results) != 1:
-            raise ValueError(
-                f"expected one concrete prefix result, found {len(prefix_results)}"
-            )
-        prefix_status = prefix_results[0].get("status")
-        if prefix_status == "Failure":
-            return {"status": "mismatch", "counterexample": {"stage": "prefix"}}
-        if prefix_status != "Success":
-            raise ValueError(f"unsupported concrete prefix status: {prefix_status!r}")
-    elif prefix_results:
-        raise ValueError("Forge ran an unexpected concrete prefix test")
     if len(matches) != 1:
         raise ValueError(f"expected one symbolic result, found {len(matches)}")
 
@@ -1162,52 +1106,9 @@ default_bytes_lengths = [{dynamic_lengths}]
 
 
 _PREFIX_SETUP_TEMPLATE = """\
-        uint256 snapshot = vm.snapshotState();
-        vm.etch(TARGET, SOLC_CODE);
         bytes32[] memory prefixResults = new bytes32[]({prefix_count});
-        vm.record();
-        vm.recordLogs();
 {prefix_calls_a}
-        (, bytes32[] memory prefixWritesA) = vm.accesses(TARGET);
-        vm.stopRecord();
-        Vm.Log[] memory prefixLogsA = vm.getRecordedLogs();
-        bytes32[] memory prefixValuesA = new bytes32[](prefixWritesA.length);
-        for (uint256 i; i < prefixWritesA.length; ++i) {{
-            prefixValuesA[i] = vm.load(TARGET, prefixWritesA[i]);
-        }}
-
-        assert(vm.revertToStateAndDelete(snapshot));
-        for (uint256 i; i < prefixWritesA.length; ++i) {{
-            bytes32 slot = prefixWritesA[i];
-            vm.store(STATE_MIRROR, slot, prefixValuesA[i]);
-            _rememberPrefixSlot(slot);
-        }}
-
-        vm.etch(TARGET, SOLAR_CODE);
-        vm.record();
-        vm.recordLogs();
 {prefix_calls_b}
-        (, bytes32[] memory prefixWritesB) = vm.accesses(TARGET);
-        vm.stopRecord();
-        Vm.Log[] memory prefixLogsB = vm.getRecordedLogs();
-
-        if (
-            keccak256(abi.encode(prefixLogsA)) !=
-                keccak256(abi.encode(prefixLogsB))
-        ) prefixMismatch = true;
-        for (uint256 i; i < prefixWritesA.length; ++i) {{
-            bytes32 slot = prefixWritesA[i];
-            if (vm.load(STATE_MIRROR, slot) != vm.load(TARGET, slot)) {{
-                prefixMismatch = true;
-            }}
-        }}
-        for (uint256 i; i < prefixWritesB.length; ++i) {{
-            bytes32 slot = prefixWritesB[i];
-            _rememberPrefixSlot(slot);
-            if (vm.load(STATE_MIRROR, slot) != vm.load(TARGET, slot)) {{
-                prefixMismatch = true;
-            }}
-        }}
 """
 
 
@@ -1217,16 +1118,14 @@ pragma solidity ^0.8.0;
 
 interface Vm {{
     function assume(bool condition) external pure;
-    function etch(address target, bytes calldata runtimeCode) external;
-    function revertToStateAndDelete(uint256 snapshotId) external returns (bool success);
-    function snapshotState() external returns (uint256 snapshotId);
 }}
 
 contract SymbolicDifferentialTest {{
 {definitions}
     Vm private constant vm =
         Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-    address private constant TARGET = {target_address};
+    address private solcTarget;
+    address private solarTarget;
     // Prevent sequential calls from observing different gas stipends.
     uint256 private constant CALL_GAS = {call_gas};
     bytes4 private constant TARGET_SELECTOR = bytes4({selector});
@@ -1234,19 +1133,17 @@ contract SymbolicDifferentialTest {{
     bytes private constant SOLAR_CODE = hex"{solar_runtime}";
 
     function setUp() public {{
-        vm.etch(TARGET, SOLAR_CODE);
+        solcTarget = _deploy(SOLC_CODE);
+        solarTarget = _deploy(SOLAR_CODE);
     }}
 
     function checkSymbolicDifferential({declarations}) public {{
         bytes memory callData =
             abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
-        uint256 snapshot = vm.snapshotState();
-        vm.etch(TARGET, SOLC_CODE);
         (bool okA, bytes memory retA) =
-            TARGET.staticcall{{gas: CALL_GAS}}(callData);
-        assert(vm.revertToStateAndDelete(snapshot));
+            solcTarget.staticcall{{gas: CALL_GAS}}(callData);
         (bool okB, bytes memory retB) =
-            TARGET.staticcall{{gas: CALL_GAS}}(callData);
+            solarTarget.staticcall{{gas: CALL_GAS}}(callData);
 
         assert(okA == okB);
         assert(retA.length == retB.length);
@@ -1264,6 +1161,17 @@ contract SymbolicDifferentialTest {{
         uint256 remaining = value.length - offset;
         if (remaining < 32) result >>= (32 - remaining) * 8;
     }}
+
+    function _deploy(bytes memory runtime) private returns (address target) {{
+        bytes memory init = abi.encodePacked(
+            hex"63", uint32(runtime.length), hex"601260003963",
+            uint32(runtime.length), hex"6000f3", runtime
+        );
+        assembly ("memory-safe") {{
+            target := create(0, add(init, 0x20), mload(init))
+        }}
+        assert(target != address(0));
+    }}
 }}
 """
 
@@ -1273,34 +1181,15 @@ _STATEFUL_TEST_TEMPLATE = """\
 pragma solidity ^0.8.0;
 
 interface Vm {{
-    struct Log {{
-        bytes32[] topics;
-        bytes data;
-        address emitter;
-    }}
-
-    function accesses(address target)
-        external
-        view
-        returns (bytes32[] memory reads, bytes32[] memory writes);
     function assume(bool condition) external pure;
-    function etch(address target, bytes calldata runtimeCode) external;
-    function getRecordedLogs() external returns (Log[] memory logs);
-    function load(address target, bytes32 slot) external view returns (bytes32 value);
-    function record() external;
-    function recordLogs() external;
-    function revertToStateAndDelete(uint256 snapshotId) external returns (bool success);
-    function snapshotState() external returns (uint256 snapshotId);
-    function stopRecord() external;
-    function store(address target, bytes32 slot, bytes32 value) external;
 }}
 
 contract SymbolicDifferentialTest {{
-{definitions}{prefix_state}
+{definitions}
     Vm private constant vm =
         Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
-    address private constant TARGET = {target_address};
-    address private constant STATE_MIRROR = {state_mirror_address};
+    address private solcTarget;
+    address private solarTarget;
     // Prevent sequential calls from observing different gas stipends.
     uint256 private constant CALL_GAS = {call_gas};
     bytes4 private constant TARGET_SELECTOR = bytes4({selector});
@@ -1308,19 +1197,18 @@ contract SymbolicDifferentialTest {{
     bytes private constant SOLAR_CODE = hex"{solar_runtime}";
 
     function setUp() public {{
-{setup}
+        solcTarget = _deploy(SOLC_CODE);
+        solarTarget = _deploy(SOLAR_CODE);
     }}
 
-{prefix_test}    function checkSymbolicDifferential({declarations}) public {{
+    function checkSymbolicDifferential({declarations}) public {{
         bytes memory callData =
             abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
-{prefix_import}        uint256 snapshot = vm.snapshotState();
-        vm.etch(TARGET, SOLC_CODE);
-{prefix_restore}
+{prefix_setup}
 {suffix_comparison}
     }}
 
-{prefix_helper}    function _word(
+    function _word(
         bytes memory value,
         uint256 offset
     ) private pure returns (uint256 result) {{
@@ -1330,16 +1218,26 @@ contract SymbolicDifferentialTest {{
         uint256 remaining = value.length - offset;
         if (remaining < 32) result >>= (32 - remaining) * 8;
     }}
+
+    function _deploy(bytes memory runtime) private returns (address target) {{
+        bytes memory init = abi.encodePacked(
+            hex"63", uint32(runtime.length), hex"601260003963",
+            uint32(runtime.length), hex"6000f3", runtime
+        );
+        assembly ("memory-safe") {{
+            target := create(0, add(init, 0x20), mload(init))
+        }}
+        assert(target != address(0));
+    }}
 }}
 """
 
 
 _VIEW_SUFFIX_TEMPLATE = """\
         (bool okA, bytes memory retA) =
-            TARGET.staticcall{{gas: CALL_GAS}}(callData);
-        assert(vm.revertToStateAndDelete(snapshot));
+            solcTarget.staticcall{{gas: CALL_GAS}}(callData);
         (bool okB, bytes memory retB) =
-            TARGET.staticcall{{gas: CALL_GAS}}(callData);
+            solarTarget.staticcall{{gas: CALL_GAS}}(callData);
 
         assert(okA == okB);
         assert(retA.length == retB.length);
@@ -1349,43 +1247,15 @@ _VIEW_SUFFIX_TEMPLATE = """\
 
 
 _STATEFUL_SUFFIX_TEMPLATE = """\
-        vm.record();
-        vm.recordLogs();
         (bool okA, bytes memory retA) =
-            TARGET.call{{gas: CALL_GAS}}(callData);
-        (, bytes32[] memory writesA) = vm.accesses(TARGET);
-        vm.stopRecord();
-        Vm.Log[] memory logsA = vm.getRecordedLogs();
-
-        bytes32[] memory valuesA = new bytes32[](writesA.length);
-        for (uint256 i; i < writesA.length; ++i) {{
-            valuesA[i] = vm.load(TARGET, writesA[i]);
-        }}
-        assert(vm.revertToStateAndDelete(snapshot));
-        for (uint256 i; i < writesA.length; ++i) {{
-            vm.store(STATE_MIRROR, writesA[i], valuesA[i]);
-        }}
-
-        vm.record();
-        vm.recordLogs();
+            solcTarget.call{{gas: CALL_GAS}}(callData);
         (bool okB, bytes memory retB) =
-            TARGET.call{{gas: CALL_GAS}}(callData);
-        (, bytes32[] memory writesB) = vm.accesses(TARGET);
-        vm.stopRecord();
-        Vm.Log[] memory logsB = vm.getRecordedLogs();
+            solarTarget.call{{gas: CALL_GAS}}(callData);
 
         assert(okA == okB);
         assert(retA.length == retB.length);
         vm.assume(retA.length <= {max_returndata});
 {word_checks}
-        assert(keccak256(abi.encode(logsA)) == keccak256(abi.encode(logsB)));
-
-        for (uint256 i; i < writesA.length; ++i) {{
-            assert(vm.load(STATE_MIRROR, writesA[i]) == vm.load(TARGET, writesA[i]));
-        }}
-        for (uint256 i; i < writesB.length; ++i) {{
-            assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(TARGET, writesB[i]));
-        }}
 """
 
 

@@ -300,10 +300,12 @@ fuzz/bin/solsymdiff \
 ```
 
 Both compilers receive the same closed Standard JSON input and compiler
-settings. The generated Foundry property swaps both runtimes onto the same
-fixed address, calls them from the same initial state, and compares success or
-revert status and exact returndata. Keeping one target address preserves
-`address(this)`, external self-calls, storage ownership, and log emitters.
+settings. The generated Foundry property deploys both runtimes with ordinary
+`CREATE`, calls each from the same initial state, and compares success or
+revert status and exact returndata. This avoids unsupported symbolic
+cheatcodes. The target copies have different addresses, so functions that
+observe their own address or depend on external self-calls are outside this
+lane.
 A generated symbolic bound is raised as needed to hold both runtime bytecode
 blobs and is recorded in `result.json`.
 A symbolic suffix mismatch is reported only after Foundry concretely replays
@@ -313,13 +315,11 @@ kept under `target/solsymdiff/`.
 
 Pure functions are enabled by default. `--include-view` allows a selected view
 function with zero-initialized storage. `--include-stateful` allows a selected
-nonpayable function under a zero-initialized, single-call model and additionally
-compares emitted logs and every written target-storage slot. Repeat
+nonpayable function under a zero-initialized, single-call model. Repeat
 `--prefix-calldata 0x...` to prepare fixed zero-value calls to the same target
-before a symbolic view or nonpayable call. The tool executes and compares both
-compiler prefixes once during concrete setup, then hydrates their finite target
-storage writes before comparing the symbolic suffix. Prefix success,
-returndata, ordered logs, and final target storage must agree.
+before a symbolic view or nonpayable call. The tool executes the prefix in the
+symbolic property before comparing the selected call. Prefix success and
+returndata must agree.
 
 Prefix calldata includes the selector and ABI-encoded arguments; `0x` targets
 receive or fallback. View suffixes still require `--include-view`, while
