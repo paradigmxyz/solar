@@ -4,7 +4,7 @@
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: + push 64 !metadata(span=70..80)
-// CHECK-NEXT: + push_data 0 !metadata(span=70..80)
+// CHECK-NEXT: + push_data literal_0 !metadata(span=70..80)
 // CHECK-NEXT: + dup 3 !metadata(span=70..80)
 // CHECK-NEXT: + codecopy !metadata(span=70..80)
 bb0:

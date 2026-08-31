@@ -7,10 +7,9 @@ use super::{
         EthdebugEnvironment, EthdebugFunctionExit, EthdebugFunctionInvoke, EthdebugId,
         EthdebugInstruction, EthdebugInvocationTarget, EthdebugOperation, EthdebugOutput,
         EthdebugProgram, EthdebugRange, EthdebugReference, EthdebugResources, EthdebugSource,
-        EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength, Optimizer,
-        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
-        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
-        strip_json_comments,
+        EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength, OutputSelection,
+        OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback,
+        optimizer_settings, print_standard_json_stats, strip_json_comments,
     },
     metadata::Metadata,
 };
