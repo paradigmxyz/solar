@@ -35,7 +35,7 @@ use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, StmtKind, VariableId},
     ty::{CallableParamSource, Gcx, Ty, TyKind},
 };
-use std::collections::hash_map::Entry;
+use std::{borrow::Cow, collections::hash_map::Entry};
 
 use self::storage::StorageLocation;
 
@@ -366,28 +366,8 @@ pub(crate) struct Lowerer<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
-    /// Copies borrowed constant data into memory without allocating for short values.
-    pub(super) fn copy_data_slice_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        dest: ValueId,
-        data: &[u8],
-    ) {
-        self.copy_padded_data_slice_to_memory(builder, dest, data, data.len());
-    }
-
     /// Copies constant data and clears its padding through `padded_size`.
-    pub(super) fn copy_padded_data_slice_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        dest: ValueId,
-        data: &[u8],
-        padded_size: usize,
-    ) {
-        self.copy_padded_data_slice_to_memory_with_name(builder, dest, data, padded_size, None);
-    }
-
-    fn copy_padded_data_slice_to_memory_with_name(
+    pub(super) fn copy_data_to_memory(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         dest: ValueId,
@@ -401,14 +381,20 @@ impl<'gcx> Lowerer<'gcx> {
         }
         if !data.is_empty() && padded_size <= EvmMemoryLayout::WORD_SIZE as usize {
             self.store_data_words(builder, dest, data);
-        } else if data.iter().all(|&byte| byte == 0) {
+            return;
+        }
+        if data.iter().all(|&byte| byte == 0) {
             let size = builder.imm_u64(padded_size as u64);
             builder.memory_zero(dest, size);
-        } else if data_is_inline(padded_size)
+            return;
+        }
+        if data_is_inline(padded_size)
             && padded_size <= data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize)
         {
             self.store_data_words(builder, dest, data);
-        } else if name.is_some()
+            return;
+        }
+        let data = if name.is_some()
             && padded_size > data.len()
             && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize)
         {
@@ -422,52 +408,20 @@ impl<'gcx> Lowerer<'gcx> {
             };
             let zero = builder.imm_u64(0);
             builder.mstore(tail, zero);
-            self.copy_nonzero_data_to_memory(builder, dest, Bytes::copy_from_slice(data), name);
+            Cow::Borrowed(data)
+        } else if padded_size == data.len() {
+            Cow::Borrowed(data)
         } else {
             let mut padded = Vec::with_capacity(padded_size);
             padded.extend_from_slice(data);
             padded.resize(padded_size, 0);
-            self.copy_nonzero_data_to_memory(builder, dest, padded.into(), name);
-        }
-    }
-
-    fn copy_named_data_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        dest: ValueId,
-        data: Bytes,
-        name: Symbol,
-    ) {
-        if data.is_empty() {
-            return;
-        }
-        if data.iter().all(|&byte| byte == 0) {
-            let size = builder.imm_u64(data.len() as u64);
-            builder.memory_zero(dest, size);
-            return;
-        }
-        self.copy_nonzero_data_to_memory(builder, dest, data, Some(name));
-    }
-
-    fn copy_nonzero_data_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        dest: ValueId,
-        data: Bytes,
-        name: Option<Symbol>,
-    ) {
-        if data_is_inline(data.len()) {
-            self.store_data_words(builder, dest, &data);
-            return;
-        }
+            Cow::Owned(padded)
+        };
         if self.copy_splat_to_memory(builder, dest, &data) {
             return;
         }
         let size = builder.imm_u64(data.len() as u64);
-        let data = match name {
-            Some(name) => self.module.intern_named_data(data, name),
-            None => self.module.intern_data(data),
-        };
+        let data = self.module.intern_data(data, name);
         builder.data_copy(data, dest, size);
     }
 

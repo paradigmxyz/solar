@@ -115,7 +115,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
         let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
-        self.copy_padded_data_slice_to_memory(builder, data_start, bytes, aligned);
+        self.copy_data_to_memory(builder, data_start, bytes, aligned, None);
 
         ptr
     }
@@ -1943,7 +1943,7 @@ impl<'gcx> Lowerer<'gcx> {
             // Copy the bytes into a fresh allocation.
             let alloc_size = (len as u64).div_ceil(32) * 32;
             let ptr = self.allocate_memory(builder, alloc_size);
-            self.copy_data_slice_to_memory(builder, ptr, bytes);
+            self.copy_data_to_memory(builder, ptr, bytes, bytes.len(), None);
 
             return Ok((ptr, builder.imm_u64(len as u64)));
         }

@@ -12,7 +12,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Symbol, sym};
 use solar_sema::hir::VariableId;
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 /// A named immutable declared by a MIR module.
 #[derive(Clone, Copy, Debug)]
@@ -267,27 +267,15 @@ impl Module {
     }
 
     /// Interns constant data and returns its stable identifier.
-    pub(crate) fn intern_data(&mut self, data: Bytes) -> DataRef {
-        if let Some(&id) = self.data_index.get(&data) {
-            if self.data[id].name.is_none() {
-                self.data[id].name = Some(sym::literal);
-            }
-            return DataRef::new(id, 0);
-        }
-        let id = self.add_data(data, None);
-        self.data[id].name = Some(sym::literal);
-        DataRef::new(id, 0)
-    }
-
-    pub(crate) fn intern_named_data(&mut self, data: Bytes, name: Symbol) -> DataRef {
-        if let Some(&id) = self.data_index.get(&data) {
-            if self.data[id].name.is_none_or(|name| name == sym::literal) {
+    pub(crate) fn intern_data(&mut self, data: Cow<'_, [u8]>, name: Option<Symbol>) -> DataRef {
+        if let Some(&id) = self.data_index.get(data.as_ref()) {
+            let name = name.unwrap_or(sym::literal);
+            if self.data[id].name.is_none_or(|old| old == sym::literal) {
                 self.data[id].name = Some(name);
             }
             return DataRef::new(id, 0);
         }
-        let id = self.add_data(data, None);
-        self.data[id].name = Some(name);
+        let id = self.add_data(Bytes::from(data.into_owned()), Some(name.unwrap_or(sym::literal)));
         DataRef::new(id, 0)
     }
 

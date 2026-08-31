@@ -1019,7 +1019,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mem_offset = builder.fmp();
 
         let data_name = self.contract_bytecode_data_name(contract_id, true);
-        self.copy_named_data_to_memory(builder, mem_offset, bytecode, data_name);
+        self.copy_data_to_memory(builder, mem_offset, &bytecode, bytecode_len, Some(data_name));
 
         // Append the encoded constructor arguments after the creation code.
         let bytecode_len_val = builder.imm_u64(bytecode_len as u64);
@@ -3046,7 +3046,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             let ptr = builder.fmp();
-            self.copy_data_slice_to_memory(builder, ptr, bytes);
+            self.copy_data_to_memory(builder, ptr, bytes, bytes.len(), None);
             return Ok((ptr, builder.imm_u64(bytes.len() as u64)));
         }
 
