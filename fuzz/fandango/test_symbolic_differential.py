@@ -41,6 +41,7 @@ def _forge_report(
     *,
     replay: str = "not_required",
     max_dynamic_length: int = 256,
+    prefix_status: str | None = None,
 ) -> dict[str, object]:
     symbolic_result: dict[str, object] = {
         "status": status,
@@ -72,14 +73,17 @@ def _forge_report(
         symbolic_result["artifact"] = {
             "path": "cache/symbolic-counterexample.json",
         }
+    test_results: dict[str, object] = {
+        "checkSymbolicDifferential(uint256)": {
+            "status": outer_status,
+            "symbolic": symbolic_result,
+        }
+    }
+    if prefix_status is not None:
+        test_results["testPrefixDifferential()"] = {"status": prefix_status}
     return {
         "test/SymbolicDifferential.t.sol:SymbolicDifferentialTest": {
-            "test_results": {
-                "checkSymbolicDifferential(uint256)": {
-                    "status": outer_status,
-                    "symbolic": symbolic_result,
-                }
-            }
+            "test_results": test_results
         }
     }
 
@@ -163,6 +167,16 @@ class FunctionSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not a top-level dynamic input"):
             symbolic._normalize_input_lengths([(2, (0,))], inputs)
 
+    def test_validates_prefix_calldata(self) -> None:
+        self.assertEqual(symbolic._prefix_calldata("0xAa00"), "0xaa00")
+        for value in ("", "1234", "0x0", "0xzz"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    argparse.ArgumentTypeError,
+                    "even-length hexadecimal",
+                ):
+                    symbolic._prefix_calldata(value)
+
 
 class ResultClassificationTests(unittest.TestCase):
     def test_classifies_bounded_agreement_and_incomplete(self) -> None:
@@ -194,6 +208,30 @@ class ResultClassificationTests(unittest.TestCase):
             symbolic._classify(
                 _forge_report("fail_counterexample"),
                 "0xb3de648b",
+            )
+
+    def test_classifies_concrete_prefix_mismatch(self) -> None:
+        self.assertEqual(
+            symbolic._classify(
+                _forge_report("pass", prefix_status="Success"),
+                "0xb3de648b",
+                prefix_enabled=True,
+            ),
+            {"status": "bounded_agreement"},
+        )
+        self.assertEqual(
+            symbolic._classify(
+                _forge_report("pass", prefix_status="Failure"),
+                "0xb3de648b",
+                prefix_enabled=True,
+            ),
+            {"status": "mismatch", "counterexample": {"stage": "prefix"}},
+        )
+        with self.assertRaisesRegex(ValueError, "concrete prefix result"):
+            symbolic._classify(
+                _forge_report("pass"),
+                "0xb3de648b",
+                prefix_enabled=True,
             )
 
     def test_bounded_agreement_requires_the_requested_forge_bounds(self) -> None:
@@ -282,6 +320,60 @@ class ProjectGenerationTests(unittest.TestCase):
         self.assertIn("vm.load(STATE_MIRROR", test_source)
         self.assertIn('storage_layout = "zero_init"', config)
 
+    def test_prefix_state_is_prepared_before_symbolic_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = pathlib.Path(tmp)
+            symbolic._write_project(
+                project,
+                "0x60006000f3",
+                "0x60016000f3",
+                {
+                    "selector": "0xb3de648b",
+                    "inputs": [{"name": "value", "type": "uint256"}],
+                    "mutability": "view",
+                },
+                "osaka",
+                max_dynamic_length=256,
+                prefix_calldata=("0x12345678", "0x"),
+            )
+
+            test_source = (
+                project / "test" / "SymbolicDifferential.t.sol"
+            ).read_text()
+
+        setup_start = test_source.index("function setUp()")
+        symbolic_start = test_source.index("function checkSymbolicDifferential")
+        self.assertEqual(test_source.count('hex"12345678"'), 2)
+        self.assertEqual(test_source.count('hex""'), 2)
+        first_prefix_a = test_source.index('hex"12345678"')
+        second_prefix_a = test_source.index('hex""')
+        first_prefix_b = test_source.index('hex"12345678"', first_prefix_a + 1)
+        second_prefix_b = test_source.index('hex""', second_prefix_a + 1)
+        self.assertTrue(
+            first_prefix_a
+            < second_prefix_a
+            < first_prefix_b
+            < second_prefix_b
+            < symbolic_start
+        )
+        self.assertNotIn('hex"12345678"', test_source[symbolic_start:])
+        self.assertIn("function testPrefixDifferential()", test_source)
+        self.assertIn("_rememberPrefixSlot(slot)", test_source)
+        self.assertIn(
+            "vm.store(TARGET, slot, vm.load(TARGET, slot))",
+            test_source,
+        )
+        self.assertLess(
+            test_source.index("vm.store(TARGET, slot, vm.load(TARGET, slot))"),
+            test_source.index("uint256 snapshot", symbolic_start),
+        )
+        self.assertEqual(
+            test_source.count("TARGET.staticcall{gas: CALL_GAS}(callData)"),
+            2,
+        )
+        self.assertNotIn("vm.record();", test_source[symbolic_start:])
+        self.assertLess(setup_start, symbolic_start)
+
 
 class CommandTests(unittest.TestCase):
     def test_identical_compiler_input_reaches_the_focused_runner(self) -> None:
@@ -322,6 +414,7 @@ class CommandTests(unittest.TestCase):
                 via_ir=True,
                 include_view=False,
                 include_stateful=False,
+                prefix_calldata=[],
                 project_root=None,
                 include_path=[],
                 remapping=[],

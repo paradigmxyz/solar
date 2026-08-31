@@ -17,6 +17,7 @@ from typing import Any
 
 SCHEMA = "solar:solsymdiff@v1"
 TEST_NAME = "checkSymbolicDifferential"
+PREFIX_TEST_NAME = "testPrefixDifferential"
 DEFAULT_DYNAMIC_LENGTHS = (0, 1, 2, 3)
 MAX_DYNAMIC_LENGTH = 256
 MAX_RETURNDATA_BYTES = 256
@@ -48,6 +49,14 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "allow a nonpayable target under the clean zero-storage, single-call model"
         ),
+    )
+    parser.add_argument(
+        "--prefix-calldata",
+        type=_prefix_calldata,
+        action="append",
+        default=[],
+        metavar="HEX",
+        help="prepare fixed zero-value target calls before symbolic comparison",
     )
     parser.add_argument("--project-root", type=pathlib.Path)
     parser.add_argument(
@@ -138,6 +147,7 @@ def run(
     source = args.source.resolve()
     if not source.is_file():
         raise ValueError(f"source file does not exist: {source}")
+    prefix_calldata = tuple(args.prefix_calldata)
 
     tools = {
         name: _resolve_executable(getattr(args, name))
@@ -184,6 +194,8 @@ def run(
         include_view=args.include_view,
         include_stateful=args.include_stateful,
     )
+    if prefix_calldata and function["mutability"] == "pure":
+        raise ValueError("prefix calls require a view or nonpayable target")
     input_lengths = _normalize_input_lengths(args.input_length, function["inputs"])
     solc_runtime = solc_artifact["runtime"]
     solar_runtime = solar_artifact["runtime"]
@@ -230,6 +242,7 @@ def run(
         args.evm_version,
         dynamic_lengths=args.dynamic_lengths,
         input_lengths=input_lengths,
+        prefix_calldata=prefix_calldata,
         exploration_order=args.exploration_order,
         max_dynamic_length=max_dynamic_length,
         max_returndata_bytes=args.max_returndata_bytes,
@@ -242,7 +255,12 @@ def run(
         args,
         max_dynamic_length,
     )
-    result = _classify(report, function["selector"], bounds)
+    result = _classify(
+        report,
+        function["selector"],
+        bounds,
+        prefix_enabled=bool(prefix_calldata),
+    )
     result.update(
         {
             "schema": SCHEMA,
@@ -257,6 +275,8 @@ def run(
             "project": str(project),
         }
     )
+    if prefix_calldata:
+        result["prefix"] = {"calldata": list(prefix_calldata), "value": 0}
     (project / "result.json").write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -283,6 +303,14 @@ def _nonnegative_int(value: str) -> int:
     if number < 0:
         raise argparse.ArgumentTypeError("value must be non-negative")
     return number
+
+
+def _prefix_calldata(value: str) -> str:
+    if not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})*", value):
+        raise argparse.ArgumentTypeError(
+            "prefix calldata must be 0x-prefixed, even-length hexadecimal"
+        )
+    return value.lower()
 
 
 def _dynamic_lengths(value: str) -> tuple[int, ...]:
@@ -747,6 +775,7 @@ def _write_project(
     max_dynamic_length: int,
     dynamic_lengths: tuple[int, ...] = DEFAULT_DYNAMIC_LENGTHS,
     input_lengths: dict[str, tuple[int, ...]] | None = None,
+    prefix_calldata: tuple[str, ...] = (),
     exploration_order: str = "bfs",
     max_returndata_bytes: int = MAX_RETURNDATA_BYTES,
 ) -> None:
@@ -763,11 +792,87 @@ def _write_project(
         )
         for offset in range(0, max_returndata_bytes, 32)
     )
-    template = (
-        _STATEFUL_TEST_TEMPLATE
-        if function.get("mutability") == "nonpayable"
-        else _STATELESS_TEST_TEMPLATE
-    )
+    prefix_state = ""
+    setup = "        vm.etch(TARGET, SOLAR_CODE);"
+    prefix_test = ""
+    prefix_import = ""
+    prefix_restore = ""
+    prefix_helper = ""
+    if prefix_calldata:
+        prefix_calls_a = []
+        prefix_calls_b = []
+        for index, calldata in enumerate(prefix_calldata):
+            payload = calldata.removeprefix("0x")
+            prefix_calls_a.extend(
+                (
+                    "        {",
+                    "            (bool ok, bytes memory ret) =",
+                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
+                    f"            prefixResults[{index}] =",
+                    "                keccak256(abi.encode(ok, ret));",
+                    "        }",
+                )
+            )
+            prefix_calls_b.extend(
+                (
+                    "        {",
+                    "            (bool ok, bytes memory ret) =",
+                    f'                TARGET.call{{gas: CALL_GAS}}(hex"{payload}");',
+                    "            if (",
+                    f"                prefixResults[{index}] !=",
+                    "                    keccak256(abi.encode(ok, ret))",
+                    "            ) prefixMismatch = true;",
+                    "        }",
+                )
+            )
+        prefix_state = (
+            "\n    bool private prefixMismatch;\n"
+            "    bytes32[] private prefixSlots;"
+        )
+        setup = _PREFIX_SETUP_TEMPLATE.format(
+            prefix_count=len(prefix_calldata),
+            prefix_calls_a="\n".join(prefix_calls_a),
+            prefix_calls_b="\n".join(prefix_calls_b),
+        )
+        prefix_test = f"""    function {PREFIX_TEST_NAME}() public view {{
+        assert(!prefixMismatch);
+    }}
+
+"""
+        prefix_import = """\
+        if (prefixMismatch) return;
+        for (uint256 i; i < prefixSlots.length; ++i) {
+            bytes32 slot = prefixSlots[i];
+            vm.store(TARGET, slot, vm.load(TARGET, slot));
+        }
+"""
+        prefix_restore = """\
+        for (uint256 i; i < prefixSlots.length; ++i) {
+            bytes32 slot = prefixSlots[i];
+            vm.store(TARGET, slot, vm.load(STATE_MIRROR, slot));
+        }
+"""
+        prefix_helper = """    function _rememberPrefixSlot(bytes32 slot) private {
+        for (uint256 i; i < prefixSlots.length; ++i) {
+            if (prefixSlots[i] == slot) return;
+        }
+        prefixSlots.push(slot);
+    }
+
+"""
+    if function.get("mutability") == "nonpayable" or prefix_calldata:
+        template = _STATEFUL_TEST_TEMPLATE
+        suffix_comparison = (
+            _VIEW_SUFFIX_TEMPLATE
+            if function.get("mutability") == "view"
+            else _STATEFUL_SUFFIX_TEMPLATE
+        ).format(
+            max_returndata=max_returndata_bytes,
+            word_checks=word_checks,
+        ).rstrip()
+    else:
+        template = _STATELESS_TEST_TEMPLATE
+        suffix_comparison = ""
     test_source = template.format(
         definitions=definitions,
         declarations=", ".join(declarations),
@@ -779,6 +884,13 @@ def _write_project(
         state_mirror_address=STATE_MIRROR_ADDRESS,
         call_gas=CALL_GAS,
         max_returndata=max_returndata_bytes,
+        prefix_state=prefix_state,
+        setup=setup,
+        prefix_test=prefix_test,
+        prefix_import=prefix_import,
+        prefix_restore=prefix_restore,
+        prefix_helper=prefix_helper,
+        suffix_comparison=suffix_comparison,
         word_checks=word_checks,
     )
     (project / "test" / "SymbolicDifferential.t.sol").write_text(
@@ -822,6 +934,11 @@ def _run_forge(
         capture_output=True,
         timeout=args.timeout,
     ).stdout
+    test_pattern = (
+        f"^({TEST_NAME}|{PREFIX_TEST_NAME})"
+        if args.prefix_calldata
+        else f"^{TEST_NAME}"
+    )
     command = [
         forge,
         "test",
@@ -833,7 +950,7 @@ def _run_forge(
         args.evm_version,
         "--symbolic",
         "--match-test",
-        f"^{TEST_NAME}",
+        test_pattern,
         "--symbolic-solver",
         solver,
         "--symbolic-timeout",
@@ -891,8 +1008,11 @@ def _classify(
     report: dict[str, Any],
     target_selector: str,
     expected_bounds: dict[str, Any] | None = None,
+    *,
+    prefix_enabled: bool = False,
 ) -> dict[str, Any]:
     matches = []
+    prefix_results = []
     for suite in report.values():
         if not isinstance(suite, dict):
             continue
@@ -900,9 +1020,23 @@ def _classify(
         if not isinstance(results, dict):
             continue
         for test_name, result in results.items():
+            if test_name == f"{PREFIX_TEST_NAME}()" and isinstance(result, dict):
+                prefix_results.append(result)
             symbolic = result.get("symbolic") if isinstance(result, dict) else None
             if isinstance(symbolic, dict):
                 matches.append((test_name, result, symbolic))
+    if prefix_enabled:
+        if len(prefix_results) != 1:
+            raise ValueError(
+                f"expected one concrete prefix result, found {len(prefix_results)}"
+            )
+        prefix_status = prefix_results[0].get("status")
+        if prefix_status == "Failure":
+            return {"status": "mismatch", "counterexample": {"stage": "prefix"}}
+        if prefix_status != "Success":
+            raise ValueError(f"unsupported concrete prefix status: {prefix_status!r}")
+    elif prefix_results:
+        raise ValueError("Forge ran an unexpected concrete prefix test")
     if len(matches) != 1:
         raise ValueError(f"expected one symbolic result, found {len(matches)}")
 
@@ -1027,6 +1161,56 @@ default_bytes_lengths = [{dynamic_lengths}]
 """
 
 
+_PREFIX_SETUP_TEMPLATE = """\
+        uint256 snapshot = vm.snapshotState();
+        vm.etch(TARGET, SOLC_CODE);
+        bytes32[] memory prefixResults = new bytes32[]({prefix_count});
+        vm.record();
+        vm.recordLogs();
+{prefix_calls_a}
+        (, bytes32[] memory prefixWritesA) = vm.accesses(TARGET);
+        vm.stopRecord();
+        Vm.Log[] memory prefixLogsA = vm.getRecordedLogs();
+        bytes32[] memory prefixValuesA = new bytes32[](prefixWritesA.length);
+        for (uint256 i; i < prefixWritesA.length; ++i) {{
+            prefixValuesA[i] = vm.load(TARGET, prefixWritesA[i]);
+        }}
+
+        assert(vm.revertToStateAndDelete(snapshot));
+        for (uint256 i; i < prefixWritesA.length; ++i) {{
+            bytes32 slot = prefixWritesA[i];
+            vm.store(STATE_MIRROR, slot, prefixValuesA[i]);
+            _rememberPrefixSlot(slot);
+        }}
+
+        vm.etch(TARGET, SOLAR_CODE);
+        vm.record();
+        vm.recordLogs();
+{prefix_calls_b}
+        (, bytes32[] memory prefixWritesB) = vm.accesses(TARGET);
+        vm.stopRecord();
+        Vm.Log[] memory prefixLogsB = vm.getRecordedLogs();
+
+        if (
+            keccak256(abi.encode(prefixLogsA)) !=
+                keccak256(abi.encode(prefixLogsB))
+        ) prefixMismatch = true;
+        for (uint256 i; i < prefixWritesA.length; ++i) {{
+            bytes32 slot = prefixWritesA[i];
+            if (vm.load(STATE_MIRROR, slot) != vm.load(TARGET, slot)) {{
+                prefixMismatch = true;
+            }}
+        }}
+        for (uint256 i; i < prefixWritesB.length; ++i) {{
+            bytes32 slot = prefixWritesB[i];
+            _rememberPrefixSlot(slot);
+            if (vm.load(STATE_MIRROR, slot) != vm.load(TARGET, slot)) {{
+                prefixMismatch = true;
+            }}
+        }}
+"""
+
+
 _STATELESS_TEST_TEMPLATE = """\
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
@@ -1112,7 +1296,7 @@ interface Vm {{
 }}
 
 contract SymbolicDifferentialTest {{
-{definitions}
+{definitions}{prefix_state}
     Vm private constant vm =
         Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
     address private constant TARGET = {target_address};
@@ -1124,15 +1308,47 @@ contract SymbolicDifferentialTest {{
     bytes private constant SOLAR_CODE = hex"{solar_runtime}";
 
     function setUp() public {{
-        vm.etch(TARGET, SOLAR_CODE);
+{setup}
     }}
 
-    function checkSymbolicDifferential({declarations}) public {{
+{prefix_test}    function checkSymbolicDifferential({declarations}) public {{
         bytes memory callData =
             abi.encodeWithSelector(TARGET_SELECTOR{encode_arguments});
-        uint256 snapshot = vm.snapshotState();
+{prefix_import}        uint256 snapshot = vm.snapshotState();
         vm.etch(TARGET, SOLC_CODE);
+{prefix_restore}
+{suffix_comparison}
+    }}
 
+{prefix_helper}    function _word(
+        bytes memory value,
+        uint256 offset
+    ) private pure returns (uint256 result) {{
+        assembly ("memory-safe") {{
+            result := mload(add(add(value, 0x20), offset))
+        }}
+        uint256 remaining = value.length - offset;
+        if (remaining < 32) result >>= (32 - remaining) * 8;
+    }}
+}}
+"""
+
+
+_VIEW_SUFFIX_TEMPLATE = """\
+        (bool okA, bytes memory retA) =
+            TARGET.staticcall{{gas: CALL_GAS}}(callData);
+        assert(vm.revertToStateAndDelete(snapshot));
+        (bool okB, bytes memory retB) =
+            TARGET.staticcall{{gas: CALL_GAS}}(callData);
+
+        assert(okA == okB);
+        assert(retA.length == retB.length);
+        vm.assume(retA.length <= {max_returndata});
+{word_checks}
+"""
+
+
+_STATEFUL_SUFFIX_TEMPLATE = """\
         vm.record();
         vm.recordLogs();
         (bool okA, bytes memory retA) =
@@ -1170,19 +1386,6 @@ contract SymbolicDifferentialTest {{
         for (uint256 i; i < writesB.length; ++i) {{
             assert(vm.load(STATE_MIRROR, writesB[i]) == vm.load(TARGET, writesB[i]));
         }}
-    }}
-
-    function _word(
-        bytes memory value,
-        uint256 offset
-    ) private pure returns (uint256 result) {{
-        assembly ("memory-safe") {{
-            result := mload(add(add(value, 0x20), offset))
-        }}
-        uint256 remaining = value.length - offset;
-        if (remaining < 32) result >>= (32 - remaining) * 8;
-    }}
-}}
 """
 
 
