@@ -1571,3 +1571,26 @@ impl<'a> FunctionBuilder<'a> {
         self.func
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_uint_accepts_primitives() {
+        let _ = 1_u8.to_uint();
+        let _ = 1_u16.to_uint();
+        let _ = 1_u32.to_uint();
+        let _ = 1_u64.to_uint();
+        let _ = 1_u128.to_uint();
+        let _ = 1_usize.to_uint();
+        let _ = 1_i8.to_uint();
+        let _ = 1_i16.to_uint();
+        let _ = 1_i32.to_uint();
+        let _ = 1_i64.to_uint();
+        let _ = 1_i128.to_uint();
+        let _ = 1_isize.to_uint();
+        let _ = U256::from(1).to_uint();
+        assert_eq!((-1_i8).to_uint(), U256::MAX);
+    }
+}
