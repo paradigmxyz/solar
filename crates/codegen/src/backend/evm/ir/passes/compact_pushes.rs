@@ -12,10 +12,10 @@
 //! Recipes may use more instructions and transient stack space than a literal push; passes that
 //! move encoded pushes must therefore preserve their own stack-headroom proof.
 //!
-//! The default pipeline selects recipes before push reordering so that pass can move a complete
-//! recipe with its stack-peak proof. Later peephole and stack cleanup can simplify the concrete
-//! recipe, while assembly only chooses final push widths and does not rediscover constant-building
-//! expressions.
+//! Recipe emission recursively selects materializations for child pushes, so one pass reaches a
+//! fixed point. The default pipeline expands recipes once before structural cleanup because tail
+//! merging and outlining profit from the concrete instruction shape. Push reordering and
+//! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
 use super::EvmPass;
 use crate::backend::evm::{
@@ -81,33 +81,109 @@ fn push(value: U256) -> Instruction {
     Instruction::push_value(value)
 }
 
+/// One instruction in a selected immediate materialization.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::backend::evm) enum ImmediateMaterializationOp {
+    Push(U256),
+    Opcode(u8),
+}
+
+/// The shortest selected materialization for one concrete immediate.
+#[derive(Clone, Copy)]
+pub(in crate::backend::evm) struct ImmediateMaterialization {
+    evm_version: EvmVersion,
+    value: U256,
+    recipe: CompactPush,
+}
+
+impl ImmediateMaterialization {
+    /// Returns the materialization selected for `value` on `evm_version`.
+    pub(in crate::backend::evm) fn new(evm_version: EvmVersion, value: U256) -> Self {
+        Self { evm_version, value, recipe: select(evm_version, value) }
+    }
+
+    /// Returns the materialization's maximum relative stack height.
+    pub(in crate::backend::evm) fn stack_peak(self) -> usize {
+        self.metrics().stack_peak
+    }
+
+    /// Visits each concrete instruction in execution order.
+    pub(in crate::backend::evm) fn for_each(self, mut f: impl FnMut(ImmediateMaterializationOp)) {
+        self.for_each_inner(&mut f);
+    }
+
+    fn for_each_inner(self, f: &mut impl FnMut(ImmediateMaterializationOp)) {
+        let push = ImmediateMaterializationOp::Push;
+        let opcode = ImmediateMaterializationOp::Opcode;
+        match self.recipe {
+            CompactPush::Literal => f(push(self.value)),
+            CompactPush::FullWord => {
+                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
+                f(opcode(op::NOT));
+            }
+            CompactPush::LowerAllOnesMask { shift } => {
+                Self::new(self.evm_version, U256::ZERO).for_each_inner(f);
+                f(opcode(op::NOT));
+                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
+                f(opcode(op::SHR));
+            }
+            CompactPush::Not => {
+                Self::new(self.evm_version, !self.value).for_each_inner(f);
+                f(opcode(op::NOT));
+            }
+            CompactPush::Shl { shift } => {
+                Self::new(self.evm_version, self.value >> usize::from(shift)).for_each_inner(f);
+                Self::new(self.evm_version, U256::from(shift)).for_each_inner(f);
+                f(opcode(op::SHL));
+            }
+        }
+    }
+
+    fn metrics(self) -> ImmediateMaterializationMetrics {
+        let mut metrics = ImmediateMaterializationMetrics::default();
+        let mut depth = 0usize;
+        self.for_each(|materialized| match materialized {
+            ImmediateMaterializationOp::Push(value) => {
+                let (len, gas) = literal_materialization_cost(self.evm_version, value);
+                metrics.encoded_len += len;
+                metrics.static_gas += gas;
+                depth += 1;
+                metrics.stack_peak = metrics.stack_peak.max(depth);
+            }
+            ImmediateMaterializationOp::Opcode(opcode) => {
+                let (inputs, outputs) =
+                    op::stack_io(opcode).expect("compact immediate recipes use known EVM opcodes");
+                depth = depth - usize::from(inputs) + usize::from(outputs);
+                metrics.encoded_len += 1;
+                metrics.static_gas += match opcode {
+                    op::NOT | op::SHL | op::SHR => VERY_LOW_GAS,
+                    _ => unreachable!("compact immediate recipes use very-low-gas opcodes"),
+                };
+            }
+        });
+        debug_assert_eq!(depth, 1);
+        metrics
+    }
+}
+
+#[derive(Default)]
+struct ImmediateMaterializationMetrics {
+    encoded_len: usize,
+    static_gas: usize,
+    stack_peak: usize,
+}
+
 pub(super) fn materialize_immediate(
     instructions: &mut Vec<Instruction>,
     evm_version: EvmVersion,
     value: U256,
 ) {
-    match select(evm_version, value) {
-        CompactPush::Literal => instructions.push(push(value)),
-        CompactPush::FullWord => {
-            instructions.push(push(U256::ZERO));
-            instructions.push(Instruction::opcode(op::NOT));
+    ImmediateMaterialization::new(evm_version, value).for_each(|op| match op {
+        ImmediateMaterializationOp::Push(value) => instructions.push(push(value)),
+        ImmediateMaterializationOp::Opcode(opcode) => {
+            instructions.push(Instruction::opcode(opcode));
         }
-        CompactPush::LowerAllOnesMask { shift } => {
-            instructions.push(push(U256::ZERO));
-            instructions.push(Instruction::opcode(op::NOT));
-            instructions.push(push(U256::from(shift)));
-            instructions.push(Instruction::opcode(op::SHR));
-        }
-        CompactPush::Not => {
-            instructions.push(push(!value));
-            instructions.push(Instruction::opcode(op::NOT));
-        }
-        CompactPush::Shl { shift } => {
-            instructions.push(push(value >> usize::from(shift)));
-            instructions.push(push(U256::from(shift)));
-            instructions.push(Instruction::opcode(op::SHL));
-        }
-    }
+    });
 }
 
 fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
@@ -115,7 +191,14 @@ fn select(evm_version: EvmVersion, value: U256) -> CompactPush {
 }
 
 pub(super) fn selected_len(gcx: Gcx<'_>, value: U256) -> usize {
-    select_with_len(gcx.sess.opts.evm_version, value).0
+    immediate_materialization_len(gcx.sess.opts.evm_version, value)
+}
+
+pub(in crate::backend::evm) fn immediate_materialization_len(
+    evm_version: EvmVersion,
+    value: U256,
+) -> usize {
+    select_with_len(evm_version, value).0
 }
 
 fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush) {
@@ -146,10 +229,9 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
 
     if width as usize == EVM_WORD_BYTES {
         let inverted = !value;
-        consider(
-            fixed_push_len(evm_version, push_width(evm_version, inverted)) + 1,
-            CompactPush::Not,
-        );
+        if push_width(evm_version, inverted) < width {
+            consider(select_with_len(evm_version, inverted).0 + 1, CompactPush::Not);
+        }
     }
 
     let trailing_zero_bytes = value.trailing_zeros() / 8;
@@ -160,7 +242,9 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
         let shift = trailing_zero_bytes * 8;
         let shifted = value >> shift;
         consider(
-            fixed_push_len(evm_version, push_width(evm_version, shifted)) + 3,
+            select_with_len(evm_version, shifted).0
+                + select_with_len(evm_version, U256::from(shift)).0
+                + 1,
             CompactPush::Shl { shift: shift as u8 },
         );
     }
@@ -173,30 +257,8 @@ pub(in crate::backend::evm) fn immediate_materialization_cost(
     evm_version: EvmVersion,
     value: U256,
 ) -> (usize, usize) {
-    match select(evm_version, value) {
-        CompactPush::Literal => literal_materialization_cost(evm_version, value),
-        CompactPush::FullWord => {
-            let (zero_len, zero_gas) = literal_materialization_cost(evm_version, U256::ZERO);
-            (zero_len + 1, zero_gas + VERY_LOW_GAS)
-        }
-        CompactPush::LowerAllOnesMask { shift } => {
-            let (zero_len, zero_gas) = literal_materialization_cost(evm_version, U256::ZERO);
-            let (shift_len, shift_gas) =
-                literal_materialization_cost(evm_version, U256::from(shift));
-            (zero_len + 1 + shift_len + 1, zero_gas + VERY_LOW_GAS + shift_gas + VERY_LOW_GAS)
-        }
-        CompactPush::Not => {
-            let (inverted_len, inverted_gas) = literal_materialization_cost(evm_version, !value);
-            (inverted_len + 1, inverted_gas + VERY_LOW_GAS)
-        }
-        CompactPush::Shl { shift } => {
-            let (value_len, value_gas) =
-                literal_materialization_cost(evm_version, value >> usize::from(shift));
-            let (shift_len, shift_gas) =
-                literal_materialization_cost(evm_version, U256::from(shift));
-            (value_len + shift_len + 1, value_gas + shift_gas + VERY_LOW_GAS)
-        }
-    }
+    let metrics = ImmediateMaterialization::new(evm_version, value).metrics();
+    (metrics.encoded_len, metrics.static_gas)
 }
 
 fn literal_materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
@@ -243,6 +305,21 @@ mod tests {
         assert_eq!(
             immediate_materialization_cost(EvmVersion::Cancun, (U256::ONE << 40) - U256::ONE),
             (5, 11)
+        );
+
+        let nested = !(U256::ONE << 128usize);
+        assert_eq!(immediate_materialization_cost(EvmVersion::Cancun, nested), (6, 12));
+        assert_eq!(ImmediateMaterialization::new(EvmVersion::Cancun, nested).stack_peak(), 2);
+        let mut ops = Vec::new();
+        ImmediateMaterialization::new(EvmVersion::Cancun, nested).for_each(|op| ops.push(op));
+        assert_eq!(
+            ops,
+            [
+                ImmediateMaterializationOp::Push(U256::ONE),
+                ImmediateMaterializationOp::Push(U256::from(128)),
+                ImmediateMaterializationOp::Opcode(op::SHL),
+                ImmediateMaterializationOp::Opcode(op::NOT),
+            ]
         );
     }
 }

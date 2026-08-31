@@ -19,14 +19,17 @@
 //! entry depths and are rejected when dynamic control flow or an unbounded path prevents a proof.
 //! Net stack effects do not change, which lets the second phase reuse depths after the first phase.
 //!
-//! The default pipeline runs this pass after compacting pushes in each structural sweep. The first
-//! expression sweep is disabled for pre-extended-stack size builds because its interaction with
-//! later structural cleanup can increase code size there. The final sweep runs after structural
-//! sharing is fixed and enables it safely. The exact mixed-stack rules run in every optimized mode
-//! because they preserve the surrounding value layout and cannot increase local cost.
+//! For a logical concrete immediate, the pass queries the compact-push selector and accounts for
+//! the selected recipe's transient peak without first expanding it. This also keeps standalone pass
+//! pipelines safe when they run before compacting pushes. The first expression sweep is disabled
+//! for pre-extended-stack size builds because its interaction with later structural cleanup can
+//! increase code size there. The final sweep runs after structural sharing is fixed and enables it
+//! safely. The exact mixed-stack rules run in every optimized mode because they preserve the
+//! surrounding value layout and cannot increase local cost.
 
 use super::{
     EvmPass,
+    compact_pushes::ImmediateMaterialization,
     utils::{StackDepths, terminator_lowering_growth},
 };
 use crate::backend::evm::{
@@ -183,7 +186,7 @@ fn reorder(
             continue;
         }
         let node = sequence.push(inst);
-        update_expressions(&mut expressions, &sequence, node);
+        update_expressions(&mut expressions, &sequence, node, evm_version);
     }
     sequence.finish_into(&mut source);
     *instructions = source;
@@ -245,6 +248,7 @@ fn update_expressions(
     expressions: &mut Vec<Expression>,
     sequence: &InstructionSequence,
     node: usize,
+    evm_version: EvmVersion,
 ) {
     let inst = sequence.instruction(node);
     let effect = if let Some(effect) = inst.effective_stack_effect()
@@ -263,7 +267,9 @@ fn update_expressions(
     if inputs == 0 {
         expressions.push(Expression {
             start: node,
-            peak: 1,
+            peak: inst
+                .concrete_immediate()
+                .map_or(1, |value| ImmediateMaterialization::new(evm_version, value).stack_peak()),
             immediate_recipe: inst.is_encoded_push(),
         });
         return;

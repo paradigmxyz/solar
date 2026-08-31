@@ -10,6 +10,7 @@
 
 use super::{
     EvmPass,
+    compact_pushes::selected_len,
     utils::{is_terminal_boundary, remap_block_order},
 };
 use crate::backend::evm::{
@@ -17,7 +18,7 @@ use crate::backend::evm::{
         Block, BlockId, Instruction, Module, PushValue, TerminatorKind,
         assembly::{estimated_indexed_jump_terminator_size, indexed_jump_target_width_bound},
     },
-    op::{self, push_len},
+    op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
@@ -236,7 +237,7 @@ fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
         3
     } else if inst.is_encoded_push() {
         match &inst.value {
-            Some(PushValue::Immediate(value)) => push_len(gcx.sess.opts.evm_version, *value),
+            Some(PushValue::Immediate(value)) => selected_len(gcx, *value),
             Some(PushValue::Block(_)) => 3,
             Some(PushValue::Data(_)) => 4,
             _ => 1,

@@ -4,12 +4,13 @@
 //! of the rest of the IR. The helpers here rebuild block storage and remap every
 //! entry, push, and terminator reference together.
 
+use super::compact_pushes::selected_len;
 use crate::backend::evm::{
     ir::{
         BlockId, Instruction, Module, PushValue, StackEffect, TerminatorKind,
         default_terminator_stack_effect,
     },
-    op::{self, push_len},
+    op,
     stack::MAX_STACK_DEPTH,
 };
 use smallvec::SmallVec;
@@ -97,7 +98,7 @@ pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> 
     if inst.deferred_push().is_none()
         && let Some(PushValue::Immediate(value)) = inst.value
     {
-        return push_len(gcx.sess.opts.evm_version, value);
+        return selected_len(gcx, value);
     }
     // Labels, data offsets, and deferred relocations are address-sensitive. They may resolve to
     // zero, so one byte is the only safe lower bound before assembly.

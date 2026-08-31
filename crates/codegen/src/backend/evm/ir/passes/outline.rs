@@ -20,11 +20,12 @@
 
 use super::{
     EvmPass,
+    compact_pushes::selected_len,
     utils::{FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op::{self, push_len},
+    op,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -559,10 +560,11 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
-            let push_size = push_len(gcx.sess.opts.evm_version, value);
+            let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
             let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
-            (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING).then_some(value)
+            (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING)
+                .then_some((value, push_size))
         })
         .collect();
     if values.is_empty() {
@@ -572,9 +574,8 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     for occurrences in sites.values_mut() {
         occurrences.retain(|site| depths.has_headroom(site.0, site.1, 2));
     }
-    values.retain(|value| {
+    values.retain(|(value, push_size)| {
         let occurrences = &sites[value];
-        let push_size = push_len(gcx.sess.opts.evm_version, *value);
         let inline = occurrences.len() * push_size;
         let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
         occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
@@ -583,12 +584,12 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         return false;
     }
     values.sort_unstable();
-    let site_count = values.iter().map(|value| sites[value].len()).sum::<usize>();
+    let site_count = values.iter().map(|(value, _)| sites[value].len()).sum::<usize>();
     let Some(labels) = state.labels(module, values.len() + site_count) else { return false };
     let mut labels = labels.into_iter();
 
     let mut edits = OutlineEdits::default();
-    for value in values {
+    for (value, _) in values {
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
         stub.instructions.push(Instruction::push_value(value));
         stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(1)));

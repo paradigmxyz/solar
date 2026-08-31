@@ -95,7 +95,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Stack allocation can leave `producer; push; swap1` when the producer was emitted first.
     // Reorder it only after structural sharing is fixed so local stack cleanup cannot perturb
     // outlining choices.
-    &compact_pushes::CompactPushes,
     &reorder_pushes::REORDER_PUSHES,
     &peephole::Peephole,
     // Regenerate only after structural sharing is fixed. Doing this before
@@ -121,7 +120,6 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &tail_merge::TailMerge,
     &outline::Outline,
     &cfg_simplify::CfgSimplify,
-    &compact_pushes::CompactPushes,
     &reorder_pushes::FINAL_REORDER_PUSHES,
     &peephole::Peephole,
     &peephole::Cleanup(block_cse::BlockCse),

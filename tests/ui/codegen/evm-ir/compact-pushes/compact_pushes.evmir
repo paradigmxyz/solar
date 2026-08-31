@@ -7,7 +7,12 @@
 // CHECK-NEXT: + not
 // CHECK: + push 96
 // CHECK-NEXT: + shr
+// CHECK: + push 1
+// CHECK-NEXT: + push 128
+// CHECK-NEXT: + shl
+// CHECK-NEXT: + not
 bb0:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   push 0xffffffffffffffffffffffffffffffffffffffff
+  push 0xfffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffff
   stop
