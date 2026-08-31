@@ -4123,6 +4123,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
+            if self.capture_debug_info {
+                let modifier_depth = block
+                    .instructions
+                    .first()
+                    .map(|&inst_id| func.inst(inst_id).metadata.modifier_depth())
+                    .unwrap_or(0);
+                self.asm.set_modifier_depth(modifier_depth);
+            }
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
             preserved_fallthrough = None;
             let label = self.block_labels[&block_id];
@@ -4247,6 +4255,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
                 if self.capture_debug_info {
                     self.asm.set_source_span(inst.metadata.source_span());
+                    self.asm.set_modifier_depth(inst.metadata.modifier_depth());
                 }
 
                 // A whole-calldata-forwarding clobber overwrites the low memory
@@ -4516,12 +4525,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             // Generate terminator. An edge-specific resident branch owns its cleanup and jumps.
             if self.capture_debug_info {
-                let span = block
-                    .instructions
-                    .iter()
-                    .rev()
-                    .find_map(|&inst_id| func.inst(inst_id).metadata.source_span());
-                self.asm.set_source_span(span);
+                let metadata =
+                    block.instructions.last().map(|&inst_id| &func.inst(inst_id).metadata);
+                self.asm.set_source_span(metadata.and_then(|metadata| metadata.source_span()));
+                self.asm
+                    .set_modifier_depth(metadata.map_or(0, |metadata| metadata.modifier_depth()));
             }
             if let (
                 Some(union),
@@ -4564,6 +4572,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if self.capture_debug_info {
                 self.asm.set_source_span(None);
+                self.asm.set_modifier_depth(0);
             }
             self.scheduler.spills.release_block_locals();
             if preserve_stack_to_fallthrough {

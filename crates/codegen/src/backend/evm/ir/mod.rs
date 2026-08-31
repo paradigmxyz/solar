@@ -261,12 +261,9 @@ impl Instruction {
         self
     }
 
-    /// Replaces this instruction's source metadata explicitly.
-    pub(crate) fn with_source_spans(
-        mut self,
-        spans: impl IntoIterator<Item = solar_interface::Span>,
-    ) -> Self {
-        self.metadata.set_source_spans(spans);
+    /// Replaces this instruction's source metadata with another operation's.
+    pub(crate) fn with_source_debug(mut self, metadata: &Metadata) -> Self {
+        self.metadata.copy_source_debug_from(metadata);
         self
     }
 
@@ -669,6 +666,8 @@ pub(crate) struct Metadata {
     function_invoke: Option<DebugFunction>,
     /// Function activation closed after this operation.
     function_exit: Option<DebugFunctionExit>,
+    /// Legacy source-map modifier nesting depth for this operation.
+    modifier_depth: u32,
     /// Whether the source location was preserved or intentionally dropped.
     debug_info_handled: bool,
 }
@@ -707,8 +706,27 @@ impl Metadata {
         self.debug_info_handled = true;
     }
 
+    /// Returns the legacy source-map modifier nesting depth for this operation.
+    #[must_use]
+    pub(crate) const fn modifier_depth(&self) -> u32 {
+        self.modifier_depth
+    }
+
+    /// Sets the legacy source-map modifier nesting depth for this operation.
+    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
+        self.modifier_depth = depth;
+        self.debug_info_handled = true;
+    }
+
+    /// Copies source location metadata, including legacy modifier depth.
+    pub(crate) fn copy_source_debug_from(&mut self, other: &Self) {
+        self.set_source_spans(other.source_spans().iter().copied());
+        self.modifier_depth = other.modifier_depth;
+    }
+
     /// Adds origins from another operation without changing machine semantics.
     pub(crate) fn merge_source_spans(&mut self, other: &Self) {
+        let had_source_spans = !self.source_spans.is_empty();
         for &span in other.source_spans() {
             if self.source_spans.len() == MAX_DEBUG_SPANS {
                 break;
@@ -716,6 +734,9 @@ impl Metadata {
             if !self.source_spans.contains(&span) {
                 self.source_spans.push(span);
             }
+        }
+        if !had_source_spans && !self.source_spans.is_empty() {
+            self.modifier_depth = other.modifier_depth;
         }
         self.debug_info_handled |= other.debug_info_handled;
     }

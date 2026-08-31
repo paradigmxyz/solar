@@ -230,7 +230,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
         let tracks_debug_info = module.iter_functions().any(|(_, func)| {
-            func.instructions().any(|inst| func.inst(inst).metadata.source_span().is_some())
+            func.instructions().any(|inst| {
+                let metadata = &func.inst(inst).metadata;
+                metadata.source_span().is_some() || metadata.modifier_depth() != 0
+            })
         });
         if tracks_debug_info {
             module.set_debug_info_tracked(true);
@@ -1259,6 +1262,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     let (lo, hi) = self.parser.parse_span_bounds()?;
                     metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
+                }
+                sym::modifier_depth => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let value = self.parser.parse_uint()?;
+                    metadata.set_modifier_depth(self.u256_to_u32(value)?);
                 }
                 _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
             }

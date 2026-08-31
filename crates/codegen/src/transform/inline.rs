@@ -1319,6 +1319,7 @@ impl<'a> InlineCloner<'a> {
                 } else {
                     instruction.metadata.set_debug_source_span(inst.metadata.source_span());
                 }
+                instruction.metadata.set_modifier_depth(inst.metadata.modifier_depth());
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);

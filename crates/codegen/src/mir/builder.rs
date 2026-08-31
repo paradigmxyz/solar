@@ -95,6 +95,8 @@ pub(crate) struct FunctionBuilder<'a> {
     revert_blocks: RevertBlocks,
     /// Source span attached to instructions emitted in the current lowering scope.
     current_source_span: Span,
+    /// Legacy source-map modifier nesting depth attached to new instructions.
+    current_modifier_depth: u32,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -119,6 +121,7 @@ impl<'a> FunctionBuilder<'a> {
             current_block: BlockId::ENTRY,
             revert_blocks: RevertBlocks::default(),
             current_source_span: Span::DUMMY,
+            current_modifier_depth: 0,
         }
     }
 
@@ -129,6 +132,7 @@ impl<'a> FunctionBuilder<'a> {
             current_block: BlockId::ENTRY,
             revert_blocks,
             current_source_span: Span::DUMMY,
+            current_modifier_depth: 0,
         }
     }
 
@@ -141,6 +145,12 @@ impl<'a> FunctionBuilder<'a> {
     pub(crate) fn replace_source_span(&mut self, span: Span) -> Span {
         std::mem::replace(&mut self.current_source_span, span)
     }
+
+    /// Replaces the modifier nesting depth attached to newly emitted instructions.
+    pub(crate) fn replace_modifier_depth(&mut self, depth: u32) -> u32 {
+        std::mem::replace(&mut self.current_modifier_depth, depth)
+    }
+
     /// Returns the current block.
     #[must_use]
     pub(crate) const fn current_block(&self) -> BlockId {
@@ -391,6 +401,7 @@ impl<'a> FunctionBuilder<'a> {
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
         inst.metadata.set_debug_source_span(Some(self.current_source_span));
+        inst.metadata.set_modifier_depth(self.current_modifier_depth);
         inst
     }
 

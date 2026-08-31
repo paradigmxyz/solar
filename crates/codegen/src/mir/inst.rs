@@ -18,6 +18,8 @@ pub(crate) struct InstructionMetadata {
     storage_alias: Option<Box<StorageAlias>>,
     /// Source span that produced this instruction, when the lowerer can preserve it.
     source_span: Span,
+    /// Legacy source-map modifier nesting depth for this instruction.
+    modifier_depth: u32,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
     hir_expr: Option<hir::ExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
@@ -32,6 +34,7 @@ impl InstructionMetadata {
         storage_alias: None,
         hir_expr: None,
         source_span: Span::DUMMY,
+        modifier_depth: 0,
         loop_depth: 0,
         flags: MetadataFlags::EMPTY,
     };
@@ -75,6 +78,18 @@ impl InstructionMetadata {
     /// Sets source debug information without adding it to canonical MIR text.
     pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
         self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
+        self.flags.set_debug_info_handled();
+    }
+
+    /// Returns the source-map modifier nesting depth for this instruction.
+    #[must_use]
+    pub(crate) const fn modifier_depth(&self) -> u32 {
+        self.modifier_depth
+    }
+
+    /// Sets the source-map modifier nesting depth for this instruction.
+    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
+        self.modifier_depth = depth;
         self.flags.set_debug_info_handled();
     }
 
@@ -2131,7 +2146,7 @@ mod tests {
         }
 
         assert_size::<InstKind>(str!["40"]);
-        assert_size::<InstructionMetadata>(str!["24"]);
-        assert_size::<Instruction>(str!["72"]);
+        assert_size::<InstructionMetadata>(str!["32"]);
+        assert_size::<Instruction>(str!["80"]);
     }
 }

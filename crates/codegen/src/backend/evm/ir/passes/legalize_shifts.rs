@@ -69,7 +69,7 @@ pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module
             }
             if instructions.len() > start + 1 {
                 for replacement in &mut instructions[start..] {
-                    replacement.metadata.set_source_spans(metadata.source_spans().iter().copied());
+                    replacement.metadata.copy_source_debug_from(&metadata);
                 }
             }
         }

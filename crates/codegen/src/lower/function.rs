@@ -222,6 +222,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     constructor_arguments: FxHashMap<hir::FunctionId, Vec<ValueId>>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
+    modifier_depth: u32,
     return_targets: Vec<ReturnTarget>,
     is_getter: bool,
     unchecked: bool,
@@ -411,6 +412,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             constructor_arguments: FxHashMap::default(),
             loops: Vec::new(),
             modifiers: Vec::new(),
+            modifier_depth: 0,
             return_targets: Vec::new(),
             is_getter: false,
             unchecked: false,
@@ -552,7 +554,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let previous = self.builder.replace_source_span(expr.span);
+        let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_expr_inner(expr);
+        self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
     }

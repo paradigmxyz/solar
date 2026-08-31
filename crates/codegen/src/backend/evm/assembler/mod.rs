@@ -110,6 +110,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend::evm) current_block: Option<ir::BlockId>,
     /// Source span attached to newly emitted EVM IR operations.
     pub(in crate::backend::evm) current_source_span: Span,
+    /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
+    pub(in crate::backend::evm) current_modifier_depth: u32,
     /// Original assembler label attached to each EVM IR block.
     pub(in crate::backend::evm) block_labels: Vec<Option<Label>>,
     /// Defined assembler labels and their EVM IR blocks.
@@ -162,6 +164,7 @@ impl<'gcx> Assembler<'gcx> {
             program_is_finalized: false,
             current_block: None,
             current_source_span: Span::DUMMY,
+            current_modifier_depth: 0,
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
             cold_labels: GrowableBitSet::new_empty(),
@@ -187,6 +190,7 @@ impl<'gcx> Assembler<'gcx> {
         self.program_is_finalized = false;
         self.current_block = None;
         self.current_source_span = Span::DUMMY;
+        self.current_modifier_depth = 0;
         self.block_labels.clear();
         self.label_blocks.clear();
         self.cold_labels.clear();
@@ -478,7 +482,9 @@ impl<'gcx> Assembler<'gcx> {
             let function_invoke =
                 program.function_invokes.as_ref().and_then(|invokes| invokes[idx]);
             let function_exit = program.function_exits.as_ref().and_then(|exits| exits[idx]);
+            let modifier_depth = program.modifier_depths.as_ref().map_or(0, |depths| depths[idx]);
             out.set_function_events(function_invoke, function_exit);
+            out.set_modifier_depth(modifier_depth);
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
                     out.emit_op(opcode, source_spans);
@@ -592,6 +598,7 @@ struct BytecodeAssembler<'gcx> {
     debug_info: Option<Vec<DebugInstruction>>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
+    modifier_depth: u32,
 }
 
 impl<'gcx> BytecodeAssembler<'gcx> {
@@ -603,6 +610,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             debug_info: capture_debug_info.then(Vec::new),
             function_invoke: None,
             function_exit: None,
+            modifier_depth: 0,
         }
     }
 
@@ -613,6 +621,10 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     ) {
         self.function_invoke = invoke;
         self.function_exit = exit;
+    }
+
+    fn set_modifier_depth(&mut self, depth: u32) {
+        self.modifier_depth = depth;
     }
 
     fn emit_op(&mut self, opcode: u8, source_spans: &[Span]) {
@@ -708,6 +720,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             source_spans: source_spans.iter().copied().collect(),
             function_invoke: self.function_invoke,
             function_exit: self.function_exit,
+            modifier_depth: self.modifier_depth,
         });
     }
 }

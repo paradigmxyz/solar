@@ -78,6 +78,12 @@ impl<'gcx> Assembler<'gcx> {
         self.current_source_span = span.unwrap_or(solar_interface::Span::DUMMY);
     }
 
+    /// Sets the legacy source-map modifier nesting depth attached to new operations.
+    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
+        self.program.track_debug_info();
+        self.current_modifier_depth = depth;
+    }
+
     /// Marks the current block as entering a source-language function.
     pub(crate) fn mark_function_invoke(&mut self, function: DebugFunction) {
         self.program.track_debug_info();
@@ -371,6 +377,7 @@ impl<'gcx> Assembler<'gcx> {
         let block = self.current_block.take().expect("indexed jump requires a current block");
         let mut metadata = ir::Metadata::default();
         metadata.set_source_span(Some(self.current_source_span));
+        metadata.set_modifier_depth(self.current_modifier_depth);
         self.indexed_jump_relocations.push((block, targets, metadata));
     }
 
@@ -452,6 +459,7 @@ impl<'gcx> Assembler<'gcx> {
 
     fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
         instruction.metadata.set_source_span(Some(self.current_source_span));
+        instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
         (block, index)
@@ -556,7 +564,7 @@ impl<'gcx> Assembler<'gcx> {
                 ],
             };
             for inst in &mut replacement {
-                inst.metadata.set_source_spans(metadata.source_spans().iter().copied());
+                inst.metadata.copy_source_debug_from(&metadata);
             }
             if let Some(function) = metadata.function_invoke()
                 && let Some(inst) = replacement.last_mut()
@@ -620,7 +628,7 @@ impl<'gcx> Assembler<'gcx> {
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            terminator.metadata.set_source_spans(metadata.source_spans().iter().copied());
+            terminator.metadata.copy_source_debug_from(&metadata);
             if let Some(function) = metadata.function_invoke() {
                 terminator.metadata.set_function_invoke(function);
             }
