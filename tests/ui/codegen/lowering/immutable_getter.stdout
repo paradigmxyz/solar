@@ -23,4 +23,3 @@ fn @_anonymous(arg0: address) {
     storeimmutable owner, arg0
     stop
 }
-

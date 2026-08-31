@@ -209,4 +209,3 @@ fn @signedStaticRun(arg0: u8, arg1: i16, arg2: bytes3) -> bytes32 [abi_returns=[
   bb1:
     revert 0, 0
 }
-

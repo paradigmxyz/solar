@@ -676,4 +676,3 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) -> u256 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

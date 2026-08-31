@@ -137,4 +137,3 @@ fn @incrementView(arg0: u256) -> u256 {
   bb1:
     ret arg0
 }
-

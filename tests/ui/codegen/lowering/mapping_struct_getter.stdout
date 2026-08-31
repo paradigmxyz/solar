@@ -28,4 +28,3 @@ fn @items(arg0: u256) -> (address, u256, address) [abi_returns=[word, word, word
   bb1:
     revert 0, 0
 }
-

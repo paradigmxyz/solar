@@ -47,4 +47,3 @@ fn @narrowSigned(arg0: i256) -> i8 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

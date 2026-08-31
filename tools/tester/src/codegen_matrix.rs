@@ -49,7 +49,6 @@ pub(crate) fn apply(config: &mut Config, src: &str) -> bool {
     }
     config.comment_defaults.revisions = Some(revisions);
     let artifact_stdout = Regex::new(r"(?s).+").unwrap();
-    let mir_stdout = Regex::new(r"\n(\n)$").unwrap();
     for (revision, flags) in [
         ("none", &["-O", "none", "--emit=abi,bin"] as &[&str]),
         ("gas", &["-O", "gas", "--emit=abi,bin"]),
@@ -59,9 +58,7 @@ pub(crate) fn apply(config: &mut Config, src: &str) -> bool {
         let defaults =
             config.comment_defaults.revisioned.entry(vec![revision.to_owned()]).or_default();
         defaults.compile_flags.extend(flags.iter().map(|flag| (*flag).to_owned()));
-        if revision == "mir" {
-            defaults.normalize_stdout.push((mir_stdout.clone().into(), b"$1".to_vec()));
-        } else {
+        if revision != "mir" {
             defaults.normalize_stdout.push((artifact_stdout.clone().into(), vec![]));
         }
     }
@@ -102,9 +99,8 @@ mod tests {
             config.comment_defaults.revisioned[&["mir".to_owned()][..]].compile_flags,
             ["-O", "none", "-Zdump=mir"].map(str::to_owned)
         );
-        assert_eq!(
-            config.comment_defaults.revisioned[&["mir".to_owned()][..]].normalize_stdout.len(),
-            1
+        assert!(
+            config.comment_defaults.revisioned[&["mir".to_owned()][..]].normalize_stdout.is_empty()
         );
     }
 

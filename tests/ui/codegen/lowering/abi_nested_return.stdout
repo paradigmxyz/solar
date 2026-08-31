@@ -140,4 +140,3 @@ fn @nestedArray(arg0: u256) -> memoryarray [abi_returns=[memory_array<memory_arr
   bb1:
     revert 0, 0
 }
-

@@ -238,4 +238,3 @@ fn @phiWithTernary() -> u256 [abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
-

@@ -1280,4 +1280,3 @@ fn @symbol() -> memorybytes [abi_returns=[memory_bytes]] {
     v0 = internal_call @__load_storage_bytes, 1, 1
     ret v0
 }
-

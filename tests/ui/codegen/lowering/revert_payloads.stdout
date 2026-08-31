@@ -67,4 +67,3 @@ fn @revert_message() {
     internal_call @__revert_error, 0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000
     invalid
 }
-

@@ -55,4 +55,3 @@ fn @helper(arg0: u256) -> u256 {
   bb1:
     ret 1
 }
-

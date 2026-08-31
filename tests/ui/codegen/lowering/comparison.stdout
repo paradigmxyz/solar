@@ -38,4 +38,3 @@ fn @is_zero(arg0: u256) -> bool [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

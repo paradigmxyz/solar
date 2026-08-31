@@ -100,4 +100,3 @@ fn @clear() {
     sstore 0, 0 !metadata(storage=slot(0))
     stop
 }
-

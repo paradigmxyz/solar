@@ -459,4 +459,3 @@ fn @bulkDeleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
     v13 = mload v12
     ret v10, v13
 }
-

@@ -509,4 +509,3 @@ fn @rightI8(arg0: i8, arg1: u8) -> i8 [abi_returns=[word]] {
   bb1:
     revert 0, 0
 }
-

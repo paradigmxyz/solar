@@ -125,4 +125,3 @@ fn @readTwice(arg0: calldataslice) -> (u64, u64) [abi_returns=[word, word]] {
   bb1:
     revert 0, 0
 }
-
