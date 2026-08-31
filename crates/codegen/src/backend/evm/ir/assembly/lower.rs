@@ -408,21 +408,4 @@ mod tests {
             assert!(matches!(data.kind(), AsmInstKind::Data(id) if id == data_id));
         });
     }
-
-    #[test]
-    #[should_panic(expected = "program data offset 2 exceeds data size 1")]
-    fn assembler_rejects_out_of_bounds_data_offset() {
-        let mut module = ir::Module::new(sym::module);
-        let data = module.data.push(ir::Data { bytes: vec![0xaa].into(), name: None });
-        let mut block = Block::new(0);
-        block.instructions.push(ir::Instruction::push_data(ir::DataRef::new(data, 2)));
-        block.terminator = Some(ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)));
-        module.add_block(block);
-
-        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
-        compiler.enter(|c| {
-            let mut assembler = Assembler::new(c.gcx());
-            lower_evm_ir(&mut assembler, &mut module, &mut vec![None]);
-        });
-    }
 }

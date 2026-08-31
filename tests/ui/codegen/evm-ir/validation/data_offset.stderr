@@ -1,0 +1,4 @@
+error: EVM IR verification failed: block 0: program data offset `2` exceeds data size `1`
+
+error: aborting due to 1 previous error
+
