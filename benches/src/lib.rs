@@ -214,13 +214,7 @@ fn ensure_contract_bytecode(
     }
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
-    bytecodes.insert(
-        contract_id,
-        codegen::lower::ContractBytecodes {
-            deployment: Default::default(),
-            runtime: Default::default(),
-        },
-    );
+    bytecodes.insert(contract_id, codegen::lower::ContractBytecodes::default());
     for dep in gcx.contract_bytecode_dependencies(contract_id) {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
@@ -234,10 +228,10 @@ fn ensure_contract_bytecode(
     let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
     bytecodes.insert(
         contract_id,
-        codegen::lower::ContractBytecodes {
-            deployment: artifact.deployment.clone().into(),
-            runtime: artifact.runtime.clone().into(),
-        },
+        codegen::lower::ContractBytecodes::new(
+            artifact.deployment.clone().into(),
+            artifact.runtime.clone().into(),
+        ),
     );
     black_box(artifact);
     Ok(())

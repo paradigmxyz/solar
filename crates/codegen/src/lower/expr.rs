@@ -1757,9 +1757,10 @@ impl<'gcx> Lowerer<'gcx> {
             );
         };
 
-        let bytecode = match self.contract_bytecodes.get(&contract_id) {
-            Some(bytecodes) if is_creation_code => bytecodes.deployment.clone(),
-            Some(bytecodes) => bytecodes.runtime.clone(),
+        let bytecode = match self.contract_bytecodes.get(&contract_id).and_then(|bytecodes| {
+            if is_creation_code { bytecodes.deployment() } else { bytecodes.runtime() }
+        }) {
+            Some(bytecode) => bytecode.clone(),
             None => {
                 return self.err_value(
                     builder,

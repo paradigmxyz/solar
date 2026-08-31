@@ -150,6 +150,11 @@ impl Module {
         self.name
     }
 
+    /// Returns whether data references can observe entry boundaries or order.
+    pub(in crate::backend::evm) fn data_layout_is_observable(&self) -> bool {
+        passes::data::data_layout_is_observable(self)
+    }
+
     /// Adds a block to the program.
     pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
         self.blocks.push(block)
@@ -260,6 +265,20 @@ impl Instruction {
         } else {
             Some(self.opcode)
         }
+    }
+
+    /// Returns whether stack metadata agrees with the opcode's fixed effect.
+    #[must_use]
+    pub(crate) fn has_canonical_stack_effect(&self) -> bool {
+        self.metadata
+            .stack
+            .is_none_or(|effect| Some(effect) == default_instruction_stack_effect(self))
+    }
+
+    /// Returns whether this instruction has a raw branch target outside its block.
+    #[must_use]
+    pub(crate) const fn has_raw_branch_target(&self) -> bool {
+        matches!(self.opcode, op::JUMPI | op::RJUMPI | op::RJUMPV)
     }
 
     /// Creates an encoded immediate push instruction.

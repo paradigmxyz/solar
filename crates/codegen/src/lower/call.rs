@@ -1,6 +1,6 @@
 //! Call and member-call lowering.
 
-use super::{InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
+use super::{ContractBytecodes, InternalFunctionPointerShape, Lowerer, checked_arith::PanicCode};
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
@@ -952,22 +952,24 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         // Look up pre-compiled bytecode
-        let bytecode = match self.contract_bytecodes.get(&contract_id) {
-            Some(bytecodes) => bytecodes.deployment.clone(),
-            None => {
-                let guar = self
-                    .gcx
-                    .dcx()
-                    .err(format!(
-                        "codegen is missing creation bytecode for `new {}`",
-                        self.gcx.hir.contract(contract_id).name
-                    ))
-                    .span(ty.span)
-                    .note("the deployed contract did not compile or was not lowered first")
-                    .emit();
-                return builder.error_value(guar);
-            }
-        };
+        let bytecode =
+            match self.contract_bytecodes.get(&contract_id).and_then(ContractBytecodes::deployment)
+            {
+                Some(bytecode) => bytecode.clone(),
+                None => {
+                    let guar = self
+                        .gcx
+                        .dcx()
+                        .err(format!(
+                            "codegen is missing creation bytecode for `new {}`",
+                            self.gcx.hir.contract(contract_id).name
+                        ))
+                        .span(ty.span)
+                        .note("the deployed contract did not compile or was not lowered first")
+                        .emit();
+                    return builder.error_value(guar);
+                }
+            };
 
         let bytecode_len = bytecode.len();
 

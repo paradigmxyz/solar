@@ -11,12 +11,32 @@ use solar_interface::Symbol;
 use solar_sema::hir::ContractId;
 use std::borrow::Cow;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ContractBytecodes {
     /// Deployment bytecode, including the initcode prefix.
-    pub deployment: Bytes,
+    deployment: Option<Bytes>,
     /// Deployed runtime bytecode.
-    pub runtime: Bytes,
+    runtime: Option<Bytes>,
+}
+
+impl ContractBytecodes {
+    /// Creates bytecode metadata from a generated artifact.
+    pub fn new(deployment: Bytes, runtime: Bytes) -> Self {
+        Self {
+            deployment: (!deployment.is_empty()).then_some(deployment),
+            runtime: (!runtime.is_empty()).then_some(runtime),
+        }
+    }
+
+    /// Returns the deployment bytecode, when codegen produced it.
+    pub fn deployment(&self) -> Option<&Bytes> {
+        self.deployment.as_ref()
+    }
+
+    /// Returns the runtime bytecode, when codegen produced it.
+    pub fn runtime(&self) -> Option<&Bytes> {
+        self.runtime.as_ref()
+    }
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -51,7 +71,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.memory_zero(dest, size);
             return;
         }
-        let separate_tail = name.is_some()
+        let separate_tail = (name.is_some() || self.gcx.sess.opts.optimization.is_size())
             && padded_size > data.len()
             && padded_size == data.len().next_multiple_of(EvmMemoryLayout::WORD_SIZE as usize);
         let data = if separate_tail || padded_size == data.len() {
@@ -62,7 +82,7 @@ impl<'gcx> Lowerer<'gcx> {
             padded.resize(padded_size, 0);
             Cow::Owned(padded)
         };
-        if self.copy_splat_to_memory(builder, dest, &data) {
+        if self.copy_splat_to_memory(builder, dest, &data, separate_tail) {
             return;
         }
         if !self.data_copy_is_profitable(&data, separate_tail) {
@@ -152,6 +172,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         dest: ValueId,
         data: &[u8],
+        clear_tail: bool,
     ) -> bool {
         let word_size = EvmMemoryLayout::WORD_SIZE as usize;
         if !self.gcx.sess.opts.optimization.is_size()
@@ -161,13 +182,23 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
 
+        if clear_tail {
+            let tail_offset = data.len() / word_size * word_size;
+            let tail = self.offset_ptr(builder, dest, tail_offset as u64);
+            let zero = builder.imm_u64(0);
+            builder.mstore(tail, zero);
+        }
         let value = builder.imm_u256(U256::from_be_bytes(padded_data_word(&data[..word_size])));
         builder.mstore(dest, value);
         let mut filled = word_size;
+        if data.len() >= word_size * 2 {
+            let target = self.offset_ptr(builder, dest, word_size as u64);
+            builder.mstore(target, value);
+            filled += word_size;
+        }
         while filled < data.len() {
             let chunk = filled.min(data.len() - filled);
-            let offset = builder.imm_u64(filled as u64);
-            let target = builder.add(dest, offset);
+            let target = self.offset_ptr(builder, dest, filled as u64);
             let size = builder.imm_u64(chunk as u64);
             builder.mcopy(target, dest, size);
             filled += chunk;

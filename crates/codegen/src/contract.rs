@@ -304,10 +304,10 @@ fn generate_contract_bytecode(
                 .expect("dependency artifact should have been generated");
             (
                 dependency,
-                lower::ContractBytecodes {
-                    deployment: artifact.deployment.clone(),
-                    runtime: artifact.runtime.clone(),
-                },
+                lower::ContractBytecodes::new(
+                    artifact.deployment.clone(),
+                    artifact.runtime.clone(),
+                ),
             )
         })
         .collect();
