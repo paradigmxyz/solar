@@ -16,6 +16,9 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
+data:
+  Probe_initcode_0: hex"60c060405234600c576010565b5f80fd5b605380601a5f395ff334601a575f3560e01c806314beb1ca14601657601a565b601e565b5f80fd5b60243610156044576040565b60043560e01c6080526020608001608090036080f35b5f80fd5b60043560201b1515604057602a56"
+
 immutables:
   immutableLiteral: bytes4
 
@@ -25,40 +28,34 @@ fn @viaExternal() -> u256 [selector=0x09338c08, abi_params=[], abi_returns=[word
     v1 = not 31
     v2 = and 140, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x60c060405234600c576010565b5f80fd5b605380601a5f395ff334601a575f35
-    v4 = add v3, 32
-    mstore v4, 0x60e01c806314beb1ca14601657601a565b601e565b5f80fd5b60243610156044
-    v5 = add v3, 64
-    mstore v5, 0x576040565b60043560e01c6080526020608001608090036080f35b5f80fd5b60
-    v6 = add v3, 96
-    mstore v6, 0x43560201b1515604057602a5600000000000000000000000000000000000000
-    v7 = slice_ptr v0
-    v8 = add v3, 109
-    mcopy v8, v7, 0 !metadata(memory=heap)
-    v9 = create 0, v3, 109
-    jumpi v9, bb2, bb1
+    data_copy Probe_initcode_0, v3, 109
+    v4 = slice_ptr v0
+    v5 = add v3, 109
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 109
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v10 = gas
-    v11 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v12 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v11
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = call v10, v9, 0, v13, v14, 0, 32
-    jumpi v15, bb4, bb3
+    v7 = gas
+    v8 = and 0x102030400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = abi_encode [word<bytes4>], selector 0x14beb1ca00000000000000000000000000000000000000000000000000000000, args v8
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v7, v6, 0, v10, v11, 0, 32
+    jumpi v12, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v16 = returndatasize
-    v17 = lt v16, 32
-    jumpi v17, bb5, bb6
+    v13 = returndatasize
+    v14 = lt v13, 32
+    jumpi v14, bb5, bb6
   bb6:
-    v18 = add 0, 0
-    v19 = mload v18
-    v20 = add 0, 0
-    v21 = mload v20
-    ret v21
+    v15 = add 0, 0
+    v16 = mload v15
+    v17 = add 0, 0
+    v18 = mload v17
+    ret v18
   bb5:
     revert 0, 0
 }
@@ -119,16 +116,17 @@ fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_r
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 6
-    memory_object_store_word memorybytes, v0, 0, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
-    v1 = memory_object_load_element memorybytes, v0, 0
-    v2 = memory_object_len memorybytes, v0
-    v3 = lt v2, 4
-    v4 = sub 4, v2
-    v5 = mul 8, v4
-    v6 = shl v5, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v7 = select v3, v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = and v1, v7
-    ret v8
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x93dafdf1aabb0000000000000000000000000000000000000000000000000000
+    v2 = memory_object_load_element memorybytes, v0, 0
+    v3 = memory_object_len memorybytes, v0
+    v4 = lt v3, 4
+    v5 = sub 4, v3
+    v6 = mul 8, v5
+    v7 = shl v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = select v4, v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = and v2, v8
+    ret v9
 }
 
 fn @returnedBytesObjectCast() -> u256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word]] {
@@ -152,7 +150,8 @@ fn @returnBytes() -> (bool, memorybytes) [pure] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0xe00000000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0xe00000000000000000000000000000000000000000000000000000000000000
     ret 1, v0
 }
 
@@ -187,24 +186,25 @@ fn @calldataSliceCast() -> bytes32 [selector=0x93f40587, view, abi_params=[], ab
     v1 = gas
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 9
-    memory_object_store_word memorybytes, v2, 0, 0x1122334455667788990000000000000000000000000000000000000000000000
-    v3 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = staticcall v1, v0, v4, v5, 0, 32
-    jumpi v6, bb2, bb1
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x1122334455667788990000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes], selector 0x4f4c8d8b00000000000000000000000000000000000000000000000000000000, args v2
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = staticcall v1, v0, v5, v6, 0, 32
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = lt v7, 32
-    jumpi v8, bb3, bb4
+    v8 = returndatasize
+    v9 = lt v8, 32
+    jumpi v9, bb3, bb4
   bb4:
-    v9 = add 0, 0
-    v10 = mload v9
-    v11 = add 0, 0
-    v12 = mload v11
-    ret v12
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    ret v13
   bb3:
     revert 0, 0
 }
@@ -219,16 +219,17 @@ fn @emptyStringCompare() -> bool [selector=0x97e464f0, pure, abi_params=[], abi_
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
-    v1 = memory_object_load_element memorybytes, v0, 0
-    v2 = memory_object_len memorybytes, v0
-    v3 = lt v2, 32
-    v4 = sub 32, v2
-    v5 = mul 8, v4
-    v6 = shl v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v7 = select v3, v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v8 = and v1, v7
-    v9 = eq 0, v8
-    ret v9
+    v1 = memory_object_data memorybytes, v0
+    v2 = memory_object_load_element memorybytes, v0, 0
+    v3 = memory_object_len memorybytes, v0
+    v4 = lt v3, 32
+    v5 = sub 32, v3
+    v6 = mul 8, v5
+    v7 = shl v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = select v4, v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = and v2, v8
+    v10 = eq 0, v9
+    ret v10
 }
 
 fn @stateLiterals() -> (bytes4, bytes2, bytes4) [selector=0x803da9a2, view, abi_params=[], abi_returns=[word<bytes4>, word<bytes2>, word<bytes4>]] {

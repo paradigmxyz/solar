@@ -143,7 +143,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_bytes_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
-        Self::build_bytes_literal(&mut self.builder, bytes, AllocationSemantics::INTERNAL)
+        Self::build_bytes_literal(
+            self.context.gcx,
+            self.context.module,
+            &mut self.builder,
+            bytes,
+            AllocationSemantics::INTERNAL,
+            None,
+        )
     }
 
     pub(super) fn lower_shared_bytes_literal(&mut self, symbol: ByteSymbol) -> Option<ValueId> {
@@ -200,36 +207,44 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn build_bytes_literal(
+        gcx: Gcx<'_>,
+        module: &mut Module,
         builder: &mut FunctionBuilder<'_>,
         bytes: &[u8],
         semantics: AllocationSemantics,
+        name: Option<Symbol>,
     ) -> Option<ValueId> {
         // object = bytes(len)
-        // for chunks { object[offset] = padded_word(chunk) }
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
         let size = builder.imm_u64(words.checked_add(1)?.checked_mul(32)?);
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
         let length = builder.imm_u64(u64::try_from(bytes.len()).ok()?);
         builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
-        for (index, chunk) in bytes.chunks(32).enumerate() {
-            let mut word = U256::from_be_slice(chunk);
-            word <<= (32 - chunk.len()) * 8;
-            let value = builder.imm_u256(word);
-            let offset = builder.imm_u64(index as u64 * 32);
-            builder.memory_object_store_word(object, offset, value);
-        }
+        let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
+        super::super::data::copy_data_to_memory(
+            gcx,
+            module,
+            builder,
+            data,
+            bytes,
+            usize::try_from(words.checked_mul(32)?).ok()?,
+            name,
+        );
         Some(object)
     }
 
     fn ensure_bytes_literal_helper(&mut self, symbol: ByteSymbol) -> FunctionId {
         // literal_bytes() -> bytes
-        self.lazy_helper(helper_name(sym::literal_bytes, symbol.as_u32()), |_, function| {
+        self.lazy_helper(helper_name(sym::literal_bytes, symbol.as_u32()), |this, function| {
             let mut builder = FunctionBuilder::new(function);
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
             let object = Self::build_bytes_literal(
+                this.context.gcx,
+                this.context.module,
                 &mut builder,
                 symbol.as_byte_str(),
                 AllocationSemantics::INTERNAL,
+                None,
             )
             .expect("literal length fits in a memory object");
             builder.ret([object]);

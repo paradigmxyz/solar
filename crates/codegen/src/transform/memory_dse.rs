@@ -382,6 +382,7 @@ impl MemoryStoreEliminator {
                     | InstKind::MemoryZero(_, _)
                     | InstKind::MCopy(_, _, _)
                     | InstKind::CalldataCopy(_, _, _)
+                    | InstKind::DataCopy(_, _, _)
                     | InstKind::CodeCopy(_, _, _)
                     | InstKind::ReturnDataCopy(_, _, _)
                     | InstKind::ExtCodeCopy(_, _, _, _)
@@ -836,6 +837,7 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::MemoryZero(_, _)
                 | InstKind::CalldataCopy(_, _, _)
+                | InstKind::DataCopy(_, _, _)
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
@@ -926,6 +928,7 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::MemoryZero(dest, size)
                 | InstKind::CalldataCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
                     self.insert_or_clear_full_word_overwritten_range(
@@ -1422,6 +1425,7 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::MemoryZero(dest, size)
                 | InstKind::CalldataCopy(dest, _, size)
+                | InstKind::DataCopy(_, dest, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
                     let Some(size) = func.value_u64(*size) else {

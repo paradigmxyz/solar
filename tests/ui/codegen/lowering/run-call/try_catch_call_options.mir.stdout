@@ -7,29 +7,30 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptions ===
 @module TryCallOptions
+data:
+  TryCallOptionsTarget_initcode_0: hex"34600d57601f8060115f395ff35b5f5ffd34601a575f3560e01c80635c36b18614601657601a565b601e565b5f80fd5b"
+
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
     v2 = and 79, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d57601f8060115f395ff35b5f5ffd34601a575f3560e01c80635c36b186
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b00000000000000000000000000000000
-    v5 = slice_ptr v0
-    v6 = add v3, 48
-    mcopy v6, v5, 0 !metadata(memory=heap)
-    v7 = create 0, v3, 48
-    jumpi v7, bb2, bb1
+    data_copy TryCallOptionsTarget_initcode_0, v3, 48
+    v4 = slice_ptr v0
+    v5 = add v3, 48
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 48
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v8 = sload 0 !metadata(storage=slot(0))
-    v9 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = and v8, v9
-    v11 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = or v10, v11
-    sstore 0, v12 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
     stop
 }
 

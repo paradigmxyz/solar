@@ -17,67 +17,68 @@ fn @emitEvent() [selector=0x7b0cb839, abi_params=[], abi_returns=[]] {
     memory_object_store_field memorystruct<2>, v0, 0, v4
     v5 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v5, 1
-    memory_object_store_word memorybytes, v5, 0, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v6 = memory_object_data memorybytes, v5
+    mstore v6, 0x7800000000000000000000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<2>, v0, 1, v5
-    v6 = memory_object_load_field memorystruct<2>, v0, 0
-    v7 = memory_object_load_field memorystruct<2>, v0, 1
-    v8 = memory_object_len memorybytes, v7
-    v9 = iszero v7
-    v10 = iszero v9
-    v11 = mul v8, v10
-    v12 = add v11, 31
-    v13 = lt v12, v11
-    jumpi v13, bb1, bb2
+    v7 = memory_object_load_field memorystruct<2>, v0, 0
+    v8 = memory_object_load_field memorystruct<2>, v0, 1
+    v9 = memory_object_len memorybytes, v8
+    v10 = iszero v8
+    v11 = iszero v10
+    v12 = mul v9, v11
+    v13 = add v12, 31
+    v14 = lt v13, v12
+    jumpi v14, bb1, bb2
   bb2:
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = div v15, 32
-    v17 = add 1, v16
-    v18 = lt v17, 1
-    jumpi v18, bb3, bb4
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = div v16, 32
+    v18 = add 1, v17
+    v19 = lt v18, 1
+    jumpi v19, bb3, bb4
   bb4:
-    v19 = mul v17, 32
-    v20 = iszero 32
-    v21 = div v19, 32
-    v22 = eq v21, v17
-    v23 = or v20, v22
-    v24 = iszero v23
-    jumpi v24, bb5, bb6
+    v20 = mul v18, 32
+    v21 = iszero 32
+    v22 = div v20, 32
+    v23 = eq v22, v18
+    v24 = or v21, v23
+    v25 = iszero v24
+    jumpi v25, bb5, bb6
   bb6:
-    v25 = add 32, v19
-    v26 = lt v25, 32
-    jumpi v26, bb7, bb8
+    v26 = add 32, v20
+    v27 = lt v26, 32
+    jumpi v27, bb7, bb8
   bb8:
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v25
-    set_memory_object_len memorybytes, v27, v19
-    v28 = memory_object_load_field memorystruct<2>, v0, 0
-    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
-    memory_object_store_word memorybytes, v27, 0, v29
-    v30 = memory_object_load_field memorystruct<2>, v0, 1
-    v31 = memory_object_len memorybytes, v30
-    v32 = iszero v30
-    v33 = iszero v32
-    v34 = mul v31, v33
-    v35 = add v34, 31
-    v36 = lt v35, v34
-    jumpi v36, bb9, bb10
+    v28 = alloc memorybytes, exact, uninitialized, infallible, v26
+    set_memory_object_len memorybytes, v28, v20
+    v29 = memory_object_load_field memorystruct<2>, v0, 0
+    v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    memory_object_store_word memorybytes, v28, 0, v30
+    v31 = memory_object_load_field memorystruct<2>, v0, 1
+    v32 = memory_object_len memorybytes, v31
+    v33 = iszero v31
+    v34 = iszero v33
+    v35 = mul v32, v34
+    v36 = add v35, 31
+    v37 = lt v36, v35
+    jumpi v37, bb9, bb10
   bb10:
-    v37 = not 31
-    v38 = and v35, v37
-    v39 = iszero v38
-    jumpi v39, bb12, bb11
+    v38 = not 31
+    v39 = and v36, v38
+    v40 = iszero v39
+    jumpi v40, bb12, bb11
   bb11:
-    v40 = sub v38, 32
-    v41 = add 32, v40
-    memory_object_store_word memorybytes, v27, v41, 0
+    v41 = sub v39, 32
+    v42 = add 32, v41
+    memory_object_store_word memorybytes, v28, v42, 0
     jump bb12
   bb12:
-    v42 = memory_object_data memorybytes, v30
-    v43 = make_memory_slice v42, v34
-    memory_object_copy_from_slice_at memorybytes, v27, 32, v43
-    v44 = add 32, v38
-    v45 = keccak256_bytes v27
-    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v45
+    v43 = memory_object_data memorybytes, v31
+    v44 = make_memory_slice v43, v35
+    memory_object_copy_from_slice_at memorybytes, v28, 32, v44
+    v45 = add 32, v39
+    v46 = keccak256_bytes v28
+    log2 0, 0, 0x2a66ae4432794c7fc0bfc59df26473a06d65994d91dd1e3eecd6ff7df5305336, v46
     stop
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

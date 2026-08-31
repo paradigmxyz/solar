@@ -4,8 +4,9 @@ fn @encode() -> memorybytes [selector=0xbd14598f, pure, abi_params=[], abi_retur
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v0, 0
-    v1 = abi_encode [memory_bytes], object, args v0
-    ret v1
+    v1 = memory_object_data memorybytes, v0
+    v2 = abi_encode [memory_bytes], object, args v0
+    ret v2
 }
 
 fn @encodePacked() -> memorybytes [selector=0x53d9c506, pure, abi_params=[], abi_returns=[memory_bytes]] {

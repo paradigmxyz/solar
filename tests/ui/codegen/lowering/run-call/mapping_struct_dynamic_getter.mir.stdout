@@ -64,10 +64,11 @@ fn @constructor() [constructor] {
     sstore v0, 7 !metadata(storage=symbolic(v0))
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 3
-    memory_object_store_word memorybytes, v1, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v2 = mapping_slot 1, 0
-    v3 = add v2, 1
-    internal_call @store_storage_bytes, 0, v3, v1
+    v2 = memory_object_data memorybytes, v1
+    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = mapping_slot 1, 0
+    v4 = add v3, 1
+    internal_call @store_storage_bytes, 0, v4, v1
     stop
 }
 

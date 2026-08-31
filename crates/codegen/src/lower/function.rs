@@ -1,7 +1,7 @@
 //! Function-level HIR to MIR lowering.
 
 use super::{
-    contract,
+    ContractBytecodes, contract,
     storage::{StorageEncoding, StorageLayout, StorageLocation},
     types,
 };
@@ -14,7 +14,7 @@ use crate::{
         MirType, Module, PanicCode, SliceLocation, Value, ValueId,
     },
 };
-use alloy_primitives::{Bytes, U256, keccak256};
+use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, StrKind, TypeSize, UnOpKind};
 use solar_data_structures::map::{FxHashMap, FxHashSet, StdEntry};
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
@@ -51,8 +51,7 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) contract_id: hir::ContractId,
     pub(super) function_ids: &'ctx FxHashMap<hir::FunctionId, FunctionId>,
     pub(super) immutable_ids: &'ctx FxHashMap<VariableId, ImmutableId>,
-    pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
-    pub(super) child_runtime_bytecodes: &'ctx FxHashMap<hir::ContractId, Bytes>,
+    pub(super) child_bytecodes: &'ctx FxHashMap<hir::ContractId, ContractBytecodes>,
     pub(super) state: &'ctx mut LoweringState,
     pub(super) shared_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
@@ -69,7 +68,6 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             function_ids: self.function_ids,
             immutable_ids: self.immutable_ids,
             child_bytecodes: self.child_bytecodes,
-            child_runtime_bytecodes: self.child_runtime_bytecodes,
             state: &mut *self.state,
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,

@@ -1,0 +1,384 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x3fa4f245
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0xa878f858
+  eq
+  push bb6
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  dup 1
+  revert
+bb5:
+  push 7
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb6:
+  push 320
+  dup 1
+  push 64
+  mstore
+  push 160
+  dup 2
+  add
+  push 64
+  mstore
+  push 128
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 128
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  dup 4
+  iszero
+  iszero
+  swap 4
+  mload
+  swap 1
+  swap 4
+  mul
+  dup 1
+  push 128
+  mstore
+  dup 4
+  mstore
+  swap 2
+  pop
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  push 64
+  dup 4
+  add
+  dup 2
+  push 128
+  mload
+  swap 2
+  swap 1
+  exchange 2, 3
+  exchange 4, 5
+  push bb7
+  jumpi
+  jump bb8
+bb8:
+  swap 1
+  dup 2
+  add
+  dup 3
+  dup 6
+  dup 4
+  mcopy
+  swap 2
+  pop
+  pop
+  swap 2
+  pop
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb7:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb8
+
+@data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+// === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb5
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x3df4ddf4
+  eq
+  push bb30
+  jumpi
+  dup 1
+  push 0x5a8ac02d
+  eq
+  push bb30
+  jumpi
+  dup 1
+  push 0xa8aa1b31
+  eq
+  push bb18
+  jumpi
+  jump bb5
+bb5 [cold]:
+  push 0
+  dup 1
+  revert
+bb26 [cold]:
+  returndatasize
+  push 0
+  dup 1
+  returndatacopy
+  returndatasize
+  push 0
+  revert
+bb18:
+  push 352
+  push 64
+  mstore
+  push 160
+  push 0
+  swap 1
+  mstore
+  push 64
+  mload
+  dup 1
+  dup 2
+  add
+  push 64
+  mstore
+  push 325
+  dup 2
+  push_data Child_initcode_0
+  swap 1
+  codecopy
+  push 325
+  swap 1
+  push 0
+  create
+  dup 1
+  push 192
+  mstore
+  iszero
+  push bb26
+  jumpi
+  push 320
+  push 0
+  swap 1
+  mstore
+  push 64
+  mload
+  push 352
+  dup 2
+  add
+  push 64
+  mstore
+  push 325
+  dup 2
+  push_data Child_initcode_0
+  swap 1
+  codecopy
+  push 325
+  swap 1
+  push 0
+  create
+  dup 1
+  push 224
+  mstore
+  iszero
+  push bb26
+  jumpi
+  gas
+  push bb33
+  jump bb31
+bb31:
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f245
+  push 224
+  shl
+  dup 2
+  mstore
+  swap 1
+  jump
+bb30:
+  push 288
+  push 64
+  mstore
+  push 160
+  push 0
+  swap 1
+  mstore
+  push 64
+  mload
+  push 352
+  dup 2
+  add
+  push 64
+  mstore
+  push 325
+  dup 2
+  push_data Child_initcode_0
+  swap 1
+  codecopy
+  push 325
+  swap 1
+  push 0
+  create
+  dup 1
+  push 192
+  mstore
+  iszero
+  push bb26
+  jumpi
+  gas
+  push bb34
+  jump bb31
+bb32:
+  push 32
+  push 0
+  push 4
+  dup 4
+  push 224
+  mload
+  dup 7
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb28
+  jumpi
+  jump bb29
+bb29:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb33:
+  push 32
+  push 0
+  push 4
+  dup 4
+  push 192
+  mload
+  dup 7
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  gas
+  push bb32
+  jump bb31
+bb34:
+  push 32
+  push 0
+  push 4
+  dup 4
+  push 192
+  mload
+  dup 7
+  staticcall
+  swap 2
+  pop
+  pop
+  iszero
+  push bb26
+  jumpi
+  returndatasize
+  push 32
+  gt
+  push bb5
+  jumpi
+  push 0
+  mload
+  jump bb29
+bb28 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+
+@data Child_initcode_0 hex"34600e576101338060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f80fd5b600760805260206080f35b6101408060405260a08101604052608081526020810160808160b3903960405160208101818103825283151593519093028060805283529150601f60805101601f19166040830181608051919091929193949360a6575b9081018285835e91505091509003601f8101601f19166040519081016040528181f35b6020820381015f9052608356112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

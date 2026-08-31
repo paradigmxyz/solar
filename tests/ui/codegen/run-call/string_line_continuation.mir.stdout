@@ -4,7 +4,8 @@ fn @unicodeLine() -> memorybytes [selector=0x7d426567, pure, abi_params=[], abi_
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 20
-    memory_object_store_word memorybytes, v0, 0, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0xf09f98832c20f09f98ad2c20616e6420f09f9888000000000000000000000000
     ret v0
 }
 
@@ -12,6 +13,7 @@ fn @asciiLine() -> memorybytes [selector=0x9c02ba08, pure, abi_params=[], abi_re
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
-    memory_object_store_word memorybytes, v0, 0, 0x6120202062000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x6120202062000000000000000000000000000000000000000000000000000000
     ret v0
 }

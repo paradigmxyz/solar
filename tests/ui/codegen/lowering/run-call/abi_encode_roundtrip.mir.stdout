@@ -119,21 +119,22 @@ fn @mixedRoundtrip() -> (u256, u256, u8) [selector=0xb3f929db, pure, abi_params=
     memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 9
     v5 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v5, 3
-    memory_object_store_word memorybytes, v5, 0, 0x102030000000000000000000000000000000000000000000000000000000000
-    v6 = and 3, 255
-    v7 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v5, v6
-    v8 = abi_decode [array<2, u256>, bytes, u8], v7
-    v9 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v10 = memory_object_load_element memoryfixedarray<3, 1>, v9, 1
-    v11 = add v9, 64
-    v12 = mload v11
-    v13 = lt 1, 2
-    v14 = iszero v13
-    jumpi v14, bb5, bb6
+    v6 = memory_object_data memorybytes, v5
+    mstore v6, 0x102030000000000000000000000000000000000000000000000000000000000
+    v7 = and 3, 255
+    v8 = abi_encode [array<2, word>, memory_bytes, word<u8>], object, args v0, v5, v7
+    v9 = abi_decode [array<2, u256>, bytes, u8], v8
+    v10 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v11 = memory_object_load_element memoryfixedarray<3, 1>, v10, 1
+    v12 = add v10, 64
+    v13 = mload v12
+    v14 = lt 1, 2
+    v15 = iszero v14
+    jumpi v15, bb5, bb6
   bb6:
-    v15 = memory_object_load_element memoryfixedarray<2, 1>, v8, 1
-    v16 = memory_object_len memorybytes, v10
-    ret v15, v16, v12
+    v16 = memory_object_load_element memoryfixedarray<2, 1>, v9, 1
+    v17 = memory_object_len memorybytes, v11
+    ret v16, v17, v13
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -233,56 +234,57 @@ fn @nestedMixedRoundtrip() -> (u256, u256, u256, u256) [selector=0x337c7ce0, pur
     memory_object_store_element memoryarray<1>, v35, 0, 3
     v39 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v39, 4
-    memory_object_store_word memorybytes, v39, 0, 0x102030400000000000000000000000000000000000000000000000000000000
-    v40 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v39
-    v41 = abi_decode [array<_, array<_, u256>>, bytes], v40
-    v42 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v43 = memory_object_load_element memoryfixedarray<2, 1>, v42, 1
-    v44 = memory_object_len memoryarray, v41
-    v45 = memory_object_len memoryarray, v41
-    v46 = lt 0, v45
-    v47 = iszero v46
-    jumpi v47, bb23, bb24
+    v40 = memory_object_data memorybytes, v39
+    mstore v40, 0x102030400000000000000000000000000000000000000000000000000000000
+    v41 = abi_encode [memory_array<memory_array<word>>, memory_bytes], object, args v0, v39
+    v42 = abi_decode [array<_, array<_, u256>>, bytes], v41
+    v43 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v44 = memory_object_load_element memoryfixedarray<2, 1>, v43, 1
+    v45 = memory_object_len memoryarray, v42
+    v46 = memory_object_len memoryarray, v42
+    v47 = lt 0, v46
+    v48 = iszero v47
+    jumpi v48, bb23, bb24
   bb24:
-    v48 = memory_object_load_element memoryarray<1>, v41, 0
-    v49 = eq v48, 0
-    jumpi v49, bb25, bb26
+    v49 = memory_object_load_element memoryarray<1>, v42, 0
+    v50 = eq v49, 0
+    jumpi v50, bb25, bb26
   bb25:
-    v50 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v50, 0
-    memory_object_store_element memoryarray<1>, v41, 0, v50
+    v51 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v51, 0
+    memory_object_store_element memoryarray<1>, v42, 0, v51
     jump bb26
   bb26:
-    v51 = phi [bb24: v48], [bb25: v50]
-    v52 = memory_object_len memoryarray, v51
-    v53 = lt 1, v52
-    v54 = iszero v53
-    jumpi v54, bb27, bb28
+    v52 = phi [bb24: v49], [bb25: v51]
+    v53 = memory_object_len memoryarray, v52
+    v54 = lt 1, v53
+    v55 = iszero v54
+    jumpi v55, bb27, bb28
   bb28:
-    v55 = memory_object_load_element memoryarray<1>, v51, 1
-    v56 = memory_object_len memoryarray, v41
-    v57 = lt 1, v56
-    v58 = iszero v57
-    jumpi v58, bb29, bb30
+    v56 = memory_object_load_element memoryarray<1>, v52, 1
+    v57 = memory_object_len memoryarray, v42
+    v58 = lt 1, v57
+    v59 = iszero v58
+    jumpi v59, bb29, bb30
   bb30:
-    v59 = memory_object_load_element memoryarray<1>, v41, 1
-    v60 = eq v59, 0
-    jumpi v60, bb31, bb32
+    v60 = memory_object_load_element memoryarray<1>, v42, 1
+    v61 = eq v60, 0
+    jumpi v61, bb31, bb32
   bb31:
-    v61 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v61, 0
-    memory_object_store_element memoryarray<1>, v41, 1, v61
+    v62 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v62, 0
+    memory_object_store_element memoryarray<1>, v42, 1, v62
     jump bb32
   bb32:
-    v62 = phi [bb30: v59], [bb31: v61]
-    v63 = memory_object_len memoryarray, v62
-    v64 = lt 0, v63
-    v65 = iszero v64
-    jumpi v65, bb33, bb34
+    v63 = phi [bb30: v60], [bb31: v62]
+    v64 = memory_object_len memoryarray, v63
+    v65 = lt 0, v64
+    v66 = iszero v65
+    jumpi v66, bb33, bb34
   bb34:
-    v66 = memory_object_load_element memoryarray<1>, v62, 0
-    v67 = memory_object_len memorybytes, v43
-    ret v44, v55, v66, v67
+    v67 = memory_object_load_element memoryarray<1>, v63, 0
+    v68 = memory_object_len memorybytes, v44
+    ret v45, v56, v67, v68
   bb33:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

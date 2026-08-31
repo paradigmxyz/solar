@@ -35,18 +35,19 @@ fn @bytesValue() -> (u256, u256, bytes2) [selector=0x5a286ac0, pure, abi_params=
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 2
-    memory_object_store_word memorybytes, v0, 0, 0xabcd000000000000000000000000000000000000000000000000000000000000
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v1, 0
-    v2 = memory_object_len memorybytes, v1
-    v3 = memory_object_len memorybytes, v0
-    v4 = memory_object_load_element memorybytes, v0, 0
-    v5 = memory_object_len memorybytes, v0
-    v6 = lt v5, 2
-    v7 = sub 2, v5
-    v8 = mul 8, v7
-    v9 = shl v8, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v10 = select v6, v9, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v11 = and v4, v10
-    ret v2, v3, v11
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v2, 0
+    v3 = memory_object_len memorybytes, v2
+    v4 = memory_object_len memorybytes, v0
+    v5 = memory_object_load_element memorybytes, v0, 0
+    v6 = memory_object_len memorybytes, v0
+    v7 = lt v6, 2
+    v8 = sub 2, v6
+    v9 = mul 8, v8
+    v10 = shl v9, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v11 = select v7, v10, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v12 = and v5, v11
+    ret v3, v4, v12
 }

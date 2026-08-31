@@ -1,0 +1,127 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x69ad4ffa
+  sub
+  push bb3
+  jumpi
+  push 320
+  dup 1
+  push 64
+  mstore
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 160
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 160
+  dup 2
+  push_data literal_0
+  swap 1
+  codecopy
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  dup 4
+  iszero
+  iszero
+  swap 4
+  mload
+  swap 1
+  swap 4
+  mul
+  dup 1
+  push 128
+  mstore
+  dup 4
+  mstore
+  swap 2
+  pop
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  push 64
+  dup 4
+  add
+  dup 2
+  push 128
+  mload
+  swap 2
+  swap 1
+  exchange 2, 3
+  exchange 4, 5
+  push bb5
+  jumpi
+  jump bb6
+bb6:
+  swap 1
+  dup 2
+  add
+  dup 3
+  dup 6
+  dup 4
+  mcopy
+  swap 2
+  pop
+  pop
+  swap 2
+  pop
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb3 [cold]:
+  push 0
+  dup 1
+  revert
+bb5:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb6
+
+@data literal_0 hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"

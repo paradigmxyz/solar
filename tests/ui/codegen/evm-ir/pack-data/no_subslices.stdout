@@ -1,0 +1,17 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/no_subslices.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/no_subslices.evmir (after pack-data) ===
+  @module no_subslices
+  bb0:
+    push 2
+    push_data small_0
+    push 0
+    codecopy
+    push 4
+    push_data container_1
+    push 32
+    codecopy
+    stop
+  
+  @data small_0 hex"2233"
+  @data container_1 hex"11223344"
+  

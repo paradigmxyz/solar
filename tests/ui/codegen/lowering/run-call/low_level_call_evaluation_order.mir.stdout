@@ -101,6 +101,7 @@ fn @data() -> memorybytes {
     sstore 0, v7 !metadata(storage=slot(0))
     v9 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v9, 0
+    v10 = memory_object_data memorybytes, v9
     ret v9
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

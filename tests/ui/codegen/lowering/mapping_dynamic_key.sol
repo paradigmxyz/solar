@@ -50,7 +50,8 @@ contract MappingDynamicKeyPaths {
     // Literal keys hash exactly the literal's bytes, hitting the same slot
     // as the equivalent runtime key.
     // CHECK-LABEL: fn @setLit{{[( ]}}
-    // CHECK: memory_object_store_word memorybytes, {{v[0-9]+}}, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    // CHECK: [[LITERAL_DATA:v[0-9]+]] = memory_object_data memorybytes, {{v[0-9]+}}
+    // CHECK: mstore [[LITERAL_DATA]], 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot_memory {{v[0-9]+}}, 0
     // CHECK: sstore [[SLOT]], arg0
     function setLit(uint256 v) public {

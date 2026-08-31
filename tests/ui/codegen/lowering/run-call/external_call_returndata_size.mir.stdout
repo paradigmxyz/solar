@@ -34,6 +34,9 @@ fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
 @module ExternalCallReturndataSize
+data:
+  ShortReturn_initcode_0: hex"34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f80fd5b602a6080526020608001608090036080f3"
+
 fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = abi_encode []
@@ -277,43 +280,39 @@ fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_params=[], abi_retur
     v1 = not 31
     v2 = and 96, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff0
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b602a6080526020608001608090036080
-    v5 = add v3, 64
-    mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v0
-    v7 = add v3, 65
-    mcopy v7, v6, 0 !metadata(memory=heap)
-    v8 = create 0, v3, 65
-    jumpi v8, bb2, bb1
+    data_copy ShortReturn_initcode_0, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
-    v10 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = staticcall v9, v8, v11, v12, v11, 64
-    jumpi v13, bb4, bb3
+    v7 = gas
+    v8 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, v9, 64
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v14 = returndatasize
-    v15 = lt v14, 64
-    jumpi v15, bb5, bb6
+    v12 = returndatasize
+    v13 = lt v12, 64
+    jumpi v13, bb5, bb6
   bb6:
-    v16 = add v11, 0
+    v14 = add v9, 0
+    v15 = mload v14
+    v16 = add v9, 32
     v17 = mload v16
-    v18 = add v11, 32
+    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
+    v18 = add v9, 0
     v19 = mload v18
-    frame_store multi_return, word, 0, v11 !metadata(memory=scratch)
-    v20 = add v11, 0
-    v21 = mload v20
-    v22 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v23 = add v22, 32
-    v24 = mload v23
-    ret v21, v24
+    v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = mload v21
+    ret v19, v22
   bb5:
     revert 0, 0
 }
@@ -324,47 +323,43 @@ fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_retu
     v1 = not 31
     v2 = and 96, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff0
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b602a6080526020608001608090036080
-    v5 = add v3, 64
-    mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v0
-    v7 = add v3, 65
-    mcopy v7, v6, 0 !metadata(memory=heap)
-    v8 = create 0, v3, 65
-    jumpi v8, bb2, bb1
+    data_copy ShortReturn_initcode_0, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = shl 32, v8
-    v10 = or v9, 0x26121ff0
-    v11 = and v10, 0xffffffff
-    v12 = shl 224, v11
-    v13 = shr 32, v10
-    v14 = gas
-    v15 = abi_encode [], selector v12
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = staticcall v14, v13, v16, v17, v16, 64
-    jumpi v18, bb4, bb3
+    v7 = shl 32, v6
+    v8 = or v7, 0x26121ff0
+    v9 = and v8, 0xffffffff
+    v10 = shl 224, v9
+    v11 = shr 32, v8
+    v12 = gas
+    v13 = abi_encode [], selector v10
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = staticcall v12, v11, v14, v15, v14, 64
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 64
-    jumpi v20, bb5, bb6
+    v17 = returndatasize
+    v18 = lt v17, 64
+    jumpi v18, bb5, bb6
   bb6:
-    v21 = add v16, 0
+    v19 = add v14, 0
+    v20 = mload v19
+    v21 = add v14, 32
     v22 = mload v21
-    v23 = add v16, 32
+    frame_store multi_return, word, 0, v14 !metadata(memory=scratch)
+    v23 = add v14, 0
     v24 = mload v23
-    frame_store multi_return, word, 0, v16 !metadata(memory=scratch)
-    v25 = add v16, 0
+    v25 = add v14, 32
     v26 = mload v25
-    v27 = add v16, 32
-    v28 = mload v27
-    ret v26, v28
+    ret v24, v26
   bb5:
     revert 0, 0
 }
@@ -375,43 +370,39 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns
     v1 = not 31
     v2 = and 96, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff0
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b602a6080526020608001608090036080
-    v5 = add v3, 64
-    mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v0
-    v7 = add v3, 65
-    mcopy v7, v6, 0 !metadata(memory=heap)
-    v8 = create 0, v3, 65
-    jumpi v8, bb2, bb1
+    data_copy ShortReturn_initcode_0, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = gas
-    v10 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
-    v11 = slice_ptr v10
-    v12 = slice_len v10
-    v13 = staticcall v9, v8, v11, v12, 0, 32
-    jumpi v13, bb4, bb3
+    v7 = gas
+    v8 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, 0, 32
+    jumpi v11, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v14 = returndatasize
-    v15 = lt v14, 32
-    jumpi v15, bb5, bb6
+    v12 = returndatasize
+    v13 = lt v12, 32
+    jumpi v13, bb5, bb6
   bb6:
-    v16 = add 0, 0
-    v17 = mload v16
-    v18 = iszero v17
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = iszero v15
+    v17 = iszero v16
+    v18 = eq v15, v17
     v19 = iszero v18
-    v20 = eq v17, v19
-    v21 = iszero v20
-    jumpi v21, bb7, bb8
+    jumpi v19, bb7, bb8
   bb8:
-    v22 = add 0, 0
-    v23 = mload v22
-    ret v23
+    v20 = add 0, 0
+    v21 = mload v20
+    ret v21
   bb7:
     revert 0, 0
   bb5:
@@ -424,48 +415,44 @@ fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_return
     v1 = not 31
     v2 = and 96, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff0
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b602a6080526020608001608090036080
-    v5 = add v3, 64
-    mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v0
-    v7 = add v3, 65
-    mcopy v7, v6, 0 !metadata(memory=heap)
-    v8 = create 0, v3, 65
-    jumpi v8, bb2, bb1
+    data_copy ShortReturn_initcode_0, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = shl 32, v8
-    v10 = or v9, 0x26121ff0
-    v11 = and v10, 0xffffffff
-    v12 = shl 224, v11
-    v13 = shr 32, v10
-    v14 = gas
-    v15 = abi_encode [], selector v12
-    v16 = slice_ptr v15
-    v17 = slice_len v15
-    v18 = staticcall v14, v13, v16, v17, 0, 32
-    jumpi v18, bb4, bb3
+    v7 = shl 32, v6
+    v8 = or v7, 0x26121ff0
+    v9 = and v8, 0xffffffff
+    v10 = shl 224, v9
+    v11 = shr 32, v8
+    v12 = gas
+    v13 = abi_encode [], selector v10
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = staticcall v12, v11, v14, v15, 0, 32
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v19 = returndatasize
-    v20 = lt v19, 32
-    jumpi v20, bb5, bb6
+    v17 = returndatasize
+    v18 = lt v17, 32
+    jumpi v18, bb5, bb6
   bb6:
-    v21 = add 0, 0
-    v22 = mload v21
-    v23 = iszero v22
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = iszero v20
+    v22 = iszero v21
+    v23 = eq v20, v22
     v24 = iszero v23
-    v25 = eq v22, v24
-    v26 = iszero v25
-    jumpi v26, bb7, bb8
+    jumpi v24, bb7, bb8
   bb8:
-    v27 = add 0, 0
-    v28 = mload v27
-    ret v28
+    v25 = add 0, 0
+    v26 = mload v25
+    ret v26
   bb7:
     revert 0, 0
   bb5:

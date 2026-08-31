@@ -2,7 +2,7 @@
 //@[paris] compile-flags: -Zdump=evm-ir --evm-version paris
 //@[shanghai] compile-flags: -Zdump=evm-ir --evm-version shanghai
 //@[shanghai_allow] compile-flags: -Zdump=evm-ir --evm-version shanghai --allow=3860
-//@[amsterdam] compile-flags: -Zdump=evm-ir --evm-version amsterdam
+//@[amsterdam] compile-flags: -Zdump=evm-ir --evm-version amsterdam --allow=3860
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
 contract A {

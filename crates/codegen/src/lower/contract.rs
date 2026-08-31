@@ -1,7 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{function, storage::StorageLayout, types::TypeLowerer};
-use alloy_primitives::Bytes;
+use super::{ContractBytecodes, function, storage::StorageLayout, types::TypeLowerer};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
@@ -20,8 +19,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
 pub(super) fn lower(
     gcx: Gcx<'_>,
     contract_id: ContractId,
-    child_bytecodes: &FxHashMap<ContractId, Bytes>,
-    child_runtime_bytecodes: &FxHashMap<ContractId, Bytes>,
+    child_bytecodes: &FxHashMap<ContractId, ContractBytecodes>,
 ) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
@@ -185,7 +183,6 @@ pub(super) fn lower(
             function_ids: &mir_ids,
             immutable_ids: &immutable_ids,
             child_bytecodes,
-            child_runtime_bytecodes,
             state: &mut state,
             shared_literals: &shared_literals,
             shared_word_literals: &shared_word_literals,

@@ -77,7 +77,8 @@ fn @pair(arg0: memorystruct) -> (u256, memorybytes) [selector=0x76ea4d37, pure, 
     v0 = memory_object_load_field memorystruct<1>, arg0, 0
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 2
-    memory_object_store_word memorybytes, v1, 0, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v2 = memory_object_data memorybytes, v1
+    mstore v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     ret v0, v1
 }
 
@@ -123,7 +124,8 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
   bb8:
     v38 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v38, 6
-    memory_object_store_word memorybytes, v38, 0, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v39 = memory_object_data memorybytes, v38
+    mstore v39, 0x6661696c65640000000000000000000000000000000000000000000000000000
     ret 0, v38
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

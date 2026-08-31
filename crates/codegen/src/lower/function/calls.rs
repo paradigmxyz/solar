@@ -179,15 +179,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         call_opts: Option<&hir::CallOptions<'_>>,
     ) -> Option<ValueId> {
         let contract = self.context.gcx.hir.contract(contract_id);
-        let bytecode = self.context.child_bytecodes.get(&contract_id).ok_or_else(|| {
-            self.context
-                .gcx
-                .dcx()
-                .err(format!("codegen is missing creation bytecode for `new {}`", contract.name))
-                .span(ty.span)
-                .note("the deployed contract did not compile or was not lowered first")
-                .emit()
-        });
+        let bytecode = self
+            .context
+            .child_bytecodes
+            .get(&contract_id)
+            .and_then(super::super::data::ContractBytecodes::deployment)
+            .ok_or_else(|| {
+                self.context
+                    .gcx
+                    .dcx()
+                    .err(format!(
+                        "codegen is missing creation bytecode for `new {}`",
+                        contract.name
+                    ))
+                    .span(ty.span)
+                    .note("the deployed contract did not compile or was not lowered first")
+                    .emit()
+            });
         let Ok(bytecode) = bytecode else { return None };
 
         let mut call_value = self.builder.imm_u256(U256::ZERO);
@@ -266,15 +274,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let allocation_size = self.builder.and(rounded_len, mask);
         let data = self.builder.alloc_raw(allocation_size, AllocationSemantics::INTERNAL);
 
-        // for chunk in creation_bytecode {
-        //     mstore(init + chunk.offset, chunk)
-        // }
-        for (index, chunk) in bytecode.chunks(32).enumerate() {
-            let offset = u64::try_from(index).ok()?.saturating_mul(32);
-            let address = self.builder.add_u64_offset(data, offset);
-            let value = self.lower_string_literal_word(chunk);
-            self.builder.mstore(address, value);
-        }
+        super::super::data::copy_data_to_memory(
+            self.context.gcx,
+            self.context.module,
+            &mut self.builder,
+            data,
+            bytecode,
+            bytecode.len(),
+            Some(super::super::data::contract_bytecode_data_name(
+                self.context.gcx,
+                contract_id,
+                true,
+            )),
+        );
         let encoded_ptr = self.builder.slice_ptr(encoded);
         let copy_dest = self.builder.add(data, bytecode_len_value);
         // init = creation_bytecode ++ arguments

@@ -25,6 +25,9 @@ newtype_index! {
 
     /// An interned immutable placeholder identifier.
     pub(in crate::backend::evm) struct ImmutablePushId;
+
+    /// An interned relocatable program-data reference.
+    pub(in crate::backend::evm) struct DataRefId;
 }
 
 pub(in crate::backend::evm) trait AsmIndex: Idx {
@@ -64,6 +67,10 @@ impl AsmIndex for ImmutablePushId {
 
 impl AsmIndex for PackedLabelsId {
     const NAME: &'static str = "assembler packed labels index";
+}
+
+impl AsmIndex for DataRefId {
+    const NAME: &'static str = "assembler program data reference index";
 }
 
 impl AsmIndex for DataId {
@@ -144,7 +151,7 @@ impl AsmInst {
         Self::tagged(Self::TAG_LABEL, label.inst_payload())
     }
 
-    pub(in crate::backend::evm) fn push_data(data: DataId) -> Self {
+    pub(in crate::backend::evm) fn push_data(data: DataRefId) -> Self {
         Self::extended(Self::EXTENDED_PUSH_DATA, data.inst_payload())
     }
 
@@ -199,7 +206,7 @@ impl AsmInst {
                         AsmInstKind::PushPackedLabels(PackedLabelsId::from_inst_payload(index))
                     }
                     Self::EXTENDED_PUSH_DATA => {
-                        AsmInstKind::PushData(DataId::from_inst_payload(index))
+                        AsmInstKind::PushData(DataRefId::from_inst_payload(index))
                     }
                     Self::EXTENDED_DATA => AsmInstKind::Data(DataId::from_inst_payload(index)),
                     _ => unreachable!("invalid extended assembler instruction tag"),
@@ -222,6 +229,6 @@ pub(in crate::backend::evm) enum AsmInstKind {
     PushDeferred(DeferredConst),
     PushImmutable(ImmutablePushId),
     Label(Label),
-    PushData(DataId),
+    PushData(DataRefId),
     Data(DataId),
 }

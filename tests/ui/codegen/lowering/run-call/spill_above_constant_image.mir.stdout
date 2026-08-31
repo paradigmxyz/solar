@@ -45,99 +45,82 @@ fn @createAccount(arg0: address, arg1: bytes32, arg2: u256, arg3: address, arg4:
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Harness ===
 @module Harness
+data:
+  Registry_initcode_0: hex"34600e576101498060125f395ff35b5f5ffd34601a575f3560e01c80638a54c52f14601657601a565b601e565b5f80fd5b61016060405260a436101561012d57610129565b60806024608c376e5af43d82803e903d91602b57fd5bf3606c52600435605d52733d60ad80600a3d3981f3363d3d373d3d3d363d7360495260ff5f5360b76055206035523060601b60015260243560155260555f208061012052806101205280610120523b155f9014151560c55760243560b760555ff5806101405280610140528061014052155f9014151560e85760db565b61012051806101205260601b60601c5f5260205ff35b6320188a595f526004601cfd5b610140518061014052606c526084356064356004357f79f19b3655ee38b1ce526556b7731a20c8f218fbda4a3990b6cc4172fdf887226060606ca46020606cf35b5f80fd5b60043560a01c15156101295760643560a01c151561012957603256"
+
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
     v2 = and 378, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e576101498060125f395ff35b5f5ffd34601a575f3560e01c80638a54c5
-    v4 = add v3, 32
-    mstore v4, 0x2f14601657601a565b601e565b5f80fd5b61016060405260a436101561012d57
-    v5 = add v3, 64
-    mstore v5, 0x610129565b60806024608c376e5af43d82803e903d91602b57fd5bf3606c5260
-    v6 = add v3, 96
-    mstore v6, 0x435605d52733d60ad80600a3d3981f3363d3d373d3d3d363d7360495260ff5f
-    v7 = add v3, 128
-    mstore v7, 0x5360b76055206035523060601b60015260243560155260555f20806101205280
-    v8 = add v3, 160
-    mstore v8, 0x6101205280610120523b155f9014151560c55760243560b760555ff580610140
-    v9 = add v3, 192
-    mstore v9, 0x5280610140528061014052155f9014151560e85760db565b6101205180610120
-    v10 = add v3, 224
-    mstore v10, 0x5260601b60601c5f5260205ff35b6320188a595f526004601cfd5b6101405180
-    v11 = add v3, 256
-    mstore v11, 0x61014052606c526084356064356004357f79f19b3655ee38b1ce526556b7731a
-    v12 = add v3, 288
-    mstore v12, 0x20c8f218fbda4a3990b6cc4172fdf887226060606ca46020606cf35b5f80fd5b
-    v13 = add v3, 320
-    mstore v13, 0x60043560a01c15156101295760643560a01c1515610129576032560000000000
-    v14 = slice_ptr v0
-    v15 = add v3, 347
-    mcopy v15, v14, 0 !metadata(memory=heap)
-    v16 = create 0, v3, 347
-    jumpi v16, bb2, bb1
+    data_copy Registry_initcode_0, v3, 347
+    v4 = slice_ptr v0
+    v5 = add v3, 347
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 347
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v17 = gas
-    v18 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
-    v20 = and 0x4444444444444444444444444444444444444444, 0xffffffffffffffffffffffffffffffffffffffff
-    v21 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args v18, v19, 0x7a69, v20, 0x5555
-    v22 = slice_ptr v21
-    v23 = slice_len v21
-    v24 = call v17, v16, 0, v22, v23, 0, 32
-    jumpi v24, bb4, bb3
+    v7 = gas
+    v8 = and 0x1111111111111111111111111111111111111111, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = shl 0, 0x2200000000000000000000000000000000000000000000000000000000000033
+    v10 = and 0x4444444444444444444444444444444444444444, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = abi_encode [word<u160>, word, word, word<u160>, word], selector 0x8a54c52f00000000000000000000000000000000000000000000000000000000, args v8, v9, 0x7a69, v10, 0x5555
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = call v7, v6, 0, v12, v13, 0, 32
+    jumpi v14, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v25 = returndatasize
-    v26 = lt v25, 32
-    jumpi v26, bb5, bb6
+    v15 = returndatasize
+    v16 = lt v15, 32
+    jumpi v16, bb5, bb6
   bb6:
-    v27 = add 0, 0
-    v28 = mload v27
-    v29 = and v28, 0xffffffffffffffffffffffffffffffffffffffff
-    v30 = eq v28, v29
-    v31 = iszero v30
-    jumpi v31, bb7, bb8
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
+    v20 = eq v18, v19
+    v21 = iszero v20
+    jumpi v21, bb7, bb8
   bb8:
-    v32 = add 0, 0
-    v33 = mload v32
-    v34 = extcodesize v33
-    v35 = add v34, 63
-    v36 = lt v35, v34
-    jumpi v36, bb9, bb10
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = extcodesize v23
+    v25 = add v24, 63
+    v26 = lt v25, v24
+    jumpi v26, bb9, bb10
   bb10:
-    v37 = not 31
-    v38 = and v35, v37
-    v39 = alloc memorybytes, exact, zeroed, panic, v38
-    set_memory_object_len memorybytes, v39, v34
-    v40 = memory_object_data memorybytes, v39
-    extcodecopy v33, v40, 0, v34 !metadata(memory=heap)
-    v41 = memory_object_len memorybytes, v39
-    v42 = eq v41, 173
-    v43 = iszero v42
-    jumpi v43, bb11, bb12
+    v27 = not 31
+    v28 = and v25, v27
+    v29 = alloc memorybytes, exact, zeroed, panic, v28
+    set_memory_object_len memorybytes, v29, v24
+    v30 = memory_object_data memorybytes, v29
+    extcodecopy v23, v30, 0, v24 !metadata(memory=heap)
+    v31 = memory_object_len memorybytes, v29
+    v32 = eq v31, 173
+    v33 = iszero v32
+    jumpi v33, bb11, bb12
   bb12:
-    v44 = add v39, 109
-    v45 = mload v44
-    v46 = add v39, 141
-    v47 = mload v46
-    v48 = add v39, 173
-    v49 = mload v48
-    v50 = eq v45, 0x7a69
-    v51 = iszero v50
-    jumpi v51, bb13, bb14
+    v34 = add v29, 109
+    v35 = mload v34
+    v36 = add v29, 141
+    v37 = mload v36
+    v38 = add v29, 173
+    v39 = mload v38
+    v40 = eq v35, 0x7a69
+    v41 = iszero v40
+    jumpi v41, bb13, bb14
   bb14:
-    v52 = eq v47, 0x4444444444444444444444444444444444444444
-    v53 = iszero v52
-    jumpi v53, bb15, bb16
+    v42 = eq v37, 0x4444444444444444444444444444444444444444
+    v43 = iszero v42
+    jumpi v43, bb15, bb16
   bb16:
-    v54 = eq v49, 0x5555
-    v55 = iszero v54
-    jumpi v55, bb17, bb18
+    v44 = eq v39, 0x5555
+    v45 = iszero v44
+    jumpi v45, bb17, bb18
   bb18:
     ret 1
   bb17:

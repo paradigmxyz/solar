@@ -966,6 +966,10 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::CalldataCopy(dest, offset, size))
     }
 
+    /// Emits a constant-data copy.
+    pub(crate) fn data_copy(&mut self, data: crate::mir::DataRef, dest: ValueId, size: ValueId) {
+        self.emit_void_inst(InstKind::DataCopy(data, dest, size))
+    }
     /// Emits a calldatacopy whose destination is proven to be in the heap.
     pub(crate) fn calldatacopy_heap(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
         self.emit_void_inst_in_region(

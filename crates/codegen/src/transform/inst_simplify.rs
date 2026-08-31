@@ -683,6 +683,7 @@ impl InstSimplifier {
         match kind {
             InstKind::MCopy(_, _, size)
             | InstKind::CalldataCopy(_, _, size)
+            | InstKind::DataCopy(_, _, size)
             | InstKind::CodeCopy(_, _, size) => Self::is_zero(func, resolve(*size)),
             InstKind::ReturnDataCopy(_, offset, size) => {
                 Self::is_zero(func, resolve(*offset)) && Self::is_zero(func, resolve(*size))

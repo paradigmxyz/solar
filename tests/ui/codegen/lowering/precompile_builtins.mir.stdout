@@ -218,26 +218,26 @@ fn @ripemdLiteral() [selector=0x062c5650, pure] {
 fn @shaEmpty() [selector=0xf1609893, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v16 = add v0, 32
-    mstore 64, v16 !metadata(memory=scratch)
+    v17 = add v0, 32
+    mstore 64, v17 !metadata(memory=scratch)
     mstore v0, 0
     v1 = add v0, 32
-    v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v12 = add v3, 64
-    v13 = lt v12, v3
-    v14 = gt v12, 0xffffffffffffffff
-    v15 = or v13, v14
-    jumpi v15, bb2, bb1
+    v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v13 = add v4, 64
+    v14 = lt v13, v4
+    v15 = gt v13, 0xffffffffffffffff
+    v16 = or v14, v15
+    jumpi v16, bb2, bb1
   bb1:
-    mstore 64, v12 !metadata(memory=scratch)
-    v17 = calldatasize
-    calldatacopy v3, v17, 64
-    mstore v3, 32
-    v4 = add v3, 32
-    v5 = gas
-    v6 = staticcall v5, 2, v1, 0, v4, 32
-    v8 = mload v4
-    mstore 128, v8
+    mstore 64, v13 !metadata(memory=scratch)
+    v18 = calldatasize
+    calldatacopy v4, v18, 64
+    mstore v4, 32
+    v5 = add v4, 32
+    v6 = gas
+    v7 = staticcall v6, 2, v1, 0, v5, 32
+    v9 = mload v5
+    mstore 128, v9
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -248,28 +248,28 @@ fn @shaEmpty() [selector=0xf1609893, pure] {
 fn @ripemdEmpty() [selector=0x0c4b170a, pure] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v18 = add v0, 32
-    mstore 64, v18 !metadata(memory=scratch)
+    v19 = add v0, 32
+    mstore 64, v19 !metadata(memory=scratch)
     mstore v0, 0
     v1 = add v0, 32
-    v3 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v14 = add v3, 64
-    v15 = lt v14, v3
-    v16 = gt v14, 0xffffffffffffffff
-    v17 = or v15, v16
-    jumpi v17, bb2, bb1
+    v4 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v15 = add v4, 64
+    v16 = lt v15, v4
+    v17 = gt v15, 0xffffffffffffffff
+    v18 = or v16, v17
+    jumpi v18, bb2, bb1
   bb1:
-    mstore 64, v14 !metadata(memory=scratch)
-    v19 = calldatasize
-    calldatacopy v3, v19, 64
-    mstore v3, 32
-    v4 = add v3, 32
-    v5 = gas
-    v6 = staticcall v5, 3, v1, 0, v4, 32
-    v8 = mload v4
-    v9 = shl 96, v8
-    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    mstore 128, v10
+    mstore 64, v15 !metadata(memory=scratch)
+    v20 = calldatasize
+    calldatacopy v4, v20, 64
+    mstore v4, 32
+    v5 = add v4, 32
+    v6 = gas
+    v7 = staticcall v6, 3, v1, 0, v5, 32
+    v9 = mload v5
+    v10 = shl 96, v9
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    mstore 128, v11
     returndata 128, 32
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

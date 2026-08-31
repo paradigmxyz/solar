@@ -19,35 +19,30 @@ fn @six(arg0: u256) -> u256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_r
 
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:KeepReloadedStore ===
 @module KeepReloadedStore
+data:
+  Target_initcode_0: hex"34600d57608a8060115f395ff35b5f5ffd34601a575f3560e01c806384b8ba0814601657601a565b601e565b5f80fd5b60243610156086576082565b6006600435026006156006820460043590148117905015156072577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6080526020608001608090036080f35b5f80fd5b602a56"
+
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
     v2 = and 186, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d57608a8060115f395ff35b5f5ffd34601a575f3560e01c806384b8ba08
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b60243610156086576082565b60066004
-    v5 = add v3, 64
-    mstore v5, 0x35026006156006820460043590148117905015156072577f4e487b7100000000
-    v6 = add v3, 96
-    mstore v6, 0x5f52601160045260
-    v7 = add v3, 128
-    mstore v7, 0x245ffd5b6080526020608001608090036080f35b5f80fd5b602a560000000000
-    v8 = slice_ptr v0
-    v9 = add v3, 155
-    mcopy v9, v8, 0 !metadata(memory=heap)
-    v10 = create 0, v3, 155
-    jumpi v10, bb2, bb1
+    data_copy Target_initcode_0, v3, 155
+    v4 = slice_ptr v0
+    v5 = add v3, 155
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 155
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = and v11, v12
-    v14 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = or v13, v14
-    sstore 0, v15 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
     stop
 }
 

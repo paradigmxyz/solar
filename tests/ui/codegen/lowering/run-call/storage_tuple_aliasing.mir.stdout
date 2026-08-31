@@ -600,19 +600,21 @@ fn @byteArrays() -> (memorybytes, memorybytes) [selector=0x2d074e2f, abi_params=
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 2
-    memory_object_store_word memorybytes, v0, 0, 0x102000000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x102000000000000000000000000000000000000000000000000000000000000
     internal_call @store_storage_bytes, 0, 7, v0
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v1, 3
-    memory_object_store_word memorybytes, v1, 0, 0x304050000000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 8, v1
-    v2 = internal_call @load_storage_bytes, 1, 7
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 3
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x304050000000000000000000000000000000000000000000000000000000000
     internal_call @store_storage_bytes, 0, 8, v2
-    v3 = internal_call @load_storage_bytes, 1, 8
-    internal_call @store_storage_bytes, 0, 7, v3
     v4 = internal_call @load_storage_bytes, 1, 7
+    internal_call @store_storage_bytes, 0, 8, v4
     v5 = internal_call @load_storage_bytes, 1, 8
-    ret v4, v5
+    internal_call @store_storage_bytes, 0, 7, v5
+    v6 = internal_call @load_storage_bytes, 1, 7
+    v7 = internal_call @load_storage_bytes, 1, 8
+    ret v6, v7
 }
 
 fn @nextLhs() -> u256 {

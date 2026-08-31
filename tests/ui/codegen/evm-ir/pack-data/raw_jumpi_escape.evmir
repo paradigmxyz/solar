@@ -1,0 +1,31 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module raw_jumpi_escape
+
+// The fallthrough copy is in range, but the raw JUMPI target copies through
+// the following entry. Keep the data layout intact for both paths.
+// CHECK: push_data literal_0
+// CHECK: @data literal_0 hex"22"
+// CHECK: @data literal_1 hex"99"
+bb0:
+  push_data literal_0
+  push bb1
+  push 1
+  jumpi
+  push 0
+  push 1
+  swap 2
+  swap 1
+  codecopy
+  stop
+
+bb1:
+  push 0
+  push 2
+  swap 2
+  swap 1
+  codecopy
+  stop
+
+@data literal_0 hex"22"
+@data literal_1 hex"99"

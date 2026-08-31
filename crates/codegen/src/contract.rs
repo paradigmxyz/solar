@@ -323,27 +323,19 @@ fn generate_contract_bytecode(
     let child_bytecodes = graph.dependencies[contract_id]
         .iter()
         .map(|dependency| {
-            let bytecode = artifacts[dependency]
+            let artifact = artifacts[dependency]
                 .get()
-                .expect("dependency artifact should have been generated")
-                .deployment
-                .clone();
-            (dependency, bytecode)
+                .expect("dependency artifact should have been generated");
+            (
+                dependency,
+                lower::ContractBytecodes::new(
+                    artifact.deployment.clone(),
+                    artifact.runtime.clone(),
+                ),
+            )
         })
         .collect();
-    let child_runtime_bytecodes = graph.dependencies[contract_id]
-        .iter()
-        .map(|dependency| {
-            let runtime = artifacts[dependency]
-                .get()
-                .expect("dependency artifact should have been generated")
-                .runtime
-                .clone();
-            (dependency, runtime)
-        })
-        .collect();
-    let mut module =
-        lower::lower_contract(gcx, contract_id, &child_bytecodes, &child_runtime_bytecodes);
+    let mut module = lower::lower_contract(gcx, contract_id, &child_bytecodes);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)

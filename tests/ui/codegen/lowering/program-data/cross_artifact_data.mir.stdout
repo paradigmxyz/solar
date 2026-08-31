@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C ===
+@module C
+data:
+  literal_0: hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  literal_1: hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 256
+    set_memory_object_len memorybytes, v0, 224
+    v1 = memory_object_data memorybytes, v0
+    data_copy literal_0, v1, 224
+    v2 = abi_encode [memory_bytes], args v0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    log1 v3, v4, 0xacc2ed49161ac5ef0f14f68f834478c81d087a53b25b23d751b2bfac5fc859df
+    stop
+}
+
+fn @runtimeData() -> memorybytes [selector=0x69ad4ffa, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 192
+    set_memory_object_len memorybytes, v0, 160
+    v1 = memory_object_data memorybytes, v0
+    data_copy literal_1, v1, 160
+    ret v0
+}

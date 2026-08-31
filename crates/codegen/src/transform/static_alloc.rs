@@ -367,6 +367,7 @@ fn candidate_uses_are_safe(
                 | InstKind::Log0(addr, size)
                 | InstKind::MemoryZero(addr, size)
                 | InstKind::CalldataCopy(addr, _, size)
+                | InstKind::DataCopy(_, addr, size)
                 | InstKind::ReturnDataCopy(addr, _, size)
                 | InstKind::CodeCopy(addr, _, size) => {
                     operand == addr && func.value_u64(size).is_some_and(|len| in_range(off, len))

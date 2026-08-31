@@ -11,9 +11,13 @@ fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 160
     set_memory_object_len memorybytes, v0, 112
-    memory_object_store_word memorybytes, v0, 0, 0x6070380380607060c03960c001601f017fffffffffffffffffffffffffffffff
-    memory_object_store_word memorybytes, v0, 32, 0xffffffffffffffffffffffffffffffffe01660405234605f5760c060c0607038
-    memory_object_store_word memorybytes, v0, 64, 0x3016020820191508111905015605b576057565b6063565b5f80fd5b6053565b
-    memory_object_store_word memorybytes, v0, 96, 0x5f80fd5b600380606d5f395ff35f80fd00000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x6070380380607060c03960c001601f017fffffffffffffffffffffffffffffff
+    v2 = add v1, 32
+    mstore v2, 0xffffffffffffffffffffffffffffffffe01660405234605f5760c060c0607038
+    v3 = add v1, 64
+    mstore v3, 0x3016020820191508111905015605b576057565b6063565b5f80fd5b6053565b
+    v4 = add v1, 96
+    mstore v4, 0x5f80fd5b600380606d5f395ff35f80fd00000000000000000000000000000000
     ret v0
 }

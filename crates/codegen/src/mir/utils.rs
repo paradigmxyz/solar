@@ -261,6 +261,7 @@ pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
             | InstKind::MemoryZero(_, _)
             | InstKind::MCopy(_, _, _)
             | InstKind::CalldataCopy(_, _, _)
+            | InstKind::DataCopy(_, _, _)
             | InstKind::CodeCopy(_, _, _)
             | InstKind::ReturnDataCopy(_, _, _)
             | InstKind::ExtCodeCopy(_, _, _, _)

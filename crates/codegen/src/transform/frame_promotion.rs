@@ -428,6 +428,7 @@ impl FrameSlotPromoter {
             InstKind::Keccak256(addr, size)
             | InstKind::Log0(addr, size)
             | InstKind::MemoryZero(addr, size)
+            | InstKind::DataCopy(_, addr, size)
             | InstKind::ReturnDataCopy(addr, _, size)
             | InstKind::CodeCopy(addr, _, size)
             | InstKind::CalldataCopy(addr, _, size) => Self::internal_frame_range_may_overlap(
@@ -544,6 +545,7 @@ impl FrameSlotPromoter {
             InstKind::Keccak256(addr, size)
             | InstKind::Log0(addr, size)
             | InstKind::MemoryZero(addr, size)
+            | InstKind::DataCopy(_, addr, size)
             | InstKind::ReturnDataCopy(addr, _, size)
             | InstKind::CodeCopy(addr, _, size)
             | InstKind::CalldataCopy(addr, _, size) => {

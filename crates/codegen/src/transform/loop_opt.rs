@@ -778,6 +778,7 @@ impl LoopOptimizer {
                     | InstKind::Keccak256(addr, _)
                     | InstKind::MappingSlotMemory(addr, _)
                     | InstKind::CalldataCopy(addr, _, _)
+                    | InstKind::DataCopy(_, addr, _)
                     | InstKind::CodeCopy(addr, _, _)
                     | InstKind::ReturnDataCopy(addr, _, _)
                     | InstKind::ExtCodeCopy(_, addr, _, _) => address_operands.push(*addr),

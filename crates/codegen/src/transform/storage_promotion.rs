@@ -462,7 +462,10 @@ impl StorageScalarPromoter {
                         return false;
                     }
                 }
-                InstKind::MStore(_, _) | InstKind::MStore8(_, _) | InstKind::MCopy(_, _, _) => {}
+                InstKind::MStore(_, _)
+                | InstKind::MStore8(_, _)
+                | InstKind::MCopy(_, _, _)
+                | InstKind::DataCopy(_, _, _) => {}
                 kind if kind.has_side_effects() => return false,
                 InstKind::Gas => return false,
                 _ => {}
@@ -504,7 +507,10 @@ impl StorageScalarPromoter {
                         return false;
                     }
                 }
-                InstKind::MStore(_, _) | InstKind::MStore8(_, _) | InstKind::MCopy(_, _, _) => {}
+                InstKind::MStore(_, _)
+                | InstKind::MStore8(_, _)
+                | InstKind::MCopy(_, _, _)
+                | InstKind::DataCopy(_, _, _) => {}
                 kind if kind.has_side_effects() => return false,
                 InstKind::Gas => return false,
                 _ => {}

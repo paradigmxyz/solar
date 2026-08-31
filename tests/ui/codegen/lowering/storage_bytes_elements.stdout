@@ -664,12 +664,14 @@ fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 9
-    memory_object_store_word memorybytes, v0, 0, 0x45524332304d6f636b0000000000000000000000000000000000000000000000
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v1, 4
-    memory_object_store_word memorybytes, v1, 0, 0x4532304d00000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x45524332304d6f636b0000000000000000000000000000000000000000000000
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 4
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x4532304d00000000000000000000000000000000000000000000000000000000
     internal_call @store_storage_bytes, 0, 0, v0
-    internal_call @store_storage_bytes, 0, 1, v1
+    internal_call @store_storage_bytes, 0, 1, v2
     jump bb1
   bb1:
     jump bb2
@@ -924,12 +926,14 @@ fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 17
-    memory_object_store_word memorybytes, v0, 0, 0x42617365204c69746572616c204e616d65000000000000000000000000000000
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v1, 3
-    memory_object_store_word memorybytes, v1, 0, 0x424c4e0000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x42617365204c69746572616c204e616d65000000000000000000000000000000
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 3
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x424c4e0000000000000000000000000000000000000000000000000000000000
     internal_call @store_storage_bytes, 0, 0, v0
-    internal_call @store_storage_bytes, 0, 1, v1
+    internal_call @store_storage_bytes, 0, 1, v2
     jump bb1
   bb1:
     stop

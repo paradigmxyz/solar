@@ -200,6 +200,11 @@ impl<'gcx> Assembler<'gcx> {
         self.program.legacy_shift_stack_headroom = headroom;
     }
 
+    /// Records whether the backend reserved stack growth for program-data copies.
+    pub(crate) fn set_data_copy_has_headroom(&mut self, has_headroom: bool) {
+        self.program.data_copy_has_headroom = has_headroom;
+    }
+
     /// Enables size-oriented outlining for an oversized gas-mode runtime.
     pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
         self.program.enable_size_outlining = enable;
@@ -416,7 +421,7 @@ impl<'gcx> Assembler<'gcx> {
                 }
                 AsmInstKind::Data(data) => {
                     data_offsets.insert(data, offset);
-                    offset += program.data[data].len();
+                    offset += program.data[data].bytes.len();
                 }
             }
         }
@@ -428,9 +433,8 @@ impl<'gcx> Assembler<'gcx> {
             {
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
-            } else if let AsmInstKind::PushData(data) = inst.kind()
-                && let Some(&target_offset) = data_offsets.get(&data)
-            {
+            } else if let AsmInstKind::PushData(data) = inst.kind() {
+                let target_offset = resolve_data_offset(program, &data_offsets, data);
                 let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
             }
@@ -507,10 +511,7 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_push_fixed_width(value, width as u8);
                 }
                 AsmInstKind::PushData(data) => {
-                    let target_offset = data_offsets
-                        .get(&data)
-                        .copied()
-                        .unwrap_or_else(|| panic!("program data {data:?} was never emitted"));
+                    let target_offset = resolve_data_offset(program, &data_offsets, data);
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
@@ -524,7 +525,7 @@ impl<'gcx> Assembler<'gcx> {
                     out.emit_op(op::JUMPDEST);
                 }
                 AsmInstKind::Data(data) => {
-                    out.bytecode.extend_from_slice(&program.data[data]);
+                    out.bytecode.extend_from_slice(&program.data[data].bytes);
                 }
             }
         }
@@ -536,6 +537,26 @@ impl<'gcx> Assembler<'gcx> {
     fn push_width(value: U256) -> u8 {
         value.byte_len() as u8
     }
+}
+
+fn resolve_data_offset(
+    program: &AssemblyProgram,
+    data_offsets: &FxHashMap<ir::DataId, usize>,
+    data_ref: assembly::DataRefId,
+) -> usize {
+    let data = program.data_refs[data_ref];
+    let data_size = program.data[data.id].bytes.len();
+    assert!(
+        data.offset as usize <= data_size,
+        "program data offset {} exceeds data size {data_size}",
+        data.offset
+    );
+    data_offsets
+        .get(&data.id)
+        .copied()
+        .unwrap_or_else(|| panic!("program data {:?} was never emitted", data.id))
+        .checked_add(data.offset as usize)
+        .expect("program data offset overflow")
 }
 
 #[derive(Debug)]

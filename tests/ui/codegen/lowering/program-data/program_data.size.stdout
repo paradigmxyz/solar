@@ -1,0 +1,724 @@
+// === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C ===
+@module C
+@phase evm-shaped
+data:
+  literal_0: hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
+  literal_1: hex"303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a"
+
+fn @data() [selector=0x73d4a13a, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v29 = add v0, 320
+    mstore 64, v29 !metadata(memory=scratch)
+    mstore v0, 257
+    v1 = add v0, 32
+    v2 = add v1, 256
+    mstore v2, 0
+    data_copy literal_0, v1, 257
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = sub v7, v6
+    mstore v6, v8
+    v10 = iszero v0
+    v11 = iszero v10
+    v9 = mload v0
+    v12 = mul v9, v11
+    mstore v7, v12
+    v14 = add v12, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v6, 64
+    jumpi v15, bb1, bb2
+  bb1:
+    v18 = sub v15, 32
+    v19 = add v16, v18
+    mstore v19, 0
+    jump bb2
+  bb2:
+    v21 = add v16, v15
+    mcopy v16, v1, v12
+    v22 = sub v21, v6
+    v24 = add v22, 31
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v30 = add v27, v26
+    mstore 64, v30 !metadata(memory=scratch)
+    returndata v27, v22
+}
+
+fn @subslice() [selector=0xb9ad073e, pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v29 = add v0, 224
+    mstore 64, v29 !metadata(memory=scratch)
+    mstore v0, 161
+    v1 = add v0, 32
+    v2 = add v1, 160
+    mstore v2, 0
+    data_copy literal_1, v1, 161
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = sub v7, v6
+    mstore v6, v8
+    v10 = iszero v0
+    v11 = iszero v10
+    v9 = mload v0
+    v12 = mul v9, v11
+    mstore v7, v12
+    v14 = add v12, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v6, 64
+    jumpi v15, bb1, bb2
+  bb1:
+    v18 = sub v15, 32
+    v19 = add v16, v18
+    mstore v19, 0
+    jump bb2
+  bb2:
+    v21 = add v16, v15
+    mcopy v16, v1, v12
+    v22 = sub v21, v6
+    v24 = add v22, 31
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v30 = add v27, v26
+    mstore 64, v30 !metadata(memory=scratch)
+    returndata v27, v22
+}
+
+fn @dataHash() [selector=0x1b3012a3, pure] {
+  bb0:
+    mstore 128, 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
+    returndata 128, 32
+}
+
+fn @subsliceHash() [selector=0xe5a3e763, pure] {
+  bb0:
+    mstore 128, 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
+    returndata 128, 32
+}
+
+fn @zeroData() [selector=0x6ec059cd, pure] {
+  bb0:
+    v2 = internal_call @zeroData.body, 1
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = sub v7, v6
+    mstore v6, v8
+    v10 = iszero v2
+    v11 = iszero v10
+    v9 = mload v2
+    v12 = mul v9, v11
+    mstore v7, v12
+    v14 = add v12, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v6, 64
+    jumpi v15, bb1, bb2
+  bb1:
+    v18 = sub v15, 32
+    v19 = add v16, v18
+    mstore v19, 0
+    jump bb2
+  bb2:
+    v21 = add v16, v15
+    v20 = add v2, 32
+    mcopy v16, v20, v12 !metadata(memory=heap)
+    v22 = sub v21, v6
+    v24 = add v22, 31
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v29 = add v27, v26
+    mstore 64, v29 !metadata(memory=scratch)
+    returndata v27, v22
+}
+
+fn @zeroWord() [selector=0x4c092794, pure] {
+  bb0:
+    v2 = internal_call @zeroWord.body, 1
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 32
+    v8 = sub v7, v6
+    mstore v6, v8
+    v10 = iszero v2
+    v11 = iszero v10
+    v9 = mload v2
+    v12 = mul v9, v11
+    mstore v7, v12
+    v14 = add v12, 31
+    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v16 = add v6, 64
+    jumpi v15, bb1, bb2
+  bb1:
+    v18 = sub v15, 32
+    v19 = add v16, v18
+    mstore v19, 0
+    jump bb2
+  bb2:
+    v21 = add v16, v15
+    v20 = add v2, 32
+    mcopy v16, v20, v12 !metadata(memory=heap)
+    v22 = sub v21, v6
+    v24 = add v22, 31
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v27 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v29 = add v27, v26
+    mstore 64, v29 !metadata(memory=scratch)
+    returndata v27, v22
+}
+
+fn @splatData() [selector=0xe1910fda, pure] {
+  bb0:
+    v5 = internal_call @splatData.body, 1
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = add v9, 32
+    v11 = sub v10, v9
+    mstore v9, v11
+    v13 = iszero v5
+    v14 = iszero v13
+    v12 = mload v5
+    v15 = mul v12, v14
+    mstore v10, v15
+    v17 = add v15, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = add v9, 64
+    jumpi v18, bb1, bb2
+  bb1:
+    v21 = sub v18, 32
+    v22 = add v19, v21
+    mstore v22, 0
+    jump bb2
+  bb2:
+    v24 = add v19, v18
+    v23 = add v5, 32
+    mcopy v19, v23, v15 !metadata(memory=heap)
+    v25 = sub v24, v9
+    v27 = add v25, 31
+    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v30 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v32 = add v30, v29
+    mstore 64, v32 !metadata(memory=scratch)
+    returndata v30, v25
+}
+
+fn @zeroHash() [selector=0x672c8259, pure] {
+  bb0:
+    v0 = internal_call @zeroData.body, 1
+    v4 = mload v0
+    v5 = add v0, 32
+    v1 = keccak256 v5, v4
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @zeroWordHash() [selector=0x0d00d797, pure] {
+  bb0:
+    v0 = internal_call @zeroWord.body, 1
+    v4 = mload v0
+    v5 = add v0, 32
+    v1 = keccak256 v5, v4
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @splatHash() [selector=0x38f844b9, pure] {
+  bb0:
+    v0 = internal_call @splatData.body, 1
+    v4 = mload v0
+    v5 = add v0, 32
+    v1 = keccak256 v5, v4
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @zeroData.body() -> memptr [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v2 = add v0, 192
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v0, 160
+    v3 = calldatasize
+    v1 = add v0, 32
+    calldatacopy v1, v3, 160
+    ret v0
+}
+
+fn @zeroWord.body() -> memptr [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v2 = add v0, 64
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v0, 32
+    v1 = add v0, 32
+    mstore v1, 0
+    ret v0
+}
+
+fn @splatData.body() -> memptr [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v5 = add v0, 192
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v0, 160
+    v1 = add v0, 32
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v2 = add v1, 32
+    mstore v2, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+    v3 = add v1, 64
+    mcopy v3, v1, 64
+    v4 = add v1, 128
+    mcopy v4, v1, 32
+    ret v0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb12, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb12, [0xd00d797 => bb2, 0x1b3012a3 => bb3, 0x38f844b9 => bb4, 0x4c092794 => bb5, 0x672c8259 => bb6, 0x6ec059cd => bb7, 0x73d4a13a => bb8, 0xb9ad073e => bb9, 0xe1910fda => bb10, 0xe5a3e763 => bb11]
+  bb11:
+    tail_call @subsliceHash
+  bb10:
+    tail_call @splatData
+  bb9:
+    tail_call @subslice
+  bb8:
+    tail_call @data
+  bb7:
+    tail_call @zeroData
+  bb6:
+    tail_call @zeroHash
+  bb5:
+    tail_call @zeroWord
+  bb4:
+    tail_call @splatHash
+  bb3:
+    tail_call @dataHash
+  bb2:
+    tail_call @zeroWordHash
+  bb12:
+    revert 0, 0
+}
+// === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C (runtime) ===
+@module runtime
+bb0:
+  callvalue
+  push bb12
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xd00d797
+  eq
+  push bb35
+  jumpi
+  dup 1
+  push 0x1b3012a3
+  eq
+  push bb19
+  jumpi
+  dup 1
+  push 0x38f844b9
+  eq
+  push bb37
+  jumpi
+  dup 1
+  push 0x4c092794
+  eq
+  push bb25
+  jumpi
+  dup 1
+  push 0x672c8259
+  eq
+  push bb33
+  jumpi
+  dup 1
+  push 0x6ec059cd
+  eq
+  push bb21
+  jumpi
+  dup 1
+  push 0x73d4a13a
+  eq
+  push bb13
+  jumpi
+  dup 1
+  push 0xb9ad073e
+  eq
+  push bb16
+  jumpi
+  dup 1
+  push 0xe1910fda
+  eq
+  push bb29
+  jumpi
+  dup 1
+  push 0xe5a3e763
+  eq
+  push bb20
+  jumpi
+  jump bb12
+bb12 [cold]:
+  push 0
+  dup 1
+  revert
+bb13:
+  push 352
+  dup 1
+  push 64
+  mstore
+  push 320
+  dup 2
+  add
+  push 64
+  mstore
+  push 257
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 256
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  push 257
+  dup 2
+  push_data literal_0
+  jump bb46
+bb46:
+  swap 1
+  codecopy
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  dup 4
+  iszero
+  iszero
+  swap 4
+  mload
+  swap 1
+  swap 4
+  mul
+  dup 1
+  push 128
+  mstore
+  dup 4
+  mstore
+  swap 2
+  pop
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  push 64
+  dup 4
+  add
+  dup 2
+  push 128
+  mload
+  swap 2
+  swap 1
+  exchange 2, 3
+  exchange 4, 5
+  push bb42
+  jumpi
+  jump bb15
+bb15:
+  swap 1
+  dup 2
+  add
+  dup 3
+  dup 6
+  dup 4
+  mcopy
+  swap 2
+  pop
+  pop
+  swap 2
+  jump bb44
+bb44:
+  pop
+  swap 1
+  sub
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  push 64
+  mload
+  swap 1
+  dup 2
+  add
+  push 64
+  mstore
+  dup 2
+  dup 2
+  return
+bb16:
+  push 352
+  dup 1
+  push 64
+  mstore
+  push 224
+  dup 2
+  add
+  push 64
+  mstore
+  push 161
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 160
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  push 161
+  dup 2
+  push_data literal_0+64
+  jump bb46
+bb19:
+  push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
+  jump bb43
+bb43:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb20:
+  push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
+  jump bb43
+bb21:
+  push 384
+  push 64
+  mstore
+  push bb47
+  jump bb39
+bb39:
+  push 64
+  mload
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 160
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 160
+  calldatasize
+  dup 3
+  calldatacopy
+  pop
+  swap 1
+  jump
+bb25:
+  push 384
+  push 64
+  mstore
+  push bb47
+  jump bb40
+bb40:
+  push 64
+  mload
+  push 64
+  dup 2
+  add
+  push 64
+  mstore
+  push 32
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  swap 1
+  jump
+bb29:
+  push 384
+  push 64
+  mstore
+  push bb47
+  jump bb41
+bb41:
+  push 64
+  mload
+  push 192
+  dup 2
+  add
+  push 64
+  mstore
+  push 160
+  push bb50
+  swap 2
+  swap 1
+  jump bb48
+bb48:
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
+  swap 1
+  swap 2
+  swap 3
+  jump
+bb33:
+  push 384
+  push 64
+  mstore
+  push bb34
+  jump bb39
+bb34:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  keccak256
+  jump bb43
+bb35:
+  push 384
+  push 64
+  mstore
+  push bb34
+  jump bb40
+bb37:
+  push 384
+  push 64
+  mstore
+  push bb34
+  jump bb41
+bb42:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb15
+bb45:
+  push 32
+  dup 3
+  sub
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  jump bb24
+bb24:
+  swap 1
+  dup 2
+  add
+  swap 4
+  push 32
+  add
+  dup 3
+  dup 2
+  dup 4
+  mcopy
+  pop
+  pop
+  jump bb44
+bb47:
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  dup 2
+  dup 2
+  sub
+  dup 3
+  mstore
+  dup 3
+  iszero
+  iszero
+  dup 4
+  mload
+  mul
+  dup 1
+  push 128
+  mstore
+  swap 1
+  mstore
+  push 31
+  push 128
+  mload
+  add
+  push 31
+  not
+  and
+  push 64
+  dup 3
+  add
+  dup 2
+  push 128
+  mload
+  swap 2
+  swap 1
+  exchange 2, 3
+  push bb45
+  jumpi
+  jump bb24
+bb49:
+  swap 1
+  mstore
+  push 64
+  dup 2
+  add
+  push 64
+  dup 3
+  dup 3
+  mcopy
+  pop
+  push 128
+  dup 2
+  add
+  push 32
+  dup 3
+  dup 3
+  mcopy
+  pop
+  pop
+  swap 1
+  jump
+bb50:
+  push bb49
+  swap 2
+  swap 1
+  jump bb48
+
+@data literal_0 hex"41414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"

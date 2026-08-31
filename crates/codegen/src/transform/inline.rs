@@ -880,7 +880,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
         InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
         InstKind::StoreImmutable(..) => (6, 4),
-        InstKind::MCopy(..)
+        InstKind::DataCopy(..)
+        | InstKind::MCopy(..)
         | InstKind::CalldataCopy(..)
         | InstKind::CodeCopy(..)
         | InstKind::ExtCodeCopy(..)

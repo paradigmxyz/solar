@@ -173,7 +173,8 @@ fn @literalBytes() -> memorybytes [selector=0x95549276, pure, abi_params=[], abi
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

@@ -7,6 +7,9 @@ fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
+data:
+  Impl_initcode_0: hex"34600d5760458060115f395ff35b5f5ffd34601a575f3560e01c80636279e43c14601657601a565b601e565b5f80fd5b6024361015604157603d565b6004356080526020608001608090036080f35b5f80fd5b602a56"
+
 fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = gt arg0, 0
@@ -92,33 +95,29 @@ fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] 
     v1 = not 31
     v2 = and 117, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760458060115f395ff35b5f5ffd34601a575f3560e01c80636279e43c
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b6024361015604157603d565b60043560
-    v5 = add v3, 64
-    mstore v5, 0x80526020608001608090036080f35b5f80fd5b602a5600000000000000000000
-    v6 = slice_ptr v0
-    v7 = add v3, 86
-    mcopy v7, v6, 0 !metadata(memory=heap)
-    v8 = create 0, v3, 86
-    jumpi v8, bb2, bb1
+    data_copy Impl_initcode_0, v3, 86
+    v4 = slice_ptr v0
+    v5 = add v3, 86
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 86
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
-    v10 = mload 64 !metadata(memory=scratch)
-    v11 = calldatasize
-    calldatacopy 0, 0, v11 !metadata(memory=scratch)
-    v12 = mload v9
-    v13 = add v9, 32
-    v14 = gas
-    v15 = delegatecall v14, v8, v13, v12, 0, 32
-    v16 = mload 0 !metadata(memory=scratch)
-    v17 = eq v16, 7
-    v18 = and v15, v17
-    v19 = eq v18, 1
-    v20 = iszero v19
-    jumpi v20, bb3, bb4
+    v7 = abi_encode [word], object, selector 0x6279e43c00000000000000000000000000000000000000000000000000000000, args 7
+    v8 = mload 64 !metadata(memory=scratch)
+    v9 = calldatasize
+    calldatacopy 0, 0, v9 !metadata(memory=scratch)
+    v10 = mload v7
+    v11 = add v7, 32
+    v12 = gas
+    v13 = delegatecall v12, v6, v11, v10, 0, 32
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = eq v14, 7
+    v16 = and v13, v15
+    v17 = eq v16, 1
+    v18 = iszero v17
+    jumpi v18, bb3, bb4
   bb4:
     ret 1
   bb3:

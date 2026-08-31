@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/evm-ir/pack-data/dead_blocks.evmir (after pipeline-default) ===
+@module dead_blocks
+bb0:
+  push_data literal_0
+  push 0
+  mstore
+  stop
+
+@data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

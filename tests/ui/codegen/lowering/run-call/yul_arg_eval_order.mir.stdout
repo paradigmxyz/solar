@@ -23,15 +23,16 @@ fn @deployIdiom() -> u256 [selector=0x298d6964, abi_params=[], abi_returns=[word
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 20
-    memory_object_store_word memorybytes, v0, 0, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
     mstore 32, 0 !metadata(memory=scratch)
-    v1 = internal_call @doCreate, 1, v0
-    v2 = mload 32 !metadata(memory=scratch)
-    v3 = extcodesize v2
-    v4 = mul v3, v1
-    v5 = iszero v4
+    v2 = internal_call @doCreate, 1, v0
+    v3 = mload 32 !metadata(memory=scratch)
+    v4 = extcodesize v3
+    v5 = mul v4, v2
     v6 = iszero v5
-    ret v6
+    v7 = iszero v6
+    ret v7
 }
 
 fn @eff() -> u256 {

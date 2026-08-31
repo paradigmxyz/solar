@@ -4,7 +4,8 @@ fn @bytesLiteral() -> memorybytes [selector=0x96115be7, pure, abi_params=[], abi
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
-    memory_object_store_word memorybytes, v0, 0, 0x102030000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x102030000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -12,6 +13,7 @@ fn @stringLiteral() -> memorybytes [selector=0xb5d549e9, pure, abi_params=[], ab
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
-    memory_object_store_word memorybytes, v0, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     ret v0
 }

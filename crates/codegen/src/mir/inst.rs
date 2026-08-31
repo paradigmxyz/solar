@@ -1,9 +1,9 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, AbiParamLayoutRef, BlockId, FrameMode, FrameSlotKind, Function, FunctionId,
-    ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, StorageLayoutRef,
-    Value, ValueId,
+    AbiLayoutRef, AbiParamLayoutRef, BlockId, DataRef, FrameMode, FrameSlotKind, Function,
+    FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
+    StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::{Array, SmallVec};
@@ -936,6 +936,8 @@ pub(crate) enum InstKind {
     ConstructorArgsEnd,
 
     // Code operations
+    /// Copy constant module data to memory.
+    DataCopy(DataRef, ValueId, ValueId),
     /// Get code size: `codesize()`
     CodeSize,
     /// Copy code to memory: `codecopy(destOffset, offset, size)`
@@ -1126,7 +1128,8 @@ impl InstKind {
     /// their operands.
     pub(crate) const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         match self {
-            Self::Add(a, b)
+            Self::DataCopy(_, a, b)
+            | Self::Add(a, b)
             | Self::Mul(a, b)
             | Self::And(a, b)
             | Self::Or(a, b)
@@ -1145,7 +1148,8 @@ impl InstKind {
     pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         match self {
             // Binary operations
-            Self::Add(a, b)
+            Self::DataCopy(_, a, b)
+            | Self::Add(a, b)
             | Self::Sub(a, b)
             | Self::Mul(a, b)
             | Self::Div(a, b)
@@ -1421,7 +1425,8 @@ impl InstKind {
     /// Visits every operand mutably.
     pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         match self {
-            Self::Add(a, b)
+            Self::DataCopy(_, a, b)
+            | Self::Add(a, b)
             | Self::Sub(a, b)
             | Self::Mul(a, b)
             | Self::Div(a, b)
@@ -1750,6 +1755,7 @@ impl InstKind {
             Self::SliceLen(_) => "slice_len",
             Self::ConstructorArgsBase => "constructor_args_base",
             Self::ConstructorArgsEnd => "constructor_args_end",
+            Self::DataCopy(..) => "data_copy",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
             Self::StoreImmutable(..) => "storeimmutable",
@@ -1859,6 +1865,7 @@ impl InstKind {
             | Self::Log4(_, _, _, _, _, _)
             // Data copy operations (write to memory)
             | Self::CalldataCopy(_, _, _)
+            | Self::DataCopy(_, _, _)
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _)
@@ -1917,6 +1924,7 @@ impl InstKind {
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
             | Self::CalldataCopy(_, _, _)
+            | Self::DataCopy(_, _, _)
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,

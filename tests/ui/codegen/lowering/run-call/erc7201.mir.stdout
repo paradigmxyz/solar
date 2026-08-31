@@ -28,16 +28,17 @@ fn @memoryParam() -> u256 [selector=0x21aa88e0, pure, abi_params=[], abi_returns
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 12
-    memory_object_store_word memorybytes, v0, 0, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v1 = keccak256_bytes v0
-    v2 = sub v1, 1
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v3, 32
-    memory_object_store_word memorybytes, v3, 0, v2
-    v4 = memory_object_data memorybytes, v3
-    v5 = keccak256 v4, 32
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    ret v6
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v2 = keccak256_bytes v0
+    v3 = sub v2, 1
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v4, 32
+    memory_object_store_word memorybytes, v4, 0, v3
+    v5 = memory_object_data memorybytes, v4
+    v6 = keccak256 v5, 32
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    ret v7
 }
 
 fn @calldataParam(arg0: calldataslice) -> u256 [selector=0x7d4a24fb, pure, abi_params=[bytes], abi_returns=[word]] {

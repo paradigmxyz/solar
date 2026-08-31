@@ -67,7 +67,8 @@ fn @version() -> memorybytes [selector=0x54fd4d50, pure, abi_params=[], abi_retu
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
-    memory_object_store_word memorybytes, v0, 0, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -80,10 +81,11 @@ fn @direct() -> u256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[wor
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5
-    memory_object_store_word memorybytes, v0, 0, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v1 = internal_call @consume, 1, v0
-    v2 = memory_object_len memorybytes, v1
-    ret v2
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v2 = internal_call @consume, 1, v0
+    v3 = memory_object_len memorybytes, v2
+    ret v3
 }
 
 fn @makePair(arg0: u256) -> memorystruct [pure] {

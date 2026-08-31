@@ -74,6 +74,22 @@ newtype_index! {
 
     /// A unique identifier for an immutable in the MIR module.
     pub(crate) struct ImmutableId;
+
+    /// A unique identifier for constant data in the MIR module.
+    pub(crate) struct DataId;
+}
+
+/// A relocatable reference to a byte within a MIR data entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct DataRef {
+    pub(crate) id: DataId,
+    pub(crate) offset: u32,
+}
+
+impl DataRef {
+    pub(crate) const fn new(id: DataId, offset: u32) -> Self {
+        Self { id, offset }
+    }
 }
 
 impl BlockId {
@@ -220,7 +236,7 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id, &empty, &empty);
+                let module = lower::lower_contract(gcx, id, &empty);
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -295,7 +311,7 @@ mod round_trip {
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(gcx, id, &empty, &empty);
+                let module = lower::lower_contract(gcx, id, &empty);
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());

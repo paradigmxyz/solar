@@ -59,7 +59,8 @@ fn @literalString() -> memorybytes [selector=0x660cf51a, pure, abi_params=[], ab
   bb3:
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 3
-    memory_object_store_word memorybytes, v2, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
     jump bb4
   bb4:
     jump bb1

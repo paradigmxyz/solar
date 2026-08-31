@@ -301,9 +301,10 @@ fn @lowLevel() -> bool [selector=0x5e4fa723, abi_params=[], abi_returns=[word<bo
     v1 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v1, 0
     v2 = memory_object_data memorybytes, v1
-    v3 = memory_object_len memorybytes, v1
-    v4 = call v0, 0, 0, v2, v3, 0, 0
-    ret v4
+    v3 = memory_object_data memorybytes, v1
+    v4 = memory_object_len memorybytes, v1
+    v5 = call v0, 0, 0, v3, v4, 0, 0
+    ret v5
 }
 
 fn @selfCall() -> bool [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool>]] {
@@ -328,38 +329,21 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
+data:
+  EmptyCodeTryConstructor_initcode_0: hex"6101c06040523461011f575a604051602081016040527f5dfc2e4a0000000000000000000000000000000000000000000000000000000081526004810150303b15156048575f80fd5b5f5f6004835f3087f191505015605c57606c565b3d603f810181811015609e576071565b610123565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b601f1981169050604051818101915081604052905081815260208101825f823e5090506020810180610140528061014052815180610160529150816101605280610140525160048210158160e01c91506308c379a08214811650506024821015634e487b718214915016505060011561011557606c565b6101605161014051fd5b5f80fd5b601f8061012e5f395ff334601a575f3560e01c80635dfc2e4a14601657601a565b601e565b5f80fd5b"
+
 fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
     v2 = and 364, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x6101c06040523461011f575a604051602081016040527f5dfc2e4a0000000000
-    v4 = add v3, 32
-    mstore v4, 0x81526004810150303b
-    v5 = add v3, 64
-    mstore v5, 0x15156048575f80fd5b5f5f6004835f3087f191505015605c57606c565b3d603f
-    v6 = add v3, 96
-    mstore v6, 0x810181811015609e576071565b610123565b7f4e487b71000000000000000000
-    v7 = add v3, 128
-    mstore v7, 0x5f52604160045260245ffd5b60
-    v8 = add v3, 160
-    mstore v8, 0x1f1981169050604051818101915081604052905081815260208101825f823e50
-    v9 = add v3, 192
-    mstore v9, 0x9050602081018061014052806101405281518061016052915081610160528061
-    v10 = add v3, 224
-    mstore v10, 0x140525160048210158160e01c91506308c379a0821481165050602482101563
-    v11 = add v3, 256
-    mstore v11, 0x4e487b718214915016505060011561011557606c565b6101605161014051fd5b
-    v12 = add v3, 288
-    mstore v12, 0x5f80fd5b601f8061012e5f395ff334601a575f3560e01c80635dfc2e4a146016
-    v13 = add v3, 320
-    mstore v13, 0x57601a565b601e565b5f80fd5b00000000000000000000000000000000000000
-    v14 = slice_ptr v0
-    v15 = add v3, 333
-    mcopy v15, v14, 0 !metadata(memory=heap)
-    v16 = create 0, v3, 333
-    jumpi v16, bb2, bb1
+    data_copy EmptyCodeTryConstructor_initcode_0, v3, 333
+    v4 = slice_ptr v0
+    v5 = add v3, 333
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 333
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:

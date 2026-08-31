@@ -7,51 +7,51 @@ fn @ping() -> u256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]
 
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
 @module Harness
+data:
+  Implementation_initcode_0: hex"34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c80635c36b18614601657601a565b601e565b5f80fd5b60076080526020608001608090036080f3"
+
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
     v2 = and 96, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c80635c36b186
-    v4 = add v3, 32
-    mstore v4, 0x14601657601a565b601e565b5f80fd5b60076080526020608001608090036080
-    v5 = add v3, 64
-    mstore v5, 0xf300000000000000000000000000000000000000000000000000000000000000
-    v6 = slice_ptr v0
-    v7 = add v3, 65
-    mcopy v7, v6, 0 !metadata(memory=heap)
-    v8 = create 0, v3, 65
-    jumpi v8, bb2, bb1
+    data_copy Implementation_initcode_0, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v9 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v9, 15
-    memory_object_store_word memorybytes, v9, 0, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
-    v10 = shl 0, 1
-    v11 = internal_call @_cloneDeterministic, 1, v8, v9, v10
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = gas
-    v14 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
-    v15 = slice_ptr v14
-    v16 = slice_len v14
-    v17 = staticcall v13, v12, v15, v16, 0, 32
-    jumpi v17, bb4, bb3
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v7, 15
+    v8 = memory_object_data memorybytes, v7
+    mstore v8, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
+    v9 = shl 0, 1
+    v10 = internal_call @_cloneDeterministic, 1, v6, v7, v9
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = gas
+    v13 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = staticcall v12, v11, v14, v15, 0, 32
+    jumpi v16, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v18 = returndatasize
-    v19 = lt v18, 32
-    jumpi v19, bb5, bb6
+    v17 = returndatasize
+    v18 = lt v17, 32
+    jumpi v18, bb5, bb6
   bb6:
-    v20 = add 0, 0
-    v21 = mload v20
-    v22 = add 0, 0
-    v23 = mload v22
-    v24 = eq v23, 7
-    v25 = iszero v24
-    jumpi v25, bb7, bb8
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = eq v22, 7
+    v24 = iszero v23
+    jumpi v24, bb7, bb8
   bb8:
     ret 1
   bb7:

@@ -785,6 +785,7 @@ impl AliasAnalysis {
             }
             InstKind::MemoryToStorage { memory, .. } => operand != *memory,
             InstKind::CalldataCopy(dest, _, _)
+            | InstKind::DataCopy(_, dest, _)
             | InstKind::CodeCopy(dest, _, _)
             | InstKind::ReturnDataCopy(dest, _, _)
             | InstKind::Keccak256(dest, _)
@@ -1106,6 +1107,7 @@ impl AliasAnalysis {
                 write_memory(&mut effects, dest, SizeOperand::Value(size));
             }
             InstKind::CalldataCopy(dest, _, size)
+            | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ReturnDataCopy(dest, _, size) => {
                 write_memory(&mut effects, dest, SizeOperand::Value(size));
@@ -1698,6 +1700,7 @@ impl AliasAnalysis {
             InstKind::MCopy(dest, _, size)
             | InstKind::MemoryZero(dest, size)
             | InstKind::CalldataCopy(dest, _, size)
+            | InstKind::DataCopy(_, dest, size)
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ReturnDataCopy(dest, _, size) => {
                 Self::range_may_overlap_fmp(func, dest, func.value_u64(size))

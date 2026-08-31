@@ -1,12 +1,87 @@
 warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
    ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
    │
+LL │ ┏ contract test {
+LL │ ┃     function f() public pure returns (string memory ret) {
+LL │ ┃         // 27000 bytes long data
+LL │ ┃         ret = ".....................................................................................................................…
+LL │ ┃     }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
+LL │ ┏ contract A is test {
+LL │ ┃     function a() external pure returns (uint256) { return 1; }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
+LL │ ┏ contract B is test {
+LL │ ┃     function b() external pure returns (uint256) { return 2; }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
+LL │ ┏ contract C is test {
+LL │ ┃     function c() external pure returns (uint256) { return 3; }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
+LL │ ┏ contract D is test {
+LL │ ┃     function d() external pure returns (uint256) { return 4; }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
 LL │ ┏ contract RuntimeLimit {
 LL │ ┃     function deployTest() external returns (address) { return address(new test()); }
 LL │ ┃     function deployA() external returns (address) { return address(new A()); }
 LL │ ┃     function deployB() external returns (address) { return address(new B()); }
 LL │ ┃     function deployC() external returns (address) { return address(new C()); }
 LL │ ┃     function deployD() external returns (address) { return address(new D()); }
+LL │ ┃ }
+   │ ┗━┛
+   │
+   ├ note: the limit was introduced in spuriousDragon
+   ├ note: this contract may not be deployable on Mainnet
+   ╰ help: consider enabling the optimizer with a low runs value, turning off revert strings, or using libraries
+
+warning[5574]: contract code size is <SIZE> bytes and exceeds 24576 bytes
+   ╭▸ ROOT/tests/ui/codegen/size-limits/runtime.sol:LL:CC
+   │
+LL │ ┏ contract E is test {
+LL │ ┃     function e() external pure returns (uint256) { return 5; }
 LL │ ┃ }
    │ ┗━┛
    │

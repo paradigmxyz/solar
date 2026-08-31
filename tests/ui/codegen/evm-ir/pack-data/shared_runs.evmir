@@ -1,0 +1,43 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module shared_runs
+
+// Neither run pays for its own data, but sharing one blob makes both profitable.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 64
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
+// CHECK-NEXT: {{^[ +].*}}dup 3
+// CHECK-NEXT: {{^[ +].*}}codecopy
+bb0:
+  push 128
+  push 0x11112222333344445555666677778888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999aaaabbbbccccddddeeeeffff0000
+  swap 1
+  mstore
+  stop
+bb1:
+  push 256
+  push 0x11112222333344445555666677778888
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x9999aaaabbbbccccddddeeeeffff0000
+  swap 1
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 64
+// CHECK-NEXT: {{^[ +].*}}push_data literal_0
+// CHECK-NEXT: {{^[ +].*}}dup 3
+// CHECK-NEXT: {{^[ +].*}}codecopy
+// CHECK-NOT: {{^[ +].*}}mstore
+
+// CHECK: @data literal_0 hex"0000000000000000000000000000000011112222333344445555666677778888000000000000000000000000000000009999aaaabbbbccccddddeeeeffff0000"

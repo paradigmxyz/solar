@@ -34,10 +34,11 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
-    AllocationSemantics, BlockId, Disambiguator, EffectKind, FrameMode, FrameSlotKind, Function,
-    FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
-    MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias,
-    StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
+    AllocationSemantics, BlockId, DataId, DataRef, Disambiguator, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
+    MemoryRegion, Module, StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator,
+    Value, ValueId,
 };
 use crate::mir::{AbiWordValidator, MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
@@ -86,6 +87,7 @@ struct Parser<'sess, 'ast> {
     block_order: Vec<BlockId>,
     value_labels: FxHashMap<u32, ValueId>,
     immutable_names: FxHashMap<Symbol, (ImmutableId, MirType)>,
+    data_sizes: Vec<usize>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
     /// ABI input layouts interned while parsing instructions.
@@ -123,6 +125,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
             immutable_names: FxHashMap::default(),
+            data_sizes: Vec::new(),
             abi_layouts: Vec::new(),
             abi_param_layouts: Vec::new(),
             pending_gt: 0,
@@ -200,6 +203,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.phase = phase;
         let mut function_refs = Vec::new();
 
+        if self.parser.check_keyword(sym::data) {
+            self.parse_data_declarations(&mut module)?;
+        }
         if self.parser.check_keyword(sym::immutables) {
             self.parse_immutable_declarations(&mut module)?;
         }
@@ -215,6 +221,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
         Ok(module)
+    }
+
+    fn parse_data_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
+        self.parser.expect_keyword(sym::data)?;
+        self.parser.expect(TokenKind::Colon)?;
+        while !self.parser.is_eof()
+            && !self.parser.check_keyword(sym::immutables)
+            && !(self.parser.check_keyword(sym::fn_)
+                && self.parser.look_ahead(1).kind == TokenKind::At)
+        {
+            let (id, name) = self.parser.parse_data_id()?;
+            let expected = U256::from(module.data_count());
+            if id != expected {
+                return Err(self.parser.error(format!("expected data ID {expected}, found {id}")));
+            }
+            self.parser.expect(TokenKind::Colon)?;
+            let bytes = self.parser.parse_data_bytes()?;
+            module.add_data(bytes, name);
+        }
+        self.data_sizes = module.iter_data().map(|(_, data)| data.len()).collect();
+        Ok(())
     }
 
     fn parse_immutable_declarations(&mut self, module: &mut Module) -> PResult<'sess, ()> {
@@ -1340,6 +1367,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
+    fn parse_data_ref(&mut self) -> PResult<'sess, DataRef> {
+        let span = self.parser.token().span;
+        let (value, offset, offset_span) = self.parser.parse_data_ref()?;
+        let Ok(index) = usize::try_from(value) else {
+            return Err(self.parser.error_at(span, "data ID exceeds the index limit"));
+        };
+        let Some(&size) = self.data_sizes.get(index) else {
+            return Err(self.parser.error_at(span, format!("unknown data ID `{index}`")));
+        };
+        if offset as usize > size {
+            return Err(self
+                .parser
+                .error_at(offset_span, format!("data offset {offset} exceeds data size {size}")));
+        }
+        Ok(DataRef::new(DataId::from_usize(index), offset))
+    }
+
     fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
         value
             .try_into()
@@ -1795,6 +1839,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::constructor_args_base => unit!(ConstructorArgsBase => MirType::uint256()),
             sym::constructor_args_end => unit!(ConstructorArgsEnd => MirType::uint256()),
 
+            sym::data_copy => {
+                let data = self.parse_data_ref()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let dest = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let size = self.parse_value(builder)?;
+                (InstKind::DataCopy(data, dest, size), None)
+            }
             kw::Codesize => unit!(CodeSize => MirType::uint256()),
             kw::Codecopy => inst!(CodeCopy(a, b, c)),
             sym::storeimmutable => {

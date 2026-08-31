@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pack-data/joint_reuse.evmir (before pack-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pack-data/joint_reuse.evmir (after pack-data) ===
+  @module joint_reuse
+  bb0:
+    push 128
+-   push 0x111111111111111111111111111111111111111111111111
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x2222222222222222222222222222222222222222222222222222222222222222
+-   swap 1
+-   mstore
++   push 64
++   push_data literal_0+32
++   dup 3
++   codecopy
+    stop
+  bb1:
+    push 256
+-   push 0
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x111111111111111111111111111111111111111111111111
+-   swap 1
+-   mstore
+-   push 64
+-   dup 2
+-   add
+-   push 0x2222222222222222222222222222222222222222222222222222222222222222
+-   swap 1
+-   mstore
++   push 96
++   push_data literal_0
++   dup 3
++   codecopy
+    stop
++ 
++ @data literal_0 hex"000000000000000000000000000000000000000000000000000000000000000000000000000000001111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222"
+  

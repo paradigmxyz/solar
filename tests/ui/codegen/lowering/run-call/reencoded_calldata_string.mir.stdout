@@ -60,28 +60,29 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v1 = gas
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 3
-    memory_object_store_word memorybytes, v2, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v3 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
-    v4 = slice_ptr v3
-    v5 = slice_len v3
-    v6 = call v1, v0, 0, v4, v5, 0, 0
-    jumpi v6, bb2, bb1
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v1, v0, 0, v5, v6, 0, 0
+    jumpi v7, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v7 = returndatasize
-    v8 = add v7, 63
-    v9 = lt v8, v7
-    jumpi v9, bb3, bb4
+    v8 = returndatasize
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    jumpi v10, bb3, bb4
   bb4:
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    set_memory_object_len memorybytes, v12, v7
-    v13 = make_returndata_slice 0, v7
-    memory_object_copy_from_slice memorybytes, v12, v13
-    v14 = abi_decode [bytes], v12
-    ret v14
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v8
+    v14 = make_returndata_slice 0, v8
+    memory_object_copy_from_slice memorybytes, v13, v14
+    v15 = abi_decode [bytes], v13
+    ret v15
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

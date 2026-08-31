@@ -59,17 +59,18 @@ fn @encodeLocalSelector() -> bytes4 [selector=0x0e6d4a3f, pure, abi_params=[], a
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
-    memory_object_store_word memorybytes, v0, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode [memory_bytes], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0
-    v2 = memory_object_load_element memorybytes, v1, 0
-    v3 = memory_object_len memorybytes, v1
-    v4 = lt v3, 4
-    v5 = sub 4, v3
-    v6 = mul 8, v5
-    v7 = shl v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = select v4, v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v9 = and v2, v8
-    ret v9
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v2 = abi_encode [memory_bytes], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v0
+    v3 = memory_object_load_element memorybytes, v2, 0
+    v4 = memory_object_len memorybytes, v2
+    v5 = lt v4, 4
+    v6 = sub 4, v4
+    v7 = mul 8, v6
+    v8 = shl v7, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v9 = select v5, v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v10 = and v3, v9
+    ret v10
 }
 
 fn @orByte(arg0: bytes1, arg1: bytes1) -> bytes1 [pure] {

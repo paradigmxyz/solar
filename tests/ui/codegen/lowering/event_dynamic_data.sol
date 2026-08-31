@@ -16,7 +16,8 @@ contract EventDynamicData {
 
     // CHECK-LABEL: fn @literal{{[( ]}}
     // CHECK: set_memory_object_len memorybytes, {{v[0-9]+}}, 5
-    // CHECK: memory_object_store_word memorybytes, {{v[0-9]+}}, 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    // CHECK: [[LITERAL_DATA:v[0-9]+]] = memory_object_data memorybytes, {{v[0-9]+}}
+    // CHECK: mstore [[LITERAL_DATA]], 0x736f6c6172000000000000000000000000000000000000000000000000000000
     // CHECK: [[ENCODED2:v[0-9]+]] = abi_encode [memory_bytes, word], args
     // CHECK: [[PTR2:v[0-9]+]] = slice_ptr [[ENCODED2]]
     // CHECK: [[LEN2:v[0-9]+]] = slice_len [[ENCODED2]]

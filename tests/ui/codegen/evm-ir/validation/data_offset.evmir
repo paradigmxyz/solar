@@ -1,0 +1,8 @@
+//~? ERROR: EVM IR verification failed: block 0: program data offset `2` exceeds data size `1`
+@module module
+
+bb0:
+  push_data literal_0+2
+  stop
+
+@data literal_0 hex"aa"

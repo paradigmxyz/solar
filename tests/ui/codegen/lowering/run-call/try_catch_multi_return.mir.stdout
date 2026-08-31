@@ -9,7 +9,8 @@ fn @value(arg0: bool) -> (u256, memorybytes) [selector=0xc4d47ed1, pure, abi_par
   bb3:
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v1, 2
-    memory_object_store_word memorybytes, v1, 0, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v2 = memory_object_data memorybytes, v1
+    mstore v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
     ret 13, v1
   bb1:
     internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
@@ -27,45 +28,30 @@ fn @revert_error(arg0: u256, arg1: u256) {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturn ===
 @module TryMultiReturn
+data:
+  TryMultiReturnTarget_initcode_0: hex"34600e576101968060125f395ff35b5f5ffd34601a575f3560e01c8063c4d47ed114601657601a565b601e565b5f80fd5b61018060405260243610156101015760fd565b60043515156069576002610140527f6e6f0000000000000000000000000000000000000000000000000000000000006101605261015b565b6040516040810160405260028152602081017f6f6b00000000000000000000000000000000000000000000000000000000000081525060405160408101600d82526020820182820390528251831515810280608052905080608052806080528152601f19601f60805101168060a0528060a0526020820191508060a0521560a0516080519190929091929161011b57610110565b5f80fd5b600435600290101560fd576031565b6020820381015f8152505b602085019450818060a05281019150828060805285825e5090509150810390505f9001601f8101601f198116905060405181810191508160405290508181f35b7f08c379a0000000000000000000000000000000000000000000000000000000005f526020600452610140516024526101605160445260645ffd"
+
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 334, v1
+    v2 = and 455, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e5761011d8060125f395ff35b5f5ffd34601a575f3560e01c8063c4d47e
-    v4 = add v3, 32
-    mstore v4, 0xd114601657601a565b601e565b5f80fd5b610100604052602436101560d55760
-    v5 = add v3, 64
-    mstore v5, 0xd1565b6004351515606557600260c0527f6e6f00000000000000000000000000
-    v6 = add v3, 96
-    mstore v6, 0x60e05260e4565b6040516040810160
-    v7 = add v3, 128
-    mstore v7, 0xd825260208201828203905260028152602090015f81017f6f6b000000000000
-    v8 = add v3, 160
-    mstore v8, 0x8152506020900181
-    v9 = add v3, 192
-    mstore v9, 0x900390505f9001601f8101601f19811690506040518181019150816040529050
-    v10 = add v3, 224
-    mstore v10, 0x8181f35b5f80fd5b600435600290101560d1576030565b7f08c379a000000000
-    v11 = add v3, 256
-    mstore v11, 0x5f52602060045260
-    v12 = add v3, 288
-    mstore v12, 0xc05160245260e05160445260645ffd0000000000000000000000000000000000
-    v13 = slice_ptr v0
-    v14 = add v3, 303
-    mcopy v14, v13, 0 !metadata(memory=heap)
-    v15 = create 0, v3, 303
-    jumpi v15, bb2, bb1
+    data_copy TryMultiReturnTarget_initcode_0, v3, 424
+    v4 = slice_ptr v0
+    v5 = add v3, 424
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 424
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = sload 0 !metadata(storage=slot(0))
-    v17 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = and v16, v17
-    v19 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = or v18, v19
-    sstore 0, v20 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
     stop
 }
 

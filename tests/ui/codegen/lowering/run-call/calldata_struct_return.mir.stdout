@@ -38,48 +38,50 @@ fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a6
     v3 = shl 0, 2
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v4, 3
-    memory_object_store_word memorybytes, v4, 0, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v5, 4
-    memory_object_store_word memorybytes, v5, 0, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
-    v6 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args v2, v3, 3, 4, v4, v5
-    v7 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v6
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = staticcall v1, v0, v8, v9, 0, 0
-    jumpi v10, bb2, bb1
+    v5 = memory_object_data memorybytes, v4
+    mstore v5, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v6, 4
+    v7 = memory_object_data memorybytes, v6
+    mstore v7, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
+    v8 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args v2, v3, 3, 4, v4, v6
+    v9 = abi_encode [memory_bytes], selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v8
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = staticcall v1, v0, v10, v11, 0, 0
+    jumpi v12, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v11 = returndatasize
-    v12 = add v11, 63
-    v13 = lt v12, v11
-    jumpi v13, bb3, bb4
+    v13 = returndatasize
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    jumpi v15, bb3, bb4
   bb4:
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
-    set_memory_object_len memorybytes, v16, v11
-    v17 = make_returndata_slice 0, v11
-    memory_object_copy_from_slice memorybytes, v16, v17
-    v18 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v16
-    v19 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v20 = memory_object_load_element memoryfixedarray<2, 1>, v19, 1
-    v21 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v22 = memory_object_data memoryfixedarray, v21
-    frame_store multi_return, word, 0, v22 !metadata(memory=scratch)
-    memory_object_store_element memoryfixedarray<2, 1>, v21, 1, v20
-    v23 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v24 = memory_object_load_element memoryfixedarray<2, 1>, v23, 1
-    v25 = memory_object_load_field memorystruct<6>, v24, 0
-    v26 = memory_object_load_field memorystruct<6>, v24, 1
-    v27 = memory_object_load_field memorystruct<6>, v24, 2
-    v28 = memory_object_load_field memorystruct<6>, v24, 3
-    v29 = memory_object_load_field memorystruct<6>, v24, 4
-    v30 = memory_object_len memorybytes, v29
-    v31 = memory_object_load_field memorystruct<6>, v24, 5
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    v19 = make_returndata_slice 0, v13
+    memory_object_copy_from_slice memorybytes, v18, v19
+    v20 = abi_decode [bool, tuple<bytes32, bytes32, u256, u256, bytes, bytes>], v18
+    v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v22 = memory_object_load_element memoryfixedarray<2, 1>, v21, 1
+    v23 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v24 = memory_object_data memoryfixedarray, v23
+    frame_store multi_return, word, 0, v24 !metadata(memory=scratch)
+    memory_object_store_element memoryfixedarray<2, 1>, v23, 1, v22
+    v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v26 = memory_object_load_element memoryfixedarray<2, 1>, v25, 1
+    v27 = memory_object_load_field memorystruct<6>, v26, 0
+    v28 = memory_object_load_field memorystruct<6>, v26, 1
+    v29 = memory_object_load_field memorystruct<6>, v26, 2
+    v30 = memory_object_load_field memorystruct<6>, v26, 3
+    v31 = memory_object_load_field memorystruct<6>, v26, 4
     v32 = memory_object_len memorybytes, v31
-    ret v18, v25, v26, v27, v28, v30, v32
+    v33 = memory_object_load_field memorystruct<6>, v26, 5
+    v34 = memory_object_len memorybytes, v33
+    ret v20, v27, v28, v29, v30, v32, v34
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -9,7 +9,7 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
-mod constant_data;
+pub(super) mod data;
 mod dce;
 mod legalize_shifts;
 mod outline;
@@ -58,7 +58,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &compact_pushes::CompactPushes,
     &coalesce_copies::CoalesceCopies,
-    &constant_data::ConstantData,
+    &data::PackData,
     &dce::Dce,
     &legalize_shifts::LegalizeShifts,
     &cfg_simplify::CfgSimplify,
@@ -73,10 +73,10 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Normalize and establish the first physical layout.
     &peephole::Peephole,
     &coalesce_copies::CoalesceCopies,
-    &constant_data::ConstantData,
+    &cfg_simplify::CfgSimplify,
+    &data::PackExistingData,
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
-    &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
@@ -121,6 +121,8 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
+    // Materialize constants and finalize the referenced data pool after all code transforms.
+    &data::PackData,
 ];
 
 /// Finds an EVM IR pass by command-line name.

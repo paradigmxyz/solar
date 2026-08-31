@@ -278,13 +278,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
                         // value = bytes(creation_bytecode(C) | runtime_bytecode(C))
-                        let bytecodes = match builtin {
-                            Builtin::ContractCreationCode => self.context.child_bytecodes,
-                            Builtin::ContractRuntimeCode => self.context.child_runtime_bytecodes,
-                            _ => unreachable!(),
-                        };
-                        match bytecodes.get(&contract_id) {
-                            Some(bytecode) => self.lower_bytes_literal(bytecode),
+                        let creation = builtin == Builtin::ContractCreationCode;
+                        let bytecode =
+                            self.context.child_bytecodes.get(&contract_id).and_then(|bytecodes| {
+                                if creation { bytecodes.deployment() } else { bytecodes.runtime() }
+                            });
+                        match bytecode {
+                            Some(bytecode) => Self::build_bytes_literal(
+                                self.context.gcx,
+                                self.context.module,
+                                &mut self.builder,
+                                bytecode,
+                                AllocationSemantics::INTERNAL,
+                                Some(super::super::data::contract_bytecode_data_name(
+                                    self.context.gcx,
+                                    contract_id,
+                                    creation,
+                                )),
+                            ),
                             None => {
                                 let (kind, name) = match builtin {
                                     Builtin::ContractCreationCode => ("creation", "creationCode"),
@@ -835,9 +846,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(bytes) = all_literals {
             // output = bytes(concat(literals))
             return Self::build_bytes_literal(
+                self.context.gcx,
+                self.context.module,
                 &mut self.builder,
                 &bytes,
                 AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                None,
             );
         }
 

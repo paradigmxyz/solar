@@ -28,6 +28,7 @@
 //!     the callee.
 //! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
 //!     and loads use the declared type.
+//! 13. **Program data consistency**: data references name allocated entries at valid offsets.
 //!
 //! # Usage
 //!
@@ -39,6 +40,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Value, ValueId},
 };
+use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
@@ -86,17 +88,17 @@ impl<'a> Validator<'a> {
     /// Validates a single function.
     #[cfg(test)]
     fn validate_standalone_function(mut self, func: &Function) {
-        self.validate_function_body(func);
+        self.validate_function_body(None, func);
     }
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
-        self.validate_function_body(func);
+        self.validate_function_body(Some(module), func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
         self.validate_function_phase(module, func);
     }
 
-    fn validate_function_body(&mut self, func: &Function) {
+    fn validate_function_body(&mut self, module: Option<&Module>, func: &Function) {
         let errors_before = self.error_count;
         let num_values = func.num_values();
         let num_blocks = func.blocks.len();
@@ -252,6 +254,10 @@ impl<'a> Validator<'a> {
                             inst_id,
                         );
                     }
+                }
+
+                if let Some(module) = module {
+                    self.validate_data_reference(module, func, block_id, inst_id);
                 }
 
                 // Phi-specific checks.
@@ -526,6 +532,41 @@ impl<'a> Validator<'a> {
         self.function = None;
     }
 
+    fn validate_data_reference(
+        &mut self,
+        module: &Module,
+        func: &Function,
+        block_id: BlockId,
+        inst_id: InstId,
+    ) {
+        let InstKind::DataCopy(data, _, size) = &func.inst(inst_id).kind else { return };
+        let Some(bytes) = module.get_data(data.id) else {
+            self.emit_at_inst(
+                format_args!("data_copy references nonexistent data{}", data.id.index()),
+                block_id,
+                inst_id,
+            );
+            return;
+        };
+        let Some(size) = func.value_u256(*size) else {
+            self.emit_at_inst("data_copy size must be an immediate", block_id, inst_id);
+            return;
+        };
+        let end = U256::from(data.offset).checked_add(size);
+        if end.is_none_or(|end| end > U256::from(bytes.len())) {
+            self.emit_at_inst(
+                format_args!(
+                    "data_copy range {}..{} exceeds data size {}",
+                    data.offset,
+                    end.map_or_else(|| "overflow".into(), |end| end.to_string()),
+                    bytes.len()
+                ),
+                block_id,
+                inst_id,
+            );
+        }
+    }
+
     /// Checks that call targets exist and argument counts match.
     ///
     /// Only live instructions — those still present in a block — are checked. An
@@ -768,7 +809,7 @@ pub(crate) fn validate(dcx: &DiagCtxt, module: &Module) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, FunctionBuilder, MirType, Terminator};
+    use crate::mir::{DataId, DataRef, Function, FunctionBuilder, MirType, Terminator};
     use snapbox::{assert_data_eq, str};
     use solar_interface::{ColorChoice, Ident, Session};
 
@@ -799,6 +840,57 @@ mod tests {
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
 error: module is in the `evm-shaped` phase but has multiple `entry` routing functions
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_data_reference_is_caught() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let dest = builder.imm_u64(0);
+                let size = builder.imm_u64(1);
+                builder.data_copy(DataRef::new(DataId::from_usize(7), 0), dest, size);
+                builder.stop();
+            }
+            module.functions.push(func);
+            Validator::new(&sess.dcx).validate_module(&module);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0, inst0] data_copy references nonexistent data7
+
+
+"#]]
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_data_offset_is_caught() {
+        with_session(|sess| {
+            let mut module = Module::new(Ident::DUMMY);
+            let data = module.add_data(vec![0; 4].into(), None);
+            let mut func = make_func();
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let dest = builder.imm_u64(0);
+                let size = builder.imm_u64(1);
+                builder.data_copy(DataRef::new(data, 5), dest, size);
+                builder.stop();
+            }
+            module.functions.push(func);
+            Validator::new(&sess.dcx).validate_module(&module);
+            assert_data_eq!(
+                sess.emitted_diagnostics().unwrap().to_string(),
+                str![[r#"
+error: [fn0] [bb0, inst0] data_copy range 5..6 exceeds data size 4
 
 
 "#]]

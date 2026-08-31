@@ -118,69 +118,55 @@ fn @_decompress() {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Harness ===
 @module Harness
+data:
+  Decompressor_initcode_0: hex"34600e5761011e8060125f395ff35b5f5ffd60c06040525f5460ff901615601c57365f5f37365f205f5260205ff35b5f5460ff198116905060ff600116811790505f5536155f90141515603e573636f35b6003195f5f915b813681105f9014156072576096565b5a5f38835f3085f49150503d5f5f3e155f9014151561011a57610116565b35828281018290189150815f1a9150600181019050925080155f90141560a15760d4565b5050506054565b6045565b82359050828281018290189150815f1a915060018101905092505f1984818152905081607f8111155f90141560e65760f9565b8381815390506001810190509250609d565b6001810136833791509350919291610101565b915093509192915b607f8116905060019001820191509091906045565b3d5ffd5b3d5ff3"
+
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
     v2 = and 335, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600e5761011e8060125f395ff35b5f5ffd60c06040525f5460ff901615601c
-    v4 = add v3, 32
-    mstore v4, 0x57365f5f37365f205f5260205ff35b5f5460ff198116905060ff600116811790
-    v5 = add v3, 64
-    mstore v5, 0x505f5536155f90141515603e573636f35b6003195f5f915b813681105f901415
-    v6 = add v3, 96
-    mstore v6, 0x6072576096565b5a5f38835f3085f49150503d5f5f3e155f9014151561011a57
-    v7 = add v3, 128
-    mstore v7, 0x610116565b35828281018290189150815f1a9150600181019050925080155f90
-    v8 = add v3, 160
-    mstore v8, 0x141560a15760d4565b5050506054565b6045565b823590508282810182901891
-    v9 = add v3, 192
-    mstore v9, 0x50815f1a915060018101905092505f1984818152905081607f8111155f901415
-    v10 = add v3, 224
-    mstore v10, 0x60e65760f9565b8381815390506001810190509250609d565b60018101368337
-    v11 = add v3, 256
-    mstore v11, 0x91509350919291610101565b915093509192915b607f81169050600190018201
-    v12 = add v3, 288
-    mstore v12, 0x91509091906045565b3d5ffd5b3d5ff300000000000000000000000000000000
-    v13 = slice_ptr v0
-    v14 = add v3, 304
-    mcopy v14, v13, 0 !metadata(memory=heap)
-    v15 = create 0, v3, 304
-    jumpi v15, bb2, bb1
+    data_copy Decompressor_initcode_0, v3, 304
+    v4 = slice_ptr v0
+    v5 = add v3, 304
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 304
+    jumpi v6, bb2, bb1
   bb1:
     revert_returndata
   bb2:
-    v16 = gas
-    v17 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v17, 4
-    memory_object_store_word memorybytes, v17, 0, 0xff80ff8000000000000000000000000000000000000000000000000000000000
-    v18 = memory_object_data memorybytes, v17
-    v19 = memory_object_len memorybytes, v17
-    v20 = call v16, v15, 0, v18, v19, 0, 0
-    v21 = returndatasize
-    v22 = add v21, 63
-    v23 = lt v22, v21
-    jumpi v23, bb3, bb4
+    v7 = gas
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v8, 4
+    v9 = memory_object_data memorybytes, v8
+    mstore v9, 0xff80ff8000000000000000000000000000000000000000000000000000000000
+    v10 = memory_object_data memorybytes, v8
+    v11 = memory_object_len memorybytes, v8
+    v12 = call v7, v6, 0, v10, v11, 0, 0
+    v13 = returndatasize
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    jumpi v15, bb3, bb4
   bb4:
-    v24 = not 31
-    v25 = and v22, v24
-    v26 = alloc memorybytes, exact, uninitialized, infallible, v25
-    set_memory_object_len memorybytes, v26, v21
-    v27 = make_returndata_slice 0, v21
-    memory_object_copy_from_slice memorybytes, v26, v27
-    v28 = iszero v20
-    jumpi v28, bb5, bb6
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    v19 = make_returndata_slice 0, v13
+    memory_object_copy_from_slice memorybytes, v18, v19
+    v20 = iszero v12
+    jumpi v20, bb5, bb6
   bb6:
-    v29 = abi_decode [bytes32], v26
-    v30 = not 31
-    v31 = and 319, v30
-    v32 = alloc memorybytes, exact, zeroed, panic, v31
-    set_memory_object_len memorybytes, v32, 256
-    v33 = keccak256_bytes v32
-    v34 = eq v29, v33
-    v35 = iszero v34
-    jumpi v35, bb7, bb8
+    v21 = abi_decode [bytes32], v18
+    v22 = not 31
+    v23 = and 319, v22
+    v24 = alloc memorybytes, exact, zeroed, panic, v23
+    set_memory_object_len memorybytes, v24, 256
+    v25 = keccak256_bytes v24
+    v26 = eq v21, v25
+    v27 = iszero v26
+    jumpi v27, bb7, bb8
   bb8:
     ret 1
   bb7:

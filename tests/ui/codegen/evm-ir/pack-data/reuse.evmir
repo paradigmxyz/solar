@@ -1,0 +1,34 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module reuse
+
+// Reusing existing data makes this compact-zero store run profitable.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 64
+// CHECK-NEXT: {{^[ +].*}}push_data zero_words_0
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}codecopy
+// CHECK: {{^[ +].*}}push 64
+// CHECK-NEXT: {{^[ +].*}}push_data zero_words_0
+// CHECK-NEXT: {{^[ +].*}}dup 3
+// CHECK-NEXT: {{^[ +].*}}codecopy
+// CHECK-NOT: {{^[ +].*}}mstore
+bb0:
+  push 64
+  push_data zero_words_0
+  push 0
+  codecopy
+  push 128
+  push 0
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0
+  swap 1
+  mstore
+  stop
+
+// CHECK: @data zero_words_0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+@data zero_words_0 hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
