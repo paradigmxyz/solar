@@ -1,4 +1,4 @@
-//@ compile-flags: -Zevm-ir-pipeline=reorder-pushes
+//@ compile-flags: -Zevm-ir-pipeline=reorder-pushes,block-layout
 //@ filecheck:
 @module UnknownJump
 
@@ -26,11 +26,9 @@ bb1:
   sub
   stop
 
-// A non-fallthrough jump already raises this block's relative high-water mark
-// enough for the reorder, even though the unknown edge hides its entry depth.
+// The current non-fallthrough jump cannot provide headroom: block layout may make it fall through.
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK-NEXT: +   push 1
-// CHECK: -   swap 1
+// CHECK: {{^    swap 1}}
 bb2:
   calldatasize
   calldatasize
@@ -55,3 +53,9 @@ bb5:
   jump bb6
 bb6:
   stop
+
+// Block layout makes bb4 the fallthrough successor of bb2. The earlier rewrite must remain
+// blocked instead of relying on the target push that this layout removes.
+// CHECK-LABEL: after block-layout
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^    swap 1}}

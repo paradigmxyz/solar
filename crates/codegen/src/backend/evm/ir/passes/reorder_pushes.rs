@@ -27,11 +27,7 @@
 //! safely. The exact mixed-stack rules run in every optimized mode because they preserve the
 //! surrounding value layout and cannot increase local cost.
 
-use super::{
-    EvmPass,
-    compact_pushes::ImmediateMaterialization,
-    utils::{StackDepths, terminator_lowering_growth},
-};
+use super::{EvmPass, compact_pushes::ImmediateMaterialization, utils::StackDepths};
 use crate::backend::evm::{
     ir::{BlockId, Instruction, Module},
     op::{self, StackOp},
@@ -307,12 +303,9 @@ fn candidate_high_water(module: &Module, block_id: BlockId) -> Option<Option<isi
             high_water = None;
         }
     }
-    found.then(|| {
-        high_water.zip(depth).and_then(|(high_water, depth)| {
-            terminator_lowering_growth(module, block_id)
-                .map(|growth| high_water.max(depth + growth as isize))
-        })
-    })
+    // Block layout may change whether the terminator needs a target push. Only instruction peaks
+    // are stable across later layouts and can justify a local rewrite.
+    found.then_some(high_water)
 }
 
 struct InstructionNode {
@@ -384,28 +377,7 @@ impl InstructionSequence {
     }
 
     fn move_before(&mut self, node: usize, before: usize) {
-        let previous = self.nodes[node].previous;
-        let next = self.nodes[node].next;
-        if let Some(previous) = previous {
-            self.nodes[previous].next = next;
-        } else {
-            self.first = next;
-        }
-        if let Some(next) = next {
-            self.nodes[next].previous = previous;
-        } else {
-            self.last = previous;
-        }
-
-        let previous = self.nodes[before].previous;
-        self.nodes[node].previous = previous;
-        self.nodes[node].next = Some(before);
-        self.nodes[before].previous = Some(node);
-        if let Some(previous) = previous {
-            self.nodes[previous].next = Some(node);
-        } else {
-            self.first = Some(node);
-        }
+        self.move_range_before(node, node, before);
     }
 
     fn move_range_before(&mut self, start: usize, end: usize, before: usize) {
