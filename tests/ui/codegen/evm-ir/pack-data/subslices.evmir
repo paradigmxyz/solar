@@ -3,8 +3,8 @@
 @module subslices
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: {{^[ +].*}}push_data container_1+1
-// CHECK: {{^[ +].*}}push_data needle_0
+// CHECK: {{^[ +].*}}push_data small_0
+// CHECK: {{^[ +].*}}push_data small_0+1
 // CHECK: {{^[ +].*}}push_data container_1+1
 bb0:
   push 5
@@ -21,9 +21,9 @@ bb0:
   codecopy
   stop
 
-// CHECK: @data needle_0 hex"2233"
+// CHECK: @data small_0 hex"1122334455"
 // CHECK: @data container_1 hex"00112233445566"
-// CHECK-NOT: @data small_0
+// CHECK-NOT: @data needle_0
 @data small_0 hex"1122334455"
 @data needle_1 hex"2233"
 @data container_2 hex"00112233445566"

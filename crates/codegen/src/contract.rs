@@ -311,10 +311,10 @@ fn generate_contract_bytecode(
                 .expect("dependency artifact should have been generated");
             (
                 dependency,
-                lower::ContractBytecodes {
-                    deployment: artifact.deployment.clone(),
-                    runtime: artifact.runtime.clone(),
-                },
+                lower::ContractBytecodes::new(
+                    artifact.deployment.clone(),
+                    artifact.runtime.clone(),
+                ),
             )
         })
         .collect();
@@ -331,10 +331,12 @@ fn generate_contract_bytecode(
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
         let runtime_suffix = captures.runtime_suffix.map(|suffix| suffix(contract_id));
-        let capture_final_mir = capture_mir && !capture_built;
-        let capture_evm_ir = captures.evm_ir.contains(contract_id);
-        let mut codegen =
-            new_contract_codegen(gcx, capture_final_mir, capture_evm_ir, runtime_suffix.as_ref());
+        let mut codegen = new_contract_codegen(
+            gcx,
+            capture_mir && !capture_built,
+            captures.evm_ir.contains(contract_id),
+            runtime_suffix.as_ref(),
+        );
         let mut artifact = codegen.lower_module(&mut module);
         gcx.dcx().has_errors()?;
         if gcx.sess.opts.optimization.is_gas()
@@ -348,8 +350,8 @@ fn generate_contract_bytecode(
             gcx.dcx().has_errors()?;
             let mut codegen = new_contract_codegen(
                 gcx,
-                capture_final_mir,
-                capture_evm_ir,
+                capture_mir && !capture_built,
+                captures.evm_ir.contains(contract_id),
                 runtime_suffix.as_ref(),
             );
             let size_rescue_artifact = codegen.lower_module(&mut module);

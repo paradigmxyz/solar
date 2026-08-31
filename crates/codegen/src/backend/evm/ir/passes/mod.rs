@@ -9,7 +9,7 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
-mod data;
+pub(super) mod data;
 mod dce;
 mod legalize_shifts;
 mod outline;

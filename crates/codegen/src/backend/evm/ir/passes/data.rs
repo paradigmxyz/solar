@@ -11,10 +11,7 @@ use crate::backend::evm::{
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
-use solar_data_structures::{
-    index::IndexVec,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_interface::sym;
 use solar_sema::Gcx;
 
@@ -31,8 +28,9 @@ impl EvmPass for PackExistingData {
         "pack-existing-data"
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        pack_existing_data(module)
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
+        let optimization = gcx.sess.opts.optimization;
+        pack_existing_data(module, optimization.is_gas() || optimization.is_size())
     }
 }
 
@@ -50,20 +48,19 @@ impl EvmPass for PackData {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let optimization = gcx.sess.opts.optimization;
         if !(optimization.is_gas() || optimization.is_size()) {
-            return pack_existing_data(module);
+            return pack_existing_data(module, false);
         }
-        let (mut references, groups) = data_references_and_runs(gcx, module);
+        let (references, groups) = data_references_and_runs(gcx, module);
         if references.layout_is_observable() {
             return false;
         }
-        let packed = pack_data(module, &references);
-        if packed {
-            references = data_references(module);
-        }
-        let materialized = materialize_data(gcx, module, &references, groups);
+        let packed = pack_data(module, &references, true);
+        let materialized = materialize_data(gcx, module, groups);
         if materialized {
             let references = data_references(module);
-            pack_data(module, &references);
+            if !references.layout_is_observable() {
+                pack_data(module, &references, true);
+            }
         }
         packed || materialized
     }
@@ -88,8 +85,6 @@ struct PreparedRewrite {
 struct PoolEntry {
     id: DataId,
     bytes: Bytes,
-    references: usize,
-    subslice_safe: bool,
 }
 
 struct DataPool {
@@ -101,7 +96,7 @@ type RewriteGroups = FxHashMap<Bytes, Vec<Rewrite>>;
 
 enum Placement {
     Existing(DataRef),
-    New { additional_bytes: isize, contained: FxHashSet<DataId> },
+    New,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -118,16 +113,11 @@ impl Improvement {
 }
 
 impl DataPool {
-    fn new(data: &IndexVec<DataId, Data>, references: &DataReferences) -> Self {
+    fn new(data: &IndexVec<DataId, Data>) -> Self {
         Self {
             entries: data
                 .iter_enumerated()
-                .map(|(id, data)| PoolEntry {
-                    id,
-                    bytes: data.bytes.clone(),
-                    references: references.counts[id],
-                    subslice_safe: references.subslice_safe[id],
-                })
+                .map(|(id, data)| PoolEntry { id, bytes: data.bytes.clone() })
                 .collect(),
             exact: data
                 .iter_enumerated()
@@ -136,88 +126,33 @@ impl DataPool {
         }
     }
 
-    fn placement(
-        &self,
-        data: &[u8],
-        allow_absorption: bool,
-        total_reference_count: usize,
-    ) -> Placement {
+    fn placement(&self, data: &[u8]) -> Placement {
         if let Some(&data) = self.exact.get(data) {
             return Placement::Existing(data);
         }
         if self.entries.len() >= MAX_DATA_SUBSTRING_ENTRIES {
-            return Placement::New {
-                additional_bytes: data.len() as isize,
-                contained: FxHashSet::default(),
-            };
+            return Placement::New;
         }
-        let mut contained = FxHashSet::default();
-        let mut removed = 0;
         for entry in &self.entries {
             if let Some(offset) = memmem::find(&entry.bytes, data) {
                 return Placement::Existing(DataRef::new(entry.id, data_offset(offset)));
             }
-            if allow_absorption
-                && entry.subslice_safe
-                && entry.bytes.len() > total_reference_count
-                && memmem::find(data, &entry.bytes).is_some()
-            {
-                contained.insert(entry.id);
-                removed += entry.bytes.len();
-            }
         }
-        Placement::New { additional_bytes: data.len() as isize - removed as isize, contained }
+        Placement::New
     }
 
-    fn intern(
-        &mut self,
-        module: &mut Module,
-        bytes: Bytes,
-        reference_count: usize,
-        placement: Placement,
-    ) -> DataRef {
-        let contained = match placement {
-            Placement::Existing(data) => {
-                if self.entries.len() < MAX_DATA_SUBSTRING_ENTRIES {
-                    self.entries
-                        .iter_mut()
-                        .find(|entry| entry.id == data.id)
-                        .expect("existing data is pooled")
-                        .references += reference_count;
-                }
-                return data;
-            }
-            Placement::New { contained, .. } => contained,
-        };
-        let mut reference_count = reference_count;
-        if !contained.is_empty() {
-            self.entries.retain(|entry| {
-                let retain = !contained.contains(&entry.id);
-                if !retain {
-                    self.exact.remove(&entry.bytes);
-                    reference_count += entry.references;
-                }
-                retain
-            });
+    fn intern(&mut self, module: &mut Module, bytes: Bytes, placement: Placement) -> DataRef {
+        if let Placement::Existing(data) = placement {
+            return data;
         }
         let id = module.data.push(Data { bytes: bytes.clone(), name: Some(sym::literal) });
-        self.entries.push(PoolEntry {
-            id,
-            bytes: bytes.clone(),
-            references: reference_count,
-            subslice_safe: true,
-        });
+        self.entries.push(PoolEntry { id, bytes: bytes.clone() });
         self.exact.insert(bytes, DataRef::new(id, 0));
         DataRef::new(id, 0)
     }
 }
 
-fn materialize_data(
-    gcx: Gcx<'_>,
-    module: &mut Module,
-    references: &DataReferences,
-    groups: RewriteGroups,
-) -> bool {
+fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) -> bool {
     if groups.is_empty() {
         return false;
     }
@@ -227,10 +162,7 @@ fn materialize_data(
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
     });
 
-    let total_reference_count = references.counts.iter().sum();
-    let allow_absorption =
-        module.data.len().saturating_add(groups.len()) < MAX_DATA_SUBSTRING_ENTRIES;
-    let mut pool = DataPool::new(&module.data, references);
+    let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
     for (data, mut rewrites) in groups {
@@ -244,8 +176,8 @@ fn materialize_data(
         if rewrites.is_empty() {
             continue;
         }
-        let placement = pool.placement(&data, allow_absorption, total_reference_count);
-        let additional_bytes = placement_additional_bytes(&placement);
+        let placement = pool.placement(&data);
+        let additional_bytes = placement_additional_bytes(&placement, data.len());
         let mut improvement = rewrite_improvement(gcx, data.len(), &rewrites, additional_bytes);
         let mut absorbed = Vec::new();
         for (index, (contained, contained_rewrites)) in
@@ -267,9 +199,7 @@ fn materialize_data(
         }
 
         let size = data.len();
-        let reference_count = rewrites.len()
-            + absorbed.iter().map(|(index, _)| rejected[*index].1.len()).sum::<usize>();
-        let data_ref = pool.intern(module, data.clone(), reference_count, placement);
+        let data_ref = pool.intern(module, data.clone(), placement);
         prepare_rewrites(&mut prepared, rewrites, data_ref, size);
         for (index, offset) in absorbed.into_iter().rev() {
             let (contained, rewrites) = rejected.swap_remove(index);
@@ -349,6 +279,9 @@ fn find_run(
         data.extend_from_slice(&window[3].concrete_immediate().unwrap().to_be_bytes::<32>());
     }
     let instructions = &instructions[start..end];
+    if !instructions.iter().all(Instruction::has_canonical_stack_effect) {
+        return None;
+    }
     let old_size = instructions.iter().map(|inst| encoded_len(gcx, inst)).sum();
     let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
     Some((data.into(), Rewrite { block, start, end, old_size, old_gas }))
@@ -375,7 +308,7 @@ fn is_profitable(gcx: Gcx<'_>, improvement: Improvement) -> bool {
     data_copy_is_profitable(gcx.sess.opts.optimization, improvement.runtime_gas, improvement.bytes)
 }
 
-fn pack_existing_data(module: &mut Module) -> bool {
+fn pack_existing_data(module: &mut Module, allow_subslices: bool) -> bool {
     if module.data.is_empty() {
         return false;
     }
@@ -383,21 +316,20 @@ fn pack_existing_data(module: &mut Module) -> bool {
     if references.layout_is_observable() {
         return false;
     }
-    pack_data(module, &references)
+    pack_data(module, &references, allow_subslices)
 }
 
-fn placement_additional_bytes(placement: &Placement) -> isize {
+fn placement_additional_bytes(placement: &Placement, size: usize) -> isize {
     match placement {
         Placement::Existing(_) => 0,
-        Placement::New { additional_bytes, .. } => *additional_bytes,
+        Placement::New => size as isize,
     }
 }
 
-fn pack_data(module: &mut Module, references: &DataReferences) -> bool {
+fn pack_data(module: &mut Module, references: &DataReferences, allow_subslices: bool) -> bool {
     if module.data.is_empty() {
         return false;
     }
-    let total_reference_count = references.counts.iter().sum();
     let mut referenced = references
         .counts
         .iter_enumerated()
@@ -422,9 +354,10 @@ fn pack_data(module: &mut Module, references: &DataReferences) -> bool {
         let data = &module.data[old_id];
         let data_ref = if let Some(&id) = exact.get(&data.bytes) {
             DataRef::new(id, 0)
-        } else if let Some(data_ref) = (references.subslice_safe[old_id]
+        } else if let Some(data_ref) = (allow_subslices
+            && references.subslice_safe[old_id]
             && module.data.len() < MAX_DATA_SUBSTRING_ENTRIES)
-            .then(|| find_data(&packed, &sources, &data.bytes, old_id, total_reference_count))
+            .then(|| find_data(&packed, &sources, &data.bytes, old_id))
             .flatten()
         {
             data_ref
@@ -473,13 +406,9 @@ fn find_data(
     sources: &IndexVec<DataId, DataId>,
     needle: &[u8],
     needle_id: DataId,
-    total_reference_count: usize,
 ) -> Option<DataRef> {
     data.iter_enumerated().find_map(|(id, known)| {
-        let cannot_widen = sources[id] < needle_id;
-        // A later address can widen its own PUSH and shift every other data
-        // relocation. Each can widen by at most one byte within EVM size limits.
-        if cannot_widen || needle.len() > total_reference_count {
+        if sources[id] < needle_id {
             memmem::find(&known.bytes, needle).map(|offset| DataRef::new(id, data_offset(offset)))
         } else {
             None
@@ -497,6 +426,7 @@ enum DataStackValue {
 struct DataReferences {
     counts: IndexVec<DataId, usize>,
     subslice_safe: IndexVec<DataId, bool>,
+    layout_observable: bool,
 }
 
 impl DataReferences {
@@ -504,19 +434,26 @@ impl DataReferences {
         Self {
             counts: IndexVec::from_vec(vec![0; module.data.len()]),
             subslice_safe: IndexVec::from_vec(vec![true; module.data.len()]),
+            layout_observable: false,
         }
     }
 
     fn layout_is_observable(&self) -> bool {
-        self.counts
-            .iter()
-            .zip(&self.subslice_safe)
-            .any(|(&count, &subslice_safe)| count != 0 && !subslice_safe)
+        self.layout_observable
+            || self
+                .counts
+                .iter()
+                .zip(&self.subslice_safe)
+                .any(|(&count, &subslice_safe)| count != 0 && !subslice_safe)
     }
 }
 
 fn data_references(module: &Module) -> DataReferences {
     scan_data_references(module, |_, _, _| {})
+}
+
+pub(crate) fn data_layout_is_observable(module: &Module) -> bool {
+    data_references(module).layout_is_observable()
 }
 
 fn data_references_and_runs(gcx: Gcx<'_>, module: &Module) -> (DataReferences, RewriteGroups) {
@@ -562,6 +499,9 @@ fn track_data_reference(
     stack: &mut Vec<DataStackValue>,
     references: &mut DataReferences,
 ) {
+    if inst.opcode == op::CODESIZE {
+        references.layout_observable = true;
+    }
     if let Some(data) = inst.pushed_data() {
         references.counts[data.id] += 1;
         stack.push(DataStackValue::Data(data));
@@ -606,6 +546,12 @@ fn track_data_reference(
             }
         }
         return;
+    }
+
+    // A raw branch has a physical successor that this local scan cannot follow.
+    // A data address that survives it may be used there.
+    if inst.has_raw_branch_target() {
+        mark_stack_data_unsafe(stack, &mut references.subslice_safe);
     }
 
     let Some(effect) = inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))

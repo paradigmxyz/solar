@@ -121,8 +121,15 @@ pub(in crate::backend::evm) fn lower_evm_ir(
         assembler.gcx.sess.opts.evm_version,
         assembler.gcx.sess.opts.optimization.is_size(),
     );
+    let data_layout_is_observable = module.data_layout_is_observable();
     for _ in 0..=32 {
-        let program = lower_evm_ir_once(assembler, module, labels, &indexed_jump_lowerings);
+        let program = lower_evm_ir_once(
+            assembler,
+            module,
+            labels,
+            &indexed_jump_lowerings,
+            data_layout_is_observable,
+        );
         let (label_offsets, _) = assembler.resolve_label_offsets(&program);
         if !indexed_jump::refine_indexed_jump_widths(
             module,
@@ -144,6 +151,7 @@ fn lower_evm_ir_once(
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
     indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
+    data_layout_is_observable: bool,
 ) -> Program {
     allocate_referenced_labels(assembler, module, labels);
 
@@ -155,7 +163,6 @@ fn lower_evm_ir_once(
             }
         }
     }
-
     let mut program = Program::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         let original = block.label as usize;
@@ -187,8 +194,14 @@ fn lower_evm_ir_once(
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
-    for data in referenced_data.iter() {
-        program.append_data(data);
+    if data_layout_is_observable {
+        for data in module.data.indices() {
+            program.append_data(data);
+        }
+    } else {
+        for data in referenced_data.iter() {
+            program.append_data(data);
+        }
     }
     program
 }
