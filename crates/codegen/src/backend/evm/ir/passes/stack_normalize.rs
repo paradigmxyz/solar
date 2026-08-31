@@ -77,6 +77,9 @@ fn normalize_runs(
     guaranteed_depths: &mut Vec<usize>,
 ) -> bool {
     normalizations.clear();
+    if !instructions.windows(2).any(|window| window.iter().all(|inst| stack_op(inst).is_some())) {
+        return false;
+    }
     compute_guaranteed_depths(instructions, guaranteed_depths);
     let mut input = StackRun::new();
     let mut cursor = 0;
@@ -142,26 +145,31 @@ fn normalization(
     guaranteed_depth: usize,
     cache: &mut NormalizationCache,
 ) -> Option<StackRun> {
-    let output = cache
-        .entry(input.clone())
-        .or_insert_with(|| {
-            let output = StackRun::from_vec(resynthesize_physical_ops(input, evm_version)?);
-            if required_entry_depth(&output) > required_entry_depth(input)
-                || relative_peak(&output) > relative_peak(input)
-            {
-                return None;
-            }
-            let input_cost = lowered_stack_cost(input, evm_version);
-            let output_cost = lowered_stack_cost(&output, evm_version);
-            (output_cost.0 <= input_cost.0
-                && output_cost.1 <= input_cost.1
-                && output_cost.2 <= input_cost.2
-                && output_cost != input_cost)
-                .then_some(output)
-        })
-        .clone()?;
+    let output = if let Some(output) = cache.get(input) {
+        output.clone()
+    } else {
+        let output = compute_normalization(input, evm_version);
+        cache.insert(input.clone(), output.clone());
+        output
+    }?;
     let input_required = required_entry_depth(input);
     (required_entry_depth(&output) == input_required || guaranteed_depth >= input_required)
+        .then_some(output)
+}
+
+fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<StackRun> {
+    let output = StackRun::from_vec(resynthesize_physical_ops(input, evm_version)?);
+    if required_entry_depth(&output) > required_entry_depth(input)
+        || relative_peak(&output) > relative_peak(input)
+    {
+        return None;
+    }
+    let input_cost = lowered_stack_cost(input, evm_version);
+    let output_cost = lowered_stack_cost(&output, evm_version);
+    (output_cost.0 <= input_cost.0
+        && output_cost.1 <= input_cost.1
+        && output_cost.2 <= input_cost.2
+        && output_cost != input_cost)
         .then_some(output)
 }
 

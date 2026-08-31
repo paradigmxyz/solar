@@ -152,15 +152,14 @@ fn synthesize_unique_layout(
             current.remove(0);
         }
         ops.extend(synthesize_unique_permutation(&mut current, &target_values));
-        if ops.iter().all(|op| op.lowering(evm_version).is_some())
-            && best.as_ref().is_none_or(|best: &Vec<_>| {
-                lowered_stack_cost(&ops, evm_version) < lowered_stack_cost(best, evm_version)
-            })
-        {
-            best = Some(ops);
+        if ops.iter().all(|op| op.lowering(evm_version).is_some()) {
+            let cost = lowered_stack_cost(&ops, evm_version);
+            if best.as_ref().is_none_or(|(_, best_cost)| cost < *best_cost) {
+                best = Some((ops, cost));
+            }
         }
         if !next_permutation(&mut removed) {
-            return best;
+            return best.map(|(ops, _)| ops);
         }
     }
 }

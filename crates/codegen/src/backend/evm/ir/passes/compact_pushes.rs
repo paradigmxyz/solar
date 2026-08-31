@@ -62,10 +62,11 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 block.instructions.push(inst);
                 continue;
             };
-            if matches!(select(evm_version, value), CompactPush::Literal) {
+            let materialization = ImmediateMaterialization::new(evm_version, value);
+            if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
             } else {
-                materialize_immediate(&mut block.instructions, evm_version, value);
+                materialize_selected(&mut block.instructions, materialization);
                 changed = true;
             }
         }
@@ -178,7 +179,14 @@ pub(super) fn materialize_immediate(
     evm_version: EvmVersion,
     value: U256,
 ) {
-    ImmediateMaterialization::new(evm_version, value).for_each(|op| match op {
+    materialize_selected(instructions, ImmediateMaterialization::new(evm_version, value));
+}
+
+fn materialize_selected(
+    instructions: &mut Vec<Instruction>,
+    materialization: ImmediateMaterialization,
+) {
+    materialization.for_each(|op| match op {
         ImmediateMaterializationOp::Push(value) => instructions.push(push(value)),
         ImmediateMaterializationOp::Opcode(opcode) => {
             instructions.push(Instruction::opcode(opcode));

@@ -2281,15 +2281,8 @@ impl StackScheduler {
             return &self.ops;
         }
 
-        if resident_depth.is_some() {
-            // The value is too deep for DUP. It must be reloadable from a spill slot.
-            if let Some(slot) = self.reloadable_spill(value) {
-                self.ops.push(ScheduledOp::LoadSpill(slot));
-                self.stack.push(value);
-                return &self.ops;
-            }
-        } else if let Some(slot) = self.reloadable_spill(value) {
-            // The value is spilled, so load it.
+        if let Some(slot) = self.reloadable_spill(value) {
+            // The value is absent or too deep for DUP, so reload it from its spill slot.
             self.ops.push(ScheduledOp::LoadSpill(slot));
             self.stack.push(value);
             return &self.ops;

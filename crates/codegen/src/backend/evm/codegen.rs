@@ -9141,6 +9141,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    fn emit_fresh_scheduled_value(&mut self, func: &Function, value: ValueId, op: ScheduledOp) {
+        self.record_scheduled_ops_peak(self.scheduler.depth(), &[op]);
+        self.emit_scheduled_ops(func, [op]);
+        self.scheduler.stack.push(value);
+    }
+
     fn emit_value_impl(&mut self, func: &Function, val: ValueId, claim_top: bool) {
         // Prefer the tracked definition while it is resident. Re-emitting beside that copy gives
         // one MIR identity two physical stack positions and invalidates resident layout plans.
@@ -9194,10 +9200,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// regardless of scheduler stack tracking state.
     fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
-            let scheduled = ScheduledOp::RematerializeNullary(op);
-            self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
-            self.asm.emit_op(op);
-            self.scheduler.stack.push(val);
+            self.emit_fresh_scheduled_value(func, val, ScheduledOp::RematerializeNullary(op));
             return;
         }
 
@@ -9211,10 +9214,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         match func.value(val) {
             crate::mir::Value::Immediate(imm) => {
                 if let Some(u256) = imm.as_u256() {
-                    let scheduled = ScheduledOp::PushImmediate(u256);
-                    self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
-                    self.asm.emit_push(u256);
-                    self.scheduler.stack.push(val);
+                    self.emit_fresh_scheduled_value(func, val, ScheduledOp::PushImmediate(u256));
                 }
             }
             crate::mir::Value::Arg(index) => {
@@ -9238,18 +9238,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.emit_stack_op(StackOp::Dup(depth as u8 + 1));
                     return;
                 }
-                let scheduled = ScheduledOp::LoadArg(*index);
-                self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
-                if self.in_internal_function {
-                    self.emit_internal_arg_load(*index);
-                } else if self.in_constructor {
-                    self.emit_constructor_arg_load(*index);
-                } else {
-                    let offset = 4 + (index.index() as u64) * 32;
-                    self.asm.emit_push(U256::from(offset));
-                    self.asm.emit_op(op::CALLDATALOAD);
-                }
-                self.scheduler.stack.push(val);
+                self.emit_fresh_scheduled_value(func, val, ScheduledOp::LoadArg(*index));
             }
             crate::mir::Value::Inst(inst_id) => {
                 // A value carried on the live stack is the current definition;
@@ -9269,11 +9258,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // Load from spill slot. Reloadable covers slots whose
                     // defining block is emitted later: the definition still
                     // executes before any use at runtime.
-                    let scheduled = ScheduledOp::LoadSpill(slot);
-                    self.record_scheduled_ops_peak(self.scheduler.depth(), &[scheduled]);
-                    self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(op::MLOAD);
-                    self.scheduler.stack.push(val);
+                    self.emit_fresh_scheduled_value(func, val, ScheduledOp::LoadSpill(slot));
                 } else {
                     // Check if the instruction is one that we can "re-execute" to get a fresh value
                     // This handles GAS (which is always fresh) and MLOAD (which re-reads from
@@ -9282,8 +9267,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if let Some(opcode) = rematerializable_nullary_opcode(inst_kind).or_else(|| {
                         mir_opcode(inst_kind).filter(|_| matches!(inst_kind, InstKind::Gas))
                     }) {
-                        self.asm.emit_op(opcode);
-                        self.scheduler.stack.push(val);
+                        self.emit_fresh_scheduled_value(
+                            func,
+                            val,
+                            ScheduledOp::RematerializeNullary(opcode),
+                        );
                     } else {
                         match inst_kind {
                             crate::mir::InstKind::LoadImmutable(id) if !self.in_constructor => {
@@ -9307,14 +9295,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 // that still executes first at runtime.
                                 if func.value_u64(*offset) == Some(EvmMemoryLayout::FMP_SLOT) {
                                     if let Some(slot) = self.scheduler.reloadable_spill(val) {
-                                        let scheduled = ScheduledOp::LoadSpill(slot);
-                                        self.record_scheduled_ops_peak(
-                                            self.scheduler.depth(),
-                                            &[scheduled],
+                                        self.emit_fresh_scheduled_value(
+                                            func,
+                                            val,
+                                            ScheduledOp::LoadSpill(slot),
                                         );
-                                        self.emit_spill_slot_addr(func, slot);
-                                        self.asm.emit_op(op::MLOAD);
-                                        self.scheduler.stack.push(val);
                                         return;
                                     }
                                     panic!(
@@ -9397,26 +9382,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     } else {
                                         let slot = self.scheduler.spills.allocate(val);
                                         self.spill_deep_stack_value(func, val, slot, depth);
-                                        let scheduled = ScheduledOp::LoadSpill(slot);
-                                        self.record_scheduled_ops_peak(
-                                            self.scheduler.depth(),
-                                            &[scheduled],
+                                        self.emit_fresh_scheduled_value(
+                                            func,
+                                            val,
+                                            ScheduledOp::LoadSpill(slot),
                                         );
-                                        self.emit_spill_slot_addr(func, slot);
-                                        self.asm.emit_op(op::MLOAD);
-                                        self.scheduler.stack.push(val);
                                     }
                                 } else if let Some(slot) = self.scheduler.reloadable_spill(val) {
                                     // A defining block emitted later still stores
                                     // this slot before the load executes at runtime.
-                                    let scheduled = ScheduledOp::LoadSpill(slot);
-                                    self.record_scheduled_ops_peak(
-                                        self.scheduler.depth(),
-                                        &[scheduled],
+                                    self.emit_fresh_scheduled_value(
+                                        func,
+                                        val,
+                                        ScheduledOp::LoadSpill(slot),
                                     );
-                                    self.emit_spill_slot_addr(func, slot);
-                                    self.asm.emit_op(op::MLOAD);
-                                    self.scheduler.stack.push(val);
                                 } else {
                                     panic!(
                                         "emit_value_fresh: value {val:?} ({:?}) is neither on the \
