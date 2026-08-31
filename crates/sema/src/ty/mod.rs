@@ -57,12 +57,6 @@ type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
 type UsingDirectiveKey = usize;
 
-#[derive(Default)]
-struct DocumentationCache {
-    dev: FxOnceMap<hir::ContractId, Arc<crate::output::Documentation>>,
-    user: FxOnceMap<hir::ContractId, Arc<crate::output::Documentation>>,
-}
-
 /// A function exported by a contract.
 #[derive(Clone, Copy, Debug)]
 pub struct InterfaceFunction<'gcx> {
@@ -357,7 +351,6 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
-    documentation: DocumentationCache,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
 }
 
@@ -393,31 +386,12 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
-            documentation: Default::default(),
             override_index: OnceLock::new(),
         }
     }
 }
 
 impl<'gcx> Gcx<'gcx> {
-    /// Returns the developer documentation for the given contract.
-    pub fn dev_documentation(self, contract_id: hir::ContractId) -> crate::output::Documentation {
-        self.documentation
-            .dev
-            .insert_cloned(contract_id, |_| Arc::new(self.build_dev_documentation(contract_id)))
-            .as_ref()
-            .clone()
-    }
-
-    /// Returns the user documentation for the given contract.
-    pub fn user_documentation(self, contract_id: hir::ContractId) -> crate::output::Documentation {
-        self.documentation
-            .user
-            .insert_cloned(contract_id, |_| Arc::new(self.build_user_documentation(contract_id)))
-            .as_ref()
-            .clone()
-    }
-
     pub(crate) fn new(gcx: &'gcx GlobalCtxt<'gcx>) -> Self {
         Self(gcx)
     }
@@ -1545,6 +1519,16 @@ macro_rules! cached {
 }
 
 cached! {
+/// Returns the developer documentation for the given contract.
+pub fn dev_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
+    gcx.alloc(gcx.build_dev_documentation(id))
+}
+
+/// Returns the user documentation for the given contract.
+pub fn user_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
+    gcx.alloc(gcx.build_user_documentation(id))
+}
+
 fn virtual_function_target(
     gcx: _,
     key: (hir::ContractId, hir::FunctionId)
