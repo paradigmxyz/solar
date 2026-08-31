@@ -1,10 +1,12 @@
 // === indexed_jump (runtime) ===
 PUSH1 0x01
-PUSH1 0x1e
-ADD
-PUSH2 0x0b0d
+PUSH1 0x03
+SHL
+PUSH2 0x100e
 SWAP1
-BYTE
+SHR
+PUSH1 0xff
+AND
 JUMP ; unknown
 ; bb0
 JUMPDEST
