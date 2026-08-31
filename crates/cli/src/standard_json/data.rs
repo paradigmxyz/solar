@@ -8,7 +8,6 @@ use serde::{
 };
 use serde_json::{Map, Value};
 use solar_data_structures::map::FxBuildHasher;
-use solar_interface::diagnostics::SolcDiagnostic;
 use solar_sema::output::{Documentation, StorageLayoutOutput};
 use std::{
     borrow::{Borrow, Cow},
@@ -179,13 +178,9 @@ impl Libraries<'_> {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default)]
 pub(super) struct CompilerOutput<'a> {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) errors: Vec<SolcDiagnostic<'a>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) sources: FxIndexMap<String, SourceOutput>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'a>>>,
     // `ethdebug` output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -209,9 +204,9 @@ pub(super) struct ContractOutput<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<Documentation>,
+    pub(super) userdoc: Option<&'a Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) devdoc: Option<Documentation>,
+    pub(super) devdoc: Option<&'a Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
