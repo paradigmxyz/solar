@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/fallback_bytes_unsupported.sol:FallbackBytesUnsupported ===
 @module FallbackBytesUnsupported
-fn @_anonymous(arg0: calldataslice) -> memorybytes {
+fn @fallback(arg0: calldataslice) -> memorybytes {
   bb0:
     v0 = slice_len arg0
     v1 = add v0, 31
