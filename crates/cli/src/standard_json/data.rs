@@ -105,6 +105,7 @@ pub(super) struct Settings<'a> {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct MetadataSettings {
     #[serde(default = "default_true")]
+    #[serde(rename = "appendCBOR")]
     pub(super) append_cbor: bool,
     #[serde(default)]
     pub(super) use_literal_content: bool,
