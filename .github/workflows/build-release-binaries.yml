@@ -9,21 +9,6 @@ on:
         required: false
         type: string
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".cargo/**"
-      - ".github/workflows/build-release-binaries.yml"
-      - ".github/workflows/release.yml"
-      - "benches/runtime/**"
-      - "crates/**"
-      - "testdata/projects/**"
-      - "testdata/repros/**"
-      - "Cargo.lock"
-      - "Cargo.toml"
-      - "dist-workspace.toml"
-      - "rust-toolchain*"
-      - "scripts/pgo/**"
-      - "scripts/wasm/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -161,28 +146,6 @@ jobs:
             echo "solar requires glibc $max_glibc_version, above the configured $MIN_GLIBC_VERSION" >&2
             exit 1
           fi
-      - name: Build benchmark baseline
-        if: github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
-        shell: bash
-        run: |
-          python scripts/pgo/build.py \
-            --target "${{ matrix.target }}" \
-            --target-dir "${{ github.workspace }}/target/solar-baseline" \
-            --baseline-only
-      - name: Compare baseline and PGO
-        if: github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
-        shell: bash
-        run: |
-          python scripts/pgo/compare.py \
-            --baseline "${{ github.workspace }}/target/solar-baseline/${{ matrix.target }}/dist/solar" \
-            --pgo "$SOLAR_BINARY" \
-            --output-dir "${{ github.workspace }}/target/pgo-comparison"
-      - name: Upload PGO comparison
-        if: always() && github.event_name == 'pull_request' && matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: pgo-comparison
-          path: target/pgo-comparison
       - name: Package release binary
         shell: bash
         run: |
