@@ -93,9 +93,9 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     // Copy the full words in a loop, then merge the partial tail word with a
     // byte mask so exactly `len` bytes change, like the identity precompile.
     builder.switch_to_block(block);
-    let zero = builder.imm_u64(0);
-    let word_size = builder.imm_u64(32);
-    let thirty_one = builder.imm_u64(31);
+    let zero = builder.imm(0);
+    let word_size = builder.imm(32);
+    let thirty_one = builder.imm(31);
     let not_thirty_one = builder.not(thirty_one);
     let full = builder.and(len, not_thirty_one);
     let entry = builder.current_block();
@@ -127,7 +127,7 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     builder.switch_to_block(tail_block);
     let partial = builder.and(len, thirty_one);
     let gap = builder.sub(word_size, partial);
-    let three = builder.imm_u64(3);
+    let three = builder.imm(3);
     let shift = builder.shl(three, gap);
     let src_tail_ptr = builder.add(src, full);
     let src_word = builder.mload(src_tail_ptr);
@@ -135,7 +135,7 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     let src_top = builder.shl(shift, src_shifted);
     let dest_tail_ptr = builder.add(dest, full);
     let dest_word = builder.mload(dest_tail_ptr);
-    let one = builder.imm_u64(1);
+    let one = builder.imm(1);
     let low_bound = builder.shl(shift, one);
     let low_mask = builder.sub(low_bound, one);
     let dest_low = builder.and(dest_word, low_mask);

@@ -42,7 +42,7 @@ pub(crate) fn precompile_gas(
     if evm_version.can_overcharge_gas_for_call() {
         gas
     } else {
-        let reserved = builder.imm_u64(PRE_TANGERINE_PRECOMPILE_GAS_RESERVE);
+        let reserved = builder.imm(PRE_TANGERINE_PRECOMPILE_GAS_RESERVE);
         builder.sub(gas, reserved)
     }
 }

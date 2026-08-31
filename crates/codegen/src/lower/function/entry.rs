@@ -25,7 +25,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.context.gcx.type_of_item(ret.into());
             self.builder.add_return(types::TypeLowerer::mir_return_type(ty));
             if ty.is_ref_at(DataLocation::Storage) {
-                let zero = self.builder.imm_u256(U256::ZERO);
+                let zero = self.builder.imm(U256::ZERO);
                 self.storage_refs.insert(
                     ret,
                     StorageAccess {

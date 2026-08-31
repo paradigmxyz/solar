@@ -425,7 +425,7 @@ impl LowerSlices {
                     continue;
                 }
 
-                let slot = builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
+                let slot = builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
                 let base = builder.mload(slot);
                 let length_address = builder.add_u64_offset(base, EvmMemoryLayout::WORD_SIZE);
                 let length = builder.mload(length_address);

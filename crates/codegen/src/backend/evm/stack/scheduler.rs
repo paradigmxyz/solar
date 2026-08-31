@@ -2866,8 +2866,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (first, penultimate) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let zero = builder.imm_u64(0);
-            let one = builder.imm_u64(1);
+            let zero = builder.imm(0);
+            let one = builder.imm(1);
             for _ in 0..BIG_BLOCK_INSTRUCTIONS {
                 builder.add(zero, one);
             }

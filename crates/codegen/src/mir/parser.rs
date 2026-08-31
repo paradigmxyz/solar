@@ -583,7 +583,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         // Integer literal? (decimal or 0x…)
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
             let v = self.parser.parse_uint()?;
-            return Ok(builder.imm_u256(v));
+            return Ok(builder.imm(v));
         }
         // Identifier-like — could be argN, vN, true, false.
         let ident = self.parser.parse_ident()?;

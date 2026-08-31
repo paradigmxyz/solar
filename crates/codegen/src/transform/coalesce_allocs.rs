@@ -221,16 +221,16 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
     let (total_size, offsets) = {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        let total_size = builder.imm_u64(total);
+        let total_size = builder.imm(total);
         let mut offsets = Vec::with_capacity(members.len().saturating_sub(1));
         let mut offset = members[0].size;
         for member in &members[1..] {
-            offsets.push(builder.imm_u64(offset));
+            offsets.push(builder.imm(offset));
             offset += member.size;
         }
         if zeroed {
             for member in &members {
-                let size = builder.imm_u64(member.size);
+                let size = builder.imm(member.size);
                 builder.memory_zero(member.result, size);
             }
         }

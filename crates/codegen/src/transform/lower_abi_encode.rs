@@ -285,13 +285,13 @@ fn lower_encode(
         let total_size = selector_size + layout.head_size();
         let aligned_size = total_size.next_multiple_of(32);
         if mode == AbiEncodeMode::Bytes {
-            let allocation_size = builder.imm_u64(aligned_size.saturating_add(32));
+            let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc_object(
                 allocation_size,
                 MemoryObjectLayout::Bytes,
                 crate::mir::AllocationSemantics::INTERNAL,
             );
-            let total = builder.imm_u64(total_size);
+            let total = builder.imm(total_size);
             builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
             let buffer = builder.memory_object_data(object, MemoryObjectKind::Bytes);
             if let Some(selector) = selector {
@@ -305,13 +305,13 @@ fn lower_encode(
             // Constructor arguments do not need a raw slice, and keeping their
             // object header lets the memory lowering preserve the established
             // allocation path for creation code.
-            let allocation_size = builder.imm_u64(aligned_size.saturating_add(32));
+            let allocation_size = builder.imm(aligned_size.saturating_add(32));
             let object = builder.alloc_object(
                 allocation_size,
                 MemoryObjectLayout::Bytes,
                 crate::mir::AllocationSemantics::INTERNAL,
             );
-            let total = builder.imm_u64(total_size);
+            let total = builder.imm(total_size);
             builder.set_memory_object_len(object, total, MemoryObjectKind::Bytes);
             let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
             encode_tuple(builder, args, &layout.types, data, helpers);
@@ -320,7 +320,7 @@ fn lower_encode(
         let buffer = if mode == AbiEncodeMode::Scratch {
             builder.fmp()
         } else {
-            let allocation_size = builder.imm_u64(aligned_size);
+            let allocation_size = builder.imm(aligned_size);
             builder.alloc_raw(allocation_size, crate::mir::AllocationSemantics::INTERNAL)
         };
         if let Some(selector) = selector {
@@ -328,7 +328,7 @@ fn lower_encode(
         }
         let dest = offset_ptr(builder, buffer, selector_size);
         encode_tuple(builder, args, &layout.types, dest, helpers);
-        let total = builder.imm_u64(total_size);
+        let total = builder.imm(total_size);
         return builder.make_slice(buffer, total, SliceLocation::Memory);
     }
 
@@ -345,7 +345,7 @@ fn lower_encode(
     }
     let dest = offset_ptr(builder, buffer, selector_size);
     let encoded_size = encode_tuple(builder, args, &layout.types, dest, helpers);
-    let selector_size = builder.imm_u64(selector_size);
+    let selector_size = builder.imm(selector_size);
     let total = builder.add(encoded_size, selector_size);
     if mode == AbiEncodeMode::Bytes {
         let allocation_size = builder.checked_padded_size(total);
@@ -360,7 +360,7 @@ fn lower_encode(
     if mode == AbiEncodeMode::Scratch {
         return builder.make_slice(allocation_base, total, SliceLocation::Memory);
     }
-    let thirty_one = builder.imm_u64(31);
+    let thirty_one = builder.imm(31);
     let rounded = builder.add(total, thirty_one);
     let mask = builder.not(thirty_one);
     let aligned = builder.and(rounded, mask);
@@ -440,7 +440,7 @@ fn encode_static_impl(
         }
         AbiType::Function => {
             let value = if source == AbiValueSource::Scalar {
-                let shift = builder.imm_u64(64);
+                let shift = builder.imm(64);
                 builder.shl(shift, value)
             } else {
                 AbiWordValidator::from_mir_type(MirType::Function)
@@ -481,7 +481,7 @@ fn encode_static_array(
         builder.branch(non_null, encode, encode_zero);
 
         builder.switch_to_block(encode_zero);
-        let size = builder.imm_u64(element.head_size() * len);
+        let size = builder.imm(element.head_size() * len);
         builder.memory_zero(head_addr, size);
         builder.jump(done);
 
@@ -489,8 +489,8 @@ fn encode_static_array(
         done
     });
 
-    let length = builder.imm_u64(len);
-    let stride = builder.imm_u64(element.head_size());
+    let length = builder.imm(len);
+    let stride = builder.imm(element.head_size());
     builder.counted_loop(length, |builder, index| {
         let element_value = builder.memory_object_load_element(
             value,
@@ -540,10 +540,10 @@ fn encode_tuple_impl(
             encode_static_impl(builder, ty, value, head, true, source);
             head_offset += ty.head_size();
         }
-        return builder.imm_u64(head_size);
+        return builder.imm(head_size);
     }
 
-    let head_size_value = builder.imm_u64(head_size);
+    let head_size_value = builder.imm(head_size);
     let mut tail = builder.add(dest, head_size_value);
     let mut head_offset = 0;
     for (&value, ty) in values.iter().zip(types) {
@@ -598,8 +598,8 @@ fn encode_static_slice(
             }
         }
         AbiType::FixedArray { element, len } => {
-            let length = builder.imm_u64(*len);
-            let stride = builder.imm_u64(element.head_size());
+            let length = builder.imm(*len);
+            let stride = builder.imm(element.head_size());
             builder.counted_loop(length, |builder, index| {
                 let offset = builder.mul(index, stride);
                 let source_word = builder.add(source, offset);
@@ -766,10 +766,10 @@ fn zero_padded_tail(builder: &mut FunctionBuilder<'_>, data: ValueId, padded: Va
     let empty = builder.iszero(padded);
     builder.branch(empty, copy_block, zero_block);
     builder.switch_to_block(zero_block);
-    let word = builder.imm_u64(32);
+    let word = builder.imm(32);
     let last_offset = builder.sub(padded, word);
     let last = builder.add(data, last_offset);
-    let zero = builder.imm_u64(0);
+    let zero = builder.imm(0);
     builder.mstore(last, zero);
     builder.jump(copy_block);
     builder.switch_to_block(copy_block);
@@ -813,19 +813,19 @@ fn encode_memory_array_elements(
         MemoryObjectLayout::DynamicArray { .. } => {
             let len = memory_object_len(builder, value, MemoryObjectKind::DynamicArray);
             builder.mstore(dest, len);
-            let word = builder.imm_u64(32);
+            let word = builder.imm(32);
             (len, builder.add(dest, word))
         }
-        MemoryObjectLayout::FixedArray { len, .. } => (builder.imm_u64(len), dest),
+        MemoryObjectLayout::FixedArray { len, .. } => (builder.imm(len), dest),
         MemoryObjectLayout::Bytes | MemoryObjectLayout::Struct { .. } => {
             unreachable!("ABI array encoding requires an array memory layout")
         }
     };
-    let element_head_size = builder.imm_u64(element.head_size());
+    let element_head_size = builder.imm(element.head_size());
     let head_bytes = builder.mul(len, element_head_size);
     let initial_tail = builder.add(element_area, head_bytes);
     let source_cursor = builder.memory_object_data(value, layout.kind());
-    let word = builder.imm_u64(32);
+    let word = builder.imm(32);
 
     let preheader = builder.current_block();
     let cond = builder.create_block();
@@ -838,7 +838,7 @@ fn encode_memory_array_elements(
     let current_tail = builder.phi(vec![(preheader, initial_tail)]);
     let element_head = builder.phi(vec![(preheader, element_area)]);
     let source = builder.phi(vec![(preheader, source_cursor)]);
-    let zero = builder.imm_u64(0);
+    let zero = builder.imm(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
@@ -856,7 +856,7 @@ fn encode_memory_array_elements(
         helpers,
     );
 
-    let one = builder.imm_u64(1);
+    let one = builder.imm(1);
     let next_remaining = builder.sub(remaining, one);
     let next_source = builder.add(source, word);
     let next_head = builder.add(element_head, element_head_size);
@@ -881,7 +881,7 @@ fn encode_calldata_bytes_array(
     let len = builder.slice_len(value);
     builder.mstore(dest, len);
 
-    let word = builder.imm_u64(32);
+    let word = builder.imm(32);
     let element_area = builder.add(dest, word);
     let head_bytes = builder.mul(len, word);
     let initial_tail = builder.add(element_area, head_bytes);
@@ -898,7 +898,7 @@ fn encode_calldata_bytes_array(
     let current_tail = builder.phi(vec![(preheader, initial_tail)]);
     let element_head = builder.phi(vec![(preheader, element_area)]);
     let source_head = builder.phi(vec![(preheader, source_base)]);
-    let zero = builder.imm_u64(0);
+    let zero = builder.imm(0);
     let has_next = builder.gt(remaining, zero);
     builder.branch(has_next, body, done);
 
@@ -909,14 +909,14 @@ fn encode_calldata_bytes_array(
     let offset = builder.calldataload(source_head);
     let calldata_size = builder.calldatasize();
     let available = builder.sub(calldata_size, source_base);
-    let thirty_one = builder.imm_u64(31);
+    let thirty_one = builder.imm(31);
     let bound = builder.sub(available, thirty_one);
     let valid_offset = builder.slt(offset, bound);
     let invalid_offset = builder.iszero(valid_offset);
     revert_if_calldata_invalid(builder, invalid_offset);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
-    let max_length = builder.imm_u64(u64::MAX);
+    let max_length = builder.imm(u64::MAX);
     let invalid_length = builder.gt(length, max_length);
     revert_if_calldata_invalid(builder, invalid_length);
     let data = builder.add(element_base, word);
@@ -933,7 +933,7 @@ fn encode_calldata_bytes_array(
         helpers,
     );
 
-    let one = builder.imm_u64(1);
+    let one = builder.imm(1);
     let next_remaining = builder.sub(remaining, one);
     let next_source = builder.add(source_head, word);
     let next_head = builder.add(element_head, word);
@@ -953,7 +953,7 @@ fn revert_if_calldata_invalid(builder: &mut FunctionBuilder<'_>, condition: Valu
     let continue_block = builder.create_block();
     builder.branch(condition, revert, continue_block);
     builder.switch_to_block(revert);
-    let zero = builder.imm_u64(0);
+    let zero = builder.imm(0);
     builder.revert(zero, zero);
     builder.switch_to_block(continue_block);
 }
@@ -970,7 +970,7 @@ fn encode_word_array(
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
-    let word = builder.imm_u64(32);
+    let word = builder.imm(32);
     let bytes = builder.mul(len, word);
     let data_dest = builder.add(dest, word);
     let data_source = match location {
@@ -1006,18 +1006,18 @@ fn encode_bytes(
     if location == SliceLocation::Memory
         && let Some(bytes) = literal_bytes(builder.func(), value)
     {
-        let length = builder.imm_u64(bytes.len() as u64);
+        let length = builder.imm(bytes.len() as u64);
         builder.mstore(dest, length);
         let data = builder.add_u64_offset(dest, 32);
         for (index, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0_u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
-            let word = builder.imm_u256(U256::from_be_bytes(padded));
-            let offset = builder.imm_u64(index as u64 * 32);
+            let word = builder.imm(U256::from_be_bytes(padded));
+            let offset = builder.imm(index as u64 * 32);
             let address = builder.add(data, offset);
             builder.mstore(address, word);
         }
-        let size = builder.imm_u64(bytes.len().next_multiple_of(32) as u64);
+        let size = builder.imm(bytes.len().next_multiple_of(32) as u64);
         return builder.add(data, size);
     }
 
@@ -1027,8 +1027,8 @@ fn encode_bytes(
     };
     builder.mstore(dest, len);
 
-    let word = builder.imm_u64(32);
-    let thirty_one = builder.imm_u64(31);
+    let word = builder.imm(32);
+    let thirty_one = builder.imm(31);
     let mask = builder.not(thirty_one);
     let rounded = builder.add(len, thirty_one);
     let padded = builder.and(rounded, mask);
@@ -1150,7 +1150,7 @@ fn remove_literal_objects(func: &mut Function, values: &[ValueId]) {
 
 fn offset_ptr(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
     if offset != 0 && builder.func().value_u256(base).is_some_and(|base| base.is_zero()) {
-        builder.imm_u64(offset)
+        builder.imm(offset)
     } else {
         builder.add_u64_offset(base, offset)
     }

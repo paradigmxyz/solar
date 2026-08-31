@@ -161,8 +161,8 @@ fn visit_storage_fields(
             }
         }
         StorageLayout::Array { element, len } => {
-            let length = builder.imm_u64(*len);
-            let stride = builder.imm_u64(element.storage_slots());
+            let length = builder.imm(*len);
+            let stride = builder.imm(element.storage_slots());
             builder.counted_loop(length, |builder, index| {
                 let offset = builder.mul(index, stride);
                 let slot = builder.add(storage, offset);
@@ -189,7 +189,7 @@ fn lower_storage_field_to_memory(
             store_memory_object_word(builder, dest, value);
         }
         StorageField::Aggregate(layout) => {
-            let size = builder.imm_u64(layout.memory_words() * 32);
+            let size = builder.imm(layout.memory_words() * 32);
             let nested = builder.alloc_object(
                 size,
                 memory_object_layout(layout),
@@ -232,8 +232,8 @@ fn lower_clear_storage(
     layout: &StorageLayout,
     storage: ValueId,
 ) {
-    let zero = builder.imm_u64(0);
-    let slots = builder.imm_u64(layout.storage_slots());
+    let zero = builder.imm(0);
+    let slots = builder.imm(layout.storage_slots());
     builder.counted_loop(slots, |builder, offset| {
         let slot = builder.add(storage, offset);
         builder.sstore(slot, zero);

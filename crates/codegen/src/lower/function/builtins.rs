@@ -38,21 +38,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let result = self.builtin_args::<1>(builtin, &args).and_then(|arguments| {
                     self.lower_storage_array_push(expr, callee, arguments.first())
                 });
-                return Some(result.unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)));
+                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
             }
             Builtin::ArrayPush0 => {
                 // result = storage_array_push(receiver)
                 let result = self
                     .builtin_args::<0>(builtin, &args)
                     .and_then(|_| self.lower_storage_array_push(expr, callee, None));
-                return Some(result.unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)));
+                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
             }
             Builtin::ArrayPop => {
                 // storage_array_pop(receiver)
                 let result = self
                     .builtin_args::<0>(builtin, &args)
                     .and_then(|_| self.lower_storage_array_pop(expr, callee));
-                return Some(result.unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)));
+                return Some(result.unwrap_or_else(|| self.builder.imm(U256::ZERO)));
             }
             _ => {}
         }
@@ -80,19 +80,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match (is_yul, is_void) {
             (true, true) => {
                 let _ = self.lower_yul_unit_builtin_call(builtin, args);
-                Some(self.builder.imm_u256(U256::ZERO))
+                Some(self.builder.imm(U256::ZERO))
             }
             (true, false) => Some(
                 self.lower_yul_value_builtin_call(builtin, args)
-                    .unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)),
+                    .unwrap_or_else(|| self.builder.imm(U256::ZERO)),
             ),
             (false, true) => {
                 let _ = self.lower_solidity_unit_builtin_call(builtin, args);
-                Some(self.builder.imm_u256(U256::ZERO))
+                Some(self.builder.imm(U256::ZERO))
             }
             (false, false) => Some(
                 self.lower_solidity_value_builtin_call(expr, builtin, args)
-                    .unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)),
+                    .unwrap_or_else(|| self.builder.imm(U256::ZERO)),
             ),
         }
     }
@@ -172,8 +172,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
         let address = self.lower_expr(receiver)?;
         let amount = self.lower_typed_expr(amount, self.context.gcx.types.uint(256))?;
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let stipend = self.builder.imm_u64(2300);
+        let zero = self.builder.imm(U256::ZERO);
+        let stipend = self.builder.imm(2300);
         let amount_is_zero = self.builder.iszero(amount);
         // gas = amount == 0 ? 2300 : 0
         let gas = self.builder.select(amount_is_zero, stipend, zero);
@@ -256,7 +256,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.storage_access(receiver).is_none() {
                     return report_unsupported(self.context.gcx, receiver.span, "storage access");
                 }
-                Some(self.builder.imm_u256(U256::ZERO))
+                Some(self.builder.imm(U256::ZERO))
             }
             Builtin::ContractCreationCode
             | Builtin::ContractRuntimeCode
@@ -335,7 +335,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .builder
                             .alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
                         let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
-                        let zero = self.builder.imm_u256(U256::ZERO);
+                        let zero = self.builder.imm(U256::ZERO);
                         self.builder.extcodecopy_heap(address, data, zero, length);
                         Some(object)
                     }
@@ -371,15 +371,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         // selector = selector(item) << 224
                         self.lower_selector_receiver_effects(receiver)?;
                         let selector = self.context.gcx.function_selector(item).0;
-                        Some(self.builder.imm_u256(U256::from_be_slice(&selector) << 224))
+                        Some(self.builder.imm(U256::from_be_slice(&selector) << 224))
                     }
                     None => match self.is_external_function_value(receiver) {
                         true => {
                             // selector = (function & 0xffffffff) << 224
                             let value = self.lower_expr(receiver)?;
-                            let mask = self.builder.imm_u256(U256::from(u32::MAX));
+                            let mask = self.builder.imm(U256::from(u32::MAX));
                             let selector = self.builder.and(value, mask);
-                            let shift = self.builder.imm_u64(224);
+                            let shift = self.builder.imm(224);
                             Some(self.builder.shl(shift, selector))
                         }
                         false => {
@@ -402,7 +402,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     },
                 };
                 match event_id {
-                    Some(event_id) => Some(self.builder.imm_u256(U256::from_be_slice(
+                    Some(event_id) => Some(self.builder.imm(U256::from_be_slice(
                         self.context.gcx.event_selector(event_id).as_slice(),
                     ))),
                     None => report_unsupported(self.context.gcx, expr.span, "event selector"),
@@ -423,7 +423,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         self.lower_expr(receiver)?;
                     }
                 }
-                Some(self.builder.imm_u64(u64::from(size.bytes())))
+                Some(self.builder.imm(u64::from(size.bytes())))
             }
             Builtin::ArrayLength => {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
@@ -459,7 +459,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 value ^ U256::from_be_slice(function.selector.as_slice())
                             },
                         ) << 224;
-                        Some(self.builder.imm_u256(value))
+                        Some(self.builder.imm(value))
                     }
                     Builtin::TypeMin | Builtin::TypeMax => {
                         let value = self.type_limit(
@@ -467,7 +467,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             expr.span,
                             matches!(builtin, Builtin::TypeMax),
                         )?;
-                        Some(self.builder.imm_u256(value))
+                        Some(self.builder.imm(value))
                     }
                     _ => unreachable!(),
                 }
@@ -486,13 +486,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::MsgGas => Some(self.builder.gas()),
             Builtin::MsgValue => Some(self.builder.callvalue()),
             Builtin::MsgSig => {
-                let offset = self.builder.imm_u64(0);
+                let offset = self.builder.imm(0);
                 let value = self.builder.calldataload(offset);
-                let mask = self.builder.imm_u256(U256::MAX << 224);
+                let mask = self.builder.imm(U256::MAX << 224);
                 Some(self.builder.and(value, mask))
             }
             Builtin::MsgData => {
-                let offset = self.builder.imm_u64(0);
+                let offset = self.builder.imm(0);
                 let length = self.builder.calldatasize();
                 Some(self.builder.make_slice(offset, length, SliceLocation::Calldata))
             }
@@ -556,9 +556,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn external_function_address(&mut self, value: ValueId) -> ValueId {
-        let shift = self.builder.imm_u64(32);
+        let shift = self.builder.imm(32);
         let address = self.builder.shr(shift, value);
-        let mask = self.builder.imm_u256(U256::MAX >> 96);
+        let mask = self.builder.imm(U256::MAX >> 96);
         self.builder.and(address, mask)
     }
 
@@ -602,7 +602,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match message {
                     Some(message) => self.emit_revert_payload(message),
                     None => {
-                        let zero = self.builder.imm_u256(U256::ZERO);
+                        let zero = self.builder.imm(U256::ZERO);
                         self.builder.revert(zero, zero);
                     }
                 }
@@ -610,7 +610,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::Revert => {
                 let _ = self.builtin_args::<0>(builtin, &args)?;
-                let zero = self.builder.imm_u256(U256::ZERO);
+                let zero = self.builder.imm(U256::ZERO);
                 self.builder.revert(zero, zero);
             }
             Builtin::RevertMsg => {
@@ -646,7 +646,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let LitKind::Str(_, bytes, _) = &lit.kind
                 {
                     let hash = keccak256(bytes.as_byte_str());
-                    return Some(self.builder.imm_u256(U256::from_be_slice(hash.as_slice())));
+                    return Some(self.builder.imm(U256::from_be_slice(hash.as_slice())));
                 }
                 if let ExprKind::Call(callee, encode_args, _) = &value.kind
                     && self.context.gcx.resolved_builtin(callee) == Some(Builtin::AbiEncodePacked)
@@ -755,7 +755,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => None,
         };
         let inner = match literal {
-            Some(bytes) => self.builder.imm_u256(U256::from_be_slice(keccak256(bytes).as_slice())),
+            Some(bytes) => self.builder.imm(U256::from_be_slice(keccak256(bytes).as_slice())),
             None => {
                 let argument_ty = self.context.gcx.type_of_expr(argument.id)?;
                 let memory_ty = argument_ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
@@ -764,12 +764,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.keccak256_bytes(value)
             }
         };
-        let one = self.builder.imm_u256(U256::from(1));
+        let one = self.builder.imm(U256::from(1));
         let inner = self.builder.sub(inner, one);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let word_size = self.builder.imm_u64(32);
+        let zero = self.builder.imm(U256::ZERO);
+        let word_size = self.builder.imm(32);
         let size =
-            self.builder.imm_u64(EvmMemoryLayout::DYNAMIC_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE);
+            self.builder.imm(EvmMemoryLayout::DYNAMIC_HEADER_SIZE + EvmMemoryLayout::WORD_SIZE);
         let object = self.builder.alloc_object(
             size,
             MemoryObjectLayout::Bytes,
@@ -779,7 +779,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.memory_object_store_word(object, zero, inner);
         let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
         let outer = self.builder.keccak256(data, word_size);
-        let mask = self.builder.imm_u256(!U256::from(0xff));
+        let mask = self.builder.imm(!U256::from(0xff));
         Some(self.builder.and(outer, mask))
     }
 
@@ -796,7 +796,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let exprs = self.variadic_builtin_args(builtin, &args)?;
         let mut all_literals = Some(Vec::new());
-        let mut total = self.builder.imm_u64(0);
+        let mut total = self.builder.imm(0);
         let mut parts = Vec::with_capacity(exprs.len());
         for expr in exprs {
             let ty = self.context.gcx.type_of_expr(expr.id)?;
@@ -811,14 +811,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         if let Some(all_literals) = &mut all_literals {
                             all_literals.extend_from_slice(&bytes);
                         } else {
-                            let length = self.builder.imm_u64(bytes.len() as u64);
+                            let length = self.builder.imm(bytes.len() as u64);
                             total = self.builder.add(total, length);
                         }
                         parts.push(Part::Literal(bytes));
                         continue;
                     }
                     if let Some(all_literals) = all_literals.take() {
-                        let length = self.builder.imm_u64(all_literals.len() as u64);
+                        let length = self.builder.imm(all_literals.len() as u64);
                         total = self.builder.add(total, length);
                     }
                     let memory_ty = ty.with_loc_if_ref(self.context.gcx, DataLocation::Memory);
@@ -830,12 +830,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 TyKind::Elementary(ElementaryType::FixedBytes(size)) => {
                     if let Some(all_literals) = all_literals.take() {
-                        let length = self.builder.imm_u64(all_literals.len() as u64);
+                        let length = self.builder.imm(all_literals.len() as u64);
                         total = self.builder.add(total, length);
                     }
                     let value = self.lower_expr(expr)?;
                     let length = u64::from(size.bytes());
-                    let length_value = self.builder.imm_u64(length);
+                    let length_value = self.builder.imm(length);
                     total = self.builder.add(total, length_value);
                     parts.push(Part::Fixed { value, length });
                 }
@@ -864,7 +864,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         );
         self.builder.set_memory_object_len(output, total, MemoryObjectKind::Bytes);
 
-        let mut offset = self.builder.imm_u64(0);
+        let mut offset = self.builder.imm(0);
         // for part { copy(literal | dynamic | fixed, output, offset) }
         for part in parts {
             match part {
@@ -872,7 +872,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     for chunk in bytes.chunks(32) {
                         let value = self.lower_string_literal_word(chunk);
                         self.builder.memory_object_store_word(output, offset, value);
-                        let length = self.builder.imm_u64(chunk.len() as u64);
+                        let length = self.builder.imm(chunk.len() as u64);
                         offset = self.builder.add(offset, length);
                     }
                 }
@@ -890,7 +890,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Part::Fixed { value, length } => {
                     self.builder.memory_object_store_word(output, offset, value);
-                    let length = self.builder.imm_u64(length);
+                    let length = self.builder.imm(length);
                     offset = self.builder.add(offset, length);
                 }
             }

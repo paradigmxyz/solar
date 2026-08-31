@@ -149,7 +149,7 @@ fn lower_checked_alloc(
     let (size, align_overflow) = aligned_size(&mut builder, size, semantics.alignment);
     let next = builder.add(ptr, size);
     let bump_overflow = builder.lt(next, ptr);
-    let limit = builder.imm_u64(EvmMemoryLayout::MAX_ALLOCATION_END);
+    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
     let over_limit = builder.gt(next, limit);
     let mut invalid = builder.or(bump_overflow, over_limit);
     if let Some(align_overflow) = align_overflow {
@@ -178,9 +178,9 @@ fn aligned_size(
     if let Some(size) = builder.func().value_u64(size)
         && let Some(aligned) = EvmMemoryLayout::align_word(size)
     {
-        return (builder.imm_u64(aligned), None);
+        return (builder.imm(aligned), None);
     }
-    let mask = builder.imm_u256(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+    let mask = builder.imm(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
     let rounded = builder.add_u64_offset(size, EvmMemoryLayout::WORD_SIZE - 1);
     let overflow = builder.lt(rounded, size);
     (builder.and(rounded, mask), Some(overflow))
@@ -198,7 +198,7 @@ fn initialize(
 }
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
-    let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
+    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = InstKind::MLoad(slot);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
@@ -209,13 +209,13 @@ fn rewrite_as_fmp_store(
     inst: crate::mir::InstId,
     ptr: crate::mir::ValueId,
 ) {
-    let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
+    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = InstKind::MStore(slot, ptr);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
-    let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
+    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     builder.mstore(slot, ptr);
 }

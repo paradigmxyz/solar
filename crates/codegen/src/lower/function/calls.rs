@@ -114,11 +114,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let size = match layout {
                 MemoryObjectLayout::Bytes => self.builder.checked_padded_size(len),
                 MemoryObjectLayout::DynamicArray { element_words } => {
-                    let stride = self.builder.imm_u64(u64::from(element_words));
+                    let stride = self.builder.imm(u64::from(element_words));
                     let payload = self.builder.checked_mul(len, stride);
-                    let one = self.builder.imm_u64(1);
+                    let one = self.builder.imm(1);
                     let words = self.builder.checked_add(payload, one);
-                    let word_size = self.builder.imm_u64(32);
+                    let word_size = self.builder.imm(32);
                     self.builder.checked_mul(words, word_size)
                 }
                 _ => return report_unsupported(self.context.gcx, expr.span, "allocation type"),
@@ -153,7 +153,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_function_call(expr, callee, function_id, args, call_opts);
         }
         if self.context.gcx.dcx().has_errors().is_err() {
-            return Some(self.builder.imm_u256(U256::ZERO));
+            return Some(self.builder.imm(U256::ZERO));
         }
         report_unsupported(self.context.gcx, expr.span, "function call")
     }
@@ -198,7 +198,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             });
         let Ok(bytecode) = bytecode else { return None };
 
-        let mut call_value = self.builder.imm_u256(U256::ZERO);
+        let mut call_value = self.builder.imm(U256::ZERO);
         let mut salt = None;
         if let Some(options) = call_opts {
             for option in options.args {
@@ -260,15 +260,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded_len = if layout.types.iter().any(AbiType::is_dynamic) {
             self.builder.slice_len(encoded)
         } else {
-            self.builder.imm_u64(layout.head_size())
+            self.builder.imm(layout.head_size())
         };
 
         let bytecode_len = u64::try_from(bytecode.len()).ok()?;
-        let bytecode_len_value = self.builder.imm_u64(bytecode_len);
+        let bytecode_len_value = self.builder.imm(bytecode_len);
         let total_len = self.builder.checked_add(bytecode_len_value, encoded_len);
         // CREATE consumes a raw byte range, so do not reserve a semantic bytes
         // header that no later operation can observe.
-        let padding = self.builder.imm_u64(31);
+        let padding = self.builder.imm(31);
         let rounded_len = self.builder.checked_add(total_len, padding);
         let mask = self.builder.not(padding);
         let allocation_size = self.builder.and(rounded_len, mask);
@@ -309,7 +309,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let values =
             self.lower_external_function_pointer_call_values(callee, function, args, call_opts)?;
-        Some(values.into_iter().next().unwrap_or_else(|| self.builder.imm_u256(U256::ZERO)))
+        Some(values.into_iter().next().unwrap_or_else(|| self.builder.imm(U256::ZERO)))
     }
 
     pub(super) fn lower_external_function_pointer_call_values(
@@ -385,11 +385,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         function_value: ValueId,
     ) -> (ValueId, ValueId) {
-        let selector_mask = self.builder.imm_u256(U256::from(u32::MAX));
+        let selector_mask = self.builder.imm(U256::from(u32::MAX));
         let selector = self.builder.and(function_value, selector_mask);
-        let selector_shift = self.builder.imm_u64(224);
+        let selector_shift = self.builder.imm(224);
         let selector = self.builder.shl(selector_shift, selector);
-        let address_shift = self.builder.imm_u64(32);
+        let address_shift = self.builder.imm(32);
         let address = self.builder.shr(address_shift, function_value);
         (address, selector)
     }
@@ -431,7 +431,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // internal_call_void(dispatcher, function, args)
             // result = 0
             self.builder.internal_call_void(dispatcher, values, 0);
-            return Some(self.builder.imm_u256(U256::ZERO));
+            return Some(self.builder.imm(U256::ZERO));
         }
         let first_ty = function.returns[0];
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
@@ -456,7 +456,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let function_id = self.resolve_call_target(expr, function_id);
         self.context.state.pointer_registry.targets.insert(function_id);
-        Some(self.builder.imm_u64(internal_function_pointer_id(function_id)))
+        Some(self.builder.imm(internal_function_pointer_id(function_id)))
     }
 
     pub(super) fn ensure_internal_function_pointer_dispatcher(
@@ -495,7 +495,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && (self.is_dynamic_bytes_type(from)
                 || matches!(from.peel_refs().kind, TyKind::StringLiteral(..)))
         {
-            let zero = self.builder.imm_u64(0);
+            let zero = self.builder.imm(0);
             let word_and_length = match self.builder.func().value_ty(value) {
                 Some(MirType::MemoryObject(MemoryObjectKind::Bytes)) => {
                     let word = self.builder.memory_object_load_element(
@@ -522,11 +522,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // value = word & mask(min(length, fixed_width))
                 let width = u64::from(size.bytes());
                 let fixed_mask =
-                    self.builder.imm_u256(U256::MAX << (256 - usize::from(size.bytes()) * 8));
-                let width_value = self.builder.imm_u64(width);
+                    self.builder.imm(U256::MAX << (256 - usize::from(size.bytes()) * 8));
+                let width_value = self.builder.imm(width);
                 let short = self.builder.lt(length, width_value);
                 let missing = self.builder.sub(width_value, length);
-                let bits_per_byte = self.builder.imm_u64(8);
+                let bits_per_byte = self.builder.imm(8);
                 let shift = self.builder.mul(bits_per_byte, missing);
                 let short_mask = self.builder.shl(shift, fixed_mask);
                 let mask = self.builder.select(short, short_mask, fixed_mask);
@@ -544,7 +544,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && destination_size.is_none()
             && u64::from(32 - size.bytes()) * 8 != 0
         {
-            let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
+            let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
             self.builder.shr(shift, value)
         } else {
             value
@@ -598,7 +598,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         if let Some(value) = byte_value {
             // value = mload(bytes.data)
-            let zero = self.builder.imm_u256(U256::ZERO);
+            let zero = self.builder.imm(U256::ZERO);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
         }
         if let Some(source_size) = source_size {
@@ -609,14 +609,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return value;
         }
         // value = value << (32 - to.width) * 8
-        let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
+        let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
         self.builder.shl(shift, value)
     }
 
     pub(super) fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
         let peeled = ty.peel_refs();
         if matches!(peeled.kind, TyKind::Elementary(ElementaryType::Bool)) {
-            let zero = self.builder.imm_u256(U256::ZERO);
+            let zero = self.builder.imm(U256::ZERO);
             let is_zero = self.builder.eq(value, zero);
             return self.builder.iszero(is_zero);
         }
@@ -650,7 +650,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
-            let shift = self.builder.imm_u64(64);
+            let shift = self.builder.imm(64);
             return self.builder.shr(shift, value);
         }
         if matches!(ty.peel_refs().kind, TyKind::Enum(..)) {
@@ -664,7 +664,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {
-            let shift = self.builder.imm_u64(64);
+            let shift = self.builder.imm(64);
             return self.builder.shr(shift, value);
         }
         value
@@ -674,7 +674,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {
-            let shift = self.builder.imm_u64(64);
+            let shift = self.builder.imm(64);
             return self.builder.shl(shift, value);
         }
         self.normalize_abi_scalar(value, ty)
@@ -795,7 +795,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // internal_call_void(function, call_args)
             // result = 0
             self.builder.internal_call_void(mir_id, values, 0);
-            return Some(self.builder.imm_u256(U256::ZERO));
+            return Some(self.builder.imm(U256::ZERO));
         }
         let first_ty = self.context.gcx.type_of_item((*function.returns.first()?).into());
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
@@ -880,7 +880,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )?;
         // input = abi_encode(selector, args)
         let selector = self.context.gcx.function_selector(function_id).0;
-        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
+        let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
@@ -1041,13 +1041,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // input = abi_encode(selector, args)
         let selector = self.context.gcx.function_selector(function_id).0;
-        let selector = self.builder.imm_u256(U256::from_be_slice(&selector) << 224);
+        let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let zero = self.builder.imm_u256(U256::ZERO);
-        let address = self.builder.imm_u256(address);
+        let zero = self.builder.imm(U256::ZERO);
+        let address = self.builder.imm(address);
         let gas = self.builder.gas();
         if function.returns.is_empty() {
             self.revert_if_no_code(address);
@@ -1134,7 +1134,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else if decode_returndata {
             zero
         } else {
-            self.builder.imm_u64((returns as u64).saturating_mul(32))
+            self.builder.imm((returns as u64).saturating_mul(32))
         };
         ExternalReturnPlan {
             static_buffer: static_return_buffer,
@@ -1206,7 +1206,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if values.len() > 1 {
             let (object, _, layout) = self.ensure_multi_return_buffer(values.len());
             for (index, value) in values.iter().copied().enumerate().skip(1) {
-                let index = self.builder.imm_u64(index as u64);
+                let index = self.builder.imm(index as u64);
                 self.builder.memory_object_store_element(object, layout, index, value);
             }
         }
@@ -1222,18 +1222,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // return (buffer, data, size)
         let size = layout.checked_head_size()?;
         if layout.types.len() != 1 {
-            let object_size = self.builder.imm_u64(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
+            let object_size = self.builder.imm(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
             let object = self.builder.alloc_object(
                 object_size,
                 MemoryObjectLayout::Bytes,
                 AllocationSemantics::INTERNAL,
             );
-            let size = self.builder.imm_u64(size);
+            let size = self.builder.imm(size);
             self.builder.set_memory_object_len(object, size, MemoryObjectKind::Bytes);
             let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
             return Some((object, data, size));
         }
-        let size = self.builder.imm_u64(size);
+        let size = self.builder.imm(size);
         let data = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
         Some((data, data, size))
     }
@@ -1258,7 +1258,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     if !valid(returns[i], word) { revert(0, 0) }
         // }
         let words = u64::try_from(returns.len()).unwrap_or(u64::MAX);
-        let size = self.builder.imm_u64(words.saturating_mul(32));
+        let size = self.builder.imm(words.saturating_mul(32));
         self.revert_if_short_returndata(size);
         for (index, &ty) in returns.iter().enumerate() {
             let value = self.load_multi_return_value(offset, index, returns.len());

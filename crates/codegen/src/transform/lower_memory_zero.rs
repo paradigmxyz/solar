@@ -51,7 +51,7 @@ fn lower_function(func: &mut Function) -> bool {
                 continue;
             };
             if builder.func().value_u64(size) == Some(32) {
-                let zero = builder.imm_u64(0);
+                let zero = builder.imm(0);
                 let instruction = builder.func_mut().inst_mut(inst);
                 instruction.kind = InstKind::MStore(dest, zero);
                 instruction.metadata.set_memory_region(None);

@@ -599,7 +599,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         words: usize,
     ) -> ValueId {
         let offset =
-            self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
+            self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX).saturating_mul(32));
         debug_assert!(index < words);
         let position = self.builder.add(base, offset);
         self.builder.mload(position)
@@ -615,7 +615,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let MirType::MemoryObject(kind) = types::TypeLowerer::mir_return_type(ty) else {
             return self.load_multi_return_value(base, index, returns);
         };
-        let index = self.builder.imm_u64(u64::try_from(index).unwrap_or(u64::MAX));
+        let index = self.builder.imm(u64::try_from(index).unwrap_or(u64::MAX));
         self.builder.memory_object_load_object(
             base,
             MemoryObjectLayout::word_fixed_array(u64::try_from(returns).unwrap_or(u64::MAX)),

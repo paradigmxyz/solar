@@ -1939,7 +1939,7 @@ mod tests {
     #[test]
     fn canonicalizes_absolute_memory_addresses() {
         let mut func = function();
-        let absolute = FunctionBuilder::new(&mut func).imm_u64(0x20);
+        let absolute = FunctionBuilder::new(&mut func).imm(0x20);
         let aa = AliasAnalysis::new(&func);
 
         assert_eq!(aa.memory_address(&func, absolute), Some(MemoryAddress::absolute(0x20)));
@@ -1952,11 +1952,11 @@ mod tests {
             let mut builder = FunctionBuilder::new(&mut func);
             let local = builder.add_param(MirType::uint256());
             let captured = builder.add_param(MirType::uint256());
-            let offset = builder.imm_u64(32);
+            let offset = builder.imm(32);
             let local_address = builder.add(local, offset);
             let captured_address = builder.add(captured, offset);
-            let value = builder.imm_u64(1);
-            let destination = builder.imm_u64(0x80);
+            let value = builder.imm(1);
+            let destination = builder.imm(0x80);
             builder.mstore(local_address, value);
             builder.mstore(destination, captured_address);
             builder.stop();
@@ -1978,7 +1978,7 @@ mod tests {
             let exit = builder.create_block();
             builder.jump(header);
             builder.switch_to_block(header);
-            let size = builder.imm_u64(32);
+            let size = builder.imm(32);
             let allocation = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
             builder.branch(condition, header, exit);
             builder.switch_to_block(exit);
@@ -2037,9 +2037,9 @@ mod tests {
         let mut func = function();
         let copy = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let dest = builder.imm_u64(0x80);
-            let source = builder.imm_u64(0x20);
-            let size = builder.imm_u64(32);
+            let dest = builder.imm(0x80);
+            let source = builder.imm(0x20);
+            let size = builder.imm(32);
             builder.mcopy(dest, source, size);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };
@@ -2057,10 +2057,10 @@ mod tests {
         let mut func = function();
         let call = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let gas = builder.imm_u64(100_000);
-            let address = builder.imm_u64(1);
-            let offset = builder.imm_u64(0x80);
-            let size = builder.imm_u64(32);
+            let gas = builder.imm(100_000);
+            let address = builder.imm(1);
+            let offset = builder.imm(0x80);
+            let size = builder.imm(32);
             builder.staticcall(gas, address, offset, size, offset, size);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };
@@ -2077,11 +2077,11 @@ mod tests {
         let mut func = function();
         let call = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let gas = builder.imm_u64(100_000);
-            let address = builder.imm_u64(1);
-            let value = builder.imm_u64(2);
-            let offset = builder.imm_u64(0x80);
-            let size = builder.imm_u64(32);
+            let gas = builder.imm(100_000);
+            let address = builder.imm(1);
+            let value = builder.imm(2);
+            let offset = builder.imm(0x80);
+            let size = builder.imm(32);
             builder.callcode(gas, address, value, offset, size, offset, size);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };

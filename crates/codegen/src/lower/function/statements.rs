@@ -304,7 +304,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(bytes) = self.constant_string_bytes(expr)
             && (1..=32).contains(&bytes.as_byte_str().len())
         {
-            let length = self.builder.imm_u64(bytes.as_byte_str().len() as u64);
+            let length = self.builder.imm(bytes.as_byte_str().len() as u64);
             let data = self.lower_string_literal_word(bytes.as_byte_str());
             return Some(PreparedRevertPayload::ShortString { length, data });
         }
@@ -337,23 +337,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // payload = abi_encode(Error(string), "")
                 // revert(payload.data, payload.length)
                 let selector = keccak256("Error(string)");
-                let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
-                let zero = self.builder.imm_u64(0);
+                let selector = self.builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+                let zero = self.builder.imm(0);
                 self.builder.mstore(zero, selector);
-                let offset = self.builder.imm_u64(4);
-                let tuple_offset = self.builder.imm_u64(32);
+                let offset = self.builder.imm(4);
+                let tuple_offset = self.builder.imm(32);
                 self.builder.mstore(offset, tuple_offset);
-                let length = self.builder.imm_u64(36);
-                let byte_len = self.builder.imm_u64(0);
+                let length = self.builder.imm(36);
+                let byte_len = self.builder.imm(0);
                 self.builder.mstore(length, byte_len);
-                let size = self.builder.imm_u64(68);
+                let size = self.builder.imm(68);
                 self.builder.revert(zero, size);
             }
             PreparedRevertPayload::ErrorString(value) => {
                 // payload = abi_encode(Error(string), value)
                 // revert(payload.data, payload.length)
                 let selector = keccak256("Error(string)");
-                let selector = self.builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
+                let selector = self.builder.imm(U256::from_be_slice(&selector[..4]) << 224);
                 let layout = Arc::new(AbiLayout::new(
                     vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
                 ));
@@ -405,17 +405,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let length = builder.add_param(MirType::uint256());
             let value = builder.add_param(MirType::uint256());
             let selector = keccak256("Error(string)");
-            let selector = builder.imm_u256(U256::from_be_slice(&selector[..4]) << 224);
-            let zero = builder.imm_u64(0);
+            let selector = builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+            let zero = builder.imm(0);
             builder.mstore(zero, selector);
-            let offset = builder.imm_u64(4);
-            let tuple_offset = builder.imm_u64(32);
+            let offset = builder.imm(4);
+            let tuple_offset = builder.imm(32);
             builder.mstore(offset, tuple_offset);
-            let length_offset = builder.imm_u64(36);
+            let length_offset = builder.imm(36);
             builder.mstore(length_offset, length);
-            let data_offset = builder.imm_u64(68);
+            let data_offset = builder.imm(68);
             builder.mstore(data_offset, value);
-            let size = builder.imm_u64(100);
+            let size = builder.imm(100);
             builder.revert(zero, size);
             Some(())
         })
@@ -452,7 +452,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let selector = self
             .builder
-            .imm_u256(U256::from_be_slice(&self.context.gcx.function_selector(error_id).0) << 224);
+            .imm(U256::from_be_slice(&self.context.gcx.function_selector(error_id).0) << 224);
         Some(PreparedRevertPayload::CustomError {
             selector,
             layout,
@@ -497,7 +497,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // topics = anonymous ? [] : [event_selector]
         let mut topics = Vec::with_capacity(indexed_count + usize::from(!event.anonymous));
         if !event.anonymous {
-            topics.push(self.builder.imm_u256(U256::from_be_slice(
+            topics.push(self.builder.imm(U256::from_be_slice(
                 self.context.gcx.event_selector(event_id).as_slice(),
             )));
         }
@@ -591,12 +591,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // data = abi_encode(non_indexed_arguments)
         let (data_ptr, data_size) = if data_types.is_empty() {
-            let zero = self.builder.imm_u256(U256::ZERO);
+            let zero = self.builder.imm(U256::ZERO);
             (zero, zero)
         } else if matches!(data_types.as_slice(), [AbiType::Word(_)]) {
-            let zero = self.builder.imm_u64(0);
+            let zero = self.builder.imm(0);
             self.builder.mstore(zero, data_values[0]);
-            (zero, self.builder.imm_u64(32))
+            (zero, self.builder.imm(32))
         } else {
             let layout = Arc::new(AbiLayout::new(data_types.into_boxed_slice()));
             let encoded = self.builder.abi_encode(layout, None, data_values.into_boxed_slice());
@@ -686,7 +686,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {
-            let shift = self.builder.imm_u64(64);
+            let shift = self.builder.imm(64);
             return self.builder.shl(shift, value);
         }
         if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_))) {
@@ -699,7 +699,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.func().value_ty(value),
             Some(MirType::MemoryObject(MemoryObjectKind::Bytes))
         ) {
-            let zero = self.builder.imm_u64(0);
+            let zero = self.builder.imm(0);
             return self.builder.memory_object_load_element(value, MemoryObjectLayout::Bytes, zero);
         }
         value

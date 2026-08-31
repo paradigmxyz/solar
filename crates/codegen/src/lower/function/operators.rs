@@ -12,7 +12,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         is_add: bool,
     ) -> ValueId {
         // overflow = signed_add_sub_signs(lhs, rhs, result)
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let zero = self.builder.imm(U256::ZERO);
         let lhs_negative = self.builder.slt(lhs, zero);
         let rhs_negative = self.builder.slt(rhs, zero);
         let result_negative = self.builder.slt(result, zero);
@@ -50,7 +50,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // overflow |= lhs == min && rhs == -1
             let (min, max) = signed_bounds(bits, &mut self.builder);
             overflow = self.add_signed_range_check(overflow, result, min, max);
-            let minus_one = self.builder.imm_u256(U256::MAX);
+            let minus_one = self.builder.imm(U256::MAX);
             let lhs_is_min = self.builder.eq(lhs, min);
             let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
             let special = self.builder.and(lhs_is_min, rhs_is_minus_one);
@@ -59,7 +59,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && bits < 256
         {
             // overflow |= result > max
-            let max = self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+            let max = self.builder.imm((U256::from(1) << bits) - U256::ONE);
             let too_wide = self.builder.gt(result, max);
             overflow = self.builder.or(overflow, too_wide);
         }
@@ -87,7 +87,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match kind {
             Some(ArithmeticKind::Unsigned(bits)) if bits < 256 => self.mask_to_bits(value, bits),
             Some(ArithmeticKind::Signed(bits)) if (8..256).contains(&bits) => {
-                let byte = self.builder.imm_u64(u64::from(bits / 8 - 1));
+                let byte = self.builder.imm(u64::from(bits / 8 - 1));
                 self.builder.signextend(byte, value)
             }
             _ => value,
@@ -98,7 +98,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if bits >= 256 {
             return value;
         }
-        let mask = self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+        let mask = self.builder.imm((U256::from(1) << bits) - U256::ONE);
         self.builder.and(value, mask)
     }
 
@@ -106,7 +106,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if bytes >= 32 {
             return value;
         }
-        let mask = self.builder.imm_u256(U256::MAX << (256 - usize::from(bytes) * 8));
+        let mask = self.builder.imm(U256::MAX << (256 - usize::from(bytes) * 8));
         self.builder.and(value, mask)
     }
 
@@ -126,8 +126,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     }
         //     current_exponent >>= 1
         // }
-        let one = self.builder.imm_u256(U256::ONE);
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let one = self.builder.imm(U256::ONE);
+        let zero = self.builder.imm(U256::ZERO);
         let preheader = self.builder.current_block();
         let header = self.builder.create_block();
         let body = self.builder.create_block();
@@ -186,7 +186,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 self.builder.lt(result, lhs)
                             } else {
                                 let max =
-                                    self.builder.imm_u256((U256::from(1) << bits) - U256::ONE);
+                                    self.builder.imm((U256::from(1) << bits) - U256::ONE);
                                 self.builder.gt(result, max)
                             }
                         }
@@ -232,7 +232,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     let (min, _) = signed_bounds(bits, &mut self.builder);
                     let lhs_is_min = self.builder.eq(lhs, min);
-                    let minus_one = self.builder.imm_u256(U256::MAX);
+                    let minus_one = self.builder.imm(U256::MAX);
                     let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
                     let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
                     self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
@@ -322,7 +322,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let overflow = self.builder.eq(value, min);
                     self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 }
-                let zero = self.builder.imm_u256(U256::ZERO);
+                let zero = self.builder.imm(U256::ZERO);
                 let result = self.builder.sub(zero, value);
                 if self.unchecked {
                     self.truncate_wrapping_result(result, ty.and_then(arithmetic_kind))

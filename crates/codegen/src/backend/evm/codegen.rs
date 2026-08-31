@@ -13024,9 +13024,9 @@ mod tests {
 
             let mut function = Function::new(Ident::DUMMY);
             let mut builder = FunctionBuilder::new(&mut function);
-            let one = builder.imm_u64(1);
+            let one = builder.imm(1);
             let dest = builder.add(one, one);
-            let size = builder.imm_u64(32);
+            let size = builder.imm(32);
             builder.data_copy(DataRef::new(data, 0), dest, size);
             builder.stop();
             let function = module.add_function(function);
@@ -13327,7 +13327,7 @@ mod tests {
             let mut function = Function::new(Ident::with_dummy_span(sym::Test));
             let mut builder = FunctionBuilder::new(&mut function);
             let argument = builder.add_param(MirType::uint256());
-            let one = builder.imm_u64(1);
+            let one = builder.imm(1);
             let _unrelated = builder.add(one, one);
             let _use = builder.add(argument, one);
             let default = builder.create_block();
@@ -13367,7 +13367,7 @@ mod tests {
                 let mut function = Function::new(Ident::DUMMY);
                 let argument = function.alloc_param(MirType::uint256());
                 let mut builder = FunctionBuilder::new(&mut function);
-                let one = builder.imm_u64(1);
+                let one = builder.imm(1);
                 let blocks: Vec<_> = (0..5).map(|_| builder.create_block()).collect();
                 builder.jump(blocks[0]);
                 for (index, &block) in blocks.iter().enumerate() {
@@ -13501,7 +13501,7 @@ mod tests {
             let unreachable_merge = builder.create_block();
             builder.stop();
             builder.switch_to_block(unreachable_pred);
-            let value = builder.imm_u64(1);
+            let value = builder.imm(1);
             builder.jump(unreachable_merge);
             builder.switch_to_block(unreachable_merge);
             let value = builder.phi(vec![(unreachable_pred, value)]);

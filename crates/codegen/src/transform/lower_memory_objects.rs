@@ -107,7 +107,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             }
                             return false;
                         }
-                        let offset = builder.imm_u64(offset);
+                        let offset = builder.imm(offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
                     InstKind::MLoad(object) => {
@@ -168,7 +168,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             }
                             return false;
                         }
-                        let offset = builder.imm_u64(offset);
+                        let offset = builder.imm(offset);
                         builder.func_mut().inst_mut(inst).kind = InstKind::Add(object, offset);
                     }
                     InstKind::Keccak256Bytes(object) => {
@@ -204,7 +204,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         else {
                             return true;
                         };
-                        let offset = offset.unwrap_or_else(|| builder.imm_u64(0));
+                        let offset = offset.unwrap_or_else(|| builder.imm(0));
                         builder.func_mut().inst_mut(inst).kind = InstKind::Add(base, offset);
                     }
                     InstKind::MemoryObjectLoadField { object, layout, field } => {
@@ -248,7 +248,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             {
                                 builder.add_u64_offset(base, offset)
                             } else {
-                                let stride = builder.imm_u64(stride);
+                                let stride = builder.imm(stride);
                                 let offset = builder.mul(index, stride);
                                 builder.add(base, offset)
                             };
@@ -282,7 +282,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                             let address = memory_bytes_address::<P>(&mut builder, object, index);
                             builder.mload(address)
                         };
-                        let zero = builder.imm_u64(0);
+                        let zero = builder.imm(0);
                         let byte = builder.byte(zero, word);
                         if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, byte);
@@ -600,10 +600,10 @@ fn memory_element_address_parts<P: MemoryLayoutPolicy>(
         && let Some(offset) = index.checked_mul(stride)
         && let Some(offset) = base_offset.checked_add(offset)
     {
-        Some((object, (offset != 0).then(|| builder.imm_u64(offset))))
+        Some((object, (offset != 0).then(|| builder.imm(offset))))
     } else {
         let base = builder.add_u64_offset(object, base_offset);
-        let stride = builder.imm_u64(stride);
+        let stride = builder.imm(stride);
         let offset = builder.mul(index, stride);
         Some((base, Some(offset)))
     }

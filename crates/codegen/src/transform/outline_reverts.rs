@@ -99,12 +99,12 @@ fn create_revert(module: &mut Module, (stores, offset, size): &RevertShape) -> F
     {
         let mut builder = FunctionBuilder::new(&mut func);
         for &(store_offset, value) in stores {
-            let store_offset = builder.imm_u256(store_offset);
-            let value = builder.imm_u256(value);
+            let store_offset = builder.imm(store_offset);
+            let value = builder.imm(value);
             builder.mstore(store_offset, value);
         }
-        let offset = builder.imm_u256(*offset);
-        let size = builder.imm_u256(*size);
+        let offset = builder.imm(*offset);
+        let size = builder.imm(*size);
         builder.revert(offset, size);
     }
     module.add_function(func)

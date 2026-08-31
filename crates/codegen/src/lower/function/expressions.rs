@@ -7,7 +7,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let len = bytes.len().min(32);
         let mut padded = [0_u8; 32];
         padded[..len].copy_from_slice(&bytes[..len]);
-        self.builder.imm_u256(U256::from_be_bytes(padded))
+        self.builder.imm(U256::from_be_bytes(padded))
     }
 
     pub(super) fn lower_fixed_bytes_literal(
@@ -27,7 +27,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             LitKind::Str(_, bytes, _) => Some(self.lower_string_literal_word(bytes.as_byte_str())),
             LitKind::Number(value) => {
                 let shift = usize::from(32 - size.bytes()) * 8;
-                Some(self.builder.imm_u256(*value << shift))
+                Some(self.builder.imm(*value << shift))
             }
             _ => None,
         }
@@ -36,13 +36,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_literal(&mut self, kind: LitKind<'_>, span: Span) -> Option<ValueId> {
         match kind {
             LitKind::Str(_, value, _) => self.lower_shared_bytes_literal(value),
-            LitKind::Number(value) => Some(self.builder.imm_u256(value)),
+            LitKind::Number(value) => Some(self.builder.imm(value)),
             LitKind::Bool(value) => Some(self.builder.imm_bool(value)),
             LitKind::Address(value) => {
-                Some(self.builder.imm_u256(U256::from_be_slice(value.as_slice())))
+                Some(self.builder.imm(U256::from_be_slice(value.as_slice())))
             }
             LitKind::Rational(value) if *value.denom() == U256::from(1) => {
-                Some(self.builder.imm_u256(*value.numer()))
+                Some(self.builder.imm(*value.numer()))
             }
             _ => report_unsupported(self.context.gcx, span, "literal"),
         }
@@ -68,10 +68,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // value = address(receiver) << 32 | selector(function)
             let address = self.lower_expr(receiver)?;
-            let address_shift = self.builder.imm_u64(32);
+            let address_shift = self.builder.imm(32);
             let address = self.builder.shl(address_shift, address);
             let selector = self.context.gcx.function_selector(function_id).0;
-            let selector = self.builder.imm_u256(U256::from_be_slice(&selector));
+            let selector = self.builder.imm(U256::from_be_slice(&selector));
             return Some(self.builder.or(address, selector));
         }
         if name.name == sym::offset
@@ -97,7 +97,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ) && let ExprKind::Lit(lit) = self.peel_bytes_conversion(receiver).peel_parens().kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
-                return Some(self.builder.imm_u64(bytes.as_byte_str().len() as u64));
+                return Some(self.builder.imm(bytes.as_byte_str().len() as u64));
             }
             return self.lower_array_length(receiver, receiver_ty, expr.span, "length member");
         }
@@ -109,7 +109,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_constant_variable(id, expr.span);
         }
         if let Some(index) = resolved.enum_variant_index(&self.context.gcx.hir) {
-            return Some(self.builder.imm_u256(U256::from(index)));
+            return Some(self.builder.imm(U256::from(index)));
         }
         if variable.is_state_variable() {
             return self.load_variable(id, expr.span);
@@ -127,7 +127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let AbiType::Tuple(fields) = self.types.abi_type(receiver_ty)? else {
                 return report_unsupported(self.context.gcx, expr.span, "calldata struct field");
             };
-            let offset = self.builder.imm_u64(fields[..field].iter().map(AbiType::head_size).sum());
+            let offset = self.builder.imm(fields[..field].iter().map(AbiType::head_size).sum::<u64>());
             let base = self.builder.slice_ptr(object);
             let head = self.builder.add(base, offset);
             let field_ty = self
@@ -176,7 +176,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if !matches!(receiver.peel_parens().kind, ExprKind::Ident(_)) {
                 self.lower_expr(receiver)?;
             }
-            return Some(self.builder.imm_u256(len));
+            return Some(self.builder.imm(len));
         }
         if receiver_ty.is_ref_at(DataLocation::Storage) {
             if let Some(access) = self.storage_access(receiver) {
@@ -240,7 +240,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return match name.name {
                 kw::Address => Some(self.external_function_address(value)),
                 sym::selector => {
-                    let mask = self.builder.imm_u256(U256::from(u32::MAX));
+                    let mask = self.builder.imm(U256::from(u32::MAX));
                     Some(self.builder.and(value, mask))
                 }
                 _ => report_unsupported(self.context.gcx, expr.span, "Yul function member"),
@@ -255,7 +255,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             sym::offset => Some(
                 access
                     .offset
-                    .unwrap_or_else(|| self.builder.imm_u64(u64::from(access.location.offset))),
+                    .unwrap_or_else(|| self.builder.imm(u64::from(access.location.offset))),
             ),
             _ => report_unsupported(self.context.gcx, expr.span, "Yul storage member"),
         }
@@ -279,7 +279,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind else {
             return value;
         };
-        let shift = self.builder.imm_u64(u64::from(32 - size.bytes()) * 8);
+        let shift = self.builder.imm(u64::from(32 - size.bytes()) * 8);
         self.builder.shl(shift, value)
     }
 
@@ -321,9 +321,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         ty.peel_refs().kind
                     {
                         let shift = usize::from(32 - size.bytes()) * 8;
-                        Some(self.builder.imm_u256(value << shift))
+                        Some(self.builder.imm(value << shift))
                     } else {
-                        Some(self.builder.imm_u256(value))
+                        Some(self.builder.imm(value))
                     }
                 }
                 ConstValue::String(value) => {

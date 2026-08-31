@@ -489,7 +489,7 @@ mod tests {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
         let x = b.add_param(MirType::uint256());
-        let one = b.imm_u64(1);
+        let one = b.imm(1);
         let sum = b.add(x, one);
         b.ret([sum]);
 
@@ -523,12 +523,12 @@ mod tests {
         b.branch(cond, then_bb, else_bb);
 
         b.switch_to_block(then_bb);
-        let c1 = b.imm_u64(1);
+        let c1 = b.imm(1);
         let v_then = b.add(x, c1);
         b.jump(merge);
 
         b.switch_to_block(else_bb);
-        let c2 = b.imm_u64(1);
+        let c2 = b.imm(1);
         let v_else = b.sub(x, c2);
         b.jump(merge);
 
@@ -560,7 +560,7 @@ mod tests {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
         let i = b.add_param(MirType::uint256());
-        let limit = b.imm_u64(10);
+        let limit = b.imm(10);
 
         let header = b.create_block();
         let body = b.create_block();
@@ -573,7 +573,7 @@ mod tests {
         b.branch(cond, body, exit);
 
         b.switch_to_block(body);
-        let step = b.imm_u64(1);
+        let step = b.imm(1);
         let _i_next = b.add(i, step);
         b.jump(header);
 
@@ -632,8 +632,8 @@ mod tests {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
         let _unused = b.add_param(MirType::uint256());
-        let one = b.imm_u64(1);
-        let two = b.imm_u64(2);
+        let one = b.imm(1);
+        let two = b.imm(2);
         let sum = b.add(one, two);
         b.ret([sum]);
 
@@ -870,7 +870,7 @@ mod tests {
         let phi_placeholder; // ValueId slot we'll point at the phi instruction.
         {
             let mut b = FunctionBuilder::new(&mut func);
-            init = b.imm_u64(0);
+            init = b.imm(0);
             entry = b.current_block();
             header = b.create_block();
             body = b.create_block();
@@ -881,12 +881,12 @@ mod tests {
             b.switch_to_block(header);
             // Allocate a placeholder for the phi result (an undef that we'll replace).
             phi_placeholder = b.undef(MirType::uint256());
-            let limit = b.imm_u64(10);
+            let limit = b.imm(10);
             let cond = b.lt(phi_placeholder, limit);
             b.branch(cond, body, exit);
 
             b.switch_to_block(body);
-            let step = b.imm_u64(1);
+            let step = b.imm(1);
             updated = b.add(phi_placeholder, step);
             b.jump(header);
 

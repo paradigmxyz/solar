@@ -155,7 +155,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn store_byte(&mut self, object: ValueId, index: ValueId, value: ValueId) {
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let zero = self.builder.imm(U256::ZERO);
         let value = self.builder.byte(zero, value);
         self.builder.memory_object_store_byte(object, index, value);
     }
@@ -239,7 +239,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if matches!(ty.peel_refs().kind, TyKind::Mapping(..)) {
                 return report_unsupported(self.context.gcx, span, "mapping value");
             }
-            let slot = self.builder.imm_u256(location.slot);
+            let slot = self.builder.imm(location.slot);
             return self.load_storage_value(
                 ty,
                 StorageAccess { slot, location, offset: None },
@@ -299,7 +299,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return report_unsupported(self.context.gcx, span, "state initializer target");
         };
         if self.types.memory_layout(ty).is_some() {
-            let slot = self.builder.imm_u256(location.slot);
+            let slot = self.builder.imm(location.slot);
             self.store_storage_object_with_source(ty, source_ty, slot, value, span)
         } else {
             self.validate_enum(ty, value);
@@ -375,12 +375,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             };
             let pointer = self.load_variable(id, span)?;
-            let mask = self.builder.imm_u256(U256::from(u32::MAX));
+            let mask = self.builder.imm(U256::from(u32::MAX));
             let value = match name.name {
                 kw::Address => {
-                    let address_mask = self.builder.imm_u256(U256::MAX >> 96);
+                    let address_mask = self.builder.imm(U256::MAX >> 96);
                     let address = self.builder.and(value, address_mask);
-                    let shift = self.builder.imm_u64(32);
+                    let shift = self.builder.imm(32);
                     let address = self.builder.shl(shift, address);
                     let selector = self.builder.and(pointer, mask);
                     self.builder.or(address, selector)
@@ -426,7 +426,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.clear_storage_access(ty, access, expr.span);
         }
         if self.types.memory_layout(ty).is_none() {
-            let zero = self.builder.imm_u256(U256::ZERO);
+            let zero = self.builder.imm(U256::ZERO);
             return self.store_lvalue(expr, zero);
         }
         let place = self.resolve_lvalue_place(expr)?;

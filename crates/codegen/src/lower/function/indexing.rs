@@ -12,7 +12,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             MemoryObjectLayout::DynamicArray { .. } => {
                 self.builder.memory_object_len(object, layout.kind())
             }
-            MemoryObjectLayout::FixedArray { len, .. } => self.builder.imm_u64(len),
+            MemoryObjectLayout::FixedArray { len, .. } => self.builder.imm(len),
             _ => unreachable!("array layout expected"),
         }
     }
@@ -65,7 +65,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             // bounds_check(index, width)
             // value = byte(index, receiver)
-            let length = self.builder.imm_u64(u64::from(size.bytes()));
+            let length = self.builder.imm(u64::from(size.bytes()));
             self.builder.bounds_check(index, length);
             let byte = self.builder.byte(index, object);
             return Some(self.normalize_byte_value(expr, byte));
@@ -91,7 +91,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             );
                         }
                     };
-                    let zero = self.builder.imm_u64(0);
+                    let zero = self.builder.imm(0);
                     let byte = self.builder.byte(zero, word);
                     Some(self.normalize_byte_value(expr, byte))
                 }
@@ -110,7 +110,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .gcx
                         .type_of_expr(expr.id)?
                         .with_loc_if_ref(self.context.gcx, DataLocation::Calldata);
-                    let head_size = self.builder.imm_u64(self.types.abi_type(element)?.head_size());
+                    let head_size = self.builder.imm(self.types.abi_type(element)?.head_size());
                     let offset = self.builder.checked_mul(index, head_size);
                     let head = self.builder.add(base, offset);
                     // Dynamic-array slices retain their element base for nested offsets;
@@ -205,7 +205,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let start = if let Some(start) = start {
             self.lower_typed_expr(start, self.context.gcx.types.uint(256))?
         } else {
-            self.builder.imm_u64(0)
+            self.builder.imm(0)
         };
         let end = if let Some(end) = end {
             self.lower_typed_expr(end, self.context.gcx.types.uint(256))?
@@ -221,7 +221,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let start_offset = if element_stride == 1 {
             start
         } else {
-            let stride = self.builder.imm_u64(element_stride);
+            let stride = self.builder.imm(element_stride);
             self.builder.checked_mul(start, stride)
         };
         // result = slice(base.data + start * stride, end - start)

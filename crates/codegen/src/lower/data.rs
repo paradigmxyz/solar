@@ -57,7 +57,7 @@ pub(super) fn copy_data_to_memory(
         return;
     }
     if data.iter().all(|&byte| byte == 0) {
-        let size = builder.imm_u64(padded_size as u64);
+        let size = builder.imm(padded_size as u64);
         builder.memory_zero(dest, size);
         return;
     }
@@ -85,13 +85,13 @@ pub(super) fn copy_data_to_memory(
         let tail = if tail_offset == 0 {
             dest
         } else {
-            let offset = builder.imm_u64(tail_offset as u64);
+            let offset = builder.imm(tail_offset as u64);
             builder.add(dest, offset)
         };
-        let zero = builder.imm_u64(0);
+        let zero = builder.imm(0);
         builder.mstore(tail, zero);
     }
-    let size = builder.imm_u64(data.len() as u64);
+    let size = builder.imm(data.len() as u64);
     let data = module.intern_data(data, name);
     builder.data_copy(data, dest, size);
 }
@@ -140,11 +140,11 @@ fn data_copy_is_profitable_for(gcx: Gcx<'_>, data: &[u8], separate_tail: bool) -
 pub(super) fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: ValueId, data: &[u8]) {
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
     for (index, chunk) in data.chunks(word_size).enumerate() {
-        let value = builder.imm_u256(U256::from_be_bytes(padded_data_word(chunk)));
+        let value = builder.imm(U256::from_be_bytes(padded_data_word(chunk)));
         let address = if index == 0 {
             dest
         } else {
-            let offset = builder.imm_u64((index * word_size) as u64);
+            let offset = builder.imm((index * word_size) as u64);
             builder.add(dest, offset)
         };
         builder.mstore(address, value);
@@ -169,25 +169,25 @@ fn copy_splat_to_memory(
 
     if clear_tail {
         let tail_offset = data.len() / word_size * word_size;
-        let offset = builder.imm_u64(tail_offset as u64);
+        let offset = builder.imm(tail_offset as u64);
         let tail = builder.add(dest, offset);
-        let zero = builder.imm_u64(0);
+        let zero = builder.imm(0);
         builder.mstore(tail, zero);
     }
-    let value = builder.imm_u256(U256::from_be_bytes(padded_data_word(&data[..word_size])));
+    let value = builder.imm(U256::from_be_bytes(padded_data_word(&data[..word_size])));
     builder.mstore(dest, value);
     let mut filled = word_size;
     if data.len() >= word_size * 2 {
-        let offset = builder.imm_u64(word_size as u64);
+        let offset = builder.imm(word_size as u64);
         let target = builder.add(dest, offset);
         builder.mstore(target, value);
         filled += word_size;
     }
     while filled < data.len() {
         let chunk = filled.min(data.len() - filled);
-        let offset = builder.imm_u64(filled as u64);
+        let offset = builder.imm(filled as u64);
         let target = builder.add(dest, offset);
-        let size = builder.imm_u64(chunk as u64);
+        let size = builder.imm(chunk as u64);
         builder.mcopy(target, dest, size);
         filled += chunk;
     }

@@ -162,7 +162,7 @@ fn build_entry(
         if let Some(selector_size_block) = selector_size_block {
             builder.switch_to_block(selector_size_block);
             let size = builder.calldatasize();
-            let selector_size = builder.imm_u64(4);
+            let selector_size = builder.imm(4);
             let short = builder.lt(size, selector_size);
             builder.branch(short, default_block, select_block);
         }
@@ -181,7 +181,7 @@ fn build_entry(
             let cases = routes
                 .iter()
                 .zip(&case_blocks)
-                .map(|((sel, _), block)| (builder.imm_u64(u64::from(*sel)), *block))
+                .map(|((sel, _), block)| (builder.imm(u64::from(*sel)), *block))
                 .collect();
             builder.switch(selector, default_block, cases);
         }
@@ -207,7 +207,7 @@ fn build_entry(
         }
 
         builder.switch_to_block(revert_block);
-        let zero = builder.imm_u64(0);
+        let zero = builder.imm(0);
         builder.revert(zero, zero);
     }
 
@@ -216,13 +216,13 @@ fn build_entry(
 
 /// Loads the 4-byte function selector from the first calldata word.
 fn load_selector(builder: &mut FunctionBuilder<'_>, has_bitwise_shifting: bool) -> ValueId {
-    let zero = builder.imm_u64(0);
+    let zero = builder.imm(0);
     let word = builder.calldataload(zero);
     if has_bitwise_shifting {
-        let shift = builder.imm_u64(224);
+        let shift = builder.imm(224);
         builder.shr(shift, word)
     } else {
-        let divisor = builder.imm_u256(U256::from(1) << 224);
+        let divisor = builder.imm(U256::from(1) << 224);
         builder.div(word, divisor)
     }
 }

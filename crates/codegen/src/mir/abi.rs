@@ -437,7 +437,7 @@ impl AbiWordValidator {
         match self {
             Self::Unsigned(bits) | Self::LeftAligned(bits) => {
                 if has_bitwise_shifting {
-                    let shift = builder.imm_u64(u64::from(bits));
+                    let shift = builder.imm(u64::from(bits));
                     let shifted = if matches!(self, Self::Unsigned(_)) {
                         builder.shr(shift, word)
                     } else {
@@ -446,19 +446,19 @@ impl AbiWordValidator {
                     builder.iszero(shifted)
                 } else {
                     let mask = self.canonical_mask().expect("masked validator has a mask");
-                    let mask = builder.imm_u256(mask);
+                    let mask = builder.imm(mask);
                     let canonical = builder.and(word, mask);
                     builder.eq(word, canonical)
                 }
             }
             Self::SignExtend(byte_index) => {
-                let byte_index = builder.imm_u64(byte_index);
+                let byte_index = builder.imm(byte_index);
                 let canonical = builder.signextend(byte_index, word);
                 builder.eq(word, canonical)
             }
             Self::Bool => {
                 if has_bitwise_shifting {
-                    let two = builder.imm_u64(2);
+                    let two = builder.imm(2);
                     builder.lt(word, two)
                 } else {
                     let zero = builder.iszero(word);
@@ -467,7 +467,7 @@ impl AbiWordValidator {
                 }
             }
             Self::EnumRange(variants) => {
-                let variants = builder.imm_u64(variants);
+                let variants = builder.imm(variants);
                 builder.lt(word, variants)
             }
         }
@@ -482,7 +482,7 @@ impl AbiWordValidator {
     ) -> ValueId {
         match self {
             Self::Unsigned(bits) | Self::LeftAligned(bits) if has_bitwise_shifting => {
-                let shift = builder.imm_u64(u64::from(bits));
+                let shift = builder.imm(u64::from(bits));
                 if matches!(self, Self::Unsigned(_)) {
                     builder.shr(shift, word)
                 } else {
@@ -501,11 +501,11 @@ impl AbiWordValidator {
         match self {
             Self::Unsigned(_) | Self::LeftAligned(_) => {
                 let mask = self.canonical_mask().expect("masked validator has a mask");
-                let mask = builder.imm_u256(mask);
+                let mask = builder.imm(mask);
                 builder.and(word, mask)
             }
             Self::SignExtend(byte_index) => {
-                let byte_index = builder.imm_u64(byte_index);
+                let byte_index = builder.imm(byte_index);
                 builder.signextend(byte_index, word)
             }
             Self::Bool => {
@@ -514,7 +514,7 @@ impl AbiWordValidator {
             }
             Self::EnumRange(variants) => {
                 let mask = enum_cleanup_mask(variants);
-                let mask = builder.imm_u256(mask);
+                let mask = builder.imm(mask);
                 builder.and(word, mask)
             }
         }

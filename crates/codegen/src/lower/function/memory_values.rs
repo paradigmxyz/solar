@@ -29,11 +29,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
 
         // object = alloc(array)
-        let size = self.builder.imm_u64(size);
+        let size = self.builder.imm(size);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if dynamic {
             // object.len = element_count
-            let length = self.builder.imm_u64(u64::try_from(elements.len()).ok()?);
+            let length = self.builder.imm(u64::try_from(elements.len()).ok()?);
             self.builder.set_memory_object_len(object, length, layout.kind());
         }
 
@@ -44,7 +44,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.coerce_value(value, self.context.gcx.type_of_expr(element.id)?, element_ty);
             let value = self.materialize_memory_argument(element_ty, value, element.span)?;
             let value = self.encode_memory_scalar(element_ty, value);
-            let index = self.builder.imm_u64(index as u64);
+            let index = self.builder.imm(index as u64);
             self.builder.memory_object_store_element(object, layout, index, value);
         }
         Some(object)
@@ -58,7 +58,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         value: ValueId,
     ) -> Option<ValueId> {
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let zero = self.builder.imm(U256::ZERO);
         let is_null = self.builder.eq(value, zero);
         let preheader = self.builder.current_block();
         let allocate = self.builder.create_block();
@@ -161,7 +161,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             let helper = self.ensure_bytes_word_helper();
             let word = self.lower_string_literal_word(bytes);
-            let length = self.builder.imm_u64(bytes.len() as u64);
+            let length = self.builder.imm(bytes.len() as u64);
             self.builder.internal_call(
                 helper,
                 vec![word, length],
@@ -191,14 +191,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let word = builder.add_param(MirType::bytes32());
             let length = builder.add_param(MirType::uint256());
             builder.add_return(MirType::MemoryObject(MemoryObjectKind::Bytes));
-            let size = builder.imm_u64(64);
+            let size = builder.imm(64);
             let object = builder.alloc_object(
                 size,
                 MemoryObjectLayout::Bytes,
                 AllocationSemantics::INTERNAL,
             );
             builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
-            let zero = builder.imm_u64(0);
+            let zero = builder.imm(0);
             builder.memory_object_store_word(object, zero, word);
             builder.ret([object]);
             Some(())
@@ -216,9 +216,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         // object = bytes(len)
         let words = u64::try_from(bytes.len().div_ceil(32)).ok()?;
-        let size = builder.imm_u64(words.checked_add(1)?.checked_mul(32)?);
+        let size = builder.imm(words.checked_add(1)?.checked_mul(32)?);
         let object = builder.alloc_object(size, MemoryObjectLayout::Bytes, semantics);
-        let length = builder.imm_u64(u64::try_from(bytes.len()).ok()?);
+        let length = builder.imm(u64::try_from(bytes.len()).ok()?);
         builder.set_memory_object_len(object, length, MemoryObjectKind::Bytes);
         let data = builder.memory_object_data(object, MemoryObjectKind::Bytes);
         super::super::data::copy_data_to_memory(
@@ -254,15 +254,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn default_value(&mut self, ty: Ty<'gcx>) -> ValueId {
-        self.default_object(ty).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
+        self.default_object(ty).unwrap_or_else(|| self.builder.imm(U256::ZERO))
     }
 
     pub(super) fn default_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
         if ty.is_ref_at(DataLocation::Calldata) {
-            let zero = self.builder.imm_u256(U256::ZERO);
+            let zero = self.builder.imm(U256::ZERO);
             return self.builder.make_slice(zero, zero, SliceLocation::Calldata);
         }
-        self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm_u256(U256::ZERO))
+        self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm(U256::ZERO))
     }
 
     pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
@@ -275,11 +275,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
             // object = ZERO_SLOT
-            return Some(self.builder.imm_u64(EvmMemoryLayout::ZERO_SLOT));
+            return Some(self.builder.imm(EvmMemoryLayout::ZERO_SLOT));
         }
 
         // object = alloc(default_layout)
-        let size = self.builder.imm_u64(Self::default_object_size(layout)?);
+        let size = self.builder.imm(Self::default_object_size(layout)?);
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         if preserve_fmp {
             let Value::Inst(alloc) = *self.builder.func().value(object) else {
@@ -291,7 +291,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             | TyKind::DynArray(_) => {
                 // object.len = 0
-                let zero = self.builder.imm_u256(U256::ZERO);
+                let zero = self.builder.imm(U256::ZERO);
                 self.builder.set_memory_object_len(object, zero, layout.kind());
             }
             TyKind::Struct(id) => {
@@ -301,7 +301,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // memory_zero(object, size)
                     self.builder.memory_zero(object, size);
                 }
-                let zero = self.builder.imm_u256(U256::ZERO);
+                let zero = self.builder.imm(U256::ZERO);
 
                 // for reference_field { object[field] = default(reference_field) }
                 for (index, &field) in fields.iter().enumerate() {
@@ -322,7 +322,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Ok(len) = u64::try_from(len) else { return Some(object) };
                 if self.types.memory_layout(element).is_some() {
                     // for i in 0..len { object[i] = default(element) }
-                    let len = self.builder.imm_u64(len);
+                    let len = self.builder.imm(len);
                     self.counted_loop(len, |this, index| {
                         if let Some(value) = this.default_object_with_mode(element, preserve_fmp) {
                             this.builder.memory_object_store_element(object, layout, index, value);

@@ -78,10 +78,10 @@ fn load_packed_storage_array_element(
     let word = builder.sload(storage_slot);
     let byte_shift = u64::from(bytes) * 8;
     let shift = if byte_shift.is_power_of_two() {
-        let shift = builder.imm_u64(u64::from(byte_shift.trailing_zeros()));
+        let shift = builder.imm(u64::from(byte_shift.trailing_zeros()));
         builder.shl(shift, index_in_slot)
     } else {
-        let byte_shift = builder.imm_u64(byte_shift);
+        let byte_shift = builder.imm(byte_shift);
         builder.mul(index_in_slot, byte_shift)
     };
     let size = TypeSize::new_int_bits(u16::from(bytes) * 8);
@@ -95,13 +95,13 @@ fn packed_storage_array_position(
 ) -> (ValueId, ValueId) {
     let per_slot = u64::from(32 / bytes);
     if per_slot.is_power_of_two() {
-        let slot_shift = builder.imm_u64(u64::from(per_slot.trailing_zeros()));
+        let slot_shift = builder.imm(u64::from(per_slot.trailing_zeros()));
         let slot_index = builder.shr(slot_shift, index);
-        let slot_mask = builder.imm_u64(per_slot - 1);
+        let slot_mask = builder.imm(per_slot - 1);
         let index_in_slot = builder.and(index, slot_mask);
         (slot_index, index_in_slot)
     } else {
-        let per_slot_value = builder.imm_u64(per_slot);
+        let per_slot_value = builder.imm(per_slot);
         let slot_index = builder.div(index, per_slot_value);
         let index_in_slot = builder.mod_(index, per_slot_value);
         (slot_index, index_in_slot)
@@ -115,7 +115,7 @@ fn build_storage_clear_helper(function: &mut Function) {
     let slot = builder.add_param(MirType::uint256());
     let first_word = builder.add_param(MirType::uint256());
     let words = builder.add_param(MirType::uint256());
-    let zero = builder.imm_u64(0);
+    let zero = builder.imm(0);
     emit_clear_storage_words(&mut builder, slot, first_word, words, zero);
     builder.stop();
 }
@@ -163,13 +163,13 @@ fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: Funct
     let length = builder.memory_object_len(object, MemoryObjectKind::Bytes);
     let data_ptr = builder.memory_object_data(object, MemoryObjectKind::Bytes);
     let data = builder.make_slice(data_ptr, length, SliceLocation::Memory);
-    let word_size = builder.imm_u64(32);
-    let thirty_one = builder.imm_u64(31);
+    let word_size = builder.imm(32);
+    let thirty_one = builder.imm(31);
     let old_rounded = builder.add(old_length, thirty_one);
     let old_words = builder.div(old_rounded, word_size);
     let rounded = builder.checked_add(length, thirty_one);
     let words = builder.div(rounded, word_size);
-    let zero = builder.imm_u64(0);
+    let zero = builder.imm(0);
     let short = builder.lt(length, word_size);
     let new_words = builder.select(short, zero, words);
     let shrunk = builder.gt(old_length, length);
@@ -196,14 +196,14 @@ fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: Funct
     builder.switch_to_block(short_block);
     let data_word = builder.memory_slice_load_word(data, zero);
     let unused_bytes = builder.sub(word_size, length);
-    let bits = builder.imm_u64(8);
+    let bits = builder.imm(8);
     let shift = builder.mul(unused_bytes, bits);
-    let one = builder.imm_u64(1);
+    let one = builder.imm(1);
     let high_bit = builder.shl(shift, one);
     let low_mask = builder.sub(high_bit, one);
     let data_mask = builder.not(low_mask);
     let data_word = builder.and(data_word, data_mask);
-    let two = builder.imm_u64(2);
+    let two = builder.imm(2);
     let tag = builder.mul(length, two);
     let header = builder.or(data_word, tag);
     builder.sstore(slot, header);
@@ -212,7 +212,7 @@ fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: Funct
     // sstore(slot, length << 1 | 1)
     // data_slot = storage_array_data_slot(slot)
     builder.switch_to_block(long_block);
-    let one = builder.imm_u64(1);
+    let one = builder.imm(1);
     let shifted = builder.shl(one, length);
     let tag = builder.or(shifted, one);
     builder.sstore(slot, tag);
@@ -242,7 +242,7 @@ fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: Funct
     let partial_offset = builder.mul(full_words, word_size);
     let partial_word = builder.memory_slice_load_word(data, partial_offset);
     let unused_bytes = builder.sub(word_size, remainder);
-    let bits = builder.imm_u64(8);
+    let bits = builder.imm(8);
     let shift = builder.mul(unused_bytes, bits);
     let high_bit = builder.shl(shift, one);
     let low_mask = builder.sub(high_bit, one);
@@ -388,7 +388,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let constant = match self.context.gcx.try_eval_const_value(expr) {
                     Ok(ConstValue::Bool(value)) => Some(self.builder.imm_bool(*value)),
                     Ok(ConstValue::Integer(value)) => {
-                        value.as_u256().map(|value| self.builder.imm_u256(value))
+                        value.as_u256().map(|value| self.builder.imm(value))
                     }
                     _ => None,
                 };
@@ -415,7 +415,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return None;
                 }
                 let location = self.context.storage.get(id)?;
-                let slot = self.builder.imm_u256(location.slot);
+                let slot = self.builder.imm(location.slot);
                 Some(StorageAccess { slot, location, offset: None })
             }
             ExprKind::Member(receiver, _) => {
@@ -456,7 +456,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let index = self.lower_typed_expr(index, self.context.gcx.types.uint(256))?;
                 let (element, dynamic, length) = match ty.kind {
-                    TyKind::Array(element, len) => (element, false, self.builder.imm_u256(len)),
+                    TyKind::Array(element, len) => (element, false, self.builder.imm(len)),
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
                     _ => return None,
                 };
@@ -548,7 +548,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<(StorageAccess, ValueId)> {
         let length = self.builder.sload(base.slot);
-        let one = self.builder.imm_u64(1);
+        let one = self.builder.imm(1);
         let new_length = self.builder.checked_add(length, one);
         let access = self.storage_array_element_access(base.slot, length, element, true, span)?;
         Some((access, new_length))
@@ -557,7 +557,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn grow_storage_bytes(&mut self, slot: ValueId) -> (ValueId, ValueId) {
         let old = self.load_storage_bytes(slot);
         let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
-        let one = self.builder.imm_u64(1);
+        let one = self.builder.imm(1);
         let length = self.builder.checked_add(old_length, one);
         let object = self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
         self.builder.memory_object_copy(
@@ -623,7 +623,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )?;
         }
         self.builder.sstore(base.slot, new_length);
-        Some(self.builder.imm_u256(U256::ZERO))
+        Some(self.builder.imm(U256::ZERO))
     }
 
     fn lower_storage_bytes_push(
@@ -640,15 +640,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let value = if let Some(argument) = argument {
             let value = self.lower_typed_expr(argument, self.context.gcx.types.fixed_bytes(1))?;
-            let shift = self.builder.imm_u64(248);
+            let shift = self.builder.imm(248);
             self.builder.shr(shift, value)
         } else {
-            self.builder.imm_u64(0)
+            self.builder.imm(0)
         };
         let (object, index) = self.grow_storage_bytes(access.slot);
         self.builder.memory_object_store_byte(object, index, value);
         self.store_storage_bytes(access.slot, object)?;
-        Some(self.builder.imm_u256(U256::ZERO))
+        Some(self.builder.imm(U256::ZERO))
     }
 
     pub(super) fn lower_storage_array_pop(
@@ -673,10 +673,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // store_storage_bytes(slot, object)
             let old = self.load_storage_bytes(access.slot);
             let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
-            let zero = self.builder.imm_u64(0);
+            let zero = self.builder.imm(0);
             let empty = self.builder.eq(old_length, zero);
             self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
-            let one = self.builder.imm_u64(1);
+            let one = self.builder.imm(1);
             let length = self.builder.sub(old_length, one);
             let object =
                 self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
@@ -699,10 +699,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // sstore(array_slot, length - 1)
         // clear(element[length - 1])
         let length = self.builder.sload(base.slot);
-        let zero = self.builder.imm_u64(0);
+        let zero = self.builder.imm(0);
         let empty = self.builder.eq(length, zero);
         self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
-        let one = self.builder.imm_u64(1);
+        let one = self.builder.imm(1);
         let last = self.builder.sub(length, one);
         self.builder.sstore(base.slot, last);
         let access =
@@ -759,11 +759,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // slot = slot_base + index / elements_per_slot
             // offset = (index % elements_per_slot) * element_bytes
             let bytes = u64::from(size.bytes());
-            let per_slot_value = self.builder.imm_u64(32 / bytes);
+            let per_slot_value = self.builder.imm(32 / bytes);
             let slot_delta = self.builder.div(index, per_slot_value);
             let slot = self.builder.add(slot_base, slot_delta);
             let index_in_slot = self.builder.mod_(index, per_slot_value);
-            let byte_size = self.builder.imm_u64(bytes);
+            let byte_size = self.builder.imm(bytes);
             let offset = self.builder.mul(index_in_slot, byte_size);
             let location = StorageLocation::packed_word(size, encoding);
             return Some(StorageAccess { slot, location, offset: Some(offset) });
@@ -783,7 +783,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if element_slots == 1 {
             self.builder.add(base_slot, index)
         } else {
-            let stride = self.builder.imm_u64(element_slots);
+            let stride = self.builder.imm(element_slots);
             let offset = self.builder.mul(index, stride);
             self.builder.add(base_slot, offset)
         }
@@ -793,7 +793,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if offset.is_zero() {
             slot
         } else {
-            let offset = self.builder.imm_u256(offset);
+            let offset = self.builder.imm(offset);
             self.builder.add(slot, offset)
         }
     }
@@ -920,13 +920,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let layout = MemoryObjectLayout::FixedArray { len, element_words };
                 let size = self
                     .builder
-                    .imm_u64(len.checked_mul(u64::from(element_words))?.saturating_mul(32));
+                    .imm(len.checked_mul(u64::from(element_words))?.saturating_mul(32));
                 let object = self.builder.alloc_object(
                     size,
                     layout,
                     AllocationSemantics::SOLIDITY_UNINITIALIZED,
                 );
-                let len = self.builder.imm_u64(len);
+                let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let access =
                         this.storage_array_element_access(slot, index, element, false, span)?;
@@ -1052,7 +1052,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let exit = self.builder.create_block();
         self.builder.jump(header);
         self.builder.switch_to_block(header);
-        let zero = self.builder.imm_u64(0);
+        let zero = self.builder.imm(0);
         let index = self.builder.phi(vec![(preheader, zero)]);
         let element_slot = self.builder.phi(vec![(preheader, data_slot)]);
         let condition = self.builder.lt(index, length);
@@ -1095,11 +1095,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // array = alloc_dynamic_array(length)
         // for i in 0..length { array[i] = load_storage(element_slot(i)) }
         let length = self.builder.sload(slot);
-        let stride = self.builder.imm_u64(u64::from(element_words));
+        let stride = self.builder.imm(u64::from(element_words));
         let words = self.builder.checked_mul(length, stride);
-        let one = self.builder.imm_u64(1);
+        let one = self.builder.imm(1);
         let words = self.builder.checked_add(words, one);
-        let word_size = self.builder.imm_u64(32);
+        let word_size = self.builder.imm(32);
         let size = self.builder.checked_mul(words, word_size);
         let layout = MemoryObjectLayout::DynamicArray { element_words };
         let object =
@@ -1169,8 +1169,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let len = u64::try_from(len).ok()?;
                 let source_len = u64::try_from(source_len).ok()?;
                 let layout = self.types.memory_layout(source_ty)?;
-                let len = self.builder.imm_u64(len);
-                let source_len = self.builder.imm_u64(source_len);
+                let len = self.builder.imm(len);
+                let source_len = self.builder.imm(source_len);
                 self.counted_loop(len, |this, index| {
                     let access =
                         this.storage_array_element_access(slot, index, element, false, span)?;
@@ -1260,7 +1260,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
         let (_, old_is_long, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
-        let length = self.builder.imm_u64(bytes.len() as u64);
+        let length = self.builder.imm(bytes.len() as u64);
         let shrunk = self.builder.gt(old_length, length);
         let needs_cleanup = self.builder.and(old_is_long, shrunk);
         let cleanup_block = self.builder.create_block();
@@ -1271,14 +1271,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //     clear_storage_words(slot, new_words, old_words)
         // }
         self.builder.switch_to_block(cleanup_block);
-        let word_size = self.builder.imm_u64(32);
-        let thirty_one = self.builder.imm_u64(31);
+        let word_size = self.builder.imm(32);
+        let thirty_one = self.builder.imm(31);
         let old_rounded = self.builder.add(old_length, thirty_one);
         let old_words = self.builder.div(old_rounded, word_size);
         let new_words = if bytes.len() < 32 {
-            self.builder.imm_u64(0)
+            self.builder.imm(0)
         } else {
-            self.builder.imm_u64(bytes.len().div_ceil(32) as u64)
+            self.builder.imm(bytes.len().div_ceil(32) as u64)
         };
         self.clear_storage_words_with_helper(slot, new_words, old_words);
         self.builder.jump(write_block);
@@ -1292,20 +1292,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 U256::from_be_slice(bytes) << ((32 - bytes.len()) * 8)
             };
             let tag = U256::from((bytes.len() as u64) * 2);
-            let value = self.builder.imm_u256(word | tag);
+            let value = self.builder.imm(word | tag);
             self.builder.sstore(slot, value);
         } else {
             // sstore(slot, length * 2 + 1)
             // for chunk, i { sstore(storage_array_data_slot(slot) + i, chunk) }
             let tag = U256::from((bytes.len() as u64) * 2 + 1);
-            let value = self.builder.imm_u256(tag);
+            let value = self.builder.imm(tag);
             self.builder.sstore(slot, value);
             let data_slot = self.builder.storage_array_data_slot(slot);
             for (index, chunk) in bytes.chunks(32).enumerate() {
                 let word = U256::from_be_slice(chunk) << ((32 - chunk.len()) * 8);
-                let index = self.builder.imm_u64(index as u64);
+                let index = self.builder.imm(index as u64);
                 let element_slot = self.builder.add(data_slot, index);
-                let value = self.builder.imm_u256(word);
+                let value = self.builder.imm(word);
                 self.builder.sstore(element_slot, value);
             }
         }
@@ -1327,7 +1327,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Array(source_element, source_len) => {
                 let source_len = u64::try_from(source_len).ok()?;
-                (source_element, self.builder.imm_u64(source_len), Some(source_len))
+                (source_element, self.builder.imm(source_len), Some(source_len))
             }
             _ => return report_unsupported(self.context.gcx, span, "storage array conversion"),
         };
@@ -1387,10 +1387,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(length) = fixed_length {
                 let remainder = (length % per_slot) as u16;
                 if remainder != 0 {
-                    let slot_index = self.builder.imm_u64(length / per_slot);
+                    let slot_index = self.builder.imm(length / per_slot);
                     let used_bits = size.bits() * remainder;
                     let mask = (U256::from(1) << used_bits) - U256::from(1);
-                    let mask = self.builder.imm_u256(mask);
+                    let mask = self.builder.imm(mask);
                     self.clear_unused_packed_array_elements(slot, slot_index, mask);
                 }
             } else {
@@ -1402,9 +1402,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.builder.branch(no_partial_slot, merge_block, cleanup_block);
 
                 self.builder.switch_to_block(cleanup_block);
-                let element_bits = self.builder.imm_u64(u64::from(size.bits()));
+                let element_bits = self.builder.imm(u64::from(size.bits()));
                 let used_bits = self.builder.mul(remainder, element_bits);
-                let one = self.builder.imm_u64(1);
+                let one = self.builder.imm(1);
                 let high_bit = self.builder.shl(used_bits, one);
                 let mask = self.builder.sub(high_bit, one);
                 self.clear_unused_packed_array_elements(slot, slot_index, mask);
@@ -1496,7 +1496,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         access: StorageAccess,
         span: Span,
     ) -> Option<()> {
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let zero = self.builder.imm(U256::ZERO);
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 // clear_storage_bytes(slot)
@@ -1512,7 +1512,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let Some((size, _)) = self.context.storage.packed_encoding(element)
                     && size.bits() < 256
                 {
-                    let elements_per_slot = self.builder.imm_u64(32 / u64::from(size.bytes()));
+                    let elements_per_slot = self.builder.imm(32 / u64::from(size.bytes()));
                     let full_slots = self.builder.div(length, elements_per_slot);
                     let remainder = self.builder.mod_(length, elements_per_slot);
                     let remainder_is_zero = self.builder.iszero(remainder);
@@ -1546,7 +1546,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && size.bits() < 256
                 {
                     let slots = self.context.storage.element_slots(ty, span);
-                    let slots = self.builder.imm_u64(slots);
+                    let slots = self.builder.imm(slots);
                     self.counted_loop(slots, |this, index| {
                         let slot = this.builder.add(access.slot, index);
                         this.builder.sstore(slot, zero);
@@ -1555,7 +1555,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
 
                 let len = u64::try_from(len).ok()?;
-                let len = self.builder.imm_u64(len);
+                let len = self.builder.imm(len);
                 self.counted_loop(len, |this, index| {
                     let element_access = this.storage_array_element_access(
                         access.slot,
@@ -1596,7 +1596,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         slot: ValueId,
         span: Span,
     ) -> Option<()> {
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let zero = self.builder.imm(U256::ZERO);
         let mut cleared_packed_slot = None;
         for (index, &field) in self.context.gcx.hir.strukt(struct_id).fields.iter().enumerate() {
             let field_ty = self.context.gcx.type_of_item(field.into());
@@ -1662,9 +1662,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn clear_storage_bytes(&mut self, slot: ValueId) {
         let (_, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
-        let zero = self.builder.imm_u64(0);
-        let word_size = self.builder.imm_u64(32);
-        let thirty_one = self.builder.imm_u64(31);
+        let zero = self.builder.imm(0);
+        let word_size = self.builder.imm(32);
+        let thirty_one = self.builder.imm(31);
         let rounded = self.builder.add(length, thirty_one);
         let words = self.builder.div(rounded, word_size);
         let cleanup_block = self.builder.create_block();
@@ -1692,15 +1692,15 @@ fn decode_storage_bytes_header(
     // length = is_long ? half : (half & 0x7f)
     // if invalid_short_long_encoding { panic(StorageEncoding) }
     let header = builder.sload(slot);
-    let one = builder.imm_u64(1);
+    let one = builder.imm(1);
     let flag = builder.and(header, one);
     let is_long = builder.eq(flag, one);
-    let shift = builder.imm_u64(1);
+    let shift = builder.imm(1);
     let half = builder.shr(shift, header);
-    let short_mask = builder.imm_u64(0x7f);
+    let short_mask = builder.imm(0x7f);
     let short_len = builder.and(half, short_mask);
     let length = builder.select(is_long, half, short_len);
-    let thirty_two = builder.imm_u64(32);
+    let thirty_two = builder.imm(32);
     let short_length = builder.lt(length, thirty_two);
     let invalid_encoding = builder.eq(is_long, short_length);
     builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
@@ -1709,8 +1709,8 @@ fn decode_storage_bytes_header(
 
 fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {
     let (header, is_long, length) = decode_storage_bytes_header(builder, slot);
-    let thirty_two = builder.imm_u64(32);
-    let thirty_one = builder.imm_u64(31);
+    let thirty_two = builder.imm(32);
+    let thirty_one = builder.imm(31);
     let rounded = builder.add(length, thirty_one);
     let words = builder.div(rounded, thirty_two);
     let object = builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
@@ -1721,8 +1721,8 @@ fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) 
     builder.branch(is_long, long_block, short_block);
 
     builder.switch_to_block(short_block);
-    let zero = builder.imm_u64(0);
-    let short_mask = builder.imm_u256(U256::MAX << 8);
+    let zero = builder.imm(0);
+    let short_mask = builder.imm(U256::MAX << 8);
     let short_data = builder.and(header, short_mask);
     builder.memory_object_store_word(object, zero, short_data);
     builder.jump(merge_block);

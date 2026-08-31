@@ -353,13 +353,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // address = create(...)
             // ok = address != 0
             let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
-            let zero = self.builder.imm_u256(U256::ZERO);
+            let zero = self.builder.imm(U256::ZERO);
             let failed = self.builder.eq(created, zero);
             (self.builder.iszero(failed), Some(created))
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
-                TryCallee::LinkedLibrary { address, .. } => self.builder.imm_u256(address),
+                TryCallee::LinkedLibrary { address, .. } => self.builder.imm(address),
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
@@ -400,11 +400,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.extend(argument_types);
             let selector = match target.callee {
                 TryCallee::Member { selector, .. } => {
-                    self.builder.imm_u256(U256::from_be_slice(&selector) << 224)
+                    self.builder.imm(U256::from_be_slice(&selector) << 224)
                 }
                 TryCallee::LinkedLibrary { function, .. } => {
                     let selector = self.context.gcx.function_selector(function).0;
-                    self.builder.imm_u256(U256::from_be_slice(&selector) << 224)
+                    self.builder.imm(U256::from_be_slice(&selector) << 224)
                 }
                 TryCallee::FunctionPointer { selector, .. } => selector,
                 TryCallee::Creation { .. } => unreachable!(),
@@ -415,7 +415,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let input = self.builder.slice_ptr(encoded);
             let input_size = self.builder.slice_len(encoded);
             let ret_offset = zero;
-            let ret_size = self.builder.imm_u64(0);
+            let ret_size = self.builder.imm(0);
             let check_code = target.return_types.is_empty()
                 && match target.callee {
                     TryCallee::Member { receiver, .. } => {
@@ -499,18 +499,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let catch_data = self.materialize_returndata_bytes();
         let catch_data_ptr = self.builder.memory_object_data(catch_data, MemoryObjectKind::Bytes);
         let catch_data_len = self.builder.memory_object_len(catch_data, MemoryObjectKind::Bytes);
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let zero = self.builder.imm(U256::ZERO);
         let selector_slice =
             self.builder.make_slice(catch_data_ptr, catch_data_len, SliceLocation::Memory);
         let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
-        let four = self.builder.imm_u64(4);
+        let four = self.builder.imm(4);
         let selector_short = self.builder.lt(catch_data_len, four);
         let has_selector = self.builder.iszero(selector_short);
-        let selector_shift = self.builder.imm_u64(224);
+        let selector_shift = self.builder.imm(224);
         let selector = self.builder.shr(selector_shift, selector_word);
         let error_selector =
-            self.builder.imm_u256(U256::from_be_slice(&keccak256("Error(string)")[..4]));
-        let panic_selector = self.builder.imm_u256(U256::from(0x4e48_7b71_u64));
+            self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
+        let panic_selector = self.builder.imm(U256::from(0x4e48_7b71_u64));
         let error_selector_matches = self.builder.eq(selector, error_selector);
         let error_matches = if catch_clauses
             .iter()
@@ -520,7 +520,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.builder.and(has_selector, error_selector_matches)
         };
-        let panic_size = self.builder.imm_u64(36);
+        let panic_size = self.builder.imm(36);
         let panic_short = self.builder.lt(catch_data_len, panic_size);
         let panic_has_payload = self.builder.iszero(panic_short);
         let panic_selector_matches = self.builder.eq(selector, panic_selector);
@@ -588,10 +588,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(self.lower_string_literal_word(bytes));
         }
         if let LitKind::Bool(value) = lit.kind {
-            return Some(self.builder.imm_u256(if value { U256::ONE } else { U256::ZERO }));
+            return Some(self.builder.imm(if value { U256::ONE } else { U256::ZERO }));
         }
         if let LitKind::Address(value) = lit.kind {
-            return Some(self.builder.imm_u256(U256::from_be_slice(value.as_slice())));
+            return Some(self.builder.imm(U256::from_be_slice(value.as_slice())));
         }
         self.lower_literal(lit.kind, lit.span)
     }
@@ -959,7 +959,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .map(|&(_, access)| {
                     access
                         .offset
-                        .unwrap_or_else(|| self.builder.imm_u64(u64::from(access.location.offset)))
+                        .unwrap_or_else(|| self.builder.imm(u64::from(access.location.offset)))
                 })
                 .collect::<Vec<_>>();
             let first_offset = offsets[0];

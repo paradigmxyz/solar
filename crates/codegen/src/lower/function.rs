@@ -451,7 +451,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // gas = gas()
         // value = zero
         // for option { gas/value = lower(option.value) }
-        let zero = self.builder.imm_u256(U256::ZERO);
+        let zero = self.builder.imm(U256::ZERO);
         let mut gas = self.builder.gas();
         let mut value = zero;
         if let Some(options) = options {
@@ -588,7 +588,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Delete(value) => {
                 self.delete_lvalue(value)?;
-                Some(self.builder.imm_u256(U256::ZERO))
+                Some(self.builder.imm(U256::ZERO))
             }
             ExprKind::Unary(op, value) => {
                 if matches!(
@@ -599,7 +599,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let ty = self.context.gcx.type_of_expr(value.id);
                     let old = self.load_lvalue_place(&place)?;
                     let old = ty.map_or(old, |ty| self.normalize_dirty_scalar(old, ty));
-                    let one = self.builder.imm_u256(U256::from(1));
+                    let one = self.builder.imm(U256::from(1));
                     let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
                         BinOpKind::Add
                     } else {
@@ -634,7 +634,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && let ExprKind::Tuple(elements) = &lhs.peel_parens().kind
                 {
                     self.lower_tuple_assignment(elements, rhs)?;
-                    return Some(self.builder.imm_u256(U256::ZERO));
+                    return Some(self.builder.imm(U256::ZERO));
                 }
                 if op.is_none() && self.is_storage_reference_binding(lhs) {
                     let Some(access) = self.storage_access(rhs) else {
@@ -648,7 +648,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         );
                     };
                     self.storage_refs.insert(id, access);
-                    return Some(self.builder.imm_u256(U256::ZERO));
+                    return Some(self.builder.imm(U256::ZERO));
                 }
                 let lhs_ty = self.type_of_expr_or_variable(lhs)?;
                 let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
@@ -713,7 +713,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),
             _ if self.context.gcx.dcx().has_errors().is_err() => {
-                Some(self.builder.imm_u256(U256::ZERO))
+                Some(self.builder.imm(U256::ZERO))
             }
             _ => report_unsupported(self.context.gcx, expr.span, "expression"),
         }
@@ -787,7 +787,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             for (function_id, mir_id, candidate_shape) in candidates {
                 let case_block = builder.create_block();
                 let next_block = builder.create_block();
-                let id = builder.imm_u64(internal_function_pointer_id(function_id));
+                let id = builder.imm(internal_function_pointer_id(function_id));
                 let is_match = builder.eq(function_value, id);
                 builder.branch(is_match, case_block, next_block);
 
@@ -888,8 +888,8 @@ fn is_signed_packed_scalar(ty: Ty<'_>) -> bool {
 
 fn signed_bounds(bits: u16, builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
     let magnitude = U256::from(1) << (bits - 1);
-    let min = builder.imm_u256(U256::MAX - magnitude + U256::ONE);
-    let max = builder.imm_u256(magnitude - U256::ONE);
+    let min = builder.imm(U256::MAX - magnitude + U256::ONE);
+    let max = builder.imm(magnitude - U256::ONE);
     (min, max)
 }
 

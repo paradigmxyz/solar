@@ -104,8 +104,8 @@ fn lower_storage_array_data_slot(
     builder: &mut FunctionBuilder<'_>,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let word = builder.imm_u64(32);
-    let zero = builder.imm_u64(0);
+    let word = builder.imm(32);
+    let zero = builder.imm(0);
     builder.mstore(zero, slot);
     builder.keccak256(zero, word)
 }
@@ -120,7 +120,7 @@ fn lower_storage_array_element_slot(
     let offset = if element_slots <= 1 {
         index
     } else {
-        let stride = builder.imm_u64(element_slots);
+        let stride = builder.imm(element_slots);
         builder.mul(index, stride)
     };
     builder.add(data_slot, offset)
@@ -132,9 +132,9 @@ fn lower_word_mapping_slot(
     key: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let zero = builder.imm_u64(0);
-    let word = builder.imm_u64(32);
-    let size = builder.imm_u64(64);
+    let zero = builder.imm(0);
+    let word = builder.imm(32);
+    let size = builder.imm(64);
     builder.mstore(zero, key);
     builder.mstore(word, slot);
     builder.keccak256(zero, size)
@@ -150,7 +150,7 @@ fn lower_slice_mapping_slot(
         SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata | SliceLocation::Returndata => builder.slice_len(value),
     };
-    let word_size = builder.imm_u64(32);
+    let word_size = builder.imm(32);
     let payload_size = builder.add(len, word_size);
     let scratch = builder.fmp();
     let source = match location {

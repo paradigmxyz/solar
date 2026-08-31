@@ -112,8 +112,8 @@ fn frame_address(
     mode: FrameMode,
 ) -> crate::mir::ValueId {
     match mode {
-        FrameMode::External => builder.imm_u64(EvmMemoryLayout::HEAP_START + offset),
-        FrameMode::MultiReturn => builder.imm_u64(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT),
+        FrameMode::External => builder.imm(EvmMemoryLayout::HEAP_START + offset),
+        FrameMode::MultiReturn => builder.imm(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT),
         FrameMode::Internal => {
             let header = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE;
             let args = (builder.func().params.len() as u64) * EvmMemoryLayout::WORD_SIZE;

@@ -1509,7 +1509,7 @@ fn insert_return_buffer_stores(
         for (index, value) in stored_values.into_iter().enumerate() {
             let offset = u64::try_from(index + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
             let offset = if caller_is_external {
-                builder.imm_u64(
+                builder.imm(
                     EvmMemoryLayout::HEAP_START.checked_add(local_offset.checked_add(offset)?)?,
                 )
             } else {
@@ -1518,7 +1518,7 @@ fn insert_return_buffer_stores(
             builder.mstore(offset, value);
         }
         let base = if caller_is_external {
-            builder.imm_u64(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)
+            builder.imm(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)
         } else {
             builder.internal_frame_addr(frame_offset)
         };

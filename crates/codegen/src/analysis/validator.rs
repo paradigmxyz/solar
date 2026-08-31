@@ -854,8 +854,8 @@ error: module is in the `evm-shaped` phase but has multiple `entry` routing func
             let mut func = make_func();
             {
                 let mut builder = FunctionBuilder::new(&mut func);
-                let dest = builder.imm_u64(0);
-                let size = builder.imm_u64(1);
+                let dest = builder.imm(0);
+                let size = builder.imm(1);
                 builder.data_copy(DataRef::new(DataId::from_usize(7), 0), dest, size);
                 builder.stop();
             }
@@ -880,8 +880,8 @@ error: [fn0] [bb0, inst0] data_copy references nonexistent data7
             let mut func = make_func();
             {
                 let mut builder = FunctionBuilder::new(&mut func);
-                let dest = builder.imm_u64(0);
-                let size = builder.imm_u64(1);
+                let dest = builder.imm(0);
+                let size = builder.imm(1);
                 builder.data_copy(DataRef::new(data, 5), dest, size);
                 builder.stop();
             }

@@ -655,7 +655,7 @@ mod tests {
             let instruction_arg = builder.add_param(MirType::uint256());
             let terminator_arg = builder.add_param(MirType::uint256());
             let unused_arg = builder.add_param(MirType::uint256());
-            let immediate = builder.imm_u64(1);
+            let immediate = builder.imm(1);
             let result = builder.add(instruction_arg, immediate);
             builder.ret([terminator_arg, result]);
             (instruction_arg, terminator_arg, unused_arg, immediate, result)
@@ -678,8 +678,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (first, second, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let first = builder.imm_u64(7);
-            let second = builder.imm_u64(7);
+            let first = builder.imm(7);
+            let second = builder.imm(7);
             let result = builder.add(first, second);
             builder.ret([result]);
             (first, second, result)

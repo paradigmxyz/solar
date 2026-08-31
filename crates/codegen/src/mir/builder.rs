@@ -31,6 +31,49 @@ impl PanicCode {
     }
 }
 
+pub(crate) trait ToUint {
+    fn to_uint(self) -> U256;
+}
+
+impl ToUint for U256 {
+    fn to_uint(self) -> U256 {
+        self
+    }
+}
+
+macro_rules! impl_to_uint {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl ToUint for $ty {
+                fn to_uint(self) -> U256 {
+                    U256::from(self)
+                }
+            }
+        )*
+    };
+}
+
+impl_to_uint!(u8, u16, u32, u64, u128, usize);
+
+macro_rules! impl_signed_to_uint {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl ToUint for $ty {
+                fn to_uint(self) -> U256 {
+                    let value = U256::from(self.unsigned_abs());
+                    if self < 0 {
+                        value.wrapping_neg()
+                    } else {
+                        value
+                    }
+                }
+            }
+        )*
+    };
+}
+
+impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum RevertKind {
     Empty,
@@ -92,7 +135,7 @@ impl<'a> FunctionBuilder<'a> {
         self.jump(header);
 
         self.switch_to_block(header);
-        let zero = self.imm_u64(0);
+        let zero = self.imm(0);
         let index = self.phi(vec![(preheader, zero)]);
         let more = self.lt(index, length);
         self.branch(more, body, exit);
@@ -126,14 +169,9 @@ impl<'a> FunctionBuilder<'a> {
         self.func.returns.push(ty);
     }
 
-    /// Creates an immediate value.
-    pub(crate) fn imm_u256(&mut self, value: U256) -> ValueId {
-        self.alloc_value(Value::Immediate(Immediate::uint256(value)))
-    }
-
-    /// Creates a u64 immediate value.
-    pub(crate) fn imm_u64(&mut self, value: u64) -> ValueId {
-        self.imm_u256(U256::from(value))
+    /// Creates a uint256 immediate value.
+    pub(crate) fn imm(&mut self, value: impl ToUint) -> ValueId {
+        self.alloc_value(Value::Immediate(Immediate::uint256(value.to_uint())))
     }
 
     /// Creates a boolean immediate.
@@ -146,20 +184,20 @@ impl<'a> FunctionBuilder<'a> {
         if offset == 0 {
             base
         } else {
-            let offset = self.imm_u64(offset);
+            let offset = self.imm(offset);
             self.add(base, offset)
         }
     }
 
     /// Reverts with Solidity's `Panic(uint256)` payload.
     pub(crate) fn panic(&mut self, code: PanicCode) {
-        let selector = self.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
-        let code = self.imm_u64(code.as_u64());
-        let zero = self.imm_u256(U256::ZERO);
+        let selector = self.imm(U256::from(0x4e48_7b71_u64) << 224);
+        let code = self.imm(code.as_u64());
+        let zero = self.imm(U256::ZERO);
         self.mstore(zero, selector);
-        let four = self.imm_u256(U256::from(4));
+        let four = self.imm(U256::from(4));
         self.mstore(four, code);
-        let size = self.imm_u256(U256::from(36));
+        let size = self.imm(U256::from(36));
         self.revert(zero, size);
     }
 
@@ -204,7 +242,7 @@ impl<'a> FunctionBuilder<'a> {
             self.switch_to_block(revert);
             match kind {
                 RevertKind::Empty => {
-                    let zero = self.imm_u64(0);
+                    let zero = self.imm(0);
                     self.revert(zero, zero);
                 }
                 RevertKind::Panic(code) => self.panic(code),
@@ -225,7 +263,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Reverts with `PanicCode::EnumConversion` when `value` is not a valid variant index.
     pub(crate) fn validate_enum_value(&mut self, variants: u64, value: ValueId) {
-        let limit = self.imm_u64(variants);
+        let limit = self.imm(variants);
         let valid = self.lt(value, limit);
         let invalid = self.iszero(valid);
         self.panic_if(invalid, PanicCode::EnumConversion);
@@ -243,7 +281,7 @@ impl<'a> FunctionBuilder<'a> {
         if let (Some(lhs), Some(rhs)) = (self.func.value_u256(lhs), self.func.value_u256(rhs))
             && let Some(result) = lhs.checked_add(rhs)
         {
-            return self.imm_u256(result);
+            return self.imm(result);
         }
         let result = self.add(lhs, rhs);
         let overflow = self.lt(result, lhs);
@@ -256,7 +294,7 @@ impl<'a> FunctionBuilder<'a> {
         if let (Some(lhs), Some(rhs)) = (self.func.value_u256(lhs), self.func.value_u256(rhs))
             && let Some(result) = lhs.checked_mul(rhs)
         {
-            return self.imm_u256(result);
+            return self.imm(result);
         }
         let result = self.mul(lhs, rhs);
         let rhs_zero = self.iszero(rhs);
@@ -270,20 +308,20 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Returns the word-aligned allocation size for a bytes-like object.
     pub(crate) fn checked_padded_size(&mut self, length: ValueId) -> ValueId {
-        let padding = self.imm_u64(63);
+        let padding = self.imm(63);
         let rounded = self.checked_add(length, padding);
         self.mask_padded_size(rounded)
     }
 
     /// Returns the Solidity-compatible padded size for `bytes.concat`.
     pub(crate) fn padded_size(&mut self, length: ValueId) -> ValueId {
-        let padding = self.imm_u64(63);
+        let padding = self.imm(63);
         let rounded = self.add(length, padding);
         self.mask_padded_size(rounded)
     }
 
     fn mask_padded_size(&mut self, rounded: ValueId) -> ValueId {
-        let mask = self.imm_u64(31);
+        let mask = self.imm(31);
         let mask = self.not(mask);
         self.and(rounded, mask)
     }
@@ -642,7 +680,7 @@ impl<'a> FunctionBuilder<'a> {
         len: u64,
         semantics: AllocationSemantics,
     ) -> (ValueId, MemoryObjectLayout) {
-        let size = self.imm_u64(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        let size = self.imm(len.saturating_mul(EvmMemoryLayout::WORD_SIZE));
         let layout = MemoryObjectLayout::word_fixed_array(len);
         let object = self.alloc_object(size, layout, semantics);
         (object, layout)
@@ -654,7 +692,7 @@ impl<'a> FunctionBuilder<'a> {
         fields: u64,
         semantics: AllocationSemantics,
     ) -> (ValueId, MemoryObjectLayout) {
-        let size = self.imm_u64(fields.saturating_mul(EvmMemoryLayout::WORD_SIZE));
+        let size = self.imm(fields.saturating_mul(EvmMemoryLayout::WORD_SIZE));
         let layout = MemoryObjectLayout::structure(fields);
         let object = self.alloc_object(size, layout, semantics);
         (object, layout)
@@ -666,9 +704,9 @@ impl<'a> FunctionBuilder<'a> {
         length: ValueId,
         semantics: AllocationSemantics,
     ) -> (ValueId, MemoryObjectLayout) {
-        let one = self.imm_u64(1);
+        let one = self.imm(1);
         let words = self.checked_add(length, one);
-        let word_size = self.imm_u64(32);
+        let word_size = self.imm(32);
         let size = self.checked_mul(words, word_size);
         let layout = MemoryObjectLayout::WORD_ARRAY;
         let object = self.alloc_object(size, layout, semantics);
