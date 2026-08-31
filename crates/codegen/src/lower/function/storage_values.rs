@@ -567,6 +567,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((access, new_length))
     }
 
+    pub(super) fn grow_storage_bytes(&mut self, slot: ValueId) -> (ValueId, ValueId) {
+        let old = self.load_storage_bytes(slot);
+        let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
+        let one = self.builder.imm_u64(1);
+        let length = self.builder.checked_add(old_length, one);
+        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
+        self.builder.memory_object_copy(
+            object,
+            MemoryObjectKind::Bytes,
+            old,
+            MemoryObjectKind::Bytes,
+            old_length,
+        );
+        (object, old_length)
+    }
+
     pub(super) fn lower_storage_array_push(
         &mut self,
         expr: &hir::Expr<'_>,
@@ -645,19 +661,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             self.builder.imm_u64(0)
         };
-        let old = self.load_storage_bytes(access.slot);
-        let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
-        let one = self.builder.imm_u64(1);
-        let length = self.builder.checked_add(old_length, one);
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
-        self.builder.memory_object_copy(
-            object,
-            MemoryObjectKind::Bytes,
-            old,
-            MemoryObjectKind::Bytes,
-            old_length,
-        );
-        self.builder.memory_object_store_byte(object, old_length, value);
+        let (object, index) = self.grow_storage_bytes(access.slot);
+        self.builder.memory_object_store_byte(object, index, value);
         self.store_storage_bytes(access.slot, object)?;
         Some(self.builder.imm_u256(U256::ZERO))
     }

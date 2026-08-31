@@ -348,10 +348,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         PreparedTupleAssignment::StorageReference { id, access }
                     }
-                    rhs => PreparedTupleAssignment::Value {
-                        place: self.resolve_lvalue_place(element)?,
-                        rhs,
-                    },
+                    rhs => {
+                        let place = self.resolve_lvalue_place(element)?;
+                        if let LValuePlace::StorageBytePush { slot, object, .. } = &place {
+                            self.store_storage_bytes(*slot, *object)?;
+                        }
+                        PreparedTupleAssignment::Value { place, rhs }
+                    }
                 })
             })
             .collect::<Option<Vec<_>>>()?;
@@ -365,9 +368,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for assignment in assignments.into_iter().rev() {
             match assignment {
                 PreparedTupleAssignment::Value { mut place, rhs } => {
-                    if let LValuePlace::StorageByte { slot, index, ty, .. } = place {
-                        // Place resolution materializes storage bytes for its bounds check. Reload
-                        // before each write so aliased byte targets do not restore a stale copy.
+                    if let LValuePlace::StorageByte { slot, index, ty, .. }
+                    | LValuePlace::StorageBytePush { slot, index, ty, .. } = place
+                    {
+                        // Place resolution materializes storage bytes. Reload before each write so
+                        // aliased byte targets do not restore a stale copy.
                         let object = self.load_storage_bytes(slot);
                         place = LValuePlace::StorageByte { slot, object, index, ty };
                     }
