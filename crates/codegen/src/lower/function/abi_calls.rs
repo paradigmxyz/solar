@@ -466,36 +466,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
         self.builder.set_memory_object_len(object, length, layout.kind());
 
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm_u64(0);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let more = self.builder.lt(index, length);
-        self.builder.branch(more, body, exit);
-
-        self.builder.switch_to_block(body);
-        let offset = self.builder.checked_mul(index, element_head_size);
-        let head = self.builder.add(data, offset);
-        let value = self.materialize_calldata_value_at_inner(
-            element,
-            head,
-            data,
-            span,
-            validate_bounds && element_is_dynamic,
-        )?;
-        let value = self.encode_memory_scalar(element, value);
-        self.builder.memory_object_store_element(object, layout, index, value);
-        let next = self.builder.add_u64_offset(index, 1);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-
-        self.builder.switch_to_block(exit);
+        self.counted_loop(length, |this, index| {
+            let offset = this.builder.checked_mul(index, element_head_size);
+            let head = this.builder.add(data, offset);
+            let value = this.materialize_calldata_value_at_inner(
+                element,
+                head,
+                data,
+                span,
+                validate_bounds && element_is_dynamic,
+            )?;
+            let value = this.encode_memory_scalar(element, value);
+            this.builder.memory_object_store_element(object, layout, index, value);
+            Some(())
+        })?;
         Some(object)
     }
 

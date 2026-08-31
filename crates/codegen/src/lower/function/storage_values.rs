@@ -1123,27 +1123,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_UNINITIALIZED);
         self.builder.set_memory_object_len(object, length, layout.kind());
 
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm_u64(0);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let condition = self.builder.lt(index, length);
-        self.builder.branch(condition, body, exit);
-
-        self.builder.switch_to_block(body);
-        let access = self.storage_array_element_access(slot, index, element, true, span)?;
-        let value = self.load_storage_value(element, access, span)?;
-        let value = self.encode_memory_scalar(element, value);
-        self.builder.memory_object_store_element(object, layout, index, value);
-        let next = self.builder.add_u64_offset(index, 1);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
+        self.counted_loop(length, |this, index| {
+            let access = this.storage_array_element_access(slot, index, element, true, span)?;
+            let value = this.load_storage_value(element, access, span)?;
+            let value = this.encode_memory_scalar(element, value);
+            this.builder.memory_object_store_element(object, layout, index, value);
+            Some(())
+        })?;
         Some(object)
     }
 
@@ -1395,31 +1381,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(write_block);
         self.builder.sstore(slot, length);
 
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-        self.builder.switch_to_block(header);
-        let zero = self.builder.imm_u64(0);
-        let index = self.builder.phi(vec![(preheader, zero)]);
-        let condition = self.builder.lt(index, length);
-        self.builder.branch(condition, body, exit);
-
-        self.builder.switch_to_block(body);
-        let value = self.builder.memory_object_load_element(object, source_layout, index);
-        let value = if self.types.memory_layout(source_element).is_some() {
-            self.materialize_array_element(object, source_layout, index, source_element, value)?
-        } else {
-            self.decode_memory_scalar(source_element, value)
-        };
-        let access = self.storage_array_element_access(slot, index, element, true, span)?;
-        self.store_storage_value_with_source(element, source_element, access, value, span)?;
-        let next = self.builder.add_u64_offset(index, 1);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
+        self.counted_loop(length, |this, index| {
+            let value = this.builder.memory_object_load_element(object, source_layout, index);
+            let value = if this.types.memory_layout(source_element).is_some() {
+                this.materialize_array_element(object, source_layout, index, source_element, value)?
+            } else {
+                this.decode_memory_scalar(source_element, value)
+            };
+            let access = this.storage_array_element_access(slot, index, element, true, span)?;
+            this.store_storage_value_with_source(element, source_element, access, value, span)
+        })?;
 
         if let Some((size, _)) = self.context.storage.packed_encoding(element)
             && 32 / size.bytes() > 1
@@ -1564,25 +1535,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some(());
                 }
 
-                let preheader = self.builder.current_block();
-                let header = self.builder.create_block();
-                let body = self.builder.create_block();
-                let exit = self.builder.create_block();
-                self.builder.jump(header);
-                self.builder.switch_to_block(header);
-                let index = self.builder.phi(vec![(preheader, zero)]);
-                let condition = self.builder.lt(index, length);
-                self.builder.branch(condition, body, exit);
-
-                self.builder.switch_to_block(body);
-                let element_access =
-                    self.storage_array_element_access(access.slot, index, element, true, span)?;
-                self.clear_storage_access(element, element_access, span)?;
-                let next = self.builder.add_u64_offset(index, 1);
-                let backedge = self.builder.current_block();
-                self.builder.jump(header);
-                self.builder.add_phi_incoming(index, backedge, next);
-                self.builder.switch_to_block(exit);
+                self.counted_loop(length, |this, index| {
+                    let element_access =
+                        this.storage_array_element_access(access.slot, index, element, true, span)?;
+                    this.clear_storage_access(element, element_access, span)
+                })?;
             }
             TyKind::Struct(struct_id) => {
                 if self.storage_struct_is_recursive(struct_id) {

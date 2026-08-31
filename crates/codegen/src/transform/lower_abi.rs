@@ -3790,34 +3790,17 @@ fn canonicalize_return_value(
             let output = builder.alloc_object(size, layout, AllocationSemantics::INTERNAL);
             builder.set_memory_object_len(output, length, layout.kind());
 
-            let preheader = builder.current_block();
-            let header = builder.create_block();
-            let body = builder.create_block();
-            let exit = builder.create_block();
-            builder.jump(header);
-
-            builder.switch_to_block(header);
-            let zero = builder.imm_u64(0);
-            let index = builder.phi(vec![(preheader, zero)]);
-            let more = builder.lt(index, length);
-            builder.branch(more, body, exit);
-
-            builder.switch_to_block(body);
-            let element_value = builder.memory_object_load_element(value, layout, index);
-            let element_value = canonicalize_return_value(
-                builder,
-                element,
-                element_value,
-                input_params,
-                ReturnValueSource::Memory,
-            );
-            builder.memory_object_store_element(output, layout, index, element_value);
-            let next = builder.add(index, one);
-            let backedge = builder.current_block();
-            builder.jump(header);
-            builder.add_phi_incoming(index, backedge, next);
-
-            builder.switch_to_block(exit);
+            builder.counted_loop(length, |builder, index| {
+                let element_value = builder.memory_object_load_element(value, layout, index);
+                let element_value = canonicalize_return_value(
+                    builder,
+                    element,
+                    element_value,
+                    input_params,
+                    ReturnValueSource::Memory,
+                );
+                builder.memory_object_store_element(output, layout, index, element_value);
+            });
             output
         }
     }

@@ -983,31 +983,14 @@ fn encode_word_array(
     if let Some(cleanup) = cleanup
         && location == SliceLocation::Memory
     {
-        let preheader = builder.current_block();
-        let cond = builder.create_block();
-        let body = builder.create_block();
-        let done = builder.create_block();
-        builder.jump(cond);
-
-        builder.switch_to_block(cond);
-        let zero = builder.imm_u64(0);
-        let index = builder.phi(vec![(preheader, zero)]);
-        let more = builder.lt(index, len);
-        builder.branch(more, body, done);
-
-        builder.switch_to_block(body);
-        let offset = builder.mul(index, word);
-        let source = builder.add(data_source, offset);
-        let destination = builder.add(data_dest, offset);
-        let value = builder.mload(source);
-        let value = clean_word(builder, cleanup, value);
-        builder.mstore(destination, value);
-        let next = builder.add_u64_offset(index, 1);
-        let backedge = builder.current_block();
-        builder.jump(cond);
-        builder.add_phi_incoming(index, backedge, next);
-
-        builder.switch_to_block(done);
+        builder.counted_loop(len, |builder, index| {
+            let offset = builder.mul(index, word);
+            let source = builder.add(data_source, offset);
+            let destination = builder.add(data_dest, offset);
+            let value = builder.mload(source);
+            let value = clean_word(builder, cleanup, value);
+            builder.mstore(destination, value);
+        });
         return tail;
     }
     builder.copy_slice_data(location, data_dest, data_source, bytes);
