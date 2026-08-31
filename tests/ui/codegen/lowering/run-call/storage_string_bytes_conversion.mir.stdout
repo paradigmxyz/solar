@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_bytes_conversion.sol:StorageStringBytesConversion ===
 @module StorageStringBytesConversion
-fn @_anonymous(arg0: memorybytes) [constructor, abi_params=[bytes]] {
+fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
     internal_call @store_storage_bytes, 0, 0, arg0
     stop

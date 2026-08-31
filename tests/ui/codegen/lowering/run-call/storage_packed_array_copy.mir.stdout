@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_copy.sol:StoragePackedArrayCopy ===
 @module StoragePackedArrayCopy
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     jump bb1
   bb1:

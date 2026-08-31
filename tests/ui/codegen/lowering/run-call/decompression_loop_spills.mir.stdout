@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Decompressor ===
 @module Decompressor
-fn @_anonymous() [fallback, payable] {
+fn @fallback() [fallback, payable] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
@@ -115,6 +115,7 @@ fn @_decompress() {
     v5 = calldatasize
     returndata v5, v4
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/decompression_loop_spills.sol:Harness ===
 @module Harness
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {

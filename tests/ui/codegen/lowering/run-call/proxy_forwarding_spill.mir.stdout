@@ -36,19 +36,20 @@ fn @setBig(arg0: u256, arg1: u256, arg2: u256, arg3: calldataslice) [selector=0x
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Proxy ===
 @module Proxy
 immutables:
   _defaultImplementation: bytes32
 
-fn @_anonymous.0(arg0: address) [constructor, abi_params=[address]] {
+fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     v0 = shl 0, arg0
     storeimmutable _defaultImplementation, v0
     stop
 }
 
-fn @_anonymous.1() [fallback, payable] {
+fn @fallback() [fallback, payable] {
   bb0:
     v0 = returndatasize
     mstore 64, v0 !metadata(memory=scratch)
@@ -89,6 +90,7 @@ fn @_anonymous.1() [fallback, payable] {
     v18 = returndatasize
     revert 0, v18
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_spill.sol:Harness ===
 @module Harness
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {

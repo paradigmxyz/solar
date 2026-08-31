@@ -9,7 +9,7 @@ contract ConstructorInternalCall {
     // MIR: sload 0
     uint256 public value;
 
-    // MIR-LABEL: fn @_anonymous{{[( ]}}
+    // MIR-LABEL: fn @constructor{{[( ]}}
     // MIR: [[MASKED:v[0-9]+]] = and arg0, 7
     // MIR: [[VALUE:v[0-9]+]] = internal_call @helper, 1, [[MASKED]]
     // MIR: sstore 0, [[VALUE]]

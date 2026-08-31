@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_return.sol:CalldataSliceReturn ===
+@module CalldataSliceReturn
+fn @whole(arg0: calldataslice) -> calldataslice [selector=0xbbbb2e8a, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @tail(arg0: calldataslice) -> calldataslice [selector=0xba5a0763, pure, abi_params=[bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = slice_ptr arg0
+    v2 = slice_len arg0
+    v3 = gt v2, v2
+    v4 = lt v2, 4
+    v5 = or v3, v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = sub v2, 4
+    v7 = add v1, 4
+    v8 = make_calldata_slice v7, v6
+    ret v8
+  bb1:
+    revert 0, 0
+}
+
+fn @words(arg0: calldataslice) -> calldataslice [selector=0xdc95fc7e, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}

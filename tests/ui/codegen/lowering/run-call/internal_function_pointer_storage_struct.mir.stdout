@@ -10,7 +10,7 @@ fn @secondTarget() -> u256 [pure] {
     ret 2
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0

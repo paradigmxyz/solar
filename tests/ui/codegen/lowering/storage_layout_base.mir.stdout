@@ -4,6 +4,7 @@ fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, 
   bb0:
     ret 7, 0, 7, 1, 8, 0
 }
+
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
 @module LayoutStorage
 fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word]] {
@@ -13,14 +14,17 @@ fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], a
     v1 = sload 42 !metadata(storage=slot(42))
     ret v1, v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutBase ===
 @module LayoutBase
+
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutMiddle ===
 @module LayoutMiddle
 fn @constructor() [constructor] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
 @module LayoutDerived
 fn @slots() -> (u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word]] {
@@ -32,12 +36,14 @@ fn @constructor() [constructor] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
 @module LayoutTransient
 fn @slots() -> (u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     ret 0, 7
 }
+
 // === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
 @module LayoutErc7201
 fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>]] {

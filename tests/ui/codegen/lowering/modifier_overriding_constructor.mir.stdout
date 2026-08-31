@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/modifier_overriding_constructor.sol:A ===
 @module A
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 1
@@ -20,6 +20,7 @@ fn @getData() -> u256 [selector=0x3bc5de30, abi_params=[], abi_returns=[word]] {
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/modifier_overriding_constructor.sol:C ===
 @module C
 fn @getData() -> u256 [selector=0x3bc5de30, abi_params=[], abi_returns=[word]] {

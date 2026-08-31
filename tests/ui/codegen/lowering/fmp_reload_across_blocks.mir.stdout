@@ -1,0 +1,177 @@
+// === ROOT/tests/ui/codegen/lowering/fmp_reload_across_blocks.sol:ExcessReturnDataRecipient ===
+@module ExcessReturnDataRecipient
+fn @setRevertDataSize(arg0: u256) [selector=0xe998da54, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+}
+
+fn @ln(arg0: u256) -> u256 [pure] {
+  bb0:
+    v0 = sub arg0, 1
+    v1 = div v0, 2
+    v2 = or v0, v1
+    v3 = div v2, 4
+    v4 = or v2, v3
+    v5 = div v4, 16
+    v6 = or v4, v5
+    v7 = div v6, 256
+    v8 = or v6, v7
+    v9 = div v8, 0x10000
+    v10 = or v8, v9
+    v11 = div v10, 0x100000000
+    v12 = or v10, v11
+    v13 = div v12, 0x10000000000000000
+    v14 = or v12, v13
+    v15 = div v14, 0x100000000000000000000000000000000
+    v16 = or v14, v15
+    v17 = add v16, 1
+    v18 = mload 64 !metadata(memory=scratch)
+    mstore v18, 0xf8f9cbfae6cc78fbefe7cdc3a1793dfcf4f0e8bbd8cec470b6a28a7a5a3e1efd
+    v19 = add v18, 32
+    mstore v19, 0xf5ecf1b3e9debc68e1d9cfabc5997135bfb7a7a3938b7b606b5b4b3f2f1f0ffe
+    v20 = add v18, 64
+    mstore v20, 0xf6e4ed9ff2d6b458eadcdf97bd91692de2d4da8fd2d0ac50c6ae9a8272523616
+    v21 = add v18, 96
+    mstore v21, 0xc8c0b887b0a8a4489c948c7f847c6125746c645c544c444038302820181008ff
+    v22 = add v18, 128
+    mstore v22, 0xf7cae577eec2a03cf3bad76fb589591debb2dd67e0aa9834bea6925f6a4a2e0e
+    v23 = add v18, 160
+    mstore v23, 0xe39ed557db96902cd38ed14fad815115c786af479b7e83247363534337271707
+    v24 = add v18, 192
+    mstore v24, 0xc976c13bb96e881cb166a933a55e490d9d56952b8d4e801485467d2362422606
+    v25 = add v18, 224
+    mstore v25, 0x753a6d1b65325d0c552a4d1345224105391a310b29122104190a110309020100
+    v26 = add v18, 256
+    mstore 64, v26 !metadata(memory=scratch)
+    v27 = mul v17, 0x818283848586878898a8b8c8d8e8f929395969799a9b9d9e9faaeb6bedeeff
+    v28 = div v27, 0x100000000000000000000000000000000000000000000000000000000000000
+    v29 = sub 255, v28
+    v30 = add v18, v29
+    v31 = mload v30
+    v32 = div v31, 0x100000000000000000000000000000000000000000000000000000000000000
+    v33 = gt arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v34 = mul 256, v33
+    v35 = add v32, v34
+    v36 = mul v35, 0x2386f26fc10000
+    v37 = div v36, 0x33413c26506520
+    ret v37
+}
+
+fn @sqrt(arg0: u256) -> u256 [pure] {
+  bb0:
+    v0 = gt arg0, 3
+    switch v0, default bb1, [1 => bb2, 0 => bb3]
+  bb3:
+    jump bb1
+  bb2:
+    v1 = add arg0, 1
+    v2 = div v1, 2
+    jump bb4
+  bb4:
+    v3 = phi [bb2: v2], [bb8: v11]
+    v4 = phi [bb2: arg0], [bb8: v4]
+    v5 = phi [bb2: arg0], [bb8: v3]
+    v6 = lt v3, v5
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb6, bb7
+  bb7:
+    jump bb5
+  bb5:
+    jump bb1
+  bb6:
+    v9 = div v4, v3
+    v10 = add v9, v3
+    v11 = div v10, 2
+    jump bb8
+  bb8:
+    jump bb4
+  bb1:
+    v12 = phi [bb0: arg0], [bb5: v4], [bb3: arg0]
+    v13 = phi [bb0: 0], [bb5: v5], [bb3: 1]
+    ret v13
+}
+
+fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [selector=0xf23a6e61, view, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 0xf23a6e6100000000000000000000000000000000000000000000000000000000
+  bb1:
+    v2 = gas
+    v3 = internal_call @ln, 1, v2
+    v4 = mul 54, v3
+    v5 = iszero v3
+    v6 = div v4, v3
+    v7 = eq v6, 54
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb4, bb5
+  bb5:
+    v10 = add v4, 0x4b0
+    v11 = lt v10, v4
+    jumpi v11, bb6, bb7
+  bb7:
+    v12 = gas
+    v13 = sub v12, v10
+    v14 = lt v12, v10
+    jumpi v14, bb8, bb9
+  bb9:
+    v15 = mul 0x800, v13
+    v16 = iszero v13
+    v17 = div v15, v13
+    v18 = eq v17, 0x800
+    v19 = or v16, v18
+    v20 = iszero v19
+    jumpi v20, bb10, bb11
+  bb11:
+    v21 = add v15, 0x8fe800
+    v22 = lt v21, v15
+    jumpi v22, bb12, bb13
+  bb13:
+    v23 = internal_call @sqrt, 1, v21
+    v24 = sub v23, 0xc00
+    v25 = lt v23, 0xc00
+    jumpi v25, bb14, bb15
+  bb15:
+    jumpi 4, bb17, bb16
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    v26 = div v24, 4
+    v27 = mul v26, 32
+    v28 = mul v26, 32
+    calldatacopy 0, 0, v28 !metadata(memory=scratch)
+    revert 0, v27
+  bb14:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

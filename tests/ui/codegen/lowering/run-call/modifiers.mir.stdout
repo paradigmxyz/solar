@@ -411,6 +411,7 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModBase ===
 @module ModBase
 fn @guardedV() -> u256 [selector=0x099f200a, abi_params=[], abi_returns=[word]] {
@@ -432,6 +433,7 @@ fn @guardedV() -> u256 [selector=0x099f200a, abi_params=[], abi_returns=[word]] 
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:ModDerived ===
 @module ModDerived
 fn @guardedV() -> u256 [selector=0x099f200a, abi_params=[], abi_returns=[word]] {
@@ -458,6 +460,7 @@ fn @constructor() [constructor] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/modifiers.sol:CtorMod ===
 @module CtorMod
 fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
@@ -466,7 +469,7 @@ fn @v() -> u256 [selector=0x7c2efcba, view, abi_params=[], abi_returns=[word]] {
     ret v0
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))

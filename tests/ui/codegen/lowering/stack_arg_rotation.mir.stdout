@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/stack_arg_rotation.sol:StackArgRotation ===
+@module StackArgRotation
+fn @sink() -> u256 [selector=0xc74e820e, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @run(arg0: u256) -> u256 [selector=0xa444f5e9, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = xor arg0, 7
+    v3 = internal_call @mix, 1, v0, v2
+    v4 = internal_call @mix, 1, arg0, 1
+    v5 = add v3, v4
+    v6 = lt v5, v3
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = internal_call @mix, 1, arg0, 2
+    v8 = add v5, v7
+    v9 = lt v8, v5
+    jumpi v9, bb5, bb6
+  bb6:
+    v10 = internal_call @mix, 1, arg0, 3
+    v11 = add v8, v10
+    v12 = lt v11, v8
+    jumpi v12, bb7, bb8
+  bb8:
+    ret v11
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @mix(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = mul arg0, 3
+    v2 = xor v1, arg1
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = xor v3, v0
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = add v0, v5
+    v7 = xor v1, v6
+    v8 = add v2, v7
+    ret v8
+}

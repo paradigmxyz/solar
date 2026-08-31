@@ -46,6 +46,7 @@ fn @mixed() -> (memoryarray, u256, memorybytes) [selector=0x354df1f9, pure, abi_
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_multi_return.sol:Caller ===
 @module Caller
 fn @strAndNum() -> (u256, u256) [selector=0x713d228b, abi_params=[], abi_returns=[word, word]] {

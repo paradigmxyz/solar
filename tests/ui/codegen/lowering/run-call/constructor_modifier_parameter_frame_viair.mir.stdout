@@ -6,7 +6,7 @@ fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     ret v0
 }
 
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = add arg0, 1
     v1 = lt v0, arg0
@@ -34,9 +34,10 @@ fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_parameter_frame_viair.sol:ConstructorModifierParameterFrame ===
 @module ConstructorModifierParameterFrame
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = add 5, 1
     v1 = lt v0, 5

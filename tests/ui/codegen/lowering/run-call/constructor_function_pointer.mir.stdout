@@ -6,7 +6,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
+fn @constructor(arg0: function) [constructor, abi_params=[function]] {
   bb0:
     v0 = and arg0, 0xffffffff
     v1 = shl 224, v0
@@ -33,6 +33,7 @@ fn @_anonymous(arg0: function) [constructor, abi_params=[function]] {
   bb3:
     revert 0, 0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:ArrayTarget ===
 @module ArrayTarget
 fn @raw() -> u256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
@@ -41,12 +42,13 @@ fn @raw() -> u256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]]
     ret v0
 }
 
-fn @_anonymous(arg0: memoryfixedarray) [constructor, abi_params=[array<1, function>]] {
+fn @constructor(arg0: memoryfixedarray) [constructor, abi_params=[array<1, function>]] {
   bb0:
     v0 = mload arg0
     sstore 0, v0 !metadata(storage=slot(0))
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer.sol:Caller ===
 @module Caller
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {

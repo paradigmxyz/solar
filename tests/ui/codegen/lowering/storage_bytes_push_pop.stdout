@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_push_pop.sol:StorageBytesPushPop ===
 @module StorageBytesPushPop
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = shr 248, 0x100000000000000000000000000000000000000000000000000000000000000
     v1 = sload 0 !metadata(storage=slot(0))

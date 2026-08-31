@@ -18,7 +18,7 @@ fn @c() -> u256 [selector=0xc3da42b8, view, abi_params=[], abi_returns=[word]] {
     ret v0
 }
 
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
@@ -44,6 +44,7 @@ fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderDerived ===
 @module ConstructorStateOrderDerived
 fn @d() -> u256 [selector=0x8a054ac2, view, abi_params=[], abi_returns=[word]] {
@@ -76,7 +77,7 @@ fn @bC() -> u256 [selector=0xed73bda9, view, abi_params=[], abi_returns=[word]] 
     ret v0
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     sstore 0, 42 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))

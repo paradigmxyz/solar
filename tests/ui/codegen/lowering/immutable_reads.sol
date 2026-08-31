@@ -10,7 +10,7 @@ contract C {
     // CHECK: loadimmutable duration
     uint256 public immutable duration;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: storeimmutable start, arg0
     // CHECK: [[START:v[0-9]+]] = loadimmutable start
     // CHECK: [[DURATION:v[0-9]+]] = add [[START]], 1

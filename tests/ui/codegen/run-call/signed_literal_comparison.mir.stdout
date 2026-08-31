@@ -1,0 +1,14 @@
+// === ROOT/tests/ui/codegen/run-call/signed_literal_comparison.sol:SignedLiteralComparison ===
+@module SignedLiteralComparison
+fn @literalLeft(arg0: i256) -> bool [abi_returns=[word]] {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = sgt 0, arg0
+    ret v3
+  bb1:
+    revert 0, 0
+}

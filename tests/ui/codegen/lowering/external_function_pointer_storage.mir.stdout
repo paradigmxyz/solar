@@ -10,7 +10,7 @@ fn @second() -> u256 [selector=0x5a8ac02d, pure, abi_params=[], abi_returns=[wor
     ret 2
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0

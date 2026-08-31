@@ -1,0 +1,18 @@
+// === ROOT/tests/ui/codegen/lowering/storage_ref_parenthesized_init.sol:StorageRefParenthesizedInit ===
+@module StorageRefParenthesizedInit
+fn @put(arg0: bytes32, arg1: u256) -> u256 [selector=0xda4a9842, abi_params=[bytes32, u256], abi_returns=[word]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = and 1, 255
+    v5 = or v3, v4
+    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v6 = add v0, 1
+    sstore v6, arg1 !metadata(storage=offset(v0, 1))
+    v7 = mapping_slot arg0, 0
+    v8 = add v7, 1
+    v9 = sload v8 !metadata(storage=offset(v7, 1))
+    ret v9
+}

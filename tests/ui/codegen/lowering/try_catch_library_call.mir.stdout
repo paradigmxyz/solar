@@ -59,6 +59,7 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
 }
+
 // === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:C ===
 @module C
 fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_returns=[word]] {

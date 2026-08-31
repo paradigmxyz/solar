@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/modifier_creation_context.sol:A ===
 @module A
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     internal_call @f2, 0
     internal_call @f1, 0
@@ -48,6 +48,7 @@ fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/modifier_creation_context.sol:C ===
 @module C
 fn @f3() [selector=0xaaf05f3d, abi_params=[], abi_returns=[]] {

@@ -6,14 +6,15 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor.sol:Derived ===
 @module Derived
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb1

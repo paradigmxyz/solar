@@ -4,9 +4,10 @@ fn @ping(arg0: u256) -> u256 [selector=0x773acdef, payable, abi_params=[u256], a
   bb0:
     ret 1
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrder ===
 @module TryExternalCallEvaluationOrder
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

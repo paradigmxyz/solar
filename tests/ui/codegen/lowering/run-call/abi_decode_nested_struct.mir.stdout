@@ -195,6 +195,7 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe2 ===
 @module Probe2
 fn @outer() -> u256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word]] {
@@ -296,6 +297,7 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_nested_struct.sol:Probe3 ===
 @module Probe3
 fn @idOfKeyOnly(arg0: memorystruct, arg1: u160) -> bytes32 [selector=0x128e91fc, pure, abi_params=[tuple<address, address, u24, i24, address>, u160], abi_returns=[word]] {

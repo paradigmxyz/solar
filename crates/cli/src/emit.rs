@@ -377,8 +377,9 @@ fn dump_mir(
     let sess = gcx.sess;
     let dump = sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let mut writer = console_writer(sess.opts.color);
+    let mut first = true;
     for id in contracts.into_iter(gcx) {
-        dump_mir_contract(&mut writer, gcx, dump, id, artifacts)?;
+        dump_mir_contract(&mut writer, gcx, dump, id, artifacts, &mut first)?;
     }
     writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
 
@@ -391,15 +392,16 @@ fn dump_mir_contract(
     dump: &Dump,
     id: ContractId,
     artifacts: &FxHashMap<ContractId, ContractArtifact>,
+    first: &mut bool,
 ) -> Result {
     let Some(module) = artifacts.get(&id).and_then(|artifact| artifact.mir.as_ref()) else {
         return Ok(());
     };
     if dump.kinds.contains(&DumpKind::Mir) {
-        write_mir_dump_contract(writer, gcx, id, module, DumpKind::Mir)?;
+        write_mir_dump_contract(writer, gcx, id, module, DumpKind::Mir, first)?;
     }
     if dump.kinds.contains(&DumpKind::MirCfg) {
-        write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirCfg)?;
+        write_mir_dump_contract(writer, gcx, id, module, DumpKind::MirCfg, first)?;
     }
     Ok(())
 }
@@ -451,12 +453,17 @@ fn write_mir_dump_contract(
     id: ContractId,
     module: &solar_codegen::mir::Module,
     kind: DumpKind,
+    first: &mut bool,
 ) -> Result {
+    if !std::mem::replace(first, false) {
+        writeln!(writer)
+            .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    }
     let name = gcx.contract_fully_qualified_name(id);
     writeln!(writer, "// === {name} ===")
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     match kind {
-        DumpKind::Mir => write_highlighted(writer, format!("{module}"), Syntax::Ir),
+        DumpKind::Mir => write_highlighted(writer, module.to_string(), Syntax::Ir),
         DumpKind::MirCfg => writeln!(writer, "{}", module.to_dot()),
         _ => unreachable!("checked by caller"),
     }

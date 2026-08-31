@@ -1,0 +1,153 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_call_stack.sol:CalldataSliceCallStack ===
+@module CalldataSliceCallStack
+fn @fees(arg0: address) -> u256 [selector=0xfaaebd21, view, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    ret v2
+}
+
+fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [selector=0x9aefaff8, abi_params=[address, address, u256, bytes], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = address
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = abi_encode [word<u160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v0, arg1, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    mstore 0, arg2 !metadata(memory=scratch)
+    log3 0, 32, 0xa6d5647a92aa1dcbb9b0a53bd2edba8935c58f1e2c7c8fae35acd2acf52a5bd1, arg0, arg1
+    v13 = gas
+    v14 = abi_encode [word<u160>, word], selector 0xa9059cbb00000000000000000000000000000000000000000000000000000000, args arg0, arg2
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = call v13, arg1, 0, v15, v16, 0, 32
+    jumpi v17, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v18 = returndatasize
+    v19 = lt v18, 32
+    jumpi v19, bb7, bb8
+  bb8:
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = iszero v21
+    v23 = iszero v22
+    v24 = eq v21, v23
+    v25 = iszero v24
+    jumpi v25, bb9, bb10
+  bb10:
+    v26 = add 0, 0
+    v27 = mload v26
+    v28 = gas
+    v29 = abi_encode [word<u160>, word, calldata_bytes], selector 0x794dca5300000000000000000000000000000000000000000000000000000000, args arg1, arg2, arg3
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = extcodesize arg0
+    v33 = iszero v32
+    jumpi v33, bb11, bb12
+  bb12:
+    v34 = call v28, arg0, 0, v30, v31, 0, 0
+    jumpi v34, bb14, bb13
+  bb13:
+    revert_returndata
+  bb14:
+    v35 = internal_call @getFee, 1, arg1, arg2
+    v36 = add v12, v35
+    v37 = lt v36, v12
+    jumpi v37, bb15, bb16
+  bb16:
+    v38 = gas
+    v39 = address
+    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffff
+    v41 = abi_encode [word<u160>], selector 0x70a0823100000000000000000000000000000000000000000000000000000000, args v40
+    v42 = slice_ptr v41
+    v43 = slice_len v41
+    v44 = staticcall v38, arg1, v42, v43, 0, 32
+    jumpi v44, bb18, bb17
+  bb17:
+    revert_returndata
+  bb18:
+    v45 = returndatasize
+    v46 = lt v45, 32
+    jumpi v46, bb19, bb20
+  bb20:
+    v47 = add 0, 0
+    v48 = mload v47
+    v49 = add 0, 0
+    v50 = mload v49
+    v51 = gt v36, v50
+    jumpi v51, bb21, bb22
+  bb22:
+    jump bb23
+  bb23:
+    stop
+  bb21:
+    revert 0, 0
+  bb19:
+    revert 0, 0
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    revert 0, 0
+  bb9:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb3:
+    revert 0, 0
+}
+
+fn @getFee(arg0: address, arg1: u256) -> u256 [selector=0x4edeb834, view, abi_params=[address, u256], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = eq v2, 0
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = mapping_slot v4, 0
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = mul arg1, v6
+    v8 = iszero v6
+    v9 = div v7, v6
+    v10 = eq v9, arg1
+    v11 = or v8, v10
+    v12 = iszero v11
+    jumpi v12, bb4, bb5
+  bb5:
+    jumpi 0x2710, bb7, bb6
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    v13 = div v7, 0x2710
+    ret v13
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    ret 0
+}

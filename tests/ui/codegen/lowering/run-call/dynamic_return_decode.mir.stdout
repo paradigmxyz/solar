@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:Callee ===
 @module Callee
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 10
@@ -456,6 +456,7 @@ fn @load_storage_word_array(arg0: u256) -> memoryarray {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:ArrayCaller ===
 @module ArrayCaller
 fn @arrLenAndSum() -> (u256, u256) [selector=0x3dc68ceb, abi_params=[], abi_returns=[word, word]] {
@@ -803,6 +804,7 @@ fn @arrLenAndSum() -> (u256, u256) [selector=0x3dc68ceb, abi_params=[], abi_retu
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringCaller ===
 @module StringCaller
 fn @strFirstAndLen() -> (bytes1, u256) [selector=0x2b10ead6, abi_params=[], abi_returns=[word<bytes1>, word]] {
@@ -1117,6 +1119,7 @@ fn @strFirstAndLen() -> (bytes1, u256) [selector=0x2b10ead6, abi_params=[], abi_
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:BytesCaller ===
 @module BytesCaller
 fn @bytesRoundTrip() -> u256 [selector=0x9700a482, abi_params=[], abi_returns=[word]] {
@@ -1420,6 +1423,7 @@ fn @bytesRoundTrip() -> u256 [selector=0x9700a482, abi_params=[], abi_returns=[w
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:FixedCaller ===
 @module FixedCaller
 fn @fixedSum() -> u256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word]] {
@@ -1757,6 +1761,7 @@ fn @fixedSum() -> u256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word]] 
   bb5:
     revert 0, 0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringElementCaller ===
 @module StringElementCaller
 fn @stringElem() -> u256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]] {
@@ -2060,6 +2065,7 @@ fn @stringElem() -> u256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:NestedCaller ===
 @module NestedCaller
 fn @nestedSum() -> u256 [selector=0x002c8096, abi_params=[], abi_returns=[word]] {

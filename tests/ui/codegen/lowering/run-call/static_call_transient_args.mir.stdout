@@ -5,7 +5,7 @@ fn @PROPOSER_ROLE() -> bytes32 [selector=0x8f61f4f5, view, abi_params=[], abi_re
     ret 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1, 0
     v1 = caller

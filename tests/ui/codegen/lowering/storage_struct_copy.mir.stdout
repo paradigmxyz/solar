@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/storage_struct_copy.sol:StorageStructCopy ===
 @module StorageStructCopy
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffffffffffff

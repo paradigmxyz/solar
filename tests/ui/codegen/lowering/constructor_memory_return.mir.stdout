@@ -55,7 +55,7 @@ fn @value() -> memorybytes [selector=0x3fa4f245, view, abi_params=[], abi_return
     revert 0, 36
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = internal_call @version, 1
     v1 = internal_call @consume, 1, v0

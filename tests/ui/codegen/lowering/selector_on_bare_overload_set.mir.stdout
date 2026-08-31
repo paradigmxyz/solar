@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/lowering/selector_on_bare_overload_set.sol:ERC1155Recipient ===
+@module ERC1155Recipient
+fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [selector=0xf23a6e61, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x1111111100000000000000000000000000000000000000000000000000000000
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/selector_on_bare_overload_set.sol:SelectorOnBareOverloadSet ===
+@module SelectorOnBareOverloadSet
+fn @viaBareIdent() -> bytes4 [selector=0xfe408e0f, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0xf23a6e6100000000000000000000000000000000000000000000000000000000
+}
+
+fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [selector=0xf23a6e61, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x1111111100000000000000000000000000000000000000000000000000000000
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}

@@ -12,7 +12,7 @@ fn @b() -> memorybytes [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[m
     ret v0
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     sstore 0, 65 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)

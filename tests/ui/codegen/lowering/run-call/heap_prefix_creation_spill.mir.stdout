@@ -4,6 +4,7 @@ fn @ping() -> u256 [selector=0x5c36b186, pure, abi_params=[], abi_returns=[word]
   bb0:
     ret 7
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/heap_prefix_creation_spill.sol:Harness ===
 @module Harness
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {

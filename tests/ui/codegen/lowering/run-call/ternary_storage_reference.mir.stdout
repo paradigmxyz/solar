@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/ternary_storage_reference.sol:TernaryStorageReference ===
 @module TernaryStorageReference
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = sload 2 !metadata(storage=slot(2))
     v1 = add v0, 1

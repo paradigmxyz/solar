@@ -47,6 +47,7 @@ fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_ret
     v0 = not 0
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===
 @module ReturnHarness
 fn @check(arg0: memorystruct) -> u256 [pure] {

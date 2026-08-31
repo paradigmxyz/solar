@@ -9,6 +9,7 @@ fn @b(arg0: u256) [selector=0xcd580ff3, pure, abi_params=[u256], abi_returns=[]]
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclarationBase ===
 @module AbiEncodeCallDeclarationBase
 fn @a(arg0: u256) -> u256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_returns=[word]] {
@@ -23,6 +24,7 @@ fn @a(arg0: u256) -> u256 [selector=0xf0fdf834, pure, abi_params=[u256], abi_ret
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_declaration_v2.sol:AbiEncodeCallDeclaration ===
 @module AbiEncodeCallDeclaration
 fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]] {

@@ -1,11 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:PackedCheckpoints ===
 @module PackedCheckpoints
+
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
 @module CheckpointTarget
 immutables:
   offset: u96
 
-fn @_anonymous(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_params=[array<_, u96>, address, u96]] {
+fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_params=[array<_, u96>, address, u96]] {
   bb0:
     storeimmutable offset, arg2
     jump bb1
@@ -220,6 +221,7 @@ fn @nextId() -> u96 [view] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointConstructor ===
 @module CheckpointConstructor
 fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]] {
@@ -554,6 +556,7 @@ fn @multiReturn() -> u8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
   bb5:
     revert 0, 0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===
 @module ConstructorMultiReturn
 immutables:
@@ -565,7 +568,7 @@ fn @value() -> u8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<u
     ret v0
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = internal_call @pair, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)

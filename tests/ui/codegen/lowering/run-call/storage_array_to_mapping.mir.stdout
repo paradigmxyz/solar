@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_to_mapping.sol:StorageArrayToMapping ===
 @module StorageArrayToMapping
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2

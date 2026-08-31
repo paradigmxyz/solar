@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_storage_virtual.sol:ConstructorModifierStorageVirtualBase ===
 @module ConstructorModifierStorageVirtualBase
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = internal_call @value, 1
     v1 = sload 0 !metadata(storage=slot(0))
@@ -27,6 +27,7 @@ fn @value() -> u256 [pure] {
   bb0:
     ret 1
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_storage_virtual.sol:ConstructorModifierStorageVirtual ===
 @module ConstructorModifierStorageVirtual
 fn @value() -> u256 [pure] {

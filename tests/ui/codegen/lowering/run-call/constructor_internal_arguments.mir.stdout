@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArgumentsHelper ===
 @module ConstructorInternalArgumentsHelper
-fn @_anonymous(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]] {
+fn @constructor(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffff
@@ -35,9 +35,10 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     v2 = and v1, 255
     ret v2
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArguments ===
 @module ConstructorInternalArguments
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v1 = eq 1, 0

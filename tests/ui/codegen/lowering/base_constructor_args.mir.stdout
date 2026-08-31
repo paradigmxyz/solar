@@ -6,7 +6,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @_anonymous(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     internal_call @store_storage_bytes, 0, 1, arg1
@@ -119,9 +119,10 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:Middle ===
 @module Middle
-fn @_anonymous(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
+fn @constructor(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
   bb0:
     v0 = add arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
@@ -245,9 +246,10 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorArgs ===
 @module BaseConstructorArgs
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = mul arg0, 2
     v1 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -435,33 +437,38 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderA ===
 @module OrderA
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderB ===
 @module OrderB
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderC ===
 @module OrderC
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:OrderD ===
 @module OrderD
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorArgumentOrder ===
 @module ConstructorArgumentOrder
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = internal_call @record, 1, 1
     v1 = internal_call @record, 1, 3
@@ -550,6 +557,7 @@ fn @order() -> (u256, u256, u256, u256) [selector=0xbf15071d, view, abi_params=[
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:InitializationBase ===
 @module InitializationBase
 fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
@@ -558,14 +566,15 @@ fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
     ret v0
 }
 
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, 2 !metadata(storage=slot(0))
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ConstructorInitializationOrder ===
 @module ConstructorInitializationOrder
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = internal_call @touch, 1
     sstore 0, 2 !metadata(storage=slot(0))
@@ -588,6 +597,7 @@ fn @touch() -> u256 {
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedBase ===
 @module NamedBase
 fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
@@ -596,7 +606,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @_anonymous(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
+fn @constructor(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
   bb0:
     v0 = mul arg0, 10
     v1 = iszero 10
@@ -621,6 +631,7 @@ fn @_anonymous(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedDerived ===
 @module NamedDerived
 fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
@@ -656,6 +667,7 @@ fn @constructor() [constructor] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ReturningBase ===
 @module ReturningBase
 fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
@@ -664,14 +676,15 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     ret v0
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:BaseConstructorReturn ===
 @module BaseConstructorReturn
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb1
@@ -685,9 +698,10 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBaseBase ===
 @module FunctionUsageBaseBase
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
@@ -697,6 +711,7 @@ fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 2
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageBase ===
 @module FunctionUsageBase
 fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
@@ -712,6 +727,7 @@ fn @constructor() [constructor] {
   bb1:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:FunctionUsageDerived ===
 @module FunctionUsageDerived
 fn @getA() -> u256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word]] {
@@ -733,9 +749,10 @@ fn @constructor() [constructor] {
   bb1:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBaseBase ===
 @module VirtualFunctionUsageBaseBase
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
     stop
@@ -751,6 +768,7 @@ fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
     v0 = internal_call @overridden, 1
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageBase ===
 @module VirtualFunctionUsageBase
 fn @overridden() -> u256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=[word]] {
@@ -772,6 +790,7 @@ fn @constructor() [constructor] {
   bb1:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:VirtualFunctionUsageDerived ===
 @module VirtualFunctionUsageDerived
 fn @getA() -> u256 [selector=0xd46300fd, view, abi_params=[], abi_returns=[word]] {
@@ -799,9 +818,10 @@ fn @constructor() [constructor] {
   bb1:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:DomainBase ===
 @module DomainBase
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
+fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     internal_call @store_storage_bytes, 0, 0, arg0
     internal_call @store_storage_bytes, 0, 1, arg1
@@ -976,9 +996,10 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:PermitBase ===
 @module PermitBase
-fn @_anonymous(arg0: memorybytes) [constructor, abi_params=[bytes]] {
+fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 1
@@ -1160,15 +1181,17 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:TokenBase ===
 @module TokenBase
-fn @_anonymous(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
+fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:EmptyBaseArgumentMask ===
 @module EmptyBaseArgumentMask
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 5

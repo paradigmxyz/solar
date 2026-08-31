@@ -9,7 +9,7 @@ fn @owner() -> address [selector=0x8da5cb5b, view, abi_params=[], abi_returns=[w
     ret v0
 }
 
-fn @_anonymous(arg0: address) [constructor, abi_params=[address]] {
+fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     storeimmutable owner, arg0
     stop

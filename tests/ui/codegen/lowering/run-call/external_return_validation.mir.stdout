@@ -232,7 +232,7 @@ fn @distinctDynamicReturns() -> u256 [selector=0x56c7de2c, abi_params=[], abi_re
     revert 0, 36
 }
 
-fn @_anonymous() [fallback] {
+fn @fallback() [fallback] {
   bb0:
     mstore 0, 64 !metadata(memory=scratch)
     mstore 32, 96 !metadata(memory=scratch)

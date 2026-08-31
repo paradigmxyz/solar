@@ -1,0 +1,201 @@
+// === ROOT/tests/ui/codegen/lowering/yul_param_reassignment.sol:LibBytes ===
+@module LibBytes
+
+// === ROOT/tests/ui/codegen/lowering/yul_param_reassignment.sol:YulParamReassignment ===
+@module YulParamReassignment
+fn @indexOf.0(arg0: memorybytes, arg1: memorybytes, arg2: u256) -> u256 [selector=0x86e2d68c, pure, abi_params=[bytes, bytes, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @indexOf.1, 1, arg0, arg1, arg2
+    ret v0
+}
+
+fn @indexOf.1(arg0: memorybytes, arg1: memorybytes, arg2: u256) -> u256 [pure] {
+  bb0:
+    v0 = not 0
+    v1 = mload arg0
+    jump bb1
+  bb1:
+    v2 = phi [bb0: v0]
+    v3 = phi [bb0: arg0]
+    v4 = phi [bb0: arg2]
+    v5 = phi [bb0: v1]
+    v6 = phi [bb0: arg1]
+    v7 = eq 1, 0
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    jump bb2
+  bb3:
+    v9 = mload v6
+    v10 = iszero v9
+    v11 = eq v10, 0
+    v12 = iszero v11
+    jumpi v12, bb6, bb7
+  bb7:
+    jump bb8
+  bb8:
+    v17 = mload v6
+    v18 = add v3, 32
+    v19 = add v18, v4
+    v20 = add v18, v5
+    v21 = sub v20, v17
+    v22 = add v21, 1
+    v23 = and v17, 31
+    v24 = sub 32, v23
+    v25 = shl 3, v24
+    v26 = add v6, 32
+    v27 = mload v26
+    v28 = lt v4, v5
+    v29 = lt v19, v22
+    v30 = and v29, v28
+    v31 = iszero v30
+    v32 = eq v31, 0
+    v33 = iszero v32
+    jumpi v33, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    v34 = lt v17, 32
+    v35 = iszero v34
+    v36 = eq v35, 0
+    v37 = iszero v36
+    jumpi v37, bb15, bb16
+  bb16:
+    jump bb17
+  bb17:
+    jump bb32
+  bb32:
+    v71 = phi [bb17: v17], [bb36: v71]
+    v72 = phi [bb17: v27], [bb36: v72]
+    v73 = phi [bb17: v4], [bb36: v73]
+    v74 = phi [bb17: v18], [bb36: v74]
+    v75 = phi [bb17: v2], [bb36: v75]
+    v76 = phi [bb17: v22], [bb36: v76]
+    v77 = phi [bb17: v19], [bb36: v90]
+    v78 = phi [bb17: v5], [bb36: v78]
+    v79 = phi [bb17: v25], [bb36: v79]
+    v80 = phi [bb17: v6], [bb36: v80]
+    v81 = eq 1, 0
+    v82 = iszero v81
+    jumpi v82, bb34, bb35
+  bb35:
+    jump bb33
+  bb34:
+    v83 = mload v77
+    v84 = xor v83, v72
+    v85 = shr v79, v84
+    v86 = iszero v85
+    v87 = eq v86, 0
+    v88 = iszero v87
+    jumpi v88, bb37, bb38
+  bb38:
+    jump bb39
+  bb39:
+    v90 = add v77, 1
+    v91 = lt v90, v76
+    v92 = iszero v91
+    v93 = eq v92, 0
+    v94 = iszero v93
+    jumpi v94, bb40, bb41
+  bb41:
+    jump bb42
+  bb42:
+    jump bb36
+  bb36:
+    jump bb32
+  bb40:
+    jump bb33
+  bb37:
+    v89 = sub v77, v74
+    jump bb33
+  bb33:
+    v95 = phi [bb37: v89], [bb40: v75], [bb35: v75]
+    v96 = phi [bb37: v77], [bb40: v90], [bb35: v77]
+    jump bb2
+  bb15:
+    v38 = add v6, 32
+    v39 = keccak256 v38, v17
+    jump bb18
+  bb18:
+    v40 = phi [bb15: v17], [bb22: v40]
+    v41 = phi [bb15: v27], [bb22: v41]
+    v42 = phi [bb15: v4], [bb22: v42]
+    v43 = phi [bb15: v18], [bb22: v43]
+    v44 = phi [bb15: v39], [bb22: v44]
+    v45 = phi [bb15: v2], [bb22: v45]
+    v46 = phi [bb15: v22], [bb22: v46]
+    v47 = phi [bb15: v19], [bb22: v64]
+    v48 = phi [bb15: v5], [bb22: v48]
+    v49 = phi [bb15: v25], [bb22: v49]
+    v50 = phi [bb15: v6], [bb22: v50]
+    v51 = eq 1, 0
+    v52 = iszero v51
+    jumpi v52, bb20, bb21
+  bb21:
+    jump bb19
+  bb20:
+    v53 = mload v47
+    v54 = xor v53, v41
+    v55 = shr v49, v54
+    v56 = iszero v55
+    v57 = eq v56, 0
+    v58 = iszero v57
+    jumpi v58, bb23, bb24
+  bb24:
+    jump bb25
+  bb23:
+    v59 = keccak256 v47, v40
+    v60 = eq v59, v44
+    v61 = eq v60, 0
+    v62 = iszero v61
+    jumpi v62, bb26, bb27
+  bb27:
+    jump bb28
+  bb28:
+    jump bb25
+  bb25:
+    v64 = add v47, 1
+    v65 = lt v64, v46
+    v66 = iszero v65
+    v67 = eq v66, 0
+    v68 = iszero v67
+    jumpi v68, bb29, bb30
+  bb30:
+    jump bb31
+  bb31:
+    jump bb22
+  bb22:
+    jump bb18
+  bb29:
+    jump bb19
+  bb26:
+    v63 = sub v47, v43
+    jump bb19
+  bb19:
+    v69 = phi [bb26: v63], [bb29: v45], [bb21: v45]
+    v70 = phi [bb26: v47], [bb29: v64], [bb21: v47]
+    jump bb2
+  bb12:
+    jump bb2
+  bb6:
+    v13 = gt v4, v5
+    v14 = iszero v13
+    v15 = eq v14, 0
+    v16 = iszero v15
+    jumpi v16, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    jump bb2
+  bb9:
+    jump bb2
+  bb2:
+    v97 = phi [bb9: v4], [bb11: v5], [bb12: v2], [bb19: v69], [bb33: v95], [bb4: v2]
+    v98 = phi [bb9: v3], [bb11: v3], [bb12: v19], [bb19: v70], [bb33: v96], [bb4: v3]
+    v99 = phi [bb9: v4], [bb11: v4], [bb12: v4], [bb19: v42], [bb33: v73], [bb4: v4]
+    v100 = phi [bb9: v5], [bb11: v5], [bb12: v5], [bb19: v48], [bb33: v78], [bb4: v5]
+    v101 = phi [bb9: v6], [bb11: v6], [bb12: v6], [bb19: v50], [bb33: v80], [bb4: v6]
+    ret v97
+  bb5:
+    invalid
+}

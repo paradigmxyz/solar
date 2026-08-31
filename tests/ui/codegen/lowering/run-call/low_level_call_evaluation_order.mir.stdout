@@ -112,7 +112,7 @@ fn @data() -> memorybytes {
     revert 0, 36
 }
 
-fn @_anonymous() [receive, payable] {
+fn @receive() [receive, payable] {
   bb0:
     stop
 }

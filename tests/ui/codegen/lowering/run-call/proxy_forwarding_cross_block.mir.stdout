@@ -36,9 +36,10 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: calldataslice) [selector=0x526
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:FixedRangeProxy ===
 @module FixedRangeProxy
-fn @_anonymous.0(arg0: address) [constructor, abi_params=[address]] {
+fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffffffffffff
@@ -49,7 +50,7 @@ fn @_anonymous.0(arg0: address) [constructor, abi_params=[address]] {
     stop
 }
 
-fn @_anonymous.1() [fallback] {
+fn @fallback() [fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -74,9 +75,10 @@ fn @_anonymous.1() [fallback] {
     v9 = returndatasize
     revert 0, v9
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:CrossBlockProxy ===
 @module CrossBlockProxy
-fn @_anonymous.0(arg0: address) [constructor, abi_params=[address]] {
+fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffffffffffffffffffffffffffffffffffffff
@@ -87,7 +89,7 @@ fn @_anonymous.0(arg0: address) [constructor, abi_params=[address]] {
     stop
 }
 
-fn @_anonymous.1() [fallback] {
+fn @fallback() [fallback] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
@@ -125,6 +127,7 @@ fn @_anonymous.1() [fallback] {
     v15 = returndatasize
     revert 0, v15
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:ForwardingHarness ===
 @module ForwardingHarness
 fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]] {
@@ -500,6 +503,7 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:RevertingProducer ===
 @module RevertingProducer
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes]] {
@@ -507,12 +511,13 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[memory_bytes]
     mstore 0, 0x1234 !metadata(memory=scratch)
     revert 0, 228
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:DynamicReturnWrapper ===
 @module DynamicReturnWrapper
 immutables:
   producer: address
 
-fn @_anonymous(arg0: address) [constructor, abi_params=[address]] {
+fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     storeimmutable producer, arg0
     stop
@@ -548,6 +553,7 @@ fn @bubble() -> memorybytes [selector=0x4ce637d6, view, abi_params=[], abi_retur
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:SharedPublicFrame ===
 @module SharedPublicFrame
 fn @helper(arg0: u256) -> u256 [selector=0xdabf7ec4, pure, abi_params=[u256], abi_returns=[word]] {
@@ -561,6 +567,7 @@ fn @entry() -> u256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word
     v0 = internal_call @helper, 1, 42
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_forwarding_cross_block.sol:HelperReturnedHeapBuffer ===
 @module HelperReturnedHeapBuffer
 fn @buffer() -> u256 [pure] {

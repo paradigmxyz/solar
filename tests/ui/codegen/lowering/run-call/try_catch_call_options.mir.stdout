@@ -4,9 +4,10 @@ fn @ping() [selector=0x5c36b186, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_call_options.sol:TryCallOptions ===
 @module TryCallOptions
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

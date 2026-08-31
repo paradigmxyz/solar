@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/basic.sol:RunCall ===
 @module RunCall
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     sstore 0, 40 !metadata(storage=slot(0))
     stop

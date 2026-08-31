@@ -13,6 +13,7 @@ fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params
     sstore 0, arg1 !metadata(storage=slot(0))
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===
 @module Caller
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {

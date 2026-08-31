@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_call_fixed_bytes.sol:ConstructorFunctionCallFixedBytes ===
 @module ConstructorFunctionCallFixedBytes
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     internal_call @setName, 0, 0x6162630000000000000000000000000000000000000000000000000000000000
     stop

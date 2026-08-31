@@ -106,11 +106,13 @@ fn @advance(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice) -> i2
   bb1:
     revert 0, 0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Settler ===
 @module Settler
+
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_store_branch_arm.sol:Router ===
 @module Router
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = shl 160, 255
     v1 = sload 0 !metadata(storage=slot(0))

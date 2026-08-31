@@ -24,9 +24,10 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/try_catch_multi_return.sol:TryMultiReturn ===
 @module TryMultiReturn
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

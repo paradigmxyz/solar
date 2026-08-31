@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_dynamic_literal.sol:MappingDynamicLiteral ===
 @module MappingDynamicLiteral
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     internal_call @store_storage_bytes, 0, 0, v0

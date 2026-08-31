@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptionsChild ===
 @module CreationOptionsChild
+
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptions ===
 @module CreationOptions
 fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>]] {

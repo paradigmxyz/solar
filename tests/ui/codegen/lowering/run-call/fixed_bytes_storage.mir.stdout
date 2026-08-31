@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_storage.sol:FixedBytesStorage ===
 @module FixedBytesStorage
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = shl 16, 0xffff
     v1 = sload 0 !metadata(storage=slot(0))

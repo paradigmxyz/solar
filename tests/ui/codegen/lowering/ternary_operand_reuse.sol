@@ -1,4 +1,4 @@
-//@compile-flags: --emit=bin-runtime
+//@ codegen-matrix: standard
 
 contract TernaryOperandReuse {
     // `caller()` is not rematerializable: consuming it as the modulus and then

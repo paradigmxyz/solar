@@ -14,6 +14,7 @@ fn @constructor() [constructor] {
     storeimmutable value, 1
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/immutable_name_conflicts.sol:Derived ===
 @module Derived
 immutables:

@@ -1,0 +1,34 @@
+// === ROOT/tests/ui/codegen/lowering/calldata_slice_return_unsupported.sol:CalldataSliceReturnUnsupported ===
+@module CalldataSliceReturnUnsupported
+fn @peel(arg0: calldataslice) -> calldataslice [pure] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt v0, 2
+    v2 = make_calldata_slice 0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    v5 = gt v4, v4
+    v6 = lt v4, 1
+    v7 = or v5, v6
+    jumpi v7, bb4, bb5
+  bb5:
+    v8 = sub v4, 1
+    v9 = add v3, 1
+    v10 = make_calldata_slice v9, v8
+    v11 = internal_call @peel, 1, v10
+    ret v11
+  bb4:
+    revert 0, 0
+  bb1:
+    ret arg0
+}
+
+fn @use(arg0: calldataslice) [selector=0x01bd03f7, pure, abi_params=[bytes], abi_returns=[]] {
+  bb0:
+    v0 = internal_call @peel, 1, arg0
+    stop
+}

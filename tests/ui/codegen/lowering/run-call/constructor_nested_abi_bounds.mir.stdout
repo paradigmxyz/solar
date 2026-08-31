@@ -18,7 +18,7 @@ fn @lengths() -> u256 [selector=0xdab1fa12, view, abi_params=[], abi_returns=[wo
     ret v0
 }
 
-fn @_anonymous(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
+fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = lt 0, v0
@@ -107,6 +107,7 @@ fn @_anonymous(arg0: memoryarray) [constructor, abi_params=[array<_, bytes>]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_nested_abi_bounds.sol:ConstructorNestedAbiBounds ===
 @module ConstructorNestedAbiBounds
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {

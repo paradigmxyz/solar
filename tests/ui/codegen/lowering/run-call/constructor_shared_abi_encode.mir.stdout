@@ -20,9 +20,10 @@ fn @record(arg0: address, arg1: calldataslice) [selector=0x01b2c698, abi_params=
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:DynamicCaller ===
 @module DynamicCaller
-fn @_anonymous(arg0: address) [constructor, abi_params=[address]] {
+fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb0:
     internal_call @recordFirst, 0, arg0
     internal_call @recordSecond, 0, arg0
@@ -76,6 +77,7 @@ fn @recordSecond(arg0: address) {
   bb1:
     revert 0, 0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_shared_abi_encode.sol:ConstructorSharedAbiEncode ===
 @module ConstructorSharedAbiEncode
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {

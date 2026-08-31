@@ -72,7 +72,7 @@ fn @storedBytes() -> memorybytes [selector=0xbee7414c, view, abi_params=[], abi_
     revert 0, 36
 }
 
-fn @_anonymous(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[array<_, u256>, bytes]] {
+fn @constructor(arg0: memoryarray, arg1: memorybytes) [constructor, abi_params=[array<_, u256>, bytes]] {
   bb0:
     v0 = memory_object_len memoryarray, arg0
     v1 = sload 0 !metadata(storage=slot(0))

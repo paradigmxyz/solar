@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_external_arguments.sol:ConstructorExternalArguments ===
 @module ConstructorExternalArguments
-fn @_anonymous(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]] {
+fn @constructor(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffffff

@@ -32,7 +32,7 @@ fn @invoke(arg0: memorybytes) -> (u256, bytes32) [selector=0xa6514259, abi_param
     revert 0, 36
 }
 
-fn @_anonymous(arg0: calldataslice) -> memorybytes [fallback] {
+fn @fallback(arg0: calldataslice) -> memorybytes [fallback] {
   bb0:
     v0 = slice_ptr arg0
     v1 = slice_len arg0

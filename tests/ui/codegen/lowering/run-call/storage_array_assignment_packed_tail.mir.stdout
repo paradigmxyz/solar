@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_array_assignment_packed_tail.sol:StorageArrayAssignmentPackedTail ===
 @module StorageArrayAssignmentPackedTail
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1

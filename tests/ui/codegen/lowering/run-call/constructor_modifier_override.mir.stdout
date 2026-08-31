@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_override.sol:ConstructorModifierOverrideBase ===
 @module ConstructorModifierOverrideBase
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = or v0, 1
@@ -20,6 +20,7 @@ fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_override.sol:ConstructorModifierOverride ===
 @module ConstructorModifierOverride
 fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[word]] {

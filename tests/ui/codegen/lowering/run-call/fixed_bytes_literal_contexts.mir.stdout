@@ -1,8 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralLibrary ===
 @module FixedBytesLiteralLibrary
+
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralBase ===
 @module FixedBytesLiteralBase
-fn @_anonymous(arg0: bytes2) [constructor, abi_params=[bytes2]] {
+fn @constructor(arg0: bytes2) [constructor, abi_params=[bytes2]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 0xffff
@@ -13,6 +14,7 @@ fn @_anonymous(arg0: bytes2) [constructor, abi_params=[bytes2]] {
     sstore 0, v5 !metadata(storage=slot(0))
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralContexts ===
 @module FixedBytesLiteralContexts
 fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes1, bytes1) [selector=0xd32cb0fe, abi_params=[], abi_returns=[word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes2>, word<bytes1>, word<bytes1>, word<bytes1>]] {

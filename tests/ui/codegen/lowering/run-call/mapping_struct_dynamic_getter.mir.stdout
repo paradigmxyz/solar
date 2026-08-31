@@ -58,7 +58,7 @@ fn @m(arg0: u256) -> (u256, memorybytes) [selector=0x6e9410b6, view, abi_params=
     revert 0, 36
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = mapping_slot 1, 0
     sstore v0, 7 !metadata(storage=symbolic(v0))

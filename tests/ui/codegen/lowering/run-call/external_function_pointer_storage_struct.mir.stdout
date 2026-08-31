@@ -10,7 +10,7 @@ fn @secondTarget() -> u256 [selector=0x9e3b9dc1, pure, abi_params=[], abi_return
     ret 2
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = lt 0, 2
     v1 = iszero v0

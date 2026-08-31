@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/mapping_internal_function_pointer.sol:MappingInternalFunctionPointer ===
 @module MappingInternalFunctionPointer
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
     v1 = mapping_slot v0, 1

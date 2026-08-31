@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/linked_library_arguments.sol:Lib ===
 @module Lib
+
 // === ROOT/tests/ui/codegen/lowering/run-call/linked_library_arguments.sol:LinkedLibraryArgs ===
 @module LinkedLibraryArgs
 fn @test_value() -> u256 [selector=0x130d6dc5, pure, abi_params=[], abi_returns=[word]] {

@@ -296,8 +296,7 @@ pub(super) fn declaration(
     function_id: hir::FunctionId,
     function: &hir::Function<'_>,
 ) -> Function {
-    let name =
-        function.name.unwrap_or_else(|| Ident::with_dummy_span(solar_interface::sym::_anonymous));
+    let name = Ident::with_dummy_span(function.name_or_kind());
     let mut mir = Function::new(name);
     mir.attributes = FunctionAttributes {
         visibility: function.visibility,

@@ -10,8 +10,10 @@ fn @constructor() [constructor] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:LibGive ===
 @module LibGive
+
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
 immutables:

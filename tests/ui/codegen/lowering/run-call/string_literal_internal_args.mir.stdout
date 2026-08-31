@@ -1,7 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:Errors ===
 @module Errors
+
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:L ===
 @module L
+
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:StringLiteralInternalArgs ===
 @module StringLiteralInternalArgs
 fn @libLiteral() -> u256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=[word]] {

@@ -42,6 +42,7 @@ fn @createAccount(arg0: address, arg1: bytes32, arg2: u256, arg3: address, arg4:
     mstore 0, 0x20188a59 !metadata(memory=scratch)
     revert 28, 4
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_above_constant_image.sol:Harness ===
 @module Harness
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {

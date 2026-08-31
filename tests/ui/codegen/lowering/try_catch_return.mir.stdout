@@ -11,9 +11,10 @@ fn @value(arg0: bool) -> u256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi
   bb1:
     revert 0, 0
 }
+
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

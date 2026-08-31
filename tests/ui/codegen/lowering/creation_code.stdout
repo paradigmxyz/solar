@@ -1,9 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeChild ===
 @module CreationCodeChild
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/creation_code.sol:CreationCodeFactory ===
 @module CreationCodeFactory
 fn @creationCode() -> memorybytes [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes]] {

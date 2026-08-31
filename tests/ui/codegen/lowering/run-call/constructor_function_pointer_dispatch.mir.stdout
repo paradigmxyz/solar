@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer_dispatch.sol:ConstructorFunctionPointerDispatch ===
 @module ConstructorFunctionPointerDispatch
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     internal_call @internal_dispatcher_p_bytes6_r_none, 0, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
     internal_call @applyShift, 0, 4, 3

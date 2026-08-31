@@ -1,11 +1,13 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitNonpayable ===
 @module ExplicitNonpayable
-fn @_anonymous(arg0: u256) [constructor, abi_params=[u256]] {
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ImplicitNonpayable ===
 @module ImplicitNonpayable
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:SyntheticNonpayable ===
 @module SyntheticNonpayable
 fn @constructor() [constructor] {
@@ -13,12 +15,14 @@ fn @constructor() [constructor] {
     sstore 0, 1 !metadata(storage=slot(0))
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:PayableBase ===
 @module PayableBase
-fn @_anonymous() [constructor, payable] {
+fn @constructor() [constructor, payable] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:InheritedNonpayable ===
 @module InheritedNonpayable
 fn @constructor() [constructor] {
@@ -27,12 +31,14 @@ fn @constructor() [constructor] {
   bb1:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ExplicitPayable ===
 @module ExplicitPayable
-fn @_anonymous() [constructor, payable] {
+fn @constructor() [constructor, payable] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_callvalue.sol:ConstructorCallvalue ===
 @module ConstructorCallvalue
 fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_returns=[word<bool>]] {

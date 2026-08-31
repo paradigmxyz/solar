@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeatedLib ===
 @module MultiReturnRepeatedLib
+
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeated ===
 @module MultiReturnRepeated
 fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]] {

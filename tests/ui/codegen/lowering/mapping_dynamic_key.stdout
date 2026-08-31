@@ -27,6 +27,7 @@ fn @get(arg0: memorybytes) -> address [selector=0x693ec85e, view, abi_params=[by
     v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
     ret v2
 }
+
 // === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
 @module MappingDynamicKeyPaths
 fn @flat(arg0: calldataslice) -> u256 [selector=0x0b893d9c, view, abi_params=[bytes], abi_returns=[word]] {

@@ -8,6 +8,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb1:
     ret 1
 }
+
 // === ROOT/tests/ui/codegen/lowering/modifier_overriding.sol:C ===
 @module C
 fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {

@@ -6,7 +6,7 @@ fn @result() -> u256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
     v1 = not 0xffffffffffffffff

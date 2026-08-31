@@ -1,6 +1,19 @@
+// === ROOT/tests/ui/codegen/lowering/emit_abi_matrix.sol:C ===
+@module C
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+}
 {
   "contracts": {
-    "ROOT/tests/ui/codegen/lowering/emit_abi_bin.sol:C": {
+    "ROOT/tests/ui/codegen/lowering/emit_abi_matrix.sol:C": {
       "abi": [
         {
           "type": "constructor",
@@ -26,9 +39,7 @@
           ],
           "stateMutability": "view"
         }
-      ],
-      "bin": "605e380380605e60c03960c001601f01601f19166040523460395760c0605e38030160c06020011160395760c0515f55602180603d5f395ff35b5f80fd34601d575f3560e01c80630c55699c03601d575f5460805260206080f35b5f80fd",
-      "bin-runtime": "34601d575f3560e01c80630c55699c03601d575f5460805260206080f35b5f80fd"
+      ]
     }
   },
   "version": "VERSION"

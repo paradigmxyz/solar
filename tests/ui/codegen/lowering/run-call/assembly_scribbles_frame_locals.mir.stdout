@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/assembly_scribbles_frame_locals.sol:AssemblyScribblesFrameLocals ===
 @module AssemblyScribblesFrameLocals
-fn @_anonymous() [fallback] {
+fn @fallback() [fallback] {
   bb0:
     jump bb1
   bb1:

@@ -199,6 +199,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/state_string_initializers.sol:DeployStateStringInitializers ===
 @module DeployStateStringInitializers
 fn @deploys() -> bool [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>]] {

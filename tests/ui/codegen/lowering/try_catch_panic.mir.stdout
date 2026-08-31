@@ -16,9 +16,10 @@ fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
     mstore 4, 1 !metadata(memory=scratch)
     revert 0, 36
 }
+
 // === ROOT/tests/ui/codegen/lowering/try_catch_panic.sol:TryCatchPanic ===
 @module TryCatchPanic
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31

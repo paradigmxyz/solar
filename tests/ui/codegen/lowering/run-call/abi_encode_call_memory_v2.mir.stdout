@@ -4,6 +4,7 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
 @module AbiEncodeCallMemory
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {

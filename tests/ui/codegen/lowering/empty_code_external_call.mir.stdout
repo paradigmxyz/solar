@@ -4,12 +4,14 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
 @module EmptyCodeLibrary
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeCalls ===
 @module EmptyCodeCalls
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
@@ -323,6 +325,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
 fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
@@ -362,9 +365,10 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[]] {
   bb2:
     stop
 }
+
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor ===
 @module EmptyCodeTryConstructor
-fn @_anonymous() [constructor] {
+fn @constructor() [constructor] {
   bb0:
     v0 = address
     v1 = gas
