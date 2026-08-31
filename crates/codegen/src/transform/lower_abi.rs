@@ -3945,17 +3945,15 @@ fn materialize_calldata_return(
     let mut current = builder.current_block();
     LowerAbiCx::guard_input_range(builder, base, ty.data_head_size(), input_end, &mut current);
     let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
-    let object =
-        LowerAbiCx::decode_static_aggregate(builder, ty, base, |builder, ty, head, current| {
-            LowerAbiCx::decode_aggregate_argument(
-                builder,
-                ty,
-                ty.mir_type(),
-                head,
-                base,
-                current,
-                options,
-            )
-        });
-    object
+    LowerAbiCx::decode_static_aggregate(builder, ty, base, |builder, ty, head, current| {
+        LowerAbiCx::decode_aggregate_argument(
+            builder,
+            ty,
+            ty.mir_type(),
+            head,
+            base,
+            current,
+            options,
+        )
+    })
 }
