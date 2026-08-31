@@ -202,10 +202,9 @@ bb69:
   push 32
   dup 2
   add
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 704
   mstore
@@ -441,6 +440,9 @@ bb24:
   mstore
   push 160
   mload
+  dup 1
+  push 160
+  mstore
   dup 2
   mstore
   push 32
@@ -483,6 +485,9 @@ bb24:
 bb33:
   push 224
   mload
+  dup 1
+  push 224
+  mstore
   push 256
   mload
   mstore
@@ -782,6 +787,9 @@ bb37:
 bb44:
   push 224
   mload
+  dup 1
+  push 224
+  mstore
   push 160
   mload
   mstore
@@ -1159,9 +1167,15 @@ bb68:
   add
   push 128
   mload
+  dup 1
+  push 128
+  mstore
   dup 2
   push 160
   mload
+  dup 1
+  push 160
+  mstore
   mcopy
   pop
   push 256

@@ -109,7 +109,10 @@ bb6:
   mstore
   push 4
   calldataload
-  gt
+  dup 2
+  lt
+  swap 1
+  pop
   push bb18
   jumpi
   push 64
@@ -163,7 +166,10 @@ bb8:
   mstore
   push 256
   mload
-  gt
+  dup 2
+  lt
+  swap 1
+  pop
   push bb18
   jumpi
   push 224

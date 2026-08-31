@@ -304,10 +304,9 @@ bb12 [cold]:
   revert
 bb13:
   push 416
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 192
   mstore
@@ -355,10 +354,9 @@ bb52:
   jump
 bb15:
   push 416
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 192
   mstore

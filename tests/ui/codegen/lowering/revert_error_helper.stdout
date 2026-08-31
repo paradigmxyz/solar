@@ -19,10 +19,9 @@ bb0:
   push bb4
   jumpi
   push 416
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 192
   mstore
@@ -124,10 +123,9 @@ bb4 [cold]:
   revert
 bb7:
   push 416
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 192
   mstore

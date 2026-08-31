@@ -14,10 +14,9 @@ bb0:
   push bb3
   jumpi
   push 320
+  dup 1
   push 64
   mstore
-  push 64
-  mload
   dup 1
   push 288
   mstore

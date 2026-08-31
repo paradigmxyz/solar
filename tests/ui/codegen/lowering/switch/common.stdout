@@ -3,10 +3,9 @@
 bb1:
   push 0
   calldataload
+  dup 1
   push 128
   mstore
-  push 128
-  mload
   dup 1
   push bb2
   jumpi
@@ -27,10 +26,9 @@ bb0:
   push 0
   calldataload
   mod
+  dup 1
   push 128
   mstore
-  push 128
-  mload
   dup 1
   push 1
   sub
@@ -71,10 +69,9 @@ bb0:
   jumpi
   push 0
   calldataload
+  dup 1
   push 128
   mstore
-  push 128
-  mload
   dup 1
   push 64
   sub
@@ -122,10 +119,9 @@ bb0:
   calldataload
   push 128
   mstore
+  dup 1
   push 160
   mstore
-  push 160
-  mload
   dup 1
   push bb4
   jumpi
@@ -150,10 +146,9 @@ bb4:
   push 128
   mload
   and
+  dup 1
   push 160
   mstore
-  push 160
-  mload
   dup 1
   push bb9
   jumpi
