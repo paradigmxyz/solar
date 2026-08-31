@@ -674,12 +674,12 @@ impl Edit {
                 materialize_immediate(instructions, evm_version, value);
             }
             Self::StackOp(stack_op) => {
-                instructions[start] = Instruction::stack_op(stack_op);
+                instructions[start] = Instruction::stack_op(stack_op).with_debug_info_dropped();
                 instructions.truncate(start + 1);
             }
             Self::StackOps(first, second) => {
-                instructions[start] = Instruction::stack_op(first);
-                instructions[start + 1] = Instruction::stack_op(second);
+                instructions[start] = Instruction::stack_op(first).with_debug_info_dropped();
+                instructions[start + 1] = Instruction::stack_op(second).with_debug_info_dropped();
                 instructions.truncate(start + 2);
             }
         }
