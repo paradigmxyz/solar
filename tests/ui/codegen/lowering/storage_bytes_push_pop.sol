@@ -4,7 +4,7 @@
 contract StorageBytesPushPop {
     bytes data;
 
-    // CHECK-LABEL: fn @_anonymous{{[( ]}}
+    // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: [[FIRST:v[0-9]+]] = internal_call @__load_storage_bytes, 1, 0
     // CHECK: {{v[0-9]+}} = memory_object_len memorybytes, [[FIRST]]
     // CHECK: mcopy
