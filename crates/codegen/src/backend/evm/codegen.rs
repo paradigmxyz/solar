@@ -2031,11 +2031,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// optimization before emission because their incoming prefix is
     /// intentionally unbounded.
     fn caller_stack_prefixes_fit(&self, module: &Module, max_stack_depth: usize) -> bool {
-        let Some(entry_id) = module
-            .functions
-            .iter_enumerated()
-            .find_map(|(func_id, func)| func.attributes.is_dispatch_entry.then_some(func_id))
-        else {
+        let Some(entry_id) = module.dispatch_entry() else {
             return self.function_stack_peaks.values().all(|&peak| peak <= max_stack_depth);
         };
 
@@ -2144,9 +2140,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Selector matching, receive/fallback routing, and callvalue checks all
     /// live in the MIR `entry`, whose `tail_call`s jump to the ABI wrappers.
     fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
-        let Some((entry_id, _)) =
-            module.functions.iter_enumerated().find(|(_, f)| f.attributes.is_dispatch_entry)
-        else {
+        let Some(entry_id) = module.dispatch_entry() else {
             assert!(
                 !module.functions.iter().any(Self::is_external_entry),
                 "evm-shaped module with a runtime interface must have a MIR `entry` function"
@@ -10395,9 +10389,8 @@ mod tests {
     fn caller_stack_prefix_validation_rejects_overflow() {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
-            let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
-            entry.attributes.is_dispatch_entry = true;
-            let entry = module.add_function(entry);
+            let entry = module.add_function(Function::new(Ident::with_dummy_span(sym::entry)));
+            module.set_dispatch_entry(entry);
             let callee = module.add_function(Function::new(Ident::with_dummy_span(sym::Test)));
             let mut constructor = Function::new(Ident::DUMMY);
             constructor.attributes.is_constructor = true;
@@ -10446,13 +10439,15 @@ mod tests {
             let mut module = Module::new(Ident::DUMMY);
             for index in 0..=MAX_STACK_DEPTH {
                 let mut function = Function::new(Ident::DUMMY);
-                function.attributes.is_dispatch_entry = index == 0;
                 let mut builder = FunctionBuilder::new(&mut function);
                 if index < MAX_STACK_DEPTH {
                     builder.internal_call_void(FunctionId::from_usize(index + 1), Vec::new(), 0);
                 }
                 builder.stop();
-                module.add_function(function);
+                let function = module.add_function(function);
+                if index == 0 {
+                    module.set_dispatch_entry(function);
+                }
             }
             module.advance_phase(MirPhase::EvmShaped);
             let call_graph = CallGraphInfo::new(&module);

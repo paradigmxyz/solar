@@ -664,14 +664,13 @@ impl<'a> Validator<'a> {
         if module.phase < crate::mir::MirPhase::Dispatch {
             return;
         }
-        let dispatch_entries =
-            module.functions.iter().filter(|f| f.attributes.is_dispatch_entry).count();
-        if dispatch_entries > 1 {
+        let dispatch_entry = module.dispatch_entry();
+        if dispatch_entry.is_some_and(|entry| module.functions.get(entry).is_none()) {
             self.emit(format_args!(
-                "module is in the `{}` phase but has multiple `entry` routing functions",
+                "module is in the `{}` phase but has an invalid `entry` routing function",
                 module.phase.name()
             ));
-        } else if dispatch_entries == 0
+        } else if dispatch_entry.is_none()
             && module.functions.iter().any(|f| {
                 f.selector.is_some() || f.attributes.is_receive || f.attributes.is_fallback
             })
@@ -823,13 +822,13 @@ mod tests {
     }
 
     #[test]
-    fn multiple_dispatch_entries_are_caught_without_runtime_attributes() {
+    fn missing_dispatch_entry_is_caught_without_runtime_attributes() {
         with_session(|sess| {
             let mut module = Module::new(Ident::DUMMY);
             module.phase = crate::mir::MirPhase::EvmShaped;
             for _ in 0..2 {
                 let mut func = make_func();
-                func.attributes.is_dispatch_entry = true;
+                func.selector = Some([0; 4]);
                 FunctionBuilder::new(&mut func).stop();
                 module.functions.push(func);
             }
@@ -838,7 +837,7 @@ mod tests {
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
                 str![[r#"
-error: module is in the `evm-shaped` phase but has multiple `entry` routing functions
+error: module is in the `evm-shaped` phase but has no `entry` routing function
 
 
 "#]]

@@ -749,6 +749,11 @@ impl DeadFunctionEliminator {
             remap[old_id] = Some(new_id);
         }
         module.functions = functions;
+        module.remap_dispatch_entry(
+            module.dispatch_entry().map(|entry| {
+                remap[entry].expect("reachable function cannot be the dispatch entry")
+            }),
+        );
         module.function_name_index.clear();
         module.function_name_index.extend(
             module.functions.iter_enumerated().map(|(id, function)| (function.name.symbol, id)),
