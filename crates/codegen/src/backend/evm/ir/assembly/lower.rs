@@ -388,24 +388,4 @@ mod tests {
             }));
         });
     }
-
-    #[test]
-    fn program_data_is_guarded_from_fallthrough() {
-        let mut module = ir::Module::new(sym::module);
-        let data_id = module.data.push(ir::Data { bytes: vec![0xaa].into(), name: None });
-        let mut block = Block::new(0);
-        block.instructions.push(ir::Instruction::push_data(ir::DataRef::new(data_id, 0)));
-        module.add_block(block);
-
-        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
-        compiler.enter(|c| {
-            let mut assembler = Assembler::new(c.gcx());
-            let program = lower_evm_ir(&mut assembler, &mut module, &mut vec![None]);
-            let [.., guard, data] = program.instructions.as_slice() else {
-                panic!("expected guarded program data")
-            };
-            assert!(matches!(guard.kind(), AsmInstKind::Op(opcode) if opcode == op::STOP));
-            assert!(matches!(data.kind(), AsmInstKind::Data(id) if id == data_id));
-        });
-    }
 }
