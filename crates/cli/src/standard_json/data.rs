@@ -81,9 +81,8 @@ pub(super) struct Settings<'a> {
     pub(super) evm_version: Option<CowStr<'a>>,
     #[serde(default)]
     pub(super) optimizer: Option<Optimizer>,
-    // Metadata output is not supported yet.
-    // #[serde(borrow, default)]
-    // metadata: Option<CowValue<'a>>,
+    #[serde(default)]
+    pub(super) metadata: MetadataSettings,
     #[serde(borrow, default)]
     pub(super) libraries: Libraries<'a>,
     // Debug output is not supported yet.
@@ -99,6 +98,44 @@ pub(super) struct Settings<'a> {
     // via_ir: Option<bool>,
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
+}
+
+/// The solc Standard JSON `settings.metadata` object.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct MetadataSettings {
+    #[serde(default = "default_true")]
+    #[serde(rename = "appendCBOR")]
+    pub(super) append_cbor: bool,
+    #[serde(default)]
+    pub(super) use_literal_content: bool,
+    pub(super) bytecode_hash: Option<MetadataHash>,
+}
+
+impl Default for MetadataSettings {
+    fn default() -> Self {
+        Self { append_cbor: true, use_literal_content: false, bytecode_hash: None }
+    }
+}
+
+impl MetadataSettings {
+    pub(super) fn bytecode_hash(self) -> MetadataHash {
+        self.bytecode_hash.unwrap_or_default()
+    }
+}
+
+/// Hash embedded in the bytecode metadata trailer.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum MetadataHash {
+    #[default]
+    Ipfs,
+    Bzzr1,
+    None,
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
@@ -152,9 +189,8 @@ pub(super) struct SourceOutput {
 pub(super) struct ContractOutput<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'a>>>,
-    // Metadata output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // metadata: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) userdoc: Option<Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -715,6 +751,7 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
 impl ContractOutput<'_> {
     pub(super) fn is_empty(&self) -> bool {
         self.abi.is_none()
+            && self.metadata.is_none()
             && self.userdoc.is_none()
             && self.devdoc.is_none()
             && self.storage_layout.is_none()

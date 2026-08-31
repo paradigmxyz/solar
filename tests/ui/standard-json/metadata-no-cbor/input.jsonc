@@ -1,0 +1,28 @@
+// CHECK: "metadata":
+// CHECK: \"appendCBOR\":false
+// CHECK: \"bytecodeHash\":\"ipfs\"
+// CHECK: \"useLiteralContent\":true
+// CHECK: "object":
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "// SPDX-License-Identifier: MIT\ncontract A {}"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false,
+      "useLiteralContent": true
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

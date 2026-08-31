@@ -27,11 +27,14 @@ alloy-json-abi.workspace = true
 anstream.workspace = true
 anstyle.workspace = true
 bitflags.workspace = true
+bs58.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+sha2.workspace = true
+semver.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = { workspace = true, optional = true, features = [

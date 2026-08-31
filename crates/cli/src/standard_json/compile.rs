@@ -1,9 +1,13 @@
 //! Standard JSON compiler orchestration and output generation.
 
-use super::data::{
-    BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
-    OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings,
-    SourceOutput, StandardJsonReadCallback, print_standard_json_stats, strip_json_comments,
+use super::{
+    data::{
+        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
+        MetadataHash, OffsetLength, Optimizer, OutputSelection, OutputSelectionFlags,
+        ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback,
+        print_standard_json_stats, strip_json_comments,
+    },
+    metadata::{self, ContractMetadata},
 };
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection};
@@ -123,8 +127,23 @@ fn compile(
     // fields we don't act on yet are bound with a leading underscore and a note.
     // Adding a field to `Settings` then forces a decision here instead of it
     // being silently ignored.
-    let Settings { remappings, output_selection, stop_after, evm_version, optimizer, libraries } =
-        settings;
+    let Settings {
+        remappings,
+        output_selection,
+        stop_after,
+        evm_version,
+        optimizer,
+        metadata,
+        libraries,
+    } = settings;
+
+    if !metadata.append_cbor
+        && metadata.bytecode_hash.is_some_and(|hash| hash != MetadataHash::None)
+    {
+        dcx.err("when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`")
+            .emit();
+        return;
+    }
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
     for remapping in &remappings {
@@ -226,13 +245,33 @@ fn compile(
             }
 
             let gcx = compiler.gcx();
-
             let bytecode_contracts = requested_bytecode_contracts(gcx, &output_selection);
+            let metadata_requested = gcx.hir.contracts_enumerated().any(|(_, contract)| {
+                let source = gcx.hir.source(contract.source);
+                let source_name = standard_json_source_name(&source.file.name);
+                output_selection
+                    .contract(&source_name, contract.name.as_str())
+                    .contains(OutputSelectionFlags::METADATA)
+            });
+            let contract_metadata = if metadata_requested || !bytecode_contracts.is_empty() {
+                metadata::build(gcx, metadata)
+            } else {
+                FxHashMap::default()
+            };
+            let bytecode_metadata = contract_metadata
+                .iter()
+                .map(|(&contract_id, metadata)| (contract_id, metadata.cbor.clone()))
+                .collect();
+
             crate::commands::compile::warn_experimental_codegen(
                 gcx.sess,
                 !bytecode_contracts.is_empty(),
             );
-            let bytecodes = crate::emit::emit_requested(compiler, bytecode_contracts)?;
+            let bytecodes = crate::emit::emit_requested(
+                compiler,
+                bytecode_contracts,
+                Some(&bytecode_metadata),
+            )?;
 
             gcx.dcx().has_errors()?;
 
@@ -241,8 +280,13 @@ fn compile(
                 let source_name = standard_json_source_name(&source.file.name);
                 let contract_name = contract.name.as_str();
                 let contract_selection = output_selection.contract(&source_name, contract_name);
-                let contract_output =
-                    make_contract_output(gcx, contract_id, contract_selection, bytecodes.as_ref());
+                let contract_output = make_contract_output(
+                    gcx,
+                    contract_id,
+                    contract_selection,
+                    bytecodes.as_ref(),
+                    contract_metadata.get(&contract_id),
+                );
                 if !contract_output.is_empty() {
                     output
                         .contracts
@@ -352,11 +396,15 @@ fn make_contract_output(
     contract_id: solar_sema::hir::ContractId,
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
+    metadata: Option<&ContractMetadata>,
 ) -> ContractOutput<'static> {
     let mut output = ContractOutput::default();
 
     if output_selection.contains(OutputSelectionFlags::ABI) {
         output.abi = Some(gcx.contract_abi(contract_id));
+    }
+    if output_selection.contains(OutputSelectionFlags::METADATA) {
+        output.metadata = metadata.map(|metadata| metadata.json.clone());
     }
     if output_selection.contains(OutputSelectionFlags::USERDOC) {
         output.userdoc = Some(gcx.user_documentation(contract_id));

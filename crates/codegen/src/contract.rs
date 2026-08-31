@@ -123,9 +123,14 @@ pub fn generate_contract_bytecodes(
     contracts: &ContractSelection,
     capture_mir: &ContractSelection,
     capture_evm_ir: &ContractSelection,
+    bytecode_metadata: Option<&FxHashMap<ContractId, Bytes>>,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
-    let captures =
-        ContractCaptures { bytecode: contracts, mir: capture_mir, evm_ir: capture_evm_ir };
+    let captures = ContractCaptures {
+        bytecode: contracts,
+        mir: capture_mir,
+        evm_ir: capture_evm_ir,
+        bytecode_metadata,
+    };
     let mut requested = contracts.clone();
     requested.union_with(capture_mir);
     requested.union_with(capture_evm_ir);
@@ -185,6 +190,7 @@ struct ContractCaptures<'a> {
     bytecode: &'a ContractSelection,
     mir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
+    bytecode_metadata: Option<&'a FxHashMap<ContractId, Bytes>>,
 }
 
 struct ContractGraph {
@@ -324,6 +330,9 @@ fn generate_contract_bytecode(
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
         let mut codegen = EvmCodegen::new(gcx);
+        if let Some(metadata) = captures.bytecode_metadata.and_then(|all| all.get(&contract_id)) {
+            codegen.set_bytecode_metadata(metadata);
+        }
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
         let mut artifact = codegen.lower_module(&mut module);
@@ -338,6 +347,10 @@ fn generate_contract_bytecode(
             module = lower::lower_contract(gcx, contract_id, &child_bytecodes, true);
             gcx.dcx().has_errors()?;
             let mut codegen = EvmCodegen::new(gcx);
+            if let Some(metadata) = captures.bytecode_metadata.and_then(|all| all.get(&contract_id))
+            {
+                codegen.set_bytecode_metadata(metadata);
+            }
             codegen.set_capture_mir(capture_mir && !capture_built);
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             let size_rescue_artifact = codegen.lower_module(&mut module);
