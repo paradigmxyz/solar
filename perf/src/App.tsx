@@ -1,30 +1,65 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadIndex } from './data'
-import type { RunIndex, RunSummary } from './types'
+import type { MetricSummary, RunIndex, RunSummary } from './types'
 import { Compare } from './Compare'
 
 const short = (commit: string) => commit.slice(0, 8)
 
-function HistoryGraph({ runs }: { runs: RunSummary[] }) {
+const charts: { metric: keyof MetricSummary; title: string; unit: string }[] = [
+  { metric: 'runtimeGas', title: 'Runtime gas', unit: 'gas' },
+  { metric: 'deployGas', title: 'Deployment gas', unit: 'gas' },
+  { metric: 'runtimeSize', title: 'Runtime bytecode', unit: 'bytes' },
+  { metric: 'creationSize', title: 'Creation bytecode', unit: 'bytes' },
+  { metric: 'compileTime', title: 'Compile time', unit: 'seconds' },
+]
+
+function formatValue(value: number, unit: string) {
+  if (unit === 'seconds') return `${value.toFixed(2)} s`
+  return `${Math.round(value).toLocaleString()} ${unit}`
+}
+
+function runRef(run: RunSummary) {
+  return run.branch ?? (run.pr ? `PR #${run.pr}` : 'detached')
+}
+
+function runLabel(run: RunSummary) {
+  return `${short(run.commit)} · ${runRef(run)} · ${new Date(run.timestamp).toLocaleDateString()}`
+}
+
+function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metric: keyof MetricSummary; title: string; unit: string }) {
   const points = runs
-    .filter((run) => run.branch === 'main' && run.metrics.runtimeGas !== null)
-    .slice(0, 40)
+    .filter((run) => run.branch === 'main' && run.metrics[metric] !== null)
+    .slice(0, 60)
     .reverse()
-  if (points.length < 2) return <div className="empty-graph">History appears after two benchmarked commits.</div>
-  const values = points.map((run) => run.metrics.runtimeGas!)
+  const values = points.map((run) => run.metrics[metric]!)
   const min = Math.min(...values)
   const max = Math.max(...values)
-  const range = max - min || 1
+  const range = max - min
   const path = points.map((run, index) => {
-    const x = (index / (points.length - 1)) * 100
-    const y = 88 - ((run.metrics.runtimeGas! - min) / range) * 72
+    const x = (index / Math.max(points.length - 1, 1)) * 100
+    const y = range === 0 ? 50 : 88 - ((run.metrics[metric]! - min) / range) * 76
     return `${index ? 'L' : 'M'} ${x} ${y}`
   }).join(' ')
+  const first = values[0]
+  const latest = values.at(-1)
+  const change = first && latest !== undefined ? ((latest - first) / first) * 100 : null
   return (
-    <svg className="history" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Runtime gas history">
-      <path className="grid" d="M0 16H100 M0 52H100 M0 88H100" />
-      <path className="series" d={path} />
-    </svg>
+    <section className="graph-card">
+      <div className="graph-heading">
+        <h2>{title}</h2>
+        {latest !== undefined && <div><strong>{formatValue(latest, unit)}</strong><span className={change !== null && change > 0 ? 'bad' : 'good'}>{change === null ? '' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}</span></div>}
+      </div>
+      {points.length < 2 ? <div className="empty-graph">Waiting for two main-branch runs.</div> : <>
+        <div className="chart-body">
+          <div className="chart-scale"><span>{formatValue(max, unit)}</span><span>{formatValue(min, unit)}</span></div>
+          <svg className="history" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${title} over time`}>
+            <path className="grid" d="M0 12H100 M0 50H100 M0 88H100" />
+            <path className="series" d={path} />
+          </svg>
+        </div>
+        <div className="chart-dates"><span>{new Date(points[0].timestamp).toLocaleDateString()}</span><span>{new Date(points.at(-1)!.timestamp).toLocaleDateString()}</span></div>
+      </>}
+    </section>
   )
 }
 
@@ -49,13 +84,12 @@ function Home() {
   const [head, setHead] = useState('')
   const runs = useMemo(() => index?.runs ?? [], [index])
   const mainRuns = useMemo(() => runs.filter((run) => run.branch === 'main'), [runs])
-  const options = useMemo(() => runs.map((run) => run.commit), [runs])
 
   useEffect(() => { loadIndex().then(setIndex).catch((value: Error) => setError(value.message)) }, [])
   useEffect(() => {
-    if (options.length && !head) setHead(options[0])
-    if (options.length > 1 && !base) setBase(options[1])
-  }, [base, head, options])
+    if (runs.length && !head) setHead(runs[0].commit)
+    if (runs.length > 1 && !base) setBase(runs[1].commit)
+  }, [base, head, runs])
 
   const compare = () => {
     if (!base || !head || base === head) return
@@ -67,26 +101,22 @@ function Home() {
   return (
     <>
       <SiteHeader />
-      <main>
-        <section className="intro">
-          <p className="eyebrow">Compiler performance</p>
-          <h1>Track output quality.<br />Inspect every change.</h1>
-          <p className="lede">Gas, bytecode, compile time, and the compiler artifacts behind each result.</p>
+      <main className="dashboard">
+        <section className="dashboard-title">
+          <div><h1>Performance</h1><p>Main branch benchmark history</p></div>
+          <span>{mainRuns.length} runs</span>
         </section>
         <section className="compare-box" aria-label="Compare commits">
-          <datalist id="commits">{runs.map((run) => <option key={run.commit} value={run.commit}>{short(run.commit)} · {run.branch ?? 'detached'}</option>)}</datalist>
-          <label>base<input list="commits" placeholder="Commit SHA" value={base} onChange={(event) => setBase(event.target.value)} /></label>
+          <label>base<select value={base} onChange={(event) => setBase(event.target.value)} disabled={!runs.length}><option value="">Select a run</option>{runs.map((run) => <option key={run.commit} value={run.commit}>{runLabel(run)}</option>)}</select></label>
           <span className="arrow">→</span>
-          <label>head<input list="commits" placeholder="Commit SHA" value={head} onChange={(event) => setHead(event.target.value)} /></label>
+          <label>head<select value={head} onChange={(event) => setHead(event.target.value)} disabled={!runs.length}><option value="">Select a run</option>{runs.map((run) => <option key={run.commit} value={run.commit}>{runLabel(run)}</option>)}</select></label>
           <button onClick={compare} disabled={!base || !head || base === head}>Compare</button>
         </section>
-        <section className="panel graph-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Main branch</p><h2>Runtime gas</h2></div><span>{mainRuns.length} runs</span></div>
-          {error ? <p className="error">{error}</p> : <HistoryGraph runs={runs} />}
-        </section>
+        {error ? <p className="error">{error}</p> : <section className="chart-grid">{charts.map((chart) => <HistoryGraph key={chart.metric} runs={runs} {...chart} />)}</section>}
         <section className="recent">
-          <div className="panel-heading"><h2>Recent runs</h2><span>lower is better</span></div>
-          {runs.length === 0 ? <p className="empty">No published benchmark runs yet.</p> : runs.slice(0, 8).map((run) => { const comparison = runs.find((candidate) => candidate.commit !== run.commit)?.commit; const contents = <><code>{short(run.commit)}</code><span>{run.branch ?? (run.pr ? `PR #${run.pr}` : 'detached')}</span><strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'} gas</strong></>; return comparison ? <a className="run" key={run.commit} href={`?base=${comparison}&head=${run.commit}`}>{contents}</a> : <div className="run" key={run.commit}>{contents}</div> })}
+          <div className="section-heading"><h2>Recent runs</h2><span>lower is better</span></div>
+          <div className="run run-head"><span>commit</span><span>ref</span><span>date</span><span>runtime gas</span><span>runtime bytes</span></div>
+          {runs.length === 0 ? <p className="empty">No published benchmark runs yet.</p> : runs.slice(0, 12).map((run) => { const comparison = runs.find((candidate) => candidate.commit !== run.commit)?.commit; const contents = <><code>{short(run.commit)}</code><span>{runRef(run)}</span><time>{new Date(run.timestamp).toLocaleDateString()}</time><strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'}</strong><strong>{run.metrics.runtimeSize?.toLocaleString() ?? 'n/a'}</strong></>; return comparison ? <a className="run" key={run.commit} href={`?base=${comparison}&head=${run.commit}`}>{contents}</a> : <div className="run" key={run.commit}>{contents}</div> })}
         </section>
       </main>
       <SiteFooter />
