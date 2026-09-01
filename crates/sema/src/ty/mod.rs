@@ -1366,70 +1366,6 @@ impl<'gcx> Gcx<'gcx> {
     ) -> hir::FunctionId {
         self.super_function_target((contract, defining_contract, function))
     }
-
-    /// Returns all events included in the external interface of the given contract.
-    pub fn interface_events(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::EventId> {
-        let items = self.interface_items(id);
-        let mut events = DenseBitSet::new_empty(self.hir.event_ids().len());
-        for item in self.hir.contract_item_ids(id) {
-            if let hir::ItemId::Event(event) = item {
-                events.insert(event);
-            }
-        }
-        for event in items.creation.events.iter().chain(items.deployed.events.iter()) {
-            events.insert(event);
-        }
-        self.alloc(events)
-    }
-
-    /// Returns all errors included in the external interface of the given contract.
-    pub fn interface_errors(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::ErrorId> {
-        let items = self.interface_items(id);
-        let mut errors = DenseBitSet::new_empty(self.hir.error_ids().len());
-        for item in self.hir.contract_item_ids(id) {
-            if let hir::ItemId::Error(error) = item {
-                errors.insert(error);
-            }
-        }
-        for error in items.creation.errors.iter().chain(items.deployed.errors.iter()) {
-            errors.insert(error);
-        }
-        self.alloc(errors)
-    }
-
-    /// Returns the functions reachable during contract creation or at runtime.
-    pub fn contract_reachable_functions(
-        self,
-        id: hir::ContractId,
-    ) -> &'gcx DenseBitSet<hir::FunctionId> {
-        let items = self.interface_items(id);
-        let mut functions = DenseBitSet::new_empty(self.hir.function_ids().len());
-        for function in items.creation.functions.iter().chain(items.deployed.functions.iter()) {
-            functions.insert(function);
-        }
-        self.alloc(functions)
-    }
-
-    /// Returns the contracts whose bytecode is referenced by the given contract.
-    pub fn contract_bytecode_dependencies(
-        self,
-        id: hir::ContractId,
-    ) -> &'gcx DenseBitSet<hir::ContractId> {
-        if self.sess.opts.unstable.codegen_all_functions {
-            return self.all_contract_bytecode_dependencies(id);
-        }
-        let items = self.interface_items(id);
-        let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().len());
-        for dependency in items
-            .creation
-            .bytecode_dependencies
-            .iter()
-            .chain(items.deployed.bytecode_dependencies.iter())
-        {
-            dependencies.insert(dependency);
-        }
-        self.alloc(dependencies)
-    }
 }
 
 fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
@@ -1590,7 +1526,7 @@ fn super_function_target(
 
 fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceItems {
     assert!(gcx.has_typeck_results(), "interface items require type checking");
-    gcx.alloc(call_graph::interface_items(gcx, id))
+    gcx.cached_arena().alloc(call_graph::interface_items(gcx, id))
 }
 
 fn all_contract_bytecode_dependencies(
@@ -1598,7 +1534,65 @@ fn all_contract_bytecode_dependencies(
     id: hir::ContractId
 ) -> &'gcx DenseBitSet<hir::ContractId> {
     assert!(gcx.has_typeck_results(), "contract dependencies require type checking");
-    call_graph::all_bytecode_dependencies(gcx, id)
+    gcx.cached_arena().alloc(call_graph::all_bytecode_dependencies(gcx, id))
+}
+
+/// Returns all events included in the external interface of the given contract.
+pub fn interface_events(gcx: _, id: hir::ContractId) -> &'gcx DenseBitSet<hir::EventId> {
+    let items = gcx.interface_items(id);
+    let mut events = DenseBitSet::new_empty(gcx.hir.event_ids().len());
+    for item in gcx.hir.contract_item_ids(id) {
+        if let hir::ItemId::Event(event) = item {
+            events.insert(event);
+        }
+    }
+    for event in items.creation.events.iter().chain(items.deployed.events.iter()) {
+        events.insert(event);
+    }
+    gcx.cached_arena().alloc(events)
+}
+
+/// Returns all errors included in the external interface of the given contract.
+pub fn interface_errors(gcx: _, id: hir::ContractId) -> &'gcx DenseBitSet<hir::ErrorId> {
+    let items = gcx.interface_items(id);
+    let mut errors = DenseBitSet::new_empty(gcx.hir.error_ids().len());
+    for item in gcx.hir.contract_item_ids(id) {
+        if let hir::ItemId::Error(error) = item {
+            errors.insert(error);
+        }
+    }
+    for error in items.creation.errors.iter().chain(items.deployed.errors.iter()) {
+        errors.insert(error);
+    }
+    gcx.cached_arena().alloc(errors)
+}
+
+/// Returns the functions reachable during contract creation or at runtime.
+pub fn contract_reachable_functions(gcx: _, id: hir::ContractId) -> &'gcx DenseBitSet<hir::FunctionId> {
+    let items = gcx.interface_items(id);
+    let mut functions = DenseBitSet::new_empty(gcx.hir.function_ids().len());
+    for function in items.creation.functions.iter().chain(items.deployed.functions.iter()) {
+        functions.insert(function);
+    }
+    gcx.cached_arena().alloc(functions)
+}
+
+/// Returns the contracts whose bytecode is referenced by the given contract.
+pub fn contract_bytecode_dependencies(gcx: _, id: hir::ContractId) -> &'gcx DenseBitSet<hir::ContractId> {
+    if gcx.sess.opts.unstable.codegen_all_functions {
+        return gcx.all_contract_bytecode_dependencies(id);
+    }
+    let items = gcx.interface_items(id);
+    let mut dependencies = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
+    for dependency in items
+        .creation
+        .bytecode_dependencies
+        .iter()
+        .chain(items.deployed.bytecode_dependencies.iter())
+    {
+        dependencies.insert(dependency);
+    }
+    gcx.cached_arena().alloc(dependencies)
 }
 
 /// Returns the [ERC-165] interface ID of the given contract.
@@ -1919,7 +1913,7 @@ fn internal_function_members_in_context(
 pub(crate) fn eval_const_value_result(gcx: _, expr: &hir::Expr<'_>)
     cached_by(hir::ExprId, expr.id) -> &'gcx crate::eval::EvalResult
 {
-    gcx.alloc(crate::eval::eval_const(gcx, expr))
+    gcx.cached_arena().alloc(crate::eval::eval_const(gcx, expr))
 }
 
 } // cached!
