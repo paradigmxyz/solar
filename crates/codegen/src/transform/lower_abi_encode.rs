@@ -913,16 +913,16 @@ fn encode_calldata_bytes_array(
     let bound = builder.sub(available, thirty_one);
     let valid_offset = builder.slt(offset, bound);
     let invalid_offset = builder.iszero(valid_offset);
-    revert_if_calldata_invalid(builder, invalid_offset);
+    builder.revert_if(invalid_offset);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
     let max_length = builder.imm(u64::MAX);
     let invalid_length = builder.gt(length, max_length);
-    revert_if_calldata_invalid(builder, invalid_length);
+    builder.revert_if(invalid_length);
     let data = builder.add(element_base, word);
     let limit = builder.sub(calldata_size, length);
     let short_tail = builder.sgt(data, limit);
-    revert_if_calldata_invalid(builder, short_tail);
+    builder.revert_if(short_tail);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
     let new_tail = encode_value(
         builder,
@@ -946,10 +946,6 @@ fn encode_calldata_bytes_array(
 
     builder.switch_to_block(done);
     current_tail
-}
-
-fn revert_if_calldata_invalid(builder: &mut FunctionBuilder<'_>, condition: ValueId) {
-    builder.revert_if(condition);
 }
 
 fn encode_word_array(
