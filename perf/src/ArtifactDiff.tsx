@@ -12,6 +12,15 @@ interface Props {
   theme: Theme
 }
 
+function formatContents(contents: string, language: string) {
+  if (language !== 'json') return contents
+  try {
+    return `${JSON.stringify(JSON.parse(contents), null, 2)}\n`
+  } catch {
+    return contents
+  }
+}
+
 export default function ArtifactDiff({ before, after, path, storagePath, language, theme }: Props) {
   const [contents, setContents] = useState<[string, string] | null>(null)
   const [error, setError] = useState('')
@@ -22,8 +31,11 @@ export default function ArtifactDiff({ before, after, path, storagePath, languag
     Promise.all([
       loadArtifact(before.commit, before.benchmark, before.compiler, storagePath),
       loadArtifact(after.commit, after.benchmark, after.compiler, storagePath),
-    ]).then(setContents).catch((value: Error) => setError(value.message))
-  }, [after.benchmark, after.commit, after.compiler, before.benchmark, before.commit, before.compiler, storagePath])
+    ]).then(([beforeContents, afterContents]) => setContents([
+      formatContents(beforeContents, language),
+      formatContents(afterContents, language),
+    ])).catch((value: Error) => setError(value.message))
+  }, [after.benchmark, after.commit, after.compiler, before.benchmark, before.commit, before.compiler, language, storagePath])
   if (error) return <p className="error">Could not load artifact: {error}</p>
   if (!contents) return <p className="empty">Loading diff…</p>
   return <div className="artifact-diff">
