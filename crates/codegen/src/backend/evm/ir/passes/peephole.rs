@@ -16,9 +16,9 @@
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
 //! to assembly.
 //!
-//! [`StopStackCleanup`] runs once after the final layout. It removes a physical stack suffix that
-//! a zero-input terminal cannot observe, but only when the suffix constructs every word it reads.
-//! Keeping it late avoids changing the stack shapes used by structural sharing and layout passes.
+//! [`StopStackCleanup`] runs once after the final layout. It removes trailing pushes and physical
+//! stack operations before a zero-input terminal, which cannot observe the stack. Keeping it late
+//! avoids changing the stack shapes used by structural sharing and layout passes.
 
 use super::{
     EvmPass,
@@ -104,7 +104,7 @@ fn cleanup_stop_stacks(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
         if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
-            && let Some(suffix) = self_contained_stack_suffix(&block.instructions)
+            && let Some(suffix) = terminal_stack_suffix_start(&block.instructions)
         {
             block.instructions.truncate(suffix);
             changed = true;
@@ -118,26 +118,13 @@ const fn is_explicit_stack_unobservable_terminal(terminator: &Terminator) -> boo
         && matches!(terminator.kind, TerminatorKind::Op(op::STOP | op::INVALID))
 }
 
-fn self_contained_stack_suffix(instructions: &[Instruction]) -> Option<usize> {
+fn terminal_stack_suffix_start(instructions: &[Instruction]) -> Option<usize> {
     let start = instructions
         .iter()
         .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
         .map_or(0, |index| index + 1);
     (start < instructions.len()).then_some(())?;
-
-    let mut depth = 0isize;
-    let mut required = 0isize;
-    for inst in &instructions[start..] {
-        if !inst.has_canonical_stack_effect() {
-            return None;
-        }
-        let effect = inst.effective_stack_effect()?;
-        let inputs =
-            inst.as_stack_op().map_or(usize::from(effect.inputs), PhysicalStackOp::required_depth);
-        required = required.max(inputs as isize - depth);
-        depth += isize::from(effect.outputs) - isize::from(effect.inputs);
-    }
-    (required == 0).then_some(start)
+    Some(start)
 }
 
 fn optimize(

@@ -18,7 +18,7 @@ bb1:
   pop
   stop
 
-// STOP cannot observe a self-contained physical stack suffix.
+// STOP cannot observe a trailing physical stack suffix.
 // CHECK-LABEL: after stop-stack-cleanup
 // CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK-NOT: {{^[ +].*}}push
@@ -34,15 +34,15 @@ bb2:
   pop
   stop
 
-// Do not make an underflowing suffix executable.
+// The cleanup can also remove stack operations that consume incoming words.
 // CHECK-LABEL: {{^[ +].*}}bb3:
-// CHECK: {{^[ +].*}}dup 1
+// CHECK-NOT: {{^[ +].*}}pop
 // CHECK: {{^[ +].*}}stop
 bb3:
-  dup 1
+  pop
   stop
 
-// INVALID also cannot observe a self-contained stack suffix.
+// INVALID also cannot observe a trailing stack suffix.
 // CHECK-LABEL: {{^[ +].*}}bb4:
 // CHECK-NOT: {{^[ +].*}}push
 // CHECK: {{^[ +].*}}invalid

@@ -18,7 +18,7 @@
     pop
     stop
   bb3:
-    dup 1
+    pop
     stop
   bb4:
     push 1
@@ -45,7 +45,7 @@
 -   pop
     stop
   bb3:
-    dup 1
+-   pop
     stop
   bb4:
 -   push 1
