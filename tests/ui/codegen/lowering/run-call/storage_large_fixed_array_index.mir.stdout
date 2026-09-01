@@ -3,64 +3,63 @@
 fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot 0, 0
-    v1 = shl 199, 1
-    v2 = lt v1, 0x100000000000000000000000000000000000000000000000000
-    v3 = iszero v2
-    jumpi v3, bb1, bb2
+    v1 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
   bb2:
-    v4 = mul v1, 2
-    v5 = add v0, v4
-    v6 = lt 1, 2
-    v7 = iszero v6
-    jumpi v7, bb1, bb3
+    v3 = mul 0x80000000000000000000000000000000000000000000000000, 2
+    v4 = add v0, v3
+    v5 = lt 1, 2
+    v6 = iszero v5
+    jumpi v6, bb1, bb3
   bb3:
-    v8 = add v5, 1
-    sstore v8, 7 !metadata(storage=offset(v5, 1))
-    v9 = add v1, 1
-    v10 = lt v9, v1
-    jumpi v10, bb4, bb5
+    v7 = add v4, 1
+    sstore v7, 7 !metadata(storage=offset(v4, 1))
+    v8 = add 0x80000000000000000000000000000000000000000000000000, 1
+    v9 = lt v8, 0x80000000000000000000000000000000000000000000000000
+    jumpi v9, bb4, bb5
   bb5:
-    v11 = lt v9, 0x100000000000000000000000000000000000000000000000000
-    v12 = iszero v11
-    jumpi v12, bb1, bb6
+    v10 = lt v8, 0x100000000000000000000000000000000000000000000000000
+    v11 = iszero v10
+    jumpi v11, bb1, bb6
   bb6:
-    v13 = mul v9, 2
-    v14 = add v0, v13
-    v15 = lt 0, 2
-    v16 = iszero v15
-    jumpi v16, bb1, bb7
+    v12 = mul v8, 2
+    v13 = add v0, v12
+    v14 = lt 0, 2
+    v15 = iszero v14
+    jumpi v15, bb1, bb7
   bb7:
-    v17 = add v14, 0
-    sstore v17, 8 !metadata(storage=symbolic(v14))
-    v18 = lt v1, 0x100000000000000000000000000000000000000000000000000
-    v19 = iszero v18
-    jumpi v19, bb1, bb8
+    v16 = add v13, 0
+    sstore v16, 8 !metadata(storage=symbolic(v13))
+    v17 = lt 0x80000000000000000000000000000000000000000000000000, 0x100000000000000000000000000000000000000000000000000
+    v18 = iszero v17
+    jumpi v18, bb1, bb8
   bb8:
-    v20 = mul v1, 2
-    v21 = add v0, v20
-    v22 = lt 1, 2
-    v23 = iszero v22
-    jumpi v23, bb1, bb9
+    v19 = mul 0x80000000000000000000000000000000000000000000000000, 2
+    v20 = add v0, v19
+    v21 = lt 1, 2
+    v22 = iszero v21
+    jumpi v22, bb1, bb9
   bb9:
-    v24 = add v21, 1
-    v25 = sload v24 !metadata(storage=offset(v21, 1))
-    v26 = add v1, 1
-    v27 = lt v26, v1
-    jumpi v27, bb4, bb10
+    v23 = add v20, 1
+    v24 = sload v23 !metadata(storage=offset(v20, 1))
+    v25 = add 0x80000000000000000000000000000000000000000000000000, 1
+    v26 = lt v25, 0x80000000000000000000000000000000000000000000000000
+    jumpi v26, bb4, bb10
   bb10:
-    v28 = lt v26, 0x100000000000000000000000000000000000000000000000000
-    v29 = iszero v28
-    jumpi v29, bb1, bb11
+    v27 = lt v25, 0x100000000000000000000000000000000000000000000000000
+    v28 = iszero v27
+    jumpi v28, bb1, bb11
   bb11:
-    v30 = mul v26, 2
-    v31 = add v0, v30
-    v32 = lt 0, 2
-    v33 = iszero v32
-    jumpi v33, bb1, bb12
+    v29 = mul v25, 2
+    v30 = add v0, v29
+    v31 = lt 0, 2
+    v32 = iszero v31
+    jumpi v32, bb1, bb12
   bb12:
-    v34 = add v31, 0
-    v35 = sload v34 !metadata(storage=symbolic(v31))
-    ret v25, v35
+    v33 = add v30, 0
+    v34 = sload v33 !metadata(storage=symbolic(v30))
+    ret v24, v34
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

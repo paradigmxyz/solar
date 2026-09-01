@@ -84,7 +84,8 @@ fn @retLit() -> bytes4 [selector=0xad0d29ff, pure, abi_params=[], abi_returns=[w
 
 fn @declLit() -> bytes4 [selector=0xe5489b44, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
-    ret 0x5566778800000000000000000000000000000000000000000000000000000000
+    v0 = shl 224, 0x55667788
+    ret v0
 }
 
 fn @assignLit() -> bytes4 [selector=0xa4d2a382, pure, abi_params=[], abi_returns=[word<bytes4>]] {
@@ -98,10 +99,11 @@ fn @mapKeyCross() -> u256 [selector=0xef866c75, abi_params=[], abi_returns=[word
     v0 = and 0x3132333400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
     v1 = mapping_slot v0, 0
     sstore v1, 5 !metadata(storage=symbolic(v1))
-    v2 = and 0x3132333400000000000000000000000000000000000000000000000000000000, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v3 = mapping_slot v2, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    ret v4
+    v2 = shl 224, 0x31323334
+    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v4 = mapping_slot v3, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
 }
 
 fn @compareControl() -> bool [selector=0x86f1fef0, pure, abi_params=[], abi_returns=[word<bool>]] {

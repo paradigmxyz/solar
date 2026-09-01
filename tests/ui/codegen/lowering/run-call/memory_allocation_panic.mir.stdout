@@ -50,6 +50,35 @@ fn @makeArray(arg0: u256) -> u256 [selector=0x9510f212, pure, abi_params=[u256],
     revert 0, 36
 }
 
+fn @makeArrayTooLarge() -> u256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jumpi 1, bb1, bb2
+  bb2:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    set_memory_object_len memoryarray, v0, 0x800000000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 1, v1
+    v3 = iszero v2
+    jumpi v3, bb3, bb4
+  bb4:
+    memory_object_store_element memoryarray<1>, v0, 1, 42
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb5
+  bb5:
+    v7 = memory_object_load_element memoryarray<1>, v0, 1
+    ret v7
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64

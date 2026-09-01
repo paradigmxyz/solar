@@ -13,6 +13,7 @@
 //@ run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 //@ run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 //@ run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: makeArrayTooLarge => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
 contract MemoryAllocationPanicRuntime {
     struct Pair {
@@ -28,6 +29,13 @@ contract MemoryAllocationPanicRuntime {
     function makeArray(uint256 n) external pure returns (uint256) {
         uint256[] memory a = new uint256[](n);
         return a.length;
+    }
+
+    function makeArrayTooLarge() external pure returns (uint256) {
+        uint256 n = 2**256 / 32;
+        uint256[] memory a = new uint256[](n);
+        a[1] = 42;
+        return a[1];
     }
 
     function makeNestedArray(uint256 n) external pure returns (uint256) {

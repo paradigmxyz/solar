@@ -27,7 +27,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.deferred_bindings.insert(*id);
                     return Some(());
                 }
-                let value = if let Some(expr) = initializer {
+                let value = if !self.in_inline_assembly
+                    && let Some(expr) = initializer
+                    && let Ok(ConstValue::Integer(value)) = self.cx.gcx.try_eval_const_value(expr)
+                    && let Some(value) = value.as_u256()
+                {
+                    // value = constant
+                    let value = self.builder.imm(value);
+                    self.coerce_value(value, self.cx.gcx.type_of_expr(expr.id)?, ty)
+                } else if let Some(expr) = initializer {
                     if self.in_inline_assembly {
                         self.lower_yul_word_expr(expr)?
                     } else {
