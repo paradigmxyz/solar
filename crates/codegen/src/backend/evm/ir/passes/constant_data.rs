@@ -5,9 +5,12 @@
 //! `CODESIZE`, because appending data would change the observed final byte.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{BlockId, Data, DataRef, Instruction, Module, PushValue},
-    op::{self, WORD_BYTES},
+use crate::{
+    backend::evm::{
+        ir::{BlockId, Data, DataRef, Instruction, Module, PushValue},
+        op::{self, WORD_BYTES},
+    },
+    lower::data_copy_cost,
 };
 use alloy_primitives::{Bytes, U256};
 use solar_interface::sym;
@@ -112,8 +115,7 @@ fn find_run(
         instructions[start..end].iter().map(|inst| encoded_len(gcx, inst)).sum::<usize>();
     // Account for PUSH3 conservatively so a selected rewrite cannot grow an
     // EIP-170-sized program when the data lands above the PUSH2 boundary.
-    let new_size =
-        data.len() + op::push_len(gcx.sess.opts.evm_version, U256::from(data.len())) + 4 + 2;
+    let new_size = data.len() + data_copy_cost(gcx.sess.opts.evm_version, data.len()).0;
     (new_size < old_size).then(|| Rewrite { block, start, end, data: data.into() })
 }
 
