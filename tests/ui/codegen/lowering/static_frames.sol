@@ -9,10 +9,10 @@ contract SF {
     // The focused checks below cover the frame architecture without depending on the instruction
     // order within every lowered function.
     // CHECK: push 0x313ae541
-    // CHECK: {{eq|sub}}
+    // CHECK: eq
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: push 0x86b714e2
-    // CHECK-NEXT: {{eq|sub}}
+    // CHECK-NEXT: sub
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 0

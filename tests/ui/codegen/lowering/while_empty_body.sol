@@ -4,7 +4,7 @@
 contract WhileEmptyBody {
     // CHECK-LABEL: @module WhileEmptyBody_runtime
     // CHECK: push 0xb3de648b
-    // CHECK-NEXT: {{eq|sub}}
+    // CHECK-NEXT: sub
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK: push 32
