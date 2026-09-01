@@ -12,7 +12,6 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::index::index_vec;
-use solar_interface::sym;
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -333,10 +332,6 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    pub(in crate::backend::evm) fn new_ir_module() -> ir::Module {
-        ir::Module::new(sym::asm)
-    }
-
     fn current_block(&mut self) -> ir::BlockId {
         if let Some(block) = self.current_block {
             return block;
@@ -360,7 +355,7 @@ impl<'gcx> Assembler<'gcx> {
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
-            module.clear(sym::asm);
+            module.clear(self.artifact_kind.evm_ir_name());
             self.program = module;
             return None;
         }

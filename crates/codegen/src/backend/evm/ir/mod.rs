@@ -117,8 +117,8 @@ impl Module {
         self.enable_size_outlining = false;
     }
 
-    /// Changes the program name.
-    pub(crate) fn set_name(&mut self, name: Symbol) {
+    /// Changes the program name without clearing emitted IR.
+    pub(in crate::backend::evm) fn set_name(&mut self, name: Symbol) {
         self.name = name;
     }
 
