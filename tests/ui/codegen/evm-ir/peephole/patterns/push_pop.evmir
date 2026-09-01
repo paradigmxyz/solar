@@ -1,4 +1,4 @@
-//@compile-flags: -Zevm-ir-pipeline=peephole,stop-stack-cleanup
+//@compile-flags: -Zevm-ir-pipeline=peephole,dead-stack-cleanup
 //@filecheck:
 @module module
 
@@ -19,7 +19,7 @@ bb1:
   stop
 
 // STOP cannot observe a trailing physical stack suffix.
-// CHECK-LABEL: after stop-stack-cleanup
+// CHECK-LABEL: after dead-stack-cleanup
 // CHECK-LABEL: {{^[ +].*}}bb2:
 // CHECK-NOT: {{^[ +].*}}push
 // CHECK-NOT: {{^[ +].*}}dup

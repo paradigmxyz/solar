@@ -76,7 +76,6 @@ bb6:
   iszero
   push bb19
   jumpi
-  pop
   jump bb70
 bb70 [cold]:
   push 0x4e487b71
@@ -168,7 +167,6 @@ bb19:
   iszero
   push bb32
   jumpi
-  pop
   jump bb70
 bb20:
   push 448
@@ -291,7 +289,6 @@ bb32:
   iszero
   push bb33
   jumpi
-  pop
   jump bb70
 bb33:
   push 5

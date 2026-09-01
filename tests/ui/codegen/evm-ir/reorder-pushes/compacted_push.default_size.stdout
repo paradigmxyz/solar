@@ -15,4 +15,6 @@ bb1:
   shl
   calldatasize
   sub
+  push 0
+  mstore
   stop

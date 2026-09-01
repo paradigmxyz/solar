@@ -93,7 +93,6 @@ bb8:
   push 128
   return
 bb18 [cold]:
-  pop
   jump bb19
 bb19 [cold]:
   push 0x4e487b71

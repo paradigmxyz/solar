@@ -14,8 +14,6 @@ bb0:
   jumpi
   push 32
   mload
-  dup 1
-  add
   stop
 bb3:
   stop

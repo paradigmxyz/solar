@@ -2,7 +2,7 @@
 // === StackTooDeepCall_deployment ===
 @module StackTooDeepCall_deployment
 bb0:
-  push 953
+  push 943
   dup 1
   push 10
   push 0
@@ -314,10 +314,6 @@ bb51:
   pop
   jump bb50
 bb50:
-  pop
-  pop
-  pop
-  pop
   jump bb49
 bb49 [cold]:
   push 0x4e487b71
@@ -399,9 +395,6 @@ bb31:
   iszero
   push bb32
   jumpi
-  pop
-  pop
-  pop
   jump bb49
 bb32:
   swap 2
@@ -418,8 +411,6 @@ bb32:
   iszero
   push bb33
   jumpi
-  pop
-  pop
   jump bb49
 bb33:
   swap 1
@@ -435,7 +426,6 @@ bb33:
   iszero
   push bb34
   jumpi
-  pop
   jump bb49
 bb34:
   push 0x5c0

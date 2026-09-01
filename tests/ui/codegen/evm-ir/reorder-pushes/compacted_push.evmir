@@ -36,6 +36,8 @@ bb1:
   push 0x100000000000000000000000000000000
   swap 1
   sub
+  push 0
+  mstore
   stop
 
 // A compact recipe can also be the producer moved after a literal push.

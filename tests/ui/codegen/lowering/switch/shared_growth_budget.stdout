@@ -2,11 +2,11 @@
 // === SwitchSharedGrowthBudget_deployment ===
 @module SwitchSharedGrowthBudget_deployment
 bb0:
-  push 425
+  push 423
   codesize
   sub
   dup 1
-  push 425
+  push 423
   push 192
   codecopy
   push 192
@@ -38,7 +38,7 @@ bb0:
 bb17:
   push 231
   dup 1
-  push 194
+  push 192
   push 0
   codecopy
   push 0
@@ -77,7 +77,6 @@ bb3:
   sstore
   jump bb17
 bb4:
-  pop
   jump bb17
 bb5:
   dup 1
@@ -113,7 +112,6 @@ bb7:
   sstore
   jump bb17
 bb8:
-  pop
   jump bb17
 
 // === SwitchSharedGrowthBudget_runtime ===

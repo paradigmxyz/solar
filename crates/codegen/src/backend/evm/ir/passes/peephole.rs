@@ -15,10 +15,6 @@
 //! instructions. [`Cleanup`] couples such a pass with peephole only when the wrapped pass reports a
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
 //! to assembly.
-//!
-//! [`StopStackCleanup`] runs once after the final layout. It removes trailing physical stack
-//! operations before halting terminal operands already materialized by pushes. Keeping it late
-//! avoids changing the stack shapes used by structural sharing and layout passes.
 
 use super::{
     EvmPass,
@@ -26,7 +22,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, PushValue, Terminator, TerminatorKind},
+        ir::{Instruction, Module, PushValue},
         op,
         stack::StackOp as PhysicalStackOp,
     },
@@ -41,9 +37,6 @@ use tracing::trace;
 
 pub(super) struct Peephole;
 
-/// Removes dead physical stack suffixes before halting terminals after final layout.
-pub(super) struct StopStackCleanup;
-
 /// Runs peephole cleanup only when the wrapped pass changes the module.
 pub(super) struct Cleanup<T>(pub(super) T);
 
@@ -54,16 +47,6 @@ impl EvmPass for Peephole {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         optimize_module(gcx, module)
-    }
-}
-
-impl EvmPass for StopStackCleanup {
-    fn name(&self) -> &'static str {
-        "stop-stack-cleanup"
-    }
-
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        cleanup_stop_stacks(module)
     }
 }
 
@@ -98,50 +81,6 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
         changed |= optimize(gcx, &mut block.instructions, &mut scratch, block.label);
     }
     changed
-}
-
-fn cleanup_stop_stacks(module: &mut Module) -> bool {
-    let mut changed = false;
-    for block in &mut module.blocks {
-        if let Some(range) = block
-            .terminator
-            .as_ref()
-            .and_then(|term| terminal_stack_cleanup_range(&block.instructions, term))
-        {
-            block.instructions.drain(range);
-            changed = true;
-        }
-    }
-    changed
-}
-
-fn terminal_stack_cleanup_range(
-    instructions: &[Instruction],
-    terminator: &Terminator,
-) -> Option<std::ops::Range<usize>> {
-    let TerminatorKind::Op(
-        opcode @ (op::STOP | op::INVALID | op::RETURN | op::REVERT | op::SELFDESTRUCT),
-    ) = terminator.kind
-    else {
-        return None;
-    };
-    let (inputs, _) = op::stack_io(opcode).expect("halting opcode has a stack effect");
-    let operands = instructions.len().checked_sub(usize::from(inputs))?;
-    if terminator.implicit_stop
-        || !instructions[operands..]
-            .iter()
-            .all(|inst| inst.is_encoded_push() && inst.has_canonical_stack_effect())
-    {
-        return None;
-    }
-    let start = instructions
-        .get(..operands)?
-        .iter()
-        .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
-        .map_or(0, |index| index + 1);
-    (start < operands
-        && instructions[start..operands].iter().all(Instruction::has_canonical_stack_effect))
-    .then_some(start..operands)
 }
 
 fn optimize(

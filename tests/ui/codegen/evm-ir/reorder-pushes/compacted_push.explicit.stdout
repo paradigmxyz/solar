@@ -18,6 +18,8 @@
 -   swap 1
 +   calldatasize
     sub
+    push 0
+    mstore
     stop
   bb2:
     callf !meta(stack=0->3)
@@ -81,6 +83,8 @@
 +   shl
     calldatasize
     sub
+    push 0
+    mstore
     stop
   bb2:
     callf !meta(stack=0->3)
