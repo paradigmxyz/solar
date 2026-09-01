@@ -26,7 +26,9 @@ pub(in crate::backend::evm) use legalize_shifts::{LEGACY_SHIFT_STACK_HEADROOM, l
 
 use super::Module;
 use crate::{
-    pass_manager::{parse_pass_pipeline, pipeline_output_name, print_pass_diff},
+    pass_manager::{
+        parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
+    },
     timing::PassTimer,
 };
 use solar_config::{EvmVersion, OptimizationMode};
@@ -195,7 +197,7 @@ fn run_passes_inner(
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
-            if validate_each && cfg!(debug_assertions) {
+            if validate_each && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
             }
         }
