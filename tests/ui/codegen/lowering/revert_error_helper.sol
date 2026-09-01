@@ -33,10 +33,13 @@ contract R {
     }
 
     // CHECK: push 0x6c69746572616c206d7367
-    // CHECK-NEXT: jump [[WORD11_HELPER:bb[0-9]+]]
+    // CHECK: jump [[WORD11_HELPER:bb[0-9]+]]
     // CHECK: [[WORD11_HELPER]] [cold]:
-    // CHECK: push 11
-    // CHECK: jump [[SHORT_HELPER]]
+    // CHECK-NEXT: push 168
+    // CHECK-NEXT: shl
+    // CHECK-NEXT: push 11
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: jump [[SHORT_HELPER]]
     function viaLiteral(uint256 x) external pure returns (uint256) {
         require(x > 5, "literal msg");
         return x;
@@ -60,7 +63,7 @@ contract R {
     }
 
     // CHECK: push 0x7265766572742d70617468
-    // CHECK-NEXT: jump [[WORD11_HELPER]]
+    // CHECK: jump [[WORD11_HELPER]]
     function viaRevertMsg(uint256 x) external pure returns (uint256) {
         if (x <= 5) {
             revert("revert-path");
