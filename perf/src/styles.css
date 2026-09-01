@@ -53,6 +53,9 @@ footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--m
 .compare-title h1 { margin: 0; font: 600 clamp(30px, 5vw, 54px)/1 ui-monospace, monospace; letter-spacing: -.055em; }
 .compare-title h1 span { color: var(--muted); font-weight: 400; }
 .compare-title > a { color: var(--muted); font-size: 12px; }
+.load-error { padding: 28px 0; border-top: 1px solid var(--line); }
+.load-error h1 { margin: 0; font-size: 28px; letter-spacing: -.035em; }
+.load-error > p:last-child { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
 .filters { margin-top: 44px; display: grid; grid-template-columns: 1fr 220px; gap: 12px; }
 .results { margin-top: 14px; border: 1px solid var(--line); background: #faf8f2; }
 .result { width: 100%; min-height: 48px; padding: 0 16px; display: grid; grid-template-columns: minmax(220px, 1fr) 130px 130px 100px; column-gap: 16px; align-items: center; text-align: right; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; }

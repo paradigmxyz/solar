@@ -24,18 +24,28 @@ function change(before: number | null, after: number | null) {
 
 export function Compare({ base, head }: { base: string; head: string }) {
   const [runs, setRuns] = useState<[RunDocument, RunDocument] | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [query, setQuery] = useState('')
   const params = new URLSearchParams(window.location.search)
   const [selected, setSelected] = useState(params.get('benchmark') ?? '')
   const [metric, setMetric] = useState<keyof typeof metrics>('runtimeGas')
   const [against, setAgainst] = useState<'base' | 'solc'>('base')
   const [artifact, setArtifact] = useState('')
-  useEffect(() => { Promise.all([loadRun(base), loadRun(head)]).then(setRuns) }, [base, head])
+  useEffect(() => {
+    let cancelled = false
+    setRuns(null)
+    setLoadFailed(false)
+    Promise.all([loadRun(base), loadRun(head)])
+      .then((loaded) => { if (!cancelled) setRuns(loaded) })
+      .catch(() => { if (!cancelled) setLoadFailed(true) })
+    return () => { cancelled = true }
+  }, [base, head])
   const rows = useMemo(() => {
     if (!runs) return []
     const before = new Map(runs[0].results.map((result) => [result.test_id, result]))
     return runs[1].results.map((after) => ({ before: before.get(after.test_id), after })).filter(({ after }) => after.test_id.toLowerCase().includes(query.toLowerCase()))
   }, [query, runs])
+  if (loadFailed) return <main className="compare-page"><a className="back" href={import.meta.env.BASE_URL}>← history</a><section className="load-error"><p className="eyebrow">Comparison unavailable</p><h1>Benchmark data not found</h1><p>One or both commits have not been published yet.</p></section></main>
   if (!runs) return <main><p className="empty">Loading comparison…</p></main>
   const [beforeRun, afterRun] = runs
   const files: ArtifactFile[] = afterRun.artifacts[selected] ?? beforeRun.artifacts[selected] ?? []
