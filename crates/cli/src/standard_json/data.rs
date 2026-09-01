@@ -205,13 +205,13 @@ pub(super) struct SourceOutput {
 #[serde(rename_all = "camelCase")]
 pub(super) struct ContractOutput<'gcx> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'gcx>>>,
+    pub(super) abi: Option<&'gcx [alloy_json_abi::AbiItem<'gcx>]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<Documentation>,
+    pub(super) userdoc: Option<&'gcx Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) devdoc: Option<Documentation>,
+    pub(super) devdoc: Option<&'gcx Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
