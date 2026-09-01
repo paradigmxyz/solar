@@ -144,7 +144,7 @@ pub(crate) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u
             | InstKind::BaseFee
             | InstKind::BlobBaseFee
     ) {
-        kind.mir_opcode()
+        kind.evm_opcode()
     } else {
         None
     }

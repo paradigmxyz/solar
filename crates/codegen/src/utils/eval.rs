@@ -21,7 +21,7 @@ pub(crate) fn eval_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
-    let Some(opcode) = kind.mir_opcode() else { return Ok(None) };
+    let Some(opcode) = kind.evm_opcode() else { return Ok(None) };
     let Some((inputs, 1)) = op::stack_io(opcode) else { return Ok(None) };
     if inputs > 3 {
         return Ok(None);

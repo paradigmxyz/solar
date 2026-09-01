@@ -149,7 +149,7 @@ impl<'a> Verifier<'a> {
                         format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
                     );
                 }
-            } else if op::StackOp::from_single_byte_opcode(inst.opcode).is_some()
+            } else if op::StackOp::from_single_byte_evm_opcode(inst.opcode).is_some()
                 || matches!(inst.opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
             {
                 self.error_in_block(

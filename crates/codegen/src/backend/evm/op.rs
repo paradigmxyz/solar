@@ -277,7 +277,7 @@ pub(crate) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
 
 impl InstKind {
     /// Returns the EVM opcode that directly implements this instruction.
-    pub(crate) const fn mir_opcode(&self) -> Option<u8> {
+    pub(crate) const fn evm_opcode(&self) -> Option<u8> {
         Some(match self {
             Self::Add(..) => ADD,
             Self::Sub(..) => SUB,
@@ -427,7 +427,7 @@ impl StackOp {
 
     /// Decodes a one-byte stack opcode.
     #[must_use]
-    pub(crate) const fn from_single_byte_opcode(opcode: u8) -> Option<Self> {
+    pub(crate) const fn from_single_byte_evm_opcode(opcode: u8) -> Option<Self> {
         match opcode {
             POP => Some(Self::Pop),
             DUP1..=DUP16 => Some(Self::Dup(opcode - DUP1 + 1)),
@@ -438,7 +438,7 @@ impl StackOp {
 
     /// Returns the one-byte encoding when this operation has one.
     #[must_use]
-    pub(crate) const fn single_byte_opcode(self) -> Option<u8> {
+    pub(crate) const fn single_byte_evm_opcode(self) -> Option<u8> {
         match self {
             Self::Dup(n @ 1..=16) => Some(dup(n)),
             Self::Swap(n @ 1..=16) => Some(swap(n)),
@@ -474,7 +474,7 @@ impl StackOp {
         if !self.is_valid() {
             return None;
         }
-        if let Some(opcode) = self.single_byte_opcode() {
+        if let Some(opcode) = self.single_byte_evm_opcode() {
             return Some(StackOpLowering::Direct(opcode, None));
         }
 

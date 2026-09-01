@@ -297,7 +297,7 @@ fn find_candidate(
             }
             None => {
                 if !inst.has_canonical_stack_effect()
-                    || inst.as_opcode().is_some_and(is_analysis_boundary)
+                    || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
                 {
                     return None;
                 }
