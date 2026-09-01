@@ -191,36 +191,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             return self.store_prepared_tuple_values(assignments);
         }
-        if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind
-            && rhs_elements.len() == elements.len()
-            && elements.iter().flatten().any(|element| self.is_storage_reference_binding(element))
-        {
-            let tuple_span = rhs.span;
-            let mut assignments = Vec::with_capacity(elements.len());
-            for (lhs, rhs) in elements.iter().zip(rhs_elements.iter()) {
-                let Some(rhs) = rhs else {
-                    if lhs.is_some() {
-                        return self.cx.report_unsupported(tuple_span, "storage reference tuple");
-                    }
-                    continue;
-                };
-                let Some(lhs) = lhs else {
-                    self.lower_expr(rhs)?;
-                    continue;
-                };
-                if !self.is_storage_reference_binding(lhs) {
-                    return self.cx.report_unsupported(lhs.span, "mixed storage tuple");
-                }
-                let Some(access) = self.storage_access(rhs) else {
-                    return self.cx.report_unsupported(rhs.span, "storage access");
-                };
-                let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
-                    return self.cx.report_unsupported(lhs.span, "storage reference target");
-                };
-                assignments.push(PreparedTupleAssignment::StorageReference { id, access });
-            }
-            return self.apply_tuple_assignments(assignments);
-        }
         if let Some(builtin) = self.low_level_call_builtin(rhs) {
             let values = self.lower_low_level_call_values(
                 rhs,

@@ -113,3 +113,40 @@ fn @test_h() -> u256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word]] {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
+
+fn @mapping_reference() -> (u8, u8, u8, u8) [selector=0xc5744cb1, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>]] {
+  bb0:
+    v0 = and 1, 255
+    v1 = mapping_slot v0, 2
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = not 255
+    v4 = and v2, v3
+    v5 = and 42, 255
+    v6 = or v4, v5
+    sstore v1, v6 !metadata(storage=symbolic(v1))
+    v7 = and 2, 255
+    v8 = mapping_slot v7, 3
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    v10 = not 255
+    v11 = and v9, v10
+    v12 = and 21, 255
+    v13 = or v11, v12
+    sstore v8, v13 !metadata(storage=symbolic(v8))
+    v14 = and 1, 255
+    v15 = mapping_slot v14, 2
+    v16 = sload v15 !metadata(storage=symbolic(v15))
+    v17 = and v16, 255
+    v18 = and 2, 255
+    v19 = mapping_slot v18, 2
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = and v20, 255
+    v22 = and 1, 255
+    v23 = mapping_slot v22, 3
+    v24 = sload v23 !metadata(storage=symbolic(v23))
+    v25 = and v24, 255
+    v26 = and 2, 255
+    v27 = mapping_slot v26, 3
+    v28 = sload v27 !metadata(storage=symbolic(v27))
+    v29 = and v28, 255
+    ret v17, v21, v25, v29
+}
