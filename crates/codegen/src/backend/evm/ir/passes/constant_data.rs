@@ -1,4 +1,8 @@
 //! Replace consecutive constant memory stores with program-data copies.
+//!
+//! The pass appends each copied run to program data and replaces its stores
+//! with `CODECOPY`. It skips modules that observe program-data layout through
+//! `CODESIZE`, because appending data would change the observed final byte.
 
 use super::{
     EvmPass,
@@ -32,6 +36,10 @@ struct Rewrite {
 }
 
 fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    if module.data_layout_is_observable() {
+        return false;
+    }
+
     let mut depths = None;
     let mut rewrites = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
