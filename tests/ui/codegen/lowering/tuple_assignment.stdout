@@ -237,6 +237,8 @@ bb16:
   mstore
   push 4
   calldataload
+  jump bb20
+bb20:
   push 160
   mstore
   push 64
@@ -247,8 +249,4 @@ bb19:
   push 128
   mstore
   push 9
-  push 160
-  mstore
-  push 64
-  push 128
-  return
+  jump bb20

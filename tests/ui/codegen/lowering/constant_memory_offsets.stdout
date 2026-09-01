@@ -51,6 +51,8 @@ bb5:
   swap 1
   mstore
   push 128
+  jump bb9
+bb9:
   swap 1
   keccak256
   push 128
@@ -108,13 +110,7 @@ bb6:
   push 32
   add
   push 96
-  swap 1
-  keccak256
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb9
 bb8 [cold]:
   push 0x4e487b71
   push 224

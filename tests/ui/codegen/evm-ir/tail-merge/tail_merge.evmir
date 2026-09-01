@@ -1,4 +1,4 @@
-//@compile-flags: -Osize -Zevm-ir-pipeline=tail-merge --evm-version amsterdam
+//@compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge --evm-version amsterdam
 //@filecheck:
 @module module
 

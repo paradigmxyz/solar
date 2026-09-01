@@ -13,16 +13,14 @@ contract SF {
     // CHECK-NEXT: push [[TOP:bb[0-9]+]]
     // CHECK: push 0x86b714e2
     // CHECK-NEXT: {{eq|sub}}
-    // CHECK-NEXT: push [[GETTER:bb[0-9]+]]
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
-    // CHECK: [[GETTER]]:
+    // CHECK: {{bb[0-9]+}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 32
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: return
+    // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
+    // CHECK: [[GETTER_RETURN]]:
+    // CHECK: return
     // The getter's accessed memory ranges are proven disjoint from the reserved FMP word, so the
     // allocating entry alone initializes its reachable frame floor.
     // CHECK-NOT: push 64
@@ -47,11 +45,16 @@ contract SF {
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
-    // CHECK: push [[CHAIN_RET:bb[0-9]+]]
-    // CHECK-NEXT: jump {{bb[0-9]+}}
-    // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
+    // CHECK: push bb80
+    // CHECK-NEXT: jump [[REC_DISPATCH:bb[0-9]+]]
+    // CHECK: [[REC_DISPATCH]]:
+    // CHECK: push 288
+    // CHECK-NEXT: add
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

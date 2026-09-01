@@ -2,14 +2,9 @@
 //@filecheck:
 @module GasHotTailMerge
 
-// Runtime-gas mode may share cold error paths, but it must not add a jump on
-// a hot execution path solely to save deployed bytes.
+// Gas mode shares profitable hot tails.
 // CHECK-LABEL: bb0:
-// CHECK-NEXT: push 1
-// CHECK-NEXT: push 22
-// CHECK-NEXT: push 33
-// CHECK-NEXT: push 44
-// CHECK-NEXT: stop
+// CHECK: jump
 bb0:
   push 1
   push 22
@@ -18,11 +13,7 @@ bb0:
   stop
 
 // CHECK-LABEL: bb1:
-// CHECK-NEXT: push 2
-// CHECK-NEXT: push 22
-// CHECK-NEXT: push 33
-// CHECK-NEXT: push 44
-// CHECK-NEXT: stop
+// CHECK: jump
 bb1:
   push 2
   push 22

@@ -19,11 +19,12 @@ contract C {
     // CHECK: [[CALL]]:
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
+    // CHECK: jump [[RETURN:bb[0-9]+]]
+    // CHECK: [[RETURN]]:
     // CHECK: return
-    // CHECK: [[DELEGATE]]:
     // CHECK: calldatacopy
     // CHECK: delegatecall
-    // CHECK: return
+    // CHECK: jump [[RETURN]]
     function callFwd(address t, bytes calldata data) external returns (bool) {
         (bool ok, ) = t.call(data);
         return ok;

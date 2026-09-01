@@ -23,22 +23,15 @@ contract AssemblerBlockDedup {
     // CHECK: push 0xfeb97429
     // CHECK: push [[TWO]]
     // CHECK: [[ONE]]:
-    // CHECK-NEXT: push 1
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 32
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: return
+    // CHECK: push 1
+    // CHECK: jump [[RETURN:bb[0-9]+]]
+    // CHECK: [[RETURN]]:
+    // CHECK: return
     // CHECK: [[TWO]]:
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldatasize
-    // CHECK-NEXT: sub
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK: jumpi
     // CHECK: push 2
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push 32
-    // CHECK-NEXT: push 128
-    // CHECK-NEXT: return
+    // CHECK: jump [[RETURN]]
     function d(bool fail) public pure returns (uint256) {
         if (fail) revert();
         return 2;

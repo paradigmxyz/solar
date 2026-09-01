@@ -21,12 +21,12 @@ bb0:
   dup 1
   push 0x5ce8bda8
   eq
-  push bb9
+  push bb16
   jumpi
   dup 1
   push 0xfeb97429
   eq
-  push bb9
+  push bb16
   jumpi
   jump bb6
 bb6 [cold]:
@@ -35,12 +35,14 @@ bb6 [cold]:
   revert
 bb7:
   push 1
+  jump bb15
+bb15:
   push 128
   mstore
   push 32
   push 128
   return
-bb9:
+bb16:
   push 4
   calldatasize
   sub
@@ -61,8 +63,4 @@ bb9:
   push bb6
   jumpi
   push 2
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb15

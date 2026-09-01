@@ -19,8 +19,8 @@ bb75 [cold]:
   push 0
   mstore
   push 50
-  jump bb76
-bb76 [cold]:
+  jump bb77
+bb77 [cold]:
   push 4
   mstore
   push 36
@@ -875,6 +875,8 @@ bb48:
   push 32
   mstore
   push bb49
+  jump bb78
+bb78:
   push 64
   push 0
   keccak256
@@ -886,6 +888,8 @@ bb49:
   push 160
   mstore
   mload
+  jump bb76
+bb76:
   push 128
   mstore
   push 32
@@ -909,12 +913,7 @@ bb50:
   push 32
   mstore
   push bb52
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
-  jump bb69
+  jump bb78
 bb52:
   dup 1
   push 160
@@ -937,11 +936,7 @@ bb52:
   push 248
   shl
   and
-  push 128
-  mstore
-  push 32
-  push 128
-  return
+  jump bb76
 bb56:
   push 4
   calldatasize
@@ -1095,12 +1090,7 @@ bb65:
   push 32
   mstore
   push bb66
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
-  jump bb69
+  jump bb78
 bb66:
   dup 1
   push 224
@@ -1262,7 +1252,7 @@ bb27 [cold]:
   push 0
   mstore
   push 65
-  jump bb76
+  jump bb77
 bb28 [cold]:
   push 0x4e487b71
   push 224
@@ -1270,7 +1260,7 @@ bb28 [cold]:
   push 0
   mstore
   push 17
-  jump bb76
+  jump bb77
 bb39 [cold]:
   push 0x4e487b71
   push 224
@@ -1278,4 +1268,4 @@ bb39 [cold]:
   push 0
   mstore
   push 49
-  jump bb76
+  jump bb77

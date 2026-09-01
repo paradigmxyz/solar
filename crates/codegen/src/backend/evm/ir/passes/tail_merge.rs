@@ -3,8 +3,7 @@
 //! The pass groups blocks by their terminator and indexes representative tails
 //! in reverse. This finds each block's longest shared suffix without comparing
 //! it with every earlier block. It then splits profitable suffixes into shared
-//! tail blocks until no new merges remain. Gas mode shares only cold blocks:
-//! entering a shared tail adds a jump to every hot execution.
+//! tail blocks until no new merges remain.
 
 use super::{
     EvmPass,
@@ -14,7 +13,6 @@ use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
     op::{StackOp, push_len},
 };
-use solar_config::OptimizationMode;
 use solar_data_structures::map::FxHashMap;
 use solar_sema::Gcx;
 
@@ -69,10 +67,7 @@ impl RunState {
         self.tail_node_pool.append(&mut self.tail_nodes);
         self.tail_node_pool.iter_mut().for_each(TailNode::clear);
         for (block_id, block) in module.blocks.iter_enumerated() {
-            if !is_candidate(block)
-                || (matches!(gcx.sess.opts.optimization, OptimizationMode::Gas)
-                    && !block.metadata.hotness.is_cold())
-            {
+            if !is_candidate(block) {
                 continue;
             }
 
