@@ -21,7 +21,7 @@ pub(in crate::backend::evm) mod builder;
 mod display;
 mod parse;
 mod passes;
-mod verify;
+pub(in crate::backend::evm) mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
@@ -31,43 +31,16 @@ pub(in crate::backend::evm) use passes::{
     LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::ImmediateMaterialization, legalize_shifts,
 };
 
+/// Validates the target-independent invariants of an EVM IR module.
+pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
+    verify::validate(dcx, module, verify::Validation::Structural);
+}
+
 /// Maximum stack reserve used by parameterized machine-run outlining.
 pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;
 
 /// Peak stack growth when replacing memory stores with a program-data copy.
 pub(in crate::backend::evm) const DATA_COPY_STACK_HEADROOM: usize = 3;
-
-/// Validates the invariants of an EVM IR module.
-pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
-    verify::validate(dcx, module);
-}
-
-/// Validates EVM IR invariants for a target EVM version.
-pub(crate) fn validate_for_evm_version(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    verify::validate_for_evm_version(dcx, module, evm_version);
-}
-
-/// Validates that every opcode is available for the selected EVM version.
-pub(in crate::backend::evm) fn validate_evm_version(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    verify::validate_evm_version(dcx, module, evm_version, false);
-}
-
-/// Validates opcode availability before pre-Constantinople shifts are legalized.
-pub(in crate::backend::evm) fn validate_evm_version_before_legalization(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    verify::validate_evm_version(dcx, module, evm_version, true);
-}
 
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.

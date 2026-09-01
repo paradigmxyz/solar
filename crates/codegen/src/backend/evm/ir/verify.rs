@@ -7,19 +7,27 @@ use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
+/// The EVM IR validation required at one backend phase.
+#[derive(Clone, Copy)]
+pub(in crate::backend::evm) enum Validation {
+    /// Check target-independent EVM IR invariants.
+    Structural,
+    /// Check that logical stack operations lower for the selected target.
+    StackOps(EvmVersion),
+    /// Check opcode availability before target legalization removes unavailable opcodes.
+    OpcodesBeforeLegalization(EvmVersion),
+    /// Check opcode availability for the selected target.
+    Opcodes(EvmVersion),
+}
+
 /// EVM IR verifier.
 struct Verifier<'a> {
     dcx: &'a DiagCtxt,
-    evm_version: Option<EvmVersion>,
 }
 
 impl<'a> Verifier<'a> {
     const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, evm_version: None }
-    }
-
-    const fn for_evm_version(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
-        Self { dcx, evm_version: Some(evm_version) }
+        Self { dcx }
     }
 
     #[track_caller]
@@ -141,13 +149,6 @@ impl<'a> Verifier<'a> {
                 }
                 if !stack_op.is_valid() {
                     self.error_in_block(block_id, "logical stack operation has invalid depths");
-                } else if let Some(evm_version) = self.evm_version
-                    && stack_op.assembled_len(evm_version).is_none()
-                {
-                    self.error_in_block(
-                        block_id,
-                        format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
-                    );
                 }
             } else if op::StackOp::from_single_byte_evm_opcode(inst.opcode).is_some()
                 || matches!(inst.opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
@@ -158,11 +159,6 @@ impl<'a> Verifier<'a> {
                 );
             } else if inst.opcode == op::PUSH0 {
                 self.error_in_block(block_id, "`push0` must use the logical push form");
-            } else if let Some(evm_version) = self.evm_version
-                && inst.opcode == op::SLOTNUM
-                && !evm_version.has_slot_num()
-            {
-                self.error_in_block(block_id, "`slotnum` requires Amsterdam-compatible EVM");
             }
             if (op::PUSH1..=op::PUSH32).contains(&inst.opcode) {
                 self.error_in_block(
@@ -445,11 +441,20 @@ fn terminator_name(kind: &TerminatorKind) -> &'static str {
     }
 }
 
-pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
-    Verifier::new(dcx).verify_module(module);
+pub(in crate::backend::evm) fn validate(dcx: &DiagCtxt, module: &Module, validation: Validation) {
+    match validation {
+        Validation::Structural => Verifier::new(dcx).verify_module(module),
+        Validation::StackOps(evm_version) => validate_stack_ops(dcx, module, evm_version),
+        Validation::OpcodesBeforeLegalization(evm_version) => {
+            validate_opcodes(dcx, module, evm_version, true);
+        }
+        Validation::Opcodes(evm_version) => {
+            validate_opcodes(dcx, module, evm_version, false);
+        }
+    }
 }
 
-pub(super) fn validate_evm_version(
+fn validate_opcodes(
     dcx: &DiagCtxt,
     module: &Module,
     evm_version: EvmVersion,
@@ -457,9 +462,7 @@ pub(super) fn validate_evm_version(
 ) {
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
-            if let Some(stack_op) = inst.as_stack_op() {
-                validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
-            } else {
+            if inst.as_stack_op().is_none() {
                 validate_opcode(dcx, block_id, inst.opcode, evm_version, allow_unlegalized_opcodes);
             }
         }
@@ -469,11 +472,7 @@ pub(super) fn validate_evm_version(
     }
 }
 
-pub(super) fn validate_stack_ops_for_evm_version(
-    dcx: &DiagCtxt,
-    module: &Module,
-    evm_version: EvmVersion,
-) {
+fn validate_stack_ops(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             if let Some(stack_op) = inst.as_stack_op() {
@@ -523,10 +522,6 @@ fn validate_opcode(
     }
 }
 
-pub(super) fn validate_for_evm_version(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
-    Verifier::for_evm_version(dcx, evm_version).verify_module(module);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -546,7 +541,7 @@ mod tests {
             module.blocks[target].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
             let dcx = DiagCtxt::with_silent_emitter(None);
-            validate(&dcx, &module);
+            validate(&dcx, &module, Validation::Structural);
             assert_eq!(dcx.err_count(), expected_errors);
         }
     }
@@ -563,11 +558,15 @@ mod tests {
         module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
         let osaka = DiagCtxt::with_silent_emitter(None);
-        validate_for_evm_version(&osaka, &module, EvmVersion::Osaka);
+        validate(&osaka, &module, Validation::Structural);
+        validate(&osaka, &module, Validation::StackOps(EvmVersion::Osaka));
+        validate(&osaka, &module, Validation::OpcodesBeforeLegalization(EvmVersion::Osaka));
         assert_eq!(osaka.err_count(), 2);
 
         let amsterdam = DiagCtxt::with_silent_emitter(None);
-        validate_for_evm_version(&amsterdam, &module, EvmVersion::Amsterdam);
+        validate(&amsterdam, &module, Validation::Structural);
+        validate(&amsterdam, &module, Validation::StackOps(EvmVersion::Amsterdam));
+        validate(&amsterdam, &module, Validation::OpcodesBeforeLegalization(EvmVersion::Amsterdam));
         assert_eq!(amsterdam.err_count(), 0);
     }
 }

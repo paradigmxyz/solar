@@ -34,9 +34,13 @@ impl Assembler<'_> {
             return failed_preparation(ir_program, capture_evm_ir);
         }
         if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
-            ir::validate(self.gcx.dcx(), &ir_program);
+            ir::verify::validate(self.gcx.dcx(), &ir_program, ir::verify::Validation::Structural);
         }
-        ir::validate_evm_version(self.gcx.dcx(), &ir_program, self.gcx.sess.opts.evm_version);
+        ir::verify::validate(
+            self.gcx.dcx(),
+            &ir_program,
+            ir::verify::Validation::Opcodes(self.gcx.sess.opts.evm_version),
+        );
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
