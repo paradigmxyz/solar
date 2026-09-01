@@ -9,7 +9,7 @@ use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
 use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
 use solar_data_structures::{
-    BumpExt,
+    BumpExt, DropArena,
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
@@ -349,6 +349,7 @@ pub struct GlobalCtxt<'gcx> {
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
+    cached_arenas: ThreadLocal<DropArena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
@@ -384,6 +385,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
+            cached_arenas: ThreadLocal::new(),
             interner,
             cache: Cache::default(),
             override_index: OnceLock::new(),
@@ -456,6 +458,10 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn bump(self) -> &'gcx bumpalo::Bump {
         self.arena().bump()
+    }
+
+    fn cached_arena(self) -> &'gcx DropArena {
+        self.cached_arenas.get_or_default()
     }
 
     pub fn alloc<T>(self, value: T) -> &'gcx T {
@@ -1521,17 +1527,17 @@ macro_rules! cached {
 cached! {
 /// Returns the ABI of the given contract.
 pub fn contract_abi(gcx: _, id: hir::ContractId) -> &'gcx [alloy_json_abi::AbiItem<'gcx>] {
-    gcx.bump().alloc_slice_fill_iter(gcx.build_contract_abi(id))
+    gcx.cached_arena().alloc_slice_fill_iter(gcx.build_contract_abi(id))
 }
 
 /// Returns the developer documentation for the given contract.
 pub fn dev_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
-    gcx.alloc(gcx.build_dev_documentation(id))
+    gcx.cached_arena().alloc(gcx.build_dev_documentation(id))
 }
 
 /// Returns the user documentation for the given contract.
 pub fn user_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
-    gcx.alloc(gcx.build_user_documentation(id))
+    gcx.cached_arena().alloc(gcx.build_user_documentation(id))
 }
 
 fn virtual_function_target(
