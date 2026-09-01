@@ -631,7 +631,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ty = self.cx.gcx.type_of_expr(value.id);
                 let value = self.lower_expr(value)?;
                 let value = ty.map_or(value, |ty| self.normalize_dirty_scalar(value, ty));
-                self.unary(op.kind, value, expr.span, self.cx.gcx.type_of_expr(expr.id))
+                Some(self.unary(op.kind, value, self.cx.gcx.type_of_expr(expr.id)))
             }
             ExprKind::Assign(lhs, op, rhs) => {
                 let compound_op = op.map(|op| op.kind);

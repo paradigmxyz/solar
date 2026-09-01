@@ -304,14 +304,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn unary(
-        &mut self,
-        op: UnOpKind,
-        value: ValueId,
-        span: Span,
-        ty: Option<Ty<'gcx>>,
-    ) -> Option<ValueId> {
-        Some(match op {
+    pub(super) fn unary(&mut self, op: UnOpKind, value: ValueId, ty: Option<Ty<'gcx>>) -> ValueId {
+        match op {
             UnOpKind::Not => self.builder.iszero(value),
             UnOpKind::Neg => {
                 if !self.unchecked
@@ -331,13 +325,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             UnOpKind::BitNot => {
                 let result = self.builder.not(value);
-                let Some(ty) = ty else { return Some(result) };
+                let Some(ty) = ty else { return result };
                 self.clean_bit_not_result(result, ty)
             }
             UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec => {
-                return self.cx.report_unsupported(span, "increment or decrement");
+                unreachable!("increment and decrement lower before `unary`")
             }
-        })
+        }
     }
 
     fn clean_bit_not_result(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
