@@ -62,7 +62,7 @@ impl MirPass for EvmInstSchedule {
 impl EvmInstSchedule {
     fn run_on_function(func: &mut Function) -> bool {
         let mut changed = false;
-        let block_ids = func.blocks.indices().collect::<Vec<_>>();
+        let block_ids = func.blocks.indices();
         let shared_results = Self::shared_results(func);
         let mut scratch = ScheduleScratch::new(func.num_insts());
 

@@ -7,7 +7,7 @@
 //! mapping and storage-array hashes use reserved scratch.
 
 use crate::{
-    mir::{BlockId, FunctionBuilder, InstKind, MemoryObjectKind, Module, SliceLocation},
+    mir::{FunctionBuilder, InstKind, MemoryObjectKind, Module, SliceLocation},
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::map::FxHashMap;
@@ -46,7 +46,7 @@ impl MirPass for LowerMappingSlots {
             }
 
             let mut replacements = FxHashMap::default();
-            let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+            let block_ids = func.blocks.indices();
             for block_id in block_ids {
                 let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
                 let mut builder = FunctionBuilder::new(func);

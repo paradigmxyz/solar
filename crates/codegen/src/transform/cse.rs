@@ -298,7 +298,7 @@ impl CommonSubexprEliminator {
         self.process_global_pure(func, cfg);
 
         // Process each block independently (local CSE)
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             self.alias().clear_cached_addresses();
             self.process_block(func, block_id);
@@ -1222,7 +1222,7 @@ impl CommonSubexprEliminator {
         func: &mut Function,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             self.apply_replacements(func, block_id, replacements);
         }

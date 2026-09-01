@@ -73,7 +73,7 @@ impl InstSimplifier {
 
         state.replacements.clear();
         state.dead.clear();
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
 
         for block_id in block_ids {
             let instruction_count = func.blocks[block_id].instructions.len();

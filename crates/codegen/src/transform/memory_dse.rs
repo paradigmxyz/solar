@@ -407,7 +407,7 @@ impl MemoryStoreEliminator {
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
 
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         let has_precise_reads = func
             .instructions()
             .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
@@ -457,8 +457,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        if block_ids.is_empty() {
+        if func.blocks.is_empty() {
             return;
         }
 
@@ -493,7 +492,7 @@ impl MemoryStoreEliminator {
 
         // Collect dead stores using the stabilized live-out of each block.
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
             self.transfer_block(func, block_id, out, &mut collector);
@@ -717,7 +716,7 @@ impl MemoryStoreEliminator {
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
 
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let insts = func.blocks[block_id].instructions.clone();
             for (index, window) in insts.windows(2).enumerate() {

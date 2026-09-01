@@ -58,7 +58,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
 
     materialize_mixed_byte_phis(func);
     let mut replacements = FxHashMap::default();
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
 
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -370,7 +370,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
 /// allocation per argument; one bump for the whole group keeps the same
 /// disjoint ranges while removing repeated free-memory-pointer updates.
 fn coalesce_constant_allocations(func: &mut Function) {
-    for block in func.blocks.indices().collect::<Vec<_>>() {
+    for block in func.blocks.indices() {
         let instructions = func.blocks[block].instructions.clone();
         let mut position = 0;
         while position < instructions.len() {
@@ -505,7 +505,7 @@ fn slice_load_kind(location: SliceLocation, address: crate::mir::ValueId) -> Opt
 /// representation on both edges, so copy the slice into a fresh bytes object
 /// before forming the phi.
 fn materialize_mixed_byte_phis(func: &mut Function) {
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let phis: Vec<_> = func.blocks[block]
             .instructions
@@ -654,8 +654,7 @@ fn lower_object_copy<P: MemoryLayoutPolicy>(
 }
 
 fn erase_object_types(func: &mut Function) {
-    let arg_indices: Vec<_> = func.arg_indices().collect();
-    for index in arg_indices {
+    for index in func.arg_indices() {
         let mut ty = func.arg_ty(index);
         erase_object_type(&mut ty);
         func.set_arg_ty(index, ty);

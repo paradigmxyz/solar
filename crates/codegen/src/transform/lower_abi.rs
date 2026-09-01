@@ -295,7 +295,7 @@ impl LowerAbiCx {
     /// Materializes a failed external-call revert at the ABI boundary.
     fn lower_revert_returndata(&self, module: &mut Module, evm_version: EvmVersion) {
         for func in module.functions.iter_mut() {
-            let blocks: Vec<_> = func.blocks.indices().collect();
+            let blocks = func.blocks.indices();
             for block in blocks {
                 if !matches!(func.blocks[block].terminator, Some(Terminator::RevertReturndata)) {
                     continue;
@@ -395,7 +395,7 @@ impl LowerAbiCx {
             let func = module.function_mut(func_id);
             let mut replacements = FxHashMap::default();
             let mut builder = FunctionBuilder::new(func);
-            let blocks: Vec<_> = builder.func().blocks.indices().collect();
+            let blocks = builder.func().blocks.indices();
             for block in blocks {
                 let instructions =
                     std::mem::take(&mut builder.func_mut().blocks[block].instructions);
@@ -895,7 +895,7 @@ impl LowerAbiCx {
 
     /// Rewrites every value-carrying fallback return into raw returndata.
     fn lower_bytes_fallback_returns(func: &mut Function) -> bool {
-        let blocks: Vec<_> = func.blocks.indices().collect();
+        let blocks = func.blocks.indices();
         for block in blocks {
             let Some(Terminator::Return { values }) = func.blocks[block].terminator.clone() else {
                 continue;

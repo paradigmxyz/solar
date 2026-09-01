@@ -45,7 +45,7 @@ fn lower_function(func: &mut Function) -> bool {
     }
 
     let mut replacements = FxHashMap::default();
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
 
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);

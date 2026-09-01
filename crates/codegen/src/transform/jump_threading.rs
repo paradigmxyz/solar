@@ -192,7 +192,7 @@ impl JumpThreader {
 
     /// Updates all terminators to use the final targets.
     fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let Some(mut term) = func.blocks[block_id].terminator.clone() else {
                 continue;
@@ -311,7 +311,7 @@ impl JumpThreader {
 
     fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
         let mut rewrites = Vec::new();
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
 
         for block_id in block_ids {
             if !func.block_has_only_phis(block_id) {
@@ -471,12 +471,11 @@ impl JumpThreader {
 
     /// Updates CFG edges after threading.
     fn update_cfg_edges(&self, func: &mut Function) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
-        for block_id in &block_ids {
-            func.blocks[*block_id].predecessors.clear();
+        for block_id in func.blocks.indices() {
+            func.blocks[block_id].predecessors.clear();
         }
 
-        for block_id in block_ids {
+        for block_id in func.blocks.indices() {
             let successors = func.blocks[block_id]
                 .terminator
                 .as_ref()

@@ -148,7 +148,7 @@ impl Function {
     }
 
     /// Returns all argument indexes.
-    pub(crate) fn arg_indices(&self) -> impl Iterator<Item = ArgIdx> + '_ {
+    pub(crate) fn arg_indices(&self) -> impl Iterator<Item = ArgIdx> + use<> {
         self.arg_types.indices()
     }
 

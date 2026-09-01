@@ -4,7 +4,7 @@
 //! `calldatasize()` implements an arbitrary-length zero fill without a loop.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, InstKind, Module},
+    mir::{Function, FunctionBuilder, InstKind, Module},
     pass::MirPass,
 };
 use solar_sema::Gcx;
@@ -40,7 +40,7 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let blocks: Vec<BlockId> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);

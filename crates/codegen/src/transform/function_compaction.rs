@@ -289,7 +289,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
         }
     }
 
-    let function_ids = module.functions.indices().collect::<Vec<_>>();
+    let function_ids = module.functions.indices();
     for func_id in function_ids {
         if live[func_id].count() == live[func_id].domain_size() {
             continue;

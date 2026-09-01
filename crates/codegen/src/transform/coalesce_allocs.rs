@@ -73,7 +73,7 @@ fn coalesce_function(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    let blocks = func.blocks.indices().collect::<Vec<_>>();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = func.blocks[block].instructions.clone();
         let mut group = Vec::<Member>::new();

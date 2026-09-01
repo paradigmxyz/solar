@@ -139,7 +139,6 @@ impl LowerSlices {
     /// memory object, so the physical word types may differ. Keep the pointer
     /// and length paths separate at the backend boundary.
     fn lower_mixed_slice_phis(func: &mut Function) -> bool {
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
         let mut removed = FxHashSet::default();
         let mut insertions = FxHashMap::default();
@@ -158,7 +157,7 @@ impl LowerSlices {
             }
         }
 
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             let instructions = func.blocks[block_id].instructions.clone();
             for inst_id in instructions {
                 let InstKind::Phi(incoming) = func.inst(inst_id).kind.clone() else { continue };
@@ -237,8 +236,7 @@ impl LowerSlices {
         let mut replacements = FxHashMap::default();
 
         // Selects: rewrite in place within their block.
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             let insts = std::mem::take(&mut func.blocks[block_id].instructions);
             let mut out = Vec::with_capacity(insts.len());
             for inst_id in insts {
@@ -264,7 +262,7 @@ impl LowerSlices {
 
         // Phis: project each incoming slice in its predecessor, phi the
         // pointer and length words, and rebuild the slice after the phis.
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             // Collect the leading slice phis before mutating, since forming the
             // paired words allocates instructions and values.
             let mut slice_phis = Vec::new();
@@ -326,7 +324,7 @@ impl LowerSlices {
         signatures: &FxHashMap<FunctionId, IndexVec<ArgIdx, ParamRepr>>,
     ) -> bool {
         let mut changed = false;
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
             let mut builder = FunctionBuilder::new(func);
@@ -369,7 +367,7 @@ impl LowerSlices {
         let mut changed = false;
         let mut replacements = FxHashMap::default();
         let mut constructors = Vec::new();
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
             let mut builder = FunctionBuilder::new(func);
@@ -456,7 +454,7 @@ impl LowerSlices {
         }
         let shifted = Self::shifted_frame_offsets(func, added_slots)
             .expect("slice return expansion was checked before lowering");
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let Some(Terminator::Return { values }) = func.blocks[block_id].terminator.as_ref()
             else {
@@ -603,7 +601,7 @@ impl LowerSlices {
 
     fn lower_compact_values(func: &mut Function, raw_heads: &FxHashMap<ValueId, ValueId>) {
         let mut replacements = raw_heads.clone();
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let instructions = std::mem::take(&mut func.blocks[block_id].instructions);
             let mut builder = FunctionBuilder::new(func);

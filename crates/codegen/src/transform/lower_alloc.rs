@@ -78,7 +78,7 @@ fn lower_function(func: &mut Function) -> bool {
         block_index += 1;
     }
 
-    let blocks: Vec<BlockId> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);

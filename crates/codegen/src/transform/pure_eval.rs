@@ -209,7 +209,7 @@ impl PureEvaluator {
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
         let entry = BlockId::ENTRY;
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let block = &mut func.blocks[block_id];
             block.instructions.clear();

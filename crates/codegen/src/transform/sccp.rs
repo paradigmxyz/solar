@@ -562,10 +562,9 @@ impl SccpCx {
 
         // Phase 2: Collect branch rewrites BEFORE operand replacement, because
         // replacement may allocate new ValueIds that don't have lattice entries.
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut control_rewrites: Vec<(BlockId, BlockId)> = Vec::new();
         let mut executable_successors = DenseBitSet::new_empty(func.blocks.len());
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             if !executable_blocks.contains(block_id) {
                 continue;
             }
@@ -595,7 +594,7 @@ impl SccpCx {
             for inst_id in all_insts {
                 mir_utils::replace_inst_uses(&mut func.inst_mut(inst_id).kind, &const_values);
             }
-            for &block_id in &block_ids {
+            for block_id in func.blocks.indices() {
                 if let Some(term) = &mut func.blocks[block_id].terminator {
                     mir_utils::replace_terminator_uses(term, &const_values);
                 }
@@ -603,7 +602,7 @@ impl SccpCx {
         }
 
         // Phase 4: Remove dead (folded) instructions from blocks.
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             func.blocks[block_id].instructions.retain(|&id| !dead_insts.contains(id));
         }
 
@@ -631,7 +630,7 @@ impl SccpCx {
         }
 
         // Phase 6: Mark non-executable blocks as invalid.
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             if executable_blocks.contains(block_id) {
                 continue;
             }

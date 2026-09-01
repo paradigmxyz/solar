@@ -475,7 +475,7 @@ impl CfgSimplifier {
         while merged {
             merged = false;
 
-            let block_ids: Vec<_> = func.blocks.indices().collect();
+            let block_ids = func.blocks.indices();
             for block_id in block_ids {
                 if let Some(target) = self.can_merge(func, block_id) {
                     self.do_merge(func, block_id, target);
@@ -587,7 +587,7 @@ impl CfgSimplifier {
             eliminated = false;
 
             let cfg = CfgInfo::new(func);
-            let block_ids: Vec<_> = func.blocks.indices().collect();
+            let block_ids = func.blocks.indices();
             for block_id in block_ids {
                 if func.blocks[block_id].predecessors.is_empty() && cfg.is_reachable(block_id) {
                     continue;
