@@ -1,0 +1,90 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/parameter_headroom.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/parameter_headroom.evmir (after outline) ===
+  @module ParameterHeadroom
+  bb0:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    jump bb1
+  bb1:
+    push 3
+    push 1
+    push 2
+    push 4
+    add
+    add
+    add
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    pop
+    jump bb2
+  bb2:
+    push 5
+    push 1
+    push 2
+    push 6
+    add
+    add
+    add
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    pop
+    jump bb3
+  bb3:
+    push 7
+    push 1
+    push 2
+    push 8
+    add
+    add
+    add
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    pop
+    jump bb4
+  bb4:
+    push 9
+    push 1
+    push 2
+    push 10
+    add
+    add
+    add
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    not
+    pop
+    stop
+  

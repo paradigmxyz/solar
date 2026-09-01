@@ -1,0 +1,94 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module ParameterHeadroom
+
+// Each run peaks at 1,024 words, but its parameterized stub would keep two
+// parameters and a continuation below two ordinary pushes. Outlining must not
+// turn the valid runs into a stack overflow.
+// CHECK-NOT: +   jump
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  jump bb1
+bb1:
+  push 3
+  push 1
+  push 2
+  push 4
+  add
+  add
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb2
+bb2:
+  push 5
+  push 1
+  push 2
+  push 6
+  add
+  add
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb3
+bb3:
+  push 7
+  push 1
+  push 2
+  push 8
+  add
+  add
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  jump bb4
+bb4:
+  push 9
+  push 1
+  push 2
+  push 10
+  add
+  add
+  add
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  not
+  pop
+  stop

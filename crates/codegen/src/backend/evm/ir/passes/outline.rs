@@ -21,7 +21,10 @@
 use super::{
     EvmPass,
     compact_pushes::selected_len,
-    utils::{FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound},
+    utils::{
+        FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound,
+        relative_stack_high_water,
+    },
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -370,13 +373,15 @@ fn outline_parametric_machine_runs(
         if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
             continue;
         }
-        let added_peak = parameters.len() + 2;
+        let Some(stub_body) = parameterize_body(first_body, &parameters) else { continue };
+        let Some(added_peak) = parameterized_outline_peak(&stub_body, parameters.len()) else {
+            continue;
+        };
         free.retain(|site| has_headroom(module, &mut depths, site.block, site.start, added_peak));
         if free.len() < 2 {
             continue;
         }
 
-        let Some(stub_body) = parameterize_body(first_body, &parameters) else { continue };
         let inline_size = free
             .iter()
             .map(|site| {
@@ -497,6 +502,11 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
         result.push(inst.clone());
     }
     Some(result)
+}
+
+fn parameterized_outline_peak(stub_body: &[Instruction], parameters: usize) -> Option<usize> {
+    let stub_peak = usize::try_from(relative_stack_high_water(stub_body)?).ok()?;
+    Some((parameters + 2).max(parameters + 1 + stub_peak))
 }
 
 fn apply_parametric_outline_edits(
