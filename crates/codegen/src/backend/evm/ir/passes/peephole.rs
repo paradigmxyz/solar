@@ -94,7 +94,7 @@ const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut changed = false;
     let mut scratch = Vec::new();
-    for (_, block) in module.blocks.iter_mut_enumerated() {
+    for block in &mut module.blocks {
         changed |= optimize(gcx, &mut block.instructions, &mut scratch, block.label);
     }
     changed
@@ -102,11 +102,11 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 fn cleanup_stop_stacks(module: &mut Module) -> bool {
     let mut changed = false;
-    for (_, block) in module.blocks.iter_mut_enumerated() {
+    for block in &mut module.blocks {
         if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
             && let Some(suffix) = self_contained_stack_suffix(&block.instructions)
         {
-            block.instructions.truncate(suffix.start);
+            block.instructions.truncate(suffix);
             changed = true;
         }
     }
@@ -118,7 +118,7 @@ const fn is_explicit_stack_unobservable_terminal(terminator: &Terminator) -> boo
         && matches!(terminator.kind, TerminatorKind::Op(op::STOP | op::INVALID))
 }
 
-fn self_contained_stack_suffix(instructions: &[Instruction]) -> Option<StackSuffix> {
+fn self_contained_stack_suffix(instructions: &[Instruction]) -> Option<usize> {
     let start = instructions
         .iter()
         .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
@@ -137,11 +137,7 @@ fn self_contained_stack_suffix(instructions: &[Instruction]) -> Option<StackSuff
         required = required.max(inputs as isize - depth);
         depth += isize::from(effect.outputs) - isize::from(effect.inputs);
     }
-    (required == 0).then_some(StackSuffix { start })
-}
-
-struct StackSuffix {
-    start: usize,
+    (required == 0).then_some(start)
 }
 
 fn optimize(

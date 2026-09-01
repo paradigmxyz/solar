@@ -34,9 +34,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
     }
     let mut groups = 0usize;
     let mut words = 0usize;
-    for block_index in 0..module.blocks.len() {
-        let block_id = crate::backend::evm::ir::BlockId::from_usize(block_index);
-        let block = &mut module.blocks[block_id];
+    for block in &mut module.blocks {
         let mut edits = Vec::new();
         let mut index = 0;
         while index + COPY_INSTRUCTIONS <= block.instructions.len() {

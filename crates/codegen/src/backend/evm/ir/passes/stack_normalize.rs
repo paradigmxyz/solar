@@ -6,12 +6,11 @@
 //! input and output layouts, and asks the shared stack shuffler to synthesize an equivalent run.
 //! Results are cached by input sequence because generated code often repeats the same shuffle.
 //!
-//! A replacement must be lowerable on the selected EVM version, must not raise the run's relative
-//! stack peak or required entry depth, and must weakly improve encoded bytes, static gas, and
-//! instruction count while strictly improving at least one. The Pareto checks prevent
-//! target-specific deep stack ops from trading a regression in one objective for a win in another.
-//! Instructions with custom stack effects break a run, and metadata from retained positions is
-//! transferred to replacement ops.
+//! A replacement must be lowerable on the selected EVM version and must weakly improve encoded
+//! bytes, static gas, and instruction count while strictly improving at least one. The Pareto
+//! checks prevent target-specific deep stack ops from trading a regression in one objective for a
+//! win in another. Instructions with custom stack effects break a run, and metadata from retained
+//! positions is transferred to replacement ops.
 //!
 //! This is deliberately a small late machine-level normalizer, not a second MIR stack scheduler.
 //! It repairs local permutations exposed after value identities are gone, then peephole cleanup

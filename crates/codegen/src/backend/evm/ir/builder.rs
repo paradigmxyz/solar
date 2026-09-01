@@ -67,11 +67,6 @@ impl<'gcx> Assembler<'gcx> {
         self.push_ir_instruction(ir::Instruction::push_value(value));
     }
 
-    /// Emits an immediate whose transient materialization peak was included by the scheduler.
-    pub(crate) fn emit_scheduled_push(&mut self, value: U256) {
-        self.push_ir_instruction(ir::Instruction::push_value(value));
-    }
-
     /// Loads MIR constant data into the EVM IR module with matching IDs.
     pub(crate) fn load_data(&mut self, module: &MirModule) {
         assert!(self.program.data.is_empty(), "EVM IR data must be empty before loading MIR data");

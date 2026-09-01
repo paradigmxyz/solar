@@ -9,8 +9,6 @@
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
 //! target supports them. The exported cost helper uses the same selector, so other EVM IR passes
 //! can compare a prospective rewrite with the bytes and static gas that this pass will emit.
-//! Recipes may use more instructions and transient stack space than a literal push. Passes that
-//! move them account for the selected recipe's local stack shape.
 //!
 //! Recipe emission recursively selects materializations for child pushes, so one pass reaches a
 //! fixed point. The default pipeline expands recipes once before structural cleanup because tail

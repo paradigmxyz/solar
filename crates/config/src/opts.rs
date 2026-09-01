@@ -385,8 +385,12 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pass_diff: bool,
 
-    /// Validate MIR and EVM IR after each pass. Defaults to enabled in debug builds.
-    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "BOOL"))]
+    /// Validate MIR and EVM IR after each pass. Enabled by default in debug builds.
+    /// Accepts `true` or `false`.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "BOOL", hide_possible_values = true)
+    )]
     pub validate_ir: Option<bool>,
 
     /// Print the time spent in each MIR and EVM IR pass.

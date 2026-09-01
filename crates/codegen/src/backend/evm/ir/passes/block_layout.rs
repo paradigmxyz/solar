@@ -72,9 +72,6 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if state.order.iter().copied().eq(module.blocks.indices()) {
         return false;
     }
-    if state.order.iter().copied().eq(module.blocks.indices()) {
-        return false;
-    }
     remap_block_order(module, &state.order);
     true
 }

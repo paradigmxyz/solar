@@ -9104,7 +9104,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_stack_op(stack_op);
                 }
                 ScheduledOp::PushImmediate(imm) => {
-                    self.asm.emit_scheduled_push(imm);
+                    self.asm.emit_push(imm);
                 }
                 ScheduledOp::RematerializeNullary(opcode) => {
                     self.asm.emit_op(opcode);

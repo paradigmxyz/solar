@@ -14,13 +14,11 @@
 //! The expression tracker accepts only known one-result operations, rejects physical stack
 //! instructions and observations such as `PC` or `GAS`, and clears at unknown effects.
 //!
-//! For a logical concrete immediate, the pass queries the compact-push selector and accounts for
-//! the selected recipe's transient peak without first expanding it. This also keeps standalone pass
-//! pipelines safe when they run before compacting pushes. The first expression sweep is disabled
-//! for pre-extended-stack size builds because its interaction with later structural cleanup can
-//! increase code size there. The final sweep runs after structural sharing is fixed and enables it
-//! safely. The exact mixed-stack rules run in every optimized mode because they preserve the
-//! surrounding value layout and cannot increase local cost.
+//! The first expression sweep is disabled for pre-extended-stack size builds because its
+//! interaction with later structural cleanup can increase code size there. The final sweep runs
+//! after structural sharing is fixed and enables it safely. The exact mixed-stack rules run in
+//! every optimized mode because they preserve the surrounding value layout and cannot increase
+//! local cost.
 
 use super::EvmPass;
 use crate::backend::evm::{
