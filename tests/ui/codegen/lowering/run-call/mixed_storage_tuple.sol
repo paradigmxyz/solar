@@ -31,4 +31,3 @@ contract C {
         return y + arr[0].v;
     }
 }
-

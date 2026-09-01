@@ -138,46 +138,6 @@ impl<'gcx> StorageLayout<'gcx> {
         self.store_at(builder, location, slot, value);
     }
 
-    pub(super) fn load_at_slot(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        location: StorageLocation,
-        slot: ValueId,
-    ) -> ValueId {
-        self.load_at(builder, location, slot)
-    }
-
-    pub(super) fn store_at_slot(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        location: StorageLocation,
-        slot: ValueId,
-        value: ValueId,
-    ) {
-        self.store_at(builder, location, slot, value);
-    }
-
-    pub(super) fn load_packed_at_slot(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        location: StorageLocation,
-        slot: ValueId,
-        offset: ValueId,
-    ) -> ValueId {
-        self.load_at_offset(builder, location, slot, offset)
-    }
-
-    pub(super) fn store_packed_at_slot(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        location: StorageLocation,
-        slot: ValueId,
-        offset: ValueId,
-        value: ValueId,
-    ) {
-        self.store_at_offset(builder, location, slot, offset, value);
-    }
-
     pub(super) fn packed_encoding(&self, ty: Ty<'gcx>) -> Option<(TypeSize, StorageEncoding)> {
         self.builder.packed_encoding(ty)
     }
@@ -194,7 +154,7 @@ impl<'gcx> StorageLayout<'gcx> {
         self.builder.storage_slots(ty, span)
     }
 
-    fn load_at(
+    pub(super) fn load_at(
         &self,
         builder: &mut FunctionBuilder<'_>,
         location: StorageLocation,
@@ -205,7 +165,7 @@ impl<'gcx> StorageLayout<'gcx> {
         self.load_word(builder, location, word, shift)
     }
 
-    fn load_at_offset(
+    pub(super) fn load_at_offset(
         &self,
         builder: &mut FunctionBuilder<'_>,
         location: StorageLocation,
@@ -233,7 +193,7 @@ impl<'gcx> StorageLayout<'gcx> {
         location.load_word(builder, word, shift)
     }
 
-    fn store_at(
+    pub(super) fn store_at(
         &self,
         builder: &mut FunctionBuilder<'_>,
         location: StorageLocation,
@@ -248,7 +208,7 @@ impl<'gcx> StorageLayout<'gcx> {
         self.store_word(builder, location, slot, shift, value);
     }
 
-    fn store_at_offset(
+    pub(super) fn store_at_offset(
         &self,
         builder: &mut FunctionBuilder<'_>,
         location: StorageLocation,

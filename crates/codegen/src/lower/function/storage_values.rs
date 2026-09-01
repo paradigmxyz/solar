@@ -818,14 +818,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_storage_object(ty, access.slot, span);
         }
         let value = if let Some(offset) = access.offset {
-            self.cx.storage.load_packed_at_slot(
-                &mut self.builder,
-                access.location,
-                access.slot,
-                offset,
-            )
+            self.cx.storage.load_at_offset(&mut self.builder, access.location, access.slot, offset)
         } else {
-            self.cx.storage.load_at_slot(&mut self.builder, access.location, access.slot)
+            self.cx.storage.load_at(&mut self.builder, access.location, access.slot)
         };
         self.validate_enum(ty, value);
         Some(value)
@@ -858,7 +853,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.validate_enum(ty, value);
         }
         if let Some(offset) = access.offset {
-            self.cx.storage.store_packed_at_slot(
+            self.cx.storage.store_at_offset(
                 &mut self.builder,
                 access.location,
                 access.slot,
@@ -866,7 +861,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 value,
             );
         } else {
-            self.cx.storage.store_at_slot(&mut self.builder, access.location, access.slot, value);
+            self.cx.storage.store_at(&mut self.builder, access.location, access.slot, value);
         }
         Some(())
     }
@@ -1555,7 +1550,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Mapping(..) => {}
             _ => {
                 if let Some(offset) = access.offset {
-                    self.cx.storage.store_packed_at_slot(
+                    self.cx.storage.store_at_offset(
                         &mut self.builder,
                         access.location,
                         access.slot,
@@ -1563,12 +1558,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         zero,
                     );
                 } else {
-                    self.cx.storage.store_at_slot(
-                        &mut self.builder,
-                        access.location,
-                        access.slot,
-                        zero,
-                    );
+                    self.cx.storage.store_at(&mut self.builder, access.location, access.slot, zero);
                 }
             }
         }

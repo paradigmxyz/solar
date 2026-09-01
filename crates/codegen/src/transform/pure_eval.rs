@@ -11,6 +11,7 @@ use crate::{
     utils::eval,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
 
 /// Function pass for bounded pure MIR evaluation.
@@ -134,7 +135,7 @@ impl PureEvaluator {
             fuel -= 1;
             let block = &func.blocks[current];
 
-            let mut phis = Vec::new();
+            let mut phis = SmallVec::<[(ValueId, U256); 2]>::new();
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
                 if let InstKind::Phi(incoming) = &inst.kind {

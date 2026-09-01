@@ -82,12 +82,7 @@ pub(super) fn copy_data_to_memory(
     if separate_tail {
         let word_size = EvmMemoryLayout::WORD_SIZE as usize;
         let tail_offset = data.len() / word_size * word_size;
-        let tail = if tail_offset == 0 {
-            dest
-        } else {
-            let offset = builder.imm(tail_offset as u64);
-            builder.add(dest, offset)
-        };
+        let tail = builder.add_u64_offset(dest, tail_offset as u64);
         let zero = builder.imm(0);
         builder.mstore(tail, zero);
     }
@@ -141,12 +136,7 @@ pub(super) fn store_data_words(builder: &mut FunctionBuilder<'_>, dest: ValueId,
     let word_size = EvmMemoryLayout::WORD_SIZE as usize;
     for (index, chunk) in data.chunks(word_size).enumerate() {
         let value = builder.imm(U256::from_be_bytes(padded_data_word(chunk)));
-        let address = if index == 0 {
-            dest
-        } else {
-            let offset = builder.imm((index * word_size) as u64);
-            builder.add(dest, offset)
-        };
+        let address = builder.add_u64_offset(dest, (index * word_size) as u64);
         builder.mstore(address, value);
     }
 }
@@ -169,8 +159,7 @@ fn copy_splat_to_memory(
 
     if clear_tail {
         let tail_offset = data.len() / word_size * word_size;
-        let offset = builder.imm(tail_offset as u64);
-        let tail = builder.add(dest, offset);
+        let tail = builder.add_u64_offset(dest, tail_offset as u64);
         let zero = builder.imm(0);
         builder.mstore(tail, zero);
     }
@@ -178,15 +167,13 @@ fn copy_splat_to_memory(
     builder.mstore(dest, value);
     let mut filled = word_size;
     if data.len() >= word_size * 2 {
-        let offset = builder.imm(word_size as u64);
-        let target = builder.add(dest, offset);
+        let target = builder.add_u64_offset(dest, word_size as u64);
         builder.mstore(target, value);
         filled += word_size;
     }
     while filled < data.len() {
         let chunk = filled.min(data.len() - filled);
-        let offset = builder.imm(filled as u64);
-        let target = builder.add(dest, offset);
+        let target = builder.add_u64_offset(dest, filled as u64);
         let size = builder.imm(chunk as u64);
         builder.mcopy(target, dest, size);
         filled += chunk;

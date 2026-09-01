@@ -221,8 +221,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if ty.is_ref_at(DataLocation::Storage) {
                 return Some(access.slot);
             }
-            let value =
-                self.cx.storage.load_at_slot(&mut self.builder, access.location, access.slot);
+            let value = self.cx.storage.load_at(&mut self.builder, access.location, access.slot);
             self.validate_enum(ty, value);
             return Some(value);
         }
