@@ -21,7 +21,8 @@
     "outputSelection": {
       "*": {
         "Counter": [
-          "abi"
+          "abi",
+          "metadata"
         ]
       },
       "A.sol": {

@@ -1,0 +1,27 @@
+// ported-from: test/libsolidity/Metadata.cpp
+// CHECK: "metadata":
+// CHECK: \"bytecodeHash\":\"none\"
+// CHECK: fea165736f6c617243000200000b
+// CHECK: fea165736f6c617243000200000b
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "bytecodeHash": "none"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

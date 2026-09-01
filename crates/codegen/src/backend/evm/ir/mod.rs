@@ -87,6 +87,7 @@ pub(crate) struct DataRef {
 pub(crate) struct Data {
     pub(crate) bytes: Bytes,
     pub(crate) name: Option<Symbol>,
+    pub(crate) emit_in_runtime: bool,
 }
 
 impl DataRef {

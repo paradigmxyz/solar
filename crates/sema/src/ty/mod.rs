@@ -1537,6 +1537,21 @@ macro_rules! cached {
 }
 
 cached! {
+/// Returns the ABI of the given contract.
+pub fn contract_abi(gcx: _, id: hir::ContractId) -> &'gcx [alloy_json_abi::AbiItem<'gcx>] {
+    gcx.bump().alloc_slice_fill_iter(gcx.build_contract_abi(id))
+}
+
+/// Returns the developer documentation for the given contract.
+pub fn dev_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
+    gcx.alloc(gcx.build_dev_documentation(id))
+}
+
+/// Returns the user documentation for the given contract.
+pub fn user_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
+    gcx.alloc(gcx.build_user_documentation(id))
+}
+
 fn virtual_function_target(
     gcx: _,
     key: (hir::ContractId, hir::FunctionId)

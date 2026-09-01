@@ -334,7 +334,7 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         if path.with_extension("stdout").exists() {
             config.comment_defaults.base().add_custom(FileCheck::NAME, FileCheck::default());
         }
-        if path.file_name().is_some_and(|name| name == "input.jsonc") {
+        if path.file_name().is_some_and(|name| name == "test.jsonc") {
             standard_json::configure_directory_fixture(config, path, cfg.tmp_dir);
         }
         return;

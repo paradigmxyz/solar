@@ -186,6 +186,7 @@ def standard_json_input(test_case: TestCase) -> str:
             }
         },
         "settings": {
+            "metadata": {"appendCBOR": False, "bytecodeHash": "none"},
             "optimizer": {"enabled": True, "runs": 200},
             "viaIR": True,
             "outputSelection": {
@@ -251,6 +252,7 @@ def project_standard_json_input(
     if settings_profile == "runtime":
         project_settings = project["settings"]
         settings = {
+            "metadata": {"appendCBOR": False, "bytecodeHash": "none"},
             "optimizer": {"enabled": True, "runs": 200},
             "remappings": project_settings.get("remappings", []),
             "viaIR": True,

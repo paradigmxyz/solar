@@ -74,6 +74,9 @@ pub struct LibraryReference {
     pub start: usize,
 }
 
+/// Returns opaque data to emit at the end of a contract's runtime program.
+pub type RuntimeDataFn<'a> = dyn Fn(ContractId) -> Bytes + Sync + 'a;
+
 /// A contract selection.
 #[derive(Clone, Debug)]
 pub enum ContractSelection {
@@ -142,14 +145,20 @@ impl ContractSelection {
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
 /// configured and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
+/// Values returned by `runtime_data` are emitted as trailing runtime program data.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
     contracts: &ContractSelection,
     capture_mir: &ContractSelection,
     capture_evm_ir: &ContractSelection,
+    runtime_data: Option<&RuntimeDataFn<'_>>,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
-    let captures =
-        ContractCaptures { bytecode: contracts, mir: capture_mir, evm_ir: capture_evm_ir };
+    let captures = ContractCaptures {
+        bytecode: contracts,
+        mir: capture_mir,
+        evm_ir: capture_evm_ir,
+        runtime_data,
+    };
     let mut requested = contracts.clone();
     requested.union_with(capture_mir);
     requested.union_with(capture_evm_ir);
@@ -209,6 +218,7 @@ struct ContractCaptures<'a> {
     bytecode: &'a ContractSelection,
     mir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
+    runtime_data: Option<&'a RuntimeDataFn<'a>>,
 }
 
 struct ContractGraph {
@@ -341,6 +351,9 @@ fn generate_contract_bytecode(
     let needs_backend = captures.bytecode.contains(contract_id)
         || captures.evm_ir.contains(contract_id)
         || !graph.dependents[contract_id].is_empty();
+    let runtime_data =
+        captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
+    append_runtime_data(&mut module, runtime_data.as_ref());
     let capture_built = capture_mir
         && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
         && gcx.sess.opts.unstable.mir_pipeline.is_none();
@@ -475,4 +488,10 @@ fn collect_library_references(bytecode: &[u8], links: &[LibraryLink]) -> Vec<Lib
     }
     references.sort_unstable_by_key(|reference| reference.start);
     references
+}
+
+fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
+    if let Some(data) = data.filter(|data| !data.is_empty()) {
+        module.append_runtime_data(data.clone(), None);
+    }
 }
