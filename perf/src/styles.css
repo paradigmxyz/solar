@@ -69,6 +69,7 @@ footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--m
 .artifacts { margin-top: 44px; border: 1px solid var(--line); background: #faf8f2; scroll-margin-top: 20px; }
 .artifact-head { min-height: 76px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
 .artifact-head h2 { margin: 0; font-size: 17px; }.artifact-head .eyebrow { margin-bottom: 4px; }
+.artifact-empty { min-height: 160px; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
 .toggle, .diff-tools { display: flex; }.toggle button, .diff-tools button { height: 32px; background: transparent; color: var(--muted); border-color: var(--line); }.toggle .active, .diff-tools .active { background: #171714; color: #fff; }
 .artifact-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 420px; }
 .artifact-body aside { border-right: 1px solid var(--line); padding: 8px; }
