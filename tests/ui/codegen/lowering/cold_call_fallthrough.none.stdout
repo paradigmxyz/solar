@@ -27,7 +27,7 @@ bb3:
   jump bb10
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb5:
   push 256
@@ -45,7 +45,7 @@ bb5:
   jump bb6
 bb6 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb7:
   push 0
@@ -84,7 +84,7 @@ bb10:
   jump bb11
 bb11 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb12:
   push 100

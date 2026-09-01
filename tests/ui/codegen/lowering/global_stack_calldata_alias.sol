@@ -3,7 +3,7 @@
 
 contract Test {
     // CHECK: push 0xc21f7bbb
-    // CHECK-NEXT: sub
+    // CHECK-NEXT: {{eq|sub}}
     // CHECK: push 1
     // CHECK-NEXT: dup 2
     // CHECK-NEXT: eq

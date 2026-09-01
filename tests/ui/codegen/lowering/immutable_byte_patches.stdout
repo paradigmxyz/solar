@@ -2,11 +2,11 @@
 // === deployment ===
 @module deployment
 bb0:
-  push 169
+  push 170
   codesize
   sub
   dup 1
-  push 169
+  push 170
   push 320
   codecopy
   push 320
@@ -57,30 +57,30 @@ bb0:
   push 320
   push 192
   mcopy
-  push 51
+  push 52
   dup 1
   push 118
   push 0
   codecopy
   push 192
   mload
-  push 20
+  push 25
   mstore8
   push 224
   mload
-  push 22
+  push 27
   mstore8
   push 256
   mload
   push 0
   byte
-  push 26
+  push 31
   mstore8
   push 0
   return
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 
 // === runtime ===
@@ -95,9 +95,15 @@ bb0:
   shr
   dup 1
   push 0x57de26a4
-  sub
-  push bb3
+  eq
+  push bb4
   jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb4:
   push_immutable 0, 1
   push_immutable 1, 1
   push 0
@@ -117,7 +123,3 @@ bb0:
   push 96
   push 128
   return
-bb3 [cold]:
-  push 0
-  dup 1
-  revert

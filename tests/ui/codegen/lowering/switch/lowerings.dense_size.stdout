@@ -21,7 +21,7 @@ bb0:
   jump bb13
 bb13 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb4:
   indexed_jump bb5, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb6, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb7, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb8, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb9, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb10, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb11, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb12
@@ -76,7 +76,7 @@ POP
 ; bb0
 JUMPDEST
 PUSH0
-DUP1
+PUSH0
 REVERT
 ; bb1
 JUMPDEST

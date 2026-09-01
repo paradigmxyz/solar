@@ -2,7 +2,7 @@
 @module runtime
 bb0:
   callvalue
-  push bb2
+  push bb29
   jumpi
   push 0
   calldataload
@@ -122,13 +122,9 @@ bb19:
 bb20:
   pop
   jump bb29
-bb2 [cold]:
-  push 0
-  dup 1
-  revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0xc0 ; bb19
+PUSH1 0x20 ; bb1
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -285,8 +281,3 @@ JUMPDEST
 POP
 PUSH1 0x20 ; bb1
 JUMP
-; bb19
-JUMPDEST
-PUSH0
-DUP1
-REVERT

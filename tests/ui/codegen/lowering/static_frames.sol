@@ -12,9 +12,10 @@ contract SF {
     // CHECK: eq
     // CHECK-NEXT: push [[TOP:bb[0-9]+]]
     // CHECK: push 0x86b714e2
-    // CHECK-NEXT: sub
-    // CHECK-NEXT: push [[DISPATCH_REVERT:bb[0-9]+]]
+    // CHECK-NEXT: {{eq|sub}}
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
+    // CHECK: {{bb[0-9]+}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
     // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]

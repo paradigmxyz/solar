@@ -2230,6 +2230,24 @@ impl StackScheduler {
         rematerializable_nullary_value(func, value).map(ScheduledOp::RematerializeNullary)
     }
 
+    /// Returns a fresh materialization that dominates `DUP1` for an extra copy.
+    fn preferred_copy_materialization(
+        &self,
+        value: ValueId,
+        func: &Function,
+    ) -> Option<ScheduledOp> {
+        let op = Self::rematerialize_nullary(value, func).or_else(|| {
+            let Value::Immediate(imm) = func.value(value) else { return None };
+            (imm.as_u256()? == alloy_primitives::U256::ZERO && self.evm_version.has_push0())
+                .then_some(ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO))
+        })?;
+        let materialize = ScheduleCost::of_op(&op, self.evm_version, OperandCostModel::DIRECT);
+        let duplicate = ScheduleCost::stack_op(StackOp::Dup(1), self.evm_version);
+        (materialize.static_gas < duplicate.static_gas
+            && materialize.encoded_bytes <= duplicate.encoded_bytes)
+            .then_some(op)
+    }
+
     /// Ensures a value is on top of the stack.
     /// Returns the operations needed to achieve this.
     pub(crate) fn ensure_on_top(&mut self, value: ValueId, func: &Function) -> &[ScheduledOp] {
@@ -2260,8 +2278,13 @@ impl StackScheduler {
 
         if self.stack.is_on_top(value) {
             if !claim_top {
-                self.ops.push(ScheduledOp::Stack(StackOp::Dup(1)));
-                self.stack.dup(1);
+                if let Some(op) = self.preferred_copy_materialization(value, func) {
+                    self.ops.push(op);
+                    self.stack.push(value);
+                } else {
+                    self.ops.push(ScheduledOp::Stack(StackOp::Dup(1)));
+                    self.stack.dup(1);
+                }
             }
             return &self.ops;
         }
@@ -2270,10 +2293,15 @@ impl StackScheduler {
         if let Some(depth) = resident_depth
             && depth < self.max_stack_access()
         {
-            // The value is accessible via DUP.
-            let dup_n = (depth + 1) as u8;
-            self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
-            self.stack.dup(dup_n);
+            if let Some(op) = self.preferred_copy_materialization(value, func) {
+                self.ops.push(op);
+                self.stack.push(value);
+            } else {
+                // The value is accessible via DUP.
+                let dup_n = (depth + 1) as u8;
+                self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
+                self.stack.dup(dup_n);
+            }
             return &self.ops;
         }
 
@@ -2776,6 +2804,22 @@ mod tests {
             assert_eq!(*n, 2);
         } else {
             panic!("Expected DUP operation");
+        }
+    }
+
+    #[test]
+    fn ensure_operand_on_top_prefers_push0() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+
+        for (evm_version, expected) in [
+            (EvmVersion::London, ScheduledOp::Stack(StackOp::Dup(1))),
+            (EvmVersion::Shanghai, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)),
+        ] {
+            let mut scheduler = StackScheduler::for_evm_version(evm_version);
+            scheduler.stack.push(zero);
+            assert_eq!(scheduler.ensure_operand_on_top(zero, &func), &[expected]);
         }
     }
 

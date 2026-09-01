@@ -93,7 +93,7 @@ bb11:
   revert
 bb2 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
@@ -204,5 +204,5 @@ REVERT
 ; bb9
 JUMPDEST
 PUSH0
-DUP1
+PUSH0
 REVERT

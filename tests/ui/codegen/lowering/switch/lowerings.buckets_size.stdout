@@ -18,7 +18,7 @@ bb4:
   jump bb22
 bb22 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb5:
   dup 1
@@ -125,7 +125,7 @@ POP
 ; bb1
 JUMPDEST
 PUSH0
-DUP1
+PUSH0
 REVERT
 ; bb2
 JUMPDEST

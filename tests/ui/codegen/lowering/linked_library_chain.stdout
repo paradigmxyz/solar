@@ -11,9 +11,15 @@ bb0:
   shr
   dup 1
   push 0xfaf4836c
-  sub
-  push bb3
+  eq
+  push bb4
   jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb4:
   push 4
   calldatasize
   sub
@@ -47,10 +53,6 @@ bb0:
   push 32
   push 128
   return
-bb3 [cold]:
-  push 0
-  dup 1
-  revert
 bb8 [cold]:
   push 0x4e487b71
   push 224
@@ -75,9 +77,15 @@ bb0:
   shr
   dup 1
   push 0x5e0b1cef
-  sub
-  push bb3
+  eq
+  push bb4
   jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb4:
   push 224
   push 64
   mstore
@@ -100,10 +108,6 @@ bb11:
   push 32
   push 128
   return
-bb3 [cold]:
-  push 0
-  dup 1
-  revert
 bb8:
   push 64
   mload
@@ -152,7 +156,7 @@ bb8:
 bb10 [cold]:
   returndatasize
   push 0
-  dup 1
+  push 0
   returndatacopy
   returndatasize
   push 0
@@ -169,9 +173,15 @@ bb0:
   shr
   dup 1
   push 0xb20e7344
-  sub
-  push bb3
+  eq
+  push bb4
   jumpi
+  jump bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb4:
   push 224
   push 64
   mstore
@@ -229,14 +239,10 @@ bb0:
   push 32
   push 128
   return
-bb3 [cold]:
-  push 0
-  dup 1
-  revert
 bb8 [cold]:
   returndatasize
   push 0
-  dup 1
+  push 0
   returndatacopy
   returndatasize
   push 0

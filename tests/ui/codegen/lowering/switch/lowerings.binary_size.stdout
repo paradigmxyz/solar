@@ -60,7 +60,7 @@ bb7:
   jump bb21
 bb21 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb8:
   dup 1
@@ -168,7 +168,7 @@ POP
 ; bb5
 JUMPDEST
 PUSH0
-DUP1
+PUSH0
 REVERT
 ; bb6
 JUMPDEST

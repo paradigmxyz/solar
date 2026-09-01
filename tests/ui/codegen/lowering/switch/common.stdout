@@ -59,7 +59,7 @@ bb5:
   jump bb6
 bb2 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:SignatureLength (runtime) ===
 @module runtime
@@ -105,7 +105,7 @@ bb5:
   jump bb6
 bb2 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
 @module runtime
@@ -171,5 +171,5 @@ bb9:
   jump bb5
 bb2 [cold]:
   push 0
-  dup 1
+  push 0
   revert

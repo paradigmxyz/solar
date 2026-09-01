@@ -21,7 +21,7 @@ bb0:
   jump bb4
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb24 [cold]:
   push 0x4e487b71

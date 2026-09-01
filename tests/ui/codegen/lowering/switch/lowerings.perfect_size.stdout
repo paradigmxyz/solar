@@ -26,7 +26,7 @@ bb0:
   jumpi
   pop
   push 0
-  dup 1
+  push 0
   revert
 bb4:
   indexed_jump bb5, bb6, bb7, bb8, bb9, bb10, bb11, bb12
@@ -62,7 +62,7 @@ bb12:
   jump bb13
 bb2 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
@@ -90,7 +90,7 @@ PUSH1 0x22 ; bb0
 JUMPI
 POP
 PUSH0
-DUP1
+PUSH0
 REVERT
 ; bb0
 JUMPDEST
@@ -148,5 +148,5 @@ JUMP
 ; bb10
 JUMPDEST
 PUSH0
-DUP1
+PUSH0
 REVERT

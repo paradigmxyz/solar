@@ -23,7 +23,7 @@ bb2:
   jump bb58
 bb58 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb3:
   dup 1

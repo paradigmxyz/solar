@@ -300,7 +300,7 @@ bb0:
   jump bb12
 bb12 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb13:
   push 416
