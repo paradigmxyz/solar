@@ -85,6 +85,23 @@ fn bitset_clone_from() {
 }
 
 #[test]
+fn bitset_clear_to() {
+    let mut set = DenseBitSet::<TestIdx>::new_filled(256);
+    let capacity = set.words.capacity();
+
+    set.clear_to(130);
+    assert_eq!(set.domain_size(), 130);
+    assert!(set.is_empty());
+    assert_eq!(set.words.capacity(), capacity);
+
+    set.insert(idx(129));
+    set.clear_to(0);
+    assert_eq!(set.domain_size(), 0);
+    assert!(set.is_empty());
+    assert_eq!(set.words.capacity(), capacity);
+}
+
+#[test]
 fn union_two_sets() {
     let mut set1: DenseBitSet<TestIdx> = DenseBitSet::new_empty(65);
     let mut set2: DenseBitSet<TestIdx> = DenseBitSet::new_empty(65);

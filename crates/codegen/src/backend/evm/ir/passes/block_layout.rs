@@ -108,13 +108,8 @@ impl RunState {
         if self.order.capacity() < blocks {
             self.order.reserve(blocks);
         }
-        if self.placed.domain_size() == blocks {
-            self.placed.clear();
-            self.picked.clear();
-        } else {
-            self.placed = DenseBitSet::new_empty(blocks);
-            self.picked = DenseBitSet::new_empty(blocks);
-        }
+        self.placed.clear_to(blocks);
+        self.picked.clear_to(blocks);
         self.references.clear();
         self.references.resize(blocks, 0);
         self.candidates.clear();

@@ -151,11 +151,7 @@ fn redirect_jump_thunks(
     addressed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    if addressed.domain_size() != module.blocks.len() {
-        *addressed = DenseBitSet::new_empty(module.blocks.len());
-    } else {
-        addressed.clear();
-    }
+    addressed.clear_to(module.blocks.len());
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
             if let Some(PushValue::Block(target)) = &inst.value
@@ -242,11 +238,7 @@ fn remove_unreachable_blocks(
     if module.blocks.is_empty() {
         return false;
     }
-    if reachable.domain_size() != module.blocks.len() {
-        *reachable = DenseBitSet::new_empty(module.blocks.len());
-    } else {
-        reachable.clear();
-    }
+    reachable.clear_to(module.blocks.len());
     pending.clear();
     pending.push(BlockId::ENTRY);
     while let Some(block_id) = pending.pop() {

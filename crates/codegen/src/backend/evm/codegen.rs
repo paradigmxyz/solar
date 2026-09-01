@@ -1726,8 +1726,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.function_labels.clear();
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
-            self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
-            self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
+            self.restorable_internal_frames.clear_to(module.functions.len());
+            self.static_frame_functions.clear_to(module.functions.len());
             self.static_call_abis.clear();
             self.runtime_stack_args = false;
             // Constructor code has a separate call graph and is not part of
@@ -1904,7 +1904,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 !matches!(self.gcx.sess.opts.optimization, OptimizationMode::None);
             let mut runtime_stack_args = true;
             let mut stack_returns_enabled = true;
-            self.disabled_stack_only_functions = DenseBitSet::new_empty(module.functions.len());
+            self.disabled_stack_only_functions.clear_to(module.functions.len());
             loop {
                 let disabled_stack_only_functions = self.disabled_stack_only_functions.count();
                 self.reset_runtime_codegen(module);
@@ -1972,11 +1972,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm.load_data(module);
         self.block_labels.clear();
         self.function_labels.clear();
-        self.empty_stop_functions = DenseBitSet::new_empty(module.functions.len());
+        self.empty_stop_functions.clear_to(module.functions.len());
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
-        self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
-        self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
+        self.restorable_internal_frames.clear_to(module.functions.len());
+        self.static_frame_functions.clear_to(module.functions.len());
         self.static_frame_addr_consts.clear();
         self.external_spill_addr_consts.clear();
         self.pending_static_allocs.clear();
@@ -1987,10 +1987,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.block_copies.clear();
         self.stack_phi_sources.clear();
         self.static_call_abis.clear();
-        self.recursive_stack_functions = DenseBitSet::new_empty(module.functions.len());
-        self.recursive_frame_functions = DenseBitSet::new_empty(module.functions.len());
+        self.recursive_stack_functions.clear_to(module.functions.len());
+        self.recursive_frame_functions.clear_to(module.functions.len());
         self.recursive_frame_edges.clear();
-        self.recursion_reaching_functions = DenseBitSet::new_empty(module.functions.len());
+        self.recursion_reaching_functions.clear_to(module.functions.len());
         self.function_stack_peaks.clear();
         self.internal_call_stack_edges.clear();
         self.runtime_stack_args = true;

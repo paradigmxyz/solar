@@ -749,10 +749,10 @@ impl StackScheduler {
     ) {
         let mut values = values.into_iter();
         let Some(first) = values.next() else {
-            self.stack_only_values = DenseBitSet::new_empty(0);
+            self.stack_only_values.clear_to(0);
             return;
         };
-        self.stack_only_values = DenseBitSet::new_empty(domain_size);
+        self.stack_only_values.clear_to(domain_size);
         self.stack_only_values.insert(first);
         for value in values {
             self.stack_only_values.insert(value);
