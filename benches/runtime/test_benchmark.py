@@ -338,6 +338,64 @@ class RuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(entry["runtime_status"], "ok")
         self.assertEqual(list(entry["compilers"]), ["solc", "solar"])
 
+
+class ArtifactTests(unittest.TestCase):
+    def test_artifact_input_requests_portable_outputs(self) -> None:
+        test_case = benchmark.TEST_CASES[0]
+        input_text, _, _ = benchmark.compiler_input(test_case, None)
+
+        solar = json.loads(
+            benchmark.artifact_compiler_input(input_text, test_case, "solar")
+        )
+        solc = json.loads(
+            benchmark.artifact_compiler_input(input_text, test_case, "solc")
+        )
+        solar_outputs = next(iter(solar["settings"]["outputSelection"].values()))[
+            test_case.contract_name
+        ]
+        solc_outputs = next(iter(solc["settings"]["outputSelection"].values()))[
+            test_case.contract_name
+        ]
+
+        self.assertIn("evm.deployedBytecode.opcodes", solar_outputs)
+        self.assertNotIn("irOptimized", solar_outputs)
+        self.assertIn("irOptimized", solc_outputs)
+
+    def test_solar_dump_is_split_from_standard_json(self) -> None:
+        contract = "A.sol:A"
+        headings = (
+            f"// === {contract} ===",
+            f"// === {contract} (creation) ===",
+            f"// === {contract} (runtime) ===",
+            f"// === {contract} (deployment) ===",
+            f"// === {contract} (runtime) ===",
+        )
+        stdout = (
+            "\n".join(
+                [
+                    part
+                    for index, heading in enumerate(headings)
+                    for part in (heading, str(index))
+                ]
+            )
+            + '\n{"contracts":{}}'
+        )
+
+        artifacts, output = benchmark.split_solar_artifact_output(stdout, contract)
+
+        self.assertEqual(
+            list(artifacts),
+            [
+                "mir.mir",
+                "creation.evmir",
+                "runtime.evmir",
+                "creation.disasm",
+                "runtime.disasm",
+            ],
+        )
+        self.assertEqual(artifacts["runtime.disasm"], "4\n")
+        self.assertEqual(json.loads(output), {"contracts": {}})
+
     def test_rejects_reference_results_for_different_inputs(self) -> None:
         entry = {
             "test_id": "test",

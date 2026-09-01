@@ -56,6 +56,13 @@ CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
+ARTIFACT_DUMP_KINDS = (
+    "mir",
+    "evm-ir",
+    "evm-ir-runtime",
+    "disasm-deploy",
+    "disasm-runtime",
+)
 
 RESET = "\033[0m"
 YELLOW = "\033[33m"
@@ -242,6 +249,124 @@ def compiler_input(
         timeout = 120
     input_text = with_evm_version(input_text, evm_version)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
+
+
+def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> str:
+    payload = json.loads(input_text)
+    source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
+    outputs = [
+        "abi",
+        "evm.bytecode.object",
+        "evm.bytecode.opcodes",
+        "evm.deployedBytecode.object",
+        "evm.deployedBytecode.opcodes",
+    ]
+    if kind == "solc":
+        outputs.append("irOptimized")
+    payload.setdefault("settings", {})["outputSelection"] = {
+        source: {test_case.contract_name: outputs}
+    }
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def split_solar_artifact_output(
+    stdout: str, contract_path: str
+) -> tuple[dict[str, str], str]:
+    marker = "\n{"
+    json_start = stdout.rfind(marker)
+    if json_start < 0 and stdout.startswith("{"):
+        return {}, stdout
+    if json_start < 0:
+        raise ValueError("Solar artifact output did not contain Standard JSON")
+
+    dump = stdout[:json_start].strip()
+    output = stdout[json_start + 1 :]
+    escaped = re.escape(contract_path)
+    headings = list(
+        re.finditer(
+            rf"^// === {escaped}(?: \((creation|runtime|deployment)\))? ===$",
+            dump,
+            re.MULTILINE,
+        )
+    )
+    names = (
+        "mir.mir",
+        "creation.evmir",
+        "runtime.evmir",
+        "creation.disasm",
+        "runtime.disasm",
+    )
+    if len(headings) != len(names):
+        raise ValueError(
+            f"expected {len(names)} Solar artifact sections, found {len(headings)}"
+        )
+    artifacts = {}
+    following = [*headings[1:], None]
+    for name, match, next_match in zip(names, headings, following, strict=True):
+        end = next_match.start() if next_match else len(dump)
+        artifacts[name] = dump[match.end() : end].strip() + "\n"
+    return artifacts, output
+
+
+def selected_contract_output(
+    output: dict[str, object], test_case: TestCase
+) -> dict[str, object]:
+    contracts = output.get("contracts") or {}
+    for source_contracts in contracts.values():
+        if test_case.contract_name in source_contracts:
+            return source_contracts[test_case.contract_name]
+    return {}
+
+
+def write_artifacts(
+    root: Path,
+    spec: CompilerSpec,
+    test_case: TestCase,
+    prepared_input: tuple[str, int, str],
+) -> str:
+    if test_case.whole_project:
+        return ""
+    input_text, timeout, _ = prepared_input
+    input_text = artifact_compiler_input(input_text, test_case, spec.kind)
+    output_dir = root / test_case.test_id / spec.compiler_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "input.json").write_text(input_text + "\n")
+
+    cmd = [str(spec.path), "--standard-json"]
+    source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
+    contract_path = f"{source}:{test_case.contract_name}"
+    if spec.kind == "solar":
+        kinds = ",".join(ARTIFACT_DUMP_KINDS)
+        cmd.extend(["--color", "never", f"-Zdump={kinds}={contract_path}"])
+    proc = run(cmd, input_text=input_text, timeout=timeout)
+    if proc.returncode != 0:
+        return (proc.stderr or proc.stdout or "artifact compiler failed")[:1000]
+
+    extra = {}
+    raw_output = proc.stdout
+    if spec.kind == "solar":
+        try:
+            extra, raw_output = split_solar_artifact_output(proc.stdout, contract_path)
+        except ValueError as error:
+            return str(error)
+    (output_dir / "output.json").write_text(raw_output.rstrip() + "\n")
+    for name, contents in extra.items():
+        (output_dir / name).write_text(contents)
+
+    try:
+        contract = selected_contract_output(json.loads(raw_output), test_case)
+    except json.JSONDecodeError as error:
+        return f"invalid artifact compiler output: {error}"
+    evm = contract.get("evm") or {}
+    for prefix, key in (("creation", "bytecode"), ("runtime", "deployedBytecode")):
+        bytecode = evm.get(key) or {}
+        if object_hex := bytecode.get("object"):
+            (output_dir / f"{prefix}.hex").write_text(str(object_hex) + "\n")
+        if spec.kind == "solc" and (opcodes := bytecode.get("opcodes")):
+            (output_dir / f"{prefix}.disasm").write_text(str(opcodes) + "\n")
+    if spec.kind == "solc" and (ir := contract.get("irOptimized")):
+        (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
+    return ""
 
 
 def project_standard_json_input(
@@ -1358,6 +1483,7 @@ def run_test_case(
     evm_version: str | None = None,
     reference_solc_path: Path | None = None,
     repeat_long_compiles: bool = False,
+    artifact_root: Path | None = None,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1391,6 +1517,13 @@ def run_test_case(
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
+
+        if artifact_root is not None and prepared_input is not None:
+            artifact_error = write_artifacts(
+                artifact_root, spec, test_case, prepared_input
+            )
+            if artifact_error:
+                compiler_entry["artifact_error"] = artifact_error
 
         if test_case.whole_project:
             continue
@@ -1624,6 +1757,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--output", help="Output JSON path")
     parser.add_argument(
+        "--artifacts",
+        type=Path,
+        help="Write per-benchmark compiler inputs, outputs, IR, disassembly, and bytecode",
+    )
+    parser.add_argument(
         "--verbose", action="store_true", help="Print compiler errors for failed rows"
     )
     parser.add_argument(
@@ -1828,6 +1966,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.evm_version,
                     solc,
                     args.repeat_long_compiles,
+                    args.artifacts,
                 )
             except Exception as exc:
                 print(
