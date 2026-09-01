@@ -5,6 +5,7 @@
 //! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
 //! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
 //! when the call and return sequence is smaller than spelling out each literal.
+//! Gas mode outlines only cold blocks because every outlined hot site adds a control-flow transfer.
 //!
 //! Candidates must be closed stack computations with known effects: they consume a fixed number
 //! of inputs, produce a fixed number of outputs, contain no control flow or observable operation,
@@ -30,6 +31,7 @@ use crate::backend::evm::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_config::OptimizationMode;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -91,6 +93,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
 
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if !outline_block(gcx, block) {
+            continue;
+        }
         for start in 0..block.instructions.len() {
             if !hashes.repeats(block_id, start) {
                 continue;
@@ -534,6 +539,9 @@ fn split_parametric_outline_site(
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
+        if !outline_block(gcx, block) {
+            continue;
+        }
         for (index, inst) in block.instructions.iter().enumerate() {
             if inst.is_encoded_push()
                 && inst.deferred_push().is_none()
@@ -588,6 +596,10 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
+}
+
+fn outline_block(gcx: Gcx<'_>, block: &Block) -> bool {
+    !matches!(gcx.sess.opts.optimization, OptimizationMode::Gas) || block.metadata.hotness.is_cold()
 }
 
 fn apply_outline_edits(

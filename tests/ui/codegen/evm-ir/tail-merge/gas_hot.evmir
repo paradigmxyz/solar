@@ -1,0 +1,31 @@
+//@compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge
+//@filecheck:
+@module GasHotTailMerge
+
+// Runtime-gas mode may share cold error paths, but it must not add a jump on
+// a hot execution path solely to save deployed bytes.
+// CHECK-LABEL: bb0:
+// CHECK-NEXT: push 1
+// CHECK-NEXT: push 22
+// CHECK-NEXT: push 33
+// CHECK-NEXT: push 44
+// CHECK-NEXT: stop
+bb0:
+  push 1
+  push 22
+  push 33
+  push 44
+  stop
+
+// CHECK-LABEL: bb1:
+// CHECK-NEXT: push 2
+// CHECK-NEXT: push 22
+// CHECK-NEXT: push 33
+// CHECK-NEXT: push 44
+// CHECK-NEXT: stop
+bb1:
+  push 2
+  push 22
+  push 33
+  push 44
+  stop

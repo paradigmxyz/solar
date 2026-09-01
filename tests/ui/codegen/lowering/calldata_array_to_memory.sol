@@ -32,8 +32,6 @@ contract C {
     // CHECK-NEXT: push [[DECL_BODY:bb[0-9]+]]
     // CHECK: [[ACC_BODY]]:
     // CHECK: sload
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
     // CHECK: return
     // CHECK: [[DECL_BODY]]:
     // CHECK: calldatacopy
@@ -51,7 +49,7 @@ contract C {
     // CHECK: [[ASSIGN_BODY]]:
     // CHECK: calldatacopy
     // CHECK: mload
-    // CHECK: jump [[RETURN]]
+    // CHECK: return
     function viaAssign(uint256[] calldata xs) external pure returns (uint256) {
         uint256[] memory m;
         m = xs;
@@ -63,7 +61,7 @@ contract C {
     // CHECK: calldatacopy
     // CHECK: mload
     // CHECK: mload
-    // CHECK: jump [[RETURN]]
+    // CHECK: return
     function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag)
         external
         pure

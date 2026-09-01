@@ -101,8 +101,6 @@ bb4:
   push bb8
   jumpi
   push 0
-  jump bb11
-bb11:
   push 128
   mstore
   push 32
@@ -152,7 +150,11 @@ bb8:
   jumpi
   push 0
   mload
-  jump bb11
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb10 [cold]:
   returndatasize
   push 0

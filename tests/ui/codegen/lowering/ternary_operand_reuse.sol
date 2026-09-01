@@ -5,7 +5,7 @@
 contract TernaryOperandReuse {
     // The planner may consume `caller()` as the modulus because the return can
     // rematerialize it instead of retaining a stack copy.
-    // CHECK-LABEL: {{^}}bb9:
+    // CHECK-LABEL: {{^}}bb5:
     // CHECK: caller
     // CHECK-NOT: pop
     // CHECK: return

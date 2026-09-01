@@ -58,8 +58,6 @@ bb50 [cold]:
 bb7:
   push 0
   sload
-  jump bb52
-bb52:
   push 128
   mstore
   push 32
@@ -200,7 +198,11 @@ bb16:
   sstore
   push 352
   mload
-  jump bb52
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb18:
   push 256
   mload
@@ -358,7 +360,11 @@ bb23:
   push 256
   mload
   mload
-  jump bb52
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb31:
   push 384
   push 64
@@ -719,7 +725,11 @@ bb31:
   jumpi
   push 192
   mload
-  jump bb52
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb21 [cold]:
   push 0x4e487b71
   push 224

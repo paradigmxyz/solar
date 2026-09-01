@@ -1,0 +1,31 @@
+//@compile-flags: -Ogas -Zevm-ir-pipeline=outline
+//@filecheck:
+@module GasHotOutline
+
+// Outlining repeats only saves deployed bytes. Do not add call/return jumps to
+// a hot execution path in gas mode.
+// CHECK-LABEL: bb0:
+// CHECK-NEXT: calldatasize
+// CHECK-NEXT: push 1
+// CHECK-NEXT: add
+// CHECK-NEXT: iszero
+// CHECK-NEXT: stop
+bb0:
+  calldatasize
+  push 1
+  add
+  iszero
+  stop
+
+// CHECK-LABEL: bb1:
+// CHECK-NEXT: calldatasize
+// CHECK-NEXT: push 1
+// CHECK-NEXT: add
+// CHECK-NEXT: iszero
+// CHECK-NEXT: stop
+bb1:
+  calldatasize
+  push 1
+  add
+  iszero
+  stop

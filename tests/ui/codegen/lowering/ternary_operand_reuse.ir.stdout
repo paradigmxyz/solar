@@ -37,8 +37,6 @@ bb5:
   push 4
   calldataload
   addmod
-  jump bb9
-bb9:
   push 0
   mstore
   caller
@@ -60,4 +58,11 @@ bb8:
   caller
   caller
   mulmod
-  jump bb9
+  push 0
+  mstore
+  caller
+  push 32
+  mstore
+  push 64
+  push 0
+  return

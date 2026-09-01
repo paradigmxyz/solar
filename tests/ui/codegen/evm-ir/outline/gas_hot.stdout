@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/gas_hot.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/gas_hot.evmir (after outline) ===
+  @module GasHotOutline
+  bb0:
+    calldatasize
+    push 1
+    add
+    iszero
+    stop
+  bb1:
+    calldatasize
+    push 1
+    add
+    iszero
+    stop
+  

@@ -254,9 +254,6 @@ bb6:
   jumpi
   jump bb12
 bb13:
-  push bb44
-  jump bb43
-bb43:
   push 160
   push 64
   mstore
@@ -265,8 +262,22 @@ bb43:
   sub
   push 32
   sgt
-  swap 1
-  jump
+  push bb12
+  jumpi
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb17
+  jumpi
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb17 [cold]:
   push 2
   push 0x3339
@@ -293,20 +304,64 @@ bb40 [cold]:
   push 0
   revert
 bb18:
-  push bb45
-  jump bb43
+  push 160
+  push 64
+  mstore
+  push 4
+  calldatasize
+  sub
+  push 32
+  sgt
+  push bb12
+  jumpi
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb22
+  jumpi
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb22 [cold]:
   push 0x6c69746572616c206d7367
-  jump bb42
-bb42 [cold]:
+  jump bb41
+bb41 [cold]:
   push 168
   shl
   push 11
   swap 1
   jump bb40
 bb23:
-  push bb46
-  jump bb43
+  push 160
+  push 64
+  mstore
+  push 4
+  calldatasize
+  sub
+  push 32
+  sgt
+  push bb12
+  jumpi
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  push bb27
+  jumpi
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
 bb27 [cold]:
   push 15
   push 0x6c6f63616c2d636f6e73742d6d7367
@@ -330,8 +385,6 @@ bb28:
   gt
   iszero
   push bb32
-  jump bb41
-bb41:
   jumpi
   push 4
   calldataload
@@ -445,42 +498,14 @@ bb34 [cold]:
   mload
   revert
 bb35:
-  push bb47
-  jump bb43
-bb39 [cold]:
-  push 0x7265766572742d70617468
-  jump bb42
-bb44:
-  push bb12
-  jumpi
-  push 5
+  push 160
+  push 64
+  mstore
   push 4
-  calldataload
-  gt
-  iszero
-  push bb17
-  jump bb41
-bb45:
-  push bb12
-  jumpi
-  push 5
-  push 4
-  calldataload
-  gt
-  iszero
-  push bb22
-  jump bb41
-bb46:
-  push bb12
-  jumpi
-  push 5
-  push 4
-  calldataload
-  gt
-  iszero
-  push bb27
-  jump bb41
-bb47:
+  calldatasize
+  sub
+  push 32
+  sgt
   push bb12
   jumpi
   push 5
@@ -489,4 +514,14 @@ bb47:
   gt
   iszero
   push bb39
+  jumpi
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb39 [cold]:
+  push 0x7265766572742d70617468
   jump bb41

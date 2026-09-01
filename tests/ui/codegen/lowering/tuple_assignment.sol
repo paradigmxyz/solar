@@ -29,11 +29,15 @@ contract C {
     // CHECK: [[SWAP]]:
     // CHECK: push 36
     // CHECK-NEXT: calldataload
-    // CHECK: push 4
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
-    // CHECK: jump [[PAIR_RETURN:bb[0-9]+]]
-    // CHECK: [[PAIR_RETURN]]:
-    // CHECK: return
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: return
     function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) {
         (a, b) = (b, a);
         return (a, b);
@@ -50,7 +54,11 @@ contract C {
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push 9
-    // CHECK-NEXT: jump [[PAIR_RETURN]]
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push 64
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: return
     function multi() external pure returns (uint256 x, uint256 y) {
         x = 100;
         y = 200;

@@ -49,8 +49,6 @@ contract StorageBytesMember {
     // CHECK-NEXT: jumpi
     // CHECK: jump [[LOOP]]
     // CHECK: [[LOOP_EXIT]]:
-    // CHECK: jump [[LOAD_BYTES:bb[0-9]+]]
-    // CHECK: [[LOAD_BYTES]]:
     // CHECK: sload
     // CHECK: mcopy
     // CHECK: sstore
@@ -63,7 +61,6 @@ contract StorageBytesMember {
 
     // CHECK: [[POP_ONE]]:
     // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
     // CHECK: sload
     // CHECK: sstore
     function popOne() external {
@@ -73,10 +70,7 @@ contract StorageBytesMember {
 
     // CHECK: [[LEN]]:
     // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
     // CHECK: mload
-    // CHECK: jump [[RETURN:bb[0-9]+]]
-    // CHECK: [[RETURN]]:
     // CHECK: return
     function len() external view returns (uint256) {
         KeccakState storage state = states[msg.sender];
@@ -86,13 +80,10 @@ contract StorageBytesMember {
     // CHECK: [[AT]]:
     // CHECK: caller
     // CHECK: push 32
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[AT_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump
-    // CHECK: [[AT_CONT]]:
+    // CHECK: mstore
     // CHECK: mload
     // CHECK: mload
-    // CHECK: jump [[RETURN]]
+    // CHECK: return
     function at(uint256 i) external view returns (bytes1) {
         KeccakState storage state = states[msg.sender];
         return state.part[i];
@@ -113,10 +104,7 @@ contract StorageBytesMember {
     // CHECK: [[WHOLE]]:
     // CHECK: caller
     // CHECK: push 32
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[WHOLE_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump
-    // CHECK: [[WHOLE_CONT]]:
+    // CHECK: mstore
     // CHECK: mcopy
     // CHECK: return
     function whole() external view returns (bytes memory) {
