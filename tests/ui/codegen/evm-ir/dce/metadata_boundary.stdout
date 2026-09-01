@@ -4,6 +4,6 @@
   bb0:
     push 1
     op_0c !meta(stack=1->1)
-    pop
+-   pop
     stop
   

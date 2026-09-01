@@ -45,14 +45,12 @@ bb4:
   dup 1
   push 2
   sub
-  push bb5
+  push bb6
   jumpi
   pop
   push 22
   push 0
   mstore
-  jump bb6
-bb5:
   jump bb6
 bb2 [cold]:
   push 0

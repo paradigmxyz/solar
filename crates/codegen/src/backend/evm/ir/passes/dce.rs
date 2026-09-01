@@ -12,10 +12,9 @@
 //! improve bytes or static gas without making the other metric worse; size mode also disables
 //! optional duplicate retargeting that can trade bytes for gas.
 //!
-//! This is a post-scheduling cleanup. [`Dce`] removes duplicated stack values within one block.
-//! [`DeadStackCleanup`] runs after final layout and also removes a trailing pure stack computation
-//! before a halting terminal, including across an unconditional edge to a block that never reads
-//! its incoming stack. It runs late because sharing and layout can expose those dead tails.
+//! This is a post-scheduling cleanup. It removes duplicated stack values within one block, then
+//! removes a trailing pure stack computation before a halting terminal, including across an
+//! unconditional edge to a block that never reads its incoming stack.
 
 use super::EvmPass;
 use crate::backend::evm::{
@@ -28,30 +27,18 @@ use solar_sema::Gcx;
 
 pub(super) struct Dce;
 
-/// Removes dead pure stack tails after final block layout.
-pub(super) struct DeadStackCleanup;
-
 impl EvmPass for Dce {
     fn name(&self) -> &'static str {
         "dce"
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        eliminate_dead_stack_copies(
+        let copies_changed = eliminate_dead_stack_copies(
             module,
             !gcx.sess.opts.optimization.is_size(),
             gcx.sess.opts.evm_version,
-        )
-    }
-}
-
-impl EvmPass for DeadStackCleanup {
-    fn name(&self) -> &'static str {
-        "dead-stack-cleanup"
-    }
-
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
-        cleanup_dead_stack_tails(module)
+        );
+        cleanup_dead_stack_tails(module) || copies_changed
     }
 }
 

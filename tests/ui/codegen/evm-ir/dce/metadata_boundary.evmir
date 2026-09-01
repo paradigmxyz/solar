@@ -6,7 +6,7 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}push 1
 // CHECK-NEXT: {{^[ +].*}}op_0c !meta(stack=1->1)
-// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: -   pop
 // CHECK-NEXT: {{^[ +].*}}stop
 bb0:
   push 1

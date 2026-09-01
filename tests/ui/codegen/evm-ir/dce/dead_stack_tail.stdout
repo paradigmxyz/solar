@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/dce/dead_stack_tail.evmir (before dead-stack-cleanup) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/dce/dead_stack_tail.evmir (after dead-stack-cleanup) ===
+- // === ROOT/tests/ui/codegen/evm-ir/dce/dead_stack_tail.evmir (before dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/dce/dead_stack_tail.evmir (after dce) ===
   @module DeadStackTail
   bb0:
 -   push 1

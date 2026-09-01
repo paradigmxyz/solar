@@ -40,6 +40,7 @@
 -   swap 1
     pop
 -   pop
+    op_0c !meta(stack=0->0)
     stop
   bb4:
     push 1
@@ -55,6 +56,7 @@
     push bb6
     jumpi
     pop
+    op_0c !meta(stack=0->0)
     stop
   bb6:
     stop
@@ -75,6 +77,7 @@
     pop
     pop
 -   pop
+    op_0c !meta(stack=0->0)
     stop
   bb9:
     push 7
@@ -88,6 +91,7 @@
     pop
     pop
     pop
+    op_0c !meta(stack=0->0)
     stop
   bb10:
     push 1
@@ -96,6 +100,7 @@
 -   swap 1
     pop
 -   pop
+    op_0c !meta(stack=0->0)
     stop
   bb11:
     push 7
@@ -107,12 +112,14 @@
     pop
     pop
 -   pop
+    op_0c !meta(stack=0->0)
     stop
   bb12:
     push 7
     dup 1
     add
     pop
+    op_0c !meta(stack=0->0)
     stop
   bb13:
     push 7
@@ -126,6 +133,7 @@
     pop
     pop
     pop
+    op_0c !meta(stack=0->0)
     stop
   bb14:
     push 1
@@ -134,6 +142,7 @@
     add
     pop
     pop
+    op_0c !meta(stack=0->0)
     stop
   bb15:
     push 1
@@ -141,12 +150,14 @@
 -   dup 2
 -   pop
 -   pop
+    op_0c !meta(stack=0->0)
     stop
   bb16:
     push 1
 -   dup 1
 -   swap 1
 -   pop
+    op_0c !meta(stack=0->0)
     stop
   bb17:
     push 1
@@ -155,5 +166,6 @@
 -   exchange 1, 2
 -   pop
 +   swap 1
+    op_0c !meta(stack=0->0)
     stop
   

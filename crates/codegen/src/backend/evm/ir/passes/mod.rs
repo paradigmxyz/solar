@@ -61,7 +61,7 @@ pub trait EvmPass: Sync {
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
     &peephole::Peephole,
-    &dce::DeadStackCleanup,
+    &dce::Dce,
     &reorder_pushes::REORDER_PUSHES,
     &share_reverts::ShareReverts,
     &stack_normalize::StackDedup,
@@ -142,7 +142,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &compact_pushes::CompactPushes,
     &peephole::Peephole,
     &stack_normalize::StackDedup,
-    &dce::DeadStackCleanup,
+    &peephole::Cleanup(dce::Dce),
 ];
 
 /// Finds an EVM IR pass by command-line name.
