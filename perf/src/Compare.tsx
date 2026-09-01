@@ -1,0 +1,52 @@
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { loadRun } from './data'
+import type { ArtifactFile, BenchmarkResult, RunDocument } from './types'
+
+const ArtifactDiff = lazy(() => import('./ArtifactDiff'))
+const metrics = {
+  runtimeGas: ['Runtime gas', 'total_gas'],
+  deployGas: ['Deploy gas', 'deploy_gas'],
+  runtimeSize: ['Runtime bytes', 'runtime_size'],
+  creationSize: ['Creation bytes', 'bytecode_size'],
+  compileTime: ['Compile time', 'compile_time_seconds'],
+} as const
+
+function value(result: BenchmarkResult | undefined, key: string) {
+  const compiler = result?.compilers.solar
+  const metric = compiler?.[key as keyof typeof compiler]
+  return typeof metric === 'number' ? metric : null
+}
+
+function change(before: number | null, after: number | null) {
+  if (before === null || after === null || before === 0) return null
+  return ((after - before) / before) * 100
+}
+
+export function Compare({ base, head }: { base: string; head: string }) {
+  const [runs, setRuns] = useState<[RunDocument, RunDocument] | null>(null)
+  const [query, setQuery] = useState('')
+  const params = new URLSearchParams(window.location.search)
+  const [selected, setSelected] = useState(params.get('benchmark') ?? '')
+  const [metric, setMetric] = useState<keyof typeof metrics>('runtimeGas')
+  const [against, setAgainst] = useState<'base' | 'solc'>('base')
+  const [artifact, setArtifact] = useState('')
+  useEffect(() => { Promise.all([loadRun(base), loadRun(head)]).then(setRuns) }, [base, head])
+  const rows = useMemo(() => {
+    if (!runs) return []
+    const before = new Map(runs[0].results.map((result) => [result.test_id, result]))
+    return runs[1].results.map((after) => ({ before: before.get(after.test_id), after })).filter(({ after }) => after.test_id.toLowerCase().includes(query.toLowerCase()))
+  }, [query, runs])
+  if (!runs) return <main><p className="empty">Loading comparison…</p></main>
+  const [beforeRun, afterRun] = runs
+  const files: ArtifactFile[] = afterRun.artifacts[selected] ?? beforeRun.artifacts[selected] ?? []
+  const comparisonCommit = against === 'base' ? base : head
+  const comparisonCompiler = against === 'base' ? 'solar' : 'solc'
+  const selectedFile = files.find((file) => file.path === artifact)
+  return <main className="compare-page">
+    <a className="back" href={import.meta.env.BASE_URL}>← history</a>
+    <div className="compare-title"><div><p className="eyebrow">Commit comparison</p><h1>{base.slice(0, 8)} <span>→</span> {head.slice(0, 8)}</h1></div><a href={`https://github.com/paradigmxyz/solar/compare/${base}...${head}`}>source diff ↗</a></div>
+    <div className="filters"><input aria-label="Filter benchmarks" placeholder="Filter benchmarks…" value={query} onChange={(event) => setQuery(event.target.value)} /><select value={metric} onChange={(event) => setMetric(event.target.value as keyof typeof metrics)}>{Object.entries(metrics).map(([key, [label]]) => <option key={key} value={key}>{label}</option>)}</select></div>
+    <section id="benchmarks" className="results"><div className="result header-row"><span>benchmark</span><span>base</span><span>head</span><span>change</span></div>{rows.map(({ before, after }) => { const a = value(before, metrics[metric][1]); const b = value(after, metrics[metric][1]); const delta = change(a, b); return <button className={`result ${selected === after.test_id ? 'selected' : ''}`} key={after.test_id} onClick={() => { setSelected(after.test_id); setArtifact(''); const url = new URL(window.location.href); url.searchParams.set('benchmark', after.test_id); history.replaceState(null, '', url) }}><code>{after.test_id}</code><span>{a?.toLocaleString() ?? 'n/a'}</span><span>{b?.toLocaleString() ?? 'n/a'}</span><strong className={delta !== null && delta > 0 ? 'bad' : 'good'}>{delta === null ? 'n/a' : `${delta > 0 ? '+' : ''}${delta.toFixed(2)}%`}</strong></button>})}</section>
+    {selected && <section id="artifacts" className="artifacts"><div className="artifact-head"><div><p className="eyebrow">Artifacts</p><h2>{selected}</h2></div><div className="toggle"><button className={against === 'base' ? 'active' : ''} onClick={() => setAgainst('base')}>vs base</button><button className={against === 'solc' ? 'active' : ''} onClick={() => setAgainst('solc')}>vs solc</button></div></div><div className="artifact-body"><aside>{files.map((file) => <button key={file.path} className={artifact === file.path ? 'active' : ''} disabled={!file.compilers.includes('solar') || (against === 'solc' && !file.compilers.includes('solc'))} onClick={() => setArtifact(file.path)}><span>{file.label}</span><small>{(file.bytes / 1024).toFixed(1)} KiB</small></button>)}</aside><div className="diff-frame">{selectedFile ? <Suspense fallback={<p className="empty">Loading renderer…</p>}><ArtifactDiff before={{ commit: comparisonCommit, benchmark: selected, compiler: comparisonCompiler }} after={{ commit: head, benchmark: selected, compiler: 'solar' }} path={selectedFile.path} language={selectedFile.language} /></Suspense> : <p className="empty">Choose an artifact to inspect its diff.</p>}</div></div></section>}
+  </main>
+}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadIndex } from './data'
 import type { RunIndex, RunSummary } from './types'
+import { Compare } from './Compare'
 
 const short = (commit: string) => commit.slice(0, 8)
 
@@ -28,6 +29,20 @@ function HistoryGraph({ runs }: { runs: RunSummary[] }) {
 }
 
 export function App() {
+  const route = new URLSearchParams(window.location.search)
+  const baseCommit = route.get('base')
+  const headCommit = route.get('head')
+  if (baseCommit && headCommit && baseCommit !== headCommit) return <><SiteHeader /><Compare base={baseCommit} head={headCommit} /><SiteFooter /></>
+  return <Home />
+}
+
+function SiteHeader() {
+  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>/perf</span></a><nav><a href="https://github.com/paradigmxyz/solar">repository ↗</a></nav></header>
+}
+
+function SiteFooter() { return <footer>Measured by the in-repository runtime corpus.</footer> }
+
+function Home() {
   const [index, setIndex] = useState<RunIndex | null>(null)
   const [error, setError] = useState('')
   const [base, setBase] = useState('')
@@ -50,10 +65,7 @@ export function App() {
 
   return (
     <>
-      <header>
-        <a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>/perf</span></a>
-        <nav><a href="https://github.com/paradigmxyz/solar">repository ↗</a></nav>
-      </header>
+      <SiteHeader />
       <main>
         <section className="intro">
           <p className="eyebrow">Compiler performance</p>
@@ -61,9 +73,10 @@ export function App() {
           <p className="lede">Gas, bytecode, compile time, and the compiler artifacts behind each result.</p>
         </section>
         <section className="compare-box" aria-label="Compare commits">
-          <label>base<select value={base} onChange={(event) => setBase(event.target.value)}><option value="">Select a commit</option>{runs.map((run) => <option key={run.commit} value={run.commit}>{short(run.commit)} · {run.branch ?? 'detached'}</option>)}</select></label>
+          <datalist id="commits">{runs.map((run) => <option key={run.commit} value={run.commit}>{short(run.commit)} · {run.branch ?? 'detached'}</option>)}</datalist>
+          <label>base<input list="commits" placeholder="Commit SHA" value={base} onChange={(event) => setBase(event.target.value)} /></label>
           <span className="arrow">→</span>
-          <label>head<select value={head} onChange={(event) => setHead(event.target.value)}><option value="">Select a commit</option>{runs.map((run) => <option key={run.commit} value={run.commit}>{short(run.commit)} · {run.branch ?? 'detached'}</option>)}</select></label>
+          <label>head<input list="commits" placeholder="Commit SHA" value={head} onChange={(event) => setHead(event.target.value)} /></label>
           <button onClick={compare} disabled={!base || !head || base === head}>Compare</button>
         </section>
         <section className="panel graph-panel">
@@ -75,7 +88,7 @@ export function App() {
           {runs.length === 0 ? <p className="empty">No published benchmark runs yet.</p> : runs.slice(0, 8).map((run) => <a className="run" key={run.commit} href={`?base=${runs[1]?.commit ?? run.commit}&head=${run.commit}`}><code>{short(run.commit)}</code><span>{run.branch ?? `PR #${run.pr}`}</span><strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'} gas</strong></a>)}
         </section>
       </main>
-      <footer>Measured by the in-repository runtime corpus.</footer>
+      <SiteFooter />
     </>
   )
 }

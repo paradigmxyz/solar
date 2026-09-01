@@ -15,6 +15,7 @@ h1 { margin: 0; font-size: clamp(44px, 7vw, 78px); line-height: .98; letter-spac
 .compare-box { margin: 64px 0 36px; padding: 16px; display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: end; gap: 14px; border: 1px solid var(--line); background: #faf8f2; }
 label { display: grid; gap: 7px; color: var(--muted); font: 600 10px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; }
 select, button { height: 42px; border: 1px solid var(--line); border-radius: 0; background: #fff; color: #171714; padding: 0 12px; font: 500 13px ui-monospace, monospace; }
+input { height: 42px; border: 1px solid var(--line); background: #fff; padding: 0 12px; font: 500 13px ui-monospace, monospace; }
 button { border-color: #171714; background: #171714; color: #fff; cursor: pointer; }
 button:disabled { opacity: .35; cursor: default; }
 .arrow { align-self: end; height: 42px; display: grid; place-items: center; color: var(--muted); }
@@ -36,4 +37,29 @@ button:disabled { opacity: .35; cursor: default; }
 .run strong { font: 500 12px ui-monospace, monospace; }
 .empty, .error { color: var(--muted); font-size: 13px; }
 footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--muted); font-size: 12px; }
+.compare-page { padding-top: 44px; }
+.back { display: inline-block; margin-bottom: 44px; color: var(--muted); text-decoration: none; font: 12px ui-monospace, monospace; }
+.compare-title { display: flex; justify-content: space-between; align-items: end; gap: 20px; }
+.compare-title h1 { font: 600 clamp(30px, 5vw, 54px)/1 ui-monospace, monospace; letter-spacing: -.055em; }
+.compare-title h1 span { color: var(--muted); font-weight: 400; }
+.compare-title > a { color: var(--muted); font-size: 12px; }
+.filters { margin-top: 44px; display: grid; grid-template-columns: 1fr 220px; gap: 12px; }
+.results { margin-top: 14px; border: 1px solid var(--line); background: #faf8f2; }
+.result { width: 100%; min-height: 48px; display: grid; grid-template-columns: minmax(220px, 1fr) 130px 130px 100px; align-items: center; text-align: right; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; }
+.result code, .result > span:first-of-type { text-align: left; }
+.result:hover, .result.selected { background: #fff; }
+.header-row { color: var(--muted); font: 10px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; cursor: default; }
+.good { color: #197044; }.bad { color: #b33b27; }
+.artifacts { margin-top: 44px; border: 1px solid var(--line); background: #faf8f2; scroll-margin-top: 20px; }
+.artifact-head { min-height: 76px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
+.artifact-head h2 { margin: 0; font-size: 17px; }.artifact-head .eyebrow { margin-bottom: 4px; }
+.toggle, .diff-tools { display: flex; }.toggle button, .diff-tools button { height: 32px; background: transparent; color: var(--muted); border-color: var(--line); }.toggle .active, .diff-tools .active { background: #171714; color: #fff; }
+.artifact-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 420px; }
+.artifact-body aside { border-right: 1px solid var(--line); padding: 8px; }
+.artifact-body aside button { width: 100%; height: auto; min-height: 44px; display: flex; justify-content: space-between; align-items: center; border: 0; background: transparent; color: inherit; text-align: left; }
+.artifact-body aside button:hover, .artifact-body aside button.active { background: #e9e5db; }.artifact-body aside button:disabled { opacity: .3; }.artifact-body aside small { color: var(--muted); }
+.diff-frame { min-width: 0; overflow: auto; padding: 12px; }.diff-frame .empty { padding: 28px; }
+.diff-tools { justify-content: end; margin-bottom: 8px; }
+.artifact-diff [data-diffs] { font-size: 12px; }
 @media (max-width: 680px) { main { padding-top: 52px; } .compare-box { grid-template-columns: 1fr; } .arrow { display: none; } .run { grid-template-columns: 96px 1fr; } .run strong { grid-column: 2; padding-bottom: 12px; } }
+@media (max-width: 760px) { .compare-title { align-items: start; flex-direction: column; }.filters { grid-template-columns: 1fr; }.result { grid-template-columns: minmax(150px, 1fr) 80px 80px; }.result > span:first-of-type { display: none; }.header-row span:first-of-type { display: none; }.artifact-body { grid-template-columns: 1fr; }.artifact-body aside { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }.artifact-body aside button { min-width: 170px; } }
