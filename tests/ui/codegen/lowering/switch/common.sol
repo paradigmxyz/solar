@@ -3,7 +3,7 @@
 
 contract ProxyResult {
     // CHECK-LABEL: common.sol:ProxyResult (runtime) ===
-    // CHECK: @module runtime
+    // CHECK: @module ProxyResult
     // CHECK-NOT: indexed_jump
     fallback() external payable {
         assembly {
@@ -16,7 +16,7 @@ contract ProxyResult {
 
 contract Base64Remainder {
     // CHECK-LABEL: common.sol:Base64Remainder (runtime) ===
-    // CHECK: @module runtime
+    // CHECK: @module Base64Remainder
     // CHECK-NOT: indexed_jump
     fallback() external {
         assembly {
@@ -30,7 +30,7 @@ contract Base64Remainder {
 
 contract SignatureLength {
     // CHECK-LABEL: common.sol:SignatureLength (runtime) ===
-    // CHECK: @module runtime
+    // CHECK: @module SignatureLength
     // CHECK-NOT: indexed_jump
     fallback() external {
         assembly {
@@ -45,7 +45,7 @@ contract SignatureLength {
 
 contract RpowEdges {
     // CHECK-LABEL: common.sol:RpowEdges (runtime) ===
-    // CHECK: @module runtime
+    // CHECK: @module RpowEdges
     // CHECK-NOT: indexed_jump
     fallback() external {
         assembly {

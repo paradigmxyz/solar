@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C (runtime) ===
-@module runtime
+@module C
 bb0:
   callvalue
   push bb3

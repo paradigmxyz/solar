@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_byte_patches.sol:ImmutableBytePatches (creation) ===
-// === deployment ===
-@module deployment
+// === ImmutableBytePatches ===
+@module ImmutableBytePatches
 bb0:
   push 170
   codesize
@@ -83,8 +83,8 @@ bb4 [cold]:
   push 0
   revert
 
-// === runtime ===
-@module runtime
+// === ImmutableBytePatches ===
+@module ImmutableBytePatches
 bb0:
   callvalue
   push bb3

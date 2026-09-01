@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory.sol:C (runtime) ===
-@module runtime
+@module C
 bb0:
   callvalue
   push bb6

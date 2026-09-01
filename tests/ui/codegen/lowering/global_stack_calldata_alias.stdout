@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
-@module runtime
+@module Test
 bb0:
   callvalue
   push bb3

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack-too-deep/locals.sol:StackTooDeepLocals (creation) ===
-// === deployment ===
-@module deployment
+// === StackTooDeepLocals ===
+@module StackTooDeepLocals
 bb0:
   push 835
   dup 1
@@ -10,8 +10,8 @@ bb0:
   push 0
   return
 
-// === runtime ===
-@module runtime
+// === StackTooDeepLocals ===
+@module StackTooDeepLocals
 bb0:
   callvalue
   push bb3

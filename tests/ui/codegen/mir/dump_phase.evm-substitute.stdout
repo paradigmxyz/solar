@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase (runtime) ===
-@module runtime
+@module DumpPhase
 bb0:
   callvalue
   push bb3

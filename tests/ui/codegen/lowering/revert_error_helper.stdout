@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:Errors (runtime) ===
-@module runtime
+@module Errors
 bb0:
   callvalue
   push bb4
@@ -201,7 +201,7 @@ bb6:
   dup 2
   return
 // === ROOT/tests/ui/codegen/lowering/revert_error_helper.sol:R (runtime) ===
-@module runtime
+@module R
 bb0:
   callvalue
   push bb12

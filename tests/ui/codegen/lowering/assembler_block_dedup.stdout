@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
-@module runtime
+@module AssemblerBlockDedup
 bb0:
   callvalue
   push bb6

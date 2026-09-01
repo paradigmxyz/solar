@@ -10,5 +10,5 @@ time: <TIME>	MIR TimePasses lower-alloc changed=false
 time: <TIME>	MIR TimePasses lower-memory-zero changed=false
 time: <TIME>	MIR TimePasses lower-mcopy changed=false
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=true
-time: <TIME>	EVM IR runtime pack-data changed=false
-time: <TIME>	EVM IR deployment pack-data changed=false
+time: <TIME>	EVM IR TimePasses pack-data changed=false
+time: <TIME>	EVM IR TimePasses pack-data changed=false

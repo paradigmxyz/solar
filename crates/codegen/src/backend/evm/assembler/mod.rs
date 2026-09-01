@@ -72,16 +72,6 @@ pub(crate) enum ArtifactKind {
     Constructor,
 }
 
-impl ArtifactKind {
-    /// Returns the EVM IR name for this artifact.
-    pub(in crate::backend::evm) const fn evm_ir_name(self) -> Symbol {
-        match self {
-            Self::Runtime => sym::runtime,
-            Self::Constructor => sym::deployment,
-        }
-    }
-}
-
 /// Final EVM IR lowered to reusable primitive assembly.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct PreparedAssembly {
@@ -150,7 +140,7 @@ impl<'gcx> Assembler<'gcx> {
         Self {
             gcx,
             artifact_kind: ArtifactKind::Runtime,
-            program: ir::Module::new(ArtifactKind::Runtime.evm_ir_name()),
+            program: ir::Module::new(sym::asm),
             program_is_finalized: false,
             current_block: None,
             block_labels: Vec::new(),
@@ -173,7 +163,7 @@ impl<'gcx> Assembler<'gcx> {
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.artifact_kind = ArtifactKind::Runtime;
-        self.program.clear(self.artifact_kind.evm_ir_name());
+        self.program.clear(sym::asm);
         self.program_is_finalized = false;
         self.current_block = None;
         self.block_labels.clear();
@@ -195,7 +185,11 @@ impl<'gcx> Assembler<'gcx> {
     /// Sets the artifact context used by conservative layout estimates.
     pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
         self.artifact_kind = kind;
-        self.program.set_name(kind.evm_ir_name());
+    }
+
+    /// Sets the source module name carried by emitted EVM IR.
+    pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
+        self.program.set_name(name);
     }
 
     /// Enables size-oriented outlining for an oversized gas-mode runtime.

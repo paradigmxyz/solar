@@ -22,7 +22,7 @@
 //@[perfect_size] filecheck: --check-prefix=PERFECTSIZE
 
 contract SwitchLowerings {
-    // LINEAR-LABEL: @module runtime
+    // LINEAR-LABEL: @module SwitchLowerings
     // LINEAR: push 8
     // LINEAR-NEXT: sub
     // LINEAR-NEXT: push {{bb[0-9]+}}
@@ -30,19 +30,19 @@ contract SwitchLowerings {
     // LINEAR: push 16
     // LINEAR-NEXT: sub
 
-    // BINARY-LABEL: @module runtime
+    // BINARY-LABEL: @module SwitchLowerings
     // BINARY: push 40
     // BINARY-NEXT: gt
     // BINARY-NEXT: push {{bb[0-9]+}}
     // BINARY-NEXT: jumpi
 
-    // BUCKETSGAS-LABEL: @module runtime
+    // BUCKETSGAS-LABEL: @module SwitchLowerings
     // BUCKETSGAS: push 9
     // BUCKETSGAS-NEXT: dup 2
     // BUCKETSGAS-NEXT: mod
     // BUCKETSGAS-NEXT: indexed_jump
 
-    // BUCKETSSIZE-LABEL: @module runtime
+    // BUCKETSSIZE-LABEL: @module SwitchLowerings
     // BUCKETSSIZE: push 8
     // BUCKETSSIZE-NEXT: dup 2
     // BUCKETSSIZE-NEXT: mod
@@ -54,7 +54,7 @@ contract SwitchLowerings {
     // BUCKETSSIZE-NEXT: BYTE
     // BUCKETSSIZE-NEXT: JUMP ; unknown
 
-    // DENSE-LABEL: @module runtime
+    // DENSE-LABEL: @module SwitchLowerings
     // DENSE: push 8
     // DENSE-NEXT: swap 1
     // DENSE-NEXT: sub
@@ -62,7 +62,7 @@ contract SwitchLowerings {
     // DENSE-NEXT: gt
     // DENSE: indexed_jump
 
-    // PERFECTGAS-LABEL: @module runtime
+    // PERFECTGAS-LABEL: @module SwitchLowerings
     // PERFECTGAS: push 3
     // PERFECTGAS-NEXT: shr
     // PERFECTGAS-NEXT: push 7
@@ -73,7 +73,7 @@ contract SwitchLowerings {
     // PERFECTGAS-NEXT: push {{bb[0-9]+}}
     // PERFECTGAS-NEXT: jumpi
 
-    // PERFECTSIZE-LABEL: @module runtime
+    // PERFECTSIZE-LABEL: @module SwitchLowerings
     // PERFECTSIZE: push 8
     // PERFECTSIZE-NEXT: swap 1
     // PERFECTSIZE-NEXT: sub

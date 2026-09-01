@@ -355,7 +355,7 @@ impl<'gcx> Assembler<'gcx> {
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
-            module.clear(self.artifact_kind.evm_ir_name());
+            module.clear(module.name());
             self.program = module;
             return None;
         }

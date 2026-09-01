@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/constant_memory_offsets.sol:ConstantMemoryOffsets (runtime) ===
-@module runtime
+@module ConstantMemoryOffsets
 bb0:
   callvalue
   push bb4

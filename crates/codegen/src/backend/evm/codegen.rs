@@ -1757,6 +1757,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) -> PreparedDeploymentPrefix {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Constructor);
+        self.asm.set_evm_ir_name(module.name.name);
         self.asm.load_data(module);
         let runtime_offset = self.asm.new_deferred_const();
 
@@ -2015,6 +2016,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn reset_runtime_codegen(&mut self, module: &Module) {
         self.asm.clear();
         self.asm.set_artifact_kind(ArtifactKind::Runtime);
+        self.asm.set_evm_ir_name(module.name.name);
         self.asm.load_data(module);
         self.block_labels.clear();
         self.function_labels.clear();

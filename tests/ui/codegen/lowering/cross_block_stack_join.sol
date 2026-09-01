@@ -10,7 +10,7 @@
 contract CrossBlockStackJoin {
     // `kept` is defined before the diamond and reused after its join. Reserve its ordinary spill
     // slot as fallback, but carry the live copy through both predecessors without storing it.
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module CrossBlockStackJoin
     // CHECK: div
     // CHECK-NEXT: push 1
     // CHECK: jump [[JOIN:bb[0-9]+]]

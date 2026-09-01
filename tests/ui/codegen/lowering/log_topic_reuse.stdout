@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/log_topic_reuse.sol:LogTopicReuse (runtime) ===
-@module runtime
+@module LogTopicReuse
 bb0:
   callvalue
   push bb4

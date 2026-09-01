@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_widths.sol:ImmutableWidths (creation) ===
-// === deployment ===
-@module deployment
+// === ImmutableWidths ===
+@module ImmutableWidths
 bb0:
   push 385
   codesize
@@ -140,8 +140,8 @@ bb6 [cold]:
   push 0
   revert
 
-// === runtime ===
-@module runtime
+// === ImmutableWidths ===
+@module ImmutableWidths
 bb0:
   callvalue
   push bb3

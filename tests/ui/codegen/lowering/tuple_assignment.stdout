@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C (runtime) ===
-@module runtime
+@module C
 bb0:
   callvalue
   push bb5

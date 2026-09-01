@@ -1,7 +1,7 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck: --implicit-check-not=mul
 
-// CHECK-LABEL: @module runtime
+// CHECK-LABEL: @module ConstantMemoryOffsets
 // CHECK-LABEL: bb0:
 // CHECK: calldatacopy
 // CHECK-NEXT: push 64

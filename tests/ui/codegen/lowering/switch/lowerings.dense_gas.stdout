@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
-@module runtime
+@module SwitchLowerings
 bb0:
   callvalue
   push bb13

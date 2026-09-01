@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/low_level_call_calldata_bytes.sol:C (runtime) ===
-@module runtime
+@module C
 bb0:
   callvalue
   push bb4

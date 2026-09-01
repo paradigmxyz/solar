@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C (creation) ===
-// === deployment ===
-@module deployment
+// === C ===
+@module C
 bb0:
   push 384
   dup 1
@@ -123,8 +123,8 @@ bb2:
 
 @data literal_0 hex"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
-// === runtime ===
-@module runtime
+// === C ===
+@module C
 bb0:
   callvalue
   push bb3

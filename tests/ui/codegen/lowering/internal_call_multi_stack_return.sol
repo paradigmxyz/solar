@@ -18,7 +18,7 @@
 
 contract InternalCallMultiStackReturn {
     // A two-word stack return rotates the hidden return label above both results.
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module InternalCallMultiStackReturn
     // CHECK: push 256
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore

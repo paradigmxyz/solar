@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/internal_call_frame_dealloc.sol:InternalCallFrameDealloc (runtime) ===
-@module runtime
+@module InternalCallFrameDealloc
 bb0:
   callvalue
   push bb3

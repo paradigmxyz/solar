@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
-@module runtime
+@module ColdCallFallthrough
 bb0:
   callvalue
   push bb4

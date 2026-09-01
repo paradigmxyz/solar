@@ -15,7 +15,7 @@ library DataTypes {
 }
 
 library Inner {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module Inner
     // CHECK: push 0xfaf4836c
     // CHECK: sload
     // CHECK: sstore
@@ -27,7 +27,7 @@ library Inner {
 }
 
 library Outer {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module Outer
     // CHECK: push 0x5e0b1cef
     // CHECK: push 0xfaf4836c
     // CHECK: push 0x1000000000000000000000000000000000000001
@@ -45,7 +45,7 @@ library Outer {
 contract C {
     DataTypes.Map map;
 
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module C
     // CHECK: push 0xb20e7344
     // CHECK: push 0x5e0b1cef
     // CHECK: push 0x1000000000000000000000000000000000000002

@@ -238,7 +238,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/program_data.sol:C (runtime) ===
-@module runtime
+@module C
 bb0:
   callvalue
   push bb12

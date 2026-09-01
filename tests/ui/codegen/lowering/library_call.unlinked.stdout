@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
-@module runtime
+@module Lib
 bb0:
   callvalue
   push bb3
@@ -101,7 +101,7 @@ bb4:
   push 128
   return
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
-@module runtime
+@module C
 bb0:
   callvalue
   push bb3

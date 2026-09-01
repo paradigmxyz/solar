@@ -2,7 +2,7 @@
 //@ filecheck:
 
 contract AcyclicStackPhi {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module AcyclicStackPhi
     // CHECK: push 0x341fda35
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[MERGE:bb[0-9]+]]

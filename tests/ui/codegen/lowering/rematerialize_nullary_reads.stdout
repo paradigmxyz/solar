@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/rematerialize_nullary_reads.sol:RematerializeNullaryReads (runtime) ===
-@module runtime
+@module RematerializeNullaryReads
 bb0:
   push 0
   calldataload

@@ -2,7 +2,7 @@
 //@ filecheck:
 
 contract WhileEmptyBody {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module WhileEmptyBody
     // CHECK: push 0xb3de648b
     // CHECK-NEXT: eq
     // CHECK-NEXT: push {{bb[0-9]+}}
