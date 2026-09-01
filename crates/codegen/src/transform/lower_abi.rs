@@ -40,8 +40,8 @@ use crate::{
         AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType, AbiType,
         AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol,
-        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RevertBlocks,
-        SliceLocation, Terminator, Value, ValueId,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Terminator,
+        Value, ValueId,
     },
     pass::MirPass,
 };
@@ -394,12 +394,12 @@ impl LowerAbiCx {
         for func_id in decode_functions.iter() {
             let func = module.function_mut(func_id);
             let mut replacements = FxHashMap::default();
-            let mut revert_blocks = RevertBlocks::default();
-            let blocks: Vec<_> = func.blocks.indices().collect();
+            let mut builder = FunctionBuilder::new(func);
+            let blocks: Vec<_> = builder.func().blocks.indices().collect();
             for block in blocks {
-                let instructions = std::mem::take(&mut func.blocks[block].instructions);
-                let terminator = func.blocks[block].terminator.take();
-                let mut builder = FunctionBuilder::with_revert_blocks(func, revert_blocks);
+                let instructions =
+                    std::mem::take(&mut builder.func_mut().blocks[block].instructions);
+                let terminator = builder.func_mut().blocks[block].terminator.take();
                 builder.switch_to_block(block);
                 for inst in instructions {
                     let InstKind::AbiDecode { data, layout } = &builder.func().inst(inst).kind
@@ -464,10 +464,9 @@ impl LowerAbiCx {
                     }
                 }
                 super::lower_abi_encode::move_terminator(&mut builder, block, terminator);
-                revert_blocks = builder.into_revert_blocks();
             }
-            func.replace_uses_canonicalized(&replacements);
-            let _ = crate::mir::utils::repair_reachability_phis(func);
+            builder.func_mut().replace_uses_canonicalized(&replacements);
+            let _ = crate::mir::utils::repair_reachability_phis(builder.func_mut());
         }
         !decode_functions.is_empty()
     }

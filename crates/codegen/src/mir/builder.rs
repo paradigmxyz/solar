@@ -81,7 +81,7 @@ enum RevertKind {
 
 /// Revert blocks shared while constructing one MIR function.
 #[derive(Default)]
-pub(crate) struct RevertBlocks(SmallVec<[(RevertKind, BlockId); 2]>);
+struct RevertBlocks(SmallVec<[(RevertKind, BlockId); 2]>);
 
 /// A builder for constructing MIR functions.
 pub(crate) struct FunctionBuilder<'a> {
@@ -111,16 +111,6 @@ impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
         Self { func, current_block: BlockId::ENTRY, revert_blocks: RevertBlocks::default() }
-    }
-
-    /// Creates a builder that reuses blocks from an earlier builder for the same function.
-    pub(crate) fn with_revert_blocks(func: &'a mut Function, revert_blocks: RevertBlocks) -> Self {
-        Self { func, current_block: BlockId::ENTRY, revert_blocks }
-    }
-
-    /// Returns the function-local revert block cache.
-    pub(crate) fn into_revert_blocks(self) -> RevertBlocks {
-        self.revert_blocks
     }
 
     /// Returns the current block.
