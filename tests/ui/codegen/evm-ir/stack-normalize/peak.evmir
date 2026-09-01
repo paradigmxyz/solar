@@ -2,7 +2,7 @@
 //~? ERROR: EVM IR verification failed: block 0: `dup` grows the stack to 1025 words, exceeding the limit of 1024
 @module StackNormalizePeak
 
-// The original DUP overflows at depth 1,024. Do not remove it and make the SSTORE reachable.
+// The parser rejects stack-overflowing EVM IR before it reaches the pass pipeline.
 bb0:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)

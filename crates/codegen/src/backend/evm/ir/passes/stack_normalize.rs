@@ -7,10 +7,8 @@
 //! Results are cached by input sequence because generated code often repeats the same shuffle.
 //!
 //! A replacement must be lowerable on the selected EVM version, must not raise the run's relative
-//! stack peak, and must weakly improve encoded bytes, static gas, and instruction count while
-//! strictly improving at least one. It also preserves the minimum entry depth unless the preceding
-//! block prefix guarantees enough words for the original run. This keeps an underflowing run from
-//! becoming executable when an opaque jump reaches it with too few words. The Pareto checks prevent
+//! stack peak or required entry depth, and must weakly improve encoded bytes, static gas, and
+//! instruction count while strictly improving at least one. The Pareto checks prevent
 //! target-specific deep stack ops from trading a regression in one objective for a win in another.
 //! Instructions with custom stack effects break a run, and metadata from retained positions is
 //! transferred to replacement ops.
@@ -20,7 +18,7 @@
 //! removes any simpler identities that become adjacent. The length bound keeps symbolic
 //! resynthesis and cache keys independent of function size.
 
-use super::{EvmPass, utils::StackDepths};
+use super::EvmPass;
 use crate::{
     backend::evm::{
         ir::{Instruction, Module},
@@ -46,21 +44,9 @@ impl EvmPass for StackNormalize {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
-        let mut needs_depths = false;
         let mut normalizer = Normalizer::default();
-        for (block_id, block) in module.blocks.iter_mut_enumerated() {
-            let result =
-                normalizer.run(&mut block.instructions, block_id, gcx.sess.opts.evm_version, None);
-            changed |= result.changed;
-            needs_depths |= result.needs_depths;
-        }
-        let Some(depths) = needs_depths.then(|| StackDepths::new(module)).flatten() else {
-            return changed;
-        };
-        for (block_id, block) in module.blocks.iter_mut_enumerated() {
-            changed |= normalizer
-                .run(&mut block.instructions, block_id, gcx.sess.opts.evm_version, Some(&depths))
-                .changed;
+        for block in &mut module.blocks {
+            changed |= normalizer.run(&mut block.instructions, gcx.sess.opts.evm_version);
         }
         changed
     }
@@ -91,34 +77,19 @@ struct Normalization {
 }
 
 #[derive(Default)]
-struct NormalizeResult {
-    changed: bool,
-    needs_depths: bool,
-}
-
-#[derive(Default)]
 struct Normalizer {
     cache: NormalizationCache,
     scratch: Vec<Instruction>,
     normalizations: Vec<Normalization>,
-    guaranteed_depths: Vec<usize>,
 }
 
 impl Normalizer {
-    fn run(
-        &mut self,
-        instructions: &mut Vec<Instruction>,
-        block_id: crate::backend::evm::ir::BlockId,
-        evm_version: EvmVersion,
-        depths: Option<&StackDepths>,
-    ) -> NormalizeResult {
-        let mut result = NormalizeResult::default();
+    fn run(&mut self, instructions: &mut Vec<Instruction>, evm_version: EvmVersion) -> bool {
         self.normalizations.clear();
         if !instructions.windows(2).any(|window| window.iter().all(|inst| stack_op(inst).is_some()))
         {
-            return result;
+            return false;
         }
-        compute_guaranteed_depths(instructions, &mut self.guaranteed_depths);
         let mut input = StackRun::new();
         let mut cursor = 0;
         while cursor < instructions.len() {
@@ -142,25 +113,15 @@ impl Normalizer {
                 input.clear();
                 input.extend(instructions[start..end].iter().filter_map(stack_op));
                 if input.len() >= 2
-                    && let Some(output) = normalization(
-                        &input,
-                        evm_version,
-                        self.guaranteed_depths[start],
-                        depths,
-                        block_id,
-                        start,
-                        &mut self.cache,
-                    )
+                    && let Some(output) = normalization(&input, evm_version, &mut self.cache)
                 {
                     self.normalizations.push(Normalization { start, end, output });
-                } else if normalization_needs_depths(&input, evm_version, &mut self.cache) {
-                    result.needs_depths = true;
                 }
                 start = end;
             }
         }
         if self.normalizations.is_empty() {
-            return result;
+            return false;
         }
 
         self.scratch.clear();
@@ -183,52 +144,22 @@ impl Normalizer {
             original.for_each(drop);
         }
         instructions.extend(source.map(|(_, inst)| inst));
-        result.changed = true;
-        result
+        true
     }
 }
 
 fn normalization(
     input: &StackRun,
     evm_version: EvmVersion,
-    guaranteed_depth: usize,
-    depths: Option<&StackDepths>,
-    block_id: crate::backend::evm::ir::BlockId,
-    start: usize,
     cache: &mut NormalizationCache,
 ) -> Option<StackRun> {
-    let output = if let Some(output) = cache.get(input) {
+    if let Some(output) = cache.get(input) {
         output.clone()
     } else {
         let output = compute_normalization(input, evm_version);
         cache.insert(input.clone(), output.clone());
         output
-    }?;
-    let input_required = required_entry_depth(input);
-    (required_entry_depth(&output) == input_required || guaranteed_depth >= input_required)
-        .then_some(())?;
-    let input_peak = usize::try_from(relative_peak(input)).ok()?;
-    if relative_peak(&output) < relative_peak(input)
-        && !depths.is_some_and(|depths| depths.has_headroom(block_id, start, input_peak))
-    {
-        return None;
     }
-    Some(output)
-}
-
-fn normalization_needs_depths(
-    input: &StackRun,
-    evm_version: EvmVersion,
-    cache: &mut NormalizationCache,
-) -> bool {
-    let output = if let Some(output) = cache.get(input) {
-        output.as_ref()
-    } else {
-        let output = compute_normalization(input, evm_version);
-        cache.insert(input.clone(), output);
-        cache.get(input).and_then(Option::as_ref)
-    };
-    output.is_some_and(|output| relative_peak(output) < relative_peak(input))
 }
 
 fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<StackRun> {
@@ -270,27 +201,6 @@ fn required_entry_depth(ops: &[StackOp]) -> usize {
         depth += op.net_growth();
     }
     required as usize
-}
-
-fn compute_guaranteed_depths(instructions: &[Instruction], depths: &mut Vec<usize>) {
-    depths.clear();
-    depths.reserve(instructions.len() + 1);
-    depths.push(0);
-    let mut relative_depth = 0isize;
-    let mut required_entry = 0isize;
-    for inst in instructions {
-        let Some(effect) = inst.effective_stack_effect() else {
-            relative_depth = 0;
-            required_entry = 0;
-            depths.push(0);
-            continue;
-        };
-        let required =
-            inst.as_stack_op().map_or(usize::from(effect.inputs), StackOp::required_depth);
-        required_entry = required_entry.max(required as isize - relative_depth);
-        relative_depth += isize::from(effect.outputs) - isize::from(effect.inputs);
-        depths.push((required_entry + relative_depth) as usize);
-    }
 }
 
 fn remove_redundant_permutations(

@@ -109,11 +109,11 @@
     add
     jump
   bb8:
-    swap 3
+-   swap 3
     swap 1
     swap 2
     swap 1
-    swap 3
+-   swap 3
     stop
   bb9:
     push 27
