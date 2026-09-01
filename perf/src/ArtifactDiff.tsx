@@ -12,7 +12,8 @@ interface Props {
   theme: Theme
 }
 
-function formatContents(contents: string, language: string) {
+function formatContents(contents: string | null, language: string) {
+  if (contents === null) return null
   if (language !== 'json') return contents
   try {
     return `${JSON.stringify(JSON.parse(contents), null, 2)}\n`
@@ -22,7 +23,7 @@ function formatContents(contents: string, language: string) {
 }
 
 export default function ArtifactDiff({ before, after, path, storagePath, language, theme }: Props) {
-  const [contents, setContents] = useState<[string, string] | null>(null)
+  const [contents, setContents] = useState<[string | null, string | null] | null>(null)
   const [error, setError] = useState('')
   const [style, setStyle] = useState<'split' | 'unified'>('split')
   useEffect(() => {
@@ -38,8 +39,13 @@ export default function ArtifactDiff({ before, after, path, storagePath, languag
   }, [after.benchmark, after.commit, after.compiler, before.benchmark, before.commit, before.compiler, language, storagePath])
   if (error) return <p className="error">Could not load artifact: {error}</p>
   if (!contents) return <p className="empty">Loading diff…</p>
+  const oldFile = contents[0] === null ? null : { name: path, contents: contents[0], lang: language }
+  const newFile = contents[1] === null ? null : { name: path, contents: contents[1], lang: language }
+  if (oldFile === null && newFile === null) {
+    return <p className="empty">This artifact was not published by either side.</p>
+  }
   return <div className="artifact-diff">
     <div className="diff-tools"><button className={style === 'split' ? 'active' : ''} onClick={() => setStyle('split')}>Split</button><button className={style === 'unified' ? 'active' : ''} onClick={() => setStyle('unified')}>Unified</button></div>
-    <MultiFileDiff className="solar-diff" oldFile={{ name: path, contents: contents[0], lang: language }} newFile={{ name: path, contents: contents[1], lang: language }} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} />
+    {oldFile && newFile ? <MultiFileDiff className="solar-diff" oldFile={oldFile} newFile={newFile} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} /> : oldFile ? <MultiFileDiff className="solar-diff" oldFile={oldFile} newFile={null} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} /> : <MultiFileDiff className="solar-diff" oldFile={null} newFile={newFile!} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} />}
   </div>
 }

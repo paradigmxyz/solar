@@ -50,9 +50,15 @@ export async function loadRun(commit: string) {
   return getJson<RunDocument>(await dataRoot(), `runs/${encodeURIComponent(commit)}/run.json`)
 }
 
-export async function loadArtifact(commit: string, benchmark: string, compiler: string, storagePath: string) {
+export async function loadArtifact(
+  commit: string,
+  benchmark: string,
+  compiler: string,
+  storagePath: string,
+): Promise<string | null> {
   const parts = [commit, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
   const response = await fetch(`${await dataRoot()}runs/${parts.join('/')}`)
-  if (!response.ok) return ''
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error(`Could not load artifact: ${response.statusText}`)
   return response.json() as Promise<string>
 }
