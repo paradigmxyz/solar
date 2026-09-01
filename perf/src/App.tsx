@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Moon, Sun } from 'lucide-react'
 import { loadIndex } from './data'
 import type { MetricSummary, RunIndex, RunSummary, Theme } from './types'
 import { Compare } from './Compare'
 
 const short = (commit: string) => commit.slice(0, 8)
-const themeKey = 'solar-perf-theme'
 
 const charts: { metric: keyof MetricSummary; title: string; unit: string }[] = [
   { metric: 'runtimeGas', title: 'Runtime gas', unit: 'gas' },
@@ -66,15 +66,12 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
 
 export function App() {
   const [theme, setTheme] = useState<Theme>(() => {
-    let saved: string | null = null
-    try { saved = window.localStorage.getItem(themeKey) } catch { /* Ignore unavailable storage. */ }
-    const initial = saved === 'light' || saved === 'dark' ? saved : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    const initial = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     document.documentElement.dataset.theme = initial
     return initial
   })
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    try { window.localStorage.setItem(themeKey, theme) } catch { /* Ignore unavailable storage. */ }
   }, [theme])
   const route = new URLSearchParams(window.location.search)
   const baseCommit = route.get('base')
@@ -84,7 +81,8 @@ export function App() {
 }
 
 function SiteHeader({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
-  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>/perf</span></a><nav><button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? 'dark' : 'light'}</button><a href="https://github.com/paradigmxyz/solar">repository ↗</a></nav></header>
+  const nextTheme = theme === 'light' ? 'dark' : 'light'
+  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>/perf</span></a><nav><button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>{theme === 'light' ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}</button><a href="https://github.com/paradigmxyz/solar">repository ↗</a></nav></header>
 }
 
 function SiteFooter() { return <footer>Measured by the in-repository runtime corpus.</footer> }

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@pierre/diffs": "^1.3.6",
+    "lucide-react": "^0.468.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

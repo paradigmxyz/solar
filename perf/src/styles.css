@@ -9,7 +9,8 @@ header { height: 72px; display: flex; align-items: center; justify-content: spac
 .wordmark span { color: var(--muted); font-weight: 500; }
 nav { display: flex; align-items: center; gap: 18px; }
 nav a { color: var(--muted); font-size: 13px; text-decoration: none; }
-.theme-toggle { height: auto; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 12px; }
+.theme-toggle { width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); }
+.theme-toggle svg { width: 17px; height: 17px; stroke-width: 1.75; }
 .theme-toggle:hover, nav a:hover { color: var(--text); }
 main { padding: 44px 0 80px; }
 .eyebrow { margin: 0 0 12px; color: var(--orange); font: 650 11px/1.2 ui-monospace, monospace; text-transform: uppercase; letter-spacing: .12em; }
