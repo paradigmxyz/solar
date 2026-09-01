@@ -1,0 +1,129 @@
+//@compile-flags: -Zevm-ir-pipeline=reorder-pushes
+//@filecheck:
+@module ReorderChains
+
+// A duplicated producer can move after the push by rebasing its depth.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: -   dup 1
+// CHECK: {{^[ +].*}}push 10
+// CHECK: -   swap 1
+// CHECK: +   dup 2
+bb0:
+  push 1
+  dup 1
+  push 10
+  swap 1
+  sub
+  stop
+
+// A single streaming pass handles chained candidates.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 1
+// CHECK-NEXT: -   swap 1
+// CHECK: {{^[ +].*}}push 2
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   calldatasize
+bb1:
+  calldatasize
+  push 1
+  swap 1
+  push 2
+  swap 1
+  sub
+  stop
+
+// Reorder a deep producer like every other closed expression.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: +   push 1
+// CHECK: -   swap 1
+bb2:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->2)
+  calldatasize
+  calldatasize
+  add
+  push 1
+  swap 1
+  sub
+  stop
+
+// Chained rewrites move every immediate before the shared producer.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: +   push 1
+// CHECK: +   push 2
+// CHECK: -   swap 1
+bb3:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  calldatasize
+  calldatasize
+  add
+  push 1
+  swap 1
+  push 2
+  swap 1
+  sub
+  stop
+
+// A cheap rewrite can expose a nested producer for the next candidate.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-NEXT: -   calldatasize
+// CHECK-NEXT: +   push 20
+// CHECK: -   swap 1
+// CHECK: -   swap 1
+bb4:
+  calldatasize
+  push 10
+  swap 1
+  sub
+  push 20
+  swap 1
+  sub
+  stop
+
+// Long chains stay linear and place every push before the producer.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK-NEXT: -   calldatasize
+// CHECK-COUNT-16: -   swap 1
+// CHECK-NEXT: +   calldatasize
+bb5:
+  calldatasize
+  push 1
+  swap 1
+  push 2
+  swap 1
+  push 3
+  swap 1
+  push 4
+  swap 1
+  push 5
+  swap 1
+  push 6
+  swap 1
+  push 7
+  swap 1
+  push 8
+  swap 1
+  push 9
+  swap 1
+  push 10
+  swap 1
+  push 11
+  swap 1
+  push 12
+  swap 1
+  push 13
+  swap 1
+  push 14
+  swap 1
+  push 15
+  swap 1
+  push 16
+  swap 1
+  stop

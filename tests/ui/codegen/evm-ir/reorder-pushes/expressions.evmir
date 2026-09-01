@@ -1,0 +1,64 @@
+//@compile-flags: -Zevm-ir-pipeline=reorder-pushes
+//@filecheck:
+@module ReorderExpressions
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK-NEXT: +   push 10
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}calldataload
+// CHECK: -   swap 1
+bb0:
+  push 0
+  calldataload
+  push 10
+  swap 1
+  sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 3
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   calldatasize
+bb1:
+  calldatasize
+  push 3
+  swap 1
+  mod
+  stop
+
+// Move the push before the complete nested expression.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-NEXT: +   push 10
+// CHECK: -   swap 1
+bb2:
+  push 0
+  calldataload
+  push 31
+  add
+  push 10
+  swap 1
+  sub
+  stop
+
+// A preceding push does not affect memory expansion or access warming.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-NEXT: +   push 10
+// CHECK: -   swap 1
+bb3:
+  push 0
+  mload
+  push 10
+  swap 1
+  sub
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-NEXT: +   push 10
+// CHECK: -   swap 1
+bb4:
+  push 0
+  sload
+  push 10
+  swap 1
+  sub
+  stop
