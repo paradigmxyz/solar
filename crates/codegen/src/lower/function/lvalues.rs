@@ -251,7 +251,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<()> {
         if self.in_inline_assembly {
-            self.dirty_values.insert(value);
             if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
                 && let Some(previous) = self.values.get(&id).copied()
                 && self.builder.func().value_slice_location(previous)
@@ -260,6 +259,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let length = self.builder.slice_len(previous);
                 value = self.builder.make_slice(value, length, SliceLocation::Calldata);
             }
+            self.dirty_values.insert(value);
         }
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);

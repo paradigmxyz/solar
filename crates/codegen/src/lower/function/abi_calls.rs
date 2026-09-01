@@ -34,6 +34,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn needs_calldata_aggregate_validation(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
         self.builder.func().value_slice_location(value) == Some(SliceLocation::Calldata)
+            && !self.dirty_values.contains(&value)
             && self.calldata_aggregate_requires_validation(ty)
     }
 
