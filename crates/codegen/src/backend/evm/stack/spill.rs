@@ -66,6 +66,20 @@ impl SpillManager {
         }
     }
 
+    /// Clears every slot assignment while retaining allocations for the next function.
+    pub(crate) fn clear(&mut self) {
+        self.slots.clear();
+        self.reloadable.clear();
+        self.stored.clear();
+        self.recomputable.clear();
+        self.mandatory_store.clear();
+        self.stable.clear();
+        self.block_locals.clear();
+        self.free_offsets.clear();
+        self.next_offset = 0;
+        self.max_offset = 0;
+    }
+
     /// Allocates a spill slot for a value.
     ///
     /// If the value already has a slot, returns the existing one.

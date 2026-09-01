@@ -337,7 +337,6 @@ fn generate_contract_bytecode(
             let gas_first_artifact = artifact;
             module = lower::lower_contract(gcx, contract_id, &child_bytecodes, true);
             gcx.dcx().has_errors()?;
-            let mut codegen = EvmCodegen::new(gcx);
             codegen.set_capture_mir(capture_mir && !capture_built);
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             let size_rescue_artifact = codegen.lower_module(&mut module);

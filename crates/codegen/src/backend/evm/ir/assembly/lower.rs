@@ -7,6 +7,7 @@ use crate::backend::evm::{
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_interface::sym;
 
 impl Assembler<'_> {
     #[tracing::instrument(
@@ -43,7 +44,15 @@ impl Assembler<'_> {
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        let evm_ir = capture_evm_ir.then_some(ir_program);
+        let evm_ir = if capture_evm_ir {
+            Some(ir_program)
+        } else {
+            self.program = ir_program;
+            self.program.clear(sym::asm);
+            None
+        };
+        self.block_labels = labels;
+        self.block_labels.clear();
         PreparedAssembly {
             evm_ir,
             program,

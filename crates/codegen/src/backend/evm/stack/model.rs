@@ -193,6 +193,12 @@ impl StackModel {
         self.stack.clear();
     }
 
+    /// Clears the stack and its per-function high-water mark.
+    pub(crate) fn reset(&mut self) {
+        self.stack.clear();
+        self.max_depth = 0;
+    }
+
     /// Returns an iterator over all values on the stack (top to bottom).
     pub(crate) fn iter(&self) -> impl Iterator<Item = Option<ValueId>> + '_ {
         self.stack.iter().copied()

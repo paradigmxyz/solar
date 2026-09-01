@@ -17,6 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_interface::sym;
 use solar_sema::Gcx;
 
 mod id_counter;
@@ -162,7 +163,7 @@ impl<'gcx> Assembler<'gcx> {
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.artifact_kind = ArtifactKind::Runtime;
-        self.program = Self::new_ir_module();
+        self.program.clear(sym::asm);
         self.program_is_finalized = false;
         self.current_block = None;
         self.block_labels.clear();

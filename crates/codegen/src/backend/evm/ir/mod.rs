@@ -108,6 +108,14 @@ impl Module {
         Self { name, blocks: IndexVec::new(), data: IndexVec::new(), enable_size_outlining: false }
     }
 
+    /// Clears the module while retaining its outer allocations.
+    pub(in crate::backend::evm) fn clear(&mut self, name: Symbol) {
+        self.name = name;
+        self.blocks.clear();
+        self.data.clear();
+        self.enable_size_outlining = false;
+    }
+
     /// Changes the program name.
     pub(crate) fn set_name(&mut self, name: Symbol) {
         self.name = name;

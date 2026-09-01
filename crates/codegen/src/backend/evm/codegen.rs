@@ -1193,6 +1193,59 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Clears state that belongs to one lowered MIR module.
+    fn reset_for_module(&mut self, module: &Module) {
+        self.asm.clear();
+        self.scheduler.reset();
+        self.block_labels.clear();
+        self.function_labels.clear();
+        self.cold_functions.clear_to(module.functions.len());
+        self.empty_stop_functions.clear_to(module.functions.len());
+        self.cold_blocks.clear_to(0);
+        self.function_spill_sizes.clear();
+        self.pending_frame_size_consts.clear();
+        self.static_call_abis.clear();
+        self.disabled_stack_only_functions.clear_to(module.functions.len());
+        self.stack_returns_enabled = true;
+        self.preserve_caller_stack = false;
+        self.recursive_stack_functions.clear_to(module.functions.len());
+        self.recursive_frame_functions.clear_to(module.functions.len());
+        self.recursive_frame_edges.clear();
+        self.recursion_reaching_functions.clear_to(module.functions.len());
+        self.function_stack_peaks.clear();
+        self.internal_call_stack_edges.clear();
+        self.runtime_stack_args = false;
+        self.spill_addr_consts.clear();
+        self.external_spill_addr_consts.clear();
+        self.restorable_internal_frames.clear_to(module.functions.len());
+        self.static_frame_functions.clear_to(module.functions.len());
+        self.static_frame_addr_consts.clear();
+        self.pending_static_allocs.clear();
+        self.runtime_free_memory_consts.clear();
+        self.runtime_entry_reachability.clear();
+        self.runtime_entry_funcs.clear();
+        self.current_internal_function = None;
+        self.block_copies.clear();
+        self.stack_phi_sources.clear();
+        self.spill_available = None;
+        self.elided_insts.clear();
+        self.spill_hazard_insts.clear();
+        self.heap_pointer_return_functions.clear_to(module.functions.len());
+        self.global_stack_active = false;
+        self.global_stack_aliases.clear();
+        self.runtime_immutable_refs.clear();
+        self.immutable_encodings.clear();
+        self.immutable_staging_base =
+            EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT + EvmMemoryLayout::WORD_SIZE;
+        self.constructor_args_base_const = None;
+        self.in_constructor = false;
+        self.constructor_exit = None;
+        self.constructor_param_count = 0;
+        self.in_internal_function = false;
+        self.emitting_entry = false;
+        self.reset_switch_gas_code_growth();
+    }
+
     fn static_call_abi_mut(&mut self, func_id: FunctionId, arg_count: usize) -> &mut StaticCallAbi {
         self.static_call_abis.entry(func_id).or_insert_with(|| StaticCallAbi::new(arg_count))
     }
@@ -1429,6 +1482,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if let Some(func) = module.functions.iter().find(|func| func.blocks.is_empty()) {
             panic!("cannot codegen MIR function `{}` without an entry block", func.name);
         }
+        self.reset_for_module(module);
         self.run_optimization_passes(module);
         if self.emit_unsupported(module) {
             return EvmArtifact::default();
@@ -2638,7 +2692,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.global_stack_aliases = global_stack_plan.aliases.clone();
 
         // Reset scheduler
-        self.scheduler = StackScheduler::for_evm_version(self.gcx.sess.opts.evm_version);
+        self.scheduler.reset();
         self.spill_addr_consts.clear();
 
         // Cross-block rematerialization is selected during spill preallocation. Record every
@@ -10275,6 +10329,25 @@ mod tests {
     fn with_codegen<T: Send>(opts: CompileOpts, f: impl FnOnce(EvmCodegen<'_>) -> T + Send) -> T {
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| f(EvmCodegen::new(c.gcx())))
+    }
+
+    #[test]
+    fn codegen_reuses_module_state() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let mut module = Module::new(Ident::DUMMY);
+            let mut entry = Function::new(Ident::DUMMY);
+            FunctionBuilder::new(&mut entry).stop();
+            let entry = module.add_function(entry);
+            module.set_dispatch_entry(entry);
+            module.advance_phase(MirPhase::EvmShaped);
+
+            let mut first_module = module.clone();
+            let first = codegen.generate_deployment_bytecode(&mut first_module);
+            let mut second_module = module.clone();
+            let second = codegen.generate_deployment_bytecode(&mut second_module);
+
+            assert_eq!(second, first);
+        });
     }
 
     #[test]

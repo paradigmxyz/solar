@@ -736,6 +736,17 @@ impl StackScheduler {
         }
     }
 
+    /// Clears per-function state while retaining its backing allocations.
+    pub(crate) fn reset(&mut self) {
+        self.stack.reset();
+        self.spills.clear();
+        self.stack_only_values.clear_to(0);
+        self.ops.clear();
+        self.operand_search_budget.set(OperandSearchBudget::default());
+        #[cfg(test)]
+        self.operand_search_stats.set(OperandSearchStats::default());
+    }
+
     fn max_stack_access(&self) -> usize {
         self.evm_version.reachable_stack_depth()
     }

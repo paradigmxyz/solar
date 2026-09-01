@@ -352,9 +352,11 @@ impl<'gcx> Assembler<'gcx> {
     pub(in crate::backend::evm) fn finish_evm_ir(
         &mut self,
     ) -> Option<(ir::Module, Vec<Option<Label>>)> {
-        let mut module = std::mem::replace(&mut self.program, Self::new_ir_module());
+        let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
+            module.clear(sym::asm);
+            self.program = module;
             return None;
         }
 
@@ -376,7 +378,7 @@ impl<'gcx> Assembler<'gcx> {
         alloc_relocations.sort_unstable_by_key(|&(block, instruction, _)| {
             std::cmp::Reverse((block, instruction))
         });
-        for (block, instruction, id) in alloc_relocations {
+        for (block, instruction, id) in alloc_relocations.drain(..) {
             let resolution = self
                 .deferred_allocations
                 .get(&id)
@@ -398,6 +400,7 @@ impl<'gcx> Assembler<'gcx> {
             module.blocks[block].instructions.splice(instruction..=instruction, replacement);
         }
         self.deferred_allocations.clear();
+        self.alloc_relocations = alloc_relocations;
 
         if self.program_is_finalized {
             self.program_is_finalized = false;
