@@ -955,16 +955,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let contract = self.cx.gcx.hir.contract(contract_id);
         assert_eq!(contract.kind, hir::ContractKind::Library);
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
-        if let Some(address) = self
-            .cx
-            .gcx
-            .sess
-            .opts
-            .libraries
+        let libraries = &self.cx.gcx.sess.opts.libraries;
+        let name = contract.name.as_str_in(self.cx.gcx.sess);
+        if let Some(address) = libraries
             .iter()
-            .find(|library| {
-                library.name == contract.name.as_str_in(self.cx.gcx.sess)
-                    && library.source.as_ref().is_none_or(|path| source.ends_with(path))
+            .find(|library| library.name == name && library.source.as_deref() == Some(&source))
+            .or_else(|| {
+                libraries.iter().find(|library| library.name == name && library.source.is_none())
             })
             .map(|library| U256::from_be_slice(library.address.as_slice()))
         {

@@ -2190,6 +2190,9 @@ impl LowerAbiCx {
         }
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
+            if matches!(inst.kind, InstKind::InternalCall { .. }) {
+                return false;
+            }
             let tainted_operand = inst.operands().iter().any(|value| tainted.contains(*value));
             if matches!(
                 &inst.kind,
@@ -2496,14 +2499,7 @@ impl LowerAbiCx {
     }
 
     fn can_encode_calldata_slice(ty: &crate::mir::AbiParamType) -> bool {
-        matches!(ty, crate::mir::AbiParamType::Bytes)
-            || Self::is_scalar_array(ty)
-            || matches!(
-                ty,
-                crate::mir::AbiParamType::DynamicArray(element)
-                    if Self::is_scalar_or_enum(element)
-                        || matches!(element.as_ref(), crate::mir::AbiParamType::Bytes)
-            )
+        matches!(ty, crate::mir::AbiParamType::Bytes) || Self::is_scalar_array(ty)
     }
 
     fn requires_calldata_element_validation(ty: &crate::mir::AbiParamType) -> bool {

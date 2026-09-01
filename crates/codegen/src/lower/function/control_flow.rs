@@ -989,10 +989,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, ValueId>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, ValueId> {
-        let mut ids =
-            states.iter().flat_map(|state| state.values.keys().copied()).collect::<Vec<_>>();
-        ids.sort_unstable();
-        ids.dedup();
+        let ids = before.keys().copied().collect::<Vec<_>>();
         for id in ids {
             let incoming = states
                 .iter()
@@ -1036,11 +1033,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut before: FxHashMap<VariableId, StorageAccess>,
         states: &[LoopState],
     ) -> FxHashMap<VariableId, StorageAccess> {
-        let ids = states
-            .iter()
-            .flat_map(|state| state.storage_refs.keys())
-            .copied()
-            .collect::<solar_data_structures::map::FxHashSet<_>>();
+        let ids = before.keys().copied().collect::<Vec<_>>();
         for id in ids {
             let fallback = before.get(&id).copied();
             let incoming = states
