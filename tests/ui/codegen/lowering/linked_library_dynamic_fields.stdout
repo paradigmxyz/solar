@@ -104,8 +104,10 @@ bb4:
   push 384
   mstore
   dup 3
-  gt
-  swap 1
+  dup 2
+  lt
+  swap 2
+  pop
   pop
   push bb26
   jumpi
@@ -445,7 +447,12 @@ bb22:
   dup 1
   push 576
   mstore
+  dup 2
+  dup 2
   lt
+  swap 2
+  pop
+  pop
   push bb40
   jumpi
   push 64

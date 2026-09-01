@@ -85,6 +85,8 @@ impl RunState {
                 && suffix_size(gcx, module, block_id, common) > 5
                 && split_has_jump_headroom(&mut depths, module, representative, common)
                 && split_has_jump_headroom(&mut depths, module, block_id, common)
+                && relocated_terminator_has_headroom(&mut depths, module, representative)
+                && relocated_terminator_has_headroom(&mut depths, module, block_id)
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
@@ -250,6 +252,24 @@ fn split_has_jump_headroom(
             .get_or_insert_with(|| StackDepths::new(module))
             .as_ref()
             .is_some_and(|depths| depths.has_headroom(block_id, split, 1))
+}
+
+fn relocated_terminator_has_headroom(
+    depths: &mut Option<Option<StackDepths>>,
+    module: &Module,
+    block_id: BlockId,
+) -> bool {
+    let block = &module.blocks[block_id];
+    let Some(Terminator { kind: TerminatorKind::Jump(target), .. }) = &block.terminator else {
+        return true;
+    };
+    if module.next_block(block_id) != Some(*target) {
+        return true;
+    }
+    depths
+        .get_or_insert_with(|| StackDepths::new(module))
+        .as_ref()
+        .is_some_and(|depths| depths.has_headroom(block_id, block.instructions.len(), 1))
 }
 
 fn is_candidate(block: &Block) -> bool {

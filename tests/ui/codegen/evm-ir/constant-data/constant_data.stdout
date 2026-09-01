@@ -1,0 +1,28 @@
+- // === ROOT/tests/ui/codegen/evm-ir/constant-data/constant_data.evmir (before constant-data) ===
++ // === ROOT/tests/ui/codegen/evm-ir/constant-data/constant_data.evmir (after constant-data) ===
+  @module ConstantData
+  bb0:
+    push 0
+-   push 0x1111111111111111111111111111111111111111111111111111111111111111
+-   dup 2
+-   mstore
+-   push 32
+-   dup 2
+-   add
+-   push 0x2222222222222222222222222222222222222222222222222222222222222222
+-   swap 1
+-   mstore
+-   push 64
+-   dup 2
+-   add
+-   push 0x3333333333333333333333333333333333333333333333333333333333333333
+-   swap 1
+-   mstore
++   push 96
++   push_data literal_0
++   dup 3
++   codecopy
+    stop
++ 
++ @data literal_0 hex"111111111111111111111111111111111111111111111111111111111111111122222222222222222222222222222222222222222222222222222222222222223333333333333333333333333333333333333333333333333333333333333333"
+  

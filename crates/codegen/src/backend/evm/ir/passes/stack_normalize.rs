@@ -20,7 +20,7 @@
 //! removes any simpler identities that become adjacent. The length bound keeps symbolic
 //! resynthesis and cache keys independent of function size.
 
-use super::EvmPass;
+use super::{EvmPass, utils::StackDepths};
 use crate::{
     backend::evm::{
         ir::{Instruction, Module},
@@ -46,19 +46,21 @@ impl EvmPass for StackNormalize {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let mut changed = false;
-        let mut cache = FxHashMap::default();
-        let mut scratch = Vec::new();
-        let mut normalizations = Vec::new();
-        let mut guaranteed_depths = Vec::new();
-        for block in &mut module.blocks {
-            changed |= normalize_runs(
-                &mut block.instructions,
-                gcx.sess.opts.evm_version,
-                &mut cache,
-                &mut scratch,
-                &mut normalizations,
-                &mut guaranteed_depths,
-            );
+        let mut needs_depths = false;
+        let mut normalizer = Normalizer::default();
+        for (block_id, block) in module.blocks.iter_mut_enumerated() {
+            let result =
+                normalizer.run(&mut block.instructions, block_id, gcx.sess.opts.evm_version, None);
+            changed |= result.changed;
+            needs_depths |= result.needs_depths;
+        }
+        let Some(depths) = needs_depths.then(|| StackDepths::new(module)).flatten() else {
+            return changed;
+        };
+        for (block_id, block) in module.blocks.iter_mut_enumerated() {
+            changed |= normalizer
+                .run(&mut block.instructions, block_id, gcx.sess.opts.evm_version, Some(&depths))
+                .changed;
         }
         changed
     }
@@ -88,81 +90,111 @@ struct Normalization {
     output: StackRun,
 }
 
-fn normalize_runs(
-    instructions: &mut Vec<Instruction>,
-    evm_version: EvmVersion,
-    cache: &mut NormalizationCache,
-    scratch: &mut Vec<Instruction>,
-    normalizations: &mut Vec<Normalization>,
-    guaranteed_depths: &mut Vec<usize>,
-) -> bool {
-    normalizations.clear();
-    if !instructions.windows(2).any(|window| window.iter().all(|inst| stack_op(inst).is_some())) {
-        return false;
-    }
-    compute_guaranteed_depths(instructions, guaranteed_depths);
-    let mut input = StackRun::new();
-    let mut cursor = 0;
-    while cursor < instructions.len() {
-        let run_start = cursor;
-        while cursor < instructions.len() && stack_op(&instructions[cursor]).is_some() {
-            cursor += 1;
-        }
-        if cursor == run_start {
-            cursor += 1;
-            continue;
-        }
-        let mut start = run_start;
-        while start < cursor {
-            let remaining = cursor - start;
-            let len = if remaining == MAX_STACK_RUN_LEN + 1 {
-                MAX_STACK_RUN_LEN - 1
-            } else {
-                remaining.min(MAX_STACK_RUN_LEN)
-            };
-            let end = start + len;
-            input.clear();
-            input.extend(instructions[start..end].iter().filter_map(stack_op));
-            if input.len() >= 2
-                && let Some(output) =
-                    normalization(&input, evm_version, guaranteed_depths[start], cache)
-            {
-                normalizations.push(Normalization { start, end, output });
-            }
-            start = end;
-        }
-    }
-    if normalizations.is_empty() {
-        return false;
-    }
+#[derive(Default)]
+struct NormalizeResult {
+    changed: bool,
+    needs_depths: bool,
+}
 
-    scratch.clear();
-    std::mem::swap(instructions, scratch);
-    instructions.reserve(scratch.len());
-    let mut source = scratch.drain(..).enumerate().peekable();
-    for normalization in normalizations.drain(..) {
-        while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
-            instructions.push(source.next().unwrap().1);
+#[derive(Default)]
+struct Normalizer {
+    cache: NormalizationCache,
+    scratch: Vec<Instruction>,
+    normalizations: Vec<Normalization>,
+    guaranteed_depths: Vec<usize>,
+}
+
+impl Normalizer {
+    fn run(
+        &mut self,
+        instructions: &mut Vec<Instruction>,
+        block_id: crate::backend::evm::ir::BlockId,
+        evm_version: EvmVersion,
+        depths: Option<&StackDepths>,
+    ) -> NormalizeResult {
+        let mut result = NormalizeResult::default();
+        self.normalizations.clear();
+        if !instructions.windows(2).any(|window| window.iter().all(|inst| stack_op(inst).is_some()))
+        {
+            return result;
         }
-        let mut original = source.by_ref().take(normalization.end - normalization.start);
-        for op in normalization.output {
-            let mut replacement = Instruction::stack_op(op);
-            if let Some((_, mut inst)) = original.next() {
-                replacement.metadata = std::mem::take(&mut inst.metadata);
-                replacement.metadata.stack = None;
+        compute_guaranteed_depths(instructions, &mut self.guaranteed_depths);
+        let mut input = StackRun::new();
+        let mut cursor = 0;
+        while cursor < instructions.len() {
+            let run_start = cursor;
+            while cursor < instructions.len() && stack_op(&instructions[cursor]).is_some() {
+                cursor += 1;
             }
-            instructions.push(replacement);
+            if cursor == run_start {
+                cursor += 1;
+                continue;
+            }
+            let mut start = run_start;
+            while start < cursor {
+                let remaining = cursor - start;
+                let len = if remaining == MAX_STACK_RUN_LEN + 1 {
+                    MAX_STACK_RUN_LEN - 1
+                } else {
+                    remaining.min(MAX_STACK_RUN_LEN)
+                };
+                let end = start + len;
+                input.clear();
+                input.extend(instructions[start..end].iter().filter_map(stack_op));
+                if input.len() >= 2
+                    && let Some(output) = normalization(
+                        &input,
+                        evm_version,
+                        self.guaranteed_depths[start],
+                        depths,
+                        block_id,
+                        start,
+                        &mut self.cache,
+                    )
+                {
+                    self.normalizations.push(Normalization { start, end, output });
+                } else if normalization_needs_depths(&input, evm_version, &mut self.cache) {
+                    result.needs_depths = true;
+                }
+                start = end;
+            }
         }
-        original.for_each(drop);
+        if self.normalizations.is_empty() {
+            return result;
+        }
+
+        self.scratch.clear();
+        std::mem::swap(instructions, &mut self.scratch);
+        instructions.reserve(self.scratch.len());
+        let mut source = self.scratch.drain(..).enumerate().peekable();
+        for normalization in self.normalizations.drain(..) {
+            while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
+                instructions.push(source.next().unwrap().1);
+            }
+            let mut original = source.by_ref().take(normalization.end - normalization.start);
+            for op in normalization.output {
+                let mut replacement = Instruction::stack_op(op);
+                if let Some((_, mut inst)) = original.next() {
+                    replacement.metadata = std::mem::take(&mut inst.metadata);
+                    replacement.metadata.stack = None;
+                }
+                instructions.push(replacement);
+            }
+            original.for_each(drop);
+        }
+        instructions.extend(source.map(|(_, inst)| inst));
+        result.changed = true;
+        result
     }
-    instructions.extend(source.map(|(_, inst)| inst));
-    true
 }
 
 fn normalization(
     input: &StackRun,
     evm_version: EvmVersion,
     guaranteed_depth: usize,
+    depths: Option<&StackDepths>,
+    block_id: crate::backend::evm::ir::BlockId,
+    start: usize,
     cache: &mut NormalizationCache,
 ) -> Option<StackRun> {
     let output = if let Some(output) = cache.get(input) {
@@ -174,7 +206,29 @@ fn normalization(
     }?;
     let input_required = required_entry_depth(input);
     (required_entry_depth(&output) == input_required || guaranteed_depth >= input_required)
-        .then_some(output)
+        .then_some(())?;
+    let input_peak = usize::try_from(relative_peak(input)).ok()?;
+    if relative_peak(&output) < relative_peak(input)
+        && !depths.is_some_and(|depths| depths.has_headroom(block_id, start, input_peak))
+    {
+        return None;
+    }
+    Some(output)
+}
+
+fn normalization_needs_depths(
+    input: &StackRun,
+    evm_version: EvmVersion,
+    cache: &mut NormalizationCache,
+) -> bool {
+    let output = if let Some(output) = cache.get(input) {
+        output.as_ref()
+    } else {
+        let output = compute_normalization(input, evm_version);
+        cache.insert(input.clone(), output);
+        cache.get(input).and_then(Option::as_ref)
+    };
+    output.is_some_and(|output| relative_peak(output) < relative_peak(input))
 }
 
 fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<StackRun> {

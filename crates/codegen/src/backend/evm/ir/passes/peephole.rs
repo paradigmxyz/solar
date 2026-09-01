@@ -53,8 +53,10 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let stack_headroom = module.unknown_target_stack_headroom;
-        optimize_module(gcx, module, stack_headroom)
+        let mut stack_headroom = std::mem::take(&mut module.unknown_target_stack_headroom);
+        let changed = optimize_module(gcx, module, &mut stack_headroom);
+        module.unknown_target_stack_headroom = stack_headroom;
+        changed
     }
 }
 
@@ -92,7 +94,7 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module, stack_headroom: usize) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module, stack_headroom: &mut usize) -> bool {
     let mut result = OptimizeResult::default();
     let mut scratch = Vec::new();
     for (_, block) in module.blocks.iter_mut_enumerated() {
@@ -137,7 +139,7 @@ impl OptimizeResult {
 }
 
 fn cleanup_stop_stacks(module: &mut Module) -> bool {
-    let stack_headroom = module.unknown_target_stack_headroom;
+    let mut stack_headroom = std::mem::take(&mut module.unknown_target_stack_headroom);
     let mut suffixes = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
@@ -153,15 +155,18 @@ fn cleanup_stop_stacks(module: &mut Module) -> bool {
         .flatten();
     let mut changed = false;
     for (block_id, suffix) in suffixes {
-        if suffix.peak <= stack_headroom
-            || depths
-                .as_ref()
-                .is_some_and(|depths| depths.has_headroom(block_id, suffix.start, suffix.peak))
+        if suffix.peak <= stack_headroom && {
+            stack_headroom -= suffix.peak;
+            true
+        } || depths
+            .as_ref()
+            .is_some_and(|depths| depths.has_headroom(block_id, suffix.start, suffix.peak))
         {
             module.blocks[block_id].instructions.truncate(suffix.start);
             changed = true;
         }
     }
+    module.unknown_target_stack_headroom = stack_headroom;
     changed
 }
 
@@ -204,7 +209,7 @@ fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
-    stack_headroom: usize,
+    stack_headroom: &mut usize,
     entry_depth: Option<usize>,
 ) -> OptimizeResult {
     scratch.clear();
@@ -237,7 +242,7 @@ fn try_peephole(
     instructions: &mut Vec<Instruction>,
     block: u32,
     entry_depth: Option<usize>,
-    stack_headroom: usize,
+    stack_headroom: &mut usize,
     relative_depth: isize,
     needs_depths: &mut bool,
 ) -> bool {
@@ -664,7 +669,7 @@ struct StackSummary {
 struct RewriteContext<'a> {
     block: u32,
     entry_depth: Option<usize>,
-    stack_headroom: usize,
+    stack_headroom: &'a mut usize,
     relative_depth: isize,
     needs_depths: &'a mut bool,
 }
@@ -708,21 +713,24 @@ fn rewrite_if_safe(
     }
 
     // A lower replacement peak could erase an overflow that the source must retain. A higher
-    // peak needs room beyond the source's peak. Use codegen's reserved headroom first, then the
-    // exact CFG depth when the first sweep found a candidate that needs it.
-    let fits = if target.peak > source.peak {
+    // peak needs room beyond the source's peak. Prefer the exact CFG depth. When opaque jumps
+    // prevent that proof, consume backend-reserved headroom so no later pass can reuse it.
+    let reserve = if target.peak > source.peak {
         let added = target.peak - source.peak;
-        context.stack_headroom >= added as usize
-            || peak_fits(context.entry_depth, start_depth, target.peak)
+        (!peak_fits(context.entry_depth, start_depth, target.peak)).then_some(added as usize)
     } else if target.peak < source.peak {
-        context.stack_headroom >= source.peak as usize
-            || peak_fits(context.entry_depth, start_depth, source.peak)
+        (!peak_fits(context.entry_depth, start_depth, source.peak)).then_some(source.peak as usize)
     } else {
-        true
+        None
     };
-    if !fits {
+    if let Some(reserve) = reserve
+        && (reserve > *context.stack_headroom || context.entry_depth.is_some())
+    {
         *context.needs_depths |= context.entry_depth.is_none();
         return false;
+    }
+    if let Some(reserve) = reserve {
+        *context.stack_headroom -= reserve;
     }
 
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)

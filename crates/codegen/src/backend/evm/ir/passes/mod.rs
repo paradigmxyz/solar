@@ -9,6 +9,7 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
+mod constant_data;
 pub(super) mod data;
 mod dce;
 mod legalize_shifts;
@@ -63,6 +64,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &stack_normalize::StackDedup,
     &stack_normalize::StackNormalize,
     &compact_pushes::CompactPushes,
+    &constant_data::ConstantData,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
     &dce::Dce,
@@ -131,6 +133,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
     // Materialize constants and finalize the referenced data pool after all code transforms.
+    &constant_data::ConstantData,
     &data::PackData,
     // Data packing can add compactable immediates and local stack shuffles.
     &compact_pushes::CompactPushes,

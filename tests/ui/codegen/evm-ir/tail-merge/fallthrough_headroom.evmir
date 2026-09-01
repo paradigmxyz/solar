@@ -1,0 +1,44 @@
+//@ compile-flags: -Zevm-ir-pipeline=tail-merge
+//@ filecheck:
+@module TailMergeFallthroughHeadroom
+
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  jump bb1
+
+// Splitting this suffix is safe, but the copied fallthrough terminator would need a target push
+// after the shared tail reaches depth 1,024. Leave both source blocks intact.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-COUNT-6: {{^[ +].*}}swap 1
+// CHECK-NOT: + jump
+// CHECK: {{^[ +].*}}jump bb2
+bb1:
+  push 0
+  push 0
+  push 0
+  push 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  jump bb2
+
+bb2:
+  stop
+
+bb3:
+  push 0
+  push 0
+  push 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  jump bb2

@@ -48,11 +48,12 @@ const VERY_LOW_GAS: usize = 3;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let unknown_target_headroom = module.unknown_target_stack_headroom;
+    let mut unknown_target_headroom = std::mem::take(&mut module.unknown_target_stack_headroom);
     // Most selected recipes already fit their block's original high-water mark. Avoid the
     // whole-module fixed-point analysis unless a candidate needs a CFG proof.
-    let depths =
-        needs_stack_depths(module, evm_version).then(|| StackDepths::new(module)).flatten();
+    let depths = needs_stack_depths(module, evm_version, unknown_target_headroom)
+        .then(|| StackDepths::new(module))
+        .flatten();
     let mut changed = false;
     let mut scratch = Vec::new();
     for index in 0..module.blocks.len() {
@@ -79,14 +80,16 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
             } else if materialization_fits(
-                inst.metadata.compact_headroom
-                    || materialization.stack_peak() <= unknown_target_headroom,
+                inst.metadata.compact_headroom,
                 depths.as_ref(),
-                block_id,
-                index,
-                relative_depth,
-                high_water,
-                materialization.stack_peak(),
+                MaterializationSite {
+                    block: block_id,
+                    index,
+                    relative_depth,
+                    high_water,
+                    peak: materialization.stack_peak(),
+                },
+                &mut unknown_target_headroom,
             ) {
                 materialize_selected(&mut block.instructions, materialization);
                 changed = true;
@@ -96,10 +99,11 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
             relative_depth += 1;
         }
     }
+    module.unknown_target_stack_headroom = unknown_target_headroom;
     changed
 }
 
-fn needs_stack_depths(module: &Module, evm_version: EvmVersion) -> bool {
+fn needs_stack_depths(module: &Module, evm_version: EvmVersion, mut headroom: usize) -> bool {
     module.blocks.iter().any(|block| {
         let high_water = relative_stack_high_water(&block.instructions);
         let mut relative_depth = 0isize;
@@ -108,14 +112,17 @@ fn needs_stack_depths(module: &Module, evm_version: EvmVersion) -> bool {
                 let materialization = ImmediateMaterialization::new(evm_version, value);
                 if !matches!(materialization.recipe, CompactPush::Literal)
                     && !inst.metadata.compact_headroom
-                    && module.unknown_target_stack_headroom < materialization.stack_peak()
                     && !fits_relative_high_water(
                         relative_depth,
                         high_water,
                         materialization.stack_peak(),
                     )
                 {
-                    return true;
+                    let peak = materialization.stack_peak();
+                    if peak > headroom {
+                        return true;
+                    }
+                    headroom -= peak;
                 }
                 relative_depth += 1;
             } else {
@@ -132,18 +139,27 @@ fn update_relative_depth(inst: &Instruction, depth: &mut isize) {
     }
 }
 
-fn materialization_fits(
-    headroom_proven: bool,
-    depths: Option<&StackDepths>,
+struct MaterializationSite {
     block: BlockId,
     index: usize,
     relative_depth: isize,
     high_water: Option<isize>,
     peak: usize,
+}
+
+fn materialization_fits(
+    headroom_proven: bool,
+    depths: Option<&StackDepths>,
+    site: MaterializationSite,
+    headroom: &mut usize,
 ) -> bool {
     headroom_proven
-        || fits_relative_high_water(relative_depth, high_water, peak)
-        || depths.is_some_and(|depths| depths.has_headroom(block, index, peak))
+        || fits_relative_high_water(site.relative_depth, site.high_water, site.peak)
+        || depths.is_some_and(|depths| depths.has_headroom(site.block, site.index, site.peak))
+        || site.peak <= *headroom && {
+            *headroom -= site.peak;
+            true
+        }
 }
 
 fn fits_relative_high_water(relative_depth: isize, high_water: Option<isize>, peak: usize) -> bool {

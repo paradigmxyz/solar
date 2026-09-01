@@ -614,11 +614,10 @@ fn has_headroom(
     index: usize,
     growth: usize,
 ) -> bool {
-    growth <= module.unknown_target_stack_headroom
-        || depths
-            .get_or_insert_with(|| StackDepths::new(module))
-            .as_ref()
-            .is_some_and(|depths| depths.has_headroom(block, index, growth))
+    depths
+        .get_or_insert_with(|| StackDepths::new(module))
+        .as_ref()
+        .is_some_and(|depths| depths.has_headroom(block, index, growth))
 }
 
 fn apply_outline_edits(

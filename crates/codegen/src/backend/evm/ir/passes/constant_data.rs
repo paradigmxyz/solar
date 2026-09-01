@@ -5,10 +5,11 @@ use super::{
     utils::{StackDepths, relative_stack_depths},
 };
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module, PushValue},
+    ir::{BlockId, Data, DataRef, Instruction, Module, PushValue},
     op,
 };
 use alloy_primitives::{Bytes, U256};
+use solar_interface::sym;
 use solar_sema::Gcx;
 
 pub(super) struct ConstantData;
@@ -64,7 +65,8 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut prepared = Vec::with_capacity(rewrites.len());
     for rewrite in rewrites {
         let size = rewrite.data.len();
-        let data = module.intern_data(rewrite.data);
+        let id = module.data.push(Data { bytes: rewrite.data, name: Some(sym::literal) });
+        let data = DataRef::new(id, 0);
         prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data));
     }
     for (block, start, end, size, data) in prepared.into_iter().rev() {
