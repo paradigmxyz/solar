@@ -41,7 +41,7 @@ use tracing::trace;
 
 pub(super) struct Peephole;
 
-/// Removes self-contained physical stack suffixes before zero-input terminals after final layout.
+/// Removes dead physical stack suffixes before zero-input terminals after final layout.
 pub(super) struct StopStackCleanup;
 
 /// Runs peephole cleanup only when the wrapped pass changes the module.
@@ -123,8 +123,7 @@ fn terminal_stack_suffix_start(instructions: &[Instruction]) -> Option<usize> {
         .iter()
         .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
         .map_or(0, |index| index + 1);
-    (start < instructions.len()).then_some(())?;
-    Some(start)
+    (start < instructions.len()).then_some(start)
 }
 
 fn optimize(
