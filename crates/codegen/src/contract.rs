@@ -50,6 +50,9 @@ pub struct ImmutableReference {
     pub type_size: TypeSize,
 }
 
+/// Returns opaque data to emit at the end of a contract's runtime program.
+pub type RuntimeDataFn<'a> = dyn Fn(ContractId) -> Bytes + Sync + 'a;
+
 /// A contract selection.
 #[derive(Clone, Debug)]
 pub enum ContractSelection {
@@ -124,7 +127,7 @@ pub fn generate_contract_bytecodes(
     contracts: &ContractSelection,
     capture_mir: &ContractSelection,
     capture_evm_ir: &ContractSelection,
-    runtime_data: Option<&(dyn Fn(ContractId) -> Bytes + Sync)>,
+    runtime_data: Option<&RuntimeDataFn<'_>>,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
     let captures = ContractCaptures {
         bytecode: contracts,
@@ -191,7 +194,7 @@ struct ContractCaptures<'a> {
     bytecode: &'a ContractSelection,
     mir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
-    runtime_data: Option<&'a (dyn Fn(ContractId) -> Bytes + Sync)>,
+    runtime_data: Option<&'a RuntimeDataFn<'a>>,
 }
 
 struct ContractGraph {
@@ -326,7 +329,7 @@ fn generate_contract_bytecode(
         || captures.evm_ir.contains(contract_id)
         || !graph.dependents[contract_id].is_empty();
     let runtime_data =
-        needs_backend.then(|| captures.runtime_data.map(|data| data(contract_id))).flatten();
+        captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
     append_runtime_data(&mut module, runtime_data.as_ref());
     let capture_built = capture_mir
         && matches!(gcx.sess.opts.optimization, OptimizationMode::None)

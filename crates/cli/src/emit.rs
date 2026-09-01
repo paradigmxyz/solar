@@ -2,7 +2,7 @@ use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
-    ContractArtifact, ContractSelection,
+    ContractArtifact, ContractSelection, RuntimeDataFn,
     backend::evm::{self, ir},
     generate_contract_bytecodes,
     mir::{Module, validate},
@@ -44,7 +44,7 @@ struct CombinedJsonContract<'a> {
 pub(crate) fn emit_requested(
     compiler: &mut CompilerRef<'_>,
     bytecode_contracts: ContractSelection,
-    runtime_data: Option<&(dyn Fn(ContractId) -> Bytes + Sync)>,
+    runtime_data: Option<&RuntimeDataFn<'_>>,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
     if !gcx.sess.opts.language.is_source() {

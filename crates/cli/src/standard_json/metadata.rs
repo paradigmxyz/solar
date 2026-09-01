@@ -243,7 +243,7 @@ fn push_cbor_value(output: &mut Vec<u8>, kind: u8, value: &[u8]) {
     output.extend(value);
 }
 
-fn ipfs_hash(input: &[u8]) -> Vec<u8> {
+fn ipfs_hash(input: &[u8]) -> [u8; IPFS_MULTIHASH_LEN] {
     const CHUNK_SIZE: usize = 256 * 1024;
     let mut chunks = input.chunks(CHUNK_SIZE).map(ipfs_leaf).collect::<Vec<_>>();
     if chunks.is_empty() {
@@ -252,7 +252,7 @@ fn ipfs_hash(input: &[u8]) -> Vec<u8> {
     while chunks.len() > 1 {
         chunks = chunks.chunks_mut(174).map(ipfs_parent).collect();
     }
-    chunks.pop().expect("IPFS tree must have a root").hash.to_vec()
+    chunks.pop().expect("IPFS tree must have a root").hash
 }
 
 struct IpfsChunk {
@@ -266,18 +266,30 @@ fn ipfs_leaf(input: &[u8]) -> IpfsChunk {
         + if input.is_empty() { 0 } else { 1 + varint_len(input.len()) + input.len() }
         + 1
         + varint_len(input.len());
-    let mut block = Vec::with_capacity(1 + varint_len(protobuf_len) + protobuf_len);
-    block.push(0x0a);
-    push_varint(&mut block, protobuf_len);
-    block.extend([0x08, 0x02]);
+    let mut protobuf_len_bytes = [0; 10];
+    let protobuf_len_len = write_varint(protobuf_len, &mut protobuf_len_bytes);
+    let mut input_len_bytes = [0; 10];
+    let input_len_len = write_varint(input.len(), &mut input_len_bytes);
+    let protobuf_len_bytes = &protobuf_len_bytes[..protobuf_len_len];
+    let input_len_bytes = &input_len_bytes[..input_len_len];
+    let mut hasher = Sha256::new();
+    hasher.update([0x0a]);
+    hasher.update(protobuf_len_bytes);
+    hasher.update([0x08, 0x02]);
     if !input.is_empty() {
-        block.push(0x12);
-        push_varint(&mut block, input.len());
-        block.extend(input);
+        hasher.update([0x12]);
+        hasher.update(input_len_bytes);
+        hasher.update(input);
     }
-    block.push(0x18);
-    push_varint(&mut block, input.len());
-    IpfsChunk { hash: sha256_multihash(&block), size: input.len(), block_size: block.len() }
+    hasher.update([0x18]);
+    hasher.update(input_len_bytes);
+    let block_size = 4
+        + protobuf_len_bytes.len()
+        + input_len_bytes.len() * usize::from(!input.is_empty())
+        + input.len()
+        + input_len_bytes.len();
+    let hash = sha256_multihash_from_hasher(hasher);
+    IpfsChunk { hash, size: input.len(), block_size }
 }
 
 fn ipfs_parent(children: &mut [IpfsChunk]) -> IpfsChunk {
@@ -300,21 +312,26 @@ fn ipfs_parent(children: &mut [IpfsChunk]) -> IpfsChunk {
         lengths.push(0x20);
         push_varint(&mut lengths, child.size);
     }
-    let mut file = vec![0x08, 0x02, 0x18];
-    push_varint(&mut file, size);
-    file.extend(lengths);
-    let mut data = vec![0x0a];
-    push_varint(&mut data, file.len());
-    data.extend(file);
-    links.extend(data);
+    let file_len = 3 + varint_len(size) + lengths.len();
+    links.push(0x0a);
+    push_varint(&mut links, file_len);
+    links.extend([0x08, 0x02, 0x18]);
+    push_varint(&mut links, size);
+    links.extend(lengths);
     block_size += links.len();
     IpfsChunk { hash: sha256_multihash(&links), size, block_size }
 }
 
 fn sha256_multihash(input: &[u8]) -> [u8; IPFS_MULTIHASH_LEN] {
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    sha256_multihash_from_hasher(hasher)
+}
+
+fn sha256_multihash_from_hasher(hasher: Sha256) -> [u8; IPFS_MULTIHASH_LEN] {
     let mut output = [0; IPFS_MULTIHASH_LEN];
     output[..2].copy_from_slice(&[0x12, 0x20]);
-    output[2..].copy_from_slice(&Sha256::digest(input));
+    output[2..].copy_from_slice(&hasher.finalize());
     output
 }
 
@@ -324,6 +341,17 @@ fn push_varint(output: &mut Vec<u8>, mut value: usize) {
         value >>= 7;
     }
     output.push(value as u8);
+}
+
+fn write_varint(mut value: usize, output: &mut [u8; 10]) -> usize {
+    let mut len = 0;
+    while value > 0x7f {
+        output[len] = 0x80 | (value as u8 & 0x7f);
+        len += 1;
+        value >>= 7;
+    }
+    output[len] = value as u8;
+    len + 1
 }
 
 fn varint_len(value: usize) -> usize {

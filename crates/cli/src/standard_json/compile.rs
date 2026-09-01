@@ -10,7 +10,7 @@ use super::{
     metadata::Metadata,
 };
 use serde_json::json;
-use solar_codegen::{ContractArtifact, ContractSelection};
+use solar_codegen::{ContractArtifact, ContractSelection, RuntimeDataFn};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode,
@@ -276,11 +276,9 @@ fn compile(
                 let runtime_data = contract_metadata
                     .as_ref()
                     .map(|metadata| |contract_id| metadata.runtime_data(contract_id));
-                let bytecodes = crate::emit::emit_requested(
-                    compiler,
-                    bytecode_contracts,
-                    runtime_data.as_ref().map(|data| data as _),
-                )?;
+                let runtime_data = runtime_data.as_ref().map(|data| data as &RuntimeDataFn<'_>);
+                let bytecodes =
+                    crate::emit::emit_requested(compiler, bytecode_contracts, runtime_data)?;
 
                 gcx.dcx().has_errors()?;
 
