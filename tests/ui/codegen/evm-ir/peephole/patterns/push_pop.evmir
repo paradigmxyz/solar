@@ -61,3 +61,15 @@ bb5:
   push 2
   add
   stop
+
+// Explicitly pushed REVERT operands leave the preceding stack suffix dead.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}push 0
+// CHECK: {{^[ +].*}}push 0
+// CHECK: {{^[ +].*}}revert
+bb6:
+  pop
+  push 0
+  push 0
+  revert

@@ -24,7 +24,6 @@ bb0:
   gt
   push bb4
   jumpi
-  pop
   push 0
   push 0
   revert
@@ -66,7 +65,7 @@ bb2 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x66 ; bb10
+PUSH1 0x65 ; bb10
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -86,9 +85,8 @@ OR
 DUP1
 PUSH1 0x08
 GT
-PUSH1 0x22 ; bb0
+PUSH1 0x21 ; bb0
 JUMPI
-POP
 PUSH0
 PUSH0
 REVERT
@@ -96,7 +94,7 @@ REVERT
 JUMPDEST
 PUSH1 0x18
 ADD
-PUSH8 0x323c42484e545a60
+PUSH8 0x313b41474d53595f
 SWAP1
 BYTE
 JUMP ; unknown
@@ -113,37 +111,37 @@ RETURN
 ; bb3
 JUMPDEST
 PUSH1 0x65
-PUSH1 0x35 ; bb2
+PUSH1 0x34 ; bb2
 JUMP
 ; bb4
 JUMPDEST
 PUSH1 0x66
-PUSH1 0x35 ; bb2
+PUSH1 0x34 ; bb2
 JUMP
 ; bb5
 JUMPDEST
 PUSH1 0x67
-PUSH1 0x35 ; bb2
+PUSH1 0x34 ; bb2
 JUMP
 ; bb6
 JUMPDEST
 PUSH1 0x68
-PUSH1 0x35 ; bb2
+PUSH1 0x34 ; bb2
 JUMP
 ; bb7
 JUMPDEST
 PUSH1 0x69
-PUSH1 0x35 ; bb2
+PUSH1 0x34 ; bb2
 JUMP
 ; bb8
 JUMPDEST
 PUSH1 0x6a
-PUSH1 0x35 ; bb2
+PUSH1 0x34 ; bb2
 JUMP
 ; bb9
 JUMPDEST
 PUSH1 0x6b
-PUSH1 0x35 ; bb2
+PUSH1 0x34 ; bb2
 JUMP
 ; bb10
 JUMPDEST

@@ -87,7 +87,6 @@ bb10:
   push 107
   jump bb12
 bb11:
-  pop
   push 0
   push 0
   revert
@@ -97,7 +96,7 @@ bb2 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x82 ; bb9
+PUSH1 0x81 ; bb9
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -197,7 +196,6 @@ PUSH1 0x14 ; bb0
 JUMP
 ; bb8
 JUMPDEST
-POP
 PUSH0
 PUSH0
 REVERT

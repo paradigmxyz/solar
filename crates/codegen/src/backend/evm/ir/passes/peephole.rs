@@ -16,8 +16,8 @@
 //! change, keeping the canonical pipeline at a local fixed point without adding optimization logic
 //! to assembly.
 //!
-//! [`StopStackCleanup`] runs once after the final layout. It removes trailing pushes and physical
-//! stack operations before a zero-input terminal, which cannot observe the stack. Keeping it late
+//! [`StopStackCleanup`] runs once after the final layout. It removes trailing physical stack
+//! operations before halting terminal operands already materialized by pushes. Keeping it late
 //! avoids changing the stack shapes used by structural sharing and layout passes.
 
 use super::{
@@ -41,7 +41,7 @@ use tracing::trace;
 
 pub(super) struct Peephole;
 
-/// Removes dead physical stack suffixes before zero-input terminals after final layout.
+/// Removes dead physical stack suffixes before halting terminals after final layout.
 pub(super) struct StopStackCleanup;
 
 /// Runs peephole cleanup only when the wrapped pass changes the module.
@@ -103,27 +103,45 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
 fn cleanup_stop_stacks(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
-            && let Some(suffix) = terminal_stack_suffix_start(&block.instructions)
+        if let Some(range) = block
+            .terminator
+            .as_ref()
+            .and_then(|term| terminal_stack_cleanup_range(&block.instructions, term))
         {
-            block.instructions.truncate(suffix);
+            block.instructions.drain(range);
             changed = true;
         }
     }
     changed
 }
 
-const fn is_explicit_stack_unobservable_terminal(terminator: &Terminator) -> bool {
-    !terminator.implicit_stop
-        && matches!(terminator.kind, TerminatorKind::Op(op::STOP | op::INVALID))
-}
-
-fn terminal_stack_suffix_start(instructions: &[Instruction]) -> Option<usize> {
+fn terminal_stack_cleanup_range(
+    instructions: &[Instruction],
+    terminator: &Terminator,
+) -> Option<std::ops::Range<usize>> {
+    let TerminatorKind::Op(
+        opcode @ (op::STOP | op::INVALID | op::RETURN | op::REVERT | op::SELFDESTRUCT),
+    ) = terminator.kind
+    else {
+        return None;
+    };
+    let (inputs, _) = op::stack_io(opcode).expect("halting opcode has a stack effect");
+    let operands = instructions.len().checked_sub(usize::from(inputs))?;
+    if terminator.implicit_stop
+        || !instructions[operands..]
+            .iter()
+            .all(|inst| inst.is_encoded_push() && inst.has_canonical_stack_effect())
+    {
+        return None;
+    }
     let start = instructions
+        .get(..operands)?
         .iter()
         .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
         .map_or(0, |index| index + 1);
-    (start < instructions.len()).then_some(start)
+    (start < operands
+        && instructions[start..operands].iter().all(Instruction::has_canonical_stack_effect))
+    .then_some(start..operands)
 }
 
 fn optimize(
