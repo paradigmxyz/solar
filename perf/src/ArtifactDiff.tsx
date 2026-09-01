@@ -28,6 +28,6 @@ export default function ArtifactDiff({ before, after, path, storagePath, languag
   if (!contents) return <p className="empty">Loading diff…</p>
   return <div className="artifact-diff">
     <div className="diff-tools"><button className={style === 'split' ? 'active' : ''} onClick={() => setStyle('split')}>Split</button><button className={style === 'unified' ? 'active' : ''} onClick={() => setStyle('unified')}>Unified</button></div>
-    <MultiFileDiff oldFile={{ name: path, contents: contents[0], lang: language }} newFile={{ name: path, contents: contents[1], lang: language }} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} />
+    <MultiFileDiff className="solar-diff" oldFile={{ name: path, contents: contents[0], lang: language }} newFile={{ name: path, contents: contents[1], lang: language }} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} />
   </div>
 }
