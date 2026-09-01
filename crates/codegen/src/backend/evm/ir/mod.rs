@@ -96,6 +96,14 @@ pub struct Module {
 }
 
 impl Module {
+    /// Lowers this EVM IR module to bytecode.
+    pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
+        let mut assembler = super::assembler::Assembler::from_evm_ir(gcx, self)?;
+        let result = assembler.assemble_with_evm_ir(true);
+        gcx.dcx().has_errors()?;
+        Ok(result.bytecode)
+    }
+
     /// Parses textual EVM IR.
     pub fn parse(
         sess: &solar_interface::Session,

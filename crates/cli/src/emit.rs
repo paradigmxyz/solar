@@ -175,7 +175,7 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
 fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
     let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let name = module.name();
-    let bytecode = evm::generate_evm_ir_bytecode(gcx, module)?;
+    let bytecode = module.into_bytecode(gcx)?;
     let mut writer = console_writer(gcx.sess.opts.color);
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")

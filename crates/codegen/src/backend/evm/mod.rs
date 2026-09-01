@@ -22,14 +22,3 @@ pub(crate) mod op;
 pub(crate) mod assembler;
 
 pub(crate) mod stack;
-
-/// Generates bytecode from finalized EVM IR through the backend pipeline.
-pub fn generate_evm_ir_bytecode(
-    gcx: solar_sema::Gcx<'_>,
-    module: ir::Module,
-) -> solar_interface::Result<Vec<u8>> {
-    let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;
-    let result = assembler.assemble_with_evm_ir(true);
-    gcx.dcx().has_errors()?;
-    Ok(result.bytecode)
-}
