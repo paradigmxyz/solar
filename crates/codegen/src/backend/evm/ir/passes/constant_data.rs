@@ -59,7 +59,11 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut prepared = Vec::with_capacity(rewrites.len());
     for rewrite in rewrites {
         let size = rewrite.data.len();
-        let id = module.data.push(Data { bytes: rewrite.data, name: Some(sym::literal) });
+        let id = module.data.push(Data {
+            bytes: rewrite.data,
+            name: Some(sym::literal),
+            emit_in_runtime: false,
+        });
         let data = DataRef::new(id, 0);
         prepared.push((rewrite.block, rewrite.start, rewrite.end, size, data));
     }
