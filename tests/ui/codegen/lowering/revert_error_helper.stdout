@@ -15,15 +15,9 @@ bb0:
   jumpi
   dup 1
   push 0xa871da91
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  push 0
-  revert
-bb5:
   push 416
   dup 1
   push 64
@@ -123,6 +117,10 @@ bb11:
   pop
   swap 1
   jump
+bb4 [cold]:
+  push 0
+  push 0
+  revert
 bb7:
   push 416
   dup 1

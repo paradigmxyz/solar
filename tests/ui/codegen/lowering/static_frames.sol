@@ -9,13 +9,12 @@ contract SF {
     // The focused checks below cover the frame architecture without depending on the instruction
     // order within every lowered function.
     // CHECK: push 0x313ae541
-    // CHECK: eq
-    // CHECK-NEXT: push [[TOP:bb[0-9]+]]
+    // CHECK: {{eq|sub}}
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: push 0x86b714e2
     // CHECK-NEXT: {{eq|sub}}
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
-    // CHECK: {{bb[0-9]+}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
     // CHECK-NEXT: jump [[GETTER_RETURN:bb[0-9]+]]
@@ -24,7 +23,7 @@ contract SF {
     // The getter's accessed memory ranges are proven disjoint from the reserved FMP word, so the
     // allocating entry alone initializes its reachable frame floor.
     // CHECK-NOT: push 64
-    // CHECK: [[TOP]]:
+    // CHECK: [[TOP:bb[0-9]+]]:
     // CHECK-NEXT: push 832
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore

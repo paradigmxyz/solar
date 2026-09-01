@@ -15,15 +15,14 @@ bb0:
   dup 1
   push 57
   gt
-  push bb4
+  iszero
+  push bb13
   jumpi
-  jump bb13
+  indexed_jump bb5, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb6, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb7, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb8, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb9, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb10, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb11, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb12
 bb13 [cold]:
   push 0
   push 0
   revert
-bb4:
-  indexed_jump bb5, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb6, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb7, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb8, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb9, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb10, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb11, bb13, bb13, bb13, bb13, bb13, bb13, bb13, bb12
 bb5:
   push 100
   jump bb14
@@ -56,7 +55,7 @@ bb12:
   jump bb14
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x15 ; bb0
+PUSH1 0x67 ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -69,24 +68,18 @@ SUB
 DUP1
 PUSH1 0x39
 GT
-PUSH1 0x19 ; bb1
+ISZERO
+PUSH1 0x67 ; bb0
 JUMPI
-; bb0
-JUMPDEST
-PUSH0
-PUSH0
-REVERT
-; bb1
-JUMPDEST
 DUP1
 PUSH1 0x05
 SHR
 DUP1
-PUSH25 0x991515151515151593151515151515158d1515151515151587
+PUSH25 0x996767676767676793676767676767678d6767676767676787
 MUL
 SWAP1
 ISZERO
-PUSH32 0x1515151515151581151515151515157b1515151515151575151515151515156b
+PUSH32 0x6767676767676781676767676767677b6767676767676775676767676767676b
 MUL
 ADD
 SWAP1
@@ -98,48 +91,53 @@ SHR
 PUSH1 0xff
 AND
 JUMP ; unknown
-; bb2
+; bb0
+JUMPDEST
+PUSH0
+PUSH0
+REVERT
+; bb1
 JUMPDEST
 PUSH1 0x64
-; bb3
+; bb2
 JUMPDEST
 PUSH0
 MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb4
+; bb3
 JUMPDEST
 PUSH1 0x65
-PUSH1 0x6e ; bb3
+PUSH1 0x6e ; bb2
+JUMP
+; bb4
+JUMPDEST
+PUSH1 0x66
+PUSH1 0x6e ; bb2
 JUMP
 ; bb5
 JUMPDEST
-PUSH1 0x66
-PUSH1 0x6e ; bb3
+PUSH1 0x67
+PUSH1 0x6e ; bb2
 JUMP
 ; bb6
 JUMPDEST
-PUSH1 0x67
-PUSH1 0x6e ; bb3
+PUSH1 0x68
+PUSH1 0x6e ; bb2
 JUMP
 ; bb7
 JUMPDEST
-PUSH1 0x68
-PUSH1 0x6e ; bb3
+PUSH1 0x69
+PUSH1 0x6e ; bb2
 JUMP
 ; bb8
 JUMPDEST
-PUSH1 0x69
-PUSH1 0x6e ; bb3
+PUSH1 0x6a
+PUSH1 0x6e ; bb2
 JUMP
 ; bb9
 JUMPDEST
-PUSH1 0x6a
-PUSH1 0x6e ; bb3
-JUMP
-; bb10
-JUMPDEST
 PUSH1 0x6b
-PUSH1 0x6e ; bb3
+PUSH1 0x6e ; bb2
 JUMP

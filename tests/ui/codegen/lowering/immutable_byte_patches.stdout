@@ -2,11 +2,11 @@
 // === ImmutableBytePatches_deployment ===
 @module ImmutableBytePatches_deployment
 bb0:
-  push 170
+  push 169
   codesize
   sub
   dup 1
-  push 170
+  push 169
   push 320
   codecopy
   push 320
@@ -57,24 +57,24 @@ bb0:
   push 320
   push 192
   mcopy
-  push 52
+  push 51
   dup 1
   push 118
   push 0
   codecopy
   push 192
   mload
-  push 25
+  push 20
   mstore8
   push 224
   mload
-  push 27
+  push 22
   mstore8
   push 256
   mload
   push 0
   byte
-  push 31
+  push 26
   mstore8
   push 0
   return
@@ -95,15 +95,9 @@ bb0:
   shr
   dup 1
   push 0x57de26a4
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb4:
   push_immutable 0, 1
   push_immutable 1, 1
   push 0
@@ -123,3 +117,7 @@ bb4:
   push 96
   push 128
   return
+bb3 [cold]:
+  push 0
+  push 0
+  revert

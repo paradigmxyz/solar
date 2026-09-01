@@ -16,15 +16,9 @@ bb0:
   jumpi
   dup 1
   push 0xbc477c04
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  push 0
-  revert
-bb5:
   push 4
   calldatasize
   sub
@@ -49,6 +43,10 @@ bb16:
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  push 0
+  revert
 bb10:
   push 4
   calldatasize

@@ -1,7 +1,7 @@
 {
   "contracts": {
     "ROOT/tests/ui/cli/codegen.sol:C": {
-      "bin": "60188060095f395ff3346013575f3560e01c806326121ff0146017575b5f5ffd5b"
+      "bin": "60188060095f395ff3346014575f3560e01c806326121ff003601457005b5f5ffd"
     }
   },
   "version": "VERSION"

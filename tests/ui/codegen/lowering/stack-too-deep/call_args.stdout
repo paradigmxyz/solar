@@ -2,7 +2,7 @@
 // === StackTooDeepCall_deployment ===
 @module StackTooDeepCall_deployment
 bb0:
-  push 939
+  push 941
   dup 1
   push 10
   push 0
@@ -22,15 +22,9 @@ bb0:
   shr
   dup 1
   push 0x2b096926
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb4:
   push 4
   calldatasize
   sub
@@ -593,3 +587,7 @@ bb34:
   mload
   swap 1
   jump
+bb3 [cold]:
+  push 0
+  push 0
+  revert

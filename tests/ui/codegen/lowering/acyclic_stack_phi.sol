@@ -4,7 +4,7 @@
 contract AcyclicStackPhi {
     // CHECK-LABEL: @module AcyclicStackPhi_runtime
     // CHECK: push 0x341fda35
-    // CHECK-NEXT: eq
+    // CHECK-NEXT: {{eq|sub}}
     // CHECK-NEXT: push [[MERGE:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: [[MERGE]]{{.*}}

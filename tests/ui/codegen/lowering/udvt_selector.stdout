@@ -20,15 +20,9 @@ bb0:
   shr
   dup 1
   push 0x8d2f9995
-  eq
-  push bb4
+  sub
+  push bb3
   jumpi
-  jump bb3
-bb3 [cold]:
-  push 0
-  push 0
-  revert
-bb4:
   push 4
   calldatasize
   sub
@@ -55,6 +49,10 @@ bb4:
   push 32
   push 128
   return
+bb3 [cold]:
+  push 0
+  push 0
+  revert
 bb8 [cold]:
   push 0x4e487b71
   push 224

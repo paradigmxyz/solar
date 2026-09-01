@@ -15,14 +15,10 @@ bb0:
   jumpi
   dup 1
   push 0x3359632e
-  eq
-  push bb5
+  sub
+  push bb4
   jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  push 0
-  revert
+  jump bb5
 bb5:
   slotnum
   push 128
@@ -30,3 +26,7 @@ bb5:
   push 32
   push 128
   return
+bb4 [cold]:
+  push 0
+  push 0
+  revert
