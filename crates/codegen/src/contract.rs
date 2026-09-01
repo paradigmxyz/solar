@@ -248,11 +248,11 @@ impl ContractGraph {
         }
 
         let dependencies = gcx.contract_bytecode_dependencies(contract_id);
-        for dependency in dependencies {
+        for dependency in dependencies.iter() {
             self.dependents[dependency].push(contract_id);
             self.discover_contract(gcx, dependency, visiting)?;
         }
-        for dependency in dependencies {
+        for dependency in dependencies.iter() {
             self.dependencies[contract_id].insert(dependency);
         }
         self.reachable.insert(contract_id);

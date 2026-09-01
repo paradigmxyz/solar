@@ -293,10 +293,10 @@ pub(super) fn interface_items(gcx: Gcx<'_>, id: hir::ContractId) -> InterfaceIte
     InterfaceItems { creation, deployed }
 }
 
-pub(super) fn all_bytecode_dependencies<'gcx>(
-    gcx: Gcx<'gcx>,
+pub(super) fn all_bytecode_dependencies(
+    gcx: Gcx<'_>,
     id: hir::ContractId,
-) -> &'gcx DenseBitSet<hir::ContractId> {
+) -> DenseBitSet<hir::ContractId> {
     let graph = CallGraphBuilder::build_all(gcx, id);
-    gcx.alloc(graph.bytecode_dependencies)
+    graph.bytecode_dependencies
 }
