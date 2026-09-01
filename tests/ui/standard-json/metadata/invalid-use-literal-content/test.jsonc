@@ -1,0 +1,25 @@
+// ported-from: test/cmdlineTests/standard_wrong_type_useLiteralContent/input.json
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "JSON parse error: invalid type: string \"true\", expected a boolean at line 5 column 33"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "useLiteralContent": "true"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata"
+        ]
+      }
+    }
+  }
+}

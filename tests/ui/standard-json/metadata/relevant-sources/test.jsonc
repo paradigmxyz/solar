@@ -1,0 +1,33 @@
+// ported-from: test/libsolidity/Metadata.cpp
+// CHECK-LABEL: "metadata":
+// CHECK: \"sources\":{\"A.sol\":
+// CHECK: \"B.sol\":
+// CHECK: \"C.sol\":
+// CHECK-NOT: \"Unused.sol\"
+// CHECK: \"version\":1}"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import \"B.sol\"; contract A is B {}"
+    },
+    "B.sol": {
+      "content": "import \"C.sol\"; contract B is C {}"
+    },
+    "C.sol": {
+      "content": "contract C {}"
+    },
+    "Unused.sol": {
+      "content": "contract Unused {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "metadata"
+        ]
+      }
+    }
+  }
+}

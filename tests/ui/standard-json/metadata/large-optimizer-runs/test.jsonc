@@ -1,0 +1,24 @@
+// ported-from: test/cmdlineTests/standard_metadata_large_optimizer_runs/input.json
+// CHECK: "metadata":
+// CHECK: \"optimizer\":{\"enabled\":true,\"runs\":18446744073709551615}
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 18446744073709551615
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata"
+        ]
+      }
+    }
+  }
+}

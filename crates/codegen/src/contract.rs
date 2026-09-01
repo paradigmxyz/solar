@@ -50,6 +50,9 @@ pub struct ImmutableReference {
     pub type_size: TypeSize,
 }
 
+/// Returns opaque data to emit at the end of a contract's runtime program.
+pub type RuntimeDataFn<'a> = dyn Fn(ContractId) -> Bytes + Sync + 'a;
+
 /// A contract selection.
 #[derive(Clone, Debug)]
 pub enum ContractSelection {
@@ -118,14 +121,20 @@ impl ContractSelection {
 /// Contracts in `capture_mir` retain built MIR under `-O none` when no explicit pipeline is
 /// configured and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
+/// Values returned by `runtime_data` are emitted as trailing runtime program data.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
     contracts: &ContractSelection,
     capture_mir: &ContractSelection,
     capture_evm_ir: &ContractSelection,
+    runtime_data: Option<&RuntimeDataFn<'_>>,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
-    let captures =
-        ContractCaptures { bytecode: contracts, mir: capture_mir, evm_ir: capture_evm_ir };
+    let captures = ContractCaptures {
+        bytecode: contracts,
+        mir: capture_mir,
+        evm_ir: capture_evm_ir,
+        runtime_data,
+    };
     let mut requested = contracts.clone();
     requested.union_with(capture_mir);
     requested.union_with(capture_evm_ir);
@@ -185,6 +194,7 @@ struct ContractCaptures<'a> {
     bytecode: &'a ContractSelection,
     mir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
+    runtime_data: Option<&'a RuntimeDataFn<'a>>,
 }
 
 struct ContractGraph {
@@ -318,14 +328,19 @@ fn generate_contract_bytecode(
     let needs_backend = captures.bytecode.contains(contract_id)
         || captures.evm_ir.contains(contract_id)
         || !graph.dependents[contract_id].is_empty();
+    let runtime_data =
+        captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
+    append_runtime_data(&mut module, runtime_data.as_ref());
     let capture_built = capture_mir
         && matches!(gcx.sess.opts.optimization, OptimizationMode::None)
         && gcx.sess.opts.unstable.mir_pipeline.is_none();
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
-        let mut codegen = EvmCodegen::new(gcx);
-        codegen.set_capture_mir(capture_mir && !capture_built);
-        codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+        let mut codegen = new_contract_codegen(
+            gcx,
+            capture_mir && !capture_built,
+            captures.evm_ir.contains(contract_id),
+        );
         let mut artifact = codegen.lower_module(&mut module);
         gcx.dcx().has_errors()?;
         if gcx.sess.opts.optimization.is_gas()
@@ -336,10 +351,13 @@ fn generate_contract_bytecode(
             let gas_first_module = module.clone();
             let gas_first_artifact = artifact;
             module = lower::lower_contract(gcx, contract_id, &child_bytecodes, true);
+            append_runtime_data(&mut module, runtime_data.as_ref());
             gcx.dcx().has_errors()?;
-            let mut codegen = EvmCodegen::new(gcx);
-            codegen.set_capture_mir(capture_mir && !capture_built);
-            codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+            let mut codegen = new_contract_codegen(
+                gcx,
+                capture_mir && !capture_built,
+                captures.evm_ir.contains(contract_id),
+            );
             let size_rescue_artifact = codegen.lower_module(&mut module);
             gcx.dcx().has_errors()?;
             if size_rescue_artifact.runtime.len() <= limit {
@@ -427,4 +445,21 @@ fn generate_contract_bytecode(
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,
     })
+}
+
+fn new_contract_codegen<'gcx>(
+    gcx: Gcx<'gcx>,
+    capture_mir: bool,
+    capture_evm_ir: bool,
+) -> EvmCodegen<'gcx> {
+    let mut codegen = EvmCodegen::new(gcx);
+    codegen.set_capture_mir(capture_mir);
+    codegen.set_capture_evm_ir(capture_evm_ir);
+    codegen
+}
+
+fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
+    if let Some(data) = data.filter(|data| !data.is_empty()) {
+        module.append_runtime_data(data.clone(), None);
+    }
 }

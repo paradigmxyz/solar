@@ -2,7 +2,7 @@ use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
-    ContractArtifact, ContractSelection,
+    ContractArtifact, ContractSelection, RuntimeDataFn,
     backend::evm::{self, ir},
     generate_contract_bytecodes,
     mir::{Module, validate},
@@ -32,7 +32,7 @@ struct CombinedJson<'a> {
 #[serde(rename_all = "kebab-case")]
 struct CombinedJsonContract<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<Vec<AbiItem<'a>>>,
+    abi: Option<&'a [AbiItem<'a>]>,
     #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
     bin: Option<Bytes>,
     #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
@@ -44,6 +44,7 @@ struct CombinedJsonContract<'a> {
 pub(crate) fn emit_requested(
     compiler: &mut CompilerRef<'_>,
     bytecode_contracts: ContractSelection,
+    runtime_data: Option<&RuntimeDataFn<'_>>,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
     if !gcx.sess.opts.language.is_source() {
@@ -79,6 +80,7 @@ pub(crate) fn emit_requested(
             &generated_bytecode_contracts,
             &capture_mir,
             &capture_evm_ir,
+            runtime_data,
         )?)
     } else {
         None
@@ -751,7 +753,7 @@ fn out_writer(path: Option<&Path>) -> io::Result<impl io::Write> {
     Ok(io::BufWriter::new(out))
 }
 
-fn to_json<W: io::Write, T: serde::Serialize>(
+pub(crate) fn to_json<W: io::Write, T: serde::Serialize>(
     writer: W,
     value: &T,
     pretty: bool,

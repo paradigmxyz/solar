@@ -27,11 +27,14 @@ alloy-json-abi.workspace = true
 anstream.workspace = true
 anstyle.workspace = true
 bitflags.workspace = true
+bs58.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+sha2.workspace = true
+semver.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = { workspace = true, optional = true, features = [
@@ -44,7 +47,7 @@ solar-lsp = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
 
 tracing-chrome = { version = "0.7", optional = true }
-tracing-tracy = { version = "0.11", optional = true, features = ["demangle"] }
+tracing-tracy = { version = "0.12", optional = true, features = ["demangle"] }
 tracing-samply = { version = "0.1.5", optional = true }
 
 mimalloc = { version = "0.1", optional = true }

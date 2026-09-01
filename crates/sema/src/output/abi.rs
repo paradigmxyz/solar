@@ -11,8 +11,8 @@ impl<'gcx> Gcx<'gcx> {
     /// Matches solc's Standard JSON `abi` output field.
     ///
     /// Reference: <https://docs.soliditylang.org/en/develop/abi-spec.html>
-    pub fn contract_abi<'a>(self, id: hir::ContractId) -> Vec<json::AbiItem<'a>> {
-        let mut items = Vec::<json::AbiItem<'a>>::new();
+    pub(crate) fn build_contract_abi(self, id: hir::ContractId) -> Vec<json::AbiItem<'gcx>> {
+        let mut items = Vec::new();
 
         let c = self.hir.contract(id);
         if let Some(ctor) = c.ctor

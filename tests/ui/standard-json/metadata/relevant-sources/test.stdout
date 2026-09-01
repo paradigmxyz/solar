@@ -1,0 +1,23 @@
+{
+  "sources": {
+    "C.sol": {
+      "id": 0
+    },
+    "B.sol": {
+      "id": 1
+    },
+    "A.sol": {
+      "id": 2
+    },
+    "Unused.sol": {
+      "id": 3
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0xd85e0dccfcd78f77eac611c75c50f99a904a96b7ffa030c96a1f799ac04bd9b8\",\"urls\":[\"bzz-raw://47eeaf179f37492742c8454ada879b24d466c915272809d8c4c703098a5180d3\",\"dweb:/ipfs/QmcsbU3agZzWan6jvNkzz5EkyY9i2NbKQAc8ALidQBsa1d\"]},\"B.sol\":{\"keccak256\":\"0xb7dfb49985f3b4312f6ee4a49d1413fc2b02da81303dfe71655e6aa3aa6a5938\",\"urls\":[\"bzz-raw://359b5c6c30162646e2e31f5d22b2d674d058c94cdb80658518d5f0c4c184bc36\",\"dweb:/ipfs/QmNqhJ4xAreA73QqqPHqSmv4n6hs2idyuAiRsfmhdV5Wcx\"]},\"C.sol\":{\"keccak256\":\"0x2ca98f43bf7d7121b0edcb8fab871932bd054c8ceddd10b7a98125c33b716468\",\"urls\":[\"bzz-raw://38d1d9bca468ba26446255659a4fb3b90f89b01f63da3abfacfb6e1cdd69c836\",\"dweb:/ipfs/QmUTbxdTHP356phQpP5uMAH6sK1WTbEE46XCCSQLNzctmR\"]}},\"version\":1}"
+      }
+    }
+  }
+}

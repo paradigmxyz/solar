@@ -81,9 +81,8 @@ pub(super) struct Settings<'a> {
     pub(super) evm_version: Option<CowStr<'a>>,
     #[serde(default)]
     pub(super) optimizer: Option<Optimizer>,
-    // Metadata output is not supported yet.
-    // #[serde(borrow, default)]
-    // metadata: Option<CowValue<'a>>,
+    #[serde(default)]
+    pub(super) metadata: MetadataSettings,
     #[serde(borrow, default)]
     pub(super) libraries: Libraries<'a>,
     // Debug output is not supported yet.
@@ -101,9 +100,57 @@ pub(super) struct Settings<'a> {
     // via_ssa_cfg: Option<bool>,
 }
 
+/// The solc Standard JSON `settings.metadata` object.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct MetadataSettings {
+    #[serde(default = "default_true")]
+    #[serde(rename = "appendCBOR")]
+    pub(super) append_cbor: bool,
+    #[serde(default)]
+    pub(super) use_literal_content: bool,
+    #[serde(default)]
+    pub(super) bytecode_hash: MetadataHashSetting,
+}
+
+impl Default for MetadataSettings {
+    fn default() -> Self {
+        Self { append_cbor: true, use_literal_content: false, bytecode_hash: Default::default() }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct MetadataHashSetting {
+    pub(super) value: MetadataHash,
+    pub(super) is_explicit: bool,
+}
+
+impl<'de> Deserialize<'de> for MetadataHashSetting {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        MetadataHash::deserialize(deserializer).map(|value| Self { value, is_explicit: true })
+    }
+}
+
+/// Hash embedded in the bytecode metadata trailer.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum MetadataHash {
+    #[default]
+    Ipfs,
+    Bzzr1,
+    None,
+}
+
+const fn default_true() -> bool {
+    true
+}
+
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Optimizer {
     /// Whether the optimizer is enabled.
     #[serde(default)]
@@ -111,6 +158,13 @@ pub(super) struct Optimizer {
     /// Expected executions per deployment for optimizer tradeoffs.
     #[serde(default)]
     pub(super) runs: Option<u64>,
+}
+
+pub(super) fn optimizer_settings(optimizer: Option<&Optimizer>) -> (bool, u64) {
+    (
+        optimizer.is_some_and(|optimizer| optimizer.enabled),
+        optimizer.and_then(|optimizer| optimizer.runs).unwrap_or(200),
+    )
 }
 
 /// The solc Standard JSON `settings.libraries` object.
@@ -126,13 +180,13 @@ impl Libraries<'_> {
 }
 
 #[derive(Debug, Default, Serialize)]
-pub(super) struct CompilerOutput<'a> {
+pub(super) struct CompilerOutput<'gcx> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) errors: Vec<SolcDiagnostic<'a>>,
+    pub(super) errors: Vec<SolcDiagnostic<'gcx>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub(super) sources: FxIndexMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'a>>>,
+    pub(super) contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput<'gcx>>>,
     // `ethdebug` output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'a>>,
@@ -149,16 +203,15 @@ pub(super) struct SourceOutput {
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct ContractOutput<'a> {
+pub(super) struct ContractOutput<'gcx> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) abi: Option<Vec<alloy_json_abi::AbiItem<'a>>>,
-    // Metadata output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // metadata: Option<String>,
+    pub(super) abi: Option<&'gcx [alloy_json_abi::AbiItem<'gcx>]>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) userdoc: Option<Documentation>,
+    pub(super) metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) devdoc: Option<Documentation>,
+    pub(super) userdoc: Option<&'gcx Documentation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) devdoc: Option<&'gcx Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -273,6 +326,12 @@ impl<'a> OutputSelection<'a> {
         }
 
         flags & OutputSelectionFlags::CONTRACT
+    }
+
+    pub(super) fn requests_metadata(&self) -> bool {
+        self.0.values().any(|contracts| {
+            contracts.values().any(|flags| flags.contains(OutputSelectionFlags::METADATA))
+        })
     }
 }
 
@@ -715,6 +774,7 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
 impl ContractOutput<'_> {
     pub(super) fn is_empty(&self) -> bool {
         self.abi.is_none()
+            && self.metadata.is_none()
             && self.userdoc.is_none()
             && self.devdoc.is_none()
             && self.storage_layout.is_none()
@@ -787,6 +847,28 @@ pub(super) fn strip_json_comments(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metadata_hash_rejects_null() {
+        assert!(serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":null}"#).is_err());
+    }
+
+    #[test]
+    fn metadata_hash_tracks_presence() {
+        let omitted = serde_json::from_str::<MetadataSettings>("{}").unwrap();
+        assert_eq!(omitted.bytecode_hash.value, MetadataHash::Ipfs);
+        assert!(!omitted.bytecode_hash.is_explicit);
+
+        let explicit =
+            serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":"ipfs"}"#).unwrap();
+        assert_eq!(explicit.bytecode_hash.value, MetadataHash::Ipfs);
+        assert!(explicit.bytecode_hash.is_explicit);
+    }
+
+    #[test]
+    fn optimizer_rejects_unsupported_details() {
+        assert!(serde_json::from_str::<Optimizer>(r#"{"details":{"peephole":false}}"#).is_err());
+    }
 
     fn selection_flags(input: &str) -> OutputSelectionFlags {
         serde_json::from_str(input).unwrap()

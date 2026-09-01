@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`",
+      "formattedMessage": "error: when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`\n\n"
+    }
+  ]
+}

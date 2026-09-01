@@ -1,0 +1,42 @@
+// CHECK: "metadata":
+// CHECK: \"remappings\":[\"lib/=src/\"]
+// CHECK: "evm": {
+// CHECK: "deployedBytecode": {
+// CHECK: fea265627a7a7231
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import \"lib/B.sol\";\ncontract A { function value() external pure returns (uint256) { return B.value(); } }"
+    },
+    "src/B.sol": {
+      "content": "library B { function value() internal pure returns (uint256) { return 1; } }"
+    }
+  },
+  "settings": {
+    "remappings": [
+      "lib/=src/"
+    ],
+    "optimizer": {
+      "enabled": true,
+      "runs": 1
+    },
+    "metadata": {
+      "useLiteralContent": true,
+      "bytecodeHash": "bzzr1"
+    },
+    "libraries": {
+      "src/B.sol": {
+        "B": "0x1111111111111111111111111111111111111111"
+      }
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "metadata",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}
