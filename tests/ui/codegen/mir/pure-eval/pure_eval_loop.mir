@@ -17,6 +17,22 @@ fn @bounded_loop() -> u256 {
     ret v0
 }
 
+// CHECK-LABEL: {{^[ +].*}}fn @parallel_phis{{[( ]}}
+// CHECK: + ret 0
+fn @parallel_phis() -> u256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v1]
+    v1 = phi [bb0: 1], [bb2: v0]
+    v2 = iszero v0
+    jumpi v2, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    ret v1
+}
+
 // CHECK-LABEL: {{^[ +].*}}fn @with_arg{{[( ]}}
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = add arg0, 1
 fn @with_arg(arg0: u256) -> u256 {

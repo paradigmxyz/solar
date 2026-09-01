@@ -134,16 +134,23 @@ impl PureEvaluator {
             fuel -= 1;
             let block = &func.blocks[current];
 
+            let mut phis = Vec::new();
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                let result = match &inst.kind {
-                    InstKind::Phi(incoming) => {
-                        let pred = predecessor?;
-                        let (_, value) = incoming.iter().find(|(block, _)| *block == pred)?;
-                        self.value_const(&env, *value)?
-                    }
-                    kind => self.eval_inst(kind, &env)?,
-                };
+                if let InstKind::Phi(incoming) = &inst.kind {
+                    let pred = predecessor?;
+                    let (_, value) = incoming.iter().find(|(block, _)| *block == pred)?;
+                    phis.push((func.inst_result_value(inst_id)?, self.value_const(&env, *value)?));
+                }
+            }
+            env.extend(phis);
+
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(..)) {
+                    continue;
+                }
+                let result = self.eval_inst(&inst.kind, &env)?;
                 if let Some(value_id) = func.inst_result_value(inst_id) {
                     env.insert(value_id, result);
                 }
