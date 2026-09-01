@@ -9,7 +9,7 @@ use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
 use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
 use solar_data_structures::{
-    BumpExt,
+    BumpExt, DropArena,
     bit_set::{DenseBitSet, GrowableBitSet},
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
@@ -349,6 +349,7 @@ pub struct GlobalCtxt<'gcx> {
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
+    cached_arenas: ThreadLocal<DropArena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
@@ -384,6 +385,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
+            cached_arenas: ThreadLocal::new(),
             interner,
             cache: Cache::default(),
             override_index: OnceLock::new(),
@@ -456,6 +458,10 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn bump(self) -> &'gcx bumpalo::Bump {
         self.arena().bump()
+    }
+
+    fn cached_arena(self) -> &'gcx DropArena {
+        self.cached_arenas.get_or_default()
     }
 
     pub fn alloc<T>(self, value: T) -> &'gcx T {
@@ -1362,7 +1368,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns all events included in the external interface of the given contract.
-    pub fn interface_events(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::EventId> {
+    pub fn interface_events(self, id: hir::ContractId) -> DenseBitSet<hir::EventId> {
         let items = self.interface_items(id);
         let mut events = DenseBitSet::new_empty(self.hir.event_ids().len());
         for item in self.hir.contract_item_ids(id) {
@@ -1373,11 +1379,11 @@ impl<'gcx> Gcx<'gcx> {
         for event in items.creation.events.iter().chain(items.deployed.events.iter()) {
             events.insert(event);
         }
-        self.alloc(events)
+        events
     }
 
     /// Returns all errors included in the external interface of the given contract.
-    pub fn interface_errors(self, id: hir::ContractId) -> &'gcx DenseBitSet<hir::ErrorId> {
+    pub fn interface_errors(self, id: hir::ContractId) -> DenseBitSet<hir::ErrorId> {
         let items = self.interface_items(id);
         let mut errors = DenseBitSet::new_empty(self.hir.error_ids().len());
         for item in self.hir.contract_item_ids(id) {
@@ -1388,29 +1394,26 @@ impl<'gcx> Gcx<'gcx> {
         for error in items.creation.errors.iter().chain(items.deployed.errors.iter()) {
             errors.insert(error);
         }
-        self.alloc(errors)
+        errors
     }
 
     /// Returns the functions reachable during contract creation or at runtime.
-    pub fn contract_reachable_functions(
-        self,
-        id: hir::ContractId,
-    ) -> &'gcx DenseBitSet<hir::FunctionId> {
+    pub fn contract_reachable_functions(self, id: hir::ContractId) -> DenseBitSet<hir::FunctionId> {
         let items = self.interface_items(id);
         let mut functions = DenseBitSet::new_empty(self.hir.function_ids().len());
         for function in items.creation.functions.iter().chain(items.deployed.functions.iter()) {
             functions.insert(function);
         }
-        self.alloc(functions)
+        functions
     }
 
     /// Returns the contracts whose bytecode is referenced by the given contract.
     pub fn contract_bytecode_dependencies(
         self,
         id: hir::ContractId,
-    ) -> &'gcx DenseBitSet<hir::ContractId> {
+    ) -> DenseBitSet<hir::ContractId> {
         if self.sess.opts.unstable.codegen_all_functions {
-            return self.all_contract_bytecode_dependencies(id);
+            return self.all_contract_bytecode_dependencies(id).clone();
         }
         let items = self.interface_items(id);
         let mut dependencies = DenseBitSet::new_empty(self.hir.contract_ids().len());
@@ -1422,7 +1425,7 @@ impl<'gcx> Gcx<'gcx> {
         {
             dependencies.insert(dependency);
         }
-        self.alloc(dependencies)
+        dependencies
     }
 }
 
@@ -1521,17 +1524,17 @@ macro_rules! cached {
 cached! {
 /// Returns the ABI of the given contract.
 pub fn contract_abi(gcx: _, id: hir::ContractId) -> &'gcx [alloy_json_abi::AbiItem<'gcx>] {
-    gcx.bump().alloc_slice_fill_iter(gcx.build_contract_abi(id))
+    gcx.cached_arena().alloc_slice_fill_iter(gcx.build_contract_abi(id))
 }
 
 /// Returns the developer documentation for the given contract.
 pub fn dev_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
-    gcx.alloc(gcx.build_dev_documentation(id))
+    gcx.cached_arena().alloc(gcx.build_dev_documentation(id))
 }
 
 /// Returns the user documentation for the given contract.
 pub fn user_documentation(gcx: _, id: hir::ContractId) -> &'gcx crate::output::Documentation {
-    gcx.alloc(gcx.build_user_documentation(id))
+    gcx.cached_arena().alloc(gcx.build_user_documentation(id))
 }
 
 fn virtual_function_target(
@@ -1584,7 +1587,7 @@ fn super_function_target(
 
 fn interface_items(gcx: _, id: hir::ContractId) -> &'gcx call_graph::InterfaceItems {
     assert!(gcx.has_typeck_results(), "interface items require type checking");
-    gcx.alloc(call_graph::interface_items(gcx, id))
+    gcx.cached_arena().alloc(call_graph::interface_items(gcx, id))
 }
 
 fn all_contract_bytecode_dependencies(
@@ -1592,7 +1595,7 @@ fn all_contract_bytecode_dependencies(
     id: hir::ContractId
 ) -> &'gcx DenseBitSet<hir::ContractId> {
     assert!(gcx.has_typeck_results(), "contract dependencies require type checking");
-    call_graph::all_bytecode_dependencies(gcx, id)
+    gcx.cached_arena().alloc(call_graph::all_bytecode_dependencies(gcx, id))
 }
 
 /// Returns the [ERC-165] interface ID of the given contract.
@@ -1913,7 +1916,7 @@ fn internal_function_members_in_context(
 pub(crate) fn eval_const_value_result(gcx: _, expr: &hir::Expr<'_>)
     cached_by(hir::ExprId, expr.id) -> &'gcx crate::eval::EvalResult
 {
-    gcx.alloc(crate::eval::eval_const(gcx, expr))
+    gcx.cached_arena().alloc(crate::eval::eval_const(gcx, expr))
 }
 
 } // cached!
