@@ -1000,6 +1000,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
         let mut parameter_types = parameter_types.skip(receiver_count);
+        // receiver = lower_abi_receiver(receiver)
+        let receiver = if let Some(receiver) = receiver {
+            let parameter_ty = gcx.type_of_item(function.parameters[0].into());
+            Some(self.lower_abi_receiver(receiver, parameter_ty)?)
+        } else {
+            None
+        };
         let (mut values, mut types) = self.lower_abi_call_arguments(
             args,
             &mut parameter_types,
@@ -1008,9 +1015,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "library argument",
             true,
         )?;
-        if let Some(receiver) = receiver {
-            let parameter_ty = gcx.type_of_item(function.parameters[0].into());
-            let (value, ty) = self.lower_abi_receiver(receiver, parameter_ty)?;
+        if let Some((value, ty)) = receiver {
             values.insert(0, value);
             types.insert(0, ty);
         }
