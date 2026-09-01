@@ -64,8 +64,8 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, v18 !metadata(storage=slot(0))
     jump bb15
   bb15:
-    v20 = phi [bb31: v11], [bb17: v4]
-    v21 = phi [bb31: v16], [bb17: v6]
+    v20 = phi [bb31: v16], [bb17: v6]
+    v21 = phi [bb31: v11], [bb17: v4]
     v22 = sload 0 !metadata(storage=slot(0))
     v23 = add v22, 1
     v24 = lt v23, v22
@@ -74,8 +74,8 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, v23 !metadata(storage=slot(0))
     jump bb8
   bb8:
-    v25 = phi [bb32: v20], [bb10: v1]
-    v26 = phi [bb32: v21], [bb10: v3]
+    v25 = phi [bb32: v20], [bb10: v3]
+    v26 = phi [bb32: v21], [bb10: v1]
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = add v27, 1
     v29 = lt v28, v27
@@ -84,7 +84,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     sstore 0, v28 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v30 = phi [bb33: v26], [bb3: v0]
+    v30 = phi [bb33: v25], [bb3: v0]
     ret v30
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
