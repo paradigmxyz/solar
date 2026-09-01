@@ -7,10 +7,6 @@
 // CHECK: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}bb4:
-// bb5 reaches the stack limit, so its jump must remain a fallthrough.
-// CHECK: {{^[ +].*}}bb5:
-// CHECK: {{^[ +].*}}jump bb6
-// CHECK-NEXT: {{^[ +].*}}bb6:
 bb0:
   push 1
   push bb1
@@ -26,10 +22,6 @@ bb3:
 bb4:
   jump bb6
 bb5:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
   push 1
   push 2
   push 3

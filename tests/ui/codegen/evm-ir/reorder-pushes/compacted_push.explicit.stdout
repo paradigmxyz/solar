@@ -13,9 +13,10 @@
     add
     jump
   bb1:
-    calldatasize
+-   calldatasize
     push 0x100000000000000000000000000000000
-    swap 1
+-   swap 1
++   calldatasize
     sub
     stop
   bb2:
@@ -31,9 +32,10 @@
     stop
   bb3:
     push 1
-    dup 1
+-   dup 1
     push 0x100000000000000000000000000000000
-    swap 1
+-   swap 1
++   dup 2
     sub
     stop
   bb4:
@@ -51,9 +53,10 @@
     sub
     stop
   bb6:
-    calldatasize
+-   calldatasize
     push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    swap 1
+-   swap 1
++   calldatasize
     sub
     stop
   
@@ -72,9 +75,11 @@
     add
     jump
   bb1:
+-   push 0x100000000000000000000000000000000
++   push 1
++   push 128
++   shl
     calldatasize
-    push 0x100000000000000000000000000000000
-    swap 1
     sub
     stop
   bb2:
@@ -91,9 +96,11 @@
     stop
   bb3:
     push 1
-    dup 1
-    push 0x100000000000000000000000000000000
-    swap 1
+-   push 0x100000000000000000000000000000000
++   push 1
++   push 128
++   shl
+    dup 2
     sub
     stop
   bb4:
@@ -111,9 +118,12 @@
     sub
     stop
   bb6:
+-   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 8
++   shr
     calldatasize
-    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    swap 1
     sub
     stop
   

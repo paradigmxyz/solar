@@ -3,12 +3,12 @@
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: {{^[ +].*}}jump bb18
+// CHECK: {{^[ +].*}}jump bb1
 bb0:
   push 1
   push bb1
   jumpi
-  jump bb18
+  jump bb1
 
 // CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
 // CHECK: {{^[ +].*}}push 11
@@ -54,32 +54,6 @@ bb6 [cold]:
   push 444
   push 555
   revert
-
-// Give both stack-limit candidates an exact zero-depth entry.
-bb7:
-  push 1
-  push bb13
-  jumpi
-  jump bb14
-
-// Keep the nested-tail stack-limit candidate reachable with an exact zero-depth entry.
-bb18:
-  push 1
-  push bb7
-  jumpi
-  jump bb19
-
-bb19:
-  push 1
-  push bb15
-  jumpi
-  jump bb20
-
-bb20:
-  push 1
-  push bb16
-  jumpi
-  jump bb17
 
 // The maximum textual label is valid and must not overflow synthetic-label allocation.
 // CHECK-LABEL: {{^[ +].*}}bb4294967295:
@@ -170,109 +144,6 @@ bb12:
   push 5
   push 6
   exchange 1, 2
-  pop
-  pop
-  stop
-
-// Do not add a target push before a shrinking suffix that can start at the stack limit.
-// CHECK-LABEL: {{^[ +].*}}bb13:
-// CHECK-NOT: jump
-// CHECK-COUNT-5: {{^[ +].*}}pop
-bb13:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  push 1
-  push 2
-  push 3
-  push 4
-  pop
-  pop
-  pop
-  pop
-  pop
-  stop
-
-// CHECK-LABEL: {{^[ +].*}}bb14:
-// CHECK-NOT: jump
-// CHECK-COUNT-5: {{^[ +].*}}pop
-bb14:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  push 1
-  push 2
-  push 3
-  push 5
-  pop
-  pop
-  pop
-  pop
-  pop
-  stop
-
-// A group with two suffix lengths would split its shared tail after bb15 reaches depth 1024.
-// The inserted tail-to-tail jump would then overflow, so leave the original blocks intact.
-// CHECK-LABEL: {{^[ +].*}}bb15:
-// CHECK-NEXT: {{^[ +].*}}callf
-// CHECK-NEXT: {{^[ +].*}}callf
-// CHECK-NEXT: {{^[ +].*}}callf
-// CHECK-NEXT: {{^[ +].*}}callf
-// CHECK-NEXT: {{^[ +].*}}push 1
-// CHECK-NEXT: {{^[ +].*}}push 10
-// CHECK-NEXT: {{^[ +].*}}push 11
-// CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}push 0
-// CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}pop
-// CHECK-NEXT: {{^[ +].*}}stop
-bb15:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  push 1
-  push 10
-  push 11
-  pop
-  push 0
-  pop
-  pop
-  pop
-  pop
-  stop
-
-bb16:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  push 3
-  push 4
-  push 10
-  push 11
-  pop
-  push 0
-  pop
-  pop
-  pop
-  pop
-  stop
-
-bb17:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  push 5
-  pop
-  push 0
-  pop
-  pop
   pop
   pop
   stop

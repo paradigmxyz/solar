@@ -1940,29 +1940,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 break;
             }
 
-            let size_focused = self.gcx.sess.opts.optimization.is_size() || code_size_rescue;
-            let max_headroom = if size_focused { ir::MAX_OUTLINE_STACK_HEADROOM } else { 2 };
-            let stack_headroom = if self.recursive_stack_functions.is_empty() {
-                (1..=max_headroom)
-                    .rev()
-                    .find(|&headroom| {
-                        self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH - headroom)
-                    })
-                    .unwrap_or(0)
-            } else {
-                0
-            };
-            self.asm.set_unknown_target_stack_headroom(stack_headroom);
-            let data_copy_has_headroom = if size_focused {
-                stack_headroom >= ir::DATA_COPY_STACK_HEADROOM
-            } else {
-                self.recursive_stack_functions.is_empty()
-                    && self.caller_stack_prefixes_fit(
-                        module,
-                        MAX_STACK_DEPTH - ir::DATA_COPY_STACK_HEADROOM,
-                    )
-            };
-            self.asm.set_data_copy_has_headroom(data_copy_has_headroom);
             self.asm.set_enable_size_outlining(code_size_rescue);
 
             let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
@@ -3107,12 +3084,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             && let Some(mask) = self.stack_arg_mask(func_id)
         {
             peak = peak.max(mask.count());
-        }
-        if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
-            // Legacy shift sequences can transiently grow the scheduled stack. Include their
-            // worst-case SAR reserve when propagating hidden caller prefixes; the final EVM IR
-            // verifier checks the exact expansion at each site before assembly.
-            peak = peak.saturating_add(ir::LEGACY_SHIFT_STACK_HEADROOM);
         }
         self.function_stack_peaks.insert(func_id, peak);
         self.assign_ranked_spill_addrs(func_id);

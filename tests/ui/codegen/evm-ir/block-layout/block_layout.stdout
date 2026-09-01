@@ -17,16 +17,14 @@
 +   stop
   bb4:
     jump bb6
++ bb6:
++   stop
   bb5:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
     push 1
     push 2
     push 3
     push 4
     jump bb6
-  bb6:
-    stop
+- bb6:
+-   stop
   

@@ -186,16 +186,6 @@ impl<'gcx> Assembler<'gcx> {
         self.artifact_kind = kind;
     }
 
-    /// Records stack growth proven safe by the MIR backend.
-    pub(crate) fn set_unknown_target_stack_headroom(&mut self, headroom: usize) {
-        self.program.unknown_target_stack_headroom = headroom;
-    }
-
-    /// Records whether the backend reserved stack growth for program-data copies.
-    pub(crate) fn set_data_copy_has_headroom(&mut self, has_headroom: bool) {
-        self.program.data_copy_has_headroom = has_headroom;
-    }
-
     /// Enables size-oriented outlining for an oversized gas-mode runtime.
     pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
         self.program.enable_size_outlining = enable;

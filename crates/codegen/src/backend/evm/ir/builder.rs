@@ -69,7 +69,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Emits an immediate whose transient materialization peak was included by the scheduler.
     pub(crate) fn emit_scheduled_push(&mut self, value: U256) {
-        self.push_ir_instruction(ir::Instruction::scheduled_push_value(value));
+        self.push_ir_instruction(ir::Instruction::push_value(value));
     }
 
     /// Loads MIR constant data into the EVM IR module with matching IDs.

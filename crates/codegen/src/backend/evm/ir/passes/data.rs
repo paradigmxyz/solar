@@ -1,9 +1,9 @@
 //! Materialize and pack program data.
 
-use super::{EvmPass, utils::StackDepths};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{
-        BlockId, DATA_COPY_STACK_HEADROOM, Data, DataId, DataRef, Instruction, Module, PushValue,
+        BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
         default_instruction_stack_effect, immediate_materialization_cost,
     },
     op::{self, WORD_BYTES, data_copy_cost, data_copy_gas, data_copy_is_profitable},
@@ -155,7 +155,6 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     if groups.is_empty() {
         return false;
     }
-    let mut depths = None;
     let mut groups = groups.into_iter().collect::<Vec<_>>();
     groups.sort_unstable_by(|(a, _), (b, _)| {
         a.len().cmp(&b.len()).then_with(|| a.as_ref().cmp(b.as_ref()))
@@ -164,19 +163,8 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
     let mut pool = DataPool::new(&module.data);
     let mut prepared = Vec::new();
     let mut rejected = Vec::<(Bytes, Vec<Rewrite>)>::new();
-    for (data, mut rewrites) in groups {
+    for (data, rewrites) in groups {
         if rewrites.len() > MAX_SHARED_DATA_COPY_SITES {
-            continue;
-        }
-        rewrites.retain(|rewrite| {
-            module.data_copy_has_headroom
-                || depths.get_or_insert_with(|| StackDepths::new(module)).as_ref().is_some_and(
-                    |depths| {
-                        depths.has_headroom(rewrite.block, rewrite.start, DATA_COPY_STACK_HEADROOM)
-                    },
-                )
-        });
-        if rewrites.is_empty() {
             continue;
         }
         let placement = pool.placement(&data);

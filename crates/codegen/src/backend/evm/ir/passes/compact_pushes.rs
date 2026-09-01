@@ -9,20 +9,17 @@
 //! Selection accounts for the active EVM version: `PUSH0` and shift opcodes are used only when the
 //! target supports them. The exported cost helper uses the same selector, so other EVM IR passes
 //! can compare a prospective rewrite with the bytes and static gas that this pass will emit.
-//! Recipes may use more instructions and transient stack space than a literal push; passes that
-//! move encoded pushes must therefore preserve their own stack-headroom proof.
+//! Recipes may use more instructions and transient stack space than a literal push. Passes that
+//! move them account for the selected recipe's local stack shape.
 //!
 //! Recipe emission recursively selects materializations for child pushes, so one pass reaches a
 //! fixed point. The default pipeline expands recipes once before structural cleanup because tail
 //! merging and outlining profit from the concrete instruction shape. Push reordering and
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
-use super::{
-    EvmPass,
-    utils::{StackDepths, relative_stack_high_water},
-};
+use super::EvmPass;
 use crate::backend::evm::{
-    ir::{BlockId, Instruction, Module},
+    ir::{Instruction, Module},
     op::{self, WORD_BYTES},
 };
 use alloy_primitives::U256;
@@ -47,17 +44,9 @@ const VERY_LOW_GAS: usize = 3;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
-    let mut unknown_target_headroom = std::mem::take(&mut module.unknown_target_stack_headroom);
-    // Most selected recipes already fit their block's original high-water mark. Avoid the
-    // whole-module fixed-point analysis unless a candidate needs a CFG proof.
-    let depths = needs_stack_depths(module, evm_version, unknown_target_headroom)
-        .then(|| StackDepths::new(module))
-        .flatten();
     let mut changed = false;
     let mut scratch = Vec::new();
-    for index in 0..module.blocks.len() {
-        let block_id = BlockId::from_usize(index);
-        let block = &mut module.blocks[block_id];
+    for block in &mut module.blocks {
         if !block.instructions.iter().any(|inst| {
             immediate(inst)
                 .is_some_and(|value| !matches!(select(evm_version, value), CompactPush::Literal))
@@ -67,104 +56,21 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         scratch.clear();
         std::mem::swap(&mut block.instructions, &mut scratch);
         block.instructions.reserve(scratch.len());
-        let high_water = relative_stack_high_water(&scratch);
-        let mut relative_depth = 0isize;
-        for (index, inst) in scratch.drain(..).enumerate() {
+        for inst in scratch.drain(..) {
             let Some(value) = immediate(&inst) else {
-                update_relative_depth(&inst, &mut relative_depth);
                 block.instructions.push(inst);
                 continue;
             };
             let materialization = ImmediateMaterialization::new(evm_version, value);
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
-            } else if materialization_fits(
-                inst.metadata.compact_headroom,
-                depths.as_ref(),
-                MaterializationSite {
-                    block: block_id,
-                    index,
-                    relative_depth,
-                    high_water,
-                    peak: materialization.stack_peak(),
-                },
-                &mut unknown_target_headroom,
-            ) {
+            } else {
                 materialize_selected(&mut block.instructions, materialization);
                 changed = true;
-            } else {
-                block.instructions.push(inst);
             }
-            relative_depth += 1;
         }
     }
-    module.unknown_target_stack_headroom = unknown_target_headroom;
     changed
-}
-
-fn needs_stack_depths(module: &Module, evm_version: EvmVersion, mut headroom: usize) -> bool {
-    module.blocks.iter().any(|block| {
-        let high_water = relative_stack_high_water(&block.instructions);
-        let mut relative_depth = 0isize;
-        for inst in &block.instructions {
-            if let Some(value) = immediate(inst) {
-                let materialization = ImmediateMaterialization::new(evm_version, value);
-                if !matches!(materialization.recipe, CompactPush::Literal)
-                    && !inst.metadata.compact_headroom
-                    && !fits_relative_high_water(
-                        relative_depth,
-                        high_water,
-                        materialization.stack_peak(),
-                    )
-                {
-                    let peak = materialization.stack_peak();
-                    if peak > headroom {
-                        return true;
-                    }
-                    headroom -= peak;
-                }
-                relative_depth += 1;
-            } else {
-                update_relative_depth(inst, &mut relative_depth);
-            }
-        }
-        false
-    })
-}
-
-fn update_relative_depth(inst: &Instruction, depth: &mut isize) {
-    if let Some(effect) = inst.effective_stack_effect() {
-        *depth += isize::from(effect.outputs) - isize::from(effect.inputs);
-    }
-}
-
-struct MaterializationSite {
-    block: BlockId,
-    index: usize,
-    relative_depth: isize,
-    high_water: Option<isize>,
-    peak: usize,
-}
-
-fn materialization_fits(
-    headroom_proven: bool,
-    depths: Option<&StackDepths>,
-    site: MaterializationSite,
-    headroom: &mut usize,
-) -> bool {
-    headroom_proven
-        || fits_relative_high_water(site.relative_depth, site.high_water, site.peak)
-        || depths.is_some_and(|depths| depths.has_headroom(site.block, site.index, site.peak))
-        || site.peak <= *headroom && {
-            *headroom -= site.peak;
-            true
-        }
-}
-
-fn fits_relative_high_water(relative_depth: isize, high_water: Option<isize>, peak: usize) -> bool {
-    high_water.is_some_and(|high_water| {
-        relative_depth.checked_add_unsigned(peak).is_some_and(|depth| depth <= high_water)
-    })
 }
 
 fn immediate(inst: &Instruction) -> Option<U256> {

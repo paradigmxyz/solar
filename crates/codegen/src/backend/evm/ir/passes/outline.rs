@@ -8,9 +8,10 @@
 //!
 //! Candidates must be closed stack computations with known effects: they consume a fixed number
 //! of inputs, produce a fixed number of outputs, contain no control flow or observable operation,
-//! and fit the EVM stack limit at every site. Profitability includes the shared body, per-site
-//! call sequence, continuation labels, and target-dependent push widths. Sites are selected without
-//! overlap, and new blocks and labels are installed through the normal EVM IR CFG representation.
+//! and contain no control flow or observable operation. Profitability includes the shared body,
+//! per-site call sequence, continuation labels, and target-dependent push widths. Sites are
+//! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
+//! representation.
 //!
 //! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
 //! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
@@ -21,10 +22,7 @@
 use super::{
     EvmPass,
     compact_pushes::selected_len,
-    utils::{
-        FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound,
-        relative_stack_high_water,
-    },
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -63,7 +61,6 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
         target: "solar::codegen::evm_ir::outline",
         module = %module.name,
         blocks = module.blocks.len(),
-        unknown_target_stack_headroom = module.unknown_target_stack_headroom,
         "analyzing machine instruction outlines"
     );
     let mut state = RunState::default();
@@ -126,7 +123,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 // before the shared stub's fixed overhead. A run no larger than that site can
                 // never save bytes regardless of its occurrence count, so do not intern it.
                 let can_amortize = run_size > 7 + inputs as usize;
-                let added_peak = 2usize.max(1 + peak as usize);
                 if len >= MIN_MACHINE_RUN && can_amortize && (closed || open_size_run) {
                     let key = MachineInstSlice {
                         hash: hashes.range(block_id, start, end),
@@ -138,7 +134,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                         len,
                         inputs: inputs as u16,
                         outputs: outputs as u16,
-                        added_peak,
                     });
                 }
             }
@@ -155,13 +150,9 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     });
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
-    let mut depths = None;
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
-            if !has_headroom(module, &mut depths, site.block, site.start, site.added_peak) {
-                continue;
-            }
             let end = site.start + site.len;
             let instruction_count = module.blocks[site.block].instructions.len();
             let claimed = claimed
@@ -323,7 +314,6 @@ fn outline_parametric_machine_runs(
 
     let mut claimed = FxHashMap::<BlockId, DenseBitSet<usize>>::default();
     let mut chosen = Vec::new();
-    let mut depths = None;
     for (_, sites) in groups {
         let mut free = SmallVec::<[ParamSite; 2]>::new();
         for site in sites {
@@ -374,14 +364,6 @@ fn outline_parametric_machine_runs(
             continue;
         }
         let Some(stub_body) = parameterize_body(first_body, &parameters) else { continue };
-        let Some(added_peak) = parameterized_outline_peak(&stub_body, parameters.len()) else {
-            continue;
-        };
-        free.retain(|site| has_headroom(module, &mut depths, site.block, site.start, added_peak));
-        if free.len() < 2 {
-            continue;
-        }
-
         let inline_size = free
             .iter()
             .map(|site| {
@@ -504,11 +486,6 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
     Some(result)
 }
 
-fn parameterized_outline_peak(stub_body: &[Instruction], parameters: usize) -> Option<usize> {
-    let stub_peak = usize::try_from(relative_stack_high_water(stub_body)?).ok()?;
-    Some((parameters + 2).max(parameters + 1 + stub_peak))
-}
-
 fn apply_parametric_outline_edits(
     module: &mut Module,
     mut edits: FxHashMap<BlockId, SmallVec<[ParamEdit; 1]>>,
@@ -583,10 +560,6 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     if values.is_empty() {
         return false;
     }
-    let mut depths = None;
-    for occurrences in sites.values_mut() {
-        occurrences.retain(|site| has_headroom(module, &mut depths, site.0, site.1, 2));
-    }
     values.retain(|(value, push_size)| {
         let occurrences = &sites[value];
         let inline = occurrences.len() * push_size;
@@ -615,19 +588,6 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
-}
-
-fn has_headroom(
-    module: &Module,
-    depths: &mut Option<Option<StackDepths>>,
-    block: BlockId,
-    index: usize,
-    growth: usize,
-) -> bool {
-    depths
-        .get_or_insert_with(|| StackDepths::new(module))
-        .as_ref()
-        .is_some_and(|depths| depths.has_headroom(block, index, growth))
 }
 
 fn apply_outline_edits(
@@ -721,7 +681,6 @@ struct Site {
     len: usize,
     inputs: u16,
     outputs: u16,
-    added_peak: usize,
 }
 
 struct ChosenGroup {

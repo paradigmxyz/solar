@@ -7,8 +7,6 @@
 //@[default_size] filecheck: --check-prefixes=DEFAULT,COMMON
 @module CompactedPush
 
-// An opaque dynamic edge can enter bb1 with 1,022 words. Reordering would
-// otherwise turn a later compact-materialization overflow into success.
 bb0:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)
@@ -23,14 +21,16 @@ bb0:
 // EXPLICIT-LABEL: after compact-pushes
 // DEFAULT-LABEL: after pipeline-default
 // COMMON: bb1:
-// EXPLICIT: calldatasize
-// EXPLICIT-NEXT: push 0x100000000000000000000000000000000
-// EXPLICIT-NEXT: swap 1
-// EXPLICIT: sub
-// DEFAULT: calldatasize
-// DEFAULT-NEXT: push 0x100000000000000000000000000000000
-// DEFAULT-NEXT: swap 1
-// DEFAULT: sub
+// EXPLICIT: push 1
+// EXPLICIT-NEXT: push 128
+// EXPLICIT-NEXT: shl
+// EXPLICIT-NEXT: calldatasize
+// EXPLICIT-NEXT: sub
+// DEFAULT: push 1
+// DEFAULT-NEXT: push 128
+// DEFAULT-NEXT: shl
+// DEFAULT-NEXT: calldatasize
+// DEFAULT-NEXT: sub
 bb1:
   calldatasize
   push 0x100000000000000000000000000000000
@@ -58,12 +58,13 @@ bb2:
   stop
 
 
-// A compact recipe stays in place without an entry-depth proof.
+// A compact recipe can follow a rebased duplicate.
 // EXPLICIT-LABEL: bb3:
 // EXPLICIT: push 1
-// EXPLICIT: dup 1
-// EXPLICIT: push 0x100000000000000000000000000000000
-// EXPLICIT: swap 1
+// EXPLICIT: push 1
+// EXPLICIT: push 128
+// EXPLICIT: shl
+// EXPLICIT: dup 2
 // EXPLICIT: sub
 bb3:
   push 1
@@ -101,11 +102,13 @@ bb5:
   sub
   stop
 
-// Lower masks stay literal without an entry-depth proof.
+// Lower masks are movable immediate recipes.
 // EXPLICIT-LABEL: bb6:
+// EXPLICIT: push 0
+// EXPLICIT: not
+// EXPLICIT: push 8
+// EXPLICIT: shr
 // EXPLICIT: calldatasize
-// EXPLICIT: push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-// EXPLICIT: swap 1
 // EXPLICIT: sub
 bb6:
   calldatasize

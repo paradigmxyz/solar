@@ -31,19 +31,13 @@ pub use passes::{
     run_pipeline,
 };
 pub(in crate::backend::evm) use passes::{
-    LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::ImmediateMaterialization, legalize_shifts,
+    compact_pushes::ImmediateMaterialization, legalize_shifts,
 };
 
 /// Validates the target-independent invariants of an EVM IR module.
 pub fn validate(gcx: solar_sema::Gcx<'_>, module: &Module) {
     verify::Verifier::new(gcx).verify_module(module);
 }
-
-/// Maximum stack reserve used by parameterized machine-run outlining.
-pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;
-
-/// Peak stack growth when replacing memory stores with a program-data copy.
-pub(in crate::backend::evm) const DATA_COPY_STACK_HEADROOM: usize = 3;
 
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
@@ -87,10 +81,6 @@ pub struct Module {
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
     pub(crate) data: IndexVec<DataId, Data>,
-    /// Backend-proven growth available even across opaque physical jumps.
-    pub(crate) unknown_target_stack_headroom: usize,
-    /// Whether the backend reserved stack growth for program-data copies.
-    pub(crate) data_copy_has_headroom: bool,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
 }
@@ -115,14 +105,7 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self {
-            name,
-            blocks: IndexVec::new(),
-            data: IndexVec::new(),
-            unknown_target_stack_headroom: 0,
-            data_copy_has_headroom: false,
-            enable_size_outlining: false,
-        }
+        Self { name, blocks: IndexVec::new(), data: IndexVec::new(), enable_size_outlining: false }
     }
 
     /// Changes the program name.
@@ -272,14 +255,6 @@ impl Instruction {
         Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH)
     }
 
-    /// Marks an immediate whose selected materialization peak was included by stack scheduling.
-    #[must_use]
-    pub(in crate::backend::evm) fn scheduled_push_value(value: U256) -> Self {
-        let mut inst = Self::push_value(value);
-        inst.metadata.compact_headroom = true;
-        inst
-    }
-
     /// Creates an encoded block-address push instruction.
     #[must_use]
     pub(crate) fn push_block(block: BlockId) -> Self {
@@ -301,7 +276,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), compact_headroom: false },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
         }
     }
 
@@ -335,7 +310,7 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), compact_headroom: false },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
         }
     }
 
@@ -613,13 +588,11 @@ enum PushValue {
 pub(crate) struct Metadata {
     /// Optional stack effect.
     pub(crate) stack: Option<StackEffect>,
-    /// Whether scheduling included the selected compact immediate's transient stack peak.
-    pub(crate) compact_headroom: bool,
 }
 
 impl Metadata {
     /// Empty metadata value.
-    pub(crate) const EMPTY: Self = Self { stack: None, compact_headroom: false };
+    pub(crate) const EMPTY: Self = Self { stack: None };
 }
 
 /// Stack effect metadata for one EVM IR operation.

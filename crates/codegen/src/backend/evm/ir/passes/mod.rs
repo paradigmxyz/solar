@@ -22,7 +22,7 @@ mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
 
-pub(in crate::backend::evm) use legalize_shifts::{LEGACY_SHIFT_STACK_HEADROOM, legalize_shifts};
+pub(in crate::backend::evm) use legalize_shifts::legalize_shifts;
 
 use super::Module;
 use crate::{

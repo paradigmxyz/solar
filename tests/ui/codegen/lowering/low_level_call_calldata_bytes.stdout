@@ -170,13 +170,6 @@ bb26:
   push 128
   return
 bb31:
-  push 32
-  dup 2
-  add
-  dup 1
-  push 192
-  mstore
-  lt
   push bb25
   jumpi
   push bb30
@@ -257,6 +250,13 @@ bb28:
   dup 1
   push 224
   mstore
+  push 32
+  dup 2
+  add
+  dup 1
+  push 192
+  mstore
+  lt
   swap 1
   jump
 bb33:
@@ -300,18 +300,6 @@ bb33:
   delegatecall
   jump bb26
 bb34:
-  push 32
-  dup 2
-  add
-  dup 1
-  push 192
-  mstore
-  dup 2
-  dup 2
-  lt
-  swap 2
-  pop
-  pop
   push bb25
   jumpi
   push bb33

@@ -95,13 +95,14 @@ bb5:
   mstore
   stop
 
-// Keep the reload at the stack limit: replacing it with DUP1 would overflow.
+// Reuse the stored value instead of loading it again.
 // CHECK-LABEL: {{^[ +].*}}bb6:
 // CHECK: {{^[ +].*}}push 7
+// CHECK-NEXT: +   dup 1
 // CHECK-NEXT: {{^[ +].*}}push 32
 // CHECK-NEXT: {{^[ +].*}}mstore
-// CHECK-NEXT: {{^[ +].*}}push 32
-// CHECK-NEXT: {{^[ +].*}}mload
+// CHECK-NEXT: -   push 32
+// CHECK-NEXT: -   mload
 bb6:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)

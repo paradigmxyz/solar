@@ -5,7 +5,7 @@
     push 1
     push bb1
     jumpi
-    jump bb18
+    jump bb1
   bb1 [cold]:
     push 11
 -   push 22
@@ -37,27 +37,7 @@
 -   push 444
 -   push 555
 -   revert
-+   jump bb21
-  bb7:
-    push 1
-    push bb13
-    jumpi
-    jump bb14
-  bb18:
-    push 1
-    push bb7
-    jumpi
-    jump bb19
-  bb19:
-    push 1
-    push bb15
-    jumpi
-    jump bb20
-  bb20:
-    push 1
-    push bb16
-    jumpi
-    jump bb17
++   jump bb7
   bb4294967295:
     push 999
 -   push 222
@@ -65,7 +45,7 @@
 -   push 444
 -   push 555
 -   revert
-+   jump bb21
++   jump bb7
   bb4294967293:
     push 0
     pop
@@ -98,90 +78,12 @@
 -   pop
 -   pop
 -   stop
-+   jump bb22
++   jump bb13
   bb12:
     push 4
     push 5
     push 6
--   exchange 1, 2
--   pop
--   pop
--   stop
-+   jump bb22
-  bb13:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    push 1
-    push 2
-    push 3
-    push 4
-    pop
-    pop
-    pop
-    pop
-    pop
-    stop
-  bb14:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    push 1
-    push 2
-    push 3
-    push 5
-    pop
-    pop
-    pop
-    pop
-    pop
-    stop
-  bb15:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    push 1
-    push 10
-    push 11
-    pop
-    push 0
-    pop
-    pop
-    pop
-    pop
-    stop
-  bb16:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    push 3
-    push 4
-    push 10
-    push 11
-    pop
-    push 0
-    pop
-    pop
-    pop
-    pop
-    stop
-  bb17:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    push 5
-    pop
-    push 0
-    pop
-    pop
-+   pop
-+   pop
-+   stop
++   jump bb13
 + bb4:
 +   push 33
 +   push 44
@@ -190,14 +92,14 @@
 + bb5 [cold]:
 +   push 22
 +   jump bb4
-+ bb21:
++ bb7:
 +   push 222
 +   push 333
 +   push 444
 +   push 555
 +   revert
-+ bb22:
-+   exchange 1, 2
++ bb13:
+    exchange 1, 2
     pop
     pop
     stop

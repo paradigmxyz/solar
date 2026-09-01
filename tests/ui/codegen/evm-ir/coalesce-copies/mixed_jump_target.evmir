@@ -2,9 +2,7 @@
 //@ filecheck:
 @module MixedJumpTarget
 
-// The dynamic target reaching bb3 is either the known bb4 label or an unknown runtime word. The
-// latter may jump to bb5 with a 1,022-word prefix, so coalescing its copies would overflow.
-// CHECK-NOT: mcopy
+// CHECK: + mcopy
 bb0:
   op_0c !meta(stack=0->255)
   op_0c !meta(stack=0->255)

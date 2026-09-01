@@ -97,13 +97,6 @@ bb16:
   push bb33
   jump bb28
 bb30:
-  push 32
-  dup 2
-  add
-  dup 1
-  push 224
-  mstore
-  lt
   push bb26
   jumpi
   push 64
@@ -253,21 +246,16 @@ bb29:
   dup 1
   push 160
   mstore
-  swap 1
-  jump
-bb32:
   push 32
   dup 2
   add
   dup 1
   push 224
   mstore
-  dup 2
-  dup 2
   lt
-  swap 2
-  pop
-  pop
+  swap 1
+  jump
+bb32:
   push bb26
   jumpi
   push 64
@@ -388,12 +376,7 @@ bb33:
   dup 1
   push 160
   mstore
-  dup 2
-  dup 2
   lt
-  swap 2
-  pop
-  pop
   push bb26
   jumpi
   push bb32

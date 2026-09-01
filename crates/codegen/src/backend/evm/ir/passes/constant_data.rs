@@ -4,10 +4,7 @@
 //! with `CODECOPY`. It skips modules that observe program-data layout through
 //! `CODESIZE`, because appending data would change the observed final byte.
 
-use super::{
-    EvmPass,
-    utils::{StackDepths, relative_stack_depths},
-};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{BlockId, Data, DataRef, Instruction, Module, PushValue},
     op::{self, WORD_BYTES},
@@ -40,11 +37,8 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
         return false;
     }
 
-    let mut depths = None;
     let mut rewrites = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        let relative_depths = relative_stack_depths(&block.instructions);
-        let high_water = relative_depths.as_ref().and_then(|depths| depths.iter().copied().max());
         let mut start = 0;
         while start < block.instructions.len() {
             let Some(rewrite) = find_run(gcx, block_id, &block.instructions, start) else {
@@ -52,18 +46,7 @@ fn materialize_constant_data(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             };
             start = rewrite.end;
-            let fits_existing_peak = relative_depths.as_ref().is_some_and(|relative_depths| {
-                high_water
-                    .is_some_and(|high_water| relative_depths[rewrite.start] + 3 <= high_water)
-            });
-            let fits = fits_existing_peak
-                || depths
-                    .get_or_insert_with(|| StackDepths::new(module))
-                    .as_ref()
-                    .is_some_and(|depths| depths.has_headroom(block_id, rewrite.start, 3));
-            if fits {
-                rewrites.push(rewrite);
-            }
+            rewrites.push(rewrite);
         }
     }
     if rewrites.is_empty() {

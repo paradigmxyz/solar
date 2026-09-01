@@ -164,11 +164,6 @@ fn normalization(
 
 fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<StackRun> {
     let output = StackRun::from_vec(resynthesize_physical_ops(input, evm_version)?);
-    if required_entry_depth(&output) > required_entry_depth(input)
-        || relative_peak(&output) > relative_peak(input)
-    {
-        return None;
-    }
     let input_cost = lowered_stack_cost(input, evm_version);
     let output_cost = lowered_stack_cost(&output, evm_version);
     (output_cost.0 <= input_cost.0
@@ -181,26 +176,6 @@ fn compute_normalization(input: &StackRun, evm_version: EvmVersion) -> Option<St
 fn stack_op(inst: &Instruction) -> Option<StackOp> {
     inst.has_canonical_stack_effect().then_some(())?;
     inst.as_stack_op()
-}
-
-fn relative_peak(ops: &[StackOp]) -> isize {
-    let mut depth = 0isize;
-    let mut peak = 0isize;
-    for op in ops {
-        depth += op.net_growth();
-        peak = peak.max(depth);
-    }
-    peak
-}
-
-fn required_entry_depth(ops: &[StackOp]) -> usize {
-    let mut depth = 0isize;
-    let mut required = 0isize;
-    for op in ops {
-        required = required.max(op.required_depth() as isize - depth);
-        depth += op.net_growth();
-    }
-    required as usize
 }
 
 fn remove_redundant_permutations(

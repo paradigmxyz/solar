@@ -1,6 +1,6 @@
 //! Coalesce adjacent constant word copies into `MCOPY`.
 
-use super::{EvmPass, utils::StackDepths};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module},
     op::{self, WORD_BYTES},
@@ -32,7 +32,6 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if !module.blocks.iter().any(|block| has_candidate(gcx, &block.instructions)) {
         return false;
     }
-    let Some(depths) = StackDepths::new(module) else { return false };
     let mut groups = 0usize;
     let mut words = 0usize;
     for block_index in 0..module.blocks.len() {
@@ -58,10 +57,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
             {
                 count += 1;
             }
-            if count < 2
-                || !ranges_disjoint(source, destination, count)
-                || !depths.has_headroom(block_id, index, 3)
-            {
+            if count < 2 || !ranges_disjoint(source, destination, count) {
                 index += COPY_INSTRUCTIONS;
                 continue;
             }

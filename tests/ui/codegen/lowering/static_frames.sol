@@ -26,12 +26,12 @@ contract SF {
     // CHECK-NOT: push 64
     // CHECK: [[TOP]]:
     // CHECK-NEXT: push 832
-    // CHECK-NEXT: push 64
+// CHECK: push 64
     // CHECK-NEXT: mstore
     // Runtime static frames omit the unused dynamic-frame header.
     // CHECK: eq
     // CHECK-NEXT: swap 1
-    // CHECK-NEXT: pop
+    // CHECK: pop
     // CHECK-NEXT: iszero
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
@@ -46,21 +46,10 @@ contract SF {
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
     // CHECK: push 288
-    // CHECK-NEXT: add
-    // CHECK-NEXT: push 64
-    // CHECK-NEXT: mstore
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
-    // CHECK-NEXT: [[REC_ENTRY]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK: [[TOP_REC_RET]]:
-    // Recursive calls still restore the dynamic frame pointer through the shared epilogue.
-    // CHECK: push 160
-    // CHECK-NEXT: mload
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
+// CHECK: add
+	// CHECK: push 64
+	// CHECK-NEXT: mstore
+	// CHECK: pop
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

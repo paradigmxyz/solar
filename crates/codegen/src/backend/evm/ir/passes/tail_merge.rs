@@ -2,10 +2,7 @@
 
 use super::{
     EvmPass,
-    utils::{
-        FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound,
-        is_terminal_boundary, relative_stack_depths,
-    },
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_terminal_boundary},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
@@ -58,7 +55,6 @@ struct RunState {
 
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
-        let mut depths = None;
         self.representatives.clear();
         self.merges.clear();
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -83,33 +79,12 @@ impl RunState {
             if let Some((representative, common)) = matched
                 && common > 0
                 && suffix_size(gcx, module, block_id, common) > 5
-                && split_has_jump_headroom(&mut depths, module, representative, common)
-                && split_has_jump_headroom(&mut depths, module, block_id, common)
-                && relocated_terminator_has_headroom(&mut depths, module, representative)
-                && relocated_terminator_has_headroom(&mut depths, module, block_id)
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
                 self.representatives.push(block_id);
             }
         }
-
-        // A group with several suffix lengths creates a chain of shared tails. Each tail-to-tail
-        // jump also pushes its target, so prove its headroom for every source that reaches it.
-        let mut rejected = Vec::new();
-        for merge in &self.merges {
-            if !rejected.contains(&merge.representative)
-                && !tail_chain_has_jump_headroom(
-                    &mut depths,
-                    module,
-                    merge.representative,
-                    &self.merges,
-                )
-            {
-                rejected.push(merge.representative);
-            }
-        }
-        self.merges.retain(|merge| !rejected.contains(&merge.representative));
     }
 
     fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
@@ -206,70 +181,6 @@ impl RunState {
         debug_assert!(labels.next().is_none());
         true
     }
-}
-
-fn tail_chain_has_jump_headroom(
-    depths: &mut Option<Option<StackDepths>>,
-    module: &Module,
-    representative: BlockId,
-    merges: &[Merge],
-) -> bool {
-    let mut commons = merges
-        .iter()
-        .filter(|merge| merge.representative == representative)
-        .map(|merge| merge.common)
-        .collect::<Vec<_>>();
-    commons.sort_unstable();
-    commons.dedup();
-
-    for (index, &common) in commons.iter().enumerate().skip(1) {
-        let previous = commons[index - 1];
-        if !split_has_jump_headroom(depths, module, representative, previous)
-            || merges
-                .iter()
-                .filter(|merge| merge.representative == representative && merge.common >= common)
-                .any(|merge| !split_has_jump_headroom(depths, module, merge.block, previous))
-        {
-            return false;
-        }
-    }
-    true
-}
-
-fn split_has_jump_headroom(
-    depths: &mut Option<Option<StackDepths>>,
-    module: &Module,
-    block_id: BlockId,
-    common: usize,
-) -> bool {
-    let block = &module.blocks[block_id];
-    let split = block.instructions.len() - common;
-    let local_headroom = relative_stack_depths(&block.instructions).is_some_and(|depths| {
-        depths.get(split).is_some_and(|depth| depths.iter().any(|peak| peak > depth))
-    });
-    local_headroom
-        || depths
-            .get_or_insert_with(|| StackDepths::new(module))
-            .as_ref()
-            .is_some_and(|depths| depths.has_headroom(block_id, split, 1))
-}
-
-fn relocated_terminator_has_headroom(
-    depths: &mut Option<Option<StackDepths>>,
-    module: &Module,
-    block_id: BlockId,
-) -> bool {
-    let block = &module.blocks[block_id];
-    let Some(Terminator { kind: TerminatorKind::Jump(target), .. }) = &block.terminator else {
-        return true;
-    };
-    if module.next_block(block_id) != Some(*target) {
-        return true;
-    }
-    depths
-        .get_or_insert_with(|| StackDepths::new(module))
-        .as_ref()
-        .is_some_and(|depths| depths.has_headroom(block_id, block.instructions.len(), 1))
 }
 
 fn is_candidate(block: &Block) -> bool {

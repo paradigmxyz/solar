@@ -3,7 +3,7 @@
   @module module
   bb0:
     push 1
-    indexed_jump bb1, bb2, bb3, bb5
+    indexed_jump bb1, bb2
 - bb1 [cold]:
 + bb1:
     push 64
@@ -16,38 +16,4 @@
 -   push 0
 -   revert
 +   jump bb1
-  bb3:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    push 1
-    push 2
-    push 3
-    push 4
-    jump bb4
-  bb4:
-    pop
-    pop
-    pop
-    pop
-    pop
-    stop
-  bb5:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    push 1
-    push 2
-    push 3
-    push 4
-    jump bb6
-  bb6:
-    pop
-    pop
-    pop
-    pop
-    pop
-    stop
   

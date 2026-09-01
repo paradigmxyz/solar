@@ -56,10 +56,12 @@
     push 16
     push 17
     push 18
-    swap 2
+-   swap 2
++   dup 2
++   swap 3
     pop
-    dup 1
-    swap 2
+-   dup 1
+-   swap 2
     stop
   bb5:
     push 19

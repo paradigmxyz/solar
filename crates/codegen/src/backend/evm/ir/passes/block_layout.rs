@@ -6,15 +6,12 @@
 //! final lowering can then omit jumps whose target is the next emitted block
 //! without encoding physical layout assumptions in the IR. Independent hot
 //! traces are placed before cold terminal traces so unlikely exit paths do not
-//! interrupt hot code. When an original fallthrough jump reaches the stack
-//! limit, the pass keeps that edge adjacent: splitting it would require a
-//! target push that cannot fit. These required fallthroughs form linear chains
-//! that constrain the otherwise profitable trace order.
+//! interrupt hot code.
 
 use super::{
     EvmPass,
     compact_pushes::selected_len,
-    utils::{StackDepths, is_terminal_boundary, relative_stack_depths, remap_block_order},
+    utils::{is_terminal_boundary, remap_block_order},
 };
 use crate::backend::evm::{
     ir::{
@@ -75,73 +72,11 @@ fn layout_blocks(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if state.order.iter().copied().eq(module.blocks.indices()) {
         return false;
     }
-    if breaks_original_fallthrough(module, &state.order) {
-        preserve_required_fallthroughs(module, &mut state.order)
-    }
     if state.order.iter().copied().eq(module.blocks.indices()) {
         return false;
     }
     remap_block_order(module, &state.order);
     true
-}
-
-fn breaks_original_fallthrough(module: &Module, order: &[BlockId]) -> bool {
-    let mut next = IndexVec::from_vec(vec![None; module.blocks.len()]);
-    for blocks in order.windows(2) {
-        next[blocks[0]] = Some(blocks[1]);
-    }
-    module.blocks.indices().any(|block| {
-        matches!(
-            module.blocks[block].terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Jump(target))
-                if module.next_block(block) == Some(*target) && next[block] != Some(*target)
-        )
-    })
-}
-
-fn preserve_required_fallthroughs(module: &Module, order: &mut Vec<BlockId>) {
-    let mut depths = None;
-    let mut predecessors = IndexVec::from_vec(vec![None; module.blocks.len()]);
-    let mut successors = IndexVec::from_vec(vec![None; module.blocks.len()]);
-    for block in module.blocks.indices() {
-        let Some(TerminatorKind::Jump(target)) =
-            module.blocks[block].terminator.as_ref().map(|term| &term.kind)
-        else {
-            continue;
-        };
-        let needs_fallthrough = !jump_has_local_headroom(&module.blocks[block])
-            && !depths.get_or_insert_with(|| StackDepths::new(module)).as_ref().is_some_and(
-                |depths| depths.has_headroom(block, module.blocks[block].instructions.len(), 1),
-            );
-        if module.next_block(block) != Some(*target) || !needs_fallthrough {
-            continue;
-        }
-        predecessors[*target] = Some(block);
-        successors[block] = Some(*target);
-    }
-
-    let mut repaired = Vec::with_capacity(order.len());
-    let mut emitted = DenseBitSet::new_empty(module.blocks.len());
-    for &block in order.iter() {
-        let mut head = block;
-        while let Some(predecessor) = predecessors[head] {
-            head = predecessor;
-        }
-        while emitted.insert(head) {
-            repaired.push(head);
-            let Some(successor) = successors[head] else { break };
-            head = successor;
-        }
-    }
-    debug_assert_eq!(repaired.len(), order.len());
-    debug_assert_eq!(repaired.first(), Some(&BlockId::ENTRY));
-    *order = repaired;
-}
-
-fn jump_has_local_headroom(block: &Block) -> bool {
-    relative_stack_depths(&block.instructions).is_some_and(|depths| {
-        depths.last().is_some_and(|depth| depths.iter().any(|peak| peak > depth))
-    })
 }
 
 struct RunState {

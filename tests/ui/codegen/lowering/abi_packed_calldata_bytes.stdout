@@ -97,13 +97,6 @@ bb14:
   push bb31
   jump bb26
 bb28:
-  push 32
-  dup 2
-  add
-  dup 1
-  push 192
-  mstore
-  lt
   push bb24
   jumpi
   push 64
@@ -233,21 +226,16 @@ bb27:
   dup 1
   push 224
   mstore
-  swap 1
-  jump
-bb30:
   push 32
   dup 2
   add
   dup 1
   push 192
   mstore
-  dup 2
-  dup 2
   lt
-  swap 2
-  pop
-  pop
+  swap 1
+  jump
+bb30:
   push bb24
   jumpi
   push 64

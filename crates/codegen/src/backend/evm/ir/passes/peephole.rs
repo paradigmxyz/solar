@@ -23,7 +23,6 @@
 use super::{
     EvmPass,
     compact_pushes::{immediate_materialization_cost, materialize_immediate},
-    utils::StackDepths,
 };
 use crate::{
     backend::evm::{
@@ -54,10 +53,7 @@ impl EvmPass for Peephole {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let mut stack_headroom = std::mem::take(&mut module.unknown_target_stack_headroom);
-        let changed = optimize_module(gcx, module, &mut stack_headroom);
-        module.unknown_target_stack_headroom = stack_headroom;
-        changed
+        optimize_module(gcx, module)
     }
 }
 
@@ -95,79 +91,25 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(gcx: Gcx<'_>, module: &mut Module, stack_headroom: &mut usize) -> bool {
-    let mut result = OptimizeResult::default();
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let mut changed = false;
     let mut scratch = Vec::new();
     for (_, block) in module.blocks.iter_mut_enumerated() {
-        result.combine(optimize(
-            gcx,
-            &mut block.instructions,
-            &mut scratch,
-            block.label,
-            stack_headroom,
-            None,
-        ));
+        changed |= optimize(gcx, &mut block.instructions, &mut scratch, block.label);
     }
-    if !result.needs_depths {
-        return result.changed;
-    }
-
-    let Some(depths) = StackDepths::new(module) else { return result.changed };
-    for (block_id, block) in module.blocks.iter_mut_enumerated() {
-        result.combine(optimize(
-            gcx,
-            &mut block.instructions,
-            &mut scratch,
-            block.label,
-            stack_headroom,
-            depths.entry_depth(block_id),
-        ));
-    }
-    result.changed
-}
-
-#[derive(Default)]
-struct OptimizeResult {
-    changed: bool,
-    needs_depths: bool,
-}
-
-impl OptimizeResult {
-    fn combine(&mut self, other: Self) {
-        self.changed |= other.changed;
-        self.needs_depths |= other.needs_depths;
-    }
+    changed
 }
 
 fn cleanup_stop_stacks(module: &mut Module) -> bool {
-    let mut stack_headroom = std::mem::take(&mut module.unknown_target_stack_headroom);
-    let mut suffixes = Vec::new();
-    for (block_id, block) in module.blocks.iter_enumerated() {
+    let mut changed = false;
+    for (_, block) in module.blocks.iter_mut_enumerated() {
         if block.terminator.as_ref().is_some_and(is_explicit_stack_unobservable_terminal)
             && let Some(suffix) = self_contained_stack_suffix(&block.instructions)
         {
-            suffixes.push((block_id, suffix));
-        }
-    }
-    let depths = suffixes
-        .iter()
-        .any(|(_, suffix)| suffix.peak > stack_headroom)
-        .then(|| StackDepths::new(module))
-        .flatten();
-    let mut changed = false;
-    for (block_id, suffix) in suffixes {
-        if suffix.peak <= stack_headroom && {
-            stack_headroom -= suffix.peak;
-            true
-        } || depths
-            .as_ref()
-            .is_some_and(|depths| depths.has_headroom(block_id, suffix.start, suffix.peak))
-        {
-            module.blocks[block_id].instructions.truncate(suffix.start);
+            block.instructions.truncate(suffix.start);
             changed = true;
         }
     }
-    module.unknown_target_stack_headroom = stack_headroom;
     changed
 }
 
@@ -185,7 +127,6 @@ fn self_contained_stack_suffix(instructions: &[Instruction]) -> Option<StackSuff
 
     let mut depth = 0isize;
     let mut required = 0isize;
-    let mut peak = 0isize;
     for inst in &instructions[start..] {
         if !inst.has_canonical_stack_effect() {
             return None;
@@ -195,14 +136,12 @@ fn self_contained_stack_suffix(instructions: &[Instruction]) -> Option<StackSuff
             inst.as_stack_op().map_or(usize::from(effect.inputs), PhysicalStackOp::required_depth);
         required = required.max(inputs as isize - depth);
         depth += isize::from(effect.outputs) - isize::from(effect.inputs);
-        peak = peak.max(depth);
     }
-    (required == 0).then_some(StackSuffix { start, peak: peak.try_into().ok()? })
+    (required == 0).then_some(StackSuffix { start })
 }
 
 struct StackSuffix {
     start: usize,
-    peak: usize,
 }
 
 fn optimize(
@@ -210,48 +149,24 @@ fn optimize(
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
-    stack_headroom: &mut usize,
-    entry_depth: Option<usize>,
-) -> OptimizeResult {
+) -> bool {
     scratch.clear();
     std::mem::swap(instructions, scratch);
     instructions.reserve(scratch.len());
-    let mut result = OptimizeResult::default();
-    let mut relative_depth = 0isize;
+    let mut changed = false;
     for inst in scratch.drain(..) {
-        relative_depth += inst
-            .effective_stack_effect()
-            .map_or(0, |effect| isize::from(effect.outputs) - isize::from(effect.inputs));
         instructions.push(inst);
-        while try_peephole(
-            gcx,
-            instructions,
-            block,
-            entry_depth,
-            stack_headroom,
-            relative_depth,
-            &mut result.needs_depths,
-        ) {
-            result.changed = true;
+        while try_peephole(gcx, instructions, block) {
+            changed = true;
         }
     }
-    result
+    changed
 }
 
-fn try_peephole(
-    gcx: Gcx<'_>,
-    instructions: &mut Vec<Instruction>,
-    block: u32,
-    entry_depth: Option<usize>,
-    stack_headroom: &mut usize,
-    relative_depth: isize,
-    needs_depths: &mut bool,
-) -> bool {
-    let mut context =
-        RewriteContext { block, entry_depth, stack_headroom, relative_depth, needs_depths };
+fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -> bool {
     macro_rules! rewrite {
         ($skip:expr, $edit:expr) => {
-            rewrite_if_safe(instructions, $skip, $edit, &mut context)
+            rewrite(instructions, $skip, $edit, block)
         };
     }
 
@@ -522,8 +437,7 @@ fn try_peephole(
 
     // `PUSH value PUSH x MSTORE PUSH x MLOAD -> PUSH value DUP1 PUSH x MSTORE`.
     //
-    // Keeping the stored value saves a push and MLOAD, but adds one transient stack word. Do
-    // not turn a successful execution into a stack overflow.
+    // Keeping the stored value saves a push and MLOAD.
     if let [.., store_addr, store, load_addr, load] = instructions.as_slice()
         && store_addr.has_canonical_stack_effect()
         && store.has_canonical_stack_effect()
@@ -728,85 +642,17 @@ fn stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
     inst.as_stack_op().map(SymbolicStackOp::Physical)
 }
 
-struct StackSummary {
-    net: isize,
-    peak: isize,
-}
-
-struct RewriteContext<'a> {
-    block: u32,
-    entry_depth: Option<usize>,
-    stack_headroom: &'a mut usize,
-    relative_depth: isize,
-    needs_depths: &'a mut bool,
-}
-
-fn stack_summary(instructions: &[Instruction]) -> Option<StackSummary> {
-    let mut net = 0;
-    let mut peak = 0;
-    for inst in instructions {
-        let effect = inst.effective_stack_effect()?;
-        net += isize::from(effect.outputs) - isize::from(effect.inputs);
-        peak = peak.max(net);
-    }
-    Some(StackSummary { net, peak })
-}
-
-fn peak_fits(entry_depth: Option<usize>, start: isize, peak: isize) -> bool {
-    entry_depth
-        .and_then(|entry_depth| {
-            start.checked_add(peak).and_then(|peak| entry_depth.checked_add_signed(peak))
-        })
-        .is_some_and(|depth| depth <= crate::backend::evm::stack::MAX_STACK_DEPTH)
-}
-
 // Keep trace formatting out of the hot matcher's stack frame.
 #[inline(never)]
-fn rewrite_if_safe(
-    instructions: &mut Vec<Instruction>,
-    skip: usize,
-    edit: Edit,
-    context: &mut RewriteContext<'_>,
-) -> bool {
+fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: u32) -> bool {
     let start = instructions.len() - skip;
-    let Some(source) = stack_summary(&instructions[start..]) else { return false };
-    let Some(start_depth) = context.relative_depth.checked_sub(source.net) else { return false };
-    let mut replacement = instructions[start..].to_vec();
-    edit.apply(&mut replacement, 0);
-    let Some(target) = stack_summary(&replacement) else { return false };
-    debug_assert_eq!(source.net, target.net);
-    if source.net != target.net {
-        return false;
-    }
-
-    // A lower replacement peak could erase an overflow that the source must retain. A higher
-    // peak needs room beyond the source's peak. Prefer the exact CFG depth. When opaque jumps
-    // prevent that proof, consume backend-reserved headroom so no later pass can reuse it.
-    let reserve = if target.peak > source.peak {
-        let added = target.peak - source.peak;
-        (!peak_fits(context.entry_depth, start_depth, target.peak)).then_some(added as usize)
-    } else if target.peak < source.peak {
-        (!peak_fits(context.entry_depth, start_depth, source.peak)).then_some(source.peak as usize)
-    } else {
-        None
-    };
-    if let Some(reserve) = reserve
-        && (reserve > *context.stack_headroom || context.entry_depth.is_some())
-    {
-        *context.needs_depths |= context.entry_depth.is_none();
-        return false;
-    }
-    if let Some(reserve) = reserve {
-        *context.stack_headroom -= reserve;
-    }
-
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
         .then(|| instructions[start..].to_vec());
     edit.apply(instructions, start);
     if let Some(input) = input {
         trace!(
             target: TRACE_TARGET,
-            block = context.block,
+            block,
             input = %format_args!("\"{}\"", InstructionSequence(&input)),
             output = %format_args!("\"{}\"", InstructionSequence(&instructions[start..])),
             "rewrite"
