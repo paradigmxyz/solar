@@ -925,6 +925,13 @@ impl LowerAbiCx {
         if !matches!(func.value_ty(result), Some(MirType::MemoryObject(_))) {
             return false;
         }
+        if !matches!(
+            func.value(data),
+            Value::Inst(inst)
+                if matches!(func.inst(*inst).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
+        ) {
+            return false;
+        }
 
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
