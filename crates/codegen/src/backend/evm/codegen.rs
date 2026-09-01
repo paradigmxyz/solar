@@ -4740,10 +4740,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Now compute: f + cond * (t - f)
                 // Stack is [f, t, cond] with cond on top (depth 0), t at depth 1, f at depth 2
                 //
-                // Step 1: DUP3 to get f -> [f, t, cond, f]
-                self.emit_stack_op(StackOp::Dup(3));
-                // Step 2: DUP3 to get t (now at depth 2) -> [f, t, cond, f, t]
-                self.emit_stack_op(StackOp::Dup(3));
+                // Step 1: get f -> [f, t, cond, f]
+                self.emit_operand(func, *false_val);
+                // Step 2: get t -> [f, t, cond, f, t]
+                self.emit_operand(func, *true_val);
                 // Step 3: SUB (top - second = t - f) -> [f, t, cond, t-f]
                 self.emit_op_with_effect(
                     op::SUB,
@@ -6560,6 +6560,14 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
             self.asm.emit_op(op);
+            return;
+        }
+
+        if let crate::mir::Value::Immediate(imm) = func.value(val)
+            && imm.as_u256() == Some(U256::ZERO)
+            && self.gcx.sess.opts.evm_version.has_push0()
+        {
+            self.asm.emit_push(U256::ZERO);
             return;
         }
 
@@ -9514,8 +9522,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !self.block_local_copy_survives(liveness, block, a, 1) {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
             }
-            // DUP for the second operand
-            self.emit_stack_op(StackOp::Dup(1));
+            self.emit_operand(func, a);
             self.asm.emit_op(opcode);
             self.scheduler.instruction_executed(2, result);
             return;
@@ -9880,11 +9887,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             CopySource::Temp(temp_id) => {
                 // Temporaries are tracked in our temps map with their ValueId
                 if let Some(&temp_val) = temps.get(temp_id) {
-                    // DUP the temp value to top of stack
-                    if let Some(depth) = self.scheduler.stack.find(temp_val) {
-                        let dup_n = (depth + 1) as u8;
-                        self.emit_stack_op(StackOp::Dup(dup_n));
-                    }
+                    self.emit_operand(func, temp_val);
                 }
             }
         }

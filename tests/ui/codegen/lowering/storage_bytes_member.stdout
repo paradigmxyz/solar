@@ -397,7 +397,7 @@ bb24:
   shr
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul
@@ -421,7 +421,7 @@ bb24:
   swap 2
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul
@@ -712,7 +712,7 @@ bb37:
   shr
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul
@@ -736,7 +736,7 @@ bb37:
   swap 2
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul

@@ -1295,7 +1295,10 @@ impl StackScheduler {
                 if i == 0 { Some(expected_top) } else { stack[i - 1] }
             });
         if prepend_reaches_goal && let Some(depth) = duplicate {
-            consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
+            consider(
+                self.copy_or_duplicate(expected_top, func, (depth + 1) as u8),
+                Some(expected_top),
+            );
         }
 
         if prepend_reaches_goal && let Some(op) = materialized {
@@ -1433,16 +1436,14 @@ impl StackScheduler {
             if depth >= self.max_stack_access() {
                 return None;
             }
-            let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-            let op = self
-                .materialize_operand(value, func)
-                .filter(|materialize| {
-                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
-                    let materialize_cost =
-                        ScheduleCost::of_op(materialize, evm_version, cost_model);
-                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                })
-                .unwrap_or(duplicate);
+            let op = self.copy_or_materialize(
+                value,
+                func,
+                (depth + 1) as u8,
+                optimization,
+                evm_version,
+                cost_model,
+            );
             cost = cost.with_op(&op, evm_version, cost_model);
             actions.push(PlannedAction { op, pushed: Some(value) });
             stack.insert(0, Some(value));
@@ -1486,11 +1487,11 @@ impl StackScheduler {
         if preserved.is_some() && !retain_first {
             return None;
         }
-        let first_op = ScheduledOp::Stack(if top == first {
-            StackOp::Dup(1)
+        let first_op = if top == first {
+            self.copy_or_duplicate(first, func, 1)
         } else {
-            StackOp::Swap((goal.len() - 1) as u8)
-        });
+            ScheduledOp::Stack(StackOp::Swap((goal.len() - 1) as u8))
+        };
         if self.materialize_operand(first, func).is_some_and(|materialize| {
             let resident_cost = ScheduleCost::of_op(&first_op, evm_version, cost_model);
             let materialize_cost = ScheduleCost::of_op(&materialize, evm_version, cost_model);
@@ -1507,7 +1508,7 @@ impl StackScheduler {
         };
 
         if top == first && second == penultimate && retain_first {
-            push(ScheduledOp::Stack(StackOp::Dup(1)), Some(first));
+            push(self.copy_or_duplicate(first, func, 1), Some(first));
             push(ScheduledOp::Stack(StackOp::Swap(2)), None);
             for &value in goal[1..goal.len() - 2].iter().rev() {
                 push(self.materialize_operand(value, func)?, Some(value));
@@ -1522,7 +1523,7 @@ impl StackScheduler {
             for &value in goal[1..goal.len() - 2].iter().rev() {
                 push(self.materialize_operand(value, func)?, Some(value));
             }
-            push(ScheduledOp::Stack(StackOp::Dup(goal.len() as u8)), Some(first));
+            push(self.copy_or_duplicate(first, func, goal.len() as u8), Some(first));
         } else if top == penultimate && second == first && preserved.is_none() {
             for &value in goal[1..goal.len() - 2].iter().rev() {
                 push(self.materialize_operand(value, func)?, Some(value));
@@ -1567,15 +1568,14 @@ impl StackScheduler {
         }
 
         let copy_resident = |depth: usize| {
-            let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-            self.materialize_operand(resident, func)
-                .filter(|materialize| {
-                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
-                    let materialize_cost =
-                        ScheduleCost::of_op(materialize, evm_version, cost_model);
-                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                })
-                .unwrap_or(duplicate)
+            self.copy_or_materialize(
+                resident,
+                func,
+                (depth + 1) as u8,
+                optimization,
+                evm_version,
+                cost_model,
+            )
         };
 
         let mut ops = SmallVec::<[(ScheduledOp, Option<ValueId>); 3]>::new();
@@ -1646,7 +1646,7 @@ impl StackScheduler {
                 add_candidate(
                     1,
                     smallvec::smallvec![PlannedAction {
-                        op: ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)),
+                        op: self.copy_or_duplicate(value, func, (depth + 1) as u8),
                         pushed: Some(value),
                     }],
                 );
@@ -1677,7 +1677,7 @@ impl StackScheduler {
                             pushed: None,
                         },
                         PlannedAction {
-                            op: ScheduledOp::Stack(StackOp::Dup(1)),
+                            op: self.copy_or_duplicate(value, func, 1),
                             pushed: Some(value),
                         }
                     ],
@@ -1694,11 +1694,13 @@ impl StackScheduler {
                 let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
                 let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
                 let materialize_cost = ScheduleCost::of_op(&materialize, evm_version, cost_model);
-                let op = if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
-                    materialize
-                } else {
-                    duplicate
-                };
+                let op = self.preferred_copy_materialization(value, func).unwrap_or_else(|| {
+                    if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
+                        materialize
+                    } else {
+                        duplicate
+                    }
+                });
                 actions.push(PlannedAction { op, pushed: Some(value) });
             }
             add_candidate(3, actions);
@@ -1812,16 +1814,14 @@ impl StackScheduler {
                     && let Some(depth) =
                         stack.iter().take(max_stack_access).position(|&slot| slot == Some(value))
                 {
-                    let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-                    let op = materialize
-                        .filter(|materialize| {
-                            let duplicate_cost =
-                                ScheduleCost::of_op(&duplicate, evm_version, cost_model);
-                            let materialize_cost =
-                                ScheduleCost::of_op(materialize, evm_version, cost_model);
-                            materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                        })
-                        .unwrap_or(duplicate);
+                    let op = self.copy_or_materialize(
+                        value,
+                        func,
+                        (depth + 1) as u8,
+                        optimization,
+                        evm_version,
+                        cost_model,
+                    );
                     actions.push(PlannedAction { op, pushed: Some(value) });
                 }
             }
@@ -2248,6 +2248,37 @@ impl StackScheduler {
             .then_some(op)
     }
 
+    /// Returns the cheapest one-word way to create another copy of `value`.
+    fn copy_or_duplicate(&self, value: ValueId, func: &Function, depth: u8) -> ScheduledOp {
+        self.preferred_copy_materialization(value, func)
+            .unwrap_or(ScheduledOp::Stack(StackOp::Dup(depth)))
+    }
+
+    /// Chooses a fresh materialization when it beats copying the resident value.
+    fn copy_or_materialize(
+        &self,
+        value: ValueId,
+        func: &Function,
+        depth: u8,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> ScheduledOp {
+        let duplicate = ScheduledOp::Stack(StackOp::Dup(depth));
+        self.preferred_copy_materialization(value, func)
+            .or_else(|| {
+                self.materialize_operand(value, func).filter(|materialize| {
+                    ScheduleCost::of_op(materialize, evm_version, cost_model)
+                        .cmp_for(
+                            ScheduleCost::of_op(&duplicate, evm_version, cost_model),
+                            optimization,
+                        )
+                        .is_lt()
+                })
+            })
+            .unwrap_or(duplicate)
+    }
+
     /// Ensures a value is on top of the stack.
     /// Returns the operations needed to achieve this.
     pub(crate) fn ensure_on_top(&mut self, value: ValueId, func: &Function) -> &[ScheduledOp] {
@@ -2278,13 +2309,9 @@ impl StackScheduler {
 
         if self.stack.is_on_top(value) {
             if !claim_top {
-                if let Some(op) = self.preferred_copy_materialization(value, func) {
-                    self.ops.push(op);
-                    self.stack.push(value);
-                } else {
-                    self.ops.push(ScheduledOp::Stack(StackOp::Dup(1)));
-                    self.stack.dup(1);
-                }
+                let op = self.copy_or_duplicate(value, func, 1);
+                self.ops.push(op);
+                self.stack.push(value);
             }
             return &self.ops;
         }
@@ -2293,15 +2320,9 @@ impl StackScheduler {
         if let Some(depth) = resident_depth
             && depth < self.max_stack_access()
         {
-            if let Some(op) = self.preferred_copy_materialization(value, func) {
-                self.ops.push(op);
-                self.stack.push(value);
-            } else {
-                // The value is accessible via DUP.
-                let dup_n = (depth + 1) as u8;
-                self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
-                self.stack.dup(dup_n);
-            }
+            let op = self.copy_or_duplicate(value, func, (depth + 1) as u8);
+            self.ops.push(op);
+            self.stack.push(value);
             return &self.ops;
         }
 
@@ -2821,6 +2842,20 @@ mod tests {
             scheduler.stack.push(zero);
             assert_eq!(scheduler.ensure_operand_on_top(zero, &func), &[expected]);
         }
+    }
+
+    #[test]
+    fn ensure_operand_on_top_rematerializes_stable_nullaries() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (_, caller) =
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(caller);
+
+        assert_eq!(
+            scheduler.ensure_operand_on_top(caller, &func),
+            &[ScheduledOp::RematerializeNullary(op::CALLER)]
+        );
     }
 
     #[test]

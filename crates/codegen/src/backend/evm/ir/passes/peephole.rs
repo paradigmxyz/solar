@@ -254,6 +254,19 @@ fn try_peephole(
         };
     }
 
+    // `PUSH0 DUP1 -> PUSH0 PUSH0`.
+    //
+    // `PUSH0` is one byte and costs two gas, so it dominates `DUP1` on targets that support it.
+    if gcx.sess.opts.evm_version.has_push0()
+        && let [.., pushed, dup] = instructions.as_slice()
+        && pushed.has_canonical_stack_effect()
+        && dup.has_canonical_stack_effect()
+        && pushed.concrete_immediate() == Some(U256::ZERO)
+        && dup.as_stack_op() == Some(op::StackOp::Dup(1))
+    {
+        return rewrite!(2, Edit::CopyFirst);
+    }
+
     // `PUSH x PUSH 0 OP -> PUSH 0`.
     // `PUSH x PUSH 1 EXP -> PUSH 1`.
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
@@ -751,6 +764,7 @@ fn rewrite_if_safe(
 #[derive(Clone, Copy)]
 enum Edit {
     Keep(u8),
+    CopyFirst,
     RemoveFirstKeep(u8),
     RemoveFirstOverwrite(u8),
     SwapOverwrite(u8),
@@ -770,6 +784,7 @@ impl Edit {
     fn apply(self, instructions: &mut Vec<Instruction>, start: usize) {
         match self {
             Self::Keep(len) => instructions.truncate(start + usize::from(len)),
+            Self::CopyFirst => instructions[start + 1] = instructions[start].clone(),
             Self::RemoveFirstKeep(len) => {
                 instructions.remove(start);
                 instructions.truncate(start + usize::from(len));

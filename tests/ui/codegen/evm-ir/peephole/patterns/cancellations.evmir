@@ -211,3 +211,17 @@ bb14:
   swap 1
   pop
   stop
+
+// PUSH0 is cheaper than duplicating it.
+// CHECK-LABEL: {{^[ +].*}}bb15:
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: -   dup 1
+// CHECK-NEXT: +   push 0
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}mstore
+bb15:
+  push0
+  dup 1
+  push 0
+  mstore
+  stop
