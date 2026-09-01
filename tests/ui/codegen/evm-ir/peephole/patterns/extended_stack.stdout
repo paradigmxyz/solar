@@ -1,0 +1,55 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/extended_stack.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/extended_stack.evmir (after peephole) ===
+  @module ExtendedStackPeephole
+  bb0:
+    callf !meta(stack=0->235)
+    dup 235
+-   swap 235
+    stop
+  bb1:
+    callf !meta(stack=0->19)
+-   swap 17
++   swap 18
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+-   swap 1
+    pop
+    stop
+  bb2:
+    callf !meta(stack=0->18)
+-   swap 17
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    stop
+  

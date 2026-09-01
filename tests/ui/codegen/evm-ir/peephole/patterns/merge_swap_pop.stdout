@@ -102,4 +102,26 @@
     push 0
     mstore
     stop
+  bb6:
+    callf !meta(stack=0->18)
+    swap 16
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    swap 1
+    pop
+    stop
   

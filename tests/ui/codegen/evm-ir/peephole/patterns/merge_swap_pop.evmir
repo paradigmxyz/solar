@@ -128,3 +128,30 @@ bb5:
   push 0
   mstore
   stop
+
+// The merged `SWAP17` has no Osaka lowering, so leave the legacy boundary intact.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}swap 16
+// CHECK: {{^[ +].*}}swap 1
+bb6:
+  callf !meta(stack=0->18)
+  swap 16
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  swap 1
+  pop
+  stop

@@ -364,9 +364,9 @@ fn try_peephole(
 
     // `DUPn SWAPn -> DUPn` because the swapped values are equal.
     if let [.., dup, swap] = instructions.as_slice()
-        && let Some(dup) = dup.as_legacy_opcode()
-        && (op::DUP1..=op::DUP16).contains(&dup)
-        && swap.as_legacy_opcode() == Some(op::swap(dup - op::DUP1 + 1))
+        && let (Some(PhysicalStackOp::Dup(depth)), Some(PhysicalStackOp::Swap(swap_depth))) =
+            (dup.as_stack_op(), swap.as_stack_op())
+        && depth == swap_depth
     {
         return rewrite!(2, Edit::Keep(1));
     }
@@ -453,36 +453,42 @@ fn try_peephole(
     }
 
     if instructions.last().and_then(Instruction::as_stack_op) == Some(PhysicalStackOp::Pop) {
+        let max_stack_access = gcx.sess.opts.evm_version.reachable_stack_depth();
+
         // `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
-        for depth in 1..16 {
-            let input_len = depth + 3;
-            let Some(start) = instructions.len().checked_sub(input_len) else {
-                break;
-            };
-            if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
-                && instructions[start + 1..instructions.len() - 2]
-                    .iter()
-                    .all(|inst| inst.as_legacy_opcode() == Some(op::POP))
-                && instructions[instructions.len() - 2].as_legacy_opcode() == Some(op::SWAP1)
+        if instructions.len() >= 2
+            && instructions[instructions.len() - 2].as_stack_op() == Some(PhysicalStackOp::Swap(1))
+        {
+            let middle_pops = instructions[..instructions.len() - 2]
+                .iter()
+                .rev()
+                .take(max_stack_access - 1)
+                .take_while(|inst| inst.as_stack_op() == Some(PhysicalStackOp::Pop))
+                .count();
+            let middle_start = instructions.len() - 2 - middle_pops;
+            if let Some(PhysicalStackOp::Swap(depth)) =
+                middle_start.checked_sub(1).and_then(|index| instructions[index].as_stack_op())
+                && usize::from(depth) == middle_pops
+                && let Some(merged_depth) = depth.checked_add(1)
+                && PhysicalStackOp::Swap(merged_depth).metrics(gcx.sess.opts.evm_version).is_some()
             {
-                let merged_depth = depth + 1;
-                return rewrite!(input_len, Edit::MergeSwapPop(merged_depth as u8));
+                return rewrite!(middle_pops + 3, Edit::MergeSwapPop(merged_depth));
             }
         }
 
         // `SWAPn POP*(n+1) -> POP*(n+1)` because every permuted value is discarded.
-        for depth in 1..=16 {
-            let input_len = depth + 2;
-            let Some(start) = instructions.len().checked_sub(input_len) else {
-                break;
-            };
-            if instructions[start].as_legacy_opcode() == Some(op::swap(depth as u8))
-                && instructions[start + 1..]
-                    .iter()
-                    .all(|inst| inst.as_legacy_opcode() == Some(op::POP))
-            {
-                return rewrite!(input_len, Edit::DropDiscardedSwap);
-            }
+        let pops = instructions
+            .iter()
+            .rev()
+            .take(max_stack_access + 1)
+            .take_while(|inst| inst.as_stack_op() == Some(PhysicalStackOp::Pop))
+            .count();
+        let first_pop = instructions.len() - pops;
+        if let Some(PhysicalStackOp::Swap(depth)) =
+            first_pop.checked_sub(1).and_then(|index| instructions[index].as_stack_op())
+            && usize::from(depth) + 1 == pops
+        {
+            return rewrite!(pops + 1, Edit::DropDiscardedSwap);
         }
     }
 
@@ -870,14 +876,12 @@ impl Edit {
             }
             Self::MergeSwapPop(depth) => {
                 let end = instructions.len();
-                overwrite_raw(&mut instructions[start], op::swap(depth));
+                overwrite_stack_op(&mut instructions[start], PhysicalStackOp::Swap(depth));
                 overwrite_raw(&mut instructions[end - 2], op::POP);
                 instructions.truncate(end - 1);
             }
             Self::DropDiscardedSwap => {
-                let end = instructions.len();
-                overwrite_raw(&mut instructions[start], op::POP);
-                instructions.truncate(end - 1);
+                instructions.remove(start);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
@@ -915,6 +919,13 @@ fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     debug_assert!(inst.as_legacy_opcode().is_some());
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
+    inst.metadata = metadata;
+    inst.metadata.stack = None;
+}
+
+fn overwrite_stack_op(inst: &mut Instruction, stack_op: PhysicalStackOp) {
+    let metadata = std::mem::take(&mut inst.metadata);
+    *inst = Instruction::stack_op(stack_op);
     inst.metadata = metadata;
     inst.metadata.stack = None;
 }
