@@ -163,7 +163,7 @@ impl<'gcx> Assembler<'gcx> {
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.artifact_kind = ArtifactKind::Runtime;
-        self.program.clear(sym::asm);
+        self.program.clear();
         self.program_is_finalized = false;
         self.current_block = None;
         self.block_labels.clear();

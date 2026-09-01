@@ -110,8 +110,7 @@ impl Module {
     }
 
     /// Clears the module while retaining its outer allocations.
-    pub(in crate::backend::evm) fn clear(&mut self, name: Symbol) {
-        self.name = name;
+    pub(in crate::backend::evm) fn clear(&mut self) {
         self.blocks.clear();
         self.data.clear();
         self.enable_size_outlining = false;

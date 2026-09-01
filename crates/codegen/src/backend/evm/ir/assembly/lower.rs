@@ -46,9 +46,8 @@ impl Assembler<'_> {
         let evm_ir = if capture_evm_ir {
             Some(ir_program)
         } else {
-            let name = ir_program.name();
             self.program = ir_program;
-            self.program.clear(name);
+            self.program.clear();
             None
         };
         self.block_labels = labels;
