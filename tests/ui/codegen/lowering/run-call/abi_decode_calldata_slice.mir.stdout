@@ -17,18 +17,18 @@ fn @f(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x13d1aa2e, 
     v10 = slice_ptr v9
     v11 = slice_len v9
     v12 = gt v11, 0xffffffffffffffff
-    jumpi v12, bb3, bb4
-  bb4:
+    jumpi v12, bb1, bb3
+  bb3:
     v13 = calldatasize
     v14 = sub v13, v11
     v15 = sgt v10, v14
-    jumpi v15, bb5, bb6
-  bb6:
+    jumpi v15, bb1, bb4
+  bb4:
     v16 = slice_len v9
     v17 = add v16, 63
     v18 = lt v17, v16
-    jumpi v18, bb7, bb8
-  bb8:
+    jumpi v18, bb5, bb6
+  bb6:
     v19 = not 31
     v20 = and v17, v19
     v21 = alloc memorybytes, exact, uninitialized, infallible, v20
@@ -46,26 +46,26 @@ fn @f(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x13d1aa2e, 
     v31 = gt v30, v29
     v32 = lt v30, 4
     v33 = or v31, v32
-    jumpi v33, bb9, bb10
-  bb10:
+    jumpi v33, bb1, bb7
+  bb7:
     v34 = sub v30, 4
     v35 = add v28, 4
     v36 = make_calldata_slice v35, v34
     v37 = slice_ptr v36
     v38 = slice_len v36
     v39 = gt v38, 0xffffffffffffffff
-    jumpi v39, bb11, bb12
-  bb12:
+    jumpi v39, bb1, bb8
+  bb8:
     v40 = calldatasize
     v41 = sub v40, v38
     v42 = sgt v37, v41
-    jumpi v42, bb13, bb14
-  bb14:
+    jumpi v42, bb1, bb9
+  bb9:
     v43 = slice_len v36
     v44 = add v43, 63
     v45 = lt v44, v43
-    jumpi v45, bb7, bb15
-  bb15:
+    jumpi v45, bb5, bb10
+  bb10:
     v46 = not 31
     v47 = and v44, v46
     v48 = alloc memorybytes, exact, uninitialized, infallible, v47
@@ -82,26 +82,26 @@ fn @f(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x13d1aa2e, 
     v57 = gt v56, v53
     v58 = lt v56, v54
     v59 = or v57, v58
-    jumpi v59, bb16, bb17
-  bb17:
+    jumpi v59, bb1, bb11
+  bb11:
     v60 = sub v56, v54
     v61 = add v52, v54
     v62 = make_calldata_slice v61, v60
     v63 = slice_ptr v62
     v64 = slice_len v62
     v65 = gt v64, 0xffffffffffffffff
-    jumpi v65, bb18, bb19
-  bb19:
+    jumpi v65, bb1, bb12
+  bb12:
     v66 = calldatasize
     v67 = sub v66, v64
     v68 = sgt v63, v67
-    jumpi v68, bb20, bb21
-  bb21:
+    jumpi v68, bb1, bb13
+  bb13:
     v69 = slice_len v62
     v70 = add v69, 63
     v71 = lt v70, v69
-    jumpi v71, bb7, bb22
-  bb22:
+    jumpi v71, bb5, bb14
+  bb14:
     v72 = not 31
     v73 = and v70, v72
     v74 = alloc memorybytes, exact, uninitialized, infallible, v73
@@ -109,26 +109,10 @@ fn @f(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) [selector=0x13d1aa2e, 
     memory_object_copy_from_slice memorybytes, v74, v62
     v75 = abi_decode [u256], v74
     ret v22, v25, v49, v75
-  bb20:
-    revert 0, 0
-  bb18:
-    revert 0, 0
-  bb16:
-    revert 0, 0
-  bb13:
-    revert 0, 0
-  bb11:
-    revert 0, 0
-  bb9:
-    revert 0, 0
-  bb7:
+  bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb5:
-    revert 0, 0
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }

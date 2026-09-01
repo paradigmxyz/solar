@@ -140,8 +140,8 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
   bb16:
     v46 = returndatasize
     v47 = lt v46, 32
-    jumpi v47, bb17, bb18
-  bb18:
+    jumpi v47, bb6, bb17
+  bb17:
     v48 = add 0, 0
     v49 = mload v48
     v50 = add 0, 0
@@ -149,10 +149,8 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     v52 = eq v51, 6
     jump bb14
   bb14:
-    v53 = phi [bb18: v52], [bb13: 0]
+    v53 = phi [bb17: v52], [bb13: 0]
     ret v53
-  bb17:
-    revert 0, 0
   bb6:
     revert 0, 0
   bb1:

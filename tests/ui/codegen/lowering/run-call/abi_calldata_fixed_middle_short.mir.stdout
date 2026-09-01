@@ -21,12 +21,10 @@ fn @read(arg0: calldataslice) -> u256 [selector=0xae6a5262, pure, abi_params=[ar
     v12 = sub v11, 63
     v13 = slt v8, v12
     v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb6:
+    jumpi v14, bb3, bb5
+  bb5:
     v15 = make_calldata_slice v9, 2
     ret 23
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:

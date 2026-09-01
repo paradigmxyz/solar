@@ -16,32 +16,26 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) [selector=0xb8467e08
     v9 = slice_ptr v7
     v10 = slice_len v7
     v11 = gt v10, 0xffffffffffffffff
-    jumpi v11, bb3, bb4
-  bb4:
+    jumpi v11, bb1, bb3
+  bb3:
     v12 = calldatasize
     v13 = sub v12, v10
     v14 = sgt v9, v13
-    jumpi v14, bb5, bb6
-  bb6:
+    jumpi v14, bb1, bb4
+  bb4:
     v15 = abi_encode [calldata_bytes], selector 0xd18d0bac00000000000000000000000000000000000000000000000000000000, args v7
     v16 = slice_ptr v15
     v17 = slice_len v15
     v18 = extcodesize arg2
     v19 = iszero v18
-    jumpi v19, bb7, bb8
-  bb8:
-    v20 = call v8, arg2, 0, v16, v17, 0, 0
-    jumpi v20, bb10, bb9
-  bb9:
-    revert_returndata
-  bb10:
-    stop
-  bb7:
-    revert 0, 0
+    jumpi v19, bb1, bb5
   bb5:
-    revert 0, 0
-  bb3:
-    revert 0, 0
+    v20 = call v8, arg2, 0, v16, v17, 0, 0
+    jumpi v20, bb7, bb6
+  bb6:
+    revert_returndata
+  bb7:
+    stop
   bb1:
     revert 0, 0
 }

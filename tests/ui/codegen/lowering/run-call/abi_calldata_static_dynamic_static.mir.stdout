@@ -12,25 +12,23 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x15cfcc01, pure, abi_params
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    jumpi v7, bb3, bb4
-  bb4:
+    jumpi v7, bb1, bb3
+  bb3:
     v8 = slice_len v1
     v9 = add v8, 63
     v10 = lt v9, v8
-    jumpi v10, bb5, bb6
-  bb6:
+    jumpi v10, bb4, bb5
+  bb5:
     v11 = not 31
     v12 = and v9, v11
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v13, v8
     memory_object_copy_from_slice memorybytes, v13, v1
     ret v13
-  bb5:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }
@@ -47,25 +45,23 @@ fn @f2(arg0: calldataslice) -> memorybytes [selector=0xdc0ee233, pure, abi_param
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    jumpi v7, bb3, bb4
-  bb4:
+    jumpi v7, bb1, bb3
+  bb3:
     v8 = slice_len v1
     v9 = add v8, 63
     v10 = lt v9, v8
-    jumpi v10, bb5, bb6
-  bb6:
+    jumpi v10, bb4, bb5
+  bb5:
     v11 = not 31
     v12 = and v9, v11
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
     set_memory_object_len memorybytes, v13, v8
     memory_object_copy_from_slice memorybytes, v13, v1
     ret v13
-  bb5:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }

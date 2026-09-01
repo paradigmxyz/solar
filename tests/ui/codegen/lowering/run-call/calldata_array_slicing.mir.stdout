@@ -96,26 +96,24 @@ fn @chainedIndex(arg0: calldataslice) -> u256 [selector=0xb5f9dbd8, pure, abi_pa
     v10 = gt v9, v9
     v11 = lt v9, 1
     v12 = or v10, v11
-    jumpi v12, bb3, bb4
-  bb4:
+    jumpi v12, bb1, bb3
+  bb3:
     v13 = sub v9, 1
     v14 = add v8, 32
     v15 = make_calldata_slice v14, v13
     v16 = slice_len v15
     v17 = lt 0, v16
     v18 = iszero v17
-    jumpi v18, bb5, bb6
-  bb6:
+    jumpi v18, bb4, bb5
+  bb5:
     v19 = slice_ptr v15
     v20 = add v19, 0
     v21 = calldataload v20
     ret v21
-  bb5:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }
@@ -145,8 +143,8 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     v16 = gt arg4, v15
     v17 = lt arg4, arg3
     v18 = or v16, v17
-    jumpi v18, bb5, bb6
-  bb6:
+    jumpi v18, bb1, bb5
+  bb5:
     v19 = sub arg4, arg3
     v20 = mul arg3, 32
     v21 = iszero 32
@@ -154,14 +152,12 @@ fn @nestedSliceLength(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256, a
     v23 = eq v22, arg3
     v24 = or v21, v23
     v25 = iszero v24
-    jumpi v25, bb3, bb7
-  bb7:
+    jumpi v25, bb3, bb6
+  bb6:
     v26 = add v14, v20
     v27 = make_calldata_slice v26, v19
     v28 = slice_len v27
     ret v28
-  bb5:
-    revert 0, 0
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -323,32 +319,28 @@ fn @bytesSlice(arg0: calldataslice, arg1: u256, arg2: u256) -> memorybytes [sele
     v8 = slice_ptr v7
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
-    jumpi v10, bb3, bb4
-  bb4:
+    jumpi v10, bb1, bb3
+  bb3:
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb1, bb4
+  bb4:
     v14 = slice_len v7
     v15 = add v14, 63
     v16 = lt v15, v14
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb5, bb6
+  bb6:
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc memorybytes, exact, uninitialized, infallible, v18
     set_memory_object_len memorybytes, v19, v14
     memory_object_copy_from_slice memorybytes, v19, v7
     ret v19
-  bb7:
+  bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb5:
-    revert 0, 0
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }
@@ -370,27 +362,25 @@ fn @chainedBytesIndex(arg0: calldataslice) -> bytes1 [selector=0x96fa77f1, pure,
     v10 = gt v9, v9
     v11 = lt v9, 1
     v12 = or v10, v11
-    jumpi v12, bb3, bb4
-  bb4:
+    jumpi v12, bb1, bb3
+  bb3:
     v13 = sub v9, 1
     v14 = add v8, 1
     v15 = make_calldata_slice v14, v13
     v16 = slice_len v15
     v17 = lt 0, v16
     v18 = iszero v17
-    jumpi v18, bb5, bb6
-  bb6:
+    jumpi v18, bb4, bb5
+  bb5:
     v19 = slice_ptr v15
     v20 = calldata_slice_load_word calldata, v15, 0
     v21 = byte 0, v20
     v22 = shl 248, v21
     ret v22
-  bb5:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }

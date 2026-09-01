@@ -130,8 +130,8 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v76 = and v75, 0xff00000000000000000000000000000000000000000000000000000000000000
     v77 = eq v75, v76
     v78 = iszero v77
-    jumpi v78, bb18, bb19
-  bb19:
+    jumpi v78, bb16, bb18
+  bb18:
     v79 = add 0, 0
     v80 = mload v79
     v81 = sload 1 !metadata(storage=slot(1))
@@ -142,45 +142,45 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v86 = select v83, v84, v85
     v87 = lt v86, 32
     v88 = eq v83, v87
-    jumpi v88, bb1, bb20
-  bb20:
+    jumpi v88, bb1, bb19
+  bb19:
     v89 = add v86, 31
     v90 = div v89, 32
     v91 = add v86, 63
     v92 = lt v91, v86
-    jumpi v92, bb3, bb21
-  bb21:
+    jumpi v92, bb3, bb20
+  bb20:
     v93 = not 31
     v94 = and v91, v93
     v95 = alloc memorybytes, exact, uninitialized, panic, v94
     set_memory_object_len memorybytes, v95, v86
-    jumpi v83, bb23, bb22
-  bb22:
+    jumpi v83, bb22, bb21
+  bb21:
     v96 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     memory_object_store_word memorybytes, v95, 0, v96
-    jump bb24
-  bb23:
+    jump bb23
+  bb22:
     v97 = storage_array_data_slot 1
-    jump bb25
-  bb25:
-    v98 = phi [bb23: 0], [bb26: v103]
-    v99 = lt v98, v90
-    jumpi v99, bb26, bb27
-  bb27:
     jump bb24
   bb24:
+    v98 = phi [bb22: 0], [bb25: v103]
+    v99 = lt v98, v90
+    jumpi v99, bb25, bb26
+  bb26:
+    jump bb23
+  bb23:
     v104 = memory_object_len memorybytes, v95
     v105 = lt 0, v104
     v106 = iszero v105
-    jumpi v106, bb28, bb29
-  bb29:
+    jumpi v106, bb27, bb28
+  bb28:
     v107 = memory_object_load_byte memorybytes, v95, 0
     v108 = shl 248, v107
     v109 = sload 2 !metadata(storage=slot(2))
     v110 = lt 0, v109
     v111 = iszero v110
-    jumpi v111, bb28, bb30
-  bb30:
+    jumpi v111, bb27, bb29
+  bb29:
     v112 = storage_array_data_slot 2
     v113 = div 0, 32
     v114 = add v112, v113
@@ -192,19 +192,17 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v120 = and v119, 255
     v121 = shl 248, v120
     ret v55, v58, v59, v60, v62, v64, v80, v108, v121
-  bb28:
+  bb27:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb26:
+  bb25:
     v100 = add v97, v98
     v101 = sload v100 !metadata(storage=symbolic(v100))
     v102 = mul v98, 32
     memory_object_store_word memorybytes, v95, v102, v101
     v103 = add v98, 1
-    jump bb25
-  bb18:
-    revert 0, 0
+    jump bb24
   bb16:
     revert 0, 0
   bb9:

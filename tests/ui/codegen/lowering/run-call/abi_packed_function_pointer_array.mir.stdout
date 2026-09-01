@@ -119,7 +119,7 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     set_memory_object_len memoryarray, v19, v0
     jump bb7
   bb7:
-    v20 = phi [bb6: 0], [bb12: v35]
+    v20 = phi [bb6: 0], [bb11: v35]
     v21 = lt v20, v0
     jumpi v21, bb8, bb9
   bb9:
@@ -130,16 +130,16 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     v40 = eq v39, v36
     v41 = or v38, v40
     v42 = iszero v41
-    jumpi v42, bb1, bb13
-  bb13:
+    jumpi v42, bb1, bb12
+  bb12:
     v43 = add 0, v37
     v44 = lt v43, 0
-    jumpi v44, bb1, bb14
-  bb14:
+    jumpi v44, bb1, bb13
+  bb13:
     v45 = add v43, 63
     v46 = lt v45, v43
-    jumpi v46, bb1, bb15
-  bb15:
+    jumpi v46, bb1, bb14
+  bb14:
     v47 = not 31
     v48 = and v45, v47
     v49 = alloc memorybytes, exact, uninitialized, infallible, v48
@@ -150,37 +150,37 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     v53 = eq v52, v36
     v54 = or v51, v53
     v55 = iszero v54
-    jumpi v55, bb1, bb16
-  bb16:
+    jumpi v55, bb1, bb15
+  bb15:
     v56 = add 0, v50
     v57 = lt v56, 0
-    jumpi v57, bb1, bb17
+    jumpi v57, bb1, bb16
+  bb16:
+    jump bb17
   bb17:
-    jump bb18
-  bb18:
-    v58 = phi [bb17: 0], [bb22: v70]
+    v58 = phi [bb16: 0], [bb21: v70]
     v59 = lt v58, v36
-    jumpi v59, bb19, bb20
-  bb20:
-    ret v49
+    jumpi v59, bb18, bb19
   bb19:
+    ret v49
+  bb18:
     v60 = mul v58, 32
     v61 = iszero 32
     v62 = div v60, 32
     v63 = eq v62, v58
     v64 = or v61, v63
     v65 = iszero v64
-    jumpi v65, bb1, bb21
-  bb21:
+    jumpi v65, bb1, bb20
+  bb20:
     v66 = add 0, v60
     v67 = lt v66, 0
-    jumpi v67, bb1, bb22
-  bb22:
+    jumpi v67, bb1, bb21
+  bb21:
     v68 = memory_object_load_element memoryarray<1>, v19, v58
     v69 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     memory_object_store_word memorybytes, v49, v66, v69
     v70 = add v58, 1
-    jump bb18
+    jump bb17
   bb8:
     v22 = mul v20, 32
     v23 = iszero 32
@@ -195,15 +195,13 @@ fn @encode(arg0: calldataslice) -> memorybytes [selector=0xea460cbb, pure, abi_p
     v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v31 = eq v29, v30
     v32 = iszero v31
-    jumpi v32, bb11, bb12
-  bb12:
+    jumpi v32, bb3, bb11
+  bb11:
     v33 = shr 64, v29
     v34 = shl 64, v33
     memory_object_store_element memoryarray<1>, v19, v20, v34
     v35 = add v20, 1
     jump bb7
-  bb11:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:

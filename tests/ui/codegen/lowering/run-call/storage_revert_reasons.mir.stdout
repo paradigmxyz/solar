@@ -85,13 +85,13 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    jumpi v5, bb3, bb4
-  bb4:
+    jumpi v5, bb1, bb3
+  bb3:
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb5, bb6
-  bb6:
+    jumpi v8, bb4, bb5
+  bb5:
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -101,12 +101,10 @@ fn @calldataReason(arg0: calldataslice) [selector=0x3f2c0e1e, pure, abi_params=[
     v13 = slice_ptr v12
     v14 = slice_len v12
     revert v13, v14
-  bb5:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }

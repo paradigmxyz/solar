@@ -51,13 +51,11 @@ fn @dirty() -> u8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
     v10 = and v9, 255
     v11 = eq v9, v10
     v12 = iszero v11
-    jumpi v12, bb5, bb6
-  bb6:
+    jumpi v12, bb3, bb5
+  bb5:
     v13 = add 0, 0
     v14 = mload v13
     ret v14
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
 }

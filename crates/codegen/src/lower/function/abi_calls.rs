@@ -713,13 +713,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn revert_if_invalid(&mut self, condition: ValueId) {
         // if condition { revert(0, 0) }
-        let revert = self.builder.create_block();
-        let continue_block = self.builder.create_block();
-        self.builder.branch(condition, revert, continue_block);
-        self.builder.switch_to_block(revert);
-        let zero = self.builder.imm(0);
-        self.builder.revert(zero, zero);
-        self.builder.switch_to_block(continue_block);
+        self.builder.revert_if(condition);
     }
 
     fn decode_calldata_word(

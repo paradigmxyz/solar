@@ -33,7 +33,7 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     set_memory_object_len memoryarray, v19, v0
     jump bb7
   bb7:
-    v20 = phi [bb6: 0], [bb20: v57]
+    v20 = phi [bb6: 0], [bb16: v57]
     v21 = lt v20, v0
     jumpi v21, bb8, bb9
   bb9:
@@ -51,8 +51,8 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     v29 = calldatasize
     v30 = sub v29, v28
     v31 = slt v30, 32
-    jumpi v31, bb11, bb12
-  bb12:
+    jumpi v31, bb3, bb11
+  bb11:
     v32 = calldataload v28
     v33 = add v1, v32
     v34 = calldatasize
@@ -60,19 +60,19 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     v36 = sub v35, 31
     v37 = slt v32, v36
     v38 = iszero v37
-    jumpi v38, bb13, bb14
-  bb14:
+    jumpi v38, bb3, bb12
+  bb12:
     v39 = calldataload v33
     v40 = gt v39, 0xffffffffffffffff
-    jumpi v40, bb15, bb16
-  bb16:
+    jumpi v40, bb3, bb13
+  bb13:
     v41 = mul v39, 32
     v42 = add v33, 32
     v43 = calldatasize
     v44 = sub v43, v41
     v45 = sgt v42, v44
-    jumpi v45, bb17, bb18
-  bb18:
+    jumpi v45, bb3, bb14
+  bb14:
     v46 = add v33, 32
     v47 = mul v39, 32
     v48 = iszero 32
@@ -80,12 +80,12 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     v50 = eq v49, v39
     v51 = or v48, v50
     v52 = iszero v51
-    jumpi v52, bb1, bb19
-  bb19:
+    jumpi v52, bb1, bb15
+  bb15:
     v53 = add 32, v47
     v54 = lt v53, 32
-    jumpi v54, bb1, bb20
-  bb20:
+    jumpi v54, bb1, bb16
+  bb16:
     v55 = alloc memoryarray<1>, exact, uninitialized, infallible, v53
     set_memory_object_len memoryarray, v55, v39
     v56 = make_calldata_slice v46, v47
@@ -93,14 +93,6 @@ fn @f(arg0: calldataslice) -> memoryarray [selector=0xc26b6b9a, pure, abi_params
     memory_object_store_element memoryarray<1>, v19, v20, v55
     v57 = add v20, 1
     jump bb7
-  bb17:
-    revert 0, 0
-  bb15:
-    revert 0, 0
-  bb13:
-    revert 0, 0
-  bb11:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:

@@ -265,13 +265,13 @@ fn @inner(arg0: calldataslice) -> bytes32 [selector=0x3c12b05c, pure, abi_params
     v3 = calldatasize
     v4 = sub v3, v1
     v5 = sgt v0, v4
-    jumpi v5, bb3, bb4
-  bb4:
+    jumpi v5, bb1, bb3
+  bb3:
     v6 = slice_len arg0
     v7 = add v6, 63
     v8 = lt v7, v6
-    jumpi v8, bb5, bb6
-  bb6:
+    jumpi v8, bb4, bb5
+  bb5:
     v9 = not 31
     v10 = and v7, v9
     v11 = alloc memorybytes, exact, uninitialized, infallible, v10
@@ -281,12 +281,10 @@ fn @inner(arg0: calldataslice) -> bytes32 [selector=0x3c12b05c, pure, abi_params
     v13 = memory_object_load_field memorystruct<4>, v12, 1
     v14 = keccak256 v13, 160
     ret v14
-  bb5:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }
@@ -370,29 +368,27 @@ fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]]
   bb6:
     v32 = returndatasize
     v33 = lt v32, 32
-    jumpi v33, bb7, bb8
-  bb8:
+    jumpi v33, bb3, bb7
+  bb7:
     v34 = add 0, 0
     v35 = mload v34
     v36 = add 0, 0
     v37 = mload v36
     v38 = eq v23, v10
     v39 = iszero v38
-    jumpi v39, bb9, bb10
-  bb10:
+    jumpi v39, bb8, bb9
+  bb9:
     v40 = eq v37, v10
     v41 = iszero v40
-    jumpi v41, bb11, bb12
-  bb12:
-    ret 1
+    jumpi v41, bb10, bb11
   bb11:
+    ret 1
+  bb10:
     internal_call @revert_error, 0, 8, 0x6d69786564206964000000000000000000000000000000000000000000000000
     invalid
-  bb9:
+  bb8:
     internal_call @revert_error, 0, 10, 0x6b65794f6e6c7920696400000000000000000000000000000000000000000000
     invalid
-  bb7:
-    revert 0, 0
   bb3:
     revert 0, 0
 }

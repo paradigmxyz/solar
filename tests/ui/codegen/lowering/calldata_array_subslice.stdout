@@ -25,27 +25,25 @@ fn @word(arg0: calldataslice) -> memoryarray [selector=0x37948b05, pure, abi_par
     v16 = calldatasize
     v17 = sub v16, v9
     v18 = slt v17, v10
-    jumpi v18, bb5, bb6
-  bb6:
+    jumpi v18, bb1, bb5
+  bb5:
     v19 = mul v8, 32
     v20 = iszero 32
     v21 = div v19, 32
     v22 = eq v21, v8
     v23 = or v20, v22
     v24 = iszero v23
-    jumpi v24, bb3, bb7
-  bb7:
+    jumpi v24, bb3, bb6
+  bb6:
     v25 = add 32, v19
     v26 = lt v25, 32
-    jumpi v26, bb3, bb8
-  bb8:
+    jumpi v26, bb3, bb7
+  bb7:
     v27 = alloc memoryarray<1>, exact, uninitialized, infallible, v25
     set_memory_object_len memoryarray, v27, v8
     v28 = make_calldata_slice v9, v19
     memory_object_copy_from_slice memoryarray, v27, v28
     ret v27
-  bb5:
-    revert 0, 0
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

@@ -206,16 +206,16 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
   bb20:
     v52 = returndatasize
     v53 = lt v52, 32
-    jumpi v53, bb21, bb22
-  bb22:
+    jumpi v53, bb16, bb21
+  bb21:
     v54 = add 0, 0
     v55 = mload v54
     v56 = add 0, 0
     v57 = mload v56
     v58 = lt 1, 3
     v59 = iszero v58
-    jumpi v59, bb7, bb23
-  bb23:
+    jumpi v59, bb7, bb22
+  bb22:
     v60 = memory_object_load_element memoryfixedarray<3, 1>, v39, 1
     v61 = shr 64, v60
     v62 = and v61, 0xffffffff
@@ -226,22 +226,22 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
     v67 = slice_ptr v66
     v68 = slice_len v66
     v69 = call v65, v64, 0, v67, v68, 0, 32
-    jumpi v69, bb25, bb24
-  bb24:
+    jumpi v69, bb24, bb23
+  bb23:
     revert_returndata
-  bb25:
+  bb24:
     v70 = returndatasize
     v71 = lt v70, 32
-    jumpi v71, bb26, bb27
-  bb27:
+    jumpi v71, bb16, bb25
+  bb25:
     v72 = add 0, 0
     v73 = mload v72
     v74 = add 0, 0
     v75 = mload v74
     v76 = lt 2, 3
     v77 = iszero v76
-    jumpi v77, bb7, bb28
-  bb28:
+    jumpi v77, bb7, bb26
+  bb26:
     v78 = memory_object_load_element memoryfixedarray<3, 1>, v39, 2
     v79 = shr 64, v78
     v80 = and v79, 0xffffffff
@@ -252,25 +252,19 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
     v85 = slice_ptr v84
     v86 = slice_len v84
     v87 = call v83, v82, 0, v85, v86, 0, 32
-    jumpi v87, bb30, bb29
-  bb29:
+    jumpi v87, bb28, bb27
+  bb27:
     revert_returndata
-  bb30:
+  bb28:
     v88 = returndatasize
     v89 = lt v88, 32
-    jumpi v89, bb31, bb32
-  bb32:
+    jumpi v89, bb16, bb29
+  bb29:
     v90 = add 0, 0
     v91 = mload v90
     v92 = add 0, 0
     v93 = mload v92
     ret v57, v75, v93
-  bb31:
-    revert 0, 0
-  bb26:
-    revert 0, 0
-  bb21:
-    revert 0, 0
   bb16:
     revert 0, 0
   bb4:

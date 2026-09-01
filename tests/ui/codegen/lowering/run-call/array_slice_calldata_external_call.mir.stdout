@@ -38,15 +38,13 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x4b1
   bb6:
     v20 = returndatasize
     v21 = lt v20, 32
-    jumpi v21, bb7, bb8
-  bb8:
+    jumpi v21, bb1, bb7
+  bb7:
     v22 = add 0, 0
     v23 = mload v22
     v24 = add 0, 0
     v25 = mload v24
     ret v25
-  bb7:
-    revert 0, 0
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

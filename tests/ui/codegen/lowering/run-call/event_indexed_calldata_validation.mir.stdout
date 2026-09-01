@@ -33,7 +33,7 @@ fn @emitValues(arg0: calldataslice) -> u256 [selector=0x797a5ca9, abi_params=[ar
     set_memory_object_len memoryarray, v19, v0
     jump bb7
   bb7:
-    v20 = phi [bb6: 0], [bb12: v34]
+    v20 = phi [bb6: 0], [bb11: v34]
     v21 = lt v20, v0
     jumpi v21, bb8, bb9
   bb9:
@@ -44,12 +44,12 @@ fn @emitValues(arg0: calldataslice) -> u256 [selector=0x797a5ca9, abi_params=[ar
     v39 = eq v38, v35
     v40 = or v37, v39
     v41 = iszero v40
-    jumpi v41, bb1, bb13
-  bb13:
+    jumpi v41, bb1, bb12
+  bb12:
     v42 = add 32, v36
     v43 = lt v42, 32
-    jumpi v43, bb1, bb14
-  bb14:
+    jumpi v43, bb1, bb13
+  bb13:
     v44 = alloc memorybytes, exact, uninitialized, infallible, v42
     set_memory_object_len memorybytes, v44, v36
     v45 = mul v35, 32
@@ -58,40 +58,40 @@ fn @emitValues(arg0: calldataslice) -> u256 [selector=0x797a5ca9, abi_params=[ar
     v48 = eq v47, v35
     v49 = or v46, v48
     v50 = iszero v49
-    jumpi v50, bb1, bb15
-  bb15:
+    jumpi v50, bb1, bb14
+  bb14:
     v51 = add 0, v45
     v52 = lt v51, 0
-    jumpi v52, bb1, bb16
+    jumpi v52, bb1, bb15
+  bb15:
+    jump bb16
   bb16:
-    jump bb17
-  bb17:
-    v53 = phi [bb16: 0], [bb21: v65]
+    v53 = phi [bb15: 0], [bb20: v65]
     v54 = lt v53, v35
-    jumpi v54, bb18, bb19
-  bb19:
+    jumpi v54, bb17, bb18
+  bb18:
     v66 = keccak256_bytes v44
     log2 0, 0, 0x917e3955768d9a5bc0d702bb1332503909c320d283997932327cc32751b23fb8, v66
     v67 = slice_len arg0
     ret v67
-  bb18:
+  bb17:
     v55 = mul v53, 32
     v56 = iszero 32
     v57 = div v55, 32
     v58 = eq v57, v53
     v59 = or v56, v58
     v60 = iszero v59
-    jumpi v60, bb1, bb20
-  bb20:
+    jumpi v60, bb1, bb19
+  bb19:
     v61 = add 0, v55
     v62 = lt v61, 0
-    jumpi v62, bb1, bb21
-  bb21:
+    jumpi v62, bb1, bb20
+  bb20:
     v63 = memory_object_load_element memoryarray<1>, v19, v53
     v64 = and v63, 255
     memory_object_store_word memorybytes, v44, v61, v64
     v65 = add v53, 1
-    jump bb17
+    jump bb16
   bb8:
     v22 = mul v20, 32
     v23 = iszero 32
@@ -106,14 +106,12 @@ fn @emitValues(arg0: calldataslice) -> u256 [selector=0x797a5ca9, abi_params=[ar
     v30 = and v29, 255
     v31 = eq v29, v30
     v32 = iszero v31
-    jumpi v32, bb11, bb12
-  bb12:
+    jumpi v32, bb3, bb11
+  bb11:
     v33 = and v29, 255
     memory_object_store_element memoryarray<1>, v19, v20, v33
     v34 = add v20, 1
     jump bb7
-  bb11:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:

@@ -250,20 +250,18 @@ fn @dirtyAddressBoundary() -> u256 [selector=0x2986c9cc, abi_params=[], abi_retu
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
     v17 = eq v15, v16
     v18 = iszero v17
-    jumpi v18, bb7, bb8
-  bb8:
+    jumpi v18, bb5, bb7
+  bb7:
     v19 = add 0, 0
     v20 = mload v19
     v21 = eq v20, 0xffffffffffffffffffffffffffffffffffffffff
     v22 = iszero v21
-    jumpi v22, bb9, bb10
-  bb10:
-    ret 1
+    jumpi v22, bb8, bb9
   bb9:
+    ret 1
+  bb8:
     internal_call @revert_error, 0, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     invalid
-  bb7:
-    revert 0, 0
   bb5:
     revert 0, 0
 }

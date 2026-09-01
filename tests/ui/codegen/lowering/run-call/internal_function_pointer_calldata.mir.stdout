@@ -70,14 +70,12 @@ fn @run() -> u8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>]] {
     v18 = and v17, 0xff00000000000000000000000000000000000000000000000000000000000000
     v19 = eq v17, v18
     v20 = iszero v19
-    jumpi v20, bb7, bb8
-  bb8:
+    jumpi v20, bb5, bb7
+  bb7:
     v21 = add 0, 0
     v22 = mload v21
     v23 = shr 248, v22
     ret v23
-  bb7:
-    revert 0, 0
   bb5:
     revert 0, 0
   bb1:

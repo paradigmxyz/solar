@@ -60,17 +60,17 @@ fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    jumpi v7, bb3, bb4
-  bb4:
+    jumpi v7, bb1, bb3
+  bb3:
     v8 = slice_len v1
     v9 = add 0, v8
     v10 = lt v9, 0
-    jumpi v10, bb5, bb6
-  bb6:
+    jumpi v10, bb4, bb5
+  bb5:
     v11 = add v9, 63
     v12 = lt v11, v9
-    jumpi v12, bb5, bb7
-  bb7:
+    jumpi v12, bb4, bb6
+  bb6:
     v13 = not 31
     v14 = and v11, v13
     v15 = alloc memorybytes, exact, uninitialized, infallible, v14
@@ -78,15 +78,13 @@ fn @all() -> memorybytes [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=
     memory_object_copy_from_slice_at memorybytes, v15, 0, v1
     v16 = add 0, v8
     v17 = lt v16, 0
-    jumpi v17, bb5, bb8
-  bb8:
+    jumpi v17, bb4, bb7
+  bb7:
     ret v15
-  bb5:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }

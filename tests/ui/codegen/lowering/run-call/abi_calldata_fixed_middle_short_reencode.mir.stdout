@@ -40,7 +40,7 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     set_memory_object_len memoryarray, v21, v2
     jump bb7
   bb7:
-    v22 = phi [bb6: 0], [bb19: v78]
+    v22 = phi [bb6: 0], [bb16: v78]
     v23 = lt v22, v2
     jumpi v23, bb8, bb9
   bb9:
@@ -48,21 +48,19 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v80 = slice_ptr v79
     v81 = slice_len v79
     v82 = staticcall v1, v0, v80, v81, 0, 32
-    jumpi v82, bb31, bb30
-  bb30:
+    jumpi v82, bb24, bb23
+  bb23:
     revert_returndata
-  bb31:
+  bb24:
     v83 = returndatasize
     v84 = lt v83, 32
-    jumpi v84, bb32, bb33
-  bb33:
+    jumpi v84, bb3, bb25
+  bb25:
     v85 = add 0, 0
     v86 = mload v85
     v87 = add 0, 0
     v88 = mload v87
     ret v88
-  bb32:
-    revert 0, 0
   bb8:
     v24 = mul v22, 32
     v25 = iszero 32
@@ -76,8 +74,8 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v31 = calldatasize
     v32 = sub v31, v30
     v33 = slt v32, 32
-    jumpi v33, bb11, bb12
-  bb12:
+    jumpi v33, bb3, bb11
+  bb11:
     v34 = calldataload v30
     v35 = add v3, v34
     v36 = calldatasize
@@ -85,31 +83,31 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v38 = sub v37, 63
     v39 = slt v34, v38
     v40 = iszero v39
-    jumpi v40, bb13, bb14
-  bb14:
+    jumpi v40, bb3, bb12
+  bb12:
     v41 = calldatasize
     v42 = sub v41, v35
     v43 = slt v42, 64
-    jumpi v43, bb15, bb16
-  bb16:
+    jumpi v43, bb3, bb13
+  bb13:
     v44 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    jump bb17
-  bb17:
-    v45 = phi [bb16: 0], [bb29: v77]
+    jump bb14
+  bb14:
+    v45 = phi [bb13: 0], [bb22: v77]
     v46 = lt v45, 2
-    jumpi v46, bb18, bb19
-  bb19:
+    jumpi v46, bb15, bb16
+  bb16:
     memory_object_store_element memoryarray<1>, v21, v22, v44
     v78 = add v22, 1
     jump bb7
-  bb18:
+  bb15:
     v47 = mul v45, 32
     v48 = add v35, v47
     v49 = calldatasize
     v50 = sub v49, v48
     v51 = slt v50, 32
-    jumpi v51, bb20, bb21
-  bb21:
+    jumpi v51, bb3, bb17
+  bb17:
     v52 = calldataload v48
     v53 = add v35, v52
     v54 = calldatasize
@@ -117,19 +115,19 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v56 = sub v55, 31
     v57 = slt v52, v56
     v58 = iszero v57
-    jumpi v58, bb22, bb23
-  bb23:
+    jumpi v58, bb3, bb18
+  bb18:
     v59 = calldataload v53
     v60 = gt v59, 0xffffffffffffffff
-    jumpi v60, bb24, bb25
-  bb25:
+    jumpi v60, bb3, bb19
+  bb19:
     v61 = mul v59, 32
     v62 = add v53, 32
     v63 = calldatasize
     v64 = sub v63, v61
     v65 = sgt v62, v64
-    jumpi v65, bb26, bb27
-  bb27:
+    jumpi v65, bb3, bb20
+  bb20:
     v66 = add v53, 32
     v67 = mul v59, 32
     v68 = iszero 32
@@ -137,33 +135,19 @@ fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array
     v70 = eq v69, v59
     v71 = or v68, v70
     v72 = iszero v71
-    jumpi v72, bb1, bb28
-  bb28:
+    jumpi v72, bb1, bb21
+  bb21:
     v73 = add 32, v67
     v74 = lt v73, 32
-    jumpi v74, bb1, bb29
-  bb29:
+    jumpi v74, bb1, bb22
+  bb22:
     v75 = alloc memoryarray<1>, exact, uninitialized, infallible, v73
     set_memory_object_len memoryarray, v75, v59
     v76 = make_calldata_slice v66, v67
     memory_object_copy_from_slice memoryarray, v75, v76
     memory_object_store_element memoryfixedarray<2, 1>, v44, v45, v75
     v77 = add v45, 1
-    jump bb17
-  bb26:
-    revert 0, 0
-  bb24:
-    revert 0, 0
-  bb22:
-    revert 0, 0
-  bb20:
-    revert 0, 0
-  bb15:
-    revert 0, 0
-  bb13:
-    revert 0, 0
-  bb11:
-    revert 0, 0
+    jump bb14
   bb3:
     revert 0, 0
   bb1:

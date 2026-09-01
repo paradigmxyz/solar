@@ -25,21 +25,19 @@ fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[byte
     v14 = calldatasize
     v15 = sub v14, v12
     v16 = sgt v11, v15
-    jumpi v16, bb9, bb10
-  bb10:
+    jumpi v16, bb7, bb9
+  bb9:
     v17 = abi_encode [calldata_bytes], object, args v2
     v18 = eq v3, v17
     v19 = iszero v18
     v20 = eq v19, 0
     v21 = iszero v20
-    jumpi v21, bb11, bb12
-  bb12:
-    jump bb13
-  bb13:
-    ret v17
+    jumpi v21, bb10, bb11
   bb11:
-    revert 0, 0
-  bb9:
+    jump bb12
+  bb12:
+    ret v17
+  bb10:
     revert 0, 0
   bb7:
     revert 0, 0

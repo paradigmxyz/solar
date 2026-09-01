@@ -47,7 +47,7 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     set_memory_object_len memoryarray, v20, v1
     jump bb7
   bb7:
-    v21 = phi [bb6: 0], [bb20: v58]
+    v21 = phi [bb6: 0], [bb16: v58]
     v22 = lt v21, v1
     jumpi v22, bb8, bb9
   bb9:
@@ -59,60 +59,60 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v63 = memory_object_len memoryarray, v62
     v64 = lt 0, v63
     v65 = iszero v64
-    jumpi v65, bb21, bb22
-  bb22:
+    jumpi v65, bb17, bb18
+  bb18:
     v66 = memory_object_load_element memoryarray<1>, v62, 0
     v67 = eq v66, 0
-    jumpi v67, bb23, bb24
-  bb23:
+    jumpi v67, bb19, bb20
+  bb19:
     v68 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v68, 0
     memory_object_store_element memoryarray<1>, v62, 0, v68
-    jump bb24
-  bb24:
-    v69 = phi [bb22: v66], [bb23: v68]
+    jump bb20
+  bb20:
+    v69 = phi [bb18: v66], [bb19: v68]
     v70 = memory_object_len memoryarray, v69
     v71 = lt 0, v70
     v72 = iszero v71
-    jumpi v72, bb21, bb25
-  bb25:
+    jumpi v72, bb17, bb21
+  bb21:
     v73 = memory_object_load_element memoryarray<1>, v69, 0
     v74 = add v61, v73
     v75 = lt v74, v61
-    jumpi v75, bb26, bb27
-  bb27:
+    jumpi v75, bb22, bb23
+  bb23:
     v76 = memory_object_load_field memorystruct<2>, v60, 1
     v77 = memory_object_len memoryarray, v76
     v78 = lt 1, v77
     v79 = iszero v78
-    jumpi v79, bb21, bb28
-  bb28:
+    jumpi v79, bb17, bb24
+  bb24:
     v80 = memory_object_load_element memoryarray<1>, v76, 1
     v81 = eq v80, 0
-    jumpi v81, bb29, bb30
-  bb29:
+    jumpi v81, bb25, bb26
+  bb25:
     v82 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
     set_memory_object_len memoryarray, v82, 0
     memory_object_store_element memoryarray<1>, v76, 1, v82
-    jump bb30
-  bb30:
-    v83 = phi [bb28: v80], [bb29: v82]
+    jump bb26
+  bb26:
+    v83 = phi [bb24: v80], [bb25: v82]
     v84 = memory_object_len memoryarray, v83
     v85 = lt 0, v84
     v86 = iszero v85
-    jumpi v86, bb21, bb31
-  bb31:
+    jumpi v86, bb17, bb27
+  bb27:
     v87 = memory_object_load_element memoryarray<1>, v83, 0
     v88 = add v74, v87
     v89 = lt v88, v74
-    jumpi v89, bb26, bb32
-  bb32:
+    jumpi v89, bb22, bb28
+  bb28:
     ret v88
-  bb26:
+  bb22:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb21:
+  bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
@@ -129,8 +129,8 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v30 = calldatasize
     v31 = sub v30, v29
     v32 = slt v31, 32
-    jumpi v32, bb11, bb12
-  bb12:
+    jumpi v32, bb3, bb11
+  bb11:
     v33 = calldataload v29
     v34 = add v2, v33
     v35 = calldatasize
@@ -138,19 +138,19 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v37 = sub v36, 31
     v38 = slt v33, v37
     v39 = iszero v38
-    jumpi v39, bb13, bb14
-  bb14:
+    jumpi v39, bb3, bb12
+  bb12:
     v40 = calldataload v34
     v41 = gt v40, 0xffffffffffffffff
-    jumpi v41, bb15, bb16
-  bb16:
+    jumpi v41, bb3, bb13
+  bb13:
     v42 = mul v40, 32
     v43 = add v34, 32
     v44 = calldatasize
     v45 = sub v44, v42
     v46 = sgt v43, v45
-    jumpi v46, bb17, bb18
-  bb18:
+    jumpi v46, bb3, bb14
+  bb14:
     v47 = add v34, 32
     v48 = mul v40, 32
     v49 = iszero 32
@@ -158,12 +158,12 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     v51 = eq v50, v40
     v52 = or v49, v51
     v53 = iszero v52
-    jumpi v53, bb1, bb19
-  bb19:
+    jumpi v53, bb1, bb15
+  bb15:
     v54 = add 32, v48
     v55 = lt v54, 32
-    jumpi v55, bb1, bb20
-  bb20:
+    jumpi v55, bb1, bb16
+  bb16:
     v56 = alloc memoryarray<1>, exact, uninitialized, infallible, v54
     set_memory_object_len memoryarray, v56, v40
     v57 = make_calldata_slice v47, v48
@@ -171,14 +171,6 @@ fn @roundTrip(arg0: u256, arg1: calldataslice) -> u256 [selector=0x00746047, pur
     memory_object_store_element memoryarray<1>, v20, v21, v56
     v58 = add v21, 1
     jump bb7
-  bb17:
-    revert 0, 0
-  bb15:
-    revert 0, 0
-  bb13:
-    revert 0, 0
-  bb11:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:

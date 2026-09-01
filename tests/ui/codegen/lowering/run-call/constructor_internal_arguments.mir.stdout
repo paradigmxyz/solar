@@ -91,13 +91,11 @@ fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[wo
     v12 = iszero v11
     v13 = eq v10, v12
     v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb6:
+    jumpi v14, bb3, bb5
+  bb5:
     v15 = add 0, 0
     v16 = mload v15
     ret v16
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
 }
@@ -124,13 +122,11 @@ fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[
     v11 = and v10, 0xffffff0000000000000000000000000000000000000000000000000000000000
     v12 = eq v10, v11
     v13 = iszero v12
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb3, bb5
+  bb5:
     v14 = add 0, 0
     v15 = mload v14
     ret v15
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
 }

@@ -248,8 +248,8 @@ fn @second() -> address [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
     v12 = eq v10, v11
     v13 = iszero v12
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb3, bb5
+  bb5:
     v14 = add 0, 0
     v15 = mload v14
     v16 = gas
@@ -257,30 +257,24 @@ fn @second() -> address [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u
     v18 = slice_ptr v17
     v19 = slice_len v17
     v20 = staticcall v16, v1, v18, v19, 0, 32
-    jumpi v20, bb8, bb7
-  bb7:
+    jumpi v20, bb7, bb6
+  bb6:
     revert_returndata
-  bb8:
+  bb7:
     v21 = returndatasize
     v22 = lt v21, 32
-    jumpi v22, bb9, bb10
-  bb10:
+    jumpi v22, bb3, bb8
+  bb8:
     v23 = add 0, 0
     v24 = mload v23
     v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
     v26 = eq v24, v25
     v27 = iszero v26
-    jumpi v27, bb11, bb12
-  bb12:
+    jumpi v27, bb3, bb9
+  bb9:
     v28 = add 0, 0
     v29 = mload v28
     ret v29
-  bb11:
-    revert 0, 0
-  bb9:
-    revert 0, 0
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
 }
@@ -307,8 +301,8 @@ fn @both() -> (u256, u256) [selector=0x35f2e0a7, abi_params=[], abi_returns=[wor
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
     v12 = eq v10, v11
     v13 = iszero v12
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb3, bb5
+  bb5:
     v14 = add 0, 0
     v15 = mload v14
     v16 = gas
@@ -316,30 +310,24 @@ fn @both() -> (u256, u256) [selector=0x35f2e0a7, abi_params=[], abi_returns=[wor
     v18 = slice_ptr v17
     v19 = slice_len v17
     v20 = staticcall v16, v1, v18, v19, 0, 32
-    jumpi v20, bb8, bb7
-  bb7:
+    jumpi v20, bb7, bb6
+  bb6:
     revert_returndata
-  bb8:
+  bb7:
     v21 = returndatasize
     v22 = lt v21, 32
-    jumpi v22, bb9, bb10
-  bb10:
+    jumpi v22, bb3, bb8
+  bb8:
     v23 = add 0, 0
     v24 = mload v23
     v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
     v26 = eq v24, v25
     v27 = iszero v26
-    jumpi v27, bb11, bb12
-  bb12:
+    jumpi v27, bb3, bb9
+  bb9:
     v28 = add 0, 0
     v29 = mload v28
     ret v15, v29
-  bb11:
-    revert 0, 0
-  bb9:
-    revert 0, 0
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
 }
@@ -376,15 +364,13 @@ fn @lengths() -> (u256, u256) [selector=0xdab1fa12, abi_params=[], abi_returns=[
   bb6:
     v18 = returndatasize
     v19 = lt v18, 32
-    jumpi v19, bb7, bb8
-  bb8:
+    jumpi v19, bb3, bb7
+  bb7:
     v20 = add 0, 0
     v21 = mload v20
     v22 = add 0, 0
     v23 = mload v22
     ret v12, v23
-  bb7:
-    revert 0, 0
   bb3:
     revert 0, 0
 }

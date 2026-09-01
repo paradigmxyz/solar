@@ -113,15 +113,13 @@ fn @cleanup(arg0: u256) -> (u256, u256) [selector=0x0aa40018, view, abi_params=[
   bb6:
     v25 = returndatasize
     v26 = lt v25, 32
-    jumpi v26, bb7, bb8
-  bb8:
+    jumpi v26, bb3, bb7
+  bb7:
     v27 = add 0, 0
     v28 = mload v27
     v29 = add 0, 0
     v30 = mload v29
     ret v18, v30
-  bb7:
-    revert 0, 0
   bb3:
     revert 0, 0
 }

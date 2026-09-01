@@ -55,9 +55,9 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0xe3db0bf3, pure, abi_params=[arr
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: arg0], [bb21: v0]
-    v1 = phi [bb0: 0], [bb21: v38]
-    v2 = phi [bb0: 0], [bb21: v36]
+    v0 = phi [bb0: arg0], [bb18: v0]
+    v1 = phi [bb0: 0], [bb18: v38]
+    v2 = phi [bb0: 0], [bb18: v36]
     v3 = slice_len v0
     v4 = lt v1, v3
     jumpi v4, bb4, bb5
@@ -93,45 +93,39 @@ fn @sum(arg0: calldataslice) -> u256 [selector=0xe3db0bf3, pure, abi_params=[arr
     v23 = sub v22, 31
     v24 = slt v19, v23
     v25 = iszero v24
-    jumpi v25, bb13, bb14
-  bb14:
+    jumpi v25, bb11, bb13
+  bb13:
     v26 = calldataload v20
     v27 = gt v26, 0xffffffffffffffff
-    jumpi v27, bb15, bb16
-  bb16:
+    jumpi v27, bb11, bb14
+  bb14:
     v28 = mul v26, 1
     v29 = add v20, 32
     v30 = calldatasize
     v31 = sub v30, v28
     v32 = sgt v29, v31
-    jumpi v32, bb17, bb18
-  bb18:
+    jumpi v32, bb11, bb15
+  bb15:
     v33 = add v20, 32
     v34 = make_calldata_slice v33, v26
     v35 = internal_call @_length, 1, v34
     v36 = add v2, v35
     v37 = lt v36, v2
-    jumpi v37, bb19, bb20
-  bb20:
+    jumpi v37, bb16, bb17
+  bb17:
     jump bb6
   bb6:
     jump bb3
   bb3:
     v38 = add v1, 1
     v39 = lt v38, v1
-    jumpi v39, bb19, bb21
-  bb21:
+    jumpi v39, bb16, bb18
+  bb18:
     jump bb1
-  bb19:
+  bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb17:
-    revert 0, 0
-  bb15:
-    revert 0, 0
-  bb13:
-    revert 0, 0
   bb11:
     revert 0, 0
   bb9:
@@ -185,8 +179,8 @@ fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], ab
     v21 = iszero v20
     v22 = eq v19, v21
     v23 = iszero v22
-    jumpi v23, bb7, bb8
-  bb8:
+    jumpi v23, bb5, bb7
+  bb7:
     frame_store multi_return, word, 0, v11 !metadata(memory=scratch)
     v24 = add v11, 0
     v25 = mload v24
@@ -194,8 +188,6 @@ fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], ab
     v27 = add v26, 32
     v28 = mload v27
     ret v25, v28
-  bb7:
-    revert 0, 0
   bb5:
     revert 0, 0
   bb1:
@@ -225,16 +217,16 @@ fn @inspect(arg0: calldataslice) -> (u256, bool) [selector=0x903f85b3, pure, abi
     v12 = sub v11, 95
     v13 = slt v8, v12
     v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb6:
+    jumpi v14, bb3, bb5
+  bb5:
     v15 = make_calldata_slice v9, 32
     v16 = slice_ptr v15
     v17 = add v16, 64
     v18 = calldatasize
     v19 = sub v18, v17
     v20 = slt v19, 32
-    jumpi v20, bb7, bb8
-  bb8:
+    jumpi v20, bb3, bb6
+  bb6:
     v21 = calldataload v17
     v22 = add v16, v21
     v23 = calldatasize
@@ -242,19 +234,19 @@ fn @inspect(arg0: calldataslice) -> (u256, bool) [selector=0x903f85b3, pure, abi
     v25 = sub v24, 31
     v26 = slt v21, v25
     v27 = iszero v26
-    jumpi v27, bb9, bb10
-  bb10:
+    jumpi v27, bb3, bb7
+  bb7:
     v28 = calldataload v22
     v29 = gt v28, 0xffffffffffffffff
-    jumpi v29, bb11, bb12
-  bb12:
+    jumpi v29, bb3, bb8
+  bb8:
     v30 = mul v28, 1
     v31 = add v22, 32
     v32 = calldatasize
     v33 = sub v32, v30
     v34 = sgt v31, v33
-    jumpi v34, bb13, bb14
-  bb14:
+    jumpi v34, bb3, bb9
+  bb9:
     v35 = add v22, 32
     v36 = make_calldata_slice v35, v28
     v37 = slice_len v36
@@ -267,16 +259,6 @@ fn @inspect(arg0: calldataslice) -> (u256, bool) [selector=0x903f85b3, pure, abi
     v44 = gt v39, v43
     v45 = iszero v44
     ret v40, v45
-  bb13:
-    revert 0, 0
-  bb11:
-    revert 0, 0
-  bb9:
-    revert 0, 0
-  bb7:
-    revert 0, 0
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:
@@ -347,14 +329,12 @@ fn @_decode(arg0: calldataslice, arg1: bool) -> (u48, u48, calldataslice) [pure]
     v12 = gt v11, v11
     v13 = lt v11, 2
     v14 = or v12, v13
-    jumpi v14, bb6, bb7
-  bb7:
+    jumpi v14, bb4, bb6
+  bb6:
     v15 = sub v11, 2
     v16 = add v10, 2
     v17 = make_calldata_slice v16, v15
     jump bb3
-  bb6:
-    revert 0, 0
   bb1:
     v1 = slice_ptr arg0
     v2 = slice_len arg0
@@ -369,9 +349,9 @@ fn @_decode(arg0: calldataslice, arg1: bool) -> (u48, u48, calldataslice) [pure]
     v9 = make_calldata_slice v8, v7
     jump bb3
   bb3:
-    v18 = phi [bb5: 0], [bb7: 1]
-    v19 = phi [bb5: 0], [bb7: 2]
-    v20 = phi [bb5: v9], [bb7: v17]
+    v18 = phi [bb5: 0], [bb6: 1]
+    v19 = phi [bb5: 0], [bb6: 2]
+    v20 = phi [bb5: v9], [bb6: v17]
     ret v18, v19, v20
   bb4:
     revert 0, 0

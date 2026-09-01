@@ -31,13 +31,13 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, 
     v5 = calldatasize
     v6 = sub v5, v3
     v7 = sgt v2, v6
-    jumpi v7, bb6, bb7
-  bb7:
+    jumpi v7, bb4, bb6
+  bb6:
     v8 = slice_len arg1
     v9 = add v8, 63
     v10 = lt v9, v8
-    jumpi v10, bb8, bb9
-  bb9:
+    jumpi v10, bb7, bb8
+  bb8:
     v11 = not 31
     v12 = and v9, v11
     v13 = alloc memorybytes, exact, uninitialized, infallible, v12
@@ -45,14 +45,12 @@ fn @adopt(arg0: bool, arg1: calldataslice) -> memorybytes [selector=0x7b54f632, 
     memory_object_copy_from_slice memorybytes, v13, arg1
     jump bb3
   bb3:
-    v14 = phi [bb9: v13], [bb2: v0]
+    v14 = phi [bb8: v13], [bb2: v0]
     ret v14
-  bb8:
+  bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb6:
-    revert 0, 0
   bb4:
     revert 0, 0
 }

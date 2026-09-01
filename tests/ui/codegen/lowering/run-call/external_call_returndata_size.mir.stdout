@@ -339,13 +339,11 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns
     v17 = iszero v16
     v18 = eq v15, v17
     v19 = iszero v18
-    jumpi v19, bb7, bb8
-  bb8:
+    jumpi v19, bb5, bb7
+  bb7:
     v20 = add 0, 0
     v21 = mload v20
     ret v21
-  bb7:
-    revert 0, 0
   bb5:
     revert 0, 0
 }
@@ -389,13 +387,11 @@ fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_return
     v22 = iszero v21
     v23 = eq v20, v22
     v24 = iszero v23
-    jumpi v24, bb7, bb8
-  bb8:
+    jumpi v24, bb5, bb7
+  bb7:
     v25 = add 0, 0
     v26 = mload v25
     ret v26
-  bb7:
-    revert 0, 0
   bb5:
     revert 0, 0
 }

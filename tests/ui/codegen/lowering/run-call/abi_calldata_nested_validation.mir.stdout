@@ -26,28 +26,22 @@ fn @g(arg0: calldataslice) -> u256 [selector=0xebcd97f8, pure, abi_params=[array
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb6:
+    jumpi v14, bb3, bb5
+  bb5:
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb3, bb6
+  bb6:
     v17 = mul v15, 32
     v18 = add v9, 32
     v19 = calldatasize
     v20 = sub v19, v17
     v21 = sgt v18, v20
-    jumpi v21, bb9, bb10
-  bb10:
+    jumpi v21, bb3, bb7
+  bb7:
     v22 = add v9, 32
     v23 = make_calldata_slice v22, v15
     ret 42
-  bb9:
-    revert 0, 0
-  bb7:
-    revert 0, 0
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:

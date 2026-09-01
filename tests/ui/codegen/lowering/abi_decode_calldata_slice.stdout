@@ -15,18 +15,18 @@ fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_params=[
     v8 = slice_ptr v7
     v9 = slice_len v7
     v10 = gt v9, 0xffffffffffffffff
-    jumpi v10, bb3, bb4
-  bb4:
+    jumpi v10, bb1, bb3
+  bb3:
     v11 = calldatasize
     v12 = sub v11, v9
     v13 = sgt v8, v12
-    jumpi v13, bb5, bb6
-  bb6:
+    jumpi v13, bb1, bb4
+  bb4:
     v14 = slice_len v7
     v15 = add v14, 63
     v16 = lt v15, v14
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb5, bb6
+  bb6:
     v17 = not 31
     v18 = and v15, v17
     v19 = alloc memorybytes, exact, uninitialized, infallible, v18
@@ -34,14 +34,10 @@ fn @decode(arg0: calldataslice) -> u256 [selector=0xe5c5e9a3, pure, abi_params=[
     memory_object_copy_from_slice memorybytes, v19, v7
     v20 = abi_decode [u256], v19
     ret v20
-  bb7:
+  bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb5:
-    revert 0, 0
-  bb3:
-    revert 0, 0
   bb1:
     revert 0, 0
 }

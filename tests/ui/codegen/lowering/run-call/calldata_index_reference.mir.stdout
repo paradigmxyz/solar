@@ -75,19 +75,19 @@ fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb6:
+    jumpi v14, bb3, bb5
+  bb5:
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb3, bb6
+  bb6:
     v17 = mul v15, 32
     v18 = add v9, 32
     v19 = calldatasize
     v20 = sub v19, v17
     v21 = sgt v18, v20
-    jumpi v21, bb9, bb10
-  bb10:
+    jumpi v21, bb3, bb7
+  bb7:
     v22 = add v9, 32
     v23 = make_calldata_slice v22, v15
     v24 = slice_ptr v23
@@ -95,18 +95,12 @@ fn @nestedDynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd5de94f
     v26 = slice_len v23
     v27 = lt 1, v26
     v28 = iszero v27
-    jumpi v28, bb1, bb11
-  bb11:
+    jumpi v28, bb1, bb8
+  bb8:
     v29 = slice_ptr v23
     v30 = add v29, 32
     v31 = calldataload v30
     ret v24, v25, v31
-  bb9:
-    revert 0, 0
-  bb7:
-    revert 0, 0
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:
@@ -136,19 +130,19 @@ fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10
     v12 = sub v11, 31
     v13 = slt v8, v12
     v14 = iszero v13
-    jumpi v14, bb5, bb6
-  bb6:
+    jumpi v14, bb3, bb5
+  bb5:
     v15 = calldataload v9
     v16 = gt v15, 0xffffffffffffffff
-    jumpi v16, bb7, bb8
-  bb8:
+    jumpi v16, bb3, bb6
+  bb6:
     v17 = mul v15, 1
     v18 = add v9, 32
     v19 = calldatasize
     v20 = sub v19, v17
     v21 = sgt v18, v20
-    jumpi v21, bb9, bb10
-  bb10:
+    jumpi v21, bb3, bb7
+  bb7:
     v22 = add v9, 32
     v23 = make_calldata_slice v22, v15
     v24 = slice_ptr v23
@@ -156,20 +150,14 @@ fn @dynamicBytes(arg0: calldataslice) -> (u256, u256, u256) [selector=0x925ccb10
     v26 = slice_len v23
     v27 = lt 1, v26
     v28 = iszero v27
-    jumpi v28, bb1, bb11
-  bb11:
+    jumpi v28, bb1, bb8
+  bb8:
     v29 = slice_ptr v23
     v30 = calldata_slice_load_word calldata, v23, 1
     v31 = byte 0, v30
     v32 = shl 248, v31
     v33 = shr 248, v32
     ret v24, v25, v33
-  bb9:
-    revert 0, 0
-  bb7:
-    revert 0, 0
-  bb5:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:

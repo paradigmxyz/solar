@@ -61,15 +61,13 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb8:
     v21 = returndatasize
     v22 = lt v21, 32
-    jumpi v22, bb9, bb10
-  bb10:
+    jumpi v22, bb3, bb9
+  bb9:
     v23 = add 0, 0
     v24 = mload v23
     v25 = add 0, 0
     v26 = mload v25
     ret v26
-  bb9:
-    revert 0, 0
   bb3:
     revert 0, 0
 }

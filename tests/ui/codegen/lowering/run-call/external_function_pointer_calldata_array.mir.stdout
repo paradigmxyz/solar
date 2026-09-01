@@ -35,8 +35,8 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_param
   bb8:
     v21 = returndatasize
     v22 = lt v21, 32
-    jumpi v22, bb9, bb10
-  bb10:
+    jumpi v22, bb5, bb9
+  bb9:
     v23 = add 0, 0
     v24 = mload v23
     v25 = add 0, 0
@@ -44,16 +44,16 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_param
     v27 = slice_len arg0
     v28 = lt 1, v27
     v29 = iszero v28
-    jumpi v29, bb3, bb11
-  bb11:
+    jumpi v29, bb3, bb10
+  bb10:
     v30 = slice_ptr arg0
     v31 = add v30, 32
     v32 = calldataload v31
     v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v34 = eq v32, v33
     v35 = iszero v34
-    jumpi v35, bb12, bb13
-  bb13:
+    jumpi v35, bb5, bb11
+  bb11:
     v36 = shr 64, v32
     v37 = and v36, 0xffffffff
     v38 = shl 224, v37
@@ -63,14 +63,14 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_param
     v42 = slice_ptr v41
     v43 = slice_len v41
     v44 = call v40, v39, 0, v42, v43, 0, 32
-    jumpi v44, bb15, bb14
-  bb14:
+    jumpi v44, bb13, bb12
+  bb12:
     revert_returndata
-  bb15:
+  bb13:
     v45 = returndatasize
     v46 = lt v45, 32
-    jumpi v46, bb16, bb17
-  bb17:
+    jumpi v46, bb5, bb14
+  bb14:
     v47 = add 0, 0
     v48 = mload v47
     v49 = add 0, 0
@@ -78,16 +78,16 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_param
     v51 = slice_len arg0
     v52 = lt 2, v51
     v53 = iszero v52
-    jumpi v53, bb3, bb18
-  bb18:
+    jumpi v53, bb3, bb15
+  bb15:
     v54 = slice_ptr arg0
     v55 = add v54, 64
     v56 = calldataload v55
     v57 = and v56, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v58 = eq v56, v57
     v59 = iszero v58
-    jumpi v59, bb19, bb20
-  bb20:
+    jumpi v59, bb5, bb16
+  bb16:
     v60 = shr 64, v56
     v61 = and v60, 0xffffffff
     v62 = shl 224, v61
@@ -97,29 +97,19 @@ fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0x2ed7fe6a, abi_param
     v66 = slice_ptr v65
     v67 = slice_len v65
     v68 = call v64, v63, 0, v66, v67, 0, 32
-    jumpi v68, bb22, bb21
-  bb21:
+    jumpi v68, bb18, bb17
+  bb17:
     revert_returndata
-  bb22:
+  bb18:
     v69 = returndatasize
     v70 = lt v69, 32
-    jumpi v70, bb23, bb24
-  bb24:
+    jumpi v70, bb5, bb19
+  bb19:
     v71 = add 0, 0
     v72 = mload v71
     v73 = add 0, 0
     v74 = mload v73
     ret v26, v50, v74
-  bb23:
-    revert 0, 0
-  bb19:
-    revert 0, 0
-  bb16:
-    revert 0, 0
-  bb12:
-    revert 0, 0
-  bb9:
-    revert 0, 0
   bb5:
     revert 0, 0
   bb3:
@@ -165,7 +155,7 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
     set_memory_object_len memoryarray, v21, v2
     jump bb7
   bb7:
-    v22 = phi [bb6: 0], [bb12: v37]
+    v22 = phi [bb6: 0], [bb11: v37]
     v23 = lt v22, v2
     jumpi v23, bb8, bb9
   bb9:
@@ -173,14 +163,14 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
     v39 = slice_ptr v38
     v40 = slice_len v38
     v41 = call v1, v0, 0, v39, v40, v39, 96
-    jumpi v41, bb14, bb13
-  bb13:
+    jumpi v41, bb13, bb12
+  bb12:
     revert_returndata
-  bb14:
+  bb13:
     v42 = returndatasize
     v43 = lt v42, 96
-    jumpi v43, bb15, bb16
-  bb16:
+    jumpi v43, bb3, bb14
+  bb14:
     v44 = add v39, 0
     v45 = mload v44
     v46 = add v39, 32
@@ -196,8 +186,6 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
     v55 = add v52, 64
     v56 = mload v55
     ret v51, v54, v56
-  bb15:
-    revert 0, 0
   bb8:
     v24 = mul v22, 32
     v25 = iszero 32
@@ -212,15 +200,13 @@ fn @fReenc(arg0: calldataslice) -> (u256, u256, u256) [selector=0xfbeba237, abi_
     v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
     v33 = eq v31, v32
     v34 = iszero v33
-    jumpi v34, bb11, bb12
-  bb12:
+    jumpi v34, bb3, bb11
+  bb11:
     v35 = shr 64, v31
     v36 = shl 64, v35
     memory_object_store_element memoryarray<1>, v21, v22, v36
     v37 = add v22, 1
     jump bb7
-  bb11:
-    revert 0, 0
   bb3:
     revert 0, 0
   bb1:
@@ -292,8 +278,8 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_params=[bool],
   bb13:
     v49 = returndatasize
     v50 = lt v49, 96
-    jumpi v50, bb14, bb15
-  bb15:
+    jumpi v50, bb10, bb14
+  bb14:
     v51 = add v46, 0
     v52 = mload v51
     v53 = add v46, 32
@@ -309,8 +295,6 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_params=[bool],
     v62 = add v59, 64
     v63 = mload v62
     jump bb7
-  bb14:
-    revert 0, 0
   bb5:
     v22 = address
     v23 = gas
@@ -342,9 +326,9 @@ fn @g(arg0: bool) -> (u256, u256, u256) [selector=0xd48092f7, abi_params=[bool],
     v42 = mload v41
     jump bb7
   bb7:
-    v64 = phi [bb11: v37], [bb15: v58]
-    v65 = phi [bb11: v40], [bb15: v61]
-    v66 = phi [bb11: v42], [bb15: v63]
+    v64 = phi [bb11: v37], [bb14: v58]
+    v65 = phi [bb11: v40], [bb14: v61]
+    v66 = phi [bb11: v42], [bb14: v63]
     ret v64, v65, v66
   bb10:
     revert 0, 0
