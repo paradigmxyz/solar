@@ -3,7 +3,8 @@
 //! The pass groups blocks by their terminator and indexes representative tails
 //! in reverse. This finds each block's longest shared suffix without comparing
 //! it with every earlier block. It then splits profitable suffixes into shared
-//! tail blocks until no new merges remain.
+//! tail blocks until no new merges remain. Each candidate includes the cost of its new jumps and
+//! labels, and the pass keeps address-taken or otherwise incompatible entries separate.
 
 use super::{
     EvmPass,

@@ -1,8 +1,10 @@
 //! Replace consecutive constant memory stores with program-data copies.
 //!
-//! The pass appends each copied run to program data and replaces its stores
-//! with `CODECOPY`. It skips modules that observe program-data layout through
-//! `CODESIZE`, because appending data would change the observed final byte.
+//! The pass recognizes a contiguous run of literal word stores, appends its bytes to the program
+//! data pool, and replaces the stores with `CODECOPY`. It charges both the new data and the copy
+//! sequence against the original instructions, so it only accepts a byte saving. It skips modules
+//! that observe program-data layout through `CODESIZE`, because appending data would change the
+//! observed final byte.
 
 use super::EvmPass;
 use crate::{

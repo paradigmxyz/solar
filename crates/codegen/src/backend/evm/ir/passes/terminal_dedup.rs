@@ -3,7 +3,8 @@
 //! Terminal blocks with identical machine instruction bodies can share one
 //! implementation because execution never returns to their callers. This pass
 //! keeps the first body and redirects later copies to it. CFG simplification
-//! then redirects references and removes the temporary jump thunks.
+//! then redirects references and removes the temporary jump thunks. Block hotness does not affect
+//! equivalence; a hot redirect promotes the shared body so later layout keeps it on the hot path.
 
 use super::{EvmPass, utils::is_terminal_boundary};
 use crate::backend::evm::ir::{

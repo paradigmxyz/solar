@@ -1,4 +1,9 @@
-//! Legacy EVM opcode legalization.
+//! Legalize opcodes that older EVM targets lack.
+//!
+//! Before Constantinople, this pass expands `SHL`, `SHR`, and `SAR` into arithmetic and physical
+//! stack operations with the same signedness and operand order. Before Byzantium, it replaces
+//! `REVERT` with `INVALID`, the closest available terminating behavior. Newer targets skip the
+//! pass entirely.
 
 use super::EvmPass;
 use crate::backend::evm::{

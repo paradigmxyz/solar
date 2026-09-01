@@ -1,4 +1,10 @@
 //! Coalesce adjacent constant word copies into `MCOPY`.
+//!
+//! The pass recognizes consecutive `MLOAD`/`MSTORE` pairs with constant, contiguous source and
+//! destination addresses. It replaces a non-overlapping run with one `MCOPY` when the target
+//! supports it and the replacement is smaller without using more static gas. Overlapping ranges
+//! remain unchanged because repeated word copies have memmove-like ordering that `MCOPY` does not
+//! necessarily preserve.
 
 use super::EvmPass;
 use crate::backend::evm::{

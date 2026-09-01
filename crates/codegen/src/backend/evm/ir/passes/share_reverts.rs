@@ -1,4 +1,10 @@
 //! Share adjacent empty revert paths in physically laid-out EVM IR.
+//!
+//! A branch that falls through to an empty `REVERT` and jumps over it on success can invert the
+//! branch: the failure edge jumps to one shared empty revert while success falls through to its
+//! continuation. The pass recognizes both `PUSH0; PUSH0; REVERT` and the legacy `PUSH0; DUP1;
+//! REVERT` spelling. It preserves the original layout when moving a frequently referenced shared
+//! revert could widen its target push and lose more bytes than the removed jump saves.
 
 use super::EvmPass;
 use crate::backend::evm::{

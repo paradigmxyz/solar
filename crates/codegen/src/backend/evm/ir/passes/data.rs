@@ -1,4 +1,11 @@
 //! Materialize and pack program data.
+//!
+//! `pack-existing-data` interns equal data objects and pools contained byte strings without
+//! changing code. `pack-data` also finds literal memory-store runs that can become `CODECOPY`,
+//! scores the instruction and data-pool cost in the selected optimization mode, then interns the
+//! accepted bytes. Both passes leave a module alone when `CODESIZE` can observe the changed data
+//! layout. Pooling uses bounded substring search to avoid quadratic compile time on large data
+//! sets.
 
 use super::EvmPass;
 use crate::{
