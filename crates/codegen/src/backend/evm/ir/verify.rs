@@ -30,8 +30,6 @@ impl<'a> Verifier<'a> {
 
     /// Checks output target support after target legalization.
     pub(super) fn verify_after_legalization(&self, module: &Module) {
-        // The physical stack verifier cannot model the backend's deferred caller-prefix retry
-        // strategy on modern targets. Older targets do not use that strategy.
         if !self.evm_version.has_bitwise_shifting() {
             self.verify_module(module);
         }
