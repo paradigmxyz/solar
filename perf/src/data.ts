@@ -60,5 +60,6 @@ export async function loadArtifact(
   const response = await fetch(`${await dataRoot()}runs/${parts.join('/')}`)
   if (response.status === 404) return null
   if (!response.ok) throw new Error(`Could not load artifact: ${response.statusText}`)
+  if (!response.headers.get('content-type')?.includes('application/json')) return null
   return response.json() as Promise<string>
 }
