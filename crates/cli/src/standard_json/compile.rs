@@ -273,12 +273,14 @@ fn compile(
                     gcx.sess,
                     !bytecode_contracts.is_empty(),
                 );
-                let bytecodes = if let Some(contract_metadata) = &contract_metadata {
-                    let runtime_data = |contract_id| contract_metadata.runtime_data(contract_id);
-                    crate::emit::emit_requested(compiler, bytecode_contracts, Some(&runtime_data))?
-                } else {
-                    crate::emit::emit_requested(compiler, bytecode_contracts, None)?
-                };
+                let runtime_data = contract_metadata
+                    .as_ref()
+                    .map(|metadata| |contract_id| metadata.runtime_data(contract_id));
+                let bytecodes = crate::emit::emit_requested(
+                    compiler,
+                    bytecode_contracts,
+                    runtime_data.as_ref().map(|data| data as _),
+                )?;
 
                 gcx.dcx().has_errors()?;
 
