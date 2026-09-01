@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadIndex } from './data'
-import type { MetricSummary, RunIndex, RunSummary } from './types'
+import type { MetricSummary, RunIndex, RunSummary, Theme } from './types'
 import { Compare } from './Compare'
 
 const short = (commit: string) => commit.slice(0, 8)
+const themeKey = 'solar-perf-theme'
 
 const charts: { metric: keyof MetricSummary; title: string; unit: string }[] = [
   { metric: 'runtimeGas', title: 'Runtime gas', unit: 'gas' },
@@ -64,15 +65,26 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
 }
 
 export function App() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    let saved: string | null = null
+    try { saved = window.localStorage.getItem(themeKey) } catch { /* Ignore unavailable storage. */ }
+    const initial = saved === 'light' || saved === 'dark' ? saved : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    document.documentElement.dataset.theme = initial
+    return initial
+  })
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    try { window.localStorage.setItem(themeKey, theme) } catch { /* Ignore unavailable storage. */ }
+  }, [theme])
   const route = new URLSearchParams(window.location.search)
   const baseCommit = route.get('base')
   const headCommit = route.get('head')
-  if (baseCommit && headCommit && baseCommit !== headCommit) return <><SiteHeader /><Compare base={baseCommit} head={headCommit} /><SiteFooter /></>
-  return <Home />
+  const content = baseCommit && headCommit && baseCommit !== headCommit ? <Compare base={baseCommit} head={headCommit} theme={theme} /> : <Home />
+  return <><SiteHeader theme={theme} onToggleTheme={() => setTheme((value) => value === 'light' ? 'dark' : 'light')} />{content}<SiteFooter /></>
 }
 
-function SiteHeader() {
-  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>/perf</span></a><nav><a href="https://github.com/paradigmxyz/solar">repository ↗</a></nav></header>
+function SiteHeader({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
+  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>/perf</span></a><nav><button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>{theme === 'light' ? 'dark' : 'light'}</button><a href="https://github.com/paradigmxyz/solar">repository ↗</a></nav></header>
 }
 
 function SiteFooter() { return <footer>Measured by the in-repository runtime corpus.</footer> }
@@ -99,9 +111,7 @@ function Home() {
   }
 
   return (
-    <>
-      <SiteHeader />
-      <main className="dashboard">
+    <main className="dashboard">
         <section className="dashboard-title">
           <div><h1>Performance</h1><p>Main branch benchmark history</p></div>
           <span>{mainRuns.length} runs</span>
@@ -118,8 +128,6 @@ function Home() {
           <div className="run run-head"><span>commit</span><span>ref</span><span>date</span><span>runtime gas</span><span>runtime bytes</span></div>
           {runs.length === 0 ? <p className="empty">No published benchmark runs yet.</p> : runs.slice(0, 12).map((run) => { const comparison = runs.find((candidate) => candidate.commit !== run.commit)?.commit; const contents = <><code>{short(run.commit)}</code><span>{runRef(run)}</span><time>{new Date(run.timestamp).toLocaleDateString()}</time><strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'}</strong><strong>{run.metrics.runtimeSize?.toLocaleString() ?? 'n/a'}</strong></>; return comparison ? <a className="run" key={run.commit} href={`?base=${comparison}&head=${run.commit}`}>{contents}</a> : <div className="run" key={run.commit}>{contents}</div> })}
         </section>
-      </main>
-      <SiteFooter />
-    </>
+    </main>
   )
 }
