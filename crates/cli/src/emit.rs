@@ -753,7 +753,7 @@ fn out_writer(path: Option<&Path>) -> io::Result<impl io::Write> {
     Ok(io::BufWriter::new(out))
 }
 
-fn to_json<W: io::Write, T: serde::Serialize>(
+pub(crate) fn to_json<W: io::Write, T: serde::Serialize>(
     writer: W,
     value: &T,
     pretty: bool,

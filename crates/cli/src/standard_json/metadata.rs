@@ -47,10 +47,9 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         if !settings.append_cbor {
             return Bytes::new();
         }
-        let cbor = cbor_metadata(self.json(contract_id), settings.bytecode_hash.value);
-        let mut suffix = Vec::with_capacity(cbor.len() + 1);
+        let mut suffix = Vec::with_capacity(cbor_metadata_len(settings.bytecode_hash.value) + 1);
         suffix.push(INVALID);
-        suffix.extend(cbor);
+        push_cbor_metadata(&mut suffix, self.json(contract_id), settings.bytecode_hash.value);
         suffix.into()
     }
 
@@ -172,16 +171,31 @@ fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {
     sources
 }
 
-fn cbor_metadata(metadata: &str, hash: MetadataHash) -> Vec<u8> {
-    let mut output = Vec::new();
+const fn cbor_bytes_len(key_len: usize, value_len: usize) -> usize {
+    let key_header_len = if key_len < 24 { 1 } else { 2 };
+    let value_header_len = if value_len < 24 { 1 } else { 2 };
+    key_header_len + key_len + value_header_len + value_len
+}
+
+const fn cbor_metadata_len(hash: MetadataHash) -> usize {
+    let hash_entry_len = match hash {
+        MetadataHash::Ipfs => cbor_bytes_len("ipfs".len(), 34),
+        MetadataHash::Bzzr1 => cbor_bytes_len("bzzr1".len(), 32),
+        MetadataHash::None => 0,
+    };
+    1 + hash_entry_len + cbor_bytes_len("solar".len(), 3) + 2
+}
+
+fn push_cbor_metadata(output: &mut Vec<u8>, metadata: &str, hash: MetadataHash) {
+    let start = output.len();
     match hash {
         MetadataHash::Ipfs => {
             output.push(0xa2);
-            push_cbor_bytes(&mut output, "ipfs", &ipfs_hash(metadata.as_bytes()));
+            push_cbor_bytes(output, "ipfs", &ipfs_hash(metadata.as_bytes()));
         }
         MetadataHash::Bzzr1 => {
             output.push(0xa2);
-            push_cbor_bytes(&mut output, "bzzr1", &bzzr1_hash(metadata.as_bytes()));
+            push_cbor_bytes(output, "bzzr1", &bzzr1_hash(metadata.as_bytes()));
         }
         MetadataHash::None => {
             output.push(0xa1);
@@ -189,14 +203,13 @@ fn cbor_metadata(metadata: &str, hash: MetadataHash) -> Vec<u8> {
     }
     let version = semver::Version::parse(SEMVER_VERSION).expect("package version must be semver");
     push_cbor_bytes(
-        &mut output,
+        output,
         "solar",
         &[version.major as u8, version.minor as u8, version.patch as u8],
     );
 
-    let length = u16::try_from(output.len()).expect("contract metadata CBOR is too large");
+    let length = u16::try_from(output.len() - start).expect("contract metadata CBOR is too large");
     output.extend(length.to_be_bytes());
-    output
 }
 
 fn push_cbor_bytes(output: &mut Vec<u8>, key: &str, value: &[u8]) {
@@ -375,8 +388,11 @@ mod tests {
 
     #[test]
     fn cbor_metadata_matches_solc_shape() {
-        let metadata = cbor_metadata("{}", MetadataHash::None);
+        let hash = MetadataHash::None;
+        let mut metadata = Vec::with_capacity(cbor_metadata_len(hash));
+        push_cbor_metadata(&mut metadata, "{}", hash);
         assert_eq!(&metadata[..7], &[0xa1, 0x65, b's', b'o', b'l', b'a', b'r']);
+        assert_eq!(metadata.len(), cbor_metadata_len(hash));
         assert_eq!(
             usize::from(u16::from_be_bytes([
                 metadata[metadata.len() - 2],

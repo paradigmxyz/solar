@@ -110,20 +110,29 @@ fn write_empty_standard_json_output(
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
     let mut output = CompilerOutput::default();
+    let diagnostics = diagnostics.read();
+    finish_standard_json_output(&mut output, source_map, opts, &diagnostics, out)
+}
+
+fn finish_standard_json_output<'a>(
+    output: &mut CompilerOutput<'a>,
+    source_map: Arc<SourceMap>,
+    opts: &CompileOpts,
+    diagnostics: &'a [solar_interface::diagnostics::Diag],
+    out: &mut (dyn Write + Send),
+) -> io::Result<()> {
     let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map, opts.color)
         .ui_testing(opts.unstable.ui_testing)
         .human_kind(opts.error_format_human)
         .terminal_width(opts.diagnostic_width);
-    let diagnostics = diagnostics.read();
     output.errors =
         diagnostics.iter().map(|diagnostic| emitter.solc_diagnostic(diagnostic)).collect();
 
-    if opts.pretty_json {
-        serde_json::to_writer_pretty(out, &output)
-    } else {
-        serde_json::to_writer(out, &output)
+    if output.errors.iter().any(SolcDiagnostic::is_error) {
+        output.contracts.clear();
     }
-    .map_err(Into::into)
+
+    crate::emit::to_json(out, &output, opts.pretty_json).map_err(Into::into)
 }
 
 fn compile(
@@ -295,25 +304,14 @@ fn compile(
                 Ok(())
             })();
 
-            let mut emitter =
-                JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map), opts.color)
-                    .ui_testing(opts.unstable.ui_testing)
-                    .human_kind(opts.error_format_human)
-                    .terminal_width(opts.diagnostic_width);
             let diagnostics = diagnostics.read();
-            output.errors =
-                diagnostics.iter().map(|diagnostic| emitter.solc_diagnostic(diagnostic)).collect();
-            if output.errors.iter().any(SolcDiagnostic::is_error) {
-                output.contracts.clear();
-            }
-            output_result = Some(
-                if opts.pretty_json {
-                    serde_json::to_writer_pretty(&mut *out, &output)
-                } else {
-                    serde_json::to_writer(&mut *out, &output)
-                }
-                .map_err(Into::into),
-            );
+            output_result = Some(finish_standard_json_output(
+                &mut output,
+                Arc::clone(&source_map),
+                opts,
+                &diagnostics,
+                &mut *out,
+            ));
             result
         },
         false,
