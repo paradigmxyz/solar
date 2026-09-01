@@ -142,8 +142,8 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
         let mut module = ir::Module::parse(gcx.sess, source)?;
         ir::validate(gcx, &module);
         if gcx.dcx().has_errors().is_ok() {
-            if has_disasm_dump(gcx) {
-                dump_evm_ir_input_disassembly(gcx, module)?;
+            if has_evm_ir_dump(gcx) || has_disasm_dump(gcx) {
+                dump_evm_ir_input(gcx, module)?;
                 return Ok(());
             }
 
@@ -172,17 +172,24 @@ fn emit_ir_input(gcx: Gcx<'_>) -> Result {
     Ok(())
 }
 
-fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
+fn dump_evm_ir_input(gcx: Gcx<'_>, module: ir::Module) -> Result {
     let dump = gcx.sess.opts.unstable.dump.as_ref().expect("dump options should be present");
     let name = module.name();
-    let bytecode = module.into_bytecode(gcx)?;
+    let artifact = module.assemble(gcx)?;
     let mut writer = console_writer(gcx.sess.opts.color);
+    if dump.kinds.contains(&DumpKind::EvmIr) || dump.kinds.contains(&DumpKind::EvmIrRuntime) {
+        writeln!(writer, "// === {name} (runtime) ===")
+            .and_then(|()| {
+                write_highlighted(&mut writer, artifact.evm_ir.to_text().to_string(), Syntax::Ir)
+            })
+            .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit())?;
+    }
     if dump.kinds.contains(&DumpKind::DisasmDeploy) {
         writeln!(writer, "// === {name} (deployment) ===")
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    evm::disassemble(&artifact.bytecode, gcx.sess.opts.evm_version),
                     Syntax::Disasm,
                 )
             })
@@ -193,7 +200,7 @@ fn dump_evm_ir_input_disassembly(gcx: Gcx<'_>, module: ir::Module) -> Result {
             .and_then(|()| {
                 write_highlighted(
                     &mut writer,
-                    evm::disassemble(&bytecode, gcx.sess.opts.evm_version),
+                    evm::disassemble(&artifact.bytecode, gcx.sess.opts.evm_version),
                     Syntax::Disasm,
                 )
             })

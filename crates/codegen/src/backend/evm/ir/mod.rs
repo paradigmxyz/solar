@@ -95,13 +95,23 @@ pub struct Module {
     pub(crate) enable_size_outlining: bool,
 }
 
+/// Bytecode and the final EVM IR that produced it.
+#[derive(Clone, Debug)]
+pub struct AssemblyArtifact {
+    /// Final bytecode.
+    pub bytecode: Vec<u8>,
+    /// Final EVM IR immediately before byte emission.
+    pub evm_ir: Module,
+}
+
 impl Module {
-    /// Lowers this EVM IR module to bytecode.
-    pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
+    /// Runs this module through final EVM assembly.
+    pub fn assemble(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<AssemblyArtifact> {
         let mut assembler = super::assembler::Assembler::from_evm_ir(gcx, self)?;
         let result = assembler.assemble_with_evm_ir(true);
         gcx.dcx().has_errors()?;
-        Ok(result.bytecode)
+        let evm_ir = result.evm_ir.expect("captured EVM IR must be present");
+        Ok(AssemblyArtifact { bytecode: result.bytecode, evm_ir })
     }
 
     /// Parses textual EVM IR.
