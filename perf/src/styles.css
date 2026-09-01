@@ -70,7 +70,7 @@ footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--m
 .header-row > span:first-child { text-align: left; }
 .result:hover, .result.selected { background: var(--raised); }
 .header-row { color: var(--muted); font: 10px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; cursor: default; }
-.good { color: var(--good); }.bad { color: var(--bad); }
+.good { color: var(--good); }.bad { color: var(--bad); }.neutral { color: var(--muted); }
 .artifacts { margin-top: 44px; border: 1px solid var(--line); background: var(--surface); scroll-margin-top: 20px; }
 .artifact-head { min-height: 76px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
 .artifact-head h2 { margin: 0; font-size: 17px; }.artifact-head .eyebrow { margin-bottom: 4px; }

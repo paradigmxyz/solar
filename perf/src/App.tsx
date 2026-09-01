@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
+import { changeClass, formatChange } from './change'
 import { loadIndex } from './data'
 import type { MetricSummary, RunIndex, RunSummary, Theme } from './types'
 import { Compare } from './Compare'
@@ -48,7 +49,7 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
     <section className="graph-card">
       <div className="graph-heading">
         <h2>{title}</h2>
-        {latest !== undefined && <div><strong>{formatValue(latest, unit)}</strong><span className={change !== null && change > 0 ? 'bad' : 'good'}>{change === null ? '' : `${change > 0 ? '+' : ''}${change.toFixed(2)}%`}</span></div>}
+        {latest !== undefined && <div><strong>{formatValue(latest, unit)}</strong><span className={changeClass(change)}>{formatChange(change)}</span></div>}
       </div>
       {points.length < 2 ? <div className="empty-graph">Waiting for two main-branch runs.</div> : <>
         <div className="chart-body">
