@@ -1,21 +1,21 @@
 //@ codegen-matrix: standard
-//@ run-call: Modifiers::guarded(uint256) 3 => 4
-//@ run-call-fail: Modifiers::guarded(uint256) 11 => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000056775617264000000000000000000000000000000000000000000000000000000
-//@ run-call: Modifiers::orderFull(uint256) 0 => 1110221032919
-//@ run-call: Modifiers::double(uint256) 5 => 10
-//@ run-call: Modifiers::maybe(bool) true => 0
-//@ run-call: Modifiers::maybe(bool) false => 7
-//@ run-call: Modifiers::retMid() => 9
-//@ run-call: Modifiers::lazy(bool) true => 0
-//@ run-call: Modifiers::clamped(uint256) 9 => 5
-//@ run-call: Modifiers::clamped(uint256) 2 => 2
-//@ run-call: Modifiers::repeated() => 212111
-//@ run-call: Modifiers::literalString() => "abc"
-//@ run-call: Modifiers::literalBytes() => 0x11223344
-//@ run-call: Modifiers::calldataBytes(bytes) 0x7061796c6f6164 => 0x7061796c6f6164
-//@ run-call: ModBase::guardedV() => 1
-//@ run-call: ModDerived::guardedV() => 100
-//@ run-call: CtorMod::v() => 50
+//@ run-call: Modifiers::guarded 3 => 4
+//@ run-call-fail: Modifiers::guarded 11 => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000056775617264000000000000000000000000000000000000000000000000000000
+//@ run-call: Modifiers::orderFull 0 => 1110221032919
+//@ run-call: Modifiers::double 5 => 10
+//@ run-call: Modifiers::maybe true => 0
+//@ run-call: Modifiers::maybe false => 7
+//@ run-call: Modifiers::retMid => 9
+//@ run-call: Modifiers::lazy true => 0
+//@ run-call: Modifiers::clamped 9 => 5
+//@ run-call: Modifiers::clamped 2 => 2
+//@ run-call: Modifiers::repeated => 212111
+//@ run-call: Modifiers::literalString => "abc"
+//@ run-call: Modifiers::literalBytes => 0x11223344
+//@ run-call: Modifiers::calldataBytes 0x7061796c6f6164 => 0x7061796c6f6164
+//@ run-call: ModBase::guardedV => 1
+//@ run-call: ModDerived::guardedV => 100
+//@ run-call: CtorMod::v => 50
 
 // Function modifiers inline around the body, solc-style: arguments evaluate
 // lazily per level, each placeholder re-runs the inner chain, a `return`

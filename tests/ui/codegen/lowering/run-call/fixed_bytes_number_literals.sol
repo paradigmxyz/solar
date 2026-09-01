@@ -1,18 +1,18 @@
 //@ codegen-matrix: standard
-//@ run-call: FixedBytesLiterals::viaExternal() => 16909060
-//@ run-call: FixedBytesLiterals::viaInternal() => 0x11223344
-//@ run-call: FixedBytesLiterals::viaLibrary() => 0x21222324
-//@ run-call: FixedBytesLiterals::retLit() => 0xaabbccdd
-//@ run-call: FixedBytesLiterals::declLit() => 0x55667788
-//@ run-call: FixedBytesLiterals::assignLit() => 0x66778899
-//@ run-call: FixedBytesLiterals::mapKeyCross() => 5
-//@ run-call: FixedBytesLiterals::compareControl() => true
-//@ run-call: FixedBytesLiterals::bytesObjectCast() => 0x93dafdf1
-//@ run-call: FixedBytesLiterals::returnedBytesObjectCast() => 14
-//@ run-call: FixedBytesLiterals::calldataSliceCast() => 0x1122334455000000000000000000000000000000000000000000000000000000
-//@ run-call: FixedBytesLiterals::stringAddressCast() => 0x6d696c6164790000000000000000000000000000
-//@ run-call: FixedBytesLiterals::emptyStringCompare() => true
-//@ run-call: FixedBytesLiterals::stateLiterals() => 0x11223344, 0xaabb, 0x55667788
+//@ run-call: FixedBytesLiterals::viaExternal => 16909060
+//@ run-call: FixedBytesLiterals::viaInternal => 0x11223344
+//@ run-call: FixedBytesLiterals::viaLibrary => 0x21222324
+//@ run-call: FixedBytesLiterals::retLit => 0xaabbccdd
+//@ run-call: FixedBytesLiterals::declLit => 0x55667788
+//@ run-call: FixedBytesLiterals::assignLit => 0x66778899
+//@ run-call: FixedBytesLiterals::mapKeyCross => 5
+//@ run-call: FixedBytesLiterals::compareControl => true
+//@ run-call: FixedBytesLiterals::bytesObjectCast => 0x93dafdf1
+//@ run-call: FixedBytesLiterals::returnedBytesObjectCast => 14
+//@ run-call: FixedBytesLiterals::calldataSliceCast => 0x1122334455000000000000000000000000000000000000000000000000000000
+//@ run-call: FixedBytesLiterals::stringAddressCast => 0x6d696c6164790000000000000000000000000000
+//@ run-call: FixedBytesLiterals::emptyStringCompare => true
+//@ run-call: FixedBytesLiterals::stateLiterals => 0x11223344, 0xaabb, 0x55667788
 
 // A bare numeric literal used where `bytesN` is expected keeps its numeric
 // sema type, so plain lowering yields the right-aligned integer word; every

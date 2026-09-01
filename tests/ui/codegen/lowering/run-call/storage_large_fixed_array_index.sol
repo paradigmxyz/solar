@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 7, 8
-//@ run-call: hasExpectedLength() => true
-//@ run-call: read(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffff => 0
-//@ run-call-fail: read(uint256) 0x100000000000000000000000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: test => 7, 8
+//@ run-call: hasExpectedLength => true
+//@ run-call: read 0xffffffffffffffffffffffffffffffffffffffffffffffffff => 0
+//@ run-call-fail: read 0x100000000000000000000000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
 contract StorageLargeFixedArrayIndex {
     mapping(uint256 => uint256[2][2 ** 200]) private arrays;

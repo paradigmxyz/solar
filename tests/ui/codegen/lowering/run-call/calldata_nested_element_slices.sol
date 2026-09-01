@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: CalldataNestedElementSlices::nestedBytes() => 5
-//@ run-call: CalldataNestedElementSlices::structMember() => 3, true
-//@ run-call: CalldataNestedElementSlices::tupleTernary() => 2
+//@ run-call: CalldataNestedElementSlices::nestedBytes => 5
+//@ run-call: CalldataNestedElementSlices::structMember => 3, true
+//@ run-call: CalldataNestedElementSlices::tupleTernary => 2
 
 contract CalldataNestedElementSlices {
     struct Execution {

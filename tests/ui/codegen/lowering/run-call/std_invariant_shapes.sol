@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call: Shapes::pushAndReadContracts() => 2, 0x00000000000000000000000000000000000000aa
-//@ run-call: Shapes::pushAndReadSelectors() => 1, 2, 0x12345678
+//@ run-call: Shapes::pushAndReadContracts => 2, 0x00000000000000000000000000000000000000aa
+//@ run-call: Shapes::pushAndReadSelectors => 1, 2, 0x12345678
 
 // The StdInvariant bookkeeping shapes: storage arrays of addresses and of
 // structs with dynamic-array members, written through internal helpers and

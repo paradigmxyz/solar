@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: IndexedEventFunctionBytes::emitEvent()
+//@ run-call: IndexedEventFunctionBytes::emitEvent
 
 contract IndexedEventFunctionBytes {
     struct Payload {

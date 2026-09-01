@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 45
+//@ run-call: test => 45
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_struct_array_multislot.sol
 
 contract StorageBoundaryStructArrayMultislot {

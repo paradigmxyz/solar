@@ -2,8 +2,8 @@
 //@[mir] filecheck: --check-prefix=MIR
 //@[optimized] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[optimized] filecheck: --check-prefix=OPT
-//@ run-call: CodeFactory::deployCreationCode() => 7
-//@ run-call: CodeFactory::runtimeCodeMatches() => true
+//@ run-call: CodeFactory::deployCreationCode => 7
+//@ run-call: CodeFactory::runtimeCodeMatches => true
 
 contract CodeTarget {
     function value() external pure returns (uint256) {

@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: fromCall() => 10, 31, 41, 7
-//@ run-call: fromTuple() => 10, 31, 41, 7
-//@ run-call: fromFunctionPointer() => 10, 31, 41, 7
-//@ run-call: fromDeclaration() => 10, 31, 7
+//@ run-call: fromCall => 10, 31, 41, 7
+//@ run-call: fromTuple => 10, 31, 41, 7
+//@ run-call: fromFunctionPointer => 10, 31, 41, 7
+//@ run-call: fromDeclaration => 10, 31, 7
 
 contract NestedStorageReferenceTuple {
     struct Item {

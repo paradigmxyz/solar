@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 0xa7a0d537
+//@ run-call: test => 0xa7a0d537
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_call_memory_v2.sol
 
 contract AbiEncodeCallMemoryTarget {

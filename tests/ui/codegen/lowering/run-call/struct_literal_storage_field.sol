@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: C::dynField() => 1
-//@ run-call: C::structField() => 1
-//@ run-call: C::fixedField() => 1
+//@ run-call: C::dynField => 1
+//@ run-call: C::structField => 1
+//@ run-call: C::fixedField => 1
 
 // A memory struct literal whose field argument lives in storage must
 // materialize a memory copy. Struct member types keep their declared storage

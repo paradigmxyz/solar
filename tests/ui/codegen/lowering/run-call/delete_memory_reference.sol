@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: array() => 0, 1, 7
-//@ run-call: bytesValue() => 0, 2, 0xabcd
+//@ run-call: array => 0, 1, 7
+//@ run-call: bytesValue => 0, 2, 0xabcd
 
 contract DeleteMemoryReference {
     function array() external pure returns (uint256, uint256, uint256) {

@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: compound() => 1, 17, 20
-//@ run-call: postIncrement() => 1, 11, 20
-//@ run-call: pushSideEffect() => 2, 9, 7
+//@ run-call: compound => 1, 17, 20
+//@ run-call: postIncrement => 1, 11, 20
+//@ run-call: pushSideEffect => 2, 9, 7
 
 contract LValueEvaluationOrder {
     uint256[] values;

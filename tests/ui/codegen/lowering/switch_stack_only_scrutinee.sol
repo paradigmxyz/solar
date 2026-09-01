@@ -1,7 +1,7 @@
 //@ compile-flags: -Ogas
-//@ run-call: outer(uint256,uint256) 0, 0 => 2
-//@ run-call: outer(uint256,uint256) 3, 5 => 30
-//@ run-call: outer(uint256,uint256) 0, 7 => 0
+//@ run-call: outer 0, 0 => 2
+//@ run-call: outer 3, 5 => 30
+//@ run-call: outer 0, 7 => 0
 
 // A shared static helper keeps its arguments stack-resident with no memory
 // home. Nested switches consume them as scrutinees: the inner switch reaches

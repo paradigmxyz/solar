@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: run() => 2
+//@ run-call: run => 2
 
 contract DynamicSink {
     uint256 public calls;

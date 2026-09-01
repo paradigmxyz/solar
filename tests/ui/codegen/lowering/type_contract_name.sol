@@ -1,10 +1,10 @@
-//@ run-call: concrete() => "ConcreteTarget"
-//@ run-call: abstractContract() => "AbstractTarget"
-//@ run-call: interfaceContract() => "InterfaceTarget"
-//@ run-call: libraryContract() => "LibraryTarget"
-//@ run-call: parenthesized() => "ConcreteTarget"
-//@ run-call: constantName() => "ConcreteTarget"
-//@ run-call: longName() => "ContractNameLongerThanThirtyTwoBytes"
+//@ run-call: concrete => "ConcreteTarget"
+//@ run-call: abstractContract => "AbstractTarget"
+//@ run-call: interfaceContract => "InterfaceTarget"
+//@ run-call: libraryContract => "LibraryTarget"
+//@ run-call: parenthesized => "ConcreteTarget"
+//@ run-call: constantName => "ConcreteTarget"
+//@ run-call: longName => "ContractNameLongerThanThirtyTwoBytes"
 // ported-from: test/libsolidity/semanticTests/metaTypes/name_other_contract.sol
 
 abstract contract AbstractTarget {

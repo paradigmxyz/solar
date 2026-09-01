@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: StorageAggregateRegressions::run() => 1
+//@ run-call: StorageAggregateRegressions::run => 1
 
 contract StorageAggregateRegressions {
     struct Pair {

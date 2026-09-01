@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: fixedLength() => 0
-//@ run-call: dynamicLength(uint256) 8 => 4
-//@ run-call: dynamicLength(uint256) 9 => 0
-//@ run-call: exactSlotBoundary() => 4
+//@ run-call: fixedLength => 0
+//@ run-call: dynamicLength 8 => 4
+//@ run-call: dynamicLength 9 => 0
+//@ run-call: exactSlotBoundary => 4
 // ported-from: test/libsolidity/semanticTests/array/copying/cleanup_during_multi_element_per_slot_copy.sol
 
 contract StorageArrayAssignmentPackedTail {

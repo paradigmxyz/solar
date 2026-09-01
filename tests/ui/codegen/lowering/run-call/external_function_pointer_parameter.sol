@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f(uint256) 7 => 8
-//@ run-call: f2(uint256) 7 => 8
+//@ run-call: f 7 => 8
+//@ run-call: f2 7 => 8
 // ported-from: test/libsolidity/semanticTests/functionTypes/pass_function_types_externally.sol
 
 contract ExternalFunctionPointerParameter {

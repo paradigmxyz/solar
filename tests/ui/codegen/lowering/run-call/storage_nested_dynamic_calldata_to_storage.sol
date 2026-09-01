@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test(uint8[][][]) [[[0], [7]], [[7], [8, 9]]]
-//@ run-call: test2(uint8[][]) [[7], [8, 9]]
+//@ run-call: test [[[0], [7]], [[7], [8, 9]]]
+//@ run-call: test2 [[7], [8, 9]]
 // ported-from: test/libsolidity/semanticTests/array/copying/nested_dynamic_array_element_calldata_to_storage.sol
 
 contract StorageNestedDynamicCalldataToStorage {

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f(uint256[]) [1, 7, 3] => 11
+//@ run-call: f [1, 7, 3] => 11
 // ported-from: test/libsolidity/semanticTests/functionTypes/function_type_library_internal.sol
 
 library InternalFunctionPointerLibraryUtils {

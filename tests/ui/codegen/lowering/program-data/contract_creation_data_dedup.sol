@@ -2,9 +2,9 @@
 //@[mir] filecheck: --check-prefix=MIR
 //@[optimized] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[optimized] filecheck: --check-prefix=OPT
-//@ run-call: Factory::first() => 7
-//@ run-call: Factory::second() => 7
-//@ run-call: Factory::pair() => 14
+//@ run-call: Factory::first => 7
+//@ run-call: Factory::second => 7
+//@ run-call: Factory::pair => 14
 
 contract Child {
     function value() external pure returns (uint256) {

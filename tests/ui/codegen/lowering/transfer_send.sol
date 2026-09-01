@@ -1,5 +1,5 @@
-//@ run-call: TransferSend::sendValue(); value=1 => false
-//@ run-call-fail: TransferSend::transferValue(); value=1 => 0xdeadbeef
+//@ run-call: TransferSend::sendValue; value=1 => false
+//@ run-call-fail: TransferSend::transferValue; value=1 => 0xdeadbeef
 
 contract GasReceiver {
     receive() external payable {

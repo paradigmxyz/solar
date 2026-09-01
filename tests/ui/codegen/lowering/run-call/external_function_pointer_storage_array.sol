@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: runAll() => "[a called][b called][a called][b called][a called][b called]"
+//@ run-call: runAll => "[a called][b called][a called][b called][a called][b called]"
 // ported-from: test/libsolidity/semanticTests/array/copying/function_type_array_to_storage.sol
 
 contract ExternalFunctionPointerStorageArray {

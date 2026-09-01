@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f(bytes32) 0x0000000000000000000000000000000000000000000000000000000000000000 => 32, 16, 8
-//@ run-call: sideEffect() => 4, 1
+//@ run-call: f 0x0000000000000000000000000000000000000000000000000000000000000000 => 32, 16, 8
+//@ run-call: sideEffect => 4, 1
 // ported-from: test/libsolidity/semanticTests/array/fixed_bytes_length_access.sol
 
 contract C {

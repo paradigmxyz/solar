@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Positions::run() => 5, 5, 12
+//@ run-call: Positions::run => 5, 5, 12
 
 // Storage references returned through named returns, and mappings nested in
 // structs reached through runtime storage-reference slots.

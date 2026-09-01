@@ -1,16 +1,16 @@
 //@ codegen-matrix: standard
-//@ run-call: trimLen(bytes) 0x010203 => 3
-//@ run-call: trimLen(bytes) 0x010203040506 => 2
-//@ run-call: repeatedSourceJoin(bool,uint256,uint256) true, 7, 9 => 7, 7
-//@ run-call: repeatedSourceJoin(bool,uint256,uint256) false, 7, 9 => 9, 7
-//@ run-call: loopJoin(uint256) 0 => 0
-//@ run-call: loopJoin(uint256) 4 => 12
-//@ run-call: nestedLoops(uint256,uint256) 3, 4 => 42
-//@ run-call: conditionalSelfLoop(uint256,uint256) 0, 4 => 0
-//@ run-call: conditionalSelfLoop(uint256,uint256) 3, 0 => 0
-//@ run-call: conditionalSelfLoop(uint256,uint256) 3, 4 => 42
-//@ run-call: emptyExitSelfLoop(uint256) 0 => 7
-//@ run-call: emptyExitSelfLoop(uint256) 4 => 7
+//@ run-call: trimLen 0x010203 => 3
+//@ run-call: trimLen 0x010203040506 => 2
+//@ run-call: repeatedSourceJoin true, 7, 9 => 7, 7
+//@ run-call: repeatedSourceJoin false, 7, 9 => 9, 7
+//@ run-call: loopJoin 0 => 0
+//@ run-call: loopJoin 4 => 12
+//@ run-call: nestedLoops 3, 4 => 42
+//@ run-call: conditionalSelfLoop 0, 4 => 0
+//@ run-call: conditionalSelfLoop 3, 0 => 0
+//@ run-call: conditionalSelfLoop 3, 4 => 42
+//@ run-call: emptyExitSelfLoop 0 => 7
+//@ run-call: emptyExitSelfLoop 4 => 7
 
 contract AcyclicStackPhi {
     function trimLen(bytes calldata data) external pure returns (uint256) {

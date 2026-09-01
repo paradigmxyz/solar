@@ -1,11 +1,11 @@
 //@ codegen-matrix: standard
-//@ run-call: libLiteral() => 3
-//@ run-call: libConstant() => 20
-//@ run-call: libHex() => 2
-//@ run-call: libLong() => 40
-//@ run-call: literalContent() => 0x6869000000000000000000000000000000000000000000000000000000000000
-//@ run-call: encodeConstant() => 132
-//@ run-call: encodeConstantCast() => 100
+//@ run-call: libLiteral => 3
+//@ run-call: libConstant => 20
+//@ run-call: libHex => 2
+//@ run-call: libLong => 40
+//@ run-call: literalContent => 0x6869000000000000000000000000000000000000000000000000000000000000
+//@ run-call: encodeConstant => 132
+//@ run-call: encodeConstantCast => 100
 
 // A string/bytes literal or a `constant` string reference passed to an
 // internal function lowers to its content word unless it is materialized as a

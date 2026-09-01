@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: andSkipsRhs() => 0, false
-//@ run-call: orSkipsRhs() => 0, true
-//@ run-call: andRunsRhs() => 1, true
-//@ run-call: orRunsRhs() => 1, true
+//@ run-call: andSkipsRhs => 0, false
+//@ run-call: orSkipsRhs => 0, true
+//@ run-call: andRunsRhs => 1, true
+//@ run-call: orRunsRhs => 1, true
 
 contract LogicalShortCircuit {
     uint256 calls;

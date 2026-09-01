@@ -2,18 +2,18 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: add 2 => 42
-//@ run-call: negate(bool) true => false
+//@ run-call: negate true => false
 //@ run-call: pair 41, true => 42, false
-//@ run-call: sum(uint256[]) [1, 2, 3] => 6
+//@ run-call: sum [1, 2, 3] => 6
 //@ run-call: sum [] => 0
-//@ run-call: add(uint256) 2 => 42
+//@ run-call: add 2 => 42
 //@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
 //@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call: increment => 41
-//@ run-call: testInline()
+//@ run-call: testInline
 //@ run-call: fullyInitializedNamedStruct => ([0], 0x00)
-//@ run-call: reservedSpillFreshness(bool) true => 83
-//@ run-call: reservedSpillFreshness(bool) false => 137
+//@ run-call: reservedSpillFreshness true => 83
+//@ run-call: reservedSpillFreshness false => 137
 
 contract RunCall {
     struct DynamicHolder {

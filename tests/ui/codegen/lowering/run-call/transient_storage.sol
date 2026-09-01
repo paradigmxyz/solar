@@ -1,12 +1,12 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: TransientStorage::separateSpaces(uint256,uint256) 11, 22 => 11, 22, 11, 22, 0, 0
-//@ run-call: TransientStorage::packed() => 4386, 13124, 860098850
-//@ run-call: TransientStorage::signed() => -2
-//@ run-call: TransientStorage::clear() => 0, 0
-//@ run-call: TransientStorage::getter() => 77
-//@ run-call: TransientModifier::run() => 100
+//@ run-call: TransientStorage::separateSpaces 11, 22 => 11, 22, 11, 22, 0, 0
+//@ run-call: TransientStorage::packed => 4386, 13124, 860098850
+//@ run-call: TransientStorage::signed => -2
+//@ run-call: TransientStorage::clear => 0, 0
+//@ run-call: TransientStorage::getter => 77
+//@ run-call: TransientModifier::run => 100
 // ported-from: test/libsolidity/semanticTests/operators/compound_assign_transient_storage.sol
 // ported-from: test/libsolidity/semanticTests/modifiers/transient_state_variable_value_type.sol
 

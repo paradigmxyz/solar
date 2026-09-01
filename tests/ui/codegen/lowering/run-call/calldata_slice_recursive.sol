@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: use(bytes) 0x010203 => 1
-//@ run-call: use(bytes) 0x01 => 1
+//@ run-call: use 0x010203 => 1
+//@ run-call: use 0x01 => 1
 
 contract CalldataSliceRecursive {
     function peel(bytes calldata data)

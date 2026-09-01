@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: clearNested() => 0, 0, 0, 0, 0, 0
-//@ run-call: clearMutual() => 0, 0, 0, 0, 0, 0
+//@ run-call: clearNested => 0, 0, 0, 0, 0, 0
+//@ run-call: clearMutual => 0, 0, 0, 0, 0, 0
 
 contract StorageDeleteRecursiveStruct {
     struct Node {

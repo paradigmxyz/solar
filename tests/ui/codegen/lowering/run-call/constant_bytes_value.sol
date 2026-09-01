@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call: length() => 40
-//@ run-call: firstWord() => 0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+//@ run-call: length => 40
+//@ run-call: firstWord => 0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
 
 contract ConstantBytesValue {
     bytes internal constant DATA =

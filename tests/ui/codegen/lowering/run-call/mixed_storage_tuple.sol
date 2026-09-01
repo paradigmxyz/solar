@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test_g() => 1, 7
-//@ run-call: test_h() => 43
-//@ run-call: mapping_reference() => 42, 0, 0, 21
+//@ run-call: test_g => 1, 7
+//@ run-call: test_h => 43
+//@ run-call: mapping_reference => 42, 0, 0, 21
 
 contract C {
     struct S {

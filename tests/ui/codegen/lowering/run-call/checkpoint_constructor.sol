@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call: CheckpointConstructor::deploy() => 5090
-//@ run-call: CheckpointConstructor::multiReturn() => 18
+//@ run-call: CheckpointConstructor::deploy => 5090
+//@ run-call: CheckpointConstructor::multiReturn => 18
 
 library PackedCheckpoints {
     struct Trace {

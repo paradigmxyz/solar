@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: AbiEncodePackedExternalFunction::matches() => true
+//@ run-call: AbiEncodePackedExternalFunction::matches => true
 
 contract AbiEncodePackedExternalFunction {
     function target() external {}

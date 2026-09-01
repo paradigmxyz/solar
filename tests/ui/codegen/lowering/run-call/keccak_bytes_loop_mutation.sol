@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: hashTracksWrites() => true
+//@ run-call: hashTracksWrites => true
 
 contract KeccakBytesLoopMutation {
     function hashTracksWrites() external pure returns (bool) {

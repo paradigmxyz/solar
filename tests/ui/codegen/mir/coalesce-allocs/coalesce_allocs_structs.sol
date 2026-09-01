@@ -2,8 +2,8 @@
 //@[ir] compile-flags: -Ogas -Zdump=mir
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
-//@ run-call: combine(uint256) 5 => 13
-//@ run-call: combine(uint256) 0 => 3
+//@ run-call: combine 5 => 13
+//@ run-call: combine 0 => 3
 
 contract CoalesceAllocsFixture {
     struct Inner {

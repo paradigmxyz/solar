@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: run() => 1
+//@ run-call: run => 1
 
 contract NestedConstructor {
     bytes32 public firstHash;

@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: assign() => -1
+//@ run-call: assign => -1
 
 contract StorageStructNegativeConstant {
     struct Value {

@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: choose(bool) true => 7, 0
-//@ run-call: choose(bool) false => 0, 7
-//@ run-call: chooseArray(bool) true => 11
-//@ run-call: chooseArray(bool) false => 22
+//@ run-call: choose true => 7, 0
+//@ run-call: choose false => 0, 7
+//@ run-call: chooseArray true => 11
+//@ run-call: chooseArray false => 22
 
 contract TernaryStorageReference {
     struct S {

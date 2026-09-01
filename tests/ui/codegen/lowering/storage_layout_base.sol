@@ -1,11 +1,11 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: LayoutSlots::slots() => 7, 0, 7, 1, 8, 0
-//@ run-call: LayoutStorage::store(uint256) 99 => 99, 99
-//@ run-call: LayoutDerived::slots() => 2, 3, 4
-//@ run-call: LayoutTransient::slots() => 0, 7
-//@ run-call: LayoutErc7201::matchesReference() => true
+//@ run-call: LayoutSlots::slots => 7, 0, 7, 1, 8, 0
+//@ run-call: LayoutStorage::store 99 => 99, 99
+//@ run-call: LayoutDerived::slots => 2, 3, 4
+//@ run-call: LayoutTransient::slots => 0, 7
+//@ run-call: LayoutErc7201::matchesReference => true
 
 function erc7201Reference(string memory namespace) pure returns (uint256) {
     return uint256(

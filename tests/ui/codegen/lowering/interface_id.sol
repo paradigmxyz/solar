@@ -1,6 +1,6 @@
-//@ run-call: parentId() => 0xc6be8b58
-//@ run-call: derivedId() => 0x85295877
-//@ run-call: emptyId() => 0x00000000
+//@ run-call: parentId => 0xc6be8b58
+//@ run-call: derivedId => 0x85295877
+//@ run-call: emptyId => 0x00000000
 
 interface Empty {}
 

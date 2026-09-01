@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Test::run() => 0x1234
+//@ run-call: Test::run => 0x1234
 
 // An inlined multi-return callee stages its tail values in the caller's
 // compiler-owned frame. The projection reads the published base through

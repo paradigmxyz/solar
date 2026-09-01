@@ -1,4 +1,4 @@
-//@ run-call: length(uint256[]) [7, 11, 13] => 3
+//@ run-call: length [7, 11, 13] => 3
 
 contract CalldataTupleAssignmentToMemory {
     function length(uint256[] calldata values) external pure returns (uint256) {

@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: ExternalMemoryNestedArray::test() => true
+//@ run-call: ExternalMemoryNestedArray::test => true
 
 contract ExternalMemoryNestedArray {
     struct Item {

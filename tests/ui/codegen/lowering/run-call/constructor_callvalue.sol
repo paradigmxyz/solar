@@ -1,11 +1,11 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorCallvalue::rejectsExplicit(); value=1 => true
-//@ run-call: ConstructorCallvalue::rejectsImplicit(); value=1 => true
-//@ run-call: ConstructorCallvalue::rejectsSynthetic(); value=1 => true
-//@ run-call: ConstructorCallvalue::rejectsInherited(); value=1 => true
-//@ run-call: ConstructorCallvalue::acceptsPayable(); value=1 => true
+//@ run-call: ConstructorCallvalue::rejectsExplicit; value=1 => true
+//@ run-call: ConstructorCallvalue::rejectsImplicit; value=1 => true
+//@ run-call: ConstructorCallvalue::rejectsSynthetic; value=1 => true
+//@ run-call: ConstructorCallvalue::rejectsInherited; value=1 => true
+//@ run-call: ConstructorCallvalue::acceptsPayable; value=1 => true
 
 contract ExplicitNonpayable {
     constructor(uint256) {}

@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f(bool) false => true
-//@ run-call: f(bool) true => false
+//@ run-call: f false => true
+//@ run-call: f true => false
 
 contract TryCreationChild {
     constructor(bool fail) {

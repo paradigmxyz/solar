@@ -1,7 +1,7 @@
 //@ revisions: mir runtime
 //@[mir] compile-flags: -O none -Zdump=mir
 //@[mir] filecheck:
-//@ run-call: callEntry(uint256) 41 => 42
+//@ run-call: callEntry 41 => 42
 
 contract InternalCallFallbacks {
     // CHECK-LABEL: fn @recurse{{[( ]}}

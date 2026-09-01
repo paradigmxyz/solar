@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: callExternal() => true
+//@ run-call: callExternal => true
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_call_v2.sol
 
 contract AbiEncodeCallV2 {

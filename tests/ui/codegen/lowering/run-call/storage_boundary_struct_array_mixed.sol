@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 1000, true
+//@ run-call: test => 1000, true
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_struct_array_mixed_types.sol
 
 contract StorageBoundaryStructArrayMixed {

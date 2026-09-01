@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call-fail: CheckedConstants::underflow() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call: CheckedConstants::uncheckedNarrow() => true
-//@ run-call: CheckedConstants::narrowShift() => true
+//@ run-call-fail: CheckedConstants::underflow => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: CheckedConstants::uncheckedNarrow => true
+//@ run-call: CheckedConstants::narrowShift => true
 
 contract CheckedConstants {
     uint256 constant A = 100;

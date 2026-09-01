@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: storeCalldata((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@ run-call: storeMemory((uint8,uint16,bytes2,uint8)) (1, 255, 0x6162, 15) => 26612
-//@ run-call: storeSmall(uint16[]) [1, 2, 3] => 2
-//@ run-call: storeLeft(bytes2[]) [0x6162, 0x6364, 0x6566] => 99
+//@ run-call: storeCalldata (1, 255, 0x6162, 15) => 26612
+//@ run-call: storeMemory (1, 255, 0x6162, 15) => 26612
+//@ run-call: storeSmall [1, 2, 3] => 2
+//@ run-call: storeLeft [0x6162, 0x6364, 0x6566] => 99
 // ported-from: test/libsolidity/semanticTests/userDefinedValueType/calldata_to_storage.sol
 // ported-from: test/libsolidity/semanticTests/userDefinedValueType/memory_to_storage.sol
 

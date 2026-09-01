@@ -1,6 +1,6 @@
-//@ run-call: Derived::exact() => 2
-//@ run-call: Derived::dynamic() => 101
-//@ run-call: Concrete::through() => 7
+//@ run-call: Derived::exact => 2
+//@ run-call: Derived::dynamic => 101
+//@ run-call: Concrete::through => 7
 
 contract Base {
     function value(uint256 x) internal pure virtual returns (uint256) {

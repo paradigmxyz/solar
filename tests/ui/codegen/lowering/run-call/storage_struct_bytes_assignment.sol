@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: StorageStructBytesAssignment::roundTrip() => 9, 96
+//@ run-call: StorageStructBytesAssignment::roundTrip => 9, 96
 
 contract StorageStructBytesAssignment {
     struct State {

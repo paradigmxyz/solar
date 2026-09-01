@@ -1,16 +1,16 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: wrapBytes1() => 0x01
-//@ run-call: wrapBytes2() => 0x0102
-//@ run-call: wrapBytes4() => 0x01020304
-//@ run-call: wrapBytes32() => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
-//@ run-call: overloadedOr() => 0x03
-//@ run-call: literalReturn() => 0x01
-//@ run-call: widen() => 0x0100
-//@ run-call: roundTrip(bytes1) 0xab => 0xab
-//@ run-call: encodeSelector(bytes4) 0x12345678 => 0x12345678
-//@ run-call: encodeLocalSelector() => 0x12345678
+//@ run-call: wrapBytes1 => 0x01
+//@ run-call: wrapBytes2 => 0x0102
+//@ run-call: wrapBytes4 => 0x01020304
+//@ run-call: wrapBytes32 => 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+//@ run-call: overloadedOr => 0x03
+//@ run-call: literalReturn => 0x01
+//@ run-call: widen => 0x0100
+//@ run-call: roundTrip 0xab => 0xab
+//@ run-call: encodeSelector 0x12345678 => 0x12345678
+//@ run-call: encodeLocalSelector => 0x12345678
 
 type Byte is bytes1;
 type TwoBytes is bytes2;

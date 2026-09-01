@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: tupleLiteral() => true
-//@ run-call: tupleTernary() => true, 2
+//@ run-call: tupleLiteral => true
+//@ run-call: tupleTernary => true, 2
 // ported-from: test/libsolidity/semanticTests/expressions/tuple_from_ternary_expression.sol
 contract C {
     function tupleLiteral() external pure returns (bool) {

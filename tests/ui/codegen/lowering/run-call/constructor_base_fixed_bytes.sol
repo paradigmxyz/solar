@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorBaseFixedBytes::value() => 0x616263
+//@ run-call: ConstructorBaseFixedBytes::value => 0x616263
 
 contract ConstructorBaseFixedBytesBase {
     bytes3 public value;

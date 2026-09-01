@@ -1,13 +1,13 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: readCalldata(string) "abc" => 7
-//@ run-call: readMemory(string) "abc" => 7
-//@ run-call: readMemoryFmp(string) "abc" => true
-//@ run-call: callReadMemory(string) "abc" => 7
-//@ run-call: readStorage() => 7
-//@ run-call: readLongLiteral() => 11
-//@ run-call: overwriteShort() => 13
+//@ run-call: readCalldata "abc" => 7
+//@ run-call: readMemory "abc" => 7
+//@ run-call: readMemoryFmp "abc" => true
+//@ run-call: callReadMemory "abc" => 7
+//@ run-call: readStorage => 7
+//@ run-call: readLongLiteral => 11
+//@ run-call: overwriteShort => 13
 
 contract MappingDynamicLiteral {
     string private key;

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: read() => 1, 2
+//@ run-call: read => 1, 2
 // ported-from: test/libsolidity/semanticTests/functionTypes/struct_with_external_function.sol
 
 contract ExternalFunctionPointerStorageStruct {

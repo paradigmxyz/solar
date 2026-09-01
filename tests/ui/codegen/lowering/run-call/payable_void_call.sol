@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Caller::run() => 7
+//@ run-call: Caller::run => 7
 
 // A void payable external function called after a local emit.
 

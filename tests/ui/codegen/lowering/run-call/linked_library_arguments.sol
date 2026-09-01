@@ -1,12 +1,12 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test_value() => 42
-//@ run-call: test_storage_view() => 0
-//@ run-call: test_storage_write() => 1
-//@ run-call: test_multi() => 7, 8
+//@ run-call: test_value => 42
+//@ run-call: test_storage_view => 0
+//@ run-call: test_storage_write => 1
+//@ run-call: test_multi => 7, 8
 //@ run-call: test_calldata [1, 2, 3] => 1
-//@ run-call: test_using() => 15
+//@ run-call: test_using => 15
 
 library Lib {
     struct S {

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => true
+//@ run-call: test => true
 // ported-from: test/libsolidity/semanticTests/structs/function_type_copy.sol
 
 pragma abicoder v2;

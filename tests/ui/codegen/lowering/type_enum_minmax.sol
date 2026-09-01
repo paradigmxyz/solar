@@ -1,5 +1,5 @@
-//@ run-call: min() => 0
-//@ run-call: max() => 3
+//@ run-call: min => 0
+//@ run-call: max => 3
 // ported-from: test/libsolidity/semanticTests/enums/minmax.sol
 
 contract test {

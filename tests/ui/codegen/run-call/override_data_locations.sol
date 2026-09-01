@@ -1,5 +1,5 @@
-//@ run-call: f(uint256[]) [9, 8] => [9, 8]
-//@ run-call: g(uint256[]) [9, 8] => [9, 8]
+//@ run-call: f [9, 8] => [9, 8]
+//@ run-call: g [9, 8] => [9, 8]
 //@ compile-flags: --allow=2018
 // ported-from: test/libsolidity/semanticTests/inheritance/dataLocation/external_public_calldata.sol
 

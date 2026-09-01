@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call: Router::go() => 1
-//@ run-call: Router::goRich() => 2
+//@ run-call: Router::go => 1
+//@ run-call: Router::goRich => 2
 
 // A spill store is a path fact: the third return of the second `fetch` was
 // live through a branch diamond, its store landed only in the arm the plan

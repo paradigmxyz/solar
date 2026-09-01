@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: highLevelGas() => true
+//@ run-call: highLevelGas => true
 
 contract TryCallOptionsTarget {
     function ping() external {}

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: cleanup() => 3, 0
+//@ run-call: cleanup => 3, 0
 
 contract StorageArrayAssignmentCleanup {
     uint256[] private values;

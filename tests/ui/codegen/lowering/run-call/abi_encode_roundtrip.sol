@@ -5,8 +5,8 @@
 //@ run-call: bytesRoundtrip 0x010203 => 0x010203
 //@ run-call: wordsRoundtrip [1, 2, 3] => 6
 //@ run-call: nestedWordsRoundtrip [[1, 2], [3]] => 3
-//@ run-call: mixedRoundtrip() => 9, 3, 3
-//@ run-call: nestedMixedRoundtrip() => 2, 8, 3, 4
+//@ run-call: mixedRoundtrip => 9, 3, 3
+//@ run-call: nestedMixedRoundtrip => 2, 8, 3, 4
 //@ run-call: hash 7 => 0xa66cc928b5edb82af9bd49922954155ab7b0942694bea4ce44661d9a8736c688
 
 contract AbiEncodeRoundtrip {

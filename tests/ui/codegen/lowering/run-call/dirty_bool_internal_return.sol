@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: DirtyBoolInternalReturn::readDirty() => true, 3
+//@ run-call: DirtyBoolInternalReturn::readDirty => true, 3
 
 contract DirtyBoolInternalReturn {
     function dirty(bool value) internal pure returns (bool result) {

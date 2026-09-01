@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: AssemblyConstantAccess::assemblyValues() => 2, 0xabcd, 0x616263, true, 0x1212121212121212121212121212121212121212
-//@ run-call: AssemblyConstantAccess::assemblyReferences() => 0xabcd, 0x616263
-//@ run-call: AssemblyConstantAccess::solidityValues() => 0xabcd, 0x616263
+//@ run-call: AssemblyConstantAccess::assemblyValues => 2, 0xabcd, 0x616263, true, 0x1212121212121212121212121212121212121212
+//@ run-call: AssemblyConstantAccess::assemblyReferences => 0xabcd, 0x616263
+//@ run-call: AssemblyConstantAccess::solidityValues => 0xabcd, 0x616263
 
 contract AssemblyConstantAccess {
     uint256 constant integer = 2;

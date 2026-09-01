@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call: fmpIsStable() => true, 0, 0
-//@ run-call: nullArrayElementsEncodeAsEmpty() => true
+//@ run-call: fmpIsStable => true, 0, 0
+//@ run-call: nullArrayElementsEncodeAsEmpty => true
 
 contract UninitializedMemoryReferences {
     function fmpIsStable() external pure returns (bool stable, uint256 bytesLen, uint256 arrayLen) {

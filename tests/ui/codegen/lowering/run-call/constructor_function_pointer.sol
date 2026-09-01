@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 16
-//@ run-call: fArray() => true
+//@ run-call: f => 16
+//@ run-call: fArray => true
 // ported-from: test/libsolidity/semanticTests/constructor/constructor_function_complex.sol
 
 contract Target {

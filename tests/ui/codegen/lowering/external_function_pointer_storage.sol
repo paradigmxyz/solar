@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: Flow::f() => 1, 2
+//@ run-call: Flow::f => 1, 2
 // ported-from: test/libsolidity/semanticTests/functionTypes/struct_with_external_function.sol
 
 struct S {

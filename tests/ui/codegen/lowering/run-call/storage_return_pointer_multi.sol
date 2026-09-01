@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 3
+//@ run-call: test => 3
 // ported-from: test/libsolidity/semanticTests/viaYul/return_storage_pointers.sol
 
 contract StorageReturnPointerMulti {

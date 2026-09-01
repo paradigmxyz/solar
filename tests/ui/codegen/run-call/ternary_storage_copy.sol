@@ -1,17 +1,17 @@
-//@ run-call: TernaryStorageCopy::bytesCopy(bool) true => 0xaabb
-//@ run-call: TernaryStorageCopy::bytesCopy(bool) false => 0xcc
-//@ run-call: TernaryStorageCopy::dynamicCopy(bool) true => 2, 11
-//@ run-call: TernaryStorageCopy::dynamicCopy(bool) false => 1, 22
-//@ run-call: TernaryStorageCopy::fixedCopy(bool) true => 1, 2
-//@ run-call: TernaryStorageCopy::fixedCopy(bool) false => 3, 4
-//@ run-call: TernaryStorageCopy::structCopy(bool) true => 1, 0xaa
-//@ run-call: TernaryStorageCopy::structCopy(bool) false => 2, 0xbbcc
-//@ run-call: TernaryStorageCopy::nestedCopy(bool,bool) true, false => 3
-//@ run-call: TernaryStorageCopy::nestedCopy(bool,bool) false, true => 5
-//@ run-call: TernaryStorageCopy::memoryCalldata(bool,uint256[]) true, [6] => 6
-//@ run-call: TernaryStorageCopy::memoryCalldata(bool,uint256[]) false, [6] => 7
-//@ run-call: TernaryStorageCopy::storageMemory(bool) true => 8
-//@ run-call: TernaryStorageCopy::storageMemory(bool) false => 9
+//@ run-call: TernaryStorageCopy::bytesCopy true => 0xaabb
+//@ run-call: TernaryStorageCopy::bytesCopy false => 0xcc
+//@ run-call: TernaryStorageCopy::dynamicCopy true => 2, 11
+//@ run-call: TernaryStorageCopy::dynamicCopy false => 1, 22
+//@ run-call: TernaryStorageCopy::fixedCopy true => 1, 2
+//@ run-call: TernaryStorageCopy::fixedCopy false => 3, 4
+//@ run-call: TernaryStorageCopy::structCopy true => 1, 0xaa
+//@ run-call: TernaryStorageCopy::structCopy false => 2, 0xbbcc
+//@ run-call: TernaryStorageCopy::nestedCopy true, false => 3
+//@ run-call: TernaryStorageCopy::nestedCopy false, true => 5
+//@ run-call: TernaryStorageCopy::memoryCalldata true, [6] => 6
+//@ run-call: TernaryStorageCopy::memoryCalldata false, [6] => 7
+//@ run-call: TernaryStorageCopy::storageMemory true => 8
+//@ run-call: TernaryStorageCopy::storageMemory false => 9
 contract TernaryStorageCopy {
     struct Item {
         uint256 value;

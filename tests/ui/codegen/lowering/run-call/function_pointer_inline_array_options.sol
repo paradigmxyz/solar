@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: h(); value=1 => 1
+//@ run-call: h; value=1 => 1
 // ported-from: test/libsolidity/semanticTests/functionTypes/inline_array_with_value_call_option.sol
 
 contract FunctionPointerInlineArrayOptions {

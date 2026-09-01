@@ -1,13 +1,13 @@
-//@ run-call: Caller::lowLevelGas() => false
-//@ run-call: Caller::highLevelGas() => true
-//@ run-call: Caller::viewUsesStaticcall() => true
-//@ run-call: Caller::namedArguments() => 12
-//@ run-call: Caller::internalNamedArguments() => 12
-//@ run-call: Caller::libraryNamedArguments() => 12
-//@ run-call: Caller::structNamedArguments() => 12
-//@ run-call: Caller::attachedStorageReceiver() => 7
-//@ run-call: Caller::functionPointerMultiReturn() => 12
-//@ run-call-fail: Caller::failedCreation() => 0xdeadbeef
+//@ run-call: Caller::lowLevelGas => false
+//@ run-call: Caller::highLevelGas => true
+//@ run-call: Caller::viewUsesStaticcall => true
+//@ run-call: Caller::namedArguments => 12
+//@ run-call: Caller::internalNamedArguments => 12
+//@ run-call: Caller::libraryNamedArguments => 12
+//@ run-call: Caller::structNamedArguments => 12
+//@ run-call: Caller::attachedStorageReceiver => 7
+//@ run-call: Caller::functionPointerMultiReturn => 12
+//@ run-call-fail: Caller::failedCreation => 0xdeadbeef
 
 interface ViewTarget {
     function touch() external view;

@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: result() => 4
-//@ run-call: use(uint256) 3 => 6
+//@ run-call: result => 4
+//@ run-call: use 3 => 6
 // ported-from: test/libsolidity/semanticTests/constructor/store_function_in_constructor.sol
 
 contract ConstructorStoreFunction {

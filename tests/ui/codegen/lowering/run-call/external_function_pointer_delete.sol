@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: clear() => true
+//@ run-call: clear => true
 // ported-from: test/libsolidity/semanticTests/functionTypes/function_external_delete_storage.sol
 
 contract ExternalFunctionPointerDelete {

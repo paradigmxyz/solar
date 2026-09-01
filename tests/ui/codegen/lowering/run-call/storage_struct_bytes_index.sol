@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 255, 3
-//@ run-call: g() => 2
+//@ run-call: f => 255, 3
+//@ run-call: g => 2
 
 contract StorageStructBytesIndex {
     struct S {

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: exercise() => 3, 9, 1, 8, 1, 3, 3, 7, 0, 3
+//@ run-call: exercise => 3, 9, 1, 8, 1, 3, 3, 7, 0, 3
 
 contract StorageCopyRecursiveStruct {
     struct Node {

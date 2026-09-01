@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: add_(uint256,uint256) 3, 4 => 7
-//@ run-call: mul_(uint256,uint256) 3, 4 => 12
-//@ run-call: eq_(uint256,uint256) 3, 4 => false
-//@ run-call: eq_(uint256,uint256) 4, 4 => true
+//@ run-call: add_ 3, 4 => 7
+//@ run-call: mul_ 3, 4 => 12
+//@ run-call: eq_ 3, 4 => false
+//@ run-call: eq_ 4, 4 => true
 
 type Balance is uint256;
 

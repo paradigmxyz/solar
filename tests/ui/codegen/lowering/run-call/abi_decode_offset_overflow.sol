@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call-fail: test()
-//@ run-call-fail: withinArray()
+//@ run-call-fail: test
+//@ run-call-fail: withinArray
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_offset_overflow_in_array_3.sol
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_offset_overflow_in_array_2.sol
 

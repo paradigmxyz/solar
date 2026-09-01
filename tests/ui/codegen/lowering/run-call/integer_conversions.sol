@@ -1,22 +1,22 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: int8ToUint256(int8) -1 => 255
-//@ run-call: int8ToUint256(int8) -128 => 128
-//@ run-call: int8ToUint256(int8) 127 => 127
-//@ run-call: int24ToUint256(int24) -1 => 16777215
-//@ run-call: int24ToUint256(int24) -8388608 => 8388608
-//@ run-call: int24ToUint256(int24) 8388607 => 8388607
-//@ run-call: uint8ToInt256(uint8) 255 => -1
-//@ run-call: uint8ToInt256(uint8) 128 => -128
-//@ run-call: uint8ToInt256(uint8) 127 => 127
-//@ run-call: uint24ToInt256(uint24) 16777215 => -1
-//@ run-call: narrowInt24(int24) -129 => 127
-//@ run-call: narrowInt24(int24) 128 => -128
-//@ run-call: directXor(int8,uint24) -1, 256 => 511
-//@ run-call: isUint8Max(int8) -1 => true
-//@ run-call: isUint8Max(int8) 1 => false
-//@ run-call: fullWidth(int256) -1 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: int8ToUint256 -1 => 255
+//@ run-call: int8ToUint256 -128 => 128
+//@ run-call: int8ToUint256 127 => 127
+//@ run-call: int24ToUint256 -1 => 16777215
+//@ run-call: int24ToUint256 -8388608 => 8388608
+//@ run-call: int24ToUint256 8388607 => 8388607
+//@ run-call: uint8ToInt256 255 => -1
+//@ run-call: uint8ToInt256 128 => -128
+//@ run-call: uint8ToInt256 127 => 127
+//@ run-call: uint24ToInt256 16777215 => -1
+//@ run-call: narrowInt24 -129 => 127
+//@ run-call: narrowInt24 128 => -128
+//@ run-call: directXor -1, 256 => 511
+//@ run-call: isUint8Max -1 => true
+//@ run-call: isUint8Max 1 => false
+//@ run-call: fullWidth -1 => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 contract IntegerConversions {
     function int8ToUint256(int8 value) external pure returns (uint256) {

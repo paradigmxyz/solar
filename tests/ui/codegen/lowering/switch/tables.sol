@@ -2,12 +2,12 @@
 //@[size] compile-flags: -O size
 //@[buckets] compile-flags: -Zswitch-lowering=buckets
 //@[perfect] compile-flags: -Zswitch-lowering=perfect
-//@ run-call: testBucketDispatch()
-//@ run-call: testBucketDispatchMiss()
-//@ run-call: testDenseSwitch()
-//@ run-call: testSparseInternalSwitch()
-//@ run-call: testBinarySwitch()
-//@ run-call: testAffineSwitch()
+//@ run-call: testBucketDispatch
+//@ run-call: testBucketDispatchMiss
+//@ run-call: testDenseSwitch
+//@ run-call: testSparseInternalSwitch
+//@ run-call: testBinarySwitch
+//@ run-call: testAffineSwitch
 
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;

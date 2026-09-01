@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => false
+//@ run-call: f => false
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_empty.sol
 
 abstract contract ModifierEmptyBase {

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorBytesCreator::f(uint256,bytes) 1, 0x6162636465 => 1, 0x62
+//@ run-call: ConstructorBytesCreator::f 1, 0x6162636465 => 1, 0x62
 // ported-from: test/libsolidity/semanticTests/constructor/bytes_in_constructors_packer.sol
 
 contract ConstructorBytesBase {

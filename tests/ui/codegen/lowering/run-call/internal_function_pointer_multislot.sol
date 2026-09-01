@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 12
+//@ run-call: test => 12
 // ported-from: test/libsolidity/semanticTests/functionCall/call_internal_function_with_multislot_arguments_via_pointer.sol
 
 contract InternalFunctionPointerMultislot {

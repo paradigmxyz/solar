@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: ExternalFunctionAbi::run() => 1
+//@ run-call: ExternalFunctionAbi::run => 1
 
 contract ExternalFunctionAbi {
     struct Holder {

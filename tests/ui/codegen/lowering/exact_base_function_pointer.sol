@@ -1,4 +1,4 @@
-//@ run-call: Derived::pointer() => 2
+//@ run-call: Derived::pointer => 2
 
 contract Base {
     function value(uint256 x) internal pure virtual returns (uint256) {

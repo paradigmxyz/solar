@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 42, 5, 0
+//@ run-call: test => 42, 5, 0
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_array_delete_overlapping_variable.sol
 
 contract StorageBoundaryArrayOverlap {

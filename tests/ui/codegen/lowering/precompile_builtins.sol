@@ -6,14 +6,14 @@
 //@[constantinople] compile-flags: --evm-version constantinople --emit=abi,bin
 //@[osaka] compile-flags: --evm-version osaka --emit=abi,bin
 //@[mir] compile-flags: --evm-version osaka -Zdump=mir
-//@ run-call: recover() => 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
-//@ run-call: recoverInvalid() => 0x0000000000000000000000000000000000000000
-//@ run-call: sha() => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
-//@ run-call: ripemd() => 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc
-//@ run-call: shaLiteral() => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
-//@ run-call: ripemdLiteral() => 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc
-//@ run-call: shaEmpty() => 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-//@ run-call: ripemdEmpty() => 0x9c1185a5c5e9fc54612808977ee8f548b2258d31
+//@ run-call: recover => 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+//@ run-call: recoverInvalid => 0x0000000000000000000000000000000000000000
+//@ run-call: sha => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+//@ run-call: ripemd => 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc
+//@ run-call: shaLiteral => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+//@ run-call: ripemdLiteral => 0x8eb208f7e05d987a9b044a8e98c6b087f15a0bfc
+//@ run-call: shaEmpty => 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+//@ run-call: ripemdEmpty => 0x9c1185a5c5e9fc54612808977ee8f548b2258d31
 
 contract PrecompileBuiltins {
     function recover() external pure returns (address) {

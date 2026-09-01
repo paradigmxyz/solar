@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: DeleteStorageDynamicArray::clearAndPush() => 1, 9
+//@ run-call: DeleteStorageDynamicArray::clearAndPush => 1, 9
 
 contract DeleteStorageDynamicArray {
     uint24[] internal values;

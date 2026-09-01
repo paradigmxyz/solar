@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: declared() => 7132
-//@ run-call: assigned() => 71122
+//@ run-call: declared => 7132
+//@ run-call: assigned => 71122
 
 contract MixedMemoryTuple {
     struct S {

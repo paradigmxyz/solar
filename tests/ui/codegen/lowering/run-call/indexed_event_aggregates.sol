@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test_nested() => 2, 0x68656c6c6f
-//@ run-call: test_strings() => 0x776f726c64
+//@ run-call: test_nested => 2, 0x68656c6c6f
+//@ run-call: test_strings => 0x776f726c64
 
 contract IndexedAggregates {
     struct Payload {

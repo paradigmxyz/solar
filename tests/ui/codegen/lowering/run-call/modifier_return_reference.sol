@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 2, 3
+//@ run-call: f => 2, 3
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_return_reference.sol
 
 contract ModifierReturnReference {

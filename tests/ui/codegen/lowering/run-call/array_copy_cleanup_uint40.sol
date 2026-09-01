@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => true
+//@ run-call: f => true
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_cleanup_uint40.sol
 
 contract ArrayCopyCleanupUint40 {

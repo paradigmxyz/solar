@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: getName(); constructor=[0x616263, true] => 0x616263
-//@ run-call: getFlag(); constructor=[0x616263, true] => true
+//@ run-call: getName; constructor=[0x616263, true] => 0x616263
+//@ run-call: getFlag; constructor=[0x616263, true] => true
 // ported-from: test/libsolidity/semanticTests/constructor/constructor_arguments_external.sol
 
 contract ConstructorExternalArguments {

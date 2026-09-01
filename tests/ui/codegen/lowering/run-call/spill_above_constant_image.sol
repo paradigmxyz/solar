@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Harness::run() => 1
+//@ run-call: Harness::run => 1
 
 // Hand-written assembly may assemble an image at fixed low addresses and read
 // it back with `keccak256`/`create2`, as the ERC-6551 registry does for its

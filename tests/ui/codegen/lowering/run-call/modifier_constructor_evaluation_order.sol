@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: D::query() => [4, 2, 6, 1, 3, 5, 7]
+//@ run-call: D::query => [4, 2, 6, 1, 3, 5, 7]
 // ported-from: test/libsolidity/semanticTests/modifiers/evaluation_order.sol
 
 contract EvaluationOrderA {

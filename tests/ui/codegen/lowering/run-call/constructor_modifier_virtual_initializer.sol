@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorModifierVirtualInitializer::observed() => 0
+//@ run-call: ConstructorModifierVirtualInitializer::observed => 0
 
 contract ConstructorModifierVirtualInitializerBase {
     uint256 public observed;

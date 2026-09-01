@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 36, 36
+//@ run-call: test => 36, 36
 // ported-from: test/libsolidity/semanticTests/storage/storage_packed_array_copy.sol
 
 contract StoragePackedArrayCopy {

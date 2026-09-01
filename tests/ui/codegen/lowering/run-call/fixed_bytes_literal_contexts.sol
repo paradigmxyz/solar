@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: exercise() => 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x05, 0x05
-//@ run-call: throughModifier() => 0x05
+//@ run-call: exercise => 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x1234, 0x05, 0x05, 0x05
+//@ run-call: throughModifier => 0x05
 
 library FixedBytesLiteralLibrary {
     function identity(bytes2 value) internal pure returns (bytes2) {

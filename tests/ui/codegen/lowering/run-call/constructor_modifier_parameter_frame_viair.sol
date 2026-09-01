@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorModifierParameterFrame::observed() => 6
+//@ run-call: ConstructorModifierParameterFrame::observed => 6
 
 contract ConstructorModifierParameterFrameBase {
     uint256 public observed;

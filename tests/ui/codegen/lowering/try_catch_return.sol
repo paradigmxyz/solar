@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: TryCatchReturn::success() => 13
-//@ run-call: TryCatchReturn::failure() => 9
-//@ run-call: TryCatchReturn::ignored() => 13
+//@ run-call: TryCatchReturn::success => 13
+//@ run-call: TryCatchReturn::failure => 9
+//@ run-call: TryCatchReturn::ignored => 13
 
 contract TryCatchReturnTarget {
     function value(bool ok) external pure returns (uint256) {

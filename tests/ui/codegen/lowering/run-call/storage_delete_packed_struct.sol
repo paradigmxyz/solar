@@ -1,12 +1,12 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: clearArray() => 1, 2, 3, 0, 0, 0
-//@ run-call: clearReference() => 1, 2, 3, 0, 0, 0
-//@ run-call: clearMapping() => 0, 0, 0
-//@ run-call: assign() => 4, 21862, 7
-//@ run-call: clearDirtyWord() => 0
-//@ run-call: clearStructWithMapping() => 0, 0, 17, 23
+//@ run-call: clearArray => 1, 2, 3, 0, 0, 0
+//@ run-call: clearReference => 1, 2, 3, 0, 0, 0
+//@ run-call: clearMapping => 0, 0, 0
+//@ run-call: assign => 4, 21862, 7
+//@ run-call: clearDirtyWord => 0
+//@ run-call: clearStructWithMapping => 0, 0, 17, 23
 
 contract StorageDeletePackedStruct {
     struct Pair {

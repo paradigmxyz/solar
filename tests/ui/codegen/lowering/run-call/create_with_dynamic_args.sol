@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Factory::makeAndRead() => 5, 18
+//@ run-call: Factory::makeAndRead => 5, 18
 
 // `new` with dynamic constructor arguments appends their ABI encoding after
 // the creation code in the CREATE payload.

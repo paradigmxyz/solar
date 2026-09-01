@@ -1,18 +1,18 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: falseCondition() => 42
-//@ run-call: countToThree() => 3
-//@ run-call: conditionSideEffect() => 2, 2
-//@ run-call: skipRemainder() => 20
-//@ run-call: nested() => 6
-//@ run-call: whileControl() => 3
-//@ run-call: whileConditionalContinue() => 22
-//@ run-call: exitUsesPreviousLoopValue() => 5
-//@ run-call: once() => 1
-//@ run-call: conditionSideEffects() => 22
-//@ run-call: nestedSideEffects() => 24
-//@ run-call: checkedDecrementLatch() => 10
+//@ run-call: falseCondition => 42
+//@ run-call: countToThree => 3
+//@ run-call: conditionSideEffect => 2, 2
+//@ run-call: skipRemainder => 20
+//@ run-call: nested => 6
+//@ run-call: whileControl => 3
+//@ run-call: whileConditionalContinue => 22
+//@ run-call: exitUsesPreviousLoopValue => 5
+//@ run-call: once => 1
+//@ run-call: conditionSideEffects => 22
+//@ run-call: nestedSideEffects => 24
+//@ run-call: checkedDecrementLatch => 10
 // ported-from: test/libsolidity/semanticTests/statements/do_while_loop_continue.sol
 
 contract DoWhileContinue {

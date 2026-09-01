@@ -4,8 +4,8 @@
 //@ run-call: copyState => 1, 3
 //@ run-call: copyReference => 4, 2
 //@ run-call: copyAggregate => 7, 9, 1
-//@ run-call-fail: EnumStorageCopy::smallInvalid() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call: EnumStorageCopy::largeValid() => 2
+//@ run-call-fail: EnumStorageCopy::smallInvalid => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call: EnumStorageCopy::largeValid => 2
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_storage_to_memory.sol
 
 contract C {

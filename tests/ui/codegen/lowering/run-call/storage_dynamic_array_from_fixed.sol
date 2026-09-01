@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: assign() => 2, 4, 5
+//@ run-call: assign => 2, 4, 5
 
 contract StorageDynamicArrayFromFixed {
     enum Action {

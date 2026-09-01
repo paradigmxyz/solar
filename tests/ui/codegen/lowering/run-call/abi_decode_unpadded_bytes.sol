@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: AbiDecodeUnpaddedBytes::decode() => 1, 0x7a
+//@ run-call: AbiDecodeUnpaddedBytes::decode => 1, 0x7a
 
 contract AbiDecodeUnpaddedBytes {
     function decode() external pure returns (uint256 length, bytes1 first) {

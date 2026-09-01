@@ -1,13 +1,13 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f0() => 2, true
-//@ run-call: f1() => 1
-//@ run-call: f2() => 2
-//@ run-call: f3() => 3
-//@ run-call: f4() => 4
-//@ run-call: rhsParens() => 7, 8
-//@ run-call: scalarParens() => 7
+//@ run-call: f0 => 2, true
+//@ run-call: f1 => 1
+//@ run-call: f2 => 2
+//@ run-call: f3 => 3
+//@ run-call: f4 => 4
+//@ run-call: rhsParens => 7, 8
+//@ run-call: scalarParens => 7
 // ported-from: test/libsolidity/semanticTests/types/nested_tuples.sol
 
 contract NestedTupleParentheses {

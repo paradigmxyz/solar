@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => true
+//@ run-call: f => true
 // ported-from: test/libsolidity/semanticTests/various/typed_multi_variable_declaration.sol
 
 contract StorageReturnPointerMixedDecl {

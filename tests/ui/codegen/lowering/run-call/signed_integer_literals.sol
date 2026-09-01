@@ -1,28 +1,28 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: negativeRemainder() => -5
-//@ run-call: mixedRemainder() => -5
-//@ run-call: negativeDivisorRemainder() => 5
-//@ run-call: negativeDivision() => 2
-//@ run-call: mixedDivision() => -2
-//@ run-call: rightShift(uint256) 0 => -16
-//@ run-call: rightShift(uint256) 1 => -8
-//@ run-call: rightShift(uint256) 255 => -1
-//@ run-call: rightShift(uint256) 256 => -1
-//@ run-call: leftShift(uint256) 1 => -2
-//@ run-call: leftShift(uint256) 255 => -0x8000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: leftShift(uint256) 256 => 0
-//@ run-call: lessThan() => true
-//@ run-call: greaterThan() => false
-//@ run-call: literalLessThan(int256) -10 => true
-//@ run-call: literalLessThan(int256) -20 => false
-//@ run-call: parameterLessThan(int256) -20 => true
-//@ run-call: parameterLessThan(int256) -10 => false
-//@ run-call: positiveRemainder() => 5
-//@ run-call: largePositiveDivision() => 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-//@ run-call: largePositiveRightShift(uint256) 1 => 0x4000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: largePositiveGreaterThan() => true
+//@ run-call: negativeRemainder => -5
+//@ run-call: mixedRemainder => -5
+//@ run-call: negativeDivisorRemainder => 5
+//@ run-call: negativeDivision => 2
+//@ run-call: mixedDivision => -2
+//@ run-call: rightShift 0 => -16
+//@ run-call: rightShift 1 => -8
+//@ run-call: rightShift 255 => -1
+//@ run-call: rightShift 256 => -1
+//@ run-call: leftShift 1 => -2
+//@ run-call: leftShift 255 => -0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: leftShift 256 => 0
+//@ run-call: lessThan => true
+//@ run-call: greaterThan => false
+//@ run-call: literalLessThan -10 => true
+//@ run-call: literalLessThan -20 => false
+//@ run-call: parameterLessThan -20 => true
+//@ run-call: parameterLessThan -10 => false
+//@ run-call: positiveRemainder => 5
+//@ run-call: largePositiveDivision => 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: largePositiveRightShift 1 => 0x4000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: largePositiveGreaterThan => true
 
 // Adapted from
 // https://github.com/ethereum/solidity/blob/develop/test/libsolidity/semanticTests/operators/userDefined/operator_precendence.sol

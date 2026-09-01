@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: b() => 123
-//@ run-call: c() => 123
-//@ run-call: d() => 7
+//@ run-call: b => 123
+//@ run-call: c => 123
+//@ run-call: d => 7
 // ported-from: test/libsolidity/semanticTests/functionCall/named_args.sol
 
 contract NamedArguments {

@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorMemoryReturn::value() => "1"
-//@ run-call: ConstructorMemoryReturn::direct() => 5
-//@ run-call: ConstructorMemoryReturn::pairValue() => 3
+//@ run-call: ConstructorMemoryReturn::value => "1"
+//@ run-call: ConstructorMemoryReturn::direct => 5
+//@ run-call: ConstructorMemoryReturn::pairValue => 3
 
 contract ConstructorMemoryReturn {
     string public value;

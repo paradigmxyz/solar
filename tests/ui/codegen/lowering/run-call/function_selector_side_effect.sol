@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: read() => 42
+//@ run-call: read => 42
 // ported-from: test/libsolidity/semanticTests/functionTypes/selector_expression_side_effect.sol
 
 contract FunctionSelectorSideEffect {

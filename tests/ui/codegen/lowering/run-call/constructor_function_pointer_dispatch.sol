@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorFunctionPointerDispatch::getName() => 0x646566000000
+//@ run-call: ConstructorFunctionPointerDispatch::getName => 0x646566000000
 // ported-from: test/libsolidity/semanticTests/constructor/functions_called_by_constructor_through_dispatch.sol
 
 contract ConstructorFunctionPointerDispatch {

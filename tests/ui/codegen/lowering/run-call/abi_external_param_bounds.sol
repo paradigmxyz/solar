@@ -1,11 +1,11 @@
 //@ codegen-matrix: standard
-//@ run-call: Bounds::bytesMemory(bytes) 0x616263 => 3
-//@ run-call: Bounds::wordsMemory(uint256[]) [1, 2, 3] => 3
-//@ run-call: Bounds::bytesCalldata(bytes) 0x61626364 => 4
-//@ run-call: Bounds::wordsCalldata(uint256[]) [4, 5] => 2
-//@ run-call: dynamicStruct((bytes)) (0x) => 0
-//@ run-call: wideDynamic((uint256,bytes)) (0, 0x) => 0
-//@ run-call: staticStructs((uint256,address)[]) [(5, 0x0000000000000000000000000000000000000001), (7, 0x0000000000000000000000000000000000000002)] => 14
+//@ run-call: Bounds::bytesMemory 0x616263 => 3
+//@ run-call: Bounds::wordsMemory [1, 2, 3] => 3
+//@ run-call: Bounds::bytesCalldata 0x61626364 => 4
+//@ run-call: Bounds::wordsCalldata [4, 5] => 2
+//@ run-call: dynamicStruct (0x) => 0
+//@ run-call: wideDynamic (0, 0x) => 0
+//@ run-call: staticStructs [(5, 0x0000000000000000000000000000000000000001), (7, 0x0000000000000000000000000000000000000002)] => 14
 //@ run-call-fail: 0x0d39c72c0000000000000000000000000000000000000000000000000000000000000020
 //@ run-call-fail: 0xb59b137f0000000000000000000000000000000000000000000000000000000000000020
 //@ run-call-fail: 0x616c46ff0000000000000000000000000000000000000000000000000000000000000020

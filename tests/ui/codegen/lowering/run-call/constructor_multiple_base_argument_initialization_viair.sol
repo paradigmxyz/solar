@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorMultipleBaseArgumentInitialization::state() => 2, 3
+//@ run-call: ConstructorMultipleBaseArgumentInitialization::state => 2, 3
 
 contract ConstructorArgumentInitializationA {
     uint256 public x = 2;

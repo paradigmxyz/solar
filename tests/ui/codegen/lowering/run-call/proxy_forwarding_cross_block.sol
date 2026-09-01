@@ -1,8 +1,8 @@
 //@ codegen-matrix: standard
-//@ run-call: ForwardingHarness::fixedRange() => 1
-//@ run-call: ForwardingHarness::crossBlock() => 1
-//@ run-call: ForwardingHarness::dynamicRevert() => 1
-//@ run-call: SharedPublicFrame::entry() => 42
+//@ run-call: ForwardingHarness::fixedRange => 1
+//@ run-call: ForwardingHarness::crossBlock => 1
+//@ run-call: ForwardingHarness::dynamicRevert => 1
+//@ run-call: SharedPublicFrame::entry => 42
 
 contract ForwardingImplementation {
     address private proxyImplementationSlot;

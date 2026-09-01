@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: foo() => 0
+//@ run-call: foo => 0
 // Solc's via-IR modifier frames reset return variables for each placeholder.
 
 contract ModifierReturnResetViaIr {

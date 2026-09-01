@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorInternalArguments::getFlag() => true
-//@ run-call: ConstructorInternalArguments::getName() => 0x616263
+//@ run-call: ConstructorInternalArguments::getFlag => true
+//@ run-call: ConstructorInternalArguments::getName => 0x616263
 // ported-from: test/libsolidity/semanticTests/constructor/constructor_arguments_internal.sol
 
 contract ConstructorInternalArgumentsHelper {

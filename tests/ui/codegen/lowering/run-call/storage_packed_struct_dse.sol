@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: PackedStructDse::preservesRawNeighbors() => true
+//@ run-call: PackedStructDse::preservesRawNeighbors => true
 
 contract PackedStructDse {
     struct Box {

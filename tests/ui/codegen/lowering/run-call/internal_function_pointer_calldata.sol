@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: run() => 7
+//@ run-call: run => 7
 // ported-from: test/libsolidity/semanticTests/functionTypes/internal_function_pointer_with_calldata_args.sol
 
 contract InternalFunctionPointerCalldata {

@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: Probe::roundTrip() => 1
-//@ run-call: Probe2::outer() => 1
-//@ run-call: Probe3::run() => 1
+//@ run-call: Probe::roundTrip => 1
+//@ run-call: Probe2::outer => 1
+//@ run-call: Probe3::run => 1
 
 // `abi.decode` of a struct that nests other structs and a dynamic member
 // must rebuild every nested field, not skew the head offsets.

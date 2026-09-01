@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: DeleteMemoryStructReference::f() => 0, 7
-//@ run-call: DeleteMemoryStructReference::fixedArray() => 0, 7
+//@ run-call: DeleteMemoryStructReference::f => 0, 7
+//@ run-call: DeleteMemoryStructReference::fixedArray => 0, 7
 
 contract DeleteMemoryStructReference {
     struct S {

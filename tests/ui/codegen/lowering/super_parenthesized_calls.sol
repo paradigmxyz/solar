@@ -1,4 +1,4 @@
-//@ run-call: D::f() => 15
+//@ run-call: D::f => 15
 // ported-from: test/libsolidity/semanticTests/various/super_parentheses.sol
 
 contract A {

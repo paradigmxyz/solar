@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => true
+//@ run-call: f => true
 
 contract ExternalFunctionPointerAddress {
     function g() external {}

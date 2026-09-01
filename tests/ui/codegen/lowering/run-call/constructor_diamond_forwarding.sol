@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: DiamondDerived::i(); constructor=[2, 0] => 2
-//@ run-call: DiamondDerived::j(); constructor=[2, 0] => 2
-//@ run-call: DiamondDerived::k(); constructor=[2, 0] => 1
+//@ run-call: DiamondDerived::i; constructor=[2, 0] => 2
+//@ run-call: DiamondDerived::j; constructor=[2, 0] => 2
+//@ run-call: DiamondDerived::k; constructor=[2, 0] => 1
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_with_params_diamond_inheritance.sol
 
 contract DiamondBase {

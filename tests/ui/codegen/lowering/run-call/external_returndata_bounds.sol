@@ -1,9 +1,9 @@
 //@ codegen-matrix: standard
-//@ run-call: ReturnHarness::staticAggregate() => 1
-//@ run-call: ReturnHarness::projectedAggregate() => 22
-//@ run-call: ReturnHarness::functionPointerAggregate() => 1
-//@ run-call: ReturnHarness::dirtyAddressBoundary() => 1
-//@ run-call-fail: ReturnHarness::truncated()
+//@ run-call: ReturnHarness::staticAggregate => 1
+//@ run-call: ReturnHarness::projectedAggregate => 22
+//@ run-call: ReturnHarness::functionPointerAggregate => 1
+//@ run-call: ReturnHarness::dirtyAddressBoundary => 1
+//@ run-call-fail: ReturnHarness::truncated
 
 contract ReturnProducer {
     struct Inner {

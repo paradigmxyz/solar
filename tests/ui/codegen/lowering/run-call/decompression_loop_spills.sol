@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Harness::run() => 1
+//@ run-call: Harness::run => 1
 
 // A calldata decompressor owns memory from zero through its dynamically
 // growing output. Compiler spills in the loop eventually land inside that

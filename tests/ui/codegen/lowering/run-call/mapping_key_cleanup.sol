@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test_cleanup() => true
+//@ run-call: test_cleanup => true
 // ported-from: test/libsolidity/semanticTests/viaYul/storage/mappings.sol
 
 contract C {

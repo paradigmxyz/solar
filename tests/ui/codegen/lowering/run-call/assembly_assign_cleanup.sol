@@ -1,10 +1,10 @@
 //@ codegen-matrix: standard
-//@ run-call: C::selectorCompare() => 1
-//@ run-call: C::narrowMask() => 1
-//@ run-call: C::boolNorm() => 1
-//@ run-call: C::signedExtend() => 1
-//@ run-call: C::rawScratchReuse() => 1
-//@ run-call: C::memoryStoreCleanup() => 1
+//@ run-call: C::selectorCompare => 1
+//@ run-call: C::narrowMask => 1
+//@ run-call: C::boolNorm => 1
+//@ run-call: C::signedExtend => 1
+//@ run-call: C::rawScratchReuse => 1
+//@ run-call: C::memoryStoreCleanup => 1
 
 // Inline assembly assigns raw words into Solidity-typed variables. Reads
 // inside assembly keep the raw word (solady-style code shifts a typed

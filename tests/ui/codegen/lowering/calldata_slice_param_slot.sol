@@ -1,7 +1,7 @@
 //@ compile-flags: -O gas
-//@ run-call: a(bytes,uint256) 0x0102030405, 2 => 5102
-//@ run-call: a(bytes,uint256) 0x0102030405, 4 => 4104
-//@ run-call: b(bytes,uint256) 0x01, 0 => 1201
+//@ run-call: a 0x0102030405, 2 => 5102
+//@ run-call: a 0x0102030405, 4 => 4104
+//@ run-call: b 0x01, 0 => 1201
 
 // A rebindable calldata-slice parameter followed by more parameters keeps its
 // two-word frame slot. The entry stores of that slot must resolve against the

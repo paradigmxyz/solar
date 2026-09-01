@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: RecursiveStaticFrameArgs::permute(uint256,uint256,uint256) 12, 34, 0 => 12034
-//@ run-call: RecursiveStaticFrameArgs::permute(uint256,uint256,uint256) 12, 34, 1 => 34012
-//@ run-call: RecursiveStaticFrameArgs::permute(uint256,uint256,uint256) 12, 34, 2 => 12034
+//@ run-call: RecursiveStaticFrameArgs::permute 12, 34, 0 => 12034
+//@ run-call: RecursiveStaticFrameArgs::permute 12, 34, 1 => 34012
+//@ run-call: RecursiveStaticFrameArgs::permute 12, 34, 2 => 12034
 
 contract RecursiveStaticFrameArgs {
     function permute(uint256 a, uint256 b, uint256 depth)

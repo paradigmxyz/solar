@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 8, 3, 9, 11
+//@ run-call: f => 8, 3, 9, 11
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_decode_from_storage_struct_v2.sol
 
 contract AbiDecodeStorageStruct {

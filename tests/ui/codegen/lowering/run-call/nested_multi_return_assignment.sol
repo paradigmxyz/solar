@@ -1,6 +1,6 @@
-//@ run-call: fromCall() => 0x1200000000000000000000000000000000000000000000000000000000000000, 123
-//@ run-call: fromConditional(bool) false => 9
-//@ run-call: fromConditional(bool) true => 7
+//@ run-call: fromCall => 0x1200000000000000000000000000000000000000000000000000000000000000, 123
+//@ run-call: fromConditional false => 9
+//@ run-call: fromConditional true => 7
 
 contract NestedMultiReturnAssignment {
     uint256 private trace;

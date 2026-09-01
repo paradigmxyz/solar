@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: Test::f() => 0x202
+//@ run-call: Test::f => 0x202
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_library_inheritance.sol
 
 library L {

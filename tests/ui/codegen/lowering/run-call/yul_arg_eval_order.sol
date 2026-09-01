@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: C::builtinOrder() => 50
-//@ run-call: C::userFnOrder() => 100
-//@ run-call: C::deployIdiom() => 1
+//@ run-call: C::builtinOrder => 50
+//@ run-call: C::userFnOrder => 100
+//@ run-call: C::deployIdiom => 1
 
 // Yul evaluates call arguments right to left. solady's CREATE3-style deploy
 // idiom `mul(extcodesize(target), call(...))` depends on the call executing

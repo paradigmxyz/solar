@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Pools::run() => 96, 7
+//@ run-call: Pools::run => 96, 7
 
 // An internal function returning a storage reference hands back the slot,
 // not a materialized memory copy: the caller reads and writes the referent

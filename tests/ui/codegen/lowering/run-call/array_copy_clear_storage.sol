@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 0
+//@ run-call: f => 0
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_clear_storage.sol
 
 contract ArrayCopyClearStorage {

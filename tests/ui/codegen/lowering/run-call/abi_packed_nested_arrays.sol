@@ -7,7 +7,7 @@
 //@ run-call: encodeBytes [[0x01, 0x02], [0x03, 0x04]] => 0x0d55ebf6741e18b57f3691519f8e5f84c50c0987a6361cb4261a39f76c12a217
 //@ run-call: encodeFixedIndex [[1, 2], [3, 4]] => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 //@ run-call: encodeDynamicIndex [[1, 2], [3, 4]] => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
-//@ run-call: encodeStructField((uint256[2])) ([1, 2]) => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
+//@ run-call: encodeStructField ([1, 2]) => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 //@ run-call: encodeCalldataIndex [[1, 2], [3, 4]] => 0xe90b7bceb6e7df5418fb78d8ee546e97c83a08bbccc01a0644d599ccd2a7c2e0
 
 contract AbiPackedNestedArrays {

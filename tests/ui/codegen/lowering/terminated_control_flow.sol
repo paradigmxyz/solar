@@ -1,7 +1,7 @@
-//@ run-call: TerminatedControlFlow::trySuccess() => 7
-//@ run-call: TerminatedControlFlow::tryFailure() => 9
-//@ run-call: TerminatedControlFlow::breakSkipsTail() => 0
-//@ run-call: TerminatedControlFlow::continueSkipsTail() => 0
+//@ run-call: TerminatedControlFlow::trySuccess => 7
+//@ run-call: TerminatedControlFlow::tryFailure => 9
+//@ run-call: TerminatedControlFlow::breakSkipsTail => 0
+//@ run-call: TerminatedControlFlow::continueSkipsTail => 0
 
 contract TryTarget {
     function invoke(bool fail) external pure {

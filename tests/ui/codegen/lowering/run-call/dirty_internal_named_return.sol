@@ -1,10 +1,10 @@
 //@ codegen-matrix: standard
-//@ run-call: DirtyInternalNamedReturn::addressBits() => true
-//@ run-call: DirtyInternalNamedReturn::bytesBits() => true
-//@ run-call: DirtyInternalNamedReturn::typedCallCleans() => true
-//@ run-call: DirtyInternalNamedReturn::directTypedCallCleans() => true
-//@ run-call: DirtyInternalNamedReturn::directComparisonCleans() => true
-//@ run-call: DirtyInternalNamedReturn::boolBits() => true
+//@ run-call: DirtyInternalNamedReturn::addressBits => true
+//@ run-call: DirtyInternalNamedReturn::bytesBits => true
+//@ run-call: DirtyInternalNamedReturn::typedCallCleans => true
+//@ run-call: DirtyInternalNamedReturn::directTypedCallCleans => true
+//@ run-call: DirtyInternalNamedReturn::directComparisonCleans => true
+//@ run-call: DirtyInternalNamedReturn::boolBits => true
 
 contract DirtyInternalNamedReturn {
     function dirtyAddress(address value) internal pure returns (address result) {

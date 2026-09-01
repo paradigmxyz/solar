@@ -5,10 +5,10 @@
 //@ run-call: pointerOne => 32, 42
 //@ run-call: directTwo => 32, 42, 43
 //@ run-call: pointerTwo => 32, 42, 43
-//@ run-call-fail: directShort()
-//@ run-call-fail: pointerShort()
-//@ run-call-fail: directInvalidBool()
-//@ run-call-fail: pointerInvalidBool()
+//@ run-call-fail: directShort
+//@ run-call-fail: pointerShort
+//@ run-call-fail: directInvalidBool
+//@ run-call-fail: pointerInvalidBool
 
 interface OneReturn {
     function f() external pure returns (uint256);

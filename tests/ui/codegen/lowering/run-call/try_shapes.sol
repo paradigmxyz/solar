@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test_try() => 1042
+//@ run-call: test_try => 1042
 
 contract Callee {
     function f(uint x) external pure returns (uint) {

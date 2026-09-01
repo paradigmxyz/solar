@@ -1,6 +1,6 @@
 //@ compile-flags: -Ogas
-//@ run-call: select(bytes,bool) 0x010203040506, false => 2, 5, 502
-//@ run-call: select(bytes,bool) 0x010203040506, true => 4, 3, 502
+//@ run-call: select 0x010203040506, false => 2, 5, 502
+//@ run-call: select 0x010203040506, true => 4, 3, 502
 
 contract CalldataSlicePhiSpillColoring {
     function select(bytes calldata data, bool trim)

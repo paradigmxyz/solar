@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: sameShortLiteralSalt() => true
-//@ run-call: sameEmptyLiteralSalt() => true
-//@ run-call: sameFullLiteralSalt() => true
-//@ run-call: differentLiteralSalts() => true
+//@ run-call: sameShortLiteralSalt => true
+//@ run-call: sameEmptyLiteralSalt => true
+//@ run-call: sameFullLiteralSalt => true
+//@ run-call: differentLiteralSalts => true
 
 contract CreationOptionsChild {}
 

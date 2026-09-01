@@ -1,23 +1,23 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: structs((uint256),(uint256,uint256)) (66), (7, 119) => 7, 66
-//@ run-call: staticArray(uint256[2][2]) [[8, 7], [6, 5]] => 8, 5
-//@ run-call: dynamicArray(uint256[2][]) [[8, 7], [6, 5]] => 2, 8, 5
-//@ run-call: dynamicWords(uint256[]) [8, 7] => [8, 7]
-//@ run-call: dynamicFixed(uint256[2][]) [[8, 7], [6, 5]] => [[8, 7], [6, 5]]
-//@ run-call: dynamicNarrow(uint8[]) [8, 7] => [8, 7]
-//@ run-call: dynamicNested(uint256[][]) [[8], [7]] => [[8], [7]]
-//@ run-call: dynamicEmptyAtEnd(uint256[]) [] => []
-//@ run-call: dynamicWrappingEnd(uint256[]) [] => [0]
-//@ run-call: returnedSlice(bytes) 0x01020304 => 0x01020304
-//@ run-call: emptyUnassignedSlice() => 0
-//@ run-call-fail: dynamicWords(uint256[]) []
-//@ run-call-fail: dynamicFixed(uint256[2][]) []
-//@ run-call-fail: dynamicNarrow(uint8[]) []
-//@ run-call-fail: dynamicNested(uint256[][]) []
-//@ run-call-fail: dynamicEmptyPastEnd(uint256[]) []
-//@ run-call-fail: dynamicOverflow(uint256[]) [] => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call: structs (66), (7, 119) => 7, 66
+//@ run-call: staticArray [[8, 7], [6, 5]] => 8, 5
+//@ run-call: dynamicArray [[8, 7], [6, 5]] => 2, 8, 5
+//@ run-call: dynamicWords [8, 7] => [8, 7]
+//@ run-call: dynamicFixed [[8, 7], [6, 5]] => [[8, 7], [6, 5]]
+//@ run-call: dynamicNarrow [8, 7] => [8, 7]
+//@ run-call: dynamicNested [[8], [7]] => [[8], [7]]
+//@ run-call: dynamicEmptyAtEnd [] => []
+//@ run-call: dynamicWrappingEnd [] => [0]
+//@ run-call: returnedSlice 0x01020304 => 0x01020304
+//@ run-call: emptyUnassignedSlice => 0
+//@ run-call-fail: dynamicWords []
+//@ run-call-fail: dynamicFixed []
+//@ run-call-fail: dynamicNarrow []
+//@ run-call-fail: dynamicNested []
+//@ run-call-fail: dynamicEmptyPastEnd []
+//@ run-call-fail: dynamicOverflow [] => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
 contract AssemblyCalldataReferenceAssignment {
     struct One {

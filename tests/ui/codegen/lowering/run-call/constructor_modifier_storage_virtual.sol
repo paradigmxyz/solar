@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorModifierStorageVirtual::result() => 1, 2
+//@ run-call: ConstructorModifierStorageVirtual::result => 1, 2
 
 contract ConstructorModifierStorageVirtualBase {
     uint256[] internal values;

@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: TryCatchPanic::success() => 7
-//@ run-call: TryCatchPanic::failure() => 1
+//@ run-call: TryCatchPanic::success => 7
+//@ run-call: TryCatchPanic::failure => 1
 
 contract TryCatchPanicTarget {
     function ok() external pure {}

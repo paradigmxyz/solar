@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: high() => 0x00000000000000000000000000000000000000000000001122334455667788
-//@ run-call: arrayMatches() => true
+//@ run-call: high => 0x00000000000000000000000000000000000000000000001122334455667788
+//@ run-call: arrayMatches => true
 
 contract InternalFunctionPointerStoragePacking {
     function() internal fp;

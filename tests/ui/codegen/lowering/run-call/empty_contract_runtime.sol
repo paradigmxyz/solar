@@ -1,11 +1,11 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: B::nonEmptyCode() => true
-//@ run-call: EmptyContractRuntime::hasNonCallableRuntime() => true
-//@ run-call: EmptyContractRuntime::deploysRevertingRuntime() => true
-//@ run-call: EmptyContractRuntime::hasCode() => true
-//@ run-call: EmptyContractRuntime::rejectsCalls() => true
+//@ run-call: B::nonEmptyCode => true
+//@ run-call: EmptyContractRuntime::hasNonCallableRuntime => true
+//@ run-call: EmptyContractRuntime::deploysRevertingRuntime => true
+//@ run-call: EmptyContractRuntime::hasCode => true
+//@ run-call: EmptyContractRuntime::rejectsCalls => true
 // ported-from: test/libsolidity/semanticTests/constants/assign_type_info.sol
 
 contract A {}

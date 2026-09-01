@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: dynamic(bytes) 0x112233 => 3, 7, 3
-//@ run-call: specialized(bytes) 0xaabbccdd => 4, 7, 4
+//@ run-call: dynamic 0x112233 => 3, 7, 3
+//@ run-call: specialized 0xaabbccdd => 4, 7, 4
 
 contract InternalFunctionPointerCalldataReturns {
     function(bytes calldata)

@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: Chain::ctorNested() => 7, 3, 2
+//@ run-call: Chain::ctorNested => 7, 3, 2
 //@ run-call: Chain::runtimeNested 4 => 4, 1
-//@ run-call: Chain::storageToStorage() => 7, 9, 3
+//@ run-call: Chain::storageToStorage => 7, 9, 3
 
 // Copying a storage array by value chains its materialization loop into a
 // second storage-copy loop. The materialized base pointer is a stack-phi

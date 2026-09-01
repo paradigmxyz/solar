@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 234
+//@ run-call: f => 234
 
 contract CreationEvaluationOrderChild {
     constructor(uint256) payable {}

@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: test() => 3, 60
+//@ run-call: test => 3, 60
 
 contract C {
     struct Heap {

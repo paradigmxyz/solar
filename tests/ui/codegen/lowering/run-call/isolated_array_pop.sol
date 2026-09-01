@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: access() => 1, 0, 0
+//@ run-call: access => 1, 0, 0
 // ported-from: test/libsolidity/semanticTests/array/pop/array_pop_isolated.sol
 // ported-from: test/libsolidity/semanticTests/array/pop/byte_array_pop_isolated.sol
 

@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call: deploys() => true
-//@ run-call: deploy() => "NativeERC20", "NERC20", 18
+//@ run-call: deploys => true
+//@ run-call: deploy => "NativeERC20", "NERC20", 18
 
 contract StateStringInitializers {
     string public name = "NativeERC20";

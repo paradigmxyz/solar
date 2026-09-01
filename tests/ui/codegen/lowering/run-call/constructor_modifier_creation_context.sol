@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: C::getData() => 0x4300
+//@ run-call: C::getData => 0x4300
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_calling_functions_in_creation_context.sol
 
 contract ConstructorModifierBase {

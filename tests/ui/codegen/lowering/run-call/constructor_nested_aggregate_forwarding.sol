@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: Creator::f() => 23
+//@ run-call: Creator::f => 23
 
 contract ConstructorAggregateBase {
     struct Entry {

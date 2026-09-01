@@ -1,20 +1,20 @@
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 4, 32, 7 => 3004
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 67, 32, 7 => 3067
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 74, 32, 7 => 3074
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 75, 32, 7 => 1007
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 256, 32, 7 => 1007
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 68, 32, 0 => 1000
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 68, 0, 7 => 1000
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 68, 64, 0 => 3068
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 68, 0x10000000000000000, 0 => 3068
-//@ run-call: TryCatchMalformed::directError(uint256,uint256,uint256) 68, 32, 0x10000000000000000 => 3068
-//@ run-call: TryCatchMalformed::directPanic(uint256) 35 => 3035
-//@ run-call: TryCatchMalformed::directPanic(uint256) 36 => 2067
-//@ run-call: TryCatchMalformed::withoutBinding() => 3
-//@ run-call-fail: TryCatchMalformed::withoutGeneric() => 0x08c379a0
-//@ run-call: TryCatchMalformed::creation() => 3004
-//@ run-call: TryCatchMalformed::functionPointer() => 3004
-//@ run-call: TryCatchMalformed::customError() => 3004
+//@ run-call: TryCatchMalformed::directError 4, 32, 7 => 3004
+//@ run-call: TryCatchMalformed::directError 67, 32, 7 => 3067
+//@ run-call: TryCatchMalformed::directError 74, 32, 7 => 3074
+//@ run-call: TryCatchMalformed::directError 75, 32, 7 => 1007
+//@ run-call: TryCatchMalformed::directError 256, 32, 7 => 1007
+//@ run-call: TryCatchMalformed::directError 68, 32, 0 => 1000
+//@ run-call: TryCatchMalformed::directError 68, 0, 7 => 1000
+//@ run-call: TryCatchMalformed::directError 68, 64, 0 => 3068
+//@ run-call: TryCatchMalformed::directError 68, 0x10000000000000000, 0 => 3068
+//@ run-call: TryCatchMalformed::directError 68, 32, 0x10000000000000000 => 3068
+//@ run-call: TryCatchMalformed::directPanic 35 => 3035
+//@ run-call: TryCatchMalformed::directPanic 36 => 2067
+//@ run-call: TryCatchMalformed::withoutBinding => 3
+//@ run-call-fail: TryCatchMalformed::withoutGeneric => 0x08c379a0
+//@ run-call: TryCatchMalformed::creation => 3004
+//@ run-call: TryCatchMalformed::functionPointer => 3004
+//@ run-call: TryCatchMalformed::customError => 3004
 
 contract MalformedTryTarget {
     constructor(uint256 size, uint256 offset, uint256 length) {

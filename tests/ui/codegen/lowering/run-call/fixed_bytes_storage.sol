@@ -1,9 +1,9 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: read() => 170, 17, 48076, -2, 14544639
-//@ run-call: raw() => 0x000000000000000000000000000000000000000000000000ddeefffebbcc11aa
-//@ run-call: selector() => 0xea3d508a, 3929886858
+//@ run-call: read => 170, 17, 48076, -2, 14544639
+//@ run-call: raw => 0x000000000000000000000000000000000000000000000000ddeefffebbcc11aa
+//@ run-call: selector => 0xea3d508a, 3929886858
 
 contract FixedBytesStorage {
     bytes1 first;

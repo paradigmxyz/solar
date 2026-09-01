@@ -1,11 +1,11 @@
 //@ codegen-matrix: standard
-//@ run-call: ForwardedCalldataSliceReturn::delegate(bytes) 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 0x112233445566
-//@ run-call: ForwardedCalldataSliceReturn::single(bytes) 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 7, 0x112233445566
-//@ run-call: ForwardedCalldataSliceReturn::nested(bytes) 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 7, 0x112233445566
-//@ run-call: ForwardedCalldataSliceReturn::nestedSlices(bytes) 0x112233445566778899aabbccddeeff0011223344 => 0x11, 0x2233445566778899aabbccddeeff001122334400
-//@ run-call: ForwardedCalldataSliceReturn::singleSliceLength(bytes) 0x1122 => 2
-//@ run-call: ForwardedCalldataSliceReturn::pointerSliceLength(bytes) 0x1122 => 2
-//@ run-call: ForwardedCalldataSliceReturn::arraySliceLength(uint256[]) [7, 8] => 2
+//@ run-call: ForwardedCalldataSliceReturn::delegate 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 0x112233445566
+//@ run-call: ForwardedCalldataSliceReturn::single 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 7, 0x112233445566
+//@ run-call: ForwardedCalldataSliceReturn::nested 0x0000000000000000000000000000000000001234112233445566 => 0x0000000000000000000000000000000000001234, 7, 0x112233445566
+//@ run-call: ForwardedCalldataSliceReturn::nestedSlices 0x112233445566778899aabbccddeeff0011223344 => 0x11, 0x2233445566778899aabbccddeeff001122334400
+//@ run-call: ForwardedCalldataSliceReturn::singleSliceLength 0x1122 => 2
+//@ run-call: ForwardedCalldataSliceReturn::pointerSliceLength 0x1122 => 2
+//@ run-call: ForwardedCalldataSliceReturn::arraySliceLength [7, 8] => 2
 
 contract ForwardedCalldataSliceReturn {
     function singleSliceLength(bytes calldata executionData) external pure returns (uint256) {

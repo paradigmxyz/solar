@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorVirtualArgumentInitialization::x() => 2
+//@ run-call: ConstructorVirtualArgumentInitialization::x => 2
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 
 contract ConstructorVirtualArgumentBase {

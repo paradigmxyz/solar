@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: one() => 3
-//@ run-call-fail: two() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@ run-call: one => 3
+//@ run-call-fail: two => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
 // ported-from: test/libsolidity/semanticTests/array/copying/copy_internal_function_array_to_storage.sol
 
 contract InternalFunctionPointerStorageCopy {

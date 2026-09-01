@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: t() => 9
+//@ run-call: t => 9
 // ported-from: test/libsolidity/semanticTests/functionTypes/store_function.sol
 
 contract ExternalFunctionPointerHigherOrderTarget {

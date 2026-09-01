@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: C::pushLiteral() => 1
+//@ run-call: C::pushLiteral => 1
 
 // A bare numeric literal pushed into a `bytesN` storage array types from the
 // element, so it must store left-aligned; the packed store's high mask

@@ -1,7 +1,7 @@
-//@ run-call: readSeeded(uint256,uint256) 7, 81 => 81
-//@ run-call: writeChecked(uint256,uint256) 9, 42 => 42
-//@ run-call: readNestedSeeded(uint256,uint256,uint256) 3, 5, 99 => 99
-//@ run-call: writeNestedChecked(uint256,uint256,uint256) 4, 6, 73 => 73
+//@ run-call: readSeeded 7, 81 => 81
+//@ run-call: writeChecked 9, 42 => 42
+//@ run-call: readNestedSeeded 3, 5, 99 => 99
+//@ run-call: writeNestedChecked 4, 6, 73 => 73
 
 contract StorageStructMapping {
     struct Layout {

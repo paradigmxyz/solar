@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: copy((uint256[])[]) [([1, 2, 3]), ([9])] => 14
+//@ run-call: copy [([1, 2, 3]), ([9])] => 14
 // ported-from: test/libsolidity/semanticTests/array/copying/array_of_structs_containing_arrays_calldata_to_memory.sol
 
 pragma abicoder v2;

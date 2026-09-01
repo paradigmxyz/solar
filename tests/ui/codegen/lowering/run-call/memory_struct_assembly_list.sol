@@ -1,11 +1,11 @@
 //@ codegen-matrix: standard
-//@ run-call: MemoryStructAssemblyList::defaultLocal() => true
-//@ run-call: MemoryStructAssemblyList::defaultReturn() => true
-//@ run-call: MemoryStructAssemblyList::firstAppend() => true
-//@ run-call: MemoryStructAssemblyList::secondAppend() => true
+//@ run-call: MemoryStructAssemblyList::defaultLocal => true
+//@ run-call: MemoryStructAssemblyList::defaultReturn => true
+//@ run-call: MemoryStructAssemblyList::firstAppend => true
+//@ run-call: MemoryStructAssemblyList::secondAppend => true
 //@ run-call: MemoryStructAssemblyList::recursiveYul 0 => 1, 0xc0
 //@ run-call: MemoryStructAssemblyList::recursiveYul 3 => 4, 0xc3
-//@ run-call: MemoryStructAssemblyList::nestedListEncoding() => 8, 0xc7c0c1c0c3c0c1c0000000000000000000000000000000000000000000000000
+//@ run-call: MemoryStructAssemblyList::nestedListEncoding => 8, 0xc7c0c1c0c3c0c1c0000000000000000000000000000000000000000000000000
 
 contract MemoryStructAssemblyList {
     struct List {

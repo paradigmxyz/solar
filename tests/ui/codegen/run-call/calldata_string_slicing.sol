@@ -1,13 +1,13 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: slice(string,uint256) "abcd", 0 => "abcd"
-//@ run-call: slice(string,uint256) "abcd", 2 => "abcd"
-//@ run-call: slice(string,uint256) "abcd", 4 => "abcd"
-//@ run-call-fail: slice(string,uint256) "abcd", 5 => 0x
-//@ run-call: segment(string,uint256,uint256) "abcd", 1, 3 => "bc"
-//@ run-call: segment(string,uint256,uint256) "abcd", 4, 4 => ""
-//@ run-call: nested(string,uint256,uint256,uint256,uint256) "abcdef", 1, 5, 1, 3 => "cd"
+//@ run-call: slice "abcd", 0 => "abcd"
+//@ run-call: slice "abcd", 2 => "abcd"
+//@ run-call: slice "abcd", 4 => "abcd"
+//@ run-call-fail: slice "abcd", 5 => 0x
+//@ run-call: segment "abcd", 1, 3 => "bc"
+//@ run-call: segment "abcd", 4, 4 => ""
+//@ run-call: nested "abcdef", 1, 5, 1, 3 => "cd"
 // ported-from: test/libsolidity/semanticTests/strings/concat/string_concat_different_types.sol
 
 contract CalldataStringSlicing {

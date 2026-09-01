@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call: StorageStringSlot::lengthThroughRef() => 40
-//@ run-call: StorageStringSlot::returnThroughRef() => 40
+//@ run-call: StorageStringSlot::lengthThroughRef => 40
+//@ run-call: StorageStringSlot::returnThroughRef => 40
 
 library StorageStringRef {
     function length(string storage value) internal view returns (uint256) {

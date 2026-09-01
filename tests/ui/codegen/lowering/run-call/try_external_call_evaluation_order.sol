@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 1234
+//@ run-call: f => 1234
 
 contract TryExternalCallEvaluationOrderTarget {
     function ping(uint256) external payable returns (uint256) {

@@ -2,16 +2,16 @@
 // CHECK: @module
 //@ compile-flags: --libraries EmptyCodeLibrary=0x1111111111111111111111111111111111111111
 //@ codegen-matrix: standard
-//@ run-call-fail: EmptyCodeCalls::direct() => 0x
-//@ run-call-fail: EmptyCodeCalls::pointer() => 0x
-//@ run-call-fail: EmptyCodeCalls::libraryCall() => 0x
-//@ run-call-fail: EmptyCodeCalls::tryDirect() => 0x
-//@ run-call-fail: EmptyCodeCalls::tryPointer() => 0x
-//@ run-call-fail: EmptyCodeCalls::tryStatic() => 0x
-//@ run-call-fail: EmptyCodeTryFactory::deploy() => 0x
-//@ run-call: EmptyCodeCalls::lowLevel() => true
-//@ run-call: EmptyCodeCalls::selfCall() => true
-//@ run-call: EmptyCodeCalls::trySelf() => true
+//@ run-call-fail: EmptyCodeCalls::direct => 0x
+//@ run-call-fail: EmptyCodeCalls::pointer => 0x
+//@ run-call-fail: EmptyCodeCalls::libraryCall => 0x
+//@ run-call-fail: EmptyCodeCalls::tryDirect => 0x
+//@ run-call-fail: EmptyCodeCalls::tryPointer => 0x
+//@ run-call-fail: EmptyCodeCalls::tryStatic => 0x
+//@ run-call-fail: EmptyCodeTryFactory::deploy => 0x
+//@ run-call: EmptyCodeCalls::lowLevel => true
+//@ run-call: EmptyCodeCalls::selfCall => true
+//@ run-call: EmptyCodeCalls::trySelf => true
 
 contract EmptyCodeTarget {
     function noop() external {}

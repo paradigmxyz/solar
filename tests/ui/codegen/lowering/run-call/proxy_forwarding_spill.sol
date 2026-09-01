@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Harness::run() => 1
+//@ run-call: Harness::run => 1
 
 // A forwarding proxy sets the free-memory pointer low and
 // `calldatacopy(0, 0, calldatasize())` before `delegatecall`ing the copied

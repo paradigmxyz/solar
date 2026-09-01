@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: run() => true
+//@ run-call: run => true
 // ported-from: test/libsolidity/semanticTests/functionTypes/mapping_of_functions.sol
 
 contract MappingInternalFunctionPointer {

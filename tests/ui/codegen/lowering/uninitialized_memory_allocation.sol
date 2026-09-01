@@ -1,17 +1,17 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: fixedArray() => 96
-//@ run-call: structure() => 64
-//@ run-call: aliasDoesNotAllocate() => 0
-//@ run-call: dynamicDefaults() => 0, 96, 96, 0
-//@ run-call: nestedDynamicDefaults() => 96, 96, 96, true
-//@ run-call: defaultBytesReturn() => 0x
-//@ run-call: defaultThroughInternalCall() => true
-//@ run-call: fixedArrayDynamicDefaults() => 64, 96, 96
-//@ run-call: nestedStaticDefaults() => 192
-//@ run-call: literalBytes() => 0x31
-//@ run-call: literalAllocation() => 64
+//@ run-call: fixedArray => 96
+//@ run-call: structure => 64
+//@ run-call: aliasDoesNotAllocate => 0
+//@ run-call: dynamicDefaults => 0, 96, 96, 0
+//@ run-call: nestedDynamicDefaults => 96, 96, 96, true
+//@ run-call: defaultBytesReturn => 0x
+//@ run-call: defaultThroughInternalCall => true
+//@ run-call: fixedArrayDynamicDefaults => 64, 96, 96
+//@ run-call: nestedStaticDefaults => 192
+//@ run-call: literalBytes => 0x31
+//@ run-call: literalAllocation => 64
 
 contract UninitializedMemoryAllocation {
     struct Pair {

@@ -1,16 +1,16 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: memoryLayout() => true
-//@ run-call: cleanup(uint256) 1 => 0, 0
+//@ run-call: memoryLayout => true
+//@ run-call: cleanup 1 => 0, 0
 // dirtyReturn(uint256) cleans the low eight padding bytes of the memory word.
 //@ run-call: 0x2aae0ed63031323334353637383930313233343536373839616263645800000000000000 => 0x3031323334353637383930313233343536373839616263640000000000000000
-//@ run-call: cleanupArray(uint256) 1 => 0
-//@ run-call: packedArray(uint256) 1 => 0x0000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: memoryStructToStorage(uint256) 1 => 0
-//@ run-call: storageStructToMemory() => true
-//@ run-call: memoryArrayToStorage(uint256) 1 => 0
-//@ run-call: storageArrayToMemory() => true
+//@ run-call: cleanupArray 1 => 0
+//@ run-call: packedArray 1 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: memoryStructToStorage 1 => 0
+//@ run-call: storageStructToMemory => true
+//@ run-call: memoryArrayToStorage 1 => 0
+//@ run-call: storageArrayToMemory => true
 // ported-from: test/libsolidity/semanticTests/abicoder/cleanup/function_v2.sol
 
 pragma abicoder v2;

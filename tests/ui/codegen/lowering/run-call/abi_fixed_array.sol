@@ -1,35 +1,35 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: read(uint256[3],uint256) [1, 2, 3], 1 => 2
-//@ run-call-fail: read(uint256[3],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readDynamic(uint256[],uint256) [1, 2, 3], 1 => 2
-//@ run-call-fail: readDynamic(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readBytes(bytes) 0x010203 => 0x02
-//@ run-call: readPair((uint8,uint8)) (7, 9) => 7
-//@ run-call: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 1 => 2
-//@ run-call-fail: readDynamicCalldata(uint256[],uint256) [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readBytesCalldata(bytes) 0x010203 => 0x02
-//@ run-call: readDynamicPair((uint256,bytes)) (7, 0x010203) => 10
-//@ run-call: readWordList((uint256[],uint256)) ([1, 2, 3], 7) => 10
-//@ run-call: readWordList((uint256[],uint256)) ([], 7) => 7
-//@ run-call: readSignedList((int256[],uint256)) ([1, 2], 7) => 9
-//@ run-call: readNestedList((uint256[][])) ([[1, 2], [3]]) => 4
-//@ run-call: readEnumPair((uint8,uint256)) (1, 9) => 10
-//@ run-call-fail: readEnumPair((uint8,uint256)) (2, 9)
-//@ run-call: readEnumArray(uint8[2]) [1, 0] => 1
-//@ run-call-fail: readEnumArray(uint8[2]) [2, 0]
-//@ run-call: readMode(uint8) 1 => 1
-//@ run-call-fail: readMode(uint8) 2
-//@ run-call: readNestedArray((uint256[2],uint8)) ([7, 8], 1) => 9
-//@ run-call: readNestedBytes((bytes[2])) ([0x0102, 0x030405]) => 5
-//@ run-call: readMixed(uint8,bytes) 1, 0x010203 => 4
-//@ run-call: ConstructorAbiFixedArray::result(); constructor=[[[1, 2], [3, 4]], 5] => 8
-//@ run-call: ConstructorAbiDynamic::result(); constructor=[[1, 2, 3], 0x010203] => 5
-//@ run-call: ConstructorAbiDynamicWords::result(); constructor=[[1, 2, 3]] => 2
-//@ run-call: ConstructorAbiBytes::result(); constructor=[0x010203] => 3
-//@ run-call: ConstructorAbiStruct::result(); constructor=[(7, 0x010203)] => 10
-//@ run-call: fixedArrayLengthSideEffect() => 2, 1
+//@ run-call: read [1, 2, 3], 1 => 2
+//@ run-call-fail: read [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readDynamic [1, 2, 3], 1 => 2
+//@ run-call-fail: readDynamic [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readBytes 0x010203 => 0x02
+//@ run-call: readPair (7, 9) => 7
+//@ run-call: readDynamicCalldata [1, 2, 3], 1 => 2
+//@ run-call-fail: readDynamicCalldata [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readBytesCalldata 0x010203 => 0x02
+//@ run-call: readDynamicPair (7, 0x010203) => 10
+//@ run-call: readWordList ([1, 2, 3], 7) => 10
+//@ run-call: readWordList ([], 7) => 7
+//@ run-call: readSignedList ([1, 2], 7) => 9
+//@ run-call: readNestedList ([[1, 2], [3]]) => 4
+//@ run-call: readEnumPair (1, 9) => 10
+//@ run-call-fail: readEnumPair (2, 9)
+//@ run-call: readEnumArray [1, 0] => 1
+//@ run-call-fail: readEnumArray [2, 0]
+//@ run-call: readMode 1 => 1
+//@ run-call-fail: readMode 2
+//@ run-call: readNestedArray ([7, 8], 1) => 9
+//@ run-call: readNestedBytes ([0x0102, 0x030405]) => 5
+//@ run-call: readMixed 1, 0x010203 => 4
+//@ run-call: ConstructorAbiFixedArray::result; constructor=[[[1, 2], [3, 4]], 5] => 8
+//@ run-call: ConstructorAbiDynamic::result; constructor=[[1, 2, 3], 0x010203] => 5
+//@ run-call: ConstructorAbiDynamicWords::result; constructor=[[1, 2, 3]] => 2
+//@ run-call: ConstructorAbiBytes::result; constructor=[0x010203] => 3
+//@ run-call: ConstructorAbiStruct::result; constructor=[(7, 0x010203)] => 10
+//@ run-call: fixedArrayLengthSideEffect => 2, 1
 
 contract AbiFixedArray {
     uint256 private fixedArrayLengthCalls;

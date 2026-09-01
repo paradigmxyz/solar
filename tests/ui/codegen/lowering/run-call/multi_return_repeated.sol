@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 1
+//@ run-call: test => 1
 
 library MultiReturnRepeatedLib {
     function sort(uint256 a, uint256 b) internal pure returns (uint256, uint256) {

@@ -1,13 +1,13 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: read() => 7, "ok"
-//@ run-call: readArguments() => 7, "ok"
-//@ run-call: pointerArgumentRoundtrip() => 8
-//@ run-call: pointerReturnRoundtrip() => 9
-//@ run-call: pointerStructRoundtrip() => 9
-//@ run-call: pointerArrayRoundtrip() => 9
-//@ run-call: calldataPointerRoundtrip() => true
+//@ run-call: read => 7, "ok"
+//@ run-call: readArguments => 7, "ok"
+//@ run-call: pointerArgumentRoundtrip => 8
+//@ run-call: pointerReturnRoundtrip => 9
+//@ run-call: pointerStructRoundtrip => 9
+//@ run-call: pointerArrayRoundtrip => 9
+//@ run-call: calldataPointerRoundtrip => true
 
 contract ExternalFunctionPointerAggregateTarget {
     function pair() external pure returns (uint256, string memory) {

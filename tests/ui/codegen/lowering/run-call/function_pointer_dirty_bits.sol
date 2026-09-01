@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: comparison() => true
-//@ run-call: abiEncoding() => true
+//@ run-call: comparison => true
+//@ run-call: abiEncoding => true
 // ported-from: test/libsolidity/semanticTests/functionTypes/comparison_operator_for_external_function_cleans_dirty_bits.sol
 
 contract FunctionPointerDirtyBits {

@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: unicodeLine() => "😃, 😭, and 😈"
-//@ run-call: asciiLine() => "a   b"
+//@ run-call: unicodeLine => "😃, 😭, and 😈"
+//@ run-call: asciiLine => "a   b"
 // ported-from: test/libsolidity/semanticTests/strings/unicode_string.sol
 
 contract StringLineContinuation {

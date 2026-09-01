@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: read() => 1, 2, 3
+//@ run-call: read => 1, 2, 3
 // ported-from: test/libsolidity/semanticTests/array/copying/array_storage_multi_items_per_slot.sol
 
 contract StoragePackedArrayElements {

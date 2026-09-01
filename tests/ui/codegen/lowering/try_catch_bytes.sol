@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: TryCatchBytes::success() => 7
-//@ run-call: TryCatchBytes::failure() => 100
+//@ run-call: TryCatchBytes::success => 7
+//@ run-call: TryCatchBytes::failure => 100
 
 contract TryCatchBytesTarget {
     function ok() external pure {}

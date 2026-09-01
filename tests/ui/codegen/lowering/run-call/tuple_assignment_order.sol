@@ -1,12 +1,12 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: swap() => 2, 1
-//@ run-call: repeatedMemoryTarget() => 4, 17, 1
-//@ run-call: repeatedStateTarget() => 3, 1
-//@ run-call: repeatedCallTarget() => 1
-//@ run-call: sideEffectfulTargets() => 1, 2, 2
-//@ run-call: storageBytesTargets() => 0x61, 0x62
+//@ run-call: swap => 2, 1
+//@ run-call: repeatedMemoryTarget => 4, 17, 1
+//@ run-call: repeatedStateTarget => 3, 1
+//@ run-call: repeatedCallTarget => 1
+//@ run-call: sideEffectfulTargets => 1, 2, 2
+//@ run-call: storageBytesTargets => 0x61, 0x62
 // ported-from: test/libsolidity/semanticTests/viaYul/local_tuple_assignment.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/tuple_evaluation_order.sol
 

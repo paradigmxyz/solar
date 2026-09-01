@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorModifierOverride::getData() => 6
+//@ run-call: ConstructorModifierOverride::getData => 6
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_for_constructor.sol
 
 contract ConstructorModifierOverrideBase {

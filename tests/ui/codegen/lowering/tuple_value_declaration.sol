@@ -1,8 +1,8 @@
-//@ run-call: pair(int256) -7 => 999999999999999993, -7
-//@ run-call: triple(uint256) 11 => 11, 12, 13
-//@ run-call: arrays(uint256,uint256) 17, 29 => 17, 29
-//@ run-call: discarded() => 13, 3
-//@ run-call: parenthesizedCall() => 7
+//@ run-call: pair -7 => 999999999999999993, -7
+//@ run-call: triple 11 => 11, 12, 13
+//@ run-call: arrays 17, 29 => 17, 29
+//@ run-call: discarded => 13, 3
+//@ run-call: parenthesizedCall => 7
 
 contract TupleValueDeclaration {
     uint256 private count;

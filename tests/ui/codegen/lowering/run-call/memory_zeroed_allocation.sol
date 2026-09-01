@@ -1,15 +1,15 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: readDynamic(uint256,uint256) 5, 0 => 0
-//@ run-call: readDynamic(uint256,uint256) 5, 4 => 0
-//@ run-call-fail: readDynamic(uint256,uint256) 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 3 => 0
-//@ run-call-fail: readNested(uint256,uint256,uint256,uint256) 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readFixed(uint256) 2 => 0
-//@ run-call-fail: readFixed(uint256) 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: readStatic(uint256,uint256) 2, 1 => 0
-//@ run-call-fail: readStatic(uint256,uint256) 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readDynamic 5, 0 => 0
+//@ run-call: readDynamic 5, 4 => 0
+//@ run-call-fail: readDynamic 5, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readNested 2, 4, 1, 3 => 0
+//@ run-call-fail: readNested 2, 4, 1, 4 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readFixed 2 => 0
+//@ run-call-fail: readFixed 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call: readStatic 2, 1 => 0
+//@ run-call-fail: readStatic 2, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_zeroed_memory_index_access.sol
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_2d_zeroed_memory_index_access.sol
 // ported-from: test/libsolidity/semanticTests/array/arrayMemoryAllocation/array_static_zeroed_memory_index_access.sol

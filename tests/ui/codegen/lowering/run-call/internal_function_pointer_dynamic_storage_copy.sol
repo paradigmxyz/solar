@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 7
+//@ run-call: test => 7
 // ported-from: test/libsolidity/semanticTests/array/copying/copy_function_internal_storage_array.sol
 
 contract InternalFunctionPointerDynamicStorageCopy {

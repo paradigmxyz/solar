@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: reasonLength() => 5
+//@ run-call: reasonLength => 5
 
 contract TryErrorTarget {
     function fail() external pure {

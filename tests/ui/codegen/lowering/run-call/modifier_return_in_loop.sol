@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: fAndRead() => 4
+//@ run-call: fAndRead => 4
 // ported-from: test/libsolidity/semanticTests/modifiers/return_in_modifier.sol
 
 contract ModifierReturnInLoop {

@@ -1,9 +1,9 @@
 //@ codegen-matrix: standard
-//@ run-call: countLoop() => 10
-//@ run-call: sumIndexed() => 31
-//@ run-call: multiDecl() => 7
-//@ run-call: asmUse() => 12
-//@ run-call: lhsIndexMutation() => 410
+//@ run-call: countLoop => 10
+//@ run-call: sumIndexed => 31
+//@ run-call: multiDecl => 7
+//@ run-call: asmUse => 12
+//@ run-call: lhsIndexMutation => 410
 //@ run-call: branchScopeLoop true, 3 => 4
 //@ run-call: branchScopeLoop false, 3 => 5
 

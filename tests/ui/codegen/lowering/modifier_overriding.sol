@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: C::f() => false
+//@ run-call: C::f => false
 // ported-from: test/libsolidity/semanticTests/modifiers/function_modifier_overriding.sol
 
 contract A {

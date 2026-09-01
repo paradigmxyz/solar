@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: DynamicWriterSpills::run() => 1
+//@ run-call: DynamicWriterSpills::run => 1
 
 contract DynamicWriterSpills {
     function payload() external pure {

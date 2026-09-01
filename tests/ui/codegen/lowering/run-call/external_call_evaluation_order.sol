@@ -1,12 +1,12 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: externalReceiver() => 14
-//@ run-call: callOptions() => 234
-//@ run-call: dirtyGasOption() => false
-//@ run-call: dirtySend(); value=1 => true
-//@ run-call: dirtyIndex() => 7
-//@ run-call: staticReceiverMutability() => 1
+//@ run-call: externalReceiver => 14
+//@ run-call: callOptions => 234
+//@ run-call: dirtyGasOption => false
+//@ run-call: dirtySend; value=1 => true
+//@ run-call: dirtyIndex => 7
+//@ run-call: staticReceiverMutability => 1
 
 contract MutatingBase {
     uint256 value;

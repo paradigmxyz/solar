@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 11116
+//@ run-call: test => 11116
 // ported-from: test/libsolidity/semanticTests/abicoder/abi_encode_call_declaration_v2.sol
 
 contract AbiEncodeCallDeclarationTarget {

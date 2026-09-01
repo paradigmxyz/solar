@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 0
+//@ run-call: f => 0
 // ported-from: test/libsolidity/semanticTests/various/tuples.sol
 
 contract StorageReturnPointerMixed {

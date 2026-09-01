@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: cleanup() => true, true, 32
-//@ run-call: cleanupShort() => false, true, 1
+//@ run-call: cleanup => true, true, 32
+//@ run-call: cleanupShort => false, true, 1
 
 contract StorageBytesAssignmentCleanup {
     bytes private data;

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 0
+//@ run-call: f => 0
 // Solc's via-IR modifier frame semantics preserve the incoming return value
 // when a modifier skips its placeholder.
 

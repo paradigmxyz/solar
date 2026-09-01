@@ -2,10 +2,10 @@
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
-//@ run-call: carry(uint256) 43 => 60
-//@ run-call: carry(uint256) 42 => 65
-//@ run-call: carryAcrossUnevenEdges(uint256) 14 => 19
-//@ run-call: carryAcrossUnevenEdges(uint256) 15 => 21
+//@ run-call: carry 43 => 60
+//@ run-call: carry 42 => 65
+//@ run-call: carryAcrossUnevenEdges 14 => 19
+//@ run-call: carryAcrossUnevenEdges 15 => 21
 
 contract CrossBlockStackJoin {
     // `kept` is defined before the diamond and reused after its join. Reserve its ordinary spill

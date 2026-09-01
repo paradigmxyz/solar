@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f(uint256[]) [7] => 7
-//@ run-call: f(uint256[]) [1, 2] => 1
+//@ run-call: f [7] => 7
+//@ run-call: f [1, 2] => 1
 
 contract ModifierMemoryArgument {
     modifier rewrite(uint256[] memory values) {

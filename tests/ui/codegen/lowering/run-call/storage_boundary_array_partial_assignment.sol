@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 36
+//@ run-call: test => 36
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_array_partial_assignment.sol
 
 contract StorageBoundaryArrayPartialAssignment {

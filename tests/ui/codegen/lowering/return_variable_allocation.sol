@@ -1,5 +1,5 @@
 //@ compile-flags: --allow=2018
-//@ run-call: f() => 0x0500, 0x0500, 0x0a00
+//@ run-call: f => 0x0500, 0x0500, 0x0a00
 // ported-from: test/libsolidity/semanticTests/memoryManagement/return_variable.sol
 
 contract C {

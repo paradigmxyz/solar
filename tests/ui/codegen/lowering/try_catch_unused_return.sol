@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call-fail: C::unusedReturn() => 0x
+//@ run-call-fail: C::unusedReturn => 0x
 
 interface Target {
     function value() external view returns (uint256);

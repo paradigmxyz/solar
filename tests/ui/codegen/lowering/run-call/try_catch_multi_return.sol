@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: success() => 15
-//@ run-call: failure() => 9
+//@ run-call: success => 15
+//@ run-call: failure => 9
 
 contract TryMultiReturnTarget {
     function value(bool ok) external pure returns (uint256, string memory) {

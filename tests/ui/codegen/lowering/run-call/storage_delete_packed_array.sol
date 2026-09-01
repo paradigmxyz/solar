@@ -1,13 +1,13 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: clear() => 1, 0, 3
-//@ run-call: clearReference() => 0, 0, 0
-//@ run-call: clearFixed() => 0, 0, 0
-//@ run-call: clearDynamicDirtyWord() => 0
-//@ run-call: clearFixedDirtyWord() => 0
-//@ run-call: clearOddWidthDirtyWords() => 0, 0, 0, 0, 0, 0
-//@ run-call: deleteThenPush() => 42, 7, 1
+//@ run-call: clear => 1, 0, 3
+//@ run-call: clearReference => 0, 0, 0
+//@ run-call: clearFixed => 0, 0, 0
+//@ run-call: clearDynamicDirtyWord => 0
+//@ run-call: clearFixedDirtyWord => 0
+//@ run-call: clearOddWidthDirtyWords => 0, 0, 0, 0, 0, 0
+//@ run-call: deleteThenPush => 42, 7, 1
 
 contract StorageDeletePackedArray {
     uint8[] private values;

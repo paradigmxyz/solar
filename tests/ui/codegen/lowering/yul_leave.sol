@@ -1,11 +1,11 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: simple() => 2
-//@ run-call: conditional(uint256) 0 => 9
-//@ run-call: conditional(uint256) 1 => 2
-//@ run-call: multiple() => 2, 3
-//@ run-call: fallthrough() => 9
+//@ run-call: simple => 2
+//@ run-call: conditional 0 => 9
+//@ run-call: conditional 1 => 2
+//@ run-call: multiple => 2, 3
+//@ run-call: fallthrough => 9
 
 contract YulLeave {
     function simple() external pure returns (uint256 result) {

@@ -1,8 +1,8 @@
 //@ codegen-matrix: standard
-//@ run-call: Caller::strAndNum() => 5, 42
-//@ run-call: Caller::numAndStr() => 42, 5
-//@ run-call: Caller::twoStrings() => 5, 2
-//@ run-call: Caller::mixed() => 3, 7, 1
+//@ run-call: Caller::strAndNum => 5, 42
+//@ run-call: Caller::numAndStr => 42, 5
+//@ run-call: Caller::twoStrings => 5, 2
+//@ run-call: Caller::mixed => 3, 7, 1
 
 // Multiple external-call return values containing dynamic types decode from
 // the copied payload at their head offsets; the extra values travel through

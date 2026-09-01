@@ -1,16 +1,16 @@
 //@ revisions: gas size
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
-//@ run-call: LargeWordArray::hash() => 0xa41eebc34ef4a2bef7c4463ad5d47685d5cf475712be997e19818707e2e36b43
-//@ run-call: SmallWordArray::hash() => 0x413fb8809e5063fd99860bceb9963617ce9a04f9001f7825ffacb57e3d64f140
-//@ run-call: NestedStructArray::hash() => 0x267950286dfa1667d06ecbbef2341c0ff0300e2241889da8186dbbc3256b3dbe
-//@ run-call: NullableFixedArray::hash(bool) false => 0xbd25874911abf23663dfdb4f360566b8be904042a4b73297ff91a2ed4b0b9290
-//@ run-call: NullableFixedArray::hash(bool) true => 0xe024dd41efb1448109e8a893545763be3cc16bbcff9d3c3d657db8f3e979d391
-//@ run-call: DynamicFixedArray::returnHash() => 0xae64e4c9ef2c7ec4a51aeb6980efa4df8e8a81def13fea38f8d4a8a76d8607d0
-//@ run-call: DynamicFixedArray::encodeHash() => 0xfce20023d5be7adf99be05833ee5b1be38219ef1f717ced202a7139e09572597
-//@ run-call: DynamicFixedArray::nestedHash(bool) false => 0xdb666b204e126b7c16cba7510b7a045fd85861c6aff50723985ef5e1198fa055
-//@ run-call: DynamicFixedArray::nestedHash(bool) true => 0x81657b39d8099a2aef988f9d70cdb30bcea35a4a9fa1e8ad829ea6a89c1dc354
-//@ run-call: DynamicFixedArray::smallHash() => 0x8712a90fa925ee5615802a9a69f58ddcf7da5d8c7eb43a4acb9f0627ef040cbf
+//@ run-call: LargeWordArray::hash => 0xa41eebc34ef4a2bef7c4463ad5d47685d5cf475712be997e19818707e2e36b43
+//@ run-call: SmallWordArray::hash => 0x413fb8809e5063fd99860bceb9963617ce9a04f9001f7825ffacb57e3d64f140
+//@ run-call: NestedStructArray::hash => 0x267950286dfa1667d06ecbbef2341c0ff0300e2241889da8186dbbc3256b3dbe
+//@ run-call: NullableFixedArray::hash false => 0xbd25874911abf23663dfdb4f360566b8be904042a4b73297ff91a2ed4b0b9290
+//@ run-call: NullableFixedArray::hash true => 0xe024dd41efb1448109e8a893545763be3cc16bbcff9d3c3d657db8f3e979d391
+//@ run-call: DynamicFixedArray::returnHash => 0xae64e4c9ef2c7ec4a51aeb6980efa4df8e8a81def13fea38f8d4a8a76d8607d0
+//@ run-call: DynamicFixedArray::encodeHash => 0xfce20023d5be7adf99be05833ee5b1be38219ef1f717ced202a7139e09572597
+//@ run-call: DynamicFixedArray::nestedHash false => 0xdb666b204e126b7c16cba7510b7a045fd85861c6aff50723985ef5e1198fa055
+//@ run-call: DynamicFixedArray::nestedHash true => 0x81657b39d8099a2aef988f9d70cdb30bcea35a4a9fa1e8ad829ea6a89c1dc354
+//@ run-call: DynamicFixedArray::smallHash => 0x8712a90fa925ee5615802a9a69f58ddcf7da5d8c7eb43a4acb9f0627ef040cbf
 
 contract LargeWordArray {
     function values() external pure returns (bool[989] memory result) {}

@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test(bool,uint256) false, 17 => 17, 0
-//@ run-call: test(bool,uint256) true, 19 => 0, 19
+//@ run-call: test false, 17 => 17, 0
+//@ run-call: test true, 19 => 0, 19
 
 contract StorageReturnPointerDirect {
     struct S {

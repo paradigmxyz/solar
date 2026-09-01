@@ -1,5 +1,5 @@
 //@ compile-flags: -Osize
-//@ run-call: expandedMemory() => 65568
+//@ run-call: expandedMemory => 65568
 
 contract DiscardedReturnMsize {
     function readFarMemory() internal pure returns (uint256 value) {

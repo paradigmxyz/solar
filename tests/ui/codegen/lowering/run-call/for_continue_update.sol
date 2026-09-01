@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: ForContinueUpdate::yulLoop() => 2
-//@ run-call: ForContinueUpdate::solidityLoop() => 2
-//@ run-call-fail: ForContinueUpdate::yulRevert() => 0x8baa579f
+//@ run-call: ForContinueUpdate::yulLoop => 2
+//@ run-call: ForContinueUpdate::solidityLoop => 2
+//@ run-call-fail: ForContinueUpdate::yulRevert => 0x8baa579f
 
 contract ForContinueUpdate {
     function yulLoop() external pure returns (uint256 result) {

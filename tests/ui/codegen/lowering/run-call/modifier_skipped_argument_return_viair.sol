@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 0
+//@ run-call: f => 0
 // Solc's via-IR modifier frames discard argument-side return writes when the
 // placeholder is skipped.
 

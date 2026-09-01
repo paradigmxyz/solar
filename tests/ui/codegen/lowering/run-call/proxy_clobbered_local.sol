@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
 //@ run-call: C::keepsLocal 1, 2, 3, 4, 5 => 42
-//@ run-call: C::forwards() => 1
+//@ run-call: C::forwards => 1
 
 // A reassigned Solidity local must survive assembly that scribbles
 // compiler-owned low memory — the pattern hand-written forwarding proxies use

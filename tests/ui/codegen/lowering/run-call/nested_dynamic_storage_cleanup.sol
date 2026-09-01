@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: f() => 0, 0
+//@ run-call: f => 0, 0
 
 contract NestedDynamicStorageCleanup {
     uint256[][] private x;

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 0x00000000000000010000, 0x00000000000000020000, 0x00000000000000030000, 0x00000000000000040000, 0x00000000000000050000
+//@ run-call: test => 0x00000000000000010000, 0x00000000000000020000, 0x00000000000000030000, 0x00000000000000040000, 0x00000000000000050000
 // ported-from: test/libsolidity/semanticTests/array/copying/array_copy_different_packing.sol
 
 contract StorageArrayDifferentPacking {

@@ -1,11 +1,11 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: bitwise(bytes1) 0x01 => 0x03, 0x01, 0x09
-//@ run-call: bitwise(bytes1) 0xf1 => 0xf3, 0x01, 0xf9
-//@ run-call: shifts(bytes1) 0x81 => 0x02, 0x40
-//@ run-call: wide(bytes2) 0x0102 => 0x0103
-//@ run-call: storageBoundary() => 0x09
+//@ run-call: bitwise 0x01 => 0x03, 0x01, 0x09
+//@ run-call: bitwise 0xf1 => 0xf3, 0x01, 0xf9
+//@ run-call: shifts 0x81 => 0x02, 0x40
+//@ run-call: wide 0x0102 => 0x0103
+//@ run-call: storageBoundary => 0x09
 
 contract FixedBytesCompoundAssignments {
     bytes private data;

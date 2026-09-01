@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: test() => false
-//@ run-call: testFlags() => true
-//@ run-call: testTypedConstant() => true
+//@ run-call: test => false
+//@ run-call: testFlags => true
+//@ run-call: testTypedConstant => true
 
 contract C {
     bytes1 private constant AUTH_DATA_FLAGS_UP = 0x01;

@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: test() => 820, true
+//@ run-call: test => 820, true
 // ported-from: test/libsolidity/semanticTests/storage/storage_boundary_struct_array_packed.sol
 
 contract StorageBoundaryStructArrayPacked {

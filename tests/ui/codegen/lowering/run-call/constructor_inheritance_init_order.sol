@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ConstructorInitOrderDerived::y() => 42
-//@ run-call: NoCtorDerived::y() => 42
+//@ run-call: ConstructorInitOrderDerived::y => 42
+//@ run-call: NoCtorDerived::y => 42
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order.sol
 
 contract ConstructorInitOrderBase {

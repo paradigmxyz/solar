@@ -1,14 +1,14 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: init((address,uint8,string,bytes),address) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
-//@ run-call: tail((address,uint8,string,bytes)) (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
-//@ run-call: allocatedAggregates() => 2, 18, 5, 2, 8
-//@ run-call: fixedAllocatedAggregates() => 2, 12, 5, 2, 9
-//@ run-call: zeroAllocatedAggregates() => 2, 0, 0, 0
-//@ run-call: zeroDynamicAggregates() => 2, 0, 2, 0
-//@ run-call: zeroDynamicAggregatesAfterScratch() => 0, 1
-//@ run-call: zeroNestedDynamicAggregateAfterScratch() => 0
+//@ run-call: init (0x000000000000000000000000000000000000beef, 7, "name", 0x0102), 0x0000000000000000000000000000000000000003 => 10
+//@ run-call: tail (0x000000000000000000000000000000000000beef, 7, "name", 0x0102) => 0x02
+//@ run-call: allocatedAggregates => 2, 18, 5, 2, 8
+//@ run-call: fixedAllocatedAggregates => 2, 12, 5, 2, 9
+//@ run-call: zeroAllocatedAggregates => 2, 0, 0, 0
+//@ run-call: zeroDynamicAggregates => 2, 0, 2, 0
+//@ run-call: zeroDynamicAggregatesAfterScratch => 0, 1
+//@ run-call: zeroNestedDynamicAggregateAfterScratch => 0
 
 struct InitInput {
     address asset;

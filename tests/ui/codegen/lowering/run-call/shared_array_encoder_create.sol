@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: second() => 0x0000000000000000000000000000000000000004
-//@ run-call: both() => 2, 4
-//@ run-call: lengths() => 2, 3
+//@ run-call: second => 0x0000000000000000000000000000000000000004
+//@ run-call: both => 2, 4
+//@ run-call: lengths => 2, 3
 
 // Two creation sites encode an `address[]` constructor argument, so the
 // encoder shares one per-type helper between them. The encoded arguments

@@ -1,11 +1,11 @@
 //@ codegen-matrix: standard byzantium cancun
 //@[byzantium] compile-flags: --evm-version byzantium
 //@[cancun] compile-flags: --evm-version cancun
-//@ run-call: PreConstantinopleShifts::shift(uint256,uint256) 3, 5 => 96, 0
-//@ run-call: PreConstantinopleShifts::signedShift(int256,uint256) -3, 1 => -2
-//@ run-call: PreConstantinopleShifts::signedShift(int256,uint256) -3, 300 => -1
-//@ run-call: PreConstantinopleShifts::packedStorage() => 1193046
-//@ run-call: PreConstantinopleShifts::partialCopy() => 0xab01020304050600000000000000000000000000000000000000000000000000
+//@ run-call: PreConstantinopleShifts::shift 3, 5 => 96, 0
+//@ run-call: PreConstantinopleShifts::signedShift -3, 1 => -2
+//@ run-call: PreConstantinopleShifts::signedShift -3, 300 => -1
+//@ run-call: PreConstantinopleShifts::packedStorage => 1193046
+//@ run-call: PreConstantinopleShifts::partialCopy => 0xab01020304050600000000000000000000000000000000000000000000000000
 
 contract PreConstantinopleShifts {
     uint24 internal packed;

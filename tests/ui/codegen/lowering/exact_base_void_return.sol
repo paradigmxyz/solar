@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: Derived::f(bool) true => 2
-//@ run-call: Derived::f(bool) false => 2
+//@ run-call: Derived::f true => 2
+//@ run-call: Derived::f false => 2
 
 contract Base {
     uint256 internal x;

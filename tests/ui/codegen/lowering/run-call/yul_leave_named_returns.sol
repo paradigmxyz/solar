@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: C::leaveInFor() => 5
-//@ run-call: C::leaveEarly() => 123
-//@ run-call: C::leaveMulti() => 7, 0
+//@ run-call: C::leaveInFor => 5
+//@ run-call: C::leaveEarly => 123
+//@ run-call: C::leaveMulti => 7, 0
 
 // Yul `leave` lowers to a bare `return;`, and both must deliver the declared
 // return variables' current values — not defaults. The bare-return path once

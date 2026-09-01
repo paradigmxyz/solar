@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: ConstantIntegerValue::calc() => 1020847100762815390390123822295304
-//@ run-call: ConstantIntegerValue::avgEdge() => 0x8000000000000000000000000000000000000000000000000000000000000000
-//@ run-call: ConstantIntegerValue::negativeConstant() => true
+//@ run-call: ConstantIntegerValue::calc => 1020847100762815390390123822295304
+//@ run-call: ConstantIntegerValue::avgEdge => 0x8000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: ConstantIntegerValue::negativeConstant => true
 
 library ConstantMath {
     uint256 internal constant MAX_UINT256 = 2**256 - 1;

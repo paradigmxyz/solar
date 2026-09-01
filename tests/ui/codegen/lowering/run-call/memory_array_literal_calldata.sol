@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: collect(bytes,bytes) 0x, 0x11 => [0x, 0x11]
+//@ run-call: collect 0x, 0x11 => [0x, 0x11]
 
 contract MemoryArrayLiteralCalldata {
     function collect(bytes calldata first, bytes calldata second)

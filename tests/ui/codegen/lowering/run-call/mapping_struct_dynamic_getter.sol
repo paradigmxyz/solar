@@ -1,8 +1,8 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: MappingDynamicGetter::read() => 7, 0x616263
-//@ run-call: MappingDynamicGetter::m(uint256) 1 => 7, 0x616263
+//@ run-call: MappingDynamicGetter::read => 7, 0x616263
+//@ run-call: MappingDynamicGetter::m 1 => 7, 0x616263
 
 contract MappingDynamicGetter {
     struct Entry {

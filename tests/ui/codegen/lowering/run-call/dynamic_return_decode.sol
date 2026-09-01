@@ -1,10 +1,10 @@
 //@ codegen-matrix: standard
-//@ run-call: ArrayCaller::arrLenAndSum() => 2, 15
-//@ run-call: StringCaller::strFirstAndLen() => 0x68, 5
-//@ run-call: BytesCaller::bytesRoundTrip() => 2
-//@ run-call: FixedCaller::fixedSum() => 60
-//@ run-call: StringElementCaller::stringElem() => 5
-//@ run-call: NestedCaller::nestedSum() => 7
+//@ run-call: ArrayCaller::arrLenAndSum => 2, 15
+//@ run-call: StringCaller::strFirstAndLen => 0x68, 5
+//@ run-call: BytesCaller::bytesRoundTrip => 2
+//@ run-call: FixedCaller::fixedSum => 60
+//@ run-call: StringElementCaller::stringElem => 5
+//@ run-call: NestedCaller::nestedSum => 7
 
 // External-call returns of dynamic types are ABI blobs whose head words are
 // payload-relative offsets: they must be decoded, not used as memory

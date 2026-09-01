@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call: Harness::run() => 1
+//@ run-call: Harness::run => 1
 
 // Hand-written creation-code builders may temporarily use memory immediately
 // before a heap object and restore it after `create2`. Static internal frames

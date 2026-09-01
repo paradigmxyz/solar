@@ -1,7 +1,7 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: ShortCallOutput::shortOutput() => true, 7
+//@ run-call: ShortCallOutput::shortOutput => true, 7
 
 // EVM calls only copy the bytes that the callee returned. Bytes after that
 // remain unchanged, even when the requested output area is larger.

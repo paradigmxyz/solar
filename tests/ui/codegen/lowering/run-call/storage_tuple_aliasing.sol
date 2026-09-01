@@ -1,13 +1,13 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: storageAliases() => 10, 10, 2, 1
-//@ run-call: lhsMutation() => 99, 20
-//@ run-call: memorySnapshot() => 10, 99
-//@ run-call: returnedReferences() => 10, 10
-//@ run-call: nestedReturnedReferences() => 10, 10, 20
-//@ run-call: dynamicArrays() => 1, 1, 1, 1
-//@ run-call: byteArrays() => 0x0102, 0x0102
+//@ run-call: storageAliases => 10, 10, 2, 1
+//@ run-call: lhsMutation => 99, 20
+//@ run-call: memorySnapshot => 10, 99
+//@ run-call: returnedReferences => 10, 10
+//@ run-call: nestedReturnedReferences => 10, 10, 20
+//@ run-call: dynamicArrays => 1, 1, 1, 1
+//@ run-call: byteArrays => 0x0102, 0x0102
 
 contract StorageTupleAliasing {
     struct Item {

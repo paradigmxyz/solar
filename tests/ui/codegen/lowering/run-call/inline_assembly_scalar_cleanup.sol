@@ -1,18 +1,18 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call: arithmetic() => 1, 1, 1, 1, 1, 0
-//@ run-call: comparisons() => true, false, true, false, true, false
-//@ run-call: increments() => 1, 0
-//@ run-call-fail: decrements() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call-fail: negation() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call: wideningConversions() => 0x78, 0x78
-//@ run-call: explicitWideningReturn() => 0x78
-//@ run-call: implicitReturn() => 0x78
-//@ run-call-fail: invalidEnum() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call: assemblyRead() => 0x0101
-//@ run-call: internalArguments() => 0x42, 0x42
-//@ run-call: storageAssignment() => 1
+//@ run-call: arithmetic => 1, 1, 1, 1, 1, 0
+//@ run-call: comparisons => true, false, true, false, true, false
+//@ run-call: increments => 1, 0
+//@ run-call-fail: decrements => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: negation => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call: wideningConversions => 0x78, 0x78
+//@ run-call: explicitWideningReturn => 0x78
+//@ run-call: implicitReturn => 0x78
+//@ run-call-fail: invalidEnum => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call: assemblyRead => 0x0101
+//@ run-call: internalArguments => 0x42, 0x42
+//@ run-call: storageAssignment => 1
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol
