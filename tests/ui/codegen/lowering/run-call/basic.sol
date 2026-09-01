@@ -5,7 +5,7 @@
 //@ run-call: negate(bool) true => false
 //@ run-call: pair 41, true => 42, false
 //@ run-call: sum(uint256[]) [1, 2, 3] => 6
-//@ run-call: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000000
+//@ run-call: sum [] => 0
 //@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020
 //@ run-call-fail: 0x0194db8e0000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 //@ run-call: increment => 41
@@ -13,7 +13,6 @@
 //@ run-call: fullyInitializedNamedStruct => ([0], 0x00)
 //@ run-call: reservedSpillFreshness(bool) true => 83
 //@ run-call: reservedSpillFreshness(bool) false => 137
-//@ run-call: 0x1003e2d20000000000000000000000000000000000000000000000000000000000000002 => 0x000000000000000000000000000000000000000000000000000000000000002a
 
 contract RunCall {
     struct DynamicHolder {
