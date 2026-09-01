@@ -598,6 +598,21 @@ pub(crate) const fn is_commutative(op: u8) -> bool {
     matches!(op, ADD | MUL | EQ | AND | OR | XOR)
 }
 
+/// Returns the equivalent binary opcode after swapping its stack operands.
+#[must_use]
+pub(crate) const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
+    if is_commutative(opcode) {
+        return Some(opcode);
+    }
+    Some(match opcode {
+        LT => GT,
+        GT => LT,
+        SLT => SGT,
+        SGT => SLT,
+        _ => return None,
+    })
+}
+
 /// Returns whether an opcode is pure: it has no side effects and its result is a deterministic
 /// function of its stack operands alone (no memory, storage, or environment dependency), so two
 /// occurrences with equal operands always produce the same value.

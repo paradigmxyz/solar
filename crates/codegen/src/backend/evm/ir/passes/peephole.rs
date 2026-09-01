@@ -234,22 +234,18 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         return rewrite!(3, Edit::OverwriteOne(op::ISZERO));
     }
 
-    // `SWAP1 COMMUTATIVE_OP -> COMMUTATIVE_OP`.
-    if let [.., swap, instruction] = instructions.as_slice()
-        && swap.as_evm_opcode() == Some(op::SWAP1)
-        && let Some(opcode) = instruction.as_evm_opcode()
-        && is_commutative(opcode)
-    {
-        return rewrite!(2, Edit::RemoveFirstKeep(1));
-    }
-
-    // `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
+    // `SWAP1 OP -> OP'` when the binary operation accepts reversed operands.
     if let [.., swap, comparison] = instructions.as_slice()
         && swap.as_evm_opcode() == Some(op::SWAP1)
         && let Some(comparison) = comparison.as_evm_opcode()
-        && let Some(flipped) = flipped_comparison(comparison)
+        && let Some(swapped) = op::swapped_binary_opcode(comparison)
     {
-        return rewrite!(2, Edit::RemoveFirstOverwrite(flipped));
+        let edit = if swapped == comparison {
+            Edit::RemoveFirstKeep(1)
+        } else {
+            Edit::RemoveFirstOverwrite(swapped)
+        };
+        return rewrite!(2, edit);
     }
 
     // `DUP2 OP SWAP1 POP -> OP`.
@@ -260,7 +256,7 @@ fn try_peephole(gcx: Gcx<'_>, instructions: &mut Vec<Instruction>, block: u32) -
         && swap.as_evm_opcode() == Some(op::SWAP1)
         && pop.as_evm_opcode() == Some(op::POP)
     {
-        if is_commutative(binop) {
+        if op::is_commutative(binop) {
             return rewrite!(4, Edit::OverwriteOne(binop));
         }
         if matches!(
@@ -703,20 +699,6 @@ fn overwrite_stack_op(inst: &mut Instruction, stack_op: PhysicalStackOp) {
     *inst = Instruction::stack_op(stack_op);
     inst.metadata = metadata;
     inst.metadata.stack = None;
-}
-
-const fn is_commutative(opcode: u8) -> bool {
-    matches!(opcode, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ)
-}
-
-const fn flipped_comparison(opcode: u8) -> Option<u8> {
-    match opcode {
-        op::LT => Some(op::GT),
-        op::GT => Some(op::LT),
-        op::SLT => Some(op::SGT),
-        op::SGT => Some(op::SLT),
-        _ => None,
-    }
 }
 
 fn is_block_push(inst: &Instruction) -> bool {

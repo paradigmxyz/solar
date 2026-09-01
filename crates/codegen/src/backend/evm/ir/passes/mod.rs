@@ -70,7 +70,6 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &constant_data::ConstantData,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
-    &dce::Dce,
     &legalize_shifts::LegalizeShifts,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,

@@ -8444,7 +8444,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 orders.push(stack_order);
                 if operands.len() == 2
                     && operands[0] != operands[1]
-                    && Self::swapped_binary_opcode(opcode).is_some()
+                    && op::swapped_binary_opcode(opcode).is_some()
                 {
                     orders.push(SmallVec::from_iter(operands));
                 }
@@ -9484,17 +9484,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push(result);
     }
 
-    fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
-        Some(match opcode {
-            op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ => opcode,
-            op::LT => op::GT,
-            op::GT => op::LT,
-            op::SLT => op::SGT,
-            op::SGT => op::SLT,
-            _ => return None,
-        })
-    }
-
     /// Emits a binary operation with result tracking and liveness awareness.
     /// If an operand is still live after this instruction, we DUP it before it gets consumed.
     #[allow(clippy::too_many_arguments)]
@@ -9513,7 +9502,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.plan_operands(func, &[b, a], liveness, block, inst_idx).map(|plan| (opcode, plan));
         if a != b
             && selected.as_ref().is_none_or(|(_, plan)| !plan.is_free())
-            && let Some(swapped_opcode) = Self::swapped_binary_opcode(opcode)
+            && let Some(swapped_opcode) = op::swapped_binary_opcode(opcode)
             && let Some(swapped) = self.plan_operands(func, &[a, b], liveness, block, inst_idx)
             && selected.as_ref().is_none_or(|(_, current)| {
                 swapped.cost().cmp_for(current.cost(), self.gcx.sess.opts.optimization).is_lt()

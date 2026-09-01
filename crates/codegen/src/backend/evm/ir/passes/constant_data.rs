@@ -6,7 +6,7 @@
 //! that observe program-data layout through `CODESIZE`, because appending data would change the
 //! observed final byte.
 
-use super::EvmPass;
+use super::{EvmPass, data::literal_store_run, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
         ir::{BlockId, Data, DataRef, Instruction, Module},
@@ -89,42 +89,17 @@ fn find_run(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<Rewrite> {
-    let [value, dup, store, ..] = instructions.get(start..)? else { return None };
-    let first = value.concrete_immediate()?;
-    if dup.as_evm_opcode() != Some(op::DUP2) || store.as_evm_opcode() != Some(op::MSTORE) {
+    let (data, end) = literal_store_run(instructions, start)?;
+    if data.len() < 2 * WORD_BYTES {
         return None;
     }
 
-    let mut data = Vec::from(first.to_be_bytes::<WORD_BYTES>());
-    let mut end = start + 3;
-    let mut words = 1usize;
-    while let Some(window) = instructions.get(end..end + 6) {
-        let [offset, dup, add, value, swap, store] = window else { unreachable!() };
-        if offset.concrete_immediate() != Some(U256::from(words * WORD_BYTES))
-            || dup.as_evm_opcode() != Some(op::DUP2)
-            || add.as_evm_opcode() != Some(op::ADD)
-            || swap.as_evm_opcode() != Some(op::SWAP1)
-            || store.as_evm_opcode() != Some(op::MSTORE)
-        {
-            break;
-        }
-        let Some(value) = value.concrete_immediate() else { break };
-        data.extend_from_slice(&value.to_be_bytes::<WORD_BYTES>());
-        words += 1;
-        end += 6;
-    }
-    if words < 2 {
-        return None;
-    }
-
-    let old_size =
-        instructions[start..end].iter().map(|inst| encoded_len(gcx, inst)).sum::<usize>();
+    let old_size = instructions[start..end]
+        .iter()
+        .map(|inst| instruction_size_lower_bound(gcx, inst))
+        .sum::<usize>();
     // Account for PUSH3 conservatively so a selected rewrite cannot grow an
     // EIP-170-sized program when the data lands above the PUSH2 boundary.
     let new_size = data.len() + data_copy_cost(gcx.sess.opts.evm_version, data.len()).0;
-    (new_size < old_size).then(|| Rewrite { block, start, end, data: data.into() })
-}
-
-fn encoded_len(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    inst.concrete_immediate().map_or(1, |value| super::compact_pushes::selected_len(gcx, value))
+    (new_size < old_size).then(|| Rewrite { block, start, end, data })
 }

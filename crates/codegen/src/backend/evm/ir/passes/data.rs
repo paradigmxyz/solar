@@ -7,7 +7,7 @@
 //! layout. Pooling uses bounded substring search to avoid quadratic compile time on large data
 //! sets.
 
-use super::EvmPass;
+use super::{EvmPass, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
         ir::{
@@ -254,6 +254,21 @@ fn find_run(
     instructions: &[Instruction],
     start: usize,
 ) -> Option<(Bytes, Rewrite)> {
+    let (data, end) = literal_store_run(instructions, start)?;
+    let instructions = &instructions[start..end];
+    if !instructions.iter().all(Instruction::has_canonical_stack_effect) {
+        return None;
+    }
+    let old_size = instructions.iter().map(|inst| instruction_size_lower_bound(gcx, inst)).sum();
+    let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
+    Some((data, Rewrite { block, start, end, old_size, old_gas }))
+}
+
+/// Returns the bytes and exclusive end of a consecutive literal `MSTORE` run.
+pub(super) fn literal_store_run(
+    instructions: &[Instruction],
+    start: usize,
+) -> Option<(Bytes, usize)> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
     let first = value.concrete_immediate()?;
     if dup.as_evm_opcode() != Some(op::DUP2) || store.as_evm_opcode() != Some(op::MSTORE) {
@@ -285,13 +300,7 @@ fn find_run(
             &window[3].concrete_immediate().unwrap().to_be_bytes::<WORD_BYTES>(),
         );
     }
-    let instructions = &instructions[start..end];
-    if !instructions.iter().all(Instruction::has_canonical_stack_effect) {
-        return None;
-    }
-    let old_size = instructions.iter().map(|inst| encoded_len(gcx, inst)).sum();
-    let old_gas = instructions.iter().map(|inst| static_gas(gcx, inst)).sum();
-    Some((data.into(), Rewrite { block, start, end, old_size, old_gas }))
+    Some((data.into(), end))
 }
 
 fn rewrite_improvement(
@@ -617,10 +626,6 @@ fn data_copy_is_bounded(module: &Module, data: DataRef, size: usize) -> bool {
 
 fn data_offset(offset: usize) -> u32 {
     u32::try_from(offset).expect("data offset exceeds `u32`")
-}
-
-fn encoded_len(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    inst.concrete_immediate().map_or(1, |value| super::compact_pushes::selected_len(gcx, value))
 }
 
 fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {

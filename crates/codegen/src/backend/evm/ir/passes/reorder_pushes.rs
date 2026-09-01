@@ -51,61 +51,77 @@ impl EvmPass for ReorderPushes {
         let reorder_expressions = self.reorder_legacy_size_expressions
             || !gcx.sess.opts.optimization.is_size()
             || gcx.sess.opts.evm_version.has_extended_stack_ops();
+        let mut state = ReorderState::default();
         let mut changed = false;
         for block in &mut module.blocks {
-            changed |= reorder(&mut block.instructions, evm_version, reorder_expressions);
+            changed |= state.reorder(&mut block.instructions, evm_version, reorder_expressions);
         }
         changed
     }
 }
 
-fn reorder(
-    instructions: &mut Vec<Instruction>,
-    evm_version: EvmVersion,
-    reorder_expressions: bool,
-) -> bool {
-    let mut source = Vec::new();
-    std::mem::swap(instructions, &mut source);
-    let mut sequence = InstructionSequence::with_capacity(source.len());
-    let mut expressions = Vec::<Expression>::new();
-    let mut changed = false;
-    for inst in source.drain(..) {
-        if inst.as_stack_op() == Some(StackOp::Swap(1))
-            && inst.has_canonical_stack_effect()
-            && let Some(pushed) = expressions.last()
-            && pushed.immediate_recipe
-            && let Some(pushed_end) = sequence.last
-            && let Some((dup_node, rebased)) =
-                rebasable_dup_before(&sequence, pushed.start, evm_version)
-        {
-            sequence.replace_stack_op(dup_node, rebased);
-            sequence.move_range_before(pushed.start, pushed_end, dup_node);
-            expressions.clear();
-            changed = true;
-            continue;
+#[derive(Default)]
+struct ReorderState {
+    source: Vec<Instruction>,
+    sequence: InstructionSequence,
+    expressions: Vec<Expression>,
+}
+
+impl ReorderState {
+    fn reorder(
+        &mut self,
+        instructions: &mut Vec<Instruction>,
+        evm_version: EvmVersion,
+        reorder_expressions: bool,
+    ) -> bool {
+        if !instructions.iter().any(|inst| {
+            inst.has_canonical_stack_effect() && inst.as_stack_op() == Some(StackOp::Swap(1))
+        }) {
+            return false;
         }
 
-        if reorder_expressions
-            && inst.as_stack_op() == Some(StackOp::Swap(1))
-            && inst.has_canonical_stack_effect()
-            && let [.., producer, pushed] = expressions.as_slice()
-            && pushed.immediate_recipe
-            && let Some(pushed_end) = sequence.last
-        {
-            let (producer, pushed) = (*producer, *pushed);
-            sequence.move_range_before(pushed.start, pushed_end, producer.start);
-            let len = expressions.len();
-            expressions.swap(len - 2, len - 1);
-            changed = true;
-            continue;
-        }
+        std::mem::swap(instructions, &mut self.source);
+        self.sequence.clear();
+        self.sequence.reserve(self.source.len());
+        self.expressions.clear();
+        let mut changed = false;
+        for inst in self.source.drain(..) {
+            if inst.as_stack_op() == Some(StackOp::Swap(1))
+                && inst.has_canonical_stack_effect()
+                && let Some(pushed) = self.expressions.last()
+                && pushed.immediate_recipe
+                && let Some(pushed_end) = self.sequence.last
+                && let Some((dup_node, rebased)) =
+                    rebasable_dup_before(&self.sequence, pushed.start, evm_version)
+            {
+                self.sequence.replace_stack_op(dup_node, rebased);
+                self.sequence.move_range_before(pushed.start, pushed_end, dup_node);
+                self.expressions.clear();
+                changed = true;
+                continue;
+            }
 
-        let node = sequence.push(inst);
-        update_expressions(&mut expressions, &sequence, node);
+            if reorder_expressions
+                && inst.as_stack_op() == Some(StackOp::Swap(1))
+                && inst.has_canonical_stack_effect()
+                && let [.., producer, pushed] = self.expressions.as_slice()
+                && pushed.immediate_recipe
+                && let Some(pushed_end) = self.sequence.last
+            {
+                let (producer, pushed) = (*producer, *pushed);
+                self.sequence.move_range_before(pushed.start, pushed_end, producer.start);
+                let len = self.expressions.len();
+                self.expressions.swap(len - 2, len - 1);
+                changed = true;
+                continue;
+            }
+
+            let node = self.sequence.push(inst);
+            update_expressions(&mut self.expressions, &self.sequence, node);
+        }
+        self.sequence.finish_into(instructions);
+        changed
     }
-    sequence.finish_into(&mut source);
-    *instructions = source;
-    changed
 }
 
 fn rebase_dup(evm_version: EvmVersion, depth: u8) -> Option<StackOp> {
@@ -190,6 +206,7 @@ struct InstructionNode {
     next: Option<usize>,
 }
 
+#[derive(Default)]
 struct InstructionSequence {
     nodes: Vec<InstructionNode>,
     first: Option<usize>,
@@ -197,8 +214,14 @@ struct InstructionSequence {
 }
 
 impl InstructionSequence {
-    fn with_capacity(capacity: usize) -> Self {
-        Self { nodes: Vec::with_capacity(capacity), first: None, last: None }
+    fn clear(&mut self) {
+        self.nodes.clear();
+        self.first = None;
+        self.last = None;
+    }
+
+    fn reserve(&mut self, additional: usize) {
+        self.nodes.reserve(additional);
     }
 
     fn push(&mut self, instruction: Instruction) -> usize {
@@ -259,7 +282,7 @@ impl InstructionSequence {
         }
     }
 
-    fn finish_into(mut self, instructions: &mut Vec<Instruction>) {
+    fn finish_into(&mut self, instructions: &mut Vec<Instruction>) {
         instructions.reserve(self.nodes.len());
         let mut current = self.first;
         while let Some(index) = current {
