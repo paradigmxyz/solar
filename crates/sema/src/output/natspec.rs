@@ -8,7 +8,7 @@ use solar_data_structures::map::{FxHashSet, FxIndexMap};
 /// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
 ///
 /// Created by [`Gcx::user_documentation`] and [`Gcx::dev_documentation`].
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Documentation {
     pub kind: DocumentationKind,
@@ -32,7 +32,7 @@ pub struct Documentation {
     pub version: u8,
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize)]
 pub struct DocumentationItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notice: Option<String>,

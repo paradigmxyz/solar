@@ -327,6 +327,12 @@ impl<'a> OutputSelection<'a> {
 
         flags & OutputSelectionFlags::CONTRACT
     }
+
+    pub(super) fn requests_metadata(&self) -> bool {
+        self.0.values().any(|contracts| {
+            contracts.values().any(|flags| flags.contains(OutputSelectionFlags::METADATA))
+        })
+    }
 }
 
 bitflags::bitflags! {

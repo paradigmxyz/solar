@@ -15,7 +15,27 @@ use solar_sema::{
 };
 use std::sync::OnceLock;
 
+const STOP: u8 = 0x00;
 const INVALID: u8 = 0xfe;
+const IPFS_MULTIHASH_LEN: usize = 34;
+
+impl MetadataHash {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Ipfs => "ipfs",
+            Self::Bzzr1 => "bzzr1",
+            Self::None => "none",
+        }
+    }
+
+    const fn cbor_value_len(self) -> Option<usize> {
+        match self {
+            Self::Ipfs => Some(IPFS_MULTIHASH_LEN),
+            Self::Bzzr1 => Some(32),
+            Self::None => None,
+        }
+    }
+}
 
 /// Lazily computed metadata for a Standard JSON compilation.
 pub(super) struct Metadata<'a, 'input, 'gcx> {
@@ -47,9 +67,16 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         if !settings.append_cbor {
             return Bytes::new();
         }
-        let mut suffix = Vec::with_capacity(cbor_metadata_len(settings.bytecode_hash.value) + 1);
+        let hash = settings.bytecode_hash.value;
+        let mut suffix = Vec::with_capacity(cbor_metadata_len(hash) + 2);
+        suffix.push(STOP);
         suffix.push(INVALID);
-        push_cbor_metadata(&mut suffix, self.json(contract_id), settings.bytecode_hash.value);
+        match hash {
+            MetadataHash::Ipfs | MetadataHash::Bzzr1 => {
+                push_cbor_metadata(&mut suffix, self.json(contract_id), hash);
+            }
+            MetadataHash::None => push_cbor_metadata(&mut suffix, "", hash),
+        }
         suffix.into()
     }
 
@@ -78,14 +105,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     if !settings.append_cbor {
         metadata_settings.insert("appendCBOR".into(), Value::Bool(false));
     }
-    metadata_settings.insert(
-        "bytecodeHash".into(),
-        json!(match settings.bytecode_hash.value {
-            MetadataHash::Ipfs => "ipfs",
-            MetadataHash::Bzzr1 => "bzzr1",
-            MetadataHash::None => "none",
-        }),
-    );
+    metadata_settings.insert("bytecodeHash".into(), json!(settings.bytecode_hash.value.name()));
     if settings.use_literal_content {
         metadata_settings.insert("useLiteralContent".into(), Value::Bool(true));
     }
@@ -178,10 +198,9 @@ const fn cbor_bytes_len(key_len: usize, value_len: usize) -> usize {
 }
 
 const fn cbor_metadata_len(hash: MetadataHash) -> usize {
-    let hash_entry_len = match hash {
-        MetadataHash::Ipfs => cbor_bytes_len("ipfs".len(), 34),
-        MetadataHash::Bzzr1 => cbor_bytes_len("bzzr1".len(), 32),
-        MetadataHash::None => 0,
+    let hash_entry_len = match hash.cbor_value_len() {
+        Some(value_len) => cbor_bytes_len(hash.name().len(), value_len),
+        None => 0,
     };
     1 + hash_entry_len + cbor_bytes_len("solar".len(), 3) + 2
 }
@@ -191,11 +210,11 @@ fn push_cbor_metadata(output: &mut Vec<u8>, metadata: &str, hash: MetadataHash) 
     match hash {
         MetadataHash::Ipfs => {
             output.push(0xa2);
-            push_cbor_bytes(output, "ipfs", &ipfs_hash(metadata.as_bytes()));
+            push_cbor_bytes(output, hash.name(), &ipfs_hash(metadata.as_bytes()));
         }
         MetadataHash::Bzzr1 => {
             output.push(0xa2);
-            push_cbor_bytes(output, "bzzr1", &bzzr1_hash(metadata.as_bytes()));
+            push_cbor_bytes(output, hash.name(), &bzzr1_hash(metadata.as_bytes()));
         }
         MetadataHash::None => {
             output.push(0xa1);
@@ -235,11 +254,11 @@ fn ipfs_hash(input: &[u8]) -> Vec<u8> {
     while chunks.len() > 1 {
         chunks = chunks.chunks_mut(174).map(ipfs_parent).collect();
     }
-    chunks.pop().expect("IPFS tree must have a root").hash
+    chunks.pop().expect("IPFS tree must have a root").hash.to_vec()
 }
 
 struct IpfsChunk {
-    hash: Vec<u8>,
+    hash: [u8; IPFS_MULTIHASH_LEN],
     size: usize,
     block_size: usize,
 }
@@ -271,14 +290,15 @@ fn ipfs_parent(children: &mut [IpfsChunk]) -> IpfsChunk {
     for child in children {
         size += child.size;
         block_size += child.block_size;
-        let mut link = vec![0x0a];
-        push_varint(&mut link, child.hash.len());
-        link.append(&mut child.hash);
-        link.extend([0x12, 0x00, 0x18]);
-        push_varint(&mut link, child.block_size);
         links.push(0x12);
-        push_varint(&mut links, link.len());
-        links.extend(link);
+        let link_len =
+            1 + varint_len(child.hash.len()) + child.hash.len() + 3 + varint_len(child.block_size);
+        push_varint(&mut links, link_len);
+        links.push(0x0a);
+        push_varint(&mut links, child.hash.len());
+        links.extend(child.hash);
+        links.extend([0x12, 0x00, 0x18]);
+        push_varint(&mut links, child.block_size);
         lengths.push(0x20);
         push_varint(&mut lengths, child.size);
     }
@@ -293,9 +313,10 @@ fn ipfs_parent(children: &mut [IpfsChunk]) -> IpfsChunk {
     IpfsChunk { hash: sha256_multihash(&links), size, block_size }
 }
 
-fn sha256_multihash(input: &[u8]) -> Vec<u8> {
-    let mut output = vec![0x12, 0x20];
-    output.extend(Sha256::digest(input));
+fn sha256_multihash(input: &[u8]) -> [u8; IPFS_MULTIHASH_LEN] {
+    let mut output = [0; IPFS_MULTIHASH_LEN];
+    output[..2].copy_from_slice(&[0x12, 0x20]);
+    output[2..].copy_from_slice(&Sha256::digest(input));
     output
 }
 
@@ -319,26 +340,28 @@ fn bzzr1_hash(input: &[u8]) -> [u8; 32] {
 }
 
 fn bzzr1_chunk(input: &[u8], force_higher: bool) -> [u8; 32] {
-    let higher;
-    let data = if input.len() < 0x1000 || input.len() == 0x1000 && !force_higher {
-        input
+    let hash = if input.len() == 0x1000 && !force_higher {
+        bmt_hash(input)
     } else {
-        let mut represented = 0x1000;
-        while represented * (0x1000 / 32) < input.len() {
-            represented *= 0x1000 / 32;
+        let mut padded = [0; 0x1000];
+        if input.len() < 0x1000 {
+            padded[..input.len()].copy_from_slice(input);
+        } else {
+            let mut represented = 0x1000;
+            while represented * (0x1000 / 32) < input.len() {
+                represented *= 0x1000 / 32;
+            }
+            for (output, chunk) in
+                padded.as_chunks_mut::<32>().0.iter_mut().zip(input.chunks(represented))
+            {
+                output.copy_from_slice(&bzzr1_chunk(chunk, represented > 0x1000));
+            }
         }
-        higher = input
-            .chunks(represented)
-            .flat_map(|chunk| bzzr1_chunk(chunk, represented > 0x1000))
-            .collect::<Vec<_>>();
-        &higher
+        bmt_hash(&padded)
     };
-    let mut padded = Vec::with_capacity(0x1000);
-    padded.extend_from_slice(data);
-    padded.resize(0x1000, 0);
     let mut value = [0; 40];
     value[..8].copy_from_slice(&(input.len() as u64).to_le_bytes());
-    value[8..].copy_from_slice(&bmt_hash(&padded));
+    value[8..].copy_from_slice(&hash);
     keccak256(value).into()
 }
 

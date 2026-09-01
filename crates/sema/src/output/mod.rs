@@ -9,7 +9,7 @@ pub use storage_layout::{
     StorageEncoding, StorageLayoutEntry, StorageLayoutMember, StorageLayoutOutput,
     StorageLayoutType,
 };
-#[derive(Clone, Debug, Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DocumentationKind {
     User,

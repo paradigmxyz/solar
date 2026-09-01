@@ -243,9 +243,9 @@ fn compile(
                 let control_flow = crate::commands::compile::run_pipeline(
                     compiler,
                     |pcx| {
-                        let mut files = Vec::with_capacity(sources.len());
+                        let mut files = Vec::<(PathBuf, String)>::with_capacity(sources.len());
                         for (name, source) in sources {
-                            let Some(content) = &source.content else {
+                            let Some(content) = source.content else {
                                 let message = if source.urls.is_empty() {
                                     format!("source `{name}` is missing `content`")
                                 } else {
@@ -253,7 +253,7 @@ fn compile(
                                 };
                                 return Err(pcx.dcx().err(message).emit());
                             };
-                            files.push((PathBuf::from(name.as_ref()), content.to_string()));
+                            files.push((PathBuf::from(name.as_ref()), content.into()));
                         }
                         pcx.par_load_files_with_contents(files)
                     },
@@ -265,18 +265,25 @@ fn compile(
 
                 let gcx = compiler.gcx();
                 let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
-                let contract_metadata = Metadata::new(gcx, &settings);
-                let runtime_suffix = |contract_id| contract_metadata.runtime_suffix(contract_id);
+                let needs_metadata = output_selection.requests_metadata()
+                    || metadata.append_cbor && !bytecode_contracts.is_empty();
+                let contract_metadata = needs_metadata.then(|| Metadata::new(gcx, &settings));
 
                 crate::commands::compile::warn_experimental_codegen(
                     gcx.sess,
                     !bytecode_contracts.is_empty(),
                 );
-                let bytecodes = crate::emit::emit_requested(
-                    compiler,
-                    bytecode_contracts,
-                    Some(&runtime_suffix),
-                )?;
+                let bytecodes = if let Some(contract_metadata) = &contract_metadata {
+                    let runtime_suffix =
+                        |contract_id| contract_metadata.runtime_suffix(contract_id);
+                    crate::emit::emit_requested(
+                        compiler,
+                        bytecode_contracts,
+                        Some(&runtime_suffix),
+                    )?
+                } else {
+                    crate::emit::emit_requested(compiler, bytecode_contracts, None)?
+                };
 
                 gcx.dcx().has_errors()?;
 
@@ -290,7 +297,7 @@ fn compile(
                         contract_id,
                         contract_selection,
                         bytecodes.as_ref(),
-                        &contract_metadata,
+                        contract_metadata.as_ref(),
                     );
                     if !contract_output.is_empty() {
                         output
@@ -415,7 +422,7 @@ fn make_contract_output<'gcx>(
     contract_id: solar_sema::hir::ContractId,
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
-    metadata: &Metadata<'_, '_, 'gcx>,
+    metadata: Option<&Metadata<'_, '_, 'gcx>>,
 ) -> ContractOutput<'gcx> {
     let mut output = ContractOutput::default();
 
@@ -423,7 +430,12 @@ fn make_contract_output<'gcx>(
         output.abi = Some(gcx.contract_abi(contract_id));
     }
     if output_selection.contains(OutputSelectionFlags::METADATA) {
-        output.metadata = Some(metadata.json(contract_id).to_string());
+        output.metadata = Some(
+            metadata
+                .expect("metadata cache must exist when metadata is requested")
+                .json(contract_id)
+                .to_string(),
+        );
     }
     if output_selection.contains(OutputSelectionFlags::USERDOC) {
         output.userdoc = Some(gcx.user_documentation(contract_id));
