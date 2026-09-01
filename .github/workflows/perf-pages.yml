@@ -56,17 +56,29 @@ jobs:
         if: steps.data.outcome == 'success'
         working-directory: source/perf
         env:
-          COMMIT: ${{ github.event.workflow_run.head_sha }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          BASE_COMMIT: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
+          BASE_BRANCH: ${{ github.event.workflow_run.pull_requests[0].base.ref }}
+          HEAD_COMMIT: ${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.pull_requests[0].head.ref || github.event.workflow_run.head_branch }}
           CREATED_AT: ${{ github.event.workflow_run.created_at }}
           PR: ${{ github.event.workflow_run.pull_requests[0].number }}
         run: |
+          if [[ -n "$BASE_COMMIT" && -f ../../incoming/baseline/results.json ]] && \
+            ! node -e 'const fs=require("fs"); const index=JSON.parse(fs.readFileSync(process.argv[1])); process.exit(index.runs.some(run => run.commit === process.argv[2]) ? 0 : 1)' public/data/index.json "$BASE_COMMIT"; then
+            node scripts/import-run.mjs \
+              --results ../../incoming/baseline/results.json \
+              --artifacts ../../incoming/baseline/artifacts \
+              --output public/data \
+              --commit "$BASE_COMMIT" \
+              --branch "$BASE_BRANCH" \
+              --timestamp "$CREATED_AT"
+          fi
           args=(
             --results ../../incoming/results.json
             --artifacts ../../incoming/artifacts
             --output public/data
-            --commit "$COMMIT"
-            --branch "$BRANCH"
+            --commit "$HEAD_COMMIT"
+            --branch "$HEAD_BRANCH"
             --timestamp "$CREATED_AT"
           )
           if [[ -n "$PR" ]]; then args+=(--pr "$PR"); fi

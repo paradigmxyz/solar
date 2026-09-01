@@ -149,13 +149,13 @@ jobs:
           fi
 
           for run_id in $run_ids; do
-            for artifact in codegen-runtime-baseline codegen-runtime-results; do
+            for artifact in codegen-runtime-results; do
               download_dir="$RUNNER_TEMP/codegen-baseline-$run_id-$artifact"
               mkdir -p "$download_dir"
               if gh run download "$run_id" \
                 --name "$artifact" \
                 --dir "$download_dir" \
-                2>/dev/null && [[ -f "$download_dir/results.json" ]]; then
+                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]]; then
                 cp -R "$download_dir"/. target/codegen-bench/baseline/
                 echo "found=true" >> "$GITHUB_OUTPUT"
                 exit 0
