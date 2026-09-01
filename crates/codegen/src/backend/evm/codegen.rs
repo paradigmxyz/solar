@@ -1799,7 +1799,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             if !internal_targets.is_empty() {
                 let constructor_entry = self.asm.new_label();
-                self.asm.emit_push_label(constructor_entry);
+                self.emit_push_label(constructor_entry);
                 self.asm.emit_op(op::JUMP);
 
                 for (func_id, func) in module.functions.iter_enumerated() {
@@ -3567,12 +3567,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::ISZERO);
                 self.scheduler.instruction_executed_untracked(1);
             }
-            self.asm.emit_push_label(self.block_labels[&direct]);
+            self.emit_push_label(self.block_labels[&direct]);
             self.asm.emit_op(op::JUMPI);
             self.scheduler.stack.pop();
             self.emit_global_branch_cleanup(cleanup_layout);
             if Some(cleanup) != fallthrough {
-                self.asm.emit_push_label(self.block_labels[&cleanup]);
+                self.emit_push_label(self.block_labels[&cleanup]);
                 self.asm.emit_op(op::JUMP);
             }
             return;
@@ -3581,20 +3581,20 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Neither target wants the complete incoming union. Route one edge through a local
         // cleanup label and clean the fallthrough edge inline.
         let then_cleanup = self.asm.new_label();
-        self.asm.emit_push_label(then_cleanup);
+        self.emit_push_label(then_cleanup);
         self.asm.emit_op(op::JUMPI);
         self.scheduler.stack.pop();
         let union_stack = self.scheduler.stack.clone();
 
         self.emit_global_branch_cleanup(else_layout);
-        self.asm.emit_push_label(self.block_labels[&else_block]);
+        self.emit_push_label(self.block_labels[&else_block]);
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(then_cleanup);
         self.scheduler.stack = union_stack;
         self.emit_global_branch_cleanup(then_layout);
         if Some(then_block) != fallthrough {
-            self.asm.emit_push_label(self.block_labels[&then_block]);
+            self.emit_push_label(self.block_labels[&then_block]);
             self.asm.emit_op(op::JUMP);
         }
     }
@@ -3635,7 +3635,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(trampoline);
             self.set_stack_to_values(union);
             self.emit_global_branch_cleanup(&layout);
-            self.asm.emit_push_label(actual);
+            self.emit_push_label(actual);
             self.asm.emit_op(op::JUMP);
         }
     }
@@ -8130,9 +8130,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // it and every emitted DUP/SWAP/POP is model-relative, so nothing in
         // the callee can reach it. The callee's return consumes it with a bare
         // JUMP, and a tail call within the callee forwards it untouched.
-        self.asm.emit_push_label(return_label);
+        self.emit_push_label(return_label);
 
-        self.asm.emit_push_label(callee_label);
+        self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(return_label);
@@ -8711,7 +8711,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.scheduler.clear_stack();
 
-        self.asm.emit_push_label(return_label);
+        self.emit_push_label(return_label);
         // Stack-passed arguments ride above the return address, untracked by
         // the model like the return address itself; the callee prologue
         // stores them into its frame before its body runs.
@@ -8738,7 +8738,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_stack_op(op);
             }
         }
-        self.asm.emit_push_label(callee_label);
+        self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(return_label);
@@ -9987,11 +9987,16 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn emit_external_stop(&mut self) {
         if let Some(exit) = self.constructor_exit {
-            self.asm.emit_push_label(exit);
+            self.emit_push_label(exit);
             self.asm.emit_op(op::JUMP);
         } else {
             self.asm.emit_op(op::STOP);
         }
+    }
+
+    fn emit_push_label(&mut self, label: Label) {
+        self.scheduler.stack.observe_peak(self.scheduler.depth().saturating_add(1));
+        self.asm.emit_push_label(label);
     }
 
     fn generate_terminator(
@@ -10079,7 +10084,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                 }
                 let label = self.function_labels[function];
-                self.asm.emit_push_label(label);
+                self.emit_push_label(label);
                 self.asm.emit_op(op::JUMP);
             }
             Terminator::Jump(target) => {
@@ -10096,7 +10101,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if !preserve_stack {
                     self.pop_all_stack_values();
                 }
-                self.asm.emit_push_label(self.block_labels[target]);
+                self.emit_push_label(self.block_labels[target]);
                 self.asm.emit_op(op::JUMP);
             }
 
@@ -10113,7 +10118,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 match fallthrough {
                     Some(next) if *else_block == next => {
                         // JUMPI consumes the condition; false falls through to `else_block`.
-                        self.asm.emit_push_label(self.block_labels[then_block]);
+                        self.emit_push_label(self.block_labels[then_block]);
                         self.asm.emit_op(op::JUMPI);
                         self.scheduler.stack.pop(); // condition consumed by JUMPI
                     }
@@ -10121,7 +10126,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         // Invert the condition so true falls through to `then_block`.
                         self.asm.emit_op(op::ISZERO);
                         self.scheduler.instruction_executed_untracked(1);
-                        self.asm.emit_push_label(self.block_labels[else_block]);
+                        self.emit_push_label(self.block_labels[else_block]);
                         self.asm.emit_op(op::JUMPI);
                         self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
                     }
@@ -10134,19 +10139,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                         if self.block_is_cold(*then_block) && !self.block_is_cold(*else_block) {
                             self.asm.emit_op(op::ISZERO);
                             self.scheduler.instruction_executed_untracked(1);
-                            self.asm.emit_push_label(self.block_labels[else_block]);
+                            self.emit_push_label(self.block_labels[else_block]);
                             self.asm.emit_op(op::JUMPI);
                             self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
 
-                            self.asm.emit_push_label(self.block_labels[then_block]);
+                            self.emit_push_label(self.block_labels[then_block]);
                             self.asm.emit_op(op::JUMP);
                         } else {
                             // JUMPI consumes the condition
-                            self.asm.emit_push_label(self.block_labels[then_block]);
+                            self.emit_push_label(self.block_labels[then_block]);
                             self.asm.emit_op(op::JUMPI);
                             self.scheduler.stack.pop(); // condition consumed by JUMPI
 
-                            self.asm.emit_push_label(self.block_labels[else_block]);
+                            self.emit_push_label(self.block_labels[else_block]);
                             self.asm.emit_op(op::JUMP);
                         }
                     }
@@ -10430,6 +10435,20 @@ mod tests {
             };
             codegen.function_stack_peaks.insert(callee, MAX_STACK_DEPTH - 1);
             assert!(!codegen.stack_prefixes_fit_from(&module, constructor, MAX_STACK_DEPTH));
+        });
+    }
+
+    #[test]
+    fn label_push_extends_the_scheduler_peak() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            for _ in 0..MAX_STACK_DEPTH {
+                codegen.scheduler.stack.push_unknown();
+            }
+
+            let label = codegen.asm.new_label();
+            codegen.emit_push_label(label);
+
+            assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
         });
     }
 
