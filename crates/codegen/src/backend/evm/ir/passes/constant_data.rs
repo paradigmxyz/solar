@@ -7,7 +7,7 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{BlockId, Data, DataRef, Instruction, Module, PushValue},
+        ir::{BlockId, Data, DataRef, Instruction, Module},
         op::{self, WORD_BYTES},
     },
     lower::data_copy_cost,
@@ -88,7 +88,7 @@ fn find_run(
     start: usize,
 ) -> Option<Rewrite> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
-    let first = immediate(value)?;
+    let first = value.concrete_immediate()?;
     if dup.as_evm_opcode() != Some(op::DUP2) || store.as_evm_opcode() != Some(op::MSTORE) {
         return None;
     }
@@ -98,7 +98,7 @@ fn find_run(
     let mut words = 1usize;
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
-        if immediate(offset) != Some(U256::from(words * WORD_BYTES))
+        if offset.concrete_immediate() != Some(U256::from(words * WORD_BYTES))
             || dup.as_evm_opcode() != Some(op::DUP2)
             || add.as_evm_opcode() != Some(op::ADD)
             || swap.as_evm_opcode() != Some(op::SWAP1)
@@ -106,7 +106,7 @@ fn find_run(
         {
             break;
         }
-        let Some(value) = immediate(value) else { break };
+        let Some(value) = value.concrete_immediate() else { break };
         data.extend_from_slice(&value.to_be_bytes::<WORD_BYTES>());
         words += 1;
         end += 6;
@@ -124,16 +124,5 @@ fn find_run(
 }
 
 fn encoded_len(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    immediate(inst).map_or(1, |value| super::compact_pushes::selected_len(gcx, value))
-}
-
-fn immediate(inst: &Instruction) -> Option<U256> {
-    if !inst.is_encoded_push() || inst.deferred_push().is_some() || inst.immutable_push().is_some()
-    {
-        return None;
-    }
-    match inst.value {
-        Some(PushValue::Immediate(value)) => Some(value),
-        _ => None,
-    }
+    inst.concrete_immediate().map_or(1, |value| super::compact_pushes::selected_len(gcx, value))
 }

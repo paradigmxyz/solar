@@ -46,7 +46,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
         if !block.instructions.iter().any(|inst| {
-            immediate(inst)
+            inst.concrete_immediate()
                 .is_some_and(|value| !matches!(select(evm_version, value), CompactPush::Literal))
         }) {
             continue;
@@ -55,7 +55,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         std::mem::swap(&mut block.instructions, &mut scratch);
         block.instructions.reserve(scratch.len());
         for inst in scratch.drain(..) {
-            let Some(value) = immediate(&inst) else {
+            let Some(value) = inst.concrete_immediate() else {
                 block.instructions.push(inst);
                 continue;
             };
@@ -69,10 +69,6 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         }
     }
     changed
-}
-
-fn immediate(inst: &Instruction) -> Option<U256> {
-    inst.concrete_immediate()
 }
 
 fn push(value: U256) -> Instruction {

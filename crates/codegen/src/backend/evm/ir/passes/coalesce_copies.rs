@@ -128,14 +128,7 @@ fn word_copy(instructions: &[Instruction]) -> Option<(U256, U256)> {
     if load.opcode != op::MLOAD || store.opcode != op::MSTORE {
         return None;
     }
-    Some((immediate(source)?, immediate(destination)?))
-}
-
-fn immediate(inst: &Instruction) -> Option<U256> {
-    if inst.deferred_push().is_some() || inst.immutable_push().is_some() {
-        return None;
-    }
-    inst.pushed_value()
+    Some((source.concrete_immediate()?, destination.concrete_immediate()?))
 }
 
 fn ranges_disjoint(source: U256, destination: U256, words: usize) -> bool {
