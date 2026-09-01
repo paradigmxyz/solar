@@ -8,6 +8,7 @@ use super::{
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_data_structures::map::FxHashMap;
 
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
@@ -81,7 +82,7 @@ enum RevertKind {
 
 /// Revert blocks shared while constructing one MIR function.
 #[derive(Default)]
-struct RevertBlocks(SmallVec<[(RevertKind, BlockId); 2]>);
+struct RevertBlocks(FxHashMap<RevertKind, BlockId>);
 
 /// A builder for constructing MIR functions.
 pub(crate) struct FunctionBuilder<'a> {
@@ -256,12 +257,11 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn revert_block(&mut self, kind: RevertKind) -> (BlockId, bool) {
-        if let Some((_, block)) = self.revert_blocks.0.iter().find(|(cached, _)| *cached == kind) {
-            let block = *block;
+        if let Some(&block) = self.revert_blocks.0.get(&kind) {
             return (block, false);
         }
         let block = self.create_block();
-        self.revert_blocks.0.push((kind, block));
+        self.revert_blocks.0.insert(kind, block);
         (block, true)
     }
 
