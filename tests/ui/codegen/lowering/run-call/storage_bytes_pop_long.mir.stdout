@@ -14,9 +14,9 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb2:
     jump bb22
   bb22:
-    v42 = phi [bb2: v0], [bb63: v42]
-    v43 = phi [bb2: 40], [bb63: v146]
-    v44 = phi [bb2: v1], [bb63: v44]
+    v42 = phi [bb2: v0], [bb62: v42]
+    v43 = phi [bb2: 40], [bb62: v146]
+    v44 = phi [bb2: v1], [bb62: v44]
     v45 = slt v43, 0
     v46 = iszero v45
     jumpi v46, bb25, bb26
@@ -125,8 +125,8 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb49:
     v113 = eq v104, v105
     v114 = iszero v113
-    jumpi v114, bb50, bb51
-  bb51:
+    jumpi v114, bb39, bb50
+  bb50:
     v115 = sload 0 !metadata(storage=slot(0))
     v116 = and v115, 1
     v117 = eq v116, 1
@@ -135,42 +135,42 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v120 = select v117, v118, v119
     v121 = lt v120, 32
     v122 = eq v117, v121
-    jumpi v122, bb9, bb52
-  bb52:
+    jumpi v122, bb9, bb51
+  bb51:
     v123 = add v120, 31
     v124 = div v123, 32
     v125 = add v120, 63
     v126 = lt v125, v120
-    jumpi v126, bb11, bb53
-  bb53:
+    jumpi v126, bb11, bb52
+  bb52:
     v127 = not 31
     v128 = and v125, v127
     v129 = alloc memorybytes, exact, uninitialized, panic, v128
     set_memory_object_len memorybytes, v129, v120
-    jumpi v117, bb55, bb54
-  bb54:
+    jumpi v117, bb54, bb53
+  bb53:
     v130 = and v115, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
     memory_object_store_word memorybytes, v129, 0, v130
-    jump bb56
-  bb55:
+    jump bb55
+  bb54:
     v131 = storage_array_data_slot 0
-    jump bb57
-  bb57:
-    v132 = phi [bb55: 0], [bb58: v137]
-    v133 = lt v132, v124
-    jumpi v133, bb58, bb59
-  bb59:
     jump bb56
   bb56:
+    v132 = phi [bb54: 0], [bb57: v137]
+    v133 = lt v132, v124
+    jumpi v133, bb57, bb58
+  bb58:
+    jump bb55
+  bb55:
     v138 = memory_object_len memorybytes, v129
     v139 = eq v138, 0
-    jumpi v139, bb60, bb61
-  bb61:
+    jumpi v139, bb59, bb60
+  bb60:
     v140 = sub v138, 1
     v141 = add v140, 63
     v142 = lt v141, v140
-    jumpi v142, bb11, bb62
-  bb62:
+    jumpi v142, bb11, bb61
+  bb61:
     v143 = not 31
     v144 = and v141, v143
     v145 = alloc memorybytes, exact, zeroed, panic, v144
@@ -188,22 +188,20 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v150 = xor v147, v148
     v151 = xor v149, v147
     v152 = and v150, v151
-    jumpi v152, bb7, bb63
-  bb63:
+    jumpi v152, bb7, bb62
+  bb62:
     jump bb22
-  bb60:
+  bb59:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
-  bb58:
+  bb57:
     v134 = add v131, v132
     v135 = sload v134 !metadata(storage=symbolic(v134))
     v136 = mul v132, 32
     memory_object_store_word memorybytes, v129, v136, v135
     v137 = add v132, 1
-    jump bb57
-  bb50:
-    revert 0, 0
+    jump bb56
   bb47:
     v100 = add v97, v98
     v101 = sload v100 !metadata(storage=symbolic(v100))

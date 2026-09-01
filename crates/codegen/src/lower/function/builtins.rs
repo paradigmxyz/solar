@@ -589,6 +589,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     None => None,
                 };
                 let is_false = self.builder.iszero(condition);
+                if message.is_none() {
+                    self.builder.revert_if(is_false);
+                    return Some(());
+                }
                 let revert_block = self.builder.create_block();
                 let continue_block = self.builder.create_block();
                 self.builder.branch(is_false, revert_block, continue_block);

@@ -84,11 +84,9 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v47 = and v40, v46
     v48 = eq v38, v47
     v49 = iszero v48
-    jumpi v49, bb7, bb8
-  bb8:
-    ret v1
+    jumpi v49, bb3, bb7
   bb7:
-    revert 0, 0
+    ret v1
   bb3:
     revert 0, 0
   bb1:
@@ -189,11 +187,9 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v63 = and v56, v62
     v64 = eq v54, v63
     v65 = iszero v64
-    jumpi v65, bb10, bb11
-  bb11:
-    ret v17
+    jumpi v65, bb6, bb10
   bb10:
-    revert 0, 0
+    ret v17
   bb6:
     revert 0, 0
   bb4:

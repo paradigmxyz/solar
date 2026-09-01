@@ -949,13 +949,7 @@ fn encode_calldata_bytes_array(
 }
 
 fn revert_if_calldata_invalid(builder: &mut FunctionBuilder<'_>, condition: ValueId) {
-    let revert = builder.create_block();
-    let continue_block = builder.create_block();
-    builder.branch(condition, revert, continue_block);
-    builder.switch_to_block(revert);
-    let zero = builder.imm(0);
-    builder.revert(zero, zero);
-    builder.switch_to_block(continue_block);
+    builder.revert_if(condition);
 }
 
 fn encode_word_array(

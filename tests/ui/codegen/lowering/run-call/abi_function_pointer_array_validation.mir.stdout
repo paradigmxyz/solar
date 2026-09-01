@@ -104,11 +104,9 @@ fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
     v24 = abi_decode [u256], v21
     v25 = eq v24, arg2
     v26 = iszero v25
-    jumpi v26, bb10, bb11
-  bb11:
-    ret v24
+    jumpi v26, bb8, bb10
   bb10:
-    revert 0, 0
+    ret v24
   bb8:
     revert 0, 0
   bb6:

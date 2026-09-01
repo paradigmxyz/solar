@@ -94,32 +94,32 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v170 = sload 0 !metadata(storage=slot(0))
     v171 = eq v170, 2
     v172 = iszero v171
-    jumpi v172, bb51, bb52
-  bb52:
+    jumpi v172, bb3, bb51
+  bb51:
     v173 = sload 0 !metadata(storage=slot(0))
     v174 = lt 0, v173
     v175 = iszero v174
-    jumpi v175, bb1, bb53
-  bb53:
+    jumpi v175, bb1, bb52
+  bb52:
     v176 = storage_array_data_slot 0
     v177 = add v176, 0
     v178 = sload v177 !metadata(storage=symbolic(v176))
     v179 = eq v178, 1
     v180 = iszero v179
-    jumpi v180, bb54, bb55
-  bb55:
+    jumpi v180, bb3, bb53
+  bb53:
     v181 = sload 0 !metadata(storage=slot(0))
     v182 = lt 0, v181
     v183 = iszero v182
-    jumpi v183, bb1, bb56
-  bb56:
+    jumpi v183, bb1, bb54
+  bb54:
     v184 = storage_array_data_slot 0
     v185 = add v184, 0
     v186 = sload v185 !metadata(storage=symbolic(v184))
     v187 = lt 0, v186
     v188 = iszero v187
-    jumpi v188, bb1, bb57
-  bb57:
+    jumpi v188, bb1, bb55
+  bb55:
     v189 = storage_array_data_slot v185
     v190 = div 0, 32
     v191 = add v189, v190
@@ -131,32 +131,32 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v197 = and v196, 255
     v198 = eq v197, 7
     v199 = iszero v198
-    jumpi v199, bb58, bb59
-  bb59:
+    jumpi v199, bb3, bb56
+  bb56:
     v200 = sload 0 !metadata(storage=slot(0))
     v201 = lt 1, v200
     v202 = iszero v201
-    jumpi v202, bb1, bb60
-  bb60:
+    jumpi v202, bb1, bb57
+  bb57:
     v203 = storage_array_data_slot 0
     v204 = add v203, 1
     v205 = sload v204 !metadata(storage=offset(v203, 1))
     v206 = eq v205, 2
     v207 = iszero v206
-    jumpi v207, bb61, bb62
-  bb62:
+    jumpi v207, bb3, bb58
+  bb58:
     v208 = sload 0 !metadata(storage=slot(0))
     v209 = lt 1, v208
     v210 = iszero v209
-    jumpi v210, bb1, bb63
-  bb63:
+    jumpi v210, bb1, bb59
+  bb59:
     v211 = storage_array_data_slot 0
     v212 = add v211, 1
     v213 = sload v212 !metadata(storage=offset(v211, 1))
     v214 = lt 0, v213
     v215 = iszero v214
-    jumpi v215, bb1, bb64
-  bb64:
+    jumpi v215, bb1, bb60
+  bb60:
     v216 = storage_array_data_slot v212
     v217 = div 0, 32
     v218 = add v216, v217
@@ -168,20 +168,20 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v224 = and v223, 255
     v225 = eq v224, 8
     v226 = iszero v225
-    jumpi v226, bb65, bb66
-  bb66:
+    jumpi v226, bb3, bb61
+  bb61:
     v227 = sload 0 !metadata(storage=slot(0))
     v228 = lt 1, v227
     v229 = iszero v228
-    jumpi v229, bb1, bb67
-  bb67:
+    jumpi v229, bb1, bb62
+  bb62:
     v230 = storage_array_data_slot 0
     v231 = add v230, 1
     v232 = sload v231 !metadata(storage=offset(v230, 1))
     v233 = lt 1, v232
     v234 = iszero v233
-    jumpi v234, bb1, bb68
-  bb68:
+    jumpi v234, bb1, bb63
+  bb63:
     v235 = storage_array_data_slot v231
     v236 = div 1, 32
     v237 = add v235, v236
@@ -193,21 +193,9 @@ fn @test(arg0: calldataslice) [selector=0x787210b9, abi_params=[array<_, array<_
     v243 = and v242, 255
     v244 = eq v243, 9
     v245 = iszero v244
-    jumpi v245, bb69, bb70
-  bb70:
+    jumpi v245, bb3, bb64
+  bb64:
     stop
-  bb69:
-    revert 0, 0
-  bb65:
-    revert 0, 0
-  bb61:
-    revert 0, 0
-  bb58:
-    revert 0, 0
-  bb54:
-    revert 0, 0
-  bb51:
-    revert 0, 0
   bb37:
     v117 = memory_object_load_element memoryarray<1>, v43, v115
     v118 = eq v117, 0
@@ -504,46 +492,46 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v265 = sload v264 !metadata(storage=symbolic(v263))
     v266 = eq v265, 2
     v267 = iszero v266
-    jumpi v267, bb87, bb88
-  bb88:
+    jumpi v267, bb42, bb87
+  bb87:
     v268 = sload 1 !metadata(storage=slot(1))
     v269 = lt 0, v268
     v270 = iszero v269
-    jumpi v270, bb61, bb89
-  bb89:
+    jumpi v270, bb61, bb88
+  bb88:
     v271 = storage_array_data_slot 1
     v272 = add v271, 0
     v273 = sload v272 !metadata(storage=symbolic(v271))
     v274 = lt 0, v273
     v275 = iszero v274
-    jumpi v275, bb61, bb90
-  bb90:
+    jumpi v275, bb61, bb89
+  bb89:
     v276 = storage_array_data_slot v272
     v277 = add v276, 0
     v278 = sload v277 !metadata(storage=symbolic(v276))
     v279 = eq v278, 1
     v280 = iszero v279
-    jumpi v280, bb91, bb92
-  bb92:
+    jumpi v280, bb42, bb90
+  bb90:
     v281 = sload 1 !metadata(storage=slot(1))
     v282 = lt 0, v281
     v283 = iszero v282
-    jumpi v283, bb61, bb93
-  bb93:
+    jumpi v283, bb61, bb91
+  bb91:
     v284 = storage_array_data_slot 1
     v285 = add v284, 0
     v286 = sload v285 !metadata(storage=symbolic(v284))
     v287 = lt 0, v286
     v288 = iszero v287
-    jumpi v288, bb61, bb94
-  bb94:
+    jumpi v288, bb61, bb92
+  bb92:
     v289 = storage_array_data_slot v285
     v290 = add v289, 0
     v291 = sload v290 !metadata(storage=symbolic(v289))
     v292 = lt 0, v291
     v293 = iszero v292
-    jumpi v293, bb61, bb95
-  bb95:
+    jumpi v293, bb61, bb93
+  bb93:
     v294 = storage_array_data_slot v290
     v295 = div 0, 32
     v296 = add v294, v295
@@ -555,46 +543,46 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v302 = and v301, 255
     v303 = eq v302, 7
     v304 = iszero v303
-    jumpi v304, bb96, bb97
-  bb97:
+    jumpi v304, bb42, bb94
+  bb94:
     v305 = sload 1 !metadata(storage=slot(1))
     v306 = lt 0, v305
     v307 = iszero v306
-    jumpi v307, bb61, bb98
-  bb98:
+    jumpi v307, bb61, bb95
+  bb95:
     v308 = storage_array_data_slot 1
     v309 = add v308, 0
     v310 = sload v309 !metadata(storage=symbolic(v308))
     v311 = lt 1, v310
     v312 = iszero v311
-    jumpi v312, bb61, bb99
-  bb99:
+    jumpi v312, bb61, bb96
+  bb96:
     v313 = storage_array_data_slot v309
     v314 = add v313, 1
     v315 = sload v314 !metadata(storage=offset(v313, 1))
     v316 = eq v315, 2
     v317 = iszero v316
-    jumpi v317, bb100, bb101
-  bb101:
+    jumpi v317, bb42, bb97
+  bb97:
     v318 = sload 1 !metadata(storage=slot(1))
     v319 = lt 0, v318
     v320 = iszero v319
-    jumpi v320, bb61, bb102
-  bb102:
+    jumpi v320, bb61, bb98
+  bb98:
     v321 = storage_array_data_slot 1
     v322 = add v321, 0
     v323 = sload v322 !metadata(storage=symbolic(v321))
     v324 = lt 1, v323
     v325 = iszero v324
-    jumpi v325, bb61, bb103
-  bb103:
+    jumpi v325, bb61, bb99
+  bb99:
     v326 = storage_array_data_slot v322
     v327 = add v326, 1
     v328 = sload v327 !metadata(storage=offset(v326, 1))
     v329 = lt 0, v328
     v330 = iszero v329
-    jumpi v330, bb61, bb104
-  bb104:
+    jumpi v330, bb61, bb100
+  bb100:
     v331 = storage_array_data_slot v327
     v332 = div 0, 32
     v333 = add v331, v332
@@ -606,27 +594,27 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v339 = and v338, 255
     v340 = eq v339, 8
     v341 = iszero v340
-    jumpi v341, bb105, bb106
-  bb106:
+    jumpi v341, bb42, bb101
+  bb101:
     v342 = sload 1 !metadata(storage=slot(1))
     v343 = lt 0, v342
     v344 = iszero v343
-    jumpi v344, bb61, bb107
-  bb107:
+    jumpi v344, bb61, bb102
+  bb102:
     v345 = storage_array_data_slot 1
     v346 = add v345, 0
     v347 = sload v346 !metadata(storage=symbolic(v345))
     v348 = lt 1, v347
     v349 = iszero v348
-    jumpi v349, bb61, bb108
-  bb108:
+    jumpi v349, bb61, bb103
+  bb103:
     v350 = storage_array_data_slot v346
     v351 = add v350, 1
     v352 = sload v351 !metadata(storage=offset(v350, 1))
     v353 = lt 1, v352
     v354 = iszero v353
-    jumpi v354, bb61, bb109
-  bb109:
+    jumpi v354, bb61, bb104
+  bb104:
     v355 = storage_array_data_slot v351
     v356 = div 1, 32
     v357 = add v355, v356
@@ -638,35 +626,21 @@ fn @test2(arg0: calldataslice) [selector=0x56647b67, abi_params=[array<_, array<
     v363 = and v362, 255
     v364 = eq v363, 9
     v365 = iszero v364
-    jumpi v365, bb110, bb111
-  bb111:
+    jumpi v365, bb42, bb105
+  bb105:
     v366 = sload 1 !metadata(storage=slot(1))
     v367 = lt 1, v366
     v368 = iszero v367
-    jumpi v368, bb61, bb112
-  bb112:
+    jumpi v368, bb61, bb106
+  bb106:
     v369 = storage_array_data_slot 1
     v370 = add v369, 1
     v371 = sload v370 !metadata(storage=offset(v369, 1))
     v372 = eq v371, 0
     v373 = iszero v372
-    jumpi v373, bb113, bb114
-  bb114:
+    jumpi v373, bb42, bb107
+  bb107:
     stop
-  bb113:
-    revert 0, 0
-  bb110:
-    revert 0, 0
-  bb105:
-    revert 0, 0
-  bb100:
-    revert 0, 0
-  bb96:
-    revert 0, 0
-  bb91:
-    revert 0, 0
-  bb87:
-    revert 0, 0
   bb72:
     v207 = memory_object_load_element memoryarray<1>, v128, v205
     v208 = eq v207, 0

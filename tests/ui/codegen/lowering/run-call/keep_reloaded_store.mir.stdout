@@ -79,11 +79,9 @@ fn @check(arg0: bool) [pure] {
     v1 = internal_call @depth, 1, 2
     v2 = eq v1, 2
     v3 = iszero v2
-    jumpi v3, bb3, bb4
-  bb4:
-    stop
+    jumpi v3, bb1, bb3
   bb3:
-    revert 0, 0
+    stop
   bb1:
     revert 0, 0
 }
