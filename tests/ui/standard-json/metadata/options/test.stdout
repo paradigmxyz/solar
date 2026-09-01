@@ -25,7 +25,7 @@
         "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"value\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{\"src/B.sol:B\":\"0x1111111111111111111111111111111111111111\"},\"metadata\":{\"bytecodeHash\":\"bzzr1\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":1},\"remappings\":[\"lib/=src/\"]},\"sources\":{\"A.sol\":{\"content\":\"import /\"lib/B.sol/\";/ncontract A { function value() external pure returns (uint256) { return B.value(); } }\",\"keccak256\":\"0x53427af00da25b714d315e31cf5d708bf8f73c119915266b911215deb80c586c\"},\"src/B.sol\":{\"content\":\"library B { function value() internal pure returns (uint256) { return 1; } }\",\"keccak256\":\"0xd0ab81bab953760a6db536d57f3d438b096ff9aea6e41ecf7730fd1ca247b051\"}},\"version\":1}",
         "evm": {
           "deployedBytecode": {
-            "object": "346019575f3560e01c80633fa4f24503601957601d600190565b5f80fd5b8060a05260805260206080f3fea265627a7a72315820d48f13f603593a966fb54b3fadbbaeef7c10deed42fa5d42b9e9b96f3870146064736f6c63430002000032"
+            "object": "346019575f3560e01c80633fa4f24503601957601d600190565b5f80fd5b8060a05260805260206080f3fea265627a7a72315820d48f13f603593a966fb54b3fadbbaeef7c10deed42fa5d42b9e9b96f3870146065736f6c6172430002000033"
           }
         }
       }

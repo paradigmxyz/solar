@@ -2,7 +2,7 @@
 
 use super::{
     compile::standard_json_source_name,
-    data::{CompilerInput, MetadataHash, optimizer_settings},
+    data::{MetadataHash, Settings, optimizer_settings},
 };
 use alloy_primitives::{Bytes, keccak256};
 use serde_json::{Map, Value, json};
@@ -20,14 +20,14 @@ const INVALID: u8 = 0xfe;
 /// Lazily computed metadata for a Standard JSON compilation.
 pub(super) struct Metadata<'a, 'input, 'gcx> {
     gcx: Gcx<'gcx>,
-    input: &'a CompilerInput<'input>,
+    settings: &'a Settings<'input>,
     contracts: IndexVec<ContractId, OnceLock<String>>,
     sources: IndexVec<SourceId, OnceLock<Value>>,
     referenced_sources: IndexVec<SourceId, OnceLock<Vec<SourceId>>>,
 }
 
 impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
-    pub(super) fn new(gcx: Gcx<'gcx>, input: &'a CompilerInput<'input>) -> Self {
+    pub(super) fn new(gcx: Gcx<'gcx>, settings: &'a Settings<'input>) -> Self {
         let contracts = IndexVec::from_vec(
             (0..gcx.hir.contract_ids().len()).map(|_| Default::default()).collect(),
         );
@@ -35,7 +35,7 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
             IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
         let referenced_sources =
             IndexVec::from_vec((0..gcx.hir.source_ids().len()).map(|_| OnceLock::new()).collect());
-        Self { gcx, input, contracts, sources, referenced_sources }
+        Self { gcx, settings, contracts, sources, referenced_sources }
     }
 
     pub(super) fn json(&self, contract_id: ContractId) -> &str {
@@ -43,7 +43,7 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
     }
 
     pub(super) fn runtime_suffix(&self, contract_id: ContractId) -> Bytes {
-        let settings = self.input.settings.metadata;
+        let settings = self.settings.metadata;
         if !settings.append_cbor {
             return Bytes::new();
         }
@@ -66,7 +66,7 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
 
 fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> String {
     let gcx = metadata.gcx;
-    let settings = metadata.input.settings.metadata;
+    let settings = metadata.settings.metadata;
     let contract = gcx.hir.contract(contract_id);
     let target_source_name = source_name(gcx, contract.source);
     let mut sources = Map::new();
@@ -92,7 +92,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     }
 
     let mut libraries = Map::new();
-    for (source, source_libraries) in &metadata.input.settings.libraries.0 {
+    for (source, source_libraries) in &metadata.settings.libraries.0 {
         for (name, address) in source_libraries {
             let name =
                 if source.is_empty() { name.to_string() } else { format!("{source}:{name}") };
@@ -103,7 +103,7 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     remappings.sort_unstable();
 
     let (optimizer_enabled, optimizer_runs) =
-        optimizer_settings(metadata.input.settings.optimizer.as_ref());
+        optimizer_settings(metadata.settings.optimizer.as_ref());
     let value = json!({
         "compiler": { "version": SEMVER_VERSION },
         "language": "Solidity",
@@ -135,7 +135,7 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
     let content = source.file.src.as_str();
     let mut value = Map::new();
     value.insert("keccak256".into(), json!(format!("{:#x}", keccak256(content.as_bytes()))));
-    if metadata.input.settings.metadata.use_literal_content {
+    if metadata.settings.metadata.use_literal_content {
         value.insert("content".into(), json!(content));
     } else {
         let swarm = bzzr1_hash(content.as_bytes());
@@ -173,27 +173,27 @@ fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {
 }
 
 fn cbor_metadata(metadata: &str, hash: MetadataHash) -> Vec<u8> {
-    let mut entries = Vec::with_capacity(2);
+    let mut output = Vec::new();
     match hash {
         MetadataHash::Ipfs => {
-            push_cbor_bytes(&mut entries, "ipfs", &ipfs_hash(metadata.as_bytes()))
+            output.push(0xa2);
+            push_cbor_bytes(&mut output, "ipfs", &ipfs_hash(metadata.as_bytes()));
         }
         MetadataHash::Bzzr1 => {
-            push_cbor_bytes(&mut entries, "bzzr1", &bzzr1_hash(metadata.as_bytes()))
+            output.push(0xa2);
+            push_cbor_bytes(&mut output, "bzzr1", &bzzr1_hash(metadata.as_bytes()));
         }
-        MetadataHash::None => {}
+        MetadataHash::None => {
+            output.push(0xa1);
+        }
     }
     let version = semver::Version::parse(SEMVER_VERSION).expect("package version must be semver");
     push_cbor_bytes(
-        &mut entries,
-        "solc",
+        &mut output,
+        "solar",
         &[version.major as u8, version.minor as u8, version.patch as u8],
     );
 
-    let entry_count = if matches!(hash, MetadataHash::None) { 1 } else { 2 };
-    let mut output = Vec::with_capacity(entries.len() + 3);
-    output.push(0xa0 + entry_count);
-    output.extend(entries);
     let length = u16::try_from(output.len()).expect("contract metadata CBOR is too large");
     output.extend(length.to_be_bytes());
     output
@@ -376,7 +376,7 @@ mod tests {
     #[test]
     fn cbor_metadata_matches_solc_shape() {
         let metadata = cbor_metadata("{}", MetadataHash::None);
-        assert_eq!(&metadata[..6], &[0xa1, 0x64, b's', b'o', b'l', b'c']);
+        assert_eq!(&metadata[..7], &[0xa1, 0x65, b's', b'o', b'l', b'a', b'r']);
         assert_eq!(
             usize::from(u16::from_be_bytes([
                 metadata[metadata.len() - 2],
