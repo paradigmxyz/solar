@@ -2,7 +2,7 @@
 //@filecheck: --enable-var-scope
 
 contract EmptyExternalReturn {
-    // CHECK-LABEL: @module EmptyExternalReturn
+    // CHECK-LABEL: @module EmptyExternalReturn_runtime
     // CHECK: callvalue
     // CHECK-NOT: calldatasize
     // CHECK-NOT: calldataload

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/yul_slotnum.sol:YulSlotnum (runtime) ===
-@module YulSlotnum
+@module YulSlotnum_runtime
 bb0:
   callvalue
   push bb4

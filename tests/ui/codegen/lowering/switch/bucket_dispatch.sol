@@ -1,7 +1,7 @@
 //@ compile-flags: -Zdump=evm-ir-runtime -Zswitch-lowering=buckets
 //@ filecheck: --check-prefix=TABLE
 
-// TABLE-LABEL: @module SwitchBucketDispatch
+// TABLE-LABEL: @module SwitchBucketDispatch_runtime
 // TABLE: push 40
 // TABLE-NEXT: dup 2
 // TABLE-NEXT: mod

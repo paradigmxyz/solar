@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
-@module EqualImmediateScheduling
+@module EqualImmediateScheduling_runtime
 bb0:
   callvalue
   push bb3

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
-@module L
+@module L_runtime
 bb0:
   callvalue
   push bb3
@@ -534,7 +534,7 @@ bb17 [cold]:
   push 50
   jump bb41
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:C (runtime) ===
-@module C
+@module C_runtime
 bb0:
   callvalue
   push bb4

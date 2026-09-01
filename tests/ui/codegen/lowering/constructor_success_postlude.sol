@@ -2,7 +2,7 @@
 //@filecheck: --enable-var-scope
 
 contract ConstructorSuccessPostlude {
-    // CHECK-LABEL: @module ConstructorSuccessPostlude
+    // CHECK-LABEL: @module ConstructorSuccessPostlude_deployment
     // CHECK: push [[FAIL:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK: push [[FAIL]]

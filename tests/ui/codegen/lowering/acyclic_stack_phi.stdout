@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/acyclic_stack_phi.sol:AcyclicStackPhi (runtime) ===
-@module AcyclicStackPhi
+@module AcyclicStackPhi_runtime
 bb0:
   callvalue
   push bb3

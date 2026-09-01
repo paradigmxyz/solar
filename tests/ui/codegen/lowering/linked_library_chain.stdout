@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:DataTypes (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
-@module Inner
+@module Inner_runtime
 bb0:
   callvalue
   push bb3
@@ -66,7 +66,7 @@ bb8 [cold]:
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
-@module Outer
+@module Outer_runtime
 bb0:
   callvalue
   push bb3
@@ -162,7 +162,7 @@ bb10 [cold]:
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
-@module C
+@module C_runtime
 bb0:
   callvalue
   push bb3

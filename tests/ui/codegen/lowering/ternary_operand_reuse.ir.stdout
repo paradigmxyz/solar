@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse (runtime) ===
-@module TernaryOperandReuse
+@module TernaryOperandReuse_runtime
 bb0:
   callvalue
   push bb4

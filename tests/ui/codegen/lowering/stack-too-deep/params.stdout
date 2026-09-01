@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/stack-too-deep/params.sol:StackTooDeepParams (creation) ===
-// === StackTooDeepParams ===
-@module StackTooDeepParams
+// === StackTooDeepParams_deployment ===
+@module StackTooDeepParams_deployment
 bb0:
   push 420
   dup 1
@@ -10,8 +10,8 @@ bb0:
   push 0
   return
 
-// === StackTooDeepParams ===
-@module StackTooDeepParams
+// === StackTooDeepParams_runtime ===
+@module StackTooDeepParams_runtime
 bb0:
   callvalue
   push bb3

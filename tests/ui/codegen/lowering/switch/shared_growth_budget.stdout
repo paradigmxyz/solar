@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
-// === SwitchSharedGrowthBudget ===
-@module SwitchSharedGrowthBudget
+// === SwitchSharedGrowthBudget_deployment ===
+@module SwitchSharedGrowthBudget_deployment
 bb0:
   push 425
   codesize
@@ -116,8 +116,8 @@ bb8:
   pop
   jump bb17
 
-// === SwitchSharedGrowthBudget ===
-@module SwitchSharedGrowthBudget
+// === SwitchSharedGrowthBudget_runtime ===
+@module SwitchSharedGrowthBudget_runtime
 bb0:
   callvalue
   push bb3

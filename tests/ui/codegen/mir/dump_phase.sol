@@ -22,7 +22,7 @@
 // SUBSTITUTE: @module DumpPhase
 // SUBSTITUTE-NOT: @phase
 // SUBSTITUTE: add arg0, 0
-// EVM-SUBSTITUTE: @module DumpPhase
+// EVM-SUBSTITUTE: @module DumpPhase_runtime
 // EVM-SUBSTITUTE: jump [[NEXT:bb[0-9]+]]
 // EVM-SUBSTITUTE-NEXT: [[NEXT]]:
 contract DumpPhase {

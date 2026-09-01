@@ -10,7 +10,7 @@
 
 contract OneFunction {
     // CHECK-LABEL: small_dispatch.sol:OneFunction (runtime) ===
-    // CHECK: @module OneFunction
+    // CHECK: @module OneFunction_runtime
     // CHECK-NOT: indexed_jump
     function f0() external pure returns (uint256) {
         return 0;
@@ -19,7 +19,7 @@ contract OneFunction {
 
 contract TwoFunctions {
     // CHECK-LABEL: small_dispatch.sol:TwoFunctions (runtime) ===
-    // CHECK: @module TwoFunctions
+    // CHECK: @module TwoFunctions_runtime
     // CHECK-NOT: indexed_jump
     function f0() external pure returns (uint256) {
         return 0;
@@ -32,7 +32,7 @@ contract TwoFunctions {
 
 contract ThreeFunctions {
     // CHECK-LABEL: small_dispatch.sol:ThreeFunctions (runtime) ===
-    // CHECK: @module ThreeFunctions
+    // CHECK: @module ThreeFunctions_runtime
     // CHECK-NOT: indexed_jump
     function f0() external pure returns (uint256) {
         return 0;
@@ -49,7 +49,7 @@ contract ThreeFunctions {
 
 contract FourFunctions {
     // CHECK-LABEL: small_dispatch.sol:FourFunctions (runtime) ===
-    // CHECK: @module FourFunctions
+    // CHECK: @module FourFunctions_runtime
     // CHECK-NOT: indexed_jump
     function f0() external pure returns (uint256) {
         return 0;

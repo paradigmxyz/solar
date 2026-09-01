@@ -72,6 +72,16 @@ pub(crate) enum ArtifactKind {
     Constructor,
 }
 
+impl ArtifactKind {
+    /// Returns this artifact's name in EVM IR output.
+    pub(in crate::backend::evm) const fn name(self) -> Symbol {
+        match self {
+            Self::Runtime => sym::runtime,
+            Self::Constructor => sym::deployment,
+        }
+    }
+}
+
 /// Final EVM IR lowered to reusable primitive assembly.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct PreparedAssembly {
@@ -189,7 +199,7 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Sets the source module name carried by emitted EVM IR.
     pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
-        self.program.set_name(name);
+        self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
     }
 
     /// Enables size-oriented outlining for an oversized gas-mode runtime.

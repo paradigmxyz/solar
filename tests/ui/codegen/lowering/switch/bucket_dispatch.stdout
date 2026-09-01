@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/switch/bucket_dispatch.sol:SwitchBucketDispatch (runtime) ===
-@module SwitchBucketDispatch
+@module SwitchBucketDispatch_runtime
 bb0:
   callvalue
   push bb58

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/abi_packed_calldata_bytes.sol:P (runtime) ===
-@module P
+@module P_runtime
 bb0:
   callvalue
   push bb4

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:ProxyResult (runtime) ===
-@module ProxyResult
+@module ProxyResult_runtime
 bb1:
   push 0
   calldataload
@@ -17,7 +17,7 @@ bb2:
   pop
   stop
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:Base64Remainder (runtime) ===
-@module Base64Remainder
+@module Base64Remainder_runtime
 bb0:
   callvalue
   push bb2
@@ -62,7 +62,7 @@ bb2 [cold]:
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:SignatureLength (runtime) ===
-@module SignatureLength
+@module SignatureLength_runtime
 bb0:
   callvalue
   push bb2
@@ -108,7 +108,7 @@ bb2 [cold]:
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/switch/common.sol:RpowEdges (runtime) ===
-@module RpowEdges
+@module RpowEdges_runtime
 bb0:
   callvalue
   push bb2

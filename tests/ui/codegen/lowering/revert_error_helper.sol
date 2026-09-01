@@ -20,7 +20,7 @@ library Errors {
 contract R {
     string constant LOCAL = "local-const-msg";
 
-    // CHECK-LABEL: @module R
+    // CHECK-LABEL: @module R_runtime
     // CHECK: indexed_jump
     // CHECK: push 0x3339
     // CHECK: jump [[SHORT_HELPER:bb[0-9]+]]

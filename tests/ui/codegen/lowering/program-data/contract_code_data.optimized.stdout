@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeTarget (runtime) ===
-@module CodeTarget
+@module CodeTarget_runtime
 bb0:
   callvalue
   push bb4
@@ -148,7 +148,7 @@ bb8:
 
 @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_code_data.sol:CodeFactory (runtime) ===
-@module CodeFactory
+@module CodeFactory_runtime
 bb0:
   callvalue
   push bb4

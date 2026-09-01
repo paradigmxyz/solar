@@ -8,7 +8,7 @@
 // lay out each successful continuation as the branch fallthrough after
 // optimization, while the unoptimized revision retains the explicit jumps.
 contract ColdCallFallthrough {
-    // NONE-LABEL: @module ColdCallFallthrough
+    // NONE-LABEL: @module ColdCallFallthrough_runtime
     // NONE: eq
     // NONE-NEXT: push [[NONE_DISPATCH:bb[0-9]+]]
     // NONE-NEXT: jumpi
@@ -25,7 +25,7 @@ contract ColdCallFallthrough {
     // NONE: [[HOT]]:
     // NONE: return
 
-    // SIZE-LABEL: @module ColdCallFallthrough
+    // SIZE-LABEL: @module ColdCallFallthrough_runtime
     // SIZE: eq
     // SIZE-NEXT: push [[SIZE_DISPATCH:bb[0-9]+]]
     // SIZE-NEXT: jumpi

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/switch/dense_table.sol:SwitchDenseTable (runtime) ===
-@module SwitchDenseTable
+@module SwitchDenseTable_runtime
 bb0:
   callvalue
   push bb3

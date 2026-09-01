@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_calldata_slice.sol:AbiEncodePackedCalldataSlice (runtime) ===
-@module AbiEncodePackedCalldataSlice
+@module AbiEncodePackedCalldataSlice_runtime
 bb0:
   callvalue
   push bb4

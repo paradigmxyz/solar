@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/empty_external_return.sol:EmptyExternalReturn (runtime) ===
-@module EmptyExternalReturn
+@module EmptyExternalReturn_runtime
 bb0:
   callvalue
   push bb2

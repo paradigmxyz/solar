@@ -9,7 +9,7 @@
   "version": "VERSION"
 }
 // === ROOT/tests/ui/codegen/lowering/udvt_selector.sol:UdvtSelector (runtime) ===
-@module UdvtSelector
+@module UdvtSelector_runtime
 bb0:
   callvalue
   push bb3

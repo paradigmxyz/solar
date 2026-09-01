@@ -103,7 +103,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_data.sol:CodeSizeData (runtime) ===
-@module CodeSizeData
+@module CodeSizeData_runtime
 bb0:
   callvalue
   push bb5

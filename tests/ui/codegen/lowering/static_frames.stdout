@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/static_frames.sol:SF (runtime) ===
-@module SF
+@module SF_runtime
 bb0:
   callvalue
   push bb4

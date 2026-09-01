@@ -4,7 +4,7 @@
 pragma solidity ^0.8.0;
 
 contract StackTooDeepLocals {
-    // CHECK-LABEL: @module StackTooDeepLocals
+    // CHECK-LABEL: @module StackTooDeepLocals_runtime
     // CHECK: push 0x188b85b4
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]

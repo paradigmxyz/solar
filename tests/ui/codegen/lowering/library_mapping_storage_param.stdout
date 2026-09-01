@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:L (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/library_mapping_storage_param.sol:C (runtime) ===
-@module C
+@module C_runtime
 bb0:
   callvalue
   push bb3

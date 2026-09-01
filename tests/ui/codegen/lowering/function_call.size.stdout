@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
-@module FunctionCall
+@module FunctionCall_runtime
 bb0:
   callvalue
   push bb4

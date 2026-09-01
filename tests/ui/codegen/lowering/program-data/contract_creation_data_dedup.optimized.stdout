@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child (runtime) ===
-@module Child
+@module Child_runtime
 bb0:
   callvalue
   push bb4
@@ -148,7 +148,7 @@ bb8:
 
 @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
-@module Factory
+@module Factory_runtime
 bb0:
   callvalue
   push bb5

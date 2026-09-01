@@ -13,7 +13,7 @@
 // does not escape the branch. Gas and unoptimized lowering should therefore reuse one block-local
 // spill slot. Size lowering deliberately keeps both slots stable.
 //
-// NONE-LABEL: @module FmpBlockLocalSpills
+// NONE-LABEL: @module FmpBlockLocalSpills_runtime
 // NONE-NEXT: bb0:
 // NONE-NEXT: push 192
 // NONE-NEXT: push 64
@@ -31,7 +31,7 @@
 // NONE-NEXT: push [[NONE_FMP_SLOT]]
 // NONE-NEXT: mstore
 //
-// GAS-LABEL: @module FmpBlockLocalSpills
+// GAS-LABEL: @module FmpBlockLocalSpills_runtime
 // GAS-NEXT: bb0:
 // GAS-NEXT: push 192
 // GAS-NEXT: push 64
@@ -49,7 +49,7 @@
 // GAS-NEXT: push [[GAS_FMP_SLOT]]
 // GAS-NEXT: mstore
 //
-// SIZE-LABEL: @module FmpBlockLocalSpills
+// SIZE-LABEL: @module FmpBlockLocalSpills_runtime
 // SIZE-NEXT: bb0:
 // SIZE-NEXT: push 224
 // SIZE-NEXT: push 64

@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_member.sol:StorageBytesMember (runtime) ===
-@module StorageBytesMember
+@module StorageBytesMember_runtime
 bb0:
   callvalue
   push bb19
