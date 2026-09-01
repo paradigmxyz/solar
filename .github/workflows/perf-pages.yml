@@ -1,0 +1,124 @@
+name: Publish performance site
+
+permissions: {}
+
+on:
+  workflow_run:
+    workflows: [Benchmark]
+    types: [completed]
+
+concurrency:
+  group: perf-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout trusted site source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: source
+
+      - name: Checkout published history
+        id: history
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: gh-pages
+          path: published
+
+      - name: Download benchmark data
+        id: data
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: codegen-runtime-results
+          path: incoming
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Restore run index
+        if: steps.data.outcome == 'success' && steps.history.outcome == 'success'
+        run: cp published/data/index.json source/perf/public/data/index.json
+
+      - name: Import benchmark run
+        if: steps.data.outcome == 'success'
+        working-directory: source/perf
+        env:
+          COMMIT: ${{ github.event.workflow_run.head_sha }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CREATED_AT: ${{ github.event.workflow_run.created_at }}
+          PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: |
+          args=(
+            --results ../../incoming/results.json
+            --artifacts ../../incoming/artifacts
+            --output public/data
+            --commit "$COMMIT"
+            --branch "$BRANCH"
+            --timestamp "$CREATED_AT"
+          )
+          if [[ -n "$PR" ]]; then args+=(--pr "$PR"); fi
+          node scripts/import-run.mjs "${args[@]}"
+
+      - name: Build site
+        if: steps.data.outcome == 'success'
+        working-directory: source/perf
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare first publication
+        if: steps.data.outcome == 'success' && steps.history.outcome != 'success'
+        run: |
+          mkdir -p published
+          git -C published init
+          git -C published checkout -b gh-pages
+          remote="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git -C published remote get-url origin >/dev/null 2>&1; then
+            git -C published remote set-url origin "$remote"
+          else
+            git -C published remote add origin "$remote"
+          fi
+
+      - name: Publish site
+        if: steps.data.outcome == 'success'
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git -C published rm -r --ignore-unmatch assets index.html
+          cp -R source/perf/dist/. published/
+          node source/perf/scripts/prune-runs.mjs published/data
+          touch published/.nojekyll
+          git -C published config user.name github-actions[bot]
+          git -C published config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C published add .
+          if git -C published diff --cached --quiet; then exit 0; fi
+          git -C published commit -m "chore: publish ${HEAD_SHA::8}"
+          git -C published push origin gh-pages
+
+      - name: Configure GitHub Pages
+        if: steps.data.outcome == 'success'
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Upload GitHub Pages artifact
+        if: steps.data.outcome == 'success'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: published
+
+      - name: Deploy GitHub Pages
+        if: steps.data.outcome == 'success'
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

@@ -1,21 +1,27 @@
-import { copyFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
-import { basename, join, resolve } from 'node:path'
+import { lstat, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
 
 const allowedFiles = new Map([
-  ['input.json', ['Compiler input', 'json']],
-  ['output.json', ['Compiler output', 'json']],
-  ['mir.mir', ['MIR', 'text']],
-  ['creation.evmir', ['Creation EVM IR', 'text']],
-  ['runtime.evmir', ['Runtime EVM IR', 'text']],
-  ['optimized-ir.yul', ['Optimized Yul IR', 'solidity']],
-  ['creation.disasm', ['Creation disassembly', 'assembly']],
-  ['runtime.disasm', ['Runtime disassembly', 'assembly']],
-  ['creation.hex', ['Creation bytecode', 'text']],
-  ['runtime.hex', ['Runtime bytecode', 'text']],
+  ['input.json', ['Compiler input', 'json', '0.json']],
+  ['output.json', ['Compiler output', 'json', '1.json']],
+  ['mir.mir', ['MIR', 'text', '2.json']],
+  ['creation.evmir', ['Creation EVM IR', 'text', '3.json']],
+  ['runtime.evmir', ['Runtime EVM IR', 'text', '4.json']],
+  ['optimized-ir.yul', ['Optimized Yul IR', 'solidity', '5.json']],
+  ['creation.disasm', ['Creation disassembly', 'asm', '6.json']],
+  ['runtime.disasm', ['Runtime disassembly', 'asm', '7.json']],
+  ['creation.hex', ['Creation bytecode', 'text', '8.json']],
+  ['runtime.hex', ['Runtime bytecode', 'text', '9.json']],
 ])
 
 function args() {
-  const values = Object.fromEntries(process.argv.slice(2).map((value, index, all) => value.startsWith('--') ? [value.slice(2), all[index + 1]] : []))
+  const values = Object.create(null)
+  for (let index = 2; index < process.argv.length; index += 2) {
+    const option = process.argv[index]
+    const value = process.argv[index + 1]
+    if (!option.startsWith('--') || value === undefined) throw new Error(`Invalid argument: ${option}`)
+    values[option.slice(2)] = value
+  }
   for (const required of ['results', 'artifacts', 'output', 'commit']) {
     if (!values[required]) throw new Error(`Missing --${required}`)
   }
@@ -23,15 +29,19 @@ function args() {
 }
 
 function metric(results, key) {
-  const values = results.map((result) => result.compilers?.solar).filter((compiler) => compiler?.status === 'ok').map((compiler) => compiler[key])
-  return values.length && values.every((value) => typeof value === 'number') ? values.reduce((sum, value) => sum + value, 0) : null
+  const values = results
+    .map((result) => result.compilers?.solar)
+    .filter((compiler) => compiler?.status === 'ok' && typeof compiler[key] === 'number')
+    .map((compiler) => compiler[key])
+  return values.length ? values.reduce((sum, value) => sum + value, 0) : null
 }
 
 async function artifactManifest(source, destination, results) {
-  const manifest = {}
+  const manifest = Object.create(null)
+  let totalSize = 0
   for (const result of results) {
     const benchmark = result.test_id
-    if (!/^[\w.-]+$/.test(benchmark)) throw new Error(`Unsafe benchmark ID: ${benchmark}`)
+    if (!/^[\w.-]+$/.test(benchmark) || benchmark === '.' || benchmark === '..') throw new Error(`Unsafe benchmark ID: ${benchmark}`)
     const files = new Map()
     for (const compiler of ['solar', 'solc']) {
       const directory = join(source, benchmark, compiler)
@@ -41,12 +51,17 @@ async function artifactManifest(source, destination, results) {
         const metadata = allowedFiles.get(name)
         if (!metadata) continue
         const sourceFile = join(directory, name)
-        const size = (await stat(sourceFile)).size
+        const file = await lstat(sourceFile)
+        if (!file.isFile()) throw new Error(`Artifact is not a regular file: ${benchmark}/${compiler}/${name}`)
+        const size = file.size
         if (size > 32 * 1024 * 1024) throw new Error(`${benchmark}/${compiler}/${name} exceeds 32 MiB`)
-        const target = join(destination, benchmark, compiler, name)
-        await mkdir(resolve(target, '..'), { recursive: true })
-        await copyFile(sourceFile, target)
-        const entry = files.get(name) ?? { path: name, label: metadata[0], language: metadata[1], bytes: 0, compilers: [] }
+        totalSize += size
+        if (totalSize > 256 * 1024 * 1024) throw new Error('Artifact run exceeds 256 MiB')
+        const target = join(destination, benchmark, compiler, metadata[2])
+        await mkdir(dirname(target), { recursive: true })
+        const storagePath = metadata[2]
+        await writeFile(target, `${JSON.stringify(await readFile(sourceFile, 'utf8'))}\n`)
+        const entry = files.get(name) ?? { path: name, storagePath, label: metadata[0], language: metadata[1], bytes: 0, compilers: [] }
         entry.bytes = Math.max(entry.bytes, size)
         entry.compilers.push(compiler)
         files.set(name, entry)
@@ -58,9 +73,12 @@ async function artifactManifest(source, destination, results) {
 }
 
 const options = args()
+if (!/^[0-9a-f]{40}$/.test(options.commit)) throw new Error('Commit must be a full SHA')
+if ((await stat(options.results)).size > 32 * 1024 * 1024) throw new Error('Results exceed 32 MiB')
 const document = JSON.parse(await readFile(options.results, 'utf8'))
 const results = document.results ?? document
 if (!Array.isArray(results)) throw new Error('Benchmark results must be an array')
+if (results.length > 500) throw new Error('Benchmark results exceed 500 entries')
 const output = resolve(options.output)
 const runDirectory = join(output, 'runs', options.commit)
 await mkdir(runDirectory, { recursive: true })

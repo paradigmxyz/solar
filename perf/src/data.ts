@@ -16,9 +16,9 @@ export function loadRun(commit: string) {
   return getJson<RunDocument>(`runs/${encodeURIComponent(commit)}/run.json`)
 }
 
-export async function loadArtifact(commit: string, benchmark: string, compiler: string, path: string) {
-  const parts = [commit, benchmark, compiler, ...path.split('/')].map(encodeURIComponent)
+export async function loadArtifact(commit: string, benchmark: string, compiler: string, storagePath: string) {
+  const parts = [commit, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
   const response = await fetch(`${base}data/runs/${parts.join('/')}`)
   if (!response.ok) return ''
-  return response.text()
+  return response.json() as Promise<string>
 }

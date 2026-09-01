@@ -7,7 +7,7 @@ const short = (commit: string) => commit.slice(0, 8)
 
 function HistoryGraph({ runs }: { runs: RunSummary[] }) {
   const points = runs
-    .filter((run) => run.metrics.runtimeGas !== null)
+    .filter((run) => run.branch === 'main' && run.metrics.runtimeGas !== null)
     .slice(0, 40)
     .reverse()
   if (points.length < 2) return <div className="empty-graph">History appears after two benchmarked commits.</div>
@@ -48,6 +48,7 @@ function Home() {
   const [base, setBase] = useState('')
   const [head, setHead] = useState('')
   const runs = useMemo(() => index?.runs ?? [], [index])
+  const mainRuns = useMemo(() => runs.filter((run) => run.branch === 'main'), [runs])
   const options = useMemo(() => runs.map((run) => run.commit), [runs])
 
   useEffect(() => { loadIndex().then(setIndex).catch((value: Error) => setError(value.message)) }, [])
@@ -80,12 +81,12 @@ function Home() {
           <button onClick={compare} disabled={!base || !head || base === head}>Compare</button>
         </section>
         <section className="panel graph-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Main branch</p><h2>Runtime gas</h2></div><span>{runs.length} runs</span></div>
+          <div className="panel-heading"><div><p className="eyebrow">Main branch</p><h2>Runtime gas</h2></div><span>{mainRuns.length} runs</span></div>
           {error ? <p className="error">{error}</p> : <HistoryGraph runs={runs} />}
         </section>
         <section className="recent">
           <div className="panel-heading"><h2>Recent runs</h2><span>lower is better</span></div>
-          {runs.length === 0 ? <p className="empty">No published benchmark runs yet.</p> : runs.slice(0, 8).map((run) => <a className="run" key={run.commit} href={`?base=${runs[1]?.commit ?? run.commit}&head=${run.commit}`}><code>{short(run.commit)}</code><span>{run.branch ?? `PR #${run.pr}`}</span><strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'} gas</strong></a>)}
+          {runs.length === 0 ? <p className="empty">No published benchmark runs yet.</p> : runs.slice(0, 8).map((run) => { const comparison = runs.find((candidate) => candidate.commit !== run.commit)?.commit; const contents = <><code>{short(run.commit)}</code><span>{run.branch ?? (run.pr ? `PR #${run.pr}` : 'detached')}</span><strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'} gas</strong></>; return comparison ? <a className="run" key={run.commit} href={`?base=${comparison}&head=${run.commit}`}>{contents}</a> : <div className="run" key={run.commit}>{contents}</div> })}
         </section>
       </main>
       <SiteFooter />

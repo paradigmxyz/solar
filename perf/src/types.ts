@@ -42,6 +42,7 @@ export interface BenchmarkResult {
 
 export interface ArtifactFile {
   path: string
+  storagePath: string
   label: string
   language: string
   bytes: number

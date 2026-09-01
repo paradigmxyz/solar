@@ -1524,6 +1524,10 @@ def run_test_case(
             )
             if artifact_error:
                 compiler_entry["artifact_error"] = artifact_error
+                verbose_log(
+                    verbose,
+                    f"[{test_case.test_id}] {spec.compiler_id} artifact capture failed: {artifact_error}",
+                )
 
         if test_case.whole_project:
             continue
@@ -1978,6 +1982,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 result = failed_test_result(test, specs, args.gas_profile, exc)
             if reference_solc_spec:
                 if merge_reference_compiler(result, reference_results, "solc"):
+                    if (
+                        args.artifacts is not None
+                        and args.reference_results is not None
+                    ):
+                        source = (
+                            args.reference_results.parent
+                            / "artifacts"
+                            / test.test_id
+                            / "solc"
+                        )
+                        if source.is_dir():
+                            shutil.copytree(
+                                source,
+                                args.artifacts / test.test_id / "solc",
+                                dirs_exist_ok=True,
+                            )
                     if args.gas:
                         compare_runtime_results(result, (reference_solc_spec, *specs))
                 else:
