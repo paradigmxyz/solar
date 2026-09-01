@@ -274,7 +274,7 @@ fn lower_instruction(
                     |value| AsmInst::op_immediate(opcode, value),
                 ))
             }
-            op::StackOpLowering::LegacyExchange(opcodes) => {
+            op::StackOpLowering::SwapSequence(opcodes) => {
                 for opcode in opcodes {
                     program.push_op(opcode);
                 }

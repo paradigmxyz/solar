@@ -246,7 +246,7 @@ impl Instruction {
     /// Creates an instruction for an EVM opcode.
     #[must_use]
     pub(crate) fn opcode(opcode: u8) -> Self {
-        if let Some(stack_op) = StackOp::from_legacy_opcode(opcode) {
+        if let Some(stack_op) = StackOp::from_single_byte_opcode(opcode) {
             return Self::stack_op(stack_op);
         }
         Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::EMPTY }
@@ -266,11 +266,11 @@ impl Instruction {
 
     /// Returns the equivalent one-byte opcode for a non-push instruction.
     #[must_use]
-    pub(crate) fn as_legacy_opcode(&self) -> Option<u8> {
+    pub(crate) fn as_opcode(&self) -> Option<u8> {
         if self.is_encoded_push() {
             None
         } else if let Some(stack_op) = self.stack_op {
-            stack_op.legacy_opcode()
+            stack_op.single_byte_opcode()
         } else {
             Some(self.opcode)
         }

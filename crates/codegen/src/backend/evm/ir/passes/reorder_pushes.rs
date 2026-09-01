@@ -209,7 +209,7 @@ fn rebasable_dup_before(
         let effect = inst.effective_stack_effect()?;
         if !inst.has_canonical_stack_effect()
             || inst.is_physical_stack_op()
-            || !inst.as_legacy_opcode().is_some_and(op::is_unaffected_by_preceding_push)
+            || !inst.as_opcode().is_some_and(op::is_unaffected_by_preceding_push)
             || effect.inputs != 1
             || effect.outputs != 1
         {
@@ -249,7 +249,7 @@ fn update_expressions(
     let effect = if let Some(effect) = inst.effective_stack_effect()
         && inst.has_canonical_stack_effect()
         && !inst.is_physical_stack_op()
-        && inst.as_legacy_opcode().is_none_or(op::is_unaffected_by_preceding_push)
+        && inst.as_opcode().is_none_or(op::is_unaffected_by_preceding_push)
         && effect.outputs == 1
         && usize::from(effect.inputs) <= expressions.len()
     {
@@ -271,7 +271,7 @@ fn update_expressions(
     }
     let start = expressions.len() - inputs;
     let immediate_recipe =
-        inst.as_legacy_opcode().is_some_and(|opcode| matches!(opcode, op::NOT | op::SHL | op::SHR))
+        inst.as_opcode().is_some_and(|opcode| matches!(opcode, op::NOT | op::SHL | op::SHR))
             && expressions[start..].iter().all(|expression| expression.immediate_recipe);
     let peak = expressions[start..]
         .iter()

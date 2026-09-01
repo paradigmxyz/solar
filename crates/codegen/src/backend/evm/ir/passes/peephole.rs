@@ -268,7 +268,7 @@ fn try_peephole(
     if let [.., lhs, pushed, instruction] = instructions.as_slice()
         && is_removable_push(lhs)
         && let Some(value) = pushed.concrete_immediate()
-        && let Some(opcode) = instruction.as_legacy_opcode()
+        && let Some(opcode) = instruction.as_opcode()
     {
         if value.is_zero()
             && matches!(
@@ -290,7 +290,7 @@ fn try_peephole(
     // `PUSH 1 EXP -> POP PUSH 1`.
     if let [.., pushed, instruction] = instructions.as_slice()
         && let Some(value) = pushed.concrete_immediate()
-        && let Some(opcode) = instruction.as_legacy_opcode()
+        && let Some(opcode) = instruction.as_opcode()
     {
         if value.is_zero() {
             match opcode {
@@ -322,7 +322,7 @@ fn try_peephole(
         && instruction.has_canonical_stack_effect()
         && let Some(lhs_value) = lhs.concrete_immediate()
         && let Some(rhs_value) = rhs.concrete_immediate()
-        && let Some(opcode) = instruction.as_legacy_opcode()
+        && let Some(opcode) = instruction.as_opcode()
         && let Some(result) = eval::eval_opcode(opcode, &[rhs_value, lhs_value])
     {
         let evm_version = gcx.sess.opts.evm_version;
@@ -343,14 +343,14 @@ fn try_peephole(
     // `PUSH x POP -> ∅`.
     if let [.., pushed, pop] = instructions.as_slice()
         && is_removable_push(pushed)
-        && pop.as_legacy_opcode() == Some(op::POP)
+        && pop.as_opcode() == Some(op::POP)
     {
         return rewrite!(2, Edit::Keep(0));
     }
 
     // `NOT NOT -> ∅`, `DUPn POP -> ∅`, or an involutive stack operation twice -> ∅.
     if let [.., first, second] = instructions.as_slice()
-        && ((first.as_legacy_opcode(), second.as_legacy_opcode()) == (Some(op::NOT), Some(op::NOT))
+        && ((first.as_opcode(), second.as_opcode()) == (Some(op::NOT), Some(op::NOT))
             || (second.as_stack_op() == Some(op::StackOp::Pop)
                 && matches!(first.as_stack_op(), Some(op::StackOp::Dup(_))))
             || (first.as_stack_op() == second.as_stack_op()
@@ -373,17 +373,17 @@ fn try_peephole(
 
     // `ISZERO ISZERO ISZERO -> ISZERO`.
     if let [.., first, second, third] = instructions.as_slice()
-        && first.as_legacy_opcode() == Some(op::ISZERO)
-        && second.as_legacy_opcode() == Some(op::ISZERO)
-        && third.as_legacy_opcode() == Some(op::ISZERO)
+        && first.as_opcode() == Some(op::ISZERO)
+        && second.as_opcode() == Some(op::ISZERO)
+        && third.as_opcode() == Some(op::ISZERO)
     {
         return rewrite!(3, Edit::OverwriteOne(op::ISZERO));
     }
 
     // `SWAP1 COMMUTATIVE_OP -> COMMUTATIVE_OP`.
     if let [.., swap, instruction] = instructions.as_slice()
-        && swap.as_legacy_opcode() == Some(op::SWAP1)
-        && let Some(opcode) = instruction.as_legacy_opcode()
+        && swap.as_opcode() == Some(op::SWAP1)
+        && let Some(opcode) = instruction.as_opcode()
         && is_commutative(opcode)
     {
         return rewrite!(2, Edit::RemoveFirstKeep(1));
@@ -391,8 +391,8 @@ fn try_peephole(
 
     // `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
     if let [.., swap, comparison] = instructions.as_slice()
-        && swap.as_legacy_opcode() == Some(op::SWAP1)
-        && let Some(comparison) = comparison.as_legacy_opcode()
+        && swap.as_opcode() == Some(op::SWAP1)
+        && let Some(comparison) = comparison.as_opcode()
         && let Some(flipped) = flipped_comparison(comparison)
     {
         return rewrite!(2, Edit::RemoveFirstOverwrite(flipped));
@@ -401,10 +401,10 @@ fn try_peephole(
     // `DUP2 OP SWAP1 POP -> OP`.
     // `DUP2 OP SWAP1 POP -> SWAP1 OP`.
     if let [.., dup, binop, swap, pop] = instructions.as_slice()
-        && dup.as_legacy_opcode() == Some(op::DUP2)
-        && let Some(binop) = binop.as_legacy_opcode()
-        && swap.as_legacy_opcode() == Some(op::SWAP1)
-        && pop.as_legacy_opcode() == Some(op::POP)
+        && dup.as_opcode() == Some(op::DUP2)
+        && let Some(binop) = binop.as_opcode()
+        && swap.as_opcode() == Some(op::SWAP1)
+        && pop.as_opcode() == Some(op::POP)
     {
         if is_commutative(binop) {
             return rewrite!(4, Edit::OverwriteOne(binop));
@@ -434,20 +434,20 @@ fn try_peephole(
 
     // `DUP2 SINK POP -> SWAP1 SINK`.
     if let [.., dup, sink, pop] = instructions.as_slice()
-        && dup.as_legacy_opcode() == Some(op::DUP2)
-        && let Some(opcode) = sink.as_legacy_opcode()
+        && dup.as_opcode() == Some(op::DUP2)
+        && let Some(opcode) = sink.as_opcode()
         && matches!(opcode, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE | op::LOG0)
-        && pop.as_legacy_opcode() == Some(op::POP)
+        && pop.as_opcode() == Some(op::POP)
     {
         return rewrite!(3, Edit::OverwriteTwo(opcode));
     }
 
     // `SWAP1 POP SWAP2 POP -> SWAP3 POP POP`.
     if let [.., first_swap, first_pop, second_swap, second_pop] = instructions.as_slice()
-        && first_swap.as_legacy_opcode() == Some(op::SWAP1)
-        && first_pop.as_legacy_opcode() == Some(op::POP)
-        && second_swap.as_legacy_opcode() == Some(op::SWAP2)
-        && second_pop.as_legacy_opcode() == Some(op::POP)
+        && first_swap.as_opcode() == Some(op::SWAP1)
+        && first_pop.as_opcode() == Some(op::POP)
+        && second_swap.as_opcode() == Some(op::SWAP2)
+        && second_pop.as_opcode() == Some(op::POP)
     {
         return rewrite!(4, Edit::MergeSwapPop(3));
     }
@@ -494,12 +494,12 @@ fn try_peephole(
 
     // `DUP1 PUSH x MSTORE DUP1 PUSH x MSTORE -> DUP1 PUSH x MSTORE`.
     if let [.., dup_a, push_a, store_a, dup_b, push_b, store_b] = instructions.as_slice()
-        && dup_a.as_legacy_opcode() == Some(op::DUP1)
+        && dup_a.as_opcode() == Some(op::DUP1)
         && let Some(a) = push_a.concrete_immediate()
-        && store_a.as_legacy_opcode() == Some(op::MSTORE)
-        && dup_b.as_legacy_opcode() == Some(op::DUP1)
+        && store_a.as_opcode() == Some(op::MSTORE)
+        && dup_b.as_opcode() == Some(op::DUP1)
         && let Some(b) = push_b.concrete_immediate()
-        && store_b.as_legacy_opcode() == Some(op::MSTORE)
+        && store_b.as_opcode() == Some(op::MSTORE)
         && a == b
     {
         return rewrite!(6, Edit::Keep(3));
@@ -508,10 +508,10 @@ fn try_peephole(
     // `PUSH x MLOAD DUP1 PUSH x MSTORE -> PUSH x MLOAD`.
     if let [.., load_addr, load, dup, store_addr, store] = instructions.as_slice()
         && let Some(a) = load_addr.concrete_immediate()
-        && load.as_legacy_opcode() == Some(op::MLOAD)
-        && dup.as_legacy_opcode() == Some(op::DUP1)
+        && load.as_opcode() == Some(op::MLOAD)
+        && dup.as_opcode() == Some(op::DUP1)
         && let Some(b) = store_addr.concrete_immediate()
-        && store.as_legacy_opcode() == Some(op::MSTORE)
+        && store.as_opcode() == Some(op::MSTORE)
         && a == b
     {
         return rewrite!(5, Edit::Keep(2));
@@ -519,12 +519,12 @@ fn try_peephole(
 
     // `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop, loaded, load] = instructions.as_slice()
-        && dup.as_legacy_opcode() == Some(op::DUP1)
+        && dup.as_opcode() == Some(op::DUP1)
         && let Some(a) = pushed.concrete_immediate()
-        && store.as_legacy_opcode() == Some(op::MSTORE)
-        && pop.as_legacy_opcode() == Some(op::POP)
+        && store.as_opcode() == Some(op::MSTORE)
+        && pop.as_opcode() == Some(op::POP)
         && let Some(b) = loaded.concrete_immediate()
-        && load.as_legacy_opcode() == Some(op::MLOAD)
+        && load.as_opcode() == Some(op::MLOAD)
         && a == b
     {
         return rewrite!(6, Edit::Keep(3));
@@ -540,9 +540,9 @@ fn try_peephole(
         && load_addr.has_canonical_stack_effect()
         && load.has_canonical_stack_effect()
         && let Some(store_addr) = store_addr.concrete_immediate()
-        && store.as_legacy_opcode() == Some(op::MSTORE)
+        && store.as_opcode() == Some(op::MSTORE)
         && let Some(load_addr) = load_addr.concrete_immediate()
-        && load.as_legacy_opcode() == Some(op::MLOAD)
+        && load.as_opcode() == Some(op::MLOAD)
         && store_addr == load_addr
     {
         return rewrite!(4, Edit::ReloadStoredValue);
@@ -550,30 +550,30 @@ fn try_peephole(
 
     // `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
     if let [.., dup, pushed, store, pop] = instructions.as_slice()
-        && dup.as_legacy_opcode() == Some(op::DUP1)
+        && dup.as_opcode() == Some(op::DUP1)
         && pushed.is_encoded_push()
-        && store.as_legacy_opcode() == Some(op::MSTORE)
-        && pop.as_legacy_opcode() == Some(op::POP)
+        && store.as_opcode() == Some(op::MSTORE)
+        && pop.as_opcode() == Some(op::POP)
     {
         return rewrite!(4, Edit::RemoveFirstKeep(2));
     }
 
     // `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
     if let [.., first, second, target, jump] = instructions.as_slice()
-        && first.as_legacy_opcode() == Some(op::ISZERO)
-        && second.as_legacy_opcode() == Some(op::ISZERO)
+        && first.as_opcode() == Some(op::ISZERO)
+        && second.as_opcode() == Some(op::ISZERO)
         && is_block_push(target)
-        && jump.as_legacy_opcode() == Some(op::JUMPI)
+        && jump.as_opcode() == Some(op::JUMPI)
     {
         return rewrite!(4, Edit::DropDoubleIszero);
     }
 
     // `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
     if let [.., eq, iszero, target, jump] = instructions.as_slice()
-        && eq.as_legacy_opcode() == Some(op::EQ)
-        && iszero.as_legacy_opcode() == Some(op::ISZERO)
+        && eq.as_opcode() == Some(op::EQ)
+        && iszero.as_opcode() == Some(op::ISZERO)
         && is_block_push(target)
-        && jump.as_legacy_opcode() == Some(op::JUMPI)
+        && jump.as_opcode() == Some(op::JUMPI)
     {
         return rewrite!(4, Edit::EqIszeroJumpi);
     }
@@ -916,7 +916,7 @@ impl Edit {
 }
 
 fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
-    debug_assert!(inst.as_legacy_opcode().is_some());
+    debug_assert!(inst.as_opcode().is_some());
     let metadata = std::mem::take(&mut inst.metadata);
     *inst = Instruction::opcode(opcode);
     inst.metadata = metadata;

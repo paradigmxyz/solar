@@ -99,7 +99,7 @@ fn find_run(
 ) -> Option<Rewrite> {
     let [value, dup, store, ..] = instructions.get(start..)? else { return None };
     let first = immediate(value)?;
-    if dup.as_legacy_opcode() != Some(op::DUP2) || store.as_legacy_opcode() != Some(op::MSTORE) {
+    if dup.as_opcode() != Some(op::DUP2) || store.as_opcode() != Some(op::MSTORE) {
         return None;
     }
 
@@ -109,10 +109,10 @@ fn find_run(
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
         if immediate(offset) != Some(U256::from(words * 32))
-            || dup.as_legacy_opcode() != Some(op::DUP2)
-            || add.as_legacy_opcode() != Some(op::ADD)
-            || swap.as_legacy_opcode() != Some(op::SWAP1)
-            || store.as_legacy_opcode() != Some(op::MSTORE)
+            || dup.as_opcode() != Some(op::DUP2)
+            || add.as_opcode() != Some(op::ADD)
+            || swap.as_opcode() != Some(op::SWAP1)
+            || store.as_opcode() != Some(op::MSTORE)
         {
             break;
         }

@@ -385,8 +385,8 @@ pub(crate) enum StackOp {
 pub(crate) enum StackOpLowering {
     /// One opcode with an optional immediate byte.
     Direct(u8, Option<u8>),
-    /// Three legacy `SWAP` opcodes implementing a shallow `EXCHANGE`.
-    LegacyExchange([u8; 3]),
+    /// Three `SWAP` opcodes implementing a shallow `EXCHANGE`.
+    SwapSequence([u8; 3]),
 }
 
 /// Exact cost of a lowered stack operation.
@@ -425,9 +425,9 @@ impl StackOp {
         }
     }
 
-    /// Decodes a legacy one-byte stack opcode.
+    /// Decodes a one-byte stack opcode.
     #[must_use]
-    pub(crate) const fn from_legacy_opcode(opcode: u8) -> Option<Self> {
+    pub(crate) const fn from_single_byte_opcode(opcode: u8) -> Option<Self> {
         match opcode {
             POP => Some(Self::Pop),
             DUP1..=DUP16 => Some(Self::Dup(opcode - DUP1 + 1)),
@@ -438,7 +438,7 @@ impl StackOp {
 
     /// Returns the one-byte encoding when this operation has one.
     #[must_use]
-    pub(crate) const fn legacy_opcode(self) -> Option<u8> {
+    pub(crate) const fn single_byte_opcode(self) -> Option<u8> {
         match self {
             Self::Dup(n @ 1..=16) => Some(dup(n)),
             Self::Swap(n @ 1..=16) => Some(swap(n)),
@@ -474,7 +474,7 @@ impl StackOp {
         if !self.is_valid() {
             return None;
         }
-        if let Some(opcode) = self.legacy_opcode() {
+        if let Some(opcode) = self.single_byte_opcode() {
             return Some(StackOpLowering::Direct(opcode, None));
         }
 
@@ -489,7 +489,7 @@ impl StackOp {
                 StackOpLowering::Direct(EXCHANGE, Some(encode_exchange(n, m)))
             }
             Self::Exchange(n, m) if m <= 16 => {
-                StackOpLowering::LegacyExchange([swap(n), swap(m), swap(n)])
+                StackOpLowering::SwapSequence([swap(n), swap(m), swap(n)])
             }
             _ => return None,
         };
@@ -501,7 +501,7 @@ impl StackOp {
     pub(crate) fn metrics(self, evm_version: EvmVersion) -> Option<StackOpMetrics> {
         let (assembled_len, instruction_count) = match self.lowering(evm_version)? {
             StackOpLowering::Direct(_, immediate) => (1 + usize::from(immediate.is_some()), 1),
-            StackOpLowering::LegacyExchange(opcodes) => (opcodes.len(), opcodes.len()),
+            StackOpLowering::SwapSequence(opcodes) => (opcodes.len(), opcodes.len()),
         };
         let gas_per_instruction = if matches!(self, Self::Pop) { 2 } else { 3 };
         Some(StackOpMetrics {

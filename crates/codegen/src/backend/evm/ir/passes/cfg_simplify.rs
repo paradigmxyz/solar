@@ -133,7 +133,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && pushed.is_encoded_push()
             && pushed.value == Some(PushValue::Block(*target))
             && jumpi.has_canonical_stack_effect()
-            && jumpi.as_legacy_opcode() == Some(op::JUMPI)
+            && jumpi.as_opcode() == Some(op::JUMPI)
         {
             block.instructions.truncate(block.instructions.len() - 2);
             block

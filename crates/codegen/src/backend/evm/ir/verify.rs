@@ -149,7 +149,7 @@ impl<'a> Verifier<'a> {
                         format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
                     );
                 }
-            } else if op::StackOp::from_legacy_opcode(inst.opcode).is_some()
+            } else if op::StackOp::from_single_byte_opcode(inst.opcode).is_some()
                 || matches!(inst.opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
             {
                 self.error_in_block(
@@ -453,18 +453,18 @@ pub(super) fn validate_evm_version(
     dcx: &DiagCtxt,
     module: &Module,
     evm_version: EvmVersion,
-    allow_legacy_opcodes: bool,
+    allow_unlegalized_opcodes: bool,
 ) {
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             if let Some(stack_op) = inst.as_stack_op() {
                 validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
             } else {
-                validate_opcode(dcx, block_id, inst.opcode, evm_version, allow_legacy_opcodes);
+                validate_opcode(dcx, block_id, inst.opcode, evm_version, allow_unlegalized_opcodes);
             }
         }
         if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator {
-            validate_opcode(dcx, block_id, *opcode, evm_version, allow_legacy_opcodes);
+            validate_opcode(dcx, block_id, *opcode, evm_version, allow_unlegalized_opcodes);
         }
     }
 }
@@ -505,9 +505,9 @@ fn validate_opcode(
     block: BlockId,
     opcode: u8,
     evm_version: EvmVersion,
-    allow_legacy_opcodes: bool,
+    allow_unlegalized_opcodes: bool,
 ) {
-    if allow_legacy_opcodes
+    if allow_unlegalized_opcodes
         && ((!evm_version.has_bitwise_shifting() && matches!(opcode, op::SHL | op::SHR | op::SAR))
             || (!evm_version.supports_returndata() && opcode == op::REVERT))
     {
