@@ -147,7 +147,10 @@
     stop
   bb15:
     push 0
+    push 1
+-   dup 2
 -   dup 1
++   push 0
 +   push 0
     push 0
     mstore

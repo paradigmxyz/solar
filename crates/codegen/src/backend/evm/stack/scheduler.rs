@@ -2859,6 +2859,27 @@ mod tests {
     }
 
     #[test]
+    fn ensure_operand_on_top_rematerializes_deep_cheap_values() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+        let (_, caller) =
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+
+        for (value, expected) in [
+            (zero, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)),
+            (caller, ScheduledOp::RematerializeNullary(op::CALLER)),
+        ] {
+            let mut scheduler = StackScheduler::new();
+            scheduler.stack.push(value);
+            scheduler.stack.push(filler);
+            assert_eq!(scheduler.ensure_operand_on_top(value, &func), &[expected]);
+        }
+    }
+
+    #[test]
     fn test_deep_unspilled_inst_result_is_not_emittable() {
         let mut func = make_test_func();
         let v0 = ValueId::from_usize(0);

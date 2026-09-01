@@ -34,6 +34,7 @@ use crate::{
     utils::eval,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_sema::Gcx;
 use std::fmt;
@@ -254,17 +255,12 @@ fn try_peephole(
         };
     }
 
-    // `PUSH0 DUP1 -> PUSH0 PUSH0`.
+    // `... PUSH0 ... DUPn -> ... PUSH0 ... PUSH0` when the duplicate reads that zero.
     //
-    // `PUSH0` is one byte and costs two gas, so it dominates `DUP1` on targets that support it.
-    if gcx.sess.opts.evm_version.has_push0()
-        && let [.., pushed, dup] = instructions.as_slice()
-        && pushed.has_canonical_stack_effect()
-        && dup.has_canonical_stack_effect()
-        && pushed.concrete_immediate() == Some(U256::ZERO)
-        && dup.as_stack_op() == Some(op::StackOp::Dup(1))
-    {
-        return rewrite!(2, Edit::CopyFirst);
+    // `PUSH0` is one byte and costs two gas, so it dominates every `DUPn` on targets that support
+    // it.
+    if gcx.sess.opts.evm_version.has_push0() && duplicates_known_zero(instructions) {
+        return rewrite!(1, Edit::OverwritePush0);
     }
 
     // `PUSH x PUSH 0 OP -> PUSH 0`.
@@ -631,6 +627,68 @@ enum SymbolicStackOp {
     Physical(PhysicalStackOp),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum KnownStackWord {
+    Other,
+    Zero,
+}
+
+fn duplicates_known_zero(instructions: &[Instruction]) -> bool {
+    let Some(op::StackOp::Dup(depth)) = instructions.last().and_then(Instruction::as_stack_op)
+    else {
+        return false;
+    };
+    let end = instructions.len() - 1;
+    let start = instructions[..end]
+        .iter()
+        .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
+        .map_or(end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW), |index| index + 1)
+        .max(end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW));
+    if !instructions[start..end].iter().any(|inst| inst.concrete_immediate() == Some(U256::ZERO)) {
+        return false;
+    }
+    let mut stack = SmallVec::<[KnownStackWord; MAX_STACK_PEEPHOLE_WINDOW + 16]>::from_elem(
+        KnownStackWord::Other,
+        usize::from(depth),
+    );
+    for inst in &instructions[start..end] {
+        if !inst.has_canonical_stack_effect() {
+            return false;
+        }
+        if inst.is_encoded_push() {
+            stack.push(if inst.concrete_immediate() == Some(U256::ZERO) {
+                KnownStackWord::Zero
+            } else {
+                KnownStackWord::Other
+            });
+            continue;
+        }
+        let Some(op) = inst.as_stack_op() else { return false };
+        let required = op.required_depth();
+        if stack.len() < required {
+            for _ in stack.len()..required {
+                stack.insert(0, KnownStackWord::Other);
+            }
+        }
+        let top = stack.len() - 1;
+        match op {
+            op::StackOp::Dup(depth) => stack.push(stack[top - usize::from(depth - 1)]),
+            op::StackOp::Swap(depth) => stack.swap(top, top - usize::from(depth)),
+            op::StackOp::Exchange(n, m) => {
+                stack.swap(top - usize::from(n), top - usize::from(m));
+            }
+            op::StackOp::Pop => {
+                stack.pop();
+            }
+        }
+    }
+    let depth = usize::from(depth);
+    if stack.len() < depth {
+        return false;
+    }
+    stack[stack.len() - depth] == KnownStackWord::Zero
+}
+
 fn noop_stack_suffix_len(instructions: &[Instruction]) -> Option<usize> {
     let end = instructions.len();
     let last = stack_op(instructions.last()?)?;
@@ -764,7 +822,7 @@ fn rewrite_if_safe(
 #[derive(Clone, Copy)]
 enum Edit {
     Keep(u8),
-    CopyFirst,
+    OverwritePush0,
     RemoveFirstKeep(u8),
     RemoveFirstOverwrite(u8),
     SwapOverwrite(u8),
@@ -784,7 +842,11 @@ impl Edit {
     fn apply(self, instructions: &mut Vec<Instruction>, start: usize) {
         match self {
             Self::Keep(len) => instructions.truncate(start + usize::from(len)),
-            Self::CopyFirst => instructions[start + 1] = instructions[start].clone(),
+            Self::OverwritePush0 => {
+                let metadata = std::mem::take(&mut instructions[start].metadata);
+                instructions[start] = Instruction::push_value(U256::ZERO);
+                instructions[start].metadata = metadata;
+            }
             Self::RemoveFirstKeep(len) => {
                 instructions.remove(start);
                 instructions.truncate(start + usize::from(len));
