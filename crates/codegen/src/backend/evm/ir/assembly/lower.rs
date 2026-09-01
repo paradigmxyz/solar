@@ -22,21 +22,18 @@ impl Assembler<'_> {
 
         ir::builder::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
-        let input_is_valid = cfg!(debug_assertions) && ir::verify::is_valid(&ir_program);
+        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(&ir_program);
         let errors_before = self.gcx.dcx().err_count();
         let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        debug_assert!(!input_is_valid || ir::verify::is_valid(&ir_program));
+        debug_assert!(!input_is_valid || ir::verify::Verifier::is_valid(&ir_program));
         let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
-            ir::verify::validate(self.gcx, &ir_program, ir::verify::Validation::Structural);
-        }
-        ir::verify::validate(self.gcx, &ir_program, ir::verify::Validation::Opcodes);
+        ir::verify::Verifier::new(self.gcx).verify_after_legalization(&ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }

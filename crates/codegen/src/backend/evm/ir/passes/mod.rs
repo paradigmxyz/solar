@@ -29,7 +29,8 @@ use crate::{
     pass_manager::{parse_pass_pipeline, pipeline_output_name, print_pass_diff},
     timing::PassTimer,
 };
-use solar_config::OptimizationMode;
+use solar_config::{EvmVersion, OptimizationMode};
+use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 
 pub use crate::pass_manager::pipeline_label;
@@ -155,7 +156,13 @@ pub fn run_passes(
     passes: &[&dyn EvmPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, name)
+    run_passes_inner(gcx, module, passes, true, name)
+}
+
+/// Runs EVM IR passes without validating after each pass.
+#[must_use]
+pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
+    run_passes_inner(gcx, module, passes, false, None)
 }
 
 #[must_use]
@@ -163,6 +170,7 @@ fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn EvmPass],
+    validate_each: bool,
     name: Option<&str>,
 ) -> bool {
     let output_name =
@@ -187,6 +195,9 @@ fn run_passes_inner(
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
+            if validate_each && cfg!(debug_assertions) {
+                validate_module_after_pass(module, pass_name);
+            }
         }
 
         if let Some(before) = before {
@@ -199,12 +210,20 @@ fn run_passes_inner(
     changed
 }
 
+fn validate_module_after_pass(module: &Module, pass_name: &str) {
+    let dcx = DiagCtxt::new_early();
+    super::verify::Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module_shape(module);
+    if dcx.has_errors().is_err() {
+        panic!("EVM IR validation failed after `{pass_name}`");
+    }
+}
+
 /// Runs the configured EVM IR pipeline, or the canonical pipeline when none was provided.
 ///
 /// `name` overrides the module name in pass output.
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    super::verify::validate(gcx, module, super::verify::Validation::StackOps);
+    super::verify::Verifier::new(gcx).verify_before_pipeline(module);
     if gcx.dcx().has_errors().is_err() {
         return false;
     }

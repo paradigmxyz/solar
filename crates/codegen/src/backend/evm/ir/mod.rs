@@ -26,14 +26,17 @@ pub(in crate::backend::evm) mod verify;
 pub(in crate::backend::evm) mod assembly;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
-pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
+pub use passes::{
+    ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_passes_no_validate,
+    run_pipeline,
+};
 pub(in crate::backend::evm) use passes::{
     LEGACY_SHIFT_STACK_HEADROOM, compact_pushes::ImmediateMaterialization, legalize_shifts,
 };
 
 /// Validates the target-independent invariants of an EVM IR module.
 pub fn validate(gcx: solar_sema::Gcx<'_>, module: &Module) {
-    verify::validate(gcx, module, verify::Validation::Structural);
+    verify::Verifier::new(gcx).verify_module(module);
 }
 
 /// Maximum stack reserve used by parameterized machine-run outlining.
@@ -571,6 +574,17 @@ impl TerminatorKind {
             }
             Self::IndexedJump(targets) => targets.iter_mut().for_each(visit),
             Self::Op(_) => {}
+        }
+    }
+}
+
+impl fmt::Display for TerminatorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Jump(_) => f.write_str("jump"),
+            Self::JumpI { .. } => f.write_str("jumpi"),
+            Self::IndexedJump(_) => f.write_str("indexed_jump"),
+            Self::Op(opcode) => f.write_str(op::mnemonic(*opcode).unwrap_or("terminal")),
         }
     }
 }

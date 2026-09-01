@@ -32,7 +32,7 @@ impl<'gcx> Assembler<'gcx> {
                 .emit());
         }
 
-        debug_assert!(ir::verify::is_valid(&module));
+        debug_assert!(ir::verify::Verifier::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
         for (index, block) in module.blocks.iter_mut().enumerate() {

@@ -28,12 +28,6 @@ pub fn generate_evm_ir_bytecode(
     gcx: solar_sema::Gcx<'_>,
     module: ir::Module,
 ) -> solar_interface::Result<Vec<u8>> {
-    ir::verify::validate(gcx, &module, ir::verify::Validation::Structural);
-    gcx.dcx().has_errors()?;
-    ir::verify::validate(gcx, &module, ir::verify::Validation::StackOps);
-    gcx.dcx().has_errors()?;
-    ir::verify::validate(gcx, &module, ir::verify::Validation::OpcodesBeforeLegalization);
-    gcx.dcx().has_errors()?;
     let mut assembler = assembler::Assembler::from_evm_ir(gcx, module)?;
     let result = assembler.assemble_with_evm_ir(true);
     gcx.dcx().has_errors()?;
