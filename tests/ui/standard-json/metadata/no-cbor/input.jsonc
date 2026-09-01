@@ -7,7 +7,7 @@
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "// SPDX-License-Identifier: MIT\ncontract A {}"
+      "content": "contract A {}"
     }
   },
   "settings": {

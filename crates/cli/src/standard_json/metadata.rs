@@ -135,9 +135,6 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
     let content = source.file.src.as_str();
     let mut value = Map::new();
     value.insert("keccak256".into(), json!(format!("{:#x}", keccak256(content.as_bytes()))));
-    if let Some(license) = source_license(content) {
-        value.insert("license".into(), json!(license));
-    }
     if metadata.input.settings.metadata.use_literal_content {
         value.insert("content".into(), json!(content));
     } else {
@@ -156,13 +153,6 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
 
 fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
     standard_json_source_name(&gcx.hir.source(source_id).file.name)
-}
-
-fn source_license(source: &str) -> Option<&str> {
-    const PREFIX: &str = "SPDX-License-Identifier:";
-    source.lines().find_map(|line| {
-        line.trim_start().strip_prefix("//")?.trim().strip_prefix(PREFIX).map(str::trim)
-    })
 }
 
 fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {

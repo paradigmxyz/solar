@@ -402,7 +402,10 @@ impl std::str::FromStr for ImportRemapping {
 
 impl fmt::Display for ImportRemapping {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}={}", self.context, self.prefix, self.path)
+        if !self.context.is_empty() {
+            write!(f, "{}:", self.context)?;
+        }
+        write!(f, "{}={}", self.prefix, self.path)
     }
 }
 
@@ -549,10 +552,5 @@ mod tests {
                 assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
             }
         }
-    }
-
-    #[test]
-    fn import_remapping_display_is_canonical() {
-        assert_eq!("lib/=src/".parse::<ImportRemapping>().unwrap().to_string(), ":lib/=src/");
     }
 }

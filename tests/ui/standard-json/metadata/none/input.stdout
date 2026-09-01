@@ -1,0 +1,34 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0x713073fa3404d26d3eb1ada031e6b51a3a0c135d0ee7c72ec87e0e77e004cf8c\",\"urls\":[\"bzz-raw://98a8dcfa71851b2a1d846acc58f356eaaa1d0fef48aec4034816b42bf5066c91\",\"dweb:/ipfs/QmQgz1fsEeGVqQfh8X1LssKZBFZX7Sh1gCBsRmoSbRnaUc\"]}},\"version\":1}",
+        "evm": {
+          "bytecode": {
+            "object": "60108060095f395ff35f80fdfea164736f6c6343000200000a"
+          },
+          "deployedBytecode": {
+            "object": "5f80fdfea164736f6c6343000200000a"
+          }
+        }
+      }
+    }
+  }
+}

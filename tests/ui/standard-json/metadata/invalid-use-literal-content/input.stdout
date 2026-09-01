@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "JSON parse error: invalid type: string \"true\", expected a boolean at line 5 column 33",
+      "formattedMessage": "error: JSON parse error: invalid type: string \"true\", expected a boolean at line 5 column 33\n\n"
+    }
+  ]
+}

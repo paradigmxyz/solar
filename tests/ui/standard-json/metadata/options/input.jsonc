@@ -1,7 +1,5 @@
 // CHECK: "metadata":
-// CHECK: \"remappings\":[\":lib/=src/\"]
-// CHECK: \"license\":\"MIT\"
-// CHECK: \"license\":\"Apache-2.0\"
+// CHECK: \"remappings\":[\"lib/=src/\"]
 // CHECK: "evm": {
 // CHECK: "deployedBytecode": {
 // CHECK: fea265627a7a7231
@@ -9,10 +7,10 @@
   "language": "Solidity",
   "sources": {
     "A.sol": {
-      "content": "// SPDX-License-Identifier: MIT\nimport \"lib/B.sol\";\ncontract A { function value() external pure returns (uint256) { return B.value(); } }"
+      "content": "import \"lib/B.sol\";\ncontract A { function value() external pure returns (uint256) { return B.value(); } }"
     },
     "src/B.sol": {
-      "content": "// SPDX-License-Identifier: Apache-2.0\nlibrary B { function value() internal pure returns (uint256) { return 1; } }"
+      "content": "library B { function value() internal pure returns (uint256) { return 1; } }"
     }
   },
   "settings": {
