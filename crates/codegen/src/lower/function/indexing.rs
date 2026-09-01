@@ -75,50 +75,51 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let length = self.builder.slice_len(object);
             self.builder.bounds_check(index, length);
             let base = self.builder.slice_ptr(object);
-            return match receiver_ty.peel_refs().kind {
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                    // value = byte(0, load_word(slice, index))
-                    let word = match location {
-                        SliceLocation::Calldata => {
-                            self.builder.calldata_slice_load_word(object, index)
-                        }
-                        SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
-                        SliceLocation::Returndata => {
-                            return self.cx.report_unsupported(expr.span, "returndata index");
-                        }
-                    };
-                    let zero = self.builder.imm(0);
-                    let byte = self.builder.byte(zero, word);
-                    Some(self.normalize_byte_value(expr, byte))
-                }
-                TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => {
-                    // head = slice.data + index * element_head_size
-                    // value = decode_calldata_element(head, slice.data)
-                    if location != SliceLocation::Calldata {
-                        return self.cx.report_unsupported(expr.span, "memory array slice index");
+            return if self.is_dynamic_bytes_type(receiver_ty) {
+                // value = byte(0, load_word(slice, index))
+                let word = match location {
+                    SliceLocation::Calldata => self.builder.calldata_slice_load_word(object, index),
+                    SliceLocation::Memory => self.builder.memory_slice_load_word(object, index),
+                    SliceLocation::Returndata => {
+                        return self.cx.report_unsupported(expr.span, "returndata index");
                     }
-                    let element = self
-                        .cx
-                        .gcx
-                        .type_of_expr(expr.id)?
-                        .with_loc_if_ref(self.cx.gcx, DataLocation::Calldata);
-                    let head_size = self.builder.imm(self.types.abi_type(element)?.head_size());
-                    let offset = self.builder.checked_mul(index, head_size);
-                    let head = self.builder.add(base, offset);
-                    // Dynamic-array slices retain their element base for nested offsets;
-                    // arbitrary slices still cannot validate offsets relative to the tuple.
-                    let validate_bounds =
-                        !matches!(receiver.peel_parens().kind, ExprKind::Slice(..))
-                            && self.types.abi_type(element)?.is_dynamic();
-                    self.materialize_calldata_index_value_at(
-                        element,
-                        head,
-                        base,
-                        expr.span,
-                        validate_bounds,
-                    )
+                };
+                let zero = self.builder.imm(0);
+                let byte = self.builder.byte(zero, word);
+                Some(self.normalize_byte_value(expr, byte))
+            } else {
+                match receiver_ty.peel_refs().kind {
+                    TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => {
+                        // head = slice.data + index * element_head_size
+                        // value = decode_calldata_element(head, slice.data)
+                        if location != SliceLocation::Calldata {
+                            return self
+                                .cx
+                                .report_unsupported(expr.span, "memory array slice index");
+                        }
+                        let element = self
+                            .cx
+                            .gcx
+                            .type_of_expr(expr.id)?
+                            .with_loc_if_ref(self.cx.gcx, DataLocation::Calldata);
+                        let head_size = self.builder.imm(self.types.abi_type(element)?.head_size());
+                        let offset = self.builder.checked_mul(index, head_size);
+                        let head = self.builder.add(base, offset);
+                        // Dynamic-array slices retain their element base for nested offsets;
+                        // arbitrary slices still cannot validate offsets relative to the tuple.
+                        let validate_bounds =
+                            !matches!(receiver.peel_parens().kind, ExprKind::Slice(..))
+                                && self.types.abi_type(element)?.is_dynamic();
+                        self.materialize_calldata_index_value_at(
+                            element,
+                            head,
+                            base,
+                            expr.span,
+                            validate_bounds,
+                        )
+                    }
+                    _ => self.cx.report_unsupported(expr.span, "slice index"),
                 }
-                _ => self.cx.report_unsupported(expr.span, "slice index"),
             };
         }
         let layout = self.types.memory_layout(receiver_ty)?;

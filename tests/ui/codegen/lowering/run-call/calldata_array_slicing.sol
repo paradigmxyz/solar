@@ -13,6 +13,7 @@
 //@ run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: bytesSlice 0x010203, 0, 4
 //@ run-call-fail: bytesSlice 0x010203, 2, 1
+//@ run-call: chainedBytesIndex 0x01020304 => 0x03
 // ported-from: test/libsolidity/semanticTests/abicoder/calldataDecoding/array/calldata_array_slicing_v2.sol
 
 contract CalldataArraySlicing {
@@ -85,5 +86,9 @@ contract CalldataArraySlicing {
         returns (bytes memory)
     {
         return values[start:end];
+    }
+
+    function chainedBytesIndex(bytes calldata values) external pure returns (bytes1) {
+        return values[1:][1:][0];
     }
 }
