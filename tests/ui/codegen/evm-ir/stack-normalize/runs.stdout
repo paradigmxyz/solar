@@ -160,4 +160,15 @@
 -   swap 2
     pop
     stop
+  bb12:
+    push 45
+    push 46
+    push 47
+    push 48
+-   swap 1
++   swap 3
+    pop
+-   swap 2
+    pop
+    stop
   

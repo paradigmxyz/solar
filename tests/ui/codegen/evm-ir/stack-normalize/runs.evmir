@@ -252,3 +252,23 @@ bb11:
   swap 2
   pop
   stop
+
+// Normalize the former dedicated peephole through the generic stack run path.
+// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK: {{^[ +].*}}push 48
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   swap 3
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb12:
+  push 45
+  push 46
+  push 47
+  push 48
+  swap 1
+  pop
+  swap 2
+  pop
+  stop

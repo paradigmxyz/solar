@@ -442,16 +442,6 @@ fn try_peephole(
         return rewrite!(3, Edit::OverwriteTwo(opcode));
     }
 
-    // `SWAP1 POP SWAP2 POP -> SWAP3 POP POP`.
-    if let [.., first_swap, first_pop, second_swap, second_pop] = instructions.as_slice()
-        && first_swap.as_evm_opcode() == Some(op::SWAP1)
-        && first_pop.as_evm_opcode() == Some(op::POP)
-        && second_swap.as_evm_opcode() == Some(op::SWAP2)
-        && second_pop.as_evm_opcode() == Some(op::POP)
-    {
-        return rewrite!(4, Edit::MergeSwapPop(3));
-    }
-
     if instructions.last().and_then(Instruction::as_stack_op) == Some(PhysicalStackOp::Pop) {
         let max_stack_access = gcx.sess.opts.evm_version.reachable_stack_depth();
 

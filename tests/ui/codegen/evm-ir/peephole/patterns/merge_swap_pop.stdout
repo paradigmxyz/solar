@@ -67,19 +67,6 @@
     push 0
     mstore
     stop
-  bb3:
-    push 1
-    push 2
-    push 3
-    push 4
--   swap 1
-+   swap 3
-    pop
--   swap 2
-    pop
-    push 0
-    mstore
-    stop
   bb4:
     calldatasize
     calldatasize
