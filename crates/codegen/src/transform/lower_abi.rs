@@ -333,12 +333,10 @@ impl LowerAbiCx {
     fn lower_decode_instructions(&self, module: &mut Module) -> bool {
         let mut decode_counts = FxHashMap::default();
         let mut memory_type_counts = FxHashMap::default();
-        let mut static_alias_decode_counts = FxHashMap::<AbiParamLayoutRef, usize>::default();
-        let mut static_alias_ptr_layouts = FxHashSet::default();
         let mut decode_functions = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             for inst_id in func.instructions() {
-                let InstKind::AbiDecode { data, layout } = &func.inst(inst_id).kind else {
+                let InstKind::AbiDecode { data: _, layout } = &func.inst(inst_id).kind else {
                     continue;
                 };
                 decode_functions.insert(func_id);
@@ -352,16 +350,6 @@ impl LowerAbiCx {
                     }
                 }
                 *count += 1;
-                if layout.types.len() == 1
-                    && !layout.types[0].is_dynamic()
-                    && let Some(result) = func.inst_result_value(inst_id)
-                    && Self::can_alias_static_decode(func, result, *data, &layout.types[0])
-                {
-                    *static_alias_decode_counts.entry(layout.clone()).or_default() += 1;
-                    if matches!(func.value_ty(*data), Some(MirType::MemPtr)) {
-                        static_alias_ptr_layouts.insert(layout.clone());
-                    }
-                }
             }
         }
 
@@ -383,29 +371,15 @@ impl LowerAbiCx {
         }
 
         let mut decode_helpers = FxHashMap::default();
-        let mut static_alias_decode_helpers = FxHashMap::default();
-        let mut static_alias_ptr_decode_helpers = FxHashMap::default();
         for (layout, count) in decode_counts {
             if count >= 2 && layout.types.len() == 1 && !layout.types[0].is_dynamic() {
-                let alias_count =
-                    static_alias_decode_counts.get(&layout).copied().unwrap_or_default();
-                if alias_count >= 2 {
-                    let helper = self.synthesize_static_alias_decode_helper(
-                        module,
-                        (*layout).clone(),
-                        false,
-                    );
-                    static_alias_decode_helpers.insert(layout.clone(), helper);
-                }
-                if count != alias_count {
-                    let helper = self.synthesize_decode_helper(
-                        module,
-                        layout.clone(),
-                        sym::decode_static,
-                        &memory_type_helpers,
-                    );
-                    decode_helpers.insert(layout, helper);
-                }
+                let helper = self.synthesize_decode_helper(
+                    module,
+                    layout.clone(),
+                    sym::decode_static,
+                    &memory_type_helpers,
+                );
+                decode_helpers.insert(layout, helper);
             } else if count >= 2 && layout.types.iter().any(AbiParamType::is_dynamic) {
                 let helper = self.synthesize_decode_helper(
                     module,
@@ -415,12 +389,6 @@ impl LowerAbiCx {
                 );
                 decode_helpers.insert(layout, helper);
             }
-        }
-
-        for layout in static_alias_ptr_layouts {
-            let helper =
-                self.synthesize_static_alias_decode_helper(module, (*layout).clone(), true);
-            static_alias_ptr_decode_helpers.insert(layout, helper);
         }
 
         for func_id in decode_functions.iter() {
@@ -447,28 +415,6 @@ impl LowerAbiCx {
                         .func()
                         .inst_result_value(inst)
                         .expect("ABI decode must produce a value");
-                    if layout.types.len() == 1
-                        && !layout.types[0].is_dynamic()
-                        && Self::can_alias_static_decode(
-                            builder.func(),
-                            result,
-                            data,
-                            &layout.types[0],
-                        )
-                    {
-                        let helper =
-                            if matches!(builder.func().value_ty(data), Some(MirType::MemPtr)) {
-                                static_alias_ptr_decode_helpers.get(layout.as_ref()).copied()
-                            } else {
-                                static_alias_decode_helpers.get(layout.as_ref()).copied()
-                            };
-                        if let Some(helper) = helper {
-                            let value =
-                                builder.internal_call(helper, vec![data], MirType::MemPtr, 1);
-                            replacements.insert(result, value);
-                            continue;
-                        }
-                    }
                     let data = if matches!(builder.func().value_ty(data), Some(MirType::MemPtr)) {
                         Self::materialize_static_decode_bytes(&mut builder, data, &layout)
                     } else {
@@ -716,45 +662,6 @@ impl LowerAbiCx {
         module.add_function(function)
     }
 
-    fn synthesize_static_alias_decode_helper(
-        &self,
-        module: &mut Module,
-        layout: AbiParamLayout,
-        raw_ptr: bool,
-    ) -> FunctionId {
-        let name = if raw_ptr { sym::decode_static_ptr } else { sym::decode_static_alias };
-        let mut function = Function::new(Ident::with_dummy_span(name));
-        {
-            let mut builder = FunctionBuilder::new(&mut function);
-            let data_ty = if raw_ptr {
-                MirType::MemPtr
-            } else {
-                MirType::MemoryObject(MemoryObjectKind::Bytes)
-            };
-            let data = builder.add_param(data_ty);
-            builder.add_return(MirType::MemPtr);
-            let (base, length) = match raw_ptr {
-                true => (data, None),
-                false => (
-                    builder.memory_object_data(data, MemoryObjectKind::Bytes),
-                    Some(builder.memory_object_len(data, MemoryObjectKind::Bytes)),
-                ),
-            };
-            let mut current = builder.current_block();
-            Self::validate_static_memory_tuple(
-                &mut builder,
-                base,
-                length,
-                &layout,
-                &mut current,
-                self.has_bitwise_shifting,
-            );
-            builder.switch_to_block(current);
-            builder.ret([base]);
-        }
-        module.add_function(function)
-    }
-
     fn materialize_static_decode_bytes(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
@@ -765,41 +672,6 @@ impl LowerAbiCx {
         let source = builder.make_slice(data, size, SliceLocation::Memory);
         builder.memory_object_copy_from_slice(object, MemoryObjectKind::Bytes, source);
         object
-    }
-
-    fn validate_static_memory_tuple(
-        builder: &mut FunctionBuilder<'_>,
-        base: ValueId,
-        length: Option<ValueId>,
-        layout: &AbiParamLayout,
-        current: &mut BlockId,
-        has_bitwise_shifting: bool,
-    ) {
-        let head_size = layout.checked_head_size().expect("static ABI layout");
-        if let Some(length) = length {
-            Self::validate_memory_tuple_input(builder, base, length, head_size, current);
-        }
-
-        let mut invalid = builder.imm_bool(false);
-        let mut grouped = Vec::new();
-        let mut offset = 0_u64;
-        for ty in &layout.types {
-            Self::validate_static_memory_child(
-                builder,
-                ty,
-                base,
-                &mut offset,
-                &mut invalid,
-                &mut grouped,
-                has_bitwise_shifting,
-            );
-        }
-        for (validator, value) in grouped {
-            let violation = validator.violation(builder, value, true);
-            invalid = builder.or(invalid, violation);
-        }
-
-        *current = builder.revert_if(invalid);
     }
 
     fn validate_memory_tuple_input(
@@ -817,169 +689,6 @@ impl LowerAbiCx {
         let invalid = builder.or(overflow, short);
         *current = builder.revert_if(invalid);
         input_end
-    }
-
-    fn validate_static_memory_argument(
-        builder: &mut FunctionBuilder<'_>,
-        ty: &AbiParamType,
-        head: ValueId,
-        invalid: &mut ValueId,
-        grouped: &mut Vec<(AbiWordValidator, ValueId)>,
-        has_bitwise_shifting: bool,
-    ) {
-        if let Some(validator) = ty.word_validator() {
-            let value = builder.mload(head);
-            if has_bitwise_shifting
-                && matches!(
-                    validator,
-                    AbiWordValidator::Unsigned(_) | AbiWordValidator::LeftAligned(_)
-                )
-            {
-                if let Some((_, previous)) =
-                    grouped.iter_mut().find(|(candidate, _)| *candidate == validator)
-                {
-                    *previous = builder.or(*previous, value);
-                } else {
-                    grouped.push((validator, value));
-                }
-                return;
-            }
-            let violation = validator.violation(builder, value, has_bitwise_shifting);
-            *invalid = builder.or(*invalid, violation);
-            return;
-        }
-        match ty {
-            AbiParamType::FixedArray { element, len } => {
-                let length = builder.imm(*len);
-                builder.counted_loop(length, |builder, index| {
-                    let stride = builder
-                        .imm(element.checked_head_size().expect("ABI head size exceeds u64 range"));
-                    let offset = builder.mul(index, stride);
-                    let element_head = builder.add(head, offset);
-                    let mut element_invalid = builder.imm_bool(false);
-                    let mut element_grouped = Vec::new();
-                    Self::validate_static_memory_argument(
-                        builder,
-                        element,
-                        element_head,
-                        &mut element_invalid,
-                        &mut element_grouped,
-                        has_bitwise_shifting,
-                    );
-                    for (validator, value) in element_grouped {
-                        let violation = validator.violation(builder, value, true);
-                        element_invalid = builder.or(element_invalid, violation);
-                    }
-                    builder.revert_if(element_invalid);
-                });
-            }
-            AbiParamType::Tuple(fields) => {
-                let mut offset = 0_u64;
-                for field in fields {
-                    Self::validate_static_memory_child(
-                        builder,
-                        field,
-                        head,
-                        &mut offset,
-                        invalid,
-                        grouped,
-                        has_bitwise_shifting,
-                    );
-                }
-            }
-            AbiParamType::Bytes | AbiParamType::DynamicArray(_) => {
-                unreachable!("dynamic ABI values are not static")
-            }
-            AbiParamType::Scalar(_) | AbiParamType::Enum { .. } => {}
-        }
-    }
-
-    fn validate_static_memory_child(
-        builder: &mut FunctionBuilder<'_>,
-        child: &AbiParamType,
-        head: ValueId,
-        offset: &mut u64,
-        invalid: &mut ValueId,
-        grouped: &mut Vec<(AbiWordValidator, ValueId)>,
-        has_bitwise_shifting: bool,
-    ) {
-        let child_head = builder.add_u64_offset(head, *offset);
-        Self::validate_static_memory_argument(
-            builder,
-            child,
-            child_head,
-            invalid,
-            grouped,
-            has_bitwise_shifting,
-        );
-        *offset = offset
-            .saturating_add(child.checked_head_size().expect("ABI head size exceeds u64 range"));
-    }
-
-    fn can_alias_static_decode(
-        func: &Function,
-        result: ValueId,
-        data: ValueId,
-        ty: &AbiParamType,
-    ) -> bool {
-        if !matches!(func.value_ty(result), Some(MirType::MemoryObject(_))) {
-            return false;
-        }
-        if !matches!(
-            func.value(data),
-            Value::Inst(inst)
-                if matches!(func.inst(*inst).kind, InstKind::Alloc { .. } | InstKind::AbiEncode { .. })
-        ) {
-            return false;
-        }
-
-        for inst_id in func.instructions() {
-            let inst = func.inst(inst_id);
-            if inst.kind.operands().contains(&data)
-                && !matches!(inst.kind, InstKind::AbiDecode { data: input, .. } if input == data)
-            {
-                return false;
-            }
-            if !inst.kind.operands().contains(&result) {
-                continue;
-            }
-            let InstKind::MemoryObjectLoadField { object, field, .. } = &inst.kind else {
-                return false;
-            };
-            if *object != result || !Self::static_field_offset_matches(ty, *field) {
-                return false;
-            }
-            let Some(value) = func.inst_result_value(inst_id) else { return false };
-            if matches!(
-                func.value_ty(value),
-                Some(MirType::MemoryObject(_) | MirType::Slice(_) | MirType::Function)
-            ) {
-                return false;
-            }
-        }
-        for block in &func.blocks {
-            if block.terminator.as_ref().is_some_and(|term| {
-                term.operands().contains(&result) || term.operands().contains(&data)
-            }) {
-                return false;
-            }
-        }
-        true
-    }
-
-    fn static_field_offset_matches(ty: &AbiParamType, field: u64) -> bool {
-        let AbiParamType::Tuple(fields) = ty else { return false };
-        let Some(field_index) = usize::try_from(field).ok() else { return false };
-        if !fields.get(field_index).is_some_and(AbiParamType::is_scalar_word) {
-            return false;
-        }
-        let Some(offset) = fields[..field_index]
-            .iter()
-            .try_fold(0_u64, |offset, field| offset.checked_add(field.checked_head_size()?))
-        else {
-            return false;
-        };
-        offset == field.saturating_mul(EvmMemoryLayout::WORD_SIZE)
     }
 
     /// Rewrites one external function into a self-decoding form, keeping a

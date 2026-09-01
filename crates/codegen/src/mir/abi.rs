@@ -473,29 +473,6 @@ impl AbiWordValidator {
         }
     }
 
-    /// Builds a value that is nonzero when `word` is not canonical.
-    pub(crate) fn violation(
-        self,
-        builder: &mut FunctionBuilder<'_>,
-        word: ValueId,
-        has_bitwise_shifting: bool,
-    ) -> ValueId {
-        match self {
-            Self::Unsigned(bits) | Self::LeftAligned(bits) if has_bitwise_shifting => {
-                let shift = builder.imm(u64::from(bits));
-                if matches!(self, Self::Unsigned(_)) {
-                    builder.shr(shift, word)
-                } else {
-                    builder.shl(shift, word)
-                }
-            }
-            _ => {
-                let valid = self.condition(builder, word, has_bitwise_shifting);
-                builder.iszero(valid)
-            }
-        }
-    }
-
     /// Builds the canonical form of `word`.
     pub(crate) fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
