@@ -9,6 +9,7 @@ mod call;
 mod checked_arith;
 mod data;
 pub use data::ContractBytecodes;
+pub(crate) use data::{data_copy_cost, data_copy_gas, data_copy_is_profitable};
 
 mod expr;
 mod index;

@@ -1,12 +1,15 @@
 //! Materialize and pack program data.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{
-        BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
-        default_instruction_stack_effect, immediate_materialization_cost,
+use crate::{
+    backend::evm::{
+        ir::{
+            BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
+            default_instruction_stack_effect, immediate_materialization_cost,
+        },
+        op::{self, WORD_BYTES},
     },
-    op::{self, WORD_BYTES, data_copy_cost, data_copy_gas, data_copy_is_profitable},
+    lower::{data_copy_cost, data_copy_gas, data_copy_is_profitable},
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
