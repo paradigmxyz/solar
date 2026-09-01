@@ -22,10 +22,10 @@
         "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0x713073fa3404d26d3eb1ada031e6b51a3a0c135d0ee7c72ec87e0e77e004cf8c\",\"urls\":[\"bzz-raw://98a8dcfa71851b2a1d846acc58f356eaaa1d0fef48aec4034816b42bf5066c91\",\"dweb:/ipfs/QmQgz1fsEeGVqQfh8X1LssKZBFZX7Sh1gCBsRmoSbRnaUc\"]}},\"version\":1}",
         "evm": {
           "bytecode": {
-            "object": "60128060095f395ff35f80fd00fea165736f6c617243000200000b"
+            "object": "60118060095f395ff35f80fdfea165736f6c617243000200000b"
           },
           "deployedBytecode": {
-            "object": "5f80fd00fea165736f6c617243000200000b"
+            "object": "5f80fdfea165736f6c617243000200000b"
           }
         }
       }

@@ -274,13 +274,8 @@ fn compile(
                     !bytecode_contracts.is_empty(),
                 );
                 let bytecodes = if let Some(contract_metadata) = &contract_metadata {
-                    let runtime_suffix =
-                        |contract_id| contract_metadata.runtime_suffix(contract_id);
-                    crate::emit::emit_requested(
-                        compiler,
-                        bytecode_contracts,
-                        Some(&runtime_suffix),
-                    )?
+                    let runtime_data = |contract_id| contract_metadata.runtime_data(contract_id);
+                    crate::emit::emit_requested(compiler, bytecode_contracts, Some(&runtime_data))?
                 } else {
                     crate::emit::emit_requested(compiler, bytecode_contracts, None)?
                 };

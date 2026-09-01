@@ -156,6 +156,11 @@ fn lower_evm_ir_once(
     allocate_referenced_labels(assembler, module, labels);
 
     let mut referenced_data = DenseBitSet::new_empty(module.data.len());
+    for (id, data) in module.data.iter_enumerated() {
+        if data.emit_in_runtime {
+            referenced_data.insert(id);
+        }
+    }
     for block in &module.blocks {
         for inst in &block.instructions {
             if let Some(ir::PushValue::Data(data)) = inst.value {

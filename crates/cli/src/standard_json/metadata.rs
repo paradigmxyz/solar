@@ -15,7 +15,6 @@ use solar_sema::{
 };
 use std::sync::OnceLock;
 
-const STOP: u8 = 0x00;
 const INVALID: u8 = 0xfe;
 const IPFS_MULTIHASH_LEN: usize = 34;
 
@@ -62,22 +61,21 @@ impl<'a, 'input, 'gcx> Metadata<'a, 'input, 'gcx> {
         self.contracts[contract_id].get_or_init(|| metadata_json(self, contract_id))
     }
 
-    pub(super) fn runtime_suffix(&self, contract_id: ContractId) -> Bytes {
+    pub(super) fn runtime_data(&self, contract_id: ContractId) -> Bytes {
         let settings = self.settings.metadata;
         if !settings.append_cbor {
             return Bytes::new();
         }
         let hash = settings.bytecode_hash.value;
-        let mut suffix = Vec::with_capacity(cbor_metadata_len(hash) + 2);
-        suffix.push(STOP);
-        suffix.push(INVALID);
+        let mut data = Vec::with_capacity(cbor_metadata_len(hash) + 1);
+        data.push(INVALID);
         match hash {
             MetadataHash::Ipfs | MetadataHash::Bzzr1 => {
-                push_cbor_metadata(&mut suffix, self.json(contract_id), hash);
+                push_cbor_metadata(&mut data, self.json(contract_id), hash);
             }
-            MetadataHash::None => push_cbor_metadata(&mut suffix, "", hash),
+            MetadataHash::None => push_cbor_metadata(&mut data, "", hash),
         }
-        suffix.into()
+        data.into()
     }
 
     fn source(&self, source_id: SourceId) -> &Value {

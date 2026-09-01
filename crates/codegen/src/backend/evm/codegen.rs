@@ -36,7 +36,7 @@ use crate::{
     },
     pass::run_pipeline,
 };
-use alloy_primitives::{Bytes, U256};
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::OptimizationMode;
 use solar_data_structures::{
@@ -1127,7 +1127,6 @@ pub struct EvmCodegen<'gcx> {
     emitting_entry: bool,
     /// Gas-mode switch growth still available in the current deployment artifact.
     switch_gas_code_growth_remaining: usize,
-    runtime_suffix: Bytes,
     capture_mir: bool,
     capture_evm_ir: bool,
 }
@@ -1188,15 +1187,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             in_internal_function: false,
             emitting_entry: false,
             switch_gas_code_growth_remaining,
-            runtime_suffix: Bytes::new(),
             capture_mir: false,
             capture_evm_ir: false,
         }
-    }
-
-    /// Sets opaque bytes appended to the runtime bytecode.
-    pub fn set_runtime_suffix(&mut self, suffix: Bytes) {
-        self.runtime_suffix = suffix;
     }
 
     fn static_call_abi_mut(&mut self, func_id: FunctionId, arg_count: usize) -> &mut StaticCallAbi {
@@ -1485,7 +1478,6 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // First generate the runtime code
         let mut runtime_code = self.generate_runtime_code(module, &call_graph);
-        runtime_code.bytecode.extend_from_slice(&self.runtime_suffix);
         if let Some(evm_ir) = &mut runtime_code.evm_ir {
             evm_ir.set_name(sym::runtime);
         }
