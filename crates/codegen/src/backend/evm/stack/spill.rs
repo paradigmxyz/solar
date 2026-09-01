@@ -10,7 +10,7 @@
 //! with allocations made in that block, not with the number of stable
 //! reservations in the function.
 
-use crate::mir::ValueId;
+use crate::{backend::evm::op::WORD_BYTES, mir::ValueId};
 use solar_data_structures::{
     bit_set::GrowableBitSet,
     map::{FxHashMap, StdEntry},
@@ -19,7 +19,7 @@ use solar_data_structures::{
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct SpillSlot {
-    /// Offset in the spill area (in 32-byte words).
+    /// Offset in the spill area, in words.
     pub offset: u32,
 }
 
@@ -238,7 +238,7 @@ impl SpillManager {
     /// Returns the total size of the spill area in bytes.
     #[must_use]
     pub(crate) fn spill_area_size(&self) -> u32 {
-        self.max_offset * 32
+        self.max_offset * WORD_BYTES as u32
     }
 }
 
@@ -323,7 +323,7 @@ mod tests {
 
         let slot1 = manager.allocate(v1);
         assert_eq!(slot1, slot0);
-        assert_eq!(manager.spill_area_size(), 32);
+        assert_eq!(manager.spill_area_size(), WORD_BYTES as u32);
     }
 
     #[test]
@@ -347,7 +347,7 @@ mod tests {
         let slot1 = manager.reserve_at(v1, 0);
 
         assert_eq!(slot0, slot1);
-        assert_eq!(manager.spill_area_size(), 32);
+        assert_eq!(manager.spill_area_size(), WORD_BYTES as u32);
         assert_eq!(manager.allocate(local).offset, 1);
     }
 

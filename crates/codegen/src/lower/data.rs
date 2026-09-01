@@ -2,7 +2,10 @@
 
 use super::Lowerer;
 use crate::{
-    backend::evm::{data_copy_cost, data_copy_is_profitable, ir::immediate_materialization_cost},
+    backend::evm::{
+        ir::immediate_materialization_cost,
+        op::{data_copy_cost, data_copy_is_profitable},
+    },
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, ValueId},
 };

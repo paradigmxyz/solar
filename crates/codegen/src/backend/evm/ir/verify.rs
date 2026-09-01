@@ -5,6 +5,7 @@ use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
 use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use solar_sema::Gcx;
 use std::fmt;
 
 /// The EVM IR validation required at one backend phase.
@@ -13,11 +14,11 @@ pub(in crate::backend::evm) enum Validation {
     /// Check target-independent EVM IR invariants.
     Structural,
     /// Check that logical stack operations lower for the selected target.
-    StackOps(EvmVersion),
+    StackOps,
     /// Check opcode availability before target legalization removes unavailable opcodes.
-    OpcodesBeforeLegalization(EvmVersion),
+    OpcodesBeforeLegalization,
     /// Check opcode availability for the selected target.
-    Opcodes(EvmVersion),
+    Opcodes,
 }
 
 /// EVM IR verifier.
@@ -441,17 +442,27 @@ fn terminator_name(kind: &TerminatorKind) -> &'static str {
     }
 }
 
-pub(in crate::backend::evm) fn validate(dcx: &DiagCtxt, module: &Module, validation: Validation) {
+pub(in crate::backend::evm) fn validate(gcx: Gcx<'_>, module: &Module, validation: Validation) {
+    validate_with(gcx.dcx(), module, gcx.sess.opts.evm_version, validation);
+}
+
+fn validate_with(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion, validation: Validation) {
     match validation {
         Validation::Structural => Verifier::new(dcx).verify_module(module),
-        Validation::StackOps(evm_version) => validate_stack_ops(dcx, module, evm_version),
-        Validation::OpcodesBeforeLegalization(evm_version) => {
+        Validation::StackOps => validate_stack_ops(dcx, module, evm_version),
+        Validation::OpcodesBeforeLegalization => {
             validate_opcodes(dcx, module, evm_version, true);
         }
-        Validation::Opcodes(evm_version) => {
+        Validation::Opcodes => {
             validate_opcodes(dcx, module, evm_version, false);
         }
     }
+}
+
+pub(super) fn is_valid(module: &Module) -> bool {
+    let dcx = DiagCtxt::with_silent_emitter(None);
+    validate_with(&dcx, module, EvmVersion::Osaka, Validation::Structural);
+    dcx.has_errors().is_ok()
 }
 
 fn validate_opcodes(
@@ -541,7 +552,7 @@ mod tests {
             module.blocks[target].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
             let dcx = DiagCtxt::with_silent_emitter(None);
-            validate(&dcx, &module, Validation::Structural);
+            validate_with(&dcx, &module, EvmVersion::Osaka, Validation::Structural);
             assert_eq!(dcx.err_count(), expected_errors);
         }
     }
@@ -558,15 +569,20 @@ mod tests {
         module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
         let osaka = DiagCtxt::with_silent_emitter(None);
-        validate(&osaka, &module, Validation::Structural);
-        validate(&osaka, &module, Validation::StackOps(EvmVersion::Osaka));
-        validate(&osaka, &module, Validation::OpcodesBeforeLegalization(EvmVersion::Osaka));
+        validate_with(&osaka, &module, EvmVersion::Osaka, Validation::Structural);
+        validate_with(&osaka, &module, EvmVersion::Osaka, Validation::StackOps);
+        validate_with(&osaka, &module, EvmVersion::Osaka, Validation::OpcodesBeforeLegalization);
         assert_eq!(osaka.err_count(), 2);
 
         let amsterdam = DiagCtxt::with_silent_emitter(None);
-        validate(&amsterdam, &module, Validation::Structural);
-        validate(&amsterdam, &module, Validation::StackOps(EvmVersion::Amsterdam));
-        validate(&amsterdam, &module, Validation::OpcodesBeforeLegalization(EvmVersion::Amsterdam));
+        validate_with(&amsterdam, &module, EvmVersion::Amsterdam, Validation::Structural);
+        validate_with(&amsterdam, &module, EvmVersion::Amsterdam, Validation::StackOps);
+        validate_with(
+            &amsterdam,
+            &module,
+            EvmVersion::Amsterdam,
+            Validation::OpcodesBeforeLegalization,
+        );
         assert_eq!(amsterdam.err_count(), 0);
     }
 }

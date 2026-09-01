@@ -5,6 +5,7 @@
 //! program data for byte encoding.
 
 use super::{Data, DataId};
+use crate::backend::evm::op::WORD_BYTES;
 use solar_data_structures::index::IndexVec;
 
 mod indexed_jump;
@@ -59,7 +60,7 @@ impl Program {
     ) {
         assert!(!labels.is_empty(), "packed labels must not be empty");
         assert!(
-            labels.len() * usize::from(label_width) <= 32,
+            labels.len() * usize::from(label_width) <= WORD_BYTES,
             "packed labels must fit one EVM word"
         );
         let labels = self.packed_labels.push(PackedLabels { labels, base, label_width });

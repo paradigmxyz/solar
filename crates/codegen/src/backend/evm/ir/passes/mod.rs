@@ -204,11 +204,7 @@ fn run_passes_inner(
 /// `name` overrides the module name in pass output.
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    super::verify::validate(
-        gcx.dcx(),
-        module,
-        super::verify::Validation::StackOps(gcx.sess.opts.evm_version),
-    );
+    super::verify::validate(gcx, module, super::verify::Validation::StackOps);
     if gcx.dcx().has_errors().is_err() {
         return false;
     }

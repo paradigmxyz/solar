@@ -9,7 +9,7 @@ use crate::backend::evm::{
             ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
         },
     },
-    op::{self, push_len},
+    op::{self, WORD_BYTES, push_len},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -629,10 +629,10 @@ fn indexed_jump_packed_chunks(
         return PackedTableChunks::None;
     }
     let bytes = table_len.saturating_mul(usize::from(target_width));
-    if bytes <= 32 {
+    if bytes <= WORD_BYTES {
         PackedTableChunks::One
     } else {
-        let entries_per_chunk = 32 / usize::from(target_width);
+        let entries_per_chunk = WORD_BYTES / usize::from(target_width);
         let table = PackedTableEstimate {
             len: table_len,
             width: target_width,
@@ -658,7 +658,7 @@ pub(in crate::backend::evm) fn packs_indexed_jump(
     evm_version: EvmVersion,
 ) -> bool {
     supports_indexed_jump_packing(table_len, evm_version)
-        && table_len.saturating_mul(target_width) <= 32
+        && table_len.saturating_mul(target_width) <= WORD_BYTES
 }
 
 fn supports_indexed_jump_packing(table_len: usize, evm_version: EvmVersion) -> bool {
@@ -845,7 +845,7 @@ fn estimated_terminator_size(
 fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) -> usize {
     let table_len = if table.chunks == PackedTableChunks::One {
         if table.width == 1 {
-            let byte_offset = 32 - table.len;
+            let byte_offset = WORD_BYTES - table.len;
             4 + table.len
                 + usize::from(byte_offset != 0)
                     * (immediate_materialization_len(evm_version, U256::from(byte_offset)) + 1)
@@ -856,7 +856,7 @@ fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) 
         debug_assert_eq!(table.chunks, PackedTableChunks::Two);
 
         let width = usize::from(table.width);
-        let entries_per_chunk = 32 / width;
+        let entries_per_chunk = WORD_BYTES / width;
         let second_chunk_bytes = (table.len - entries_per_chunk) * width;
         let chunk_shift = entries_per_chunk.ilog2();
         let entry_mask = entries_per_chunk - 1;
@@ -897,7 +897,7 @@ pub(super) fn lower(
             .map(|&target| lower::label_for_block(assembler, module, target, labels))
             .collect::<Vec<_>>();
         if table_encoding.packed_chunks == PackedTableChunks::Two {
-            let entries_per_chunk = 32 / usize::from(target_width);
+            let entries_per_chunk = WORD_BYTES / usize::from(target_width);
             let (first, second) = labels.split_at(entries_per_chunk);
             // Select one of the two words without branching.
             program.push_op(op::DUP1);
@@ -916,7 +916,7 @@ pub(super) fn lower(
             program.push_op(op::AND);
         }
         if table_encoding.packed_chunks == PackedTableChunks::One && target_width == 1 {
-            let byte_offset = 32 - labels.len();
+            let byte_offset = WORD_BYTES - labels.len();
             if byte_offset != 0 {
                 push_immediate(assembler, program, evm_version, U256::from(byte_offset));
                 program.push_op(op::ADD);

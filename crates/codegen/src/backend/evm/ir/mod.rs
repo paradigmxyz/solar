@@ -32,8 +32,8 @@ pub(in crate::backend::evm) use passes::{
 };
 
 /// Validates the target-independent invariants of an EVM IR module.
-pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
-    verify::validate(dcx, module, verify::Validation::Structural);
+pub fn validate(gcx: solar_sema::Gcx<'_>, module: &Module) {
+    verify::validate(gcx, module, verify::Validation::Structural);
 }
 
 /// Maximum stack reserve used by parameterized machine-run outlining.

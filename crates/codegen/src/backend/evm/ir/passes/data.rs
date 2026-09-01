@@ -2,12 +2,11 @@
 
 use super::{EvmPass, utils::StackDepths};
 use crate::backend::evm::{
-    data_copy_cost, data_copy_gas, data_copy_is_profitable,
     ir::{
         BlockId, DATA_COPY_STACK_HEADROOM, Data, DataId, DataRef, Instruction, Module, PushValue,
         default_instruction_stack_effect, immediate_materialization_cost,
     },
-    op,
+    op::{self, WORD_BYTES, data_copy_cost, data_copy_gas, data_copy_is_profitable},
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -263,7 +262,7 @@ fn find_run(
     let mut words = 1usize;
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
-        if offset.concrete_immediate() != Some(U256::from(words * 32))
+        if offset.concrete_immediate() != Some(U256::from(words * WORD_BYTES))
             || dup.as_evm_opcode() != Some(op::DUP2)
             || add.as_evm_opcode() != Some(op::ADD)
             || swap.as_evm_opcode() != Some(op::SWAP1)
@@ -277,10 +276,12 @@ fn find_run(
         words += 1;
         end += 6;
     }
-    let mut data = Vec::with_capacity(words * 32);
-    data.extend_from_slice(&first.to_be_bytes::<32>());
+    let mut data = Vec::with_capacity(words * WORD_BYTES);
+    data.extend_from_slice(&first.to_be_bytes::<WORD_BYTES>());
     for window in instructions[start + 3..end].as_chunks::<6>().0 {
-        data.extend_from_slice(&window[3].concrete_immediate().unwrap().to_be_bytes::<32>());
+        data.extend_from_slice(
+            &window[3].concrete_immediate().unwrap().to_be_bytes::<WORD_BYTES>(),
+        );
     }
     let instructions = &instructions[start..end];
     if !instructions.iter().all(Instruction::has_canonical_stack_effect) {

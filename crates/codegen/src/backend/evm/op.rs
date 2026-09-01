@@ -2,8 +2,11 @@
 
 use crate::mir::InstKind;
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_interface::Symbol;
+
+/// Number of bytes in an EVM word.
+pub(crate) const WORD_BYTES: usize = 32;
 
 const UNKNOWN_PREFIX: &str = "op_";
 
@@ -273,6 +276,25 @@ opcodes! {
 /// Returns the encoded length of a minimally sized PUSH for an EVM version.
 pub(crate) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
     if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
+}
+
+/// Returns the encoded size and runtime gas of one program-data copy site.
+pub(crate) fn data_copy_cost(evm_version: EvmVersion, size: usize) -> (usize, usize) {
+    (push_len(evm_version, U256::from(size)) + 6, data_copy_gas(size))
+}
+
+/// Returns the runtime gas of one program-data copy site.
+pub(crate) fn data_copy_gas(size: usize) -> usize {
+    12 + 3 * size.div_ceil(WORD_BYTES)
+}
+
+/// Returns whether a program-data copy improves the selected objective.
+pub(crate) fn data_copy_is_profitable(
+    optimization: OptimizationMode,
+    runtime_gas_saving: i128,
+    byte_saving: i128,
+) -> bool {
+    if optimization.is_gas() { runtime_gas_saving > 0 && byte_saving >= 0 } else { byte_saving > 0 }
 }
 
 impl InstKind {

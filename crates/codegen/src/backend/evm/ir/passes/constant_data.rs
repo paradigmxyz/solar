@@ -10,7 +10,7 @@ use super::{
 };
 use crate::backend::evm::{
     ir::{BlockId, Data, DataRef, Instruction, Module, PushValue},
-    op,
+    op::{self, WORD_BYTES},
 };
 use alloy_primitives::{Bytes, U256};
 use solar_interface::sym;
@@ -103,12 +103,12 @@ fn find_run(
         return None;
     }
 
-    let mut data = Vec::from(first.to_be_bytes::<32>());
+    let mut data = Vec::from(first.to_be_bytes::<WORD_BYTES>());
     let mut end = start + 3;
     let mut words = 1usize;
     while let Some(window) = instructions.get(end..end + 6) {
         let [offset, dup, add, value, swap, store] = window else { unreachable!() };
-        if immediate(offset) != Some(U256::from(words * 32))
+        if immediate(offset) != Some(U256::from(words * WORD_BYTES))
             || dup.as_evm_opcode() != Some(op::DUP2)
             || add.as_evm_opcode() != Some(op::ADD)
             || swap.as_evm_opcode() != Some(op::SWAP1)
@@ -117,7 +117,7 @@ fn find_run(
             break;
         }
         let Some(value) = immediate(value) else { break };
-        data.extend_from_slice(&value.to_be_bytes::<32>());
+        data.extend_from_slice(&value.to_be_bytes::<WORD_BYTES>());
         words += 1;
         end += 6;
     }

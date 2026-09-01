@@ -3,7 +3,7 @@
 use super::{EvmPass, utils::StackDepths};
 use crate::backend::evm::{
     ir::{Instruction, Module},
-    op,
+    op::{self, WORD_BYTES},
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -26,7 +26,6 @@ impl EvmPass for CoalesceCopies {
     }
 }
 
-const WORD_BYTES: usize = 32;
 const COPY_INSTRUCTIONS: usize = 4;
 
 fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {

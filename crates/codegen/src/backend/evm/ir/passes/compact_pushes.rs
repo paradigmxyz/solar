@@ -22,9 +22,8 @@ use super::{
     utils::{StackDepths, relative_stack_high_water},
 };
 use crate::backend::evm::{
-    EVM_WORD_BYTES,
     ir::{BlockId, Instruction, Module},
-    op,
+    op::{self, WORD_BYTES},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -41,7 +40,7 @@ impl EvmPass for CompactPushes {
         compact_pushes(gcx, module)
     }
 }
-const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
+const EVM_WORD_BITS: usize = WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 const BASE_GAS: usize = 2;
 const VERY_LOW_GAS: usize = 3;
@@ -318,8 +317,8 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
     }
 
     if evm_version.has_bitwise_shifting() && width >= MIN_COMPACT_MASK_WIDTH {
-        let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
-        let start = EVM_WORD_BYTES - width as usize;
+        let bytes = value.to_be_bytes::<WORD_BYTES>();
+        let start = WORD_BYTES - width as usize;
         if bytes[start..].iter().all(|&byte| byte == 0xff) {
             let shift = EVM_WORD_BITS - usize::from(width) * 8;
             consider(
@@ -329,7 +328,7 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
         }
     }
 
-    if width as usize == EVM_WORD_BYTES {
+    if width as usize == WORD_BYTES {
         let inverted = !value;
         if push_width(evm_version, inverted) < width {
             consider(select_with_len(evm_version, inverted).0 + 1, CompactPush::Not);
@@ -339,7 +338,7 @@ fn select_with_len(evm_version: EvmVersion, value: U256) -> (usize, CompactPush)
     let trailing_zero_bytes = value.trailing_zeros() / 8;
     if evm_version.has_bitwise_shifting()
         && trailing_zero_bytes > 0
-        && trailing_zero_bytes < EVM_WORD_BYTES
+        && trailing_zero_bytes < WORD_BYTES
     {
         let shift = trailing_zero_bytes * 8;
         let shifted = value >> shift;

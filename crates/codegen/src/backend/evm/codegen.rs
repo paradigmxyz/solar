@@ -7,14 +7,13 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
-    EVM_WORD_BYTES,
     assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
         PreparedAssembly,
     },
     ir,
     layout::{RelayoutAddress, preserves_push_width},
-    op,
+    op::{self, WORD_BYTES},
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,
         ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
@@ -323,8 +322,8 @@ impl GlobalStackPlan {
                     continue;
                 };
                 if offset >= 4
-                    && (offset - 4) % 32 == 0
-                    && let Ok(index) = u32::try_from((offset - 4) / 32)
+                    && (offset - 4) % WORD_BYTES as u64 == 0
+                    && let Ok(index) = u32::try_from((offset - 4) / WORD_BYTES as u64)
                     && let Some(&arg) =
                         arg_uses.get(ArgIdx::new(index as usize)).and_then(|uses| uses.first())
                 {
@@ -1561,7 +1560,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         immutable_refs: &[ImmutableRef],
     ) -> u64 {
         let patched_end = immutable_refs.iter().fold(runtime_len, |end, immutable_ref| {
-            let patch_size = if immutable_ref.type_size.bytes() == 1 { 1 } else { EVM_WORD_BYTES };
+            let patch_size = if immutable_ref.type_size.bytes() == 1 { 1 } else { WORD_BYTES };
             end.max(
                 immutable_ref
                     .code_offset
@@ -1639,8 +1638,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
 
-        if byte_width < 32 {
-            let trailing_bits = usize::from(32 - byte_width) * 8;
+        if byte_width < WORD_BYTES as u8 {
+            let trailing_bits = usize::from(WORD_BYTES as u8 - byte_width) * 8;
             match encoding {
                 ImmutableEncoding::LeftAligned(_) => {
                     self.asm.emit_push(U256::MAX << trailing_bits);
@@ -1681,7 +1680,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         );
         let byte_width = type_size.bytes();
         self.asm.emit_push_immutable(id, type_size);
-        if byte_width == 32 {
+        if byte_width == WORD_BYTES as u8 {
             return;
         }
         match encoding {
@@ -1691,7 +1690,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::SIGNEXTEND);
             }
             ImmutableEncoding::LeftAligned(_) => {
-                self.asm.emit_push(U256::from((32 - byte_width) * 8));
+                self.asm.emit_push(U256::from((WORD_BYTES as u8 - byte_width) * 8));
                 self.asm.emit_op(op::SHL);
             }
         }
@@ -6598,7 +6597,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_push_deferred(addr);
                     self.asm.emit_op(op::MLOAD);
                 } else {
-                    self.asm.emit_push(U256::from(4 + (index.index() as u64) * 32));
+                    self.asm.emit_push(U256::from(4 + (index.index() as u64) * WORD_BYTES as u64));
                     self.asm.emit_op(op::CALLDATALOAD);
                 }
             }
@@ -7217,7 +7216,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                         let base = entry_bases[&func_id];
                         preserves_push_width(spills.iter().enumerate().map(
                             |(rank, &(_, references))| {
-                                let offset = rank as u64 * 32;
+                                let offset = rank as u64 * WORD_BYTES as u64;
                                 RelayoutAddress {
                                     before: base + current_static_size + offset,
                                     after: base + proposed_static_size + offset,
@@ -7262,7 +7261,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let base =
                 entry_bases[&func_id] + static_alloc_sizes.get(&func_id).copied().unwrap_or(0);
             for (rank, (id, _)) in spills.into_iter().enumerate() {
-                self.asm.set_deferred_const(id, U256::from(base + rank as u64 * 32));
+                self.asm.set_deferred_const(id, U256::from(base + rank as u64 * WORD_BYTES as u64));
             }
         }
 
@@ -8076,11 +8075,11 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         self.emit_new_internal_frame_base_tracked();
 
-        // frame[32] = previous frame pointer
+        // The second frame word stores the previous frame pointer.
         self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         self.scheduler.stack.push_unknown();
-        self.emit_internal_frame_store_from_top_preserving_base(32);
+        self.emit_internal_frame_store_from_top_preserving_base(WORD_BYTES as u64);
 
         for (i, &arg) in args.iter().enumerate() {
             self.emit_operand(func, arg);
@@ -8194,7 +8193,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         // Restore the caller frame pointer. If a result is on the stack, this leaves it there.
-        self.emit_current_internal_frame_addr(32);
+        self.emit_current_internal_frame_addr(WORD_BYTES as u64);
         self.asm.emit_op(op::MLOAD);
         self.asm.emit_push(U256::from(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MSTORE);
@@ -9151,9 +9150,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.emit_constructor_arg_load(index);
                     } else {
                         // Runtime function: load from calldata
-                        // ABI encoding: selector (4 bytes) + args (32 bytes each)
-                        // Offset = 4 + index * 32
-                        let offset = 4 + (index.index() as u64) * 32;
+                        // ABI encoding stores the selector in the first four bytes.
+                        let offset = 4 + (index.index() as u64) * WORD_BYTES as u64;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(op::CALLDATALOAD);
                     }
@@ -9977,7 +9975,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
         for (i, &value) in values.iter().enumerate() {
             self.emit_operand(func, value);
-            self.emit_own_frame_addr(return_base + (i as u64) * 32);
+            self.emit_own_frame_addr(return_base + (i as u64) * WORD_BYTES as u64);
             self.asm.emit_op(op::MSTORE);
             self.scheduler.stack.pop();
         }
@@ -10337,13 +10335,13 @@ mod tests {
         with_codegen(CompileOpts::default(), |mut codegen| {
             let mut module = Module::new(Ident::DUMMY);
             module.phase = MirPhase::EvmShaped;
-            let data = module.add_data(vec![0; 32].into(), None);
+            let data = module.add_data(vec![0; WORD_BYTES].into(), None);
 
             let mut function = Function::new(Ident::DUMMY);
             let mut builder = FunctionBuilder::new(&mut function);
             let one = builder.imm_u64(1);
             let dest = builder.add(one, one);
-            let size = builder.imm_u64(32);
+            let size = builder.imm_u64(WORD_BYTES as u64);
             builder.data_copy(DataRef::new(data, 0), dest, size);
             builder.stop();
             let function = module.add_function(function);

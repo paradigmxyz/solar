@@ -189,11 +189,11 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             }
             match const_addr {
                 Some(address) if opcode == op::MSTORE => {
-                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= op::WORD_BYTES as u64);
                     known_stores.insert(address, value.expr);
                 }
                 Some(address) => {
-                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= op::WORD_BYTES as u64);
                 }
                 None => known_stores.clear(),
             }

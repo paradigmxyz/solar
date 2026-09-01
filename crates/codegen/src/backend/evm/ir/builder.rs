@@ -12,7 +12,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::index::index_vec;
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::sym;
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -32,7 +32,7 @@ impl<'gcx> Assembler<'gcx> {
                 .emit());
         }
 
-        debug_assert!(is_valid(&module));
+        debug_assert!(ir::verify::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
         for (index, block) in module.blocks.iter_mut().enumerate() {
@@ -480,10 +480,4 @@ pub(in crate::backend::evm) fn resolve_known_deferred_constants(
             }
         }
     }
-}
-
-pub(in crate::backend::evm) fn is_valid(module: &ir::Module) -> bool {
-    let dcx = DiagCtxt::with_silent_emitter(None);
-    ir::validate(&dcx, module);
-    dcx.has_errors().is_ok()
 }

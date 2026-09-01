@@ -7,7 +7,7 @@
 //! - Opaque program-data placement.
 //! - Byte emission.
 
-use super::EVM_WORD_BYTES;
+use super::op::WORD_BYTES;
 use crate::{
     backend::evm::{
         ir::{self, assembly},
@@ -596,8 +596,8 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 
         self.bytecode.push(op::push(width));
 
-        let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
-        let start = EVM_WORD_BYTES - width as usize;
+        let bytes = value.to_be_bytes::<WORD_BYTES>();
+        let start = WORD_BYTES - width as usize;
         self.bytecode.extend_from_slice(&bytes[start..]);
     }
 
