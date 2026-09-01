@@ -1,0 +1,24 @@
+// CHECK: "severity": "error"
+// CHECK: "message": "when `settings.metadata.appendCBOR` is false, `bytecodeHash` must be `none`"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false,
+      "bytecodeHash": "ipfs"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

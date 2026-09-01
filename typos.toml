@@ -17,6 +17,7 @@ extend-exclude = [
 
 [default.extend-words]
 ket = "ket"
+Mke = "Mke"
 numer = "numer"
 Pn = "Pn"
 typ = "typ"

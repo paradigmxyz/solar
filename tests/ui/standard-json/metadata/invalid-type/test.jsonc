@@ -1,0 +1,25 @@
+// ported-from: test/cmdlineTests/standard_wrong_type_metadata/input.json
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "JSON parse error: invalid type: string \"not an object\", expected a boolean at line 5 column 21"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "metadata": [
+      "not an object"
+    ],
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata"
+        ]
+      }
+    }
+  }
+}
