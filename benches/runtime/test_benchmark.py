@@ -54,6 +54,10 @@ class CorpusTests(unittest.TestCase):
                 len(payload["sources"]), expected_source_counts[case.test_id]
             )
             self.assertTrue(payload["settings"]["viaIR"])
+            self.assertEqual(
+                payload["settings"]["metadata"],
+                {"appendCBOR": False, "bytecodeHash": "none"},
+            )
 
     def test_runtime_projects_are_loaded_by_codspeed(self) -> None:
         criterion_sources = (
@@ -150,6 +154,10 @@ class CorpusTests(unittest.TestCase):
             )
         )
         self.assertTrue(payload["settings"]["viaIR"])
+        self.assertEqual(
+            payload["settings"]["metadata"],
+            {"appendCBOR": False, "bytecodeHash": "none"},
+        )
 
     def test_filters_incompatible_solc_versions(self) -> None:
         uniswap = next(
