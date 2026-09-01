@@ -589,12 +589,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<StorageAccess>,
     ) -> FxHashMap<VariableId, StorageAccess> {
         let mut merged = before;
-        let ids = then_branch
-            .values
-            .keys()
-            .chain(else_branch.values.keys())
-            .copied()
-            .collect::<solar_data_structures::map::FxHashSet<_>>();
+        let ids = merged.keys().copied().collect::<Vec<_>>();
         for id in ids {
             let then = then_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
             let else_ = else_branch.values.get(&id).copied().or_else(|| merged.get(&id).copied());
@@ -966,11 +961,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_branch: MergeBranch<ValueId>,
     ) -> FxHashMap<VariableId, ValueId> {
         let mut values = before;
-        let mut ids = Vec::new();
-        ids.extend(then_branch.values.keys().copied());
-        ids.extend(else_branch.values.keys().copied());
-        ids.sort_unstable();
-        ids.dedup();
+        let ids = values.keys().copied().collect::<Vec<_>>();
         for id in ids {
             let then_value = then_branch.values.get(&id).copied();
             let else_value = else_branch.values.get(&id).copied();

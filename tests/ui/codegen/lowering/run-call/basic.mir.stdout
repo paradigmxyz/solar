@@ -177,10 +177,10 @@ fn @reservedSpillFreshness(arg0: bool) -> u256 [selector=0x45f98aed, abi_params=
   bb5:
     jump bb3
   bb3:
-    v17 = phi [bb5: v5], [bb8: v15]
+    v17 = phi [bb5: v4], [bb8: v0]
     v18 = phi [bb5: v1], [bb8: v0]
-    v19 = phi [bb5: v4], [bb8: v0]
-    ret v17
+    v19 = phi [bb5: v5], [bb8: v15]
+    ret v19
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

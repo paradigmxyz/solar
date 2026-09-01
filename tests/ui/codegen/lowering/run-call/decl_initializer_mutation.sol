@@ -4,6 +4,8 @@
 //@ run-call: multiDecl() => 7
 //@ run-call: asmUse() => 12
 //@ run-call: lhsIndexMutation() => 410
+//@ run-call: branchScopeLoop true, 3 => 4
+//@ run-call: branchScopeLoop false, 3 => 5
 
 // Side effects inside a variable declaration's initializer must mark the
 // mutated locals as assigned: `uint256 x = xs[i++];` otherwise leaves `i` as
@@ -51,5 +53,18 @@ contract DeclInitializerMutation {
             a[i++] = value;
         }
         r = i * 100 + a[0] + a[1] + a[2] + a[3];
+    }
+
+    function branchScopeLoop(bool condition, uint256 n) external pure returns (uint256 r) {
+        if (condition) {
+            uint256 branchLocal = 1;
+            r = branchLocal;
+        } else {
+            uint256 branchLocal = 2;
+            r = branchLocal;
+        }
+        for (uint256 i; i < n; ++i) {
+            r += i;
+        }
     }
 }

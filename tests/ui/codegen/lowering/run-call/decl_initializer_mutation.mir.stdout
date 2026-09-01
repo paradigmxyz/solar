@@ -210,3 +210,44 @@ fn @lhsIndexMutation() -> u256 [selector=0x8d320a6e, pure, abi_params=[], abi_re
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
+
+fn @branchScopeLoop(arg0: bool, arg1: u256) -> u256 [selector=0x4a889218, pure, abi_params=[bool, u256], abi_returns=[word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 1], [bb2: 2]
+    jump bb4
+  bb4:
+    v1 = phi [bb3: arg0], [bb12: v1]
+    v2 = phi [bb3: v0], [bb12: v6]
+    v3 = phi [bb3: arg1], [bb12: v3]
+    v4 = phi [bb3: 0], [bb12: v8]
+    v5 = lt v4, v3
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
+    ret v2
+  bb7:
+    v6 = add v2, v4
+    v7 = lt v6, v2
+    jumpi v7, bb10, bb11
+  bb11:
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    v8 = add v4, 1
+    v9 = lt v8, v4
+    jumpi v9, bb10, bb12
+  bb12:
+    jump bb4
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
