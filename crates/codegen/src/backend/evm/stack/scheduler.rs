@@ -105,7 +105,7 @@ use crate::{
     analysis::Liveness,
     backend::evm::{
         ir::{ImmediateMaterialization, immediate_materialization_cost},
-        op::{self, StackOp},
+        op::StackOp,
     },
     mir::{ArgIdx, BlockId, Function, InstKind, Value, ValueId},
 };
@@ -144,7 +144,7 @@ pub(crate) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u
             | InstKind::BaseFee
             | InstKind::BlobBaseFee
     ) {
-        op::mir_opcode(kind)
+        kind.mir_opcode()
     } else {
         None
     }
@@ -2544,9 +2544,12 @@ impl StackScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{
-        BlockId, Function, FunctionBuilder, Immediate, ImmutableId, InstKind, Instruction, MirType,
-        Value,
+    use crate::{
+        backend::evm::op,
+        mir::{
+            BlockId, Function, FunctionBuilder, Immediate, ImmutableId, InstKind, Instruction,
+            MirType, Value,
+        },
     };
     use alloy_primitives::U256;
     use solar_interface::Ident;

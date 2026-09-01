@@ -14,7 +14,7 @@ use super::{
     },
     ir,
     layout::{RelayoutAddress, preserves_push_width},
-    op::{self, mir_opcode},
+    op,
     stack::{
         MAX_STACK_ACCESS, MAX_STACK_DEPTH, OperandCostModel, OperandPlan, ScheduleCost,
         ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
@@ -4678,7 +4678,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_live_out_operands(func, liveness, block, &operands);
 
         match kind {
-            kind if let Some(opcode) = mir_opcode(kind) => {
+            kind if let Some(opcode) = kind.mir_opcode() => {
                 self.emit_mir_opcode(
                     func,
                     &operands,
@@ -8414,7 +8414,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn static_call_operand_orders(kind: &InstKind) -> SmallVec<[SmallVec<[ValueId; 3]>; 2]> {
         let mut orders = SmallVec::new();
-        if let Some(opcode) = mir_opcode(kind) {
+        if let Some(opcode) = kind.mir_opcode() {
             let operands = kind.operands();
             if !operands.is_empty()
                 && op::stack_io(opcode).is_some_and(|(inputs, outputs)| {
@@ -9286,7 +9286,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     // memory)
                     let inst_kind = &func.inst(*inst_id).kind;
                     if let Some(opcode) = rematerializable_nullary_opcode(inst_kind).or_else(|| {
-                        mir_opcode(inst_kind).filter(|_| matches!(inst_kind, InstKind::Gas))
+                        inst_kind.mir_opcode().filter(|_| matches!(inst_kind, InstKind::Gas))
                     }) {
                         self.emit_fresh_scheduled_value(
                             func,
@@ -9344,7 +9344,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 self.scheduler.stack.pop();
                                 self.scheduler.stack.push(val);
                             }
-                            kind if mir_opcode(kind).is_some_and(|opcode| {
+                            kind if kind.mir_opcode().is_some_and(|opcode| {
                                 matches!(
                                     opcode,
                                     op::KECCAK256
@@ -9369,7 +9369,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 )
                             }) =>
                             {
-                                let opcode = mir_opcode(kind).unwrap();
+                                let opcode = kind.mir_opcode().unwrap();
                                 let operands = kind.operands();
                                 debug_assert_eq!(operands.len(), 2);
                                 self.emit_fresh_binary(
