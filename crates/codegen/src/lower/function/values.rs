@@ -249,14 +249,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<TupleAssignmentRhs<'gcx>> {
         let target_ty = self.type_of_expr_or_variable(element)?;
         let (value, source_ty, span) = match rhs {
-            TupleAssignmentRhs::StorageCopy { access, source_ty, span }
-                if target_ty.is_ref_at(DataLocation::Storage) =>
-            {
-                return Some(TupleAssignmentRhs::StorageCopy { access, source_ty, span });
-            }
-            TupleAssignmentRhs::StorageCopy { access, source_ty, span } => {
-                (self.load_storage_value(source_ty, access, span)?, Some(source_ty), span)
-            }
+            rhs @ TupleAssignmentRhs::StorageCopy { .. } => return Some(rhs),
             TupleAssignmentRhs::Materialized { value, source_ty, span } => (value, source_ty, span),
             TupleAssignmentRhs::StorageReference { access } => {
                 return Some(TupleAssignmentRhs::StorageReference { access });

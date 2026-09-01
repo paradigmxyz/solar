@@ -3,7 +3,7 @@
 //@ codegen-matrix: standard
 //@ run-call: storageAliases => 10, 10, 2, 1
 //@ run-call: lhsMutation => 99, 20
-//@ run-call: memorySnapshot => 10, 99
+//@ run-call: memorySnapshot => 99, 99
 //@ run-call: returnedReferences => 10, 10
 //@ run-call: nestedReturnedReferences => 10, 10, 20
 //@ run-call: dynamicArrays => 1, 1, 1, 1
@@ -42,7 +42,7 @@ contract StorageTupleAliasing {
         items[0].value = 10;
         Item memory copy;
         uint256[1] memory targets;
-        // Storage-to-memory copies stay eager; only storage-to-storage copies are deferred.
+        // Storage-to-memory copies run after all tuple lvalues are evaluated.
         (copy, targets[mutateSource()]) = (items[0], 1);
         return (copy.value, items[0].value);
     }

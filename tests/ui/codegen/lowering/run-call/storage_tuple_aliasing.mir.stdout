@@ -152,16 +152,16 @@ fn @memorySnapshot() -> (u256, u256) [selector=0xaa7868c1, abi_params=[], abi_re
     jumpi v6, bb1, bb3
   bb3:
     v7 = add 0, 0
-    v8 = alloc memorystruct<1>, exact, uninitialized, panic, 32
-    v9 = sload v7 !metadata(storage=slot(0))
-    memory_object_store_field memorystruct<1>, v8, 0, v9
-    v10 = internal_call @mutateSource, 1
-    v11 = lt v10, 1
-    v12 = iszero v11
-    jumpi v12, bb1, bb4
+    v8 = internal_call @mutateSource, 1
+    v9 = lt v8, 1
+    v10 = iszero v9
+    jumpi v10, bb1, bb4
   bb4:
-    memory_object_store_element memoryfixedarray<1, 1>, v4, v10, 1
-    v13 = memory_object_load_field memorystruct<1>, v8, 0
+    memory_object_store_element memoryfixedarray<1, 1>, v4, v8, 1
+    v11 = alloc memorystruct<1>, exact, uninitialized, panic, 32
+    v12 = sload v7 !metadata(storage=slot(0))
+    memory_object_store_field memorystruct<1>, v11, 0, v12
+    v13 = memory_object_load_field memorystruct<1>, v11, 0
     v14 = lt 0, 3
     v15 = iszero v14
     jumpi v15, bb1, bb5
