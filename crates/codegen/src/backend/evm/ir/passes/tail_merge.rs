@@ -1,4 +1,9 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
+//!
+//! The pass groups blocks by their terminator and indexes representative tails
+//! in reverse. This finds each block's longest shared suffix without comparing
+//! it with every earlier block. It then splits profitable suffixes into shared
+//! tail blocks until no new merges remain.
 
 use super::{
     EvmPass,
@@ -45,36 +50,28 @@ fn merge_tails(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 #[derive(Default)]
 struct RunState {
-    representatives: Vec<BlockId>,
     merges: Vec<Merge>,
     group_indices: FxHashMap<BlockId, usize>,
     groups: Vec<MergeGroup>,
     commons: Vec<usize>,
     tails: Vec<(usize, BlockId)>,
+    tail_roots: FxHashMap<TerminatorKind, usize>,
+    tail_nodes: Vec<TailNode>,
+    tail_node_pool: Vec<TailNode>,
 }
 
 impl RunState {
     fn plan_merges(&mut self, gcx: Gcx<'_>, module: &Module) {
-        self.representatives.clear();
         self.merges.clear();
+        self.tail_roots.clear();
+        self.tail_node_pool.append(&mut self.tail_nodes);
+        self.tail_node_pool.iter_mut().for_each(TailNode::clear);
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !is_candidate(block) {
                 continue;
             }
 
-            let mut matched = None;
-            for &representative in &self.representatives {
-                let representative_block = &module.blocks[representative];
-                if block.terminator.as_ref().map(|term| &term.kind)
-                    != representative_block.terminator.as_ref().map(|term| &term.kind)
-                {
-                    continue;
-                }
-                let common = common_suffix(block, representative_block);
-                if common > matched.map_or(0, |(_, common)| common) {
-                    matched = Some((representative, common));
-                }
-            }
+            let matched = self.longest_common_tail(block);
 
             if let Some((representative, common)) = matched
                 && common > 0
@@ -82,9 +79,60 @@ impl RunState {
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {
-                self.representatives.push(block_id);
+                self.insert_tail(block_id, block);
             }
         }
+    }
+
+    fn longest_common_tail(&self, block: &Block) -> Option<(BlockId, usize)> {
+        let terminator = &block.terminator.as_ref()?.kind;
+        let mut node = *self.tail_roots.get(terminator)?;
+        let mut matched = None;
+        for (common, inst) in block.instructions.iter().rev().enumerate() {
+            let Some(&child) = self.tail_nodes[node].children.get(&MachineInstKey::new(inst))
+            else {
+                break;
+            };
+            node = child;
+            if let Some(representative) = self.tail_nodes[node].representative {
+                matched = Some((representative, common + 1));
+            }
+        }
+        matched
+    }
+
+    fn insert_tail(&mut self, block_id: BlockId, block: &Block) {
+        let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
+        let mut node = self.tail_root(terminator);
+        self.tail_nodes[node].representative.get_or_insert(block_id);
+        for inst in block.instructions.iter().rev() {
+            node = self.tail_child(node, MachineInstKey::new(inst));
+            self.tail_nodes[node].representative.get_or_insert(block_id);
+        }
+    }
+
+    fn tail_root(&mut self, terminator: &TerminatorKind) -> usize {
+        if let Some(&root) = self.tail_roots.get(terminator) {
+            return root;
+        }
+        let root = self.new_tail_node();
+        self.tail_roots.insert(terminator.clone(), root);
+        root
+    }
+
+    fn tail_child(&mut self, node: usize, key: MachineInstKey) -> usize {
+        if let Some(&child) = self.tail_nodes[node].children.get(&key) {
+            return child;
+        }
+        let child = self.new_tail_node();
+        self.tail_nodes[node].children.insert(key, child);
+        child
+    }
+
+    fn new_tail_node(&mut self) -> usize {
+        let node = self.tail_nodes.len();
+        self.tail_nodes.push(self.tail_node_pool.pop().unwrap_or_default());
+        node
     }
 
     fn apply_merges(&mut self, module: &mut Module, labels: &mut FreshLabels) -> bool {
@@ -189,15 +237,6 @@ fn is_candidate(block: &Block) -> bool {
     })
 }
 
-fn common_suffix(a: &Block, b: &Block) -> usize {
-    a.instructions
-        .iter()
-        .rev()
-        .zip(b.instructions.iter().rev())
-        .take_while(|(a, b)| MachineInstKey::new(a) == MachineInstKey::new(b))
-        .count()
-}
-
 fn suffix_size(gcx: Gcx<'_>, module: &Module, block_id: BlockId, common: usize) -> usize {
     let block = &module.blocks[block_id];
     let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
@@ -240,4 +279,17 @@ struct Merge {
 struct MergeGroup {
     representative: BlockId,
     sites: Vec<(BlockId, usize)>,
+}
+
+#[derive(Default)]
+struct TailNode {
+    children: FxHashMap<MachineInstKey, usize>,
+    representative: Option<BlockId>,
+}
+
+impl TailNode {
+    fn clear(&mut self) {
+        self.children.clear();
+        self.representative = None;
+    }
 }
