@@ -33,8 +33,7 @@ impl<'a> Verifier<'a> {
         if !self.evm_version.has_bitwise_shifting() {
             self.verify_module(module);
         }
-        self.verify_stack_ops_for_evm_version(module);
-        self.verify_opcodes(module);
+        self.verify_target_support(module);
     }
 
     #[track_caller]
@@ -428,10 +427,17 @@ impl<'a> Verifier<'a> {
         }
     }
 
-    fn verify_opcodes(&self, module: &Module) {
+    fn verify_target_support(&self, module: &Module) {
         for (block_id, block) in module.blocks.iter_enumerated() {
             for inst in &block.instructions {
-                if inst.as_stack_op().is_none() {
+                if let Some(stack_op) = inst.as_stack_op() {
+                    if stack_op.lowering(self.evm_version).is_none() {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
+                        );
+                    }
+                } else {
                     self.verify_opcode(block_id, inst.opcode);
                 }
             }
