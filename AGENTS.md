@@ -156,9 +156,11 @@ value-numbering pass: an acyclic e-graph with dominator-scoped hash-consing,
 `rewrite` results kept as alternative nodes, `simplify` results merged, and
 the cheapest node per class extracted under a static gas cost model, all at
 the original instruction positions. It also merges phis, deletes zero-byte
-copies, and rewrites branches on `iszero`. Extend it by adding rules to
-`egraph.isle` and costs to `base_cost`, never by matching instructions in the
-pass itself.
+copies, and rewrites branches on `iszero`. A numbering-only instance runs
+after memory lowering: rewrites there reach past operands and extend live
+ranges the stack scheduler must spill, which measured as a loss. Extend the
+pass by adding rules to `egraph.isle`, bounds to `max_bits`, and costs to
+`base_cost`, never by matching instructions in the pass itself.
 
 ### Visitor Pattern
 
