@@ -20,8 +20,9 @@ calldata against both runtimes. Reproduction files live in `symbolic-audit/`.
 
 ## Checklist
 
-Items 1 to 20 are fixed in code; 1 to 19 were re-verified against `e6db78e6b`
-on 2026-09-02 and 20 against `e9ca037d5` on 2026-09-03, with the repros below (symbolic where the executor can model the
+Items 1 to 22 are fixed in code; 1 to 19 were re-verified against `e6db78e6b`
+on 2026-09-02, 20 against `e9ca037d5`, 21 against `e1693d1ba`, and 22
+against `96551139a` on 2026-09-03, with the repros below (symbolic where the executor can model the
 input, concrete otherwise). Each item names the commit that fixed it.
 CODEGEN-003, 004, and 005 in `docs/SOLC_DIVERGENCE.md` predate those fixes
 and describe behavior that no longer differs.
@@ -66,8 +67,10 @@ and describe behavior that no longer differs.
       (`symbolic-audit/abi_decode_memory_oversized_length.sol`; fixed in `1bfb1c7ae`)
 - [x] 20. Library functions with storage parameters or non-view mutability appear in the ABI, and a mapping in that parameter type is an ICE
       (`symbolic-audit/library_storage_param_abi.sol`; fixed in `89d91da6a, 190467599`)
-- [ ] 21. `payable` library functions are accepted; solc rejects them with error 7708
-      (`symbolic-audit/payable_library_function.sol`)
+- [x] 21. `payable` library functions are accepted; solc rejects them with error 7708
+      (`symbolic-audit/payable_library_function.sol`; fixed in `3312f3346`)
+- [x] 22. Five more declaration checks solc applies to libraries and `payable` are missing
+      (`symbolic-audit/library_declaration_checks.sol`; fixed in `96551139a`)
 
 ## Findings
 
@@ -750,6 +753,53 @@ caller's value and the modifier is meaningless. Not a codegen divergence:
 solar accepts a program solc refuses.
 
 Severity: missing diagnostic.
+
+Re-check on `e1693d1ba` (after `3312f3346`): both library functions get
+error 7708 and contract `C` still compiles. The review turned up item 22.
+
+### 22. Five more declaration checks solc applies to libraries and `payable` are missing
+
+File: `symbolic-audit/library_declaration_checks.sol`
+Found while reviewing the fix for 21.
+
+```solidity
+library L {
+    constructor() {}
+    fallback() external {}
+    function v() public virtual {}
+}
+contract C {
+    function p() internal payable {}
+    function q() private payable {}
+}
+function free() payable {}
+```
+
+| Declaration | solc | solar |
+|------|------|-------|
+| constructor in a library | error 7634 `Constructor cannot be defined in libraries.` | compiles |
+| `fallback` in a library | error 5982 `Libraries cannot have fallback functions.` | compiles |
+| `virtual` library function | error 7801 `Library functions cannot be "virtual".` | compiles |
+| `internal` or `private` `payable` function | error 5587 `"internal" and "private" functions cannot be payable.` | compiles |
+| `payable` free function | error 9559 `Free functions cannot be payable.` | compiles |
+
+All five live next to the 7708 check in `TypeChecker::visit(FunctionDefinition)`
+and `TypeChecker::visit(ContractDefinition)` in solc. Not codegen divergences:
+solar accepts programs solc refuses.
+
+Severity: missing diagnostics.
+
+Re-check on `96551139a`: the repro reports the six errors solc reports, with
+5587 twice, and the review found the payable and `virtual` else-if chains
+match solc on every function form. The review listed further diagnostic gaps
+that are outside this audit's codegen scope and are not tracked as items:
+the "libraries cannot have receive ether functions" message lacks solc's
+code 4549; 7775 (only pure free functions define operators), 7001
+(`constructor() virtual`, a parse error here), 4493 (`virtual` free
+function), 1560 (interface function visibility), and warning 5815 are not
+emitted; and the `Contract::functions()` doc comment in
+`crates/sema/src/hir/mod.rs` says it excludes the constructor and fallback
+while the lowering pushes every function into `items`.
 
 ## solc-side observations
 
