@@ -511,6 +511,31 @@ impl OpDef {
     }
 }
 
+/// Returns the ISLE declarations of the opcode vocabulary: the primitive
+/// types EVM IR rules use and one constant per opcode byte.
+#[cfg(test)]
+#[must_use]
+pub(crate) fn isle_prelude() -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::from(
+        ";; Generated from the EVM opcode table by `op::isle_prelude`; do not edit.\n\
+         ;; `cargo nextest run -p solar-codegen evm_isle_prelude` checks this file and\n\
+         ;; `SNAPSHOTS=overwrite` refreshes it.\n\n\
+         (type U256 (primitive U256))\n\
+         (type StackOp (primitive StackOp))\n\
+         (type OptionStackOp (primitive OptionStackOp))\n\n\
+         ;; Opcode bytes, named as the constants in `backend::evm::op`.\n",
+    );
+    for opcode in u8::MIN..=u8::MAX {
+        if let Some(definition) = definition(opcode) {
+            writeln!(out, "(extern const ${} u8)", definition.mnemonic.to_ascii_uppercase())
+                .unwrap();
+        }
+    }
+    out
+}
+
 /// Returns the DUP opcode for the given depth (1-16).
 #[must_use]
 pub(crate) const fn dup(n: u8) -> u8 {
@@ -967,6 +992,11 @@ mod tests {
             table.push('\n');
         }
         snapbox::assert_data_eq!(table, snapbox::file!["op_table.snap"]);
+    }
+
+    #[test]
+    fn evm_isle_prelude_matches_table() {
+        snapbox::assert_data_eq!(isle_prelude(), snapbox::file!["../../../isle/evm_prelude.isle"]);
     }
 
     #[test]
