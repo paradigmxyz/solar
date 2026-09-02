@@ -720,7 +720,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         "codegen expected UDVT unwrap to receive a user-defined value type",
                     );
                 };
-                self.lower_typed_expr(value, underlying)
+                let value = self.lower_expr(value)?;
+                Some(self.normalize_dirty_scalar(value, underlying))
             }
             Builtin::Selfdestruct
             | Builtin::Require

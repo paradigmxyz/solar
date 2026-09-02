@@ -23,7 +23,8 @@ fn @wrapBytes32() -> bytes32 [selector=0x13b3c557, pure, abi_params=[], abi_retu
 fn @overloadedOr() -> bytes1 [selector=0xd89a6a5e, pure, abi_params=[], abi_returns=[word<bytes1>]] {
   bb0:
     v0 = internal_call @orByte, 1, 0x100000000000000000000000000000000000000000000000000000000000000, 0x200000000000000000000000000000000000000000000000000000000000000
-    ret v0
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 fn @literalReturn() -> bytes1 [selector=0x4e6d2451, pure, abi_params=[], abi_returns=[word<bytes1>]] {
@@ -76,7 +77,9 @@ fn @encodeLocalSelector() -> bytes4 [selector=0x0e6d4a3f, pure, abi_params=[], a
 
 fn @orByte(arg0: bytes1, arg1: bytes1) -> bytes1 [pure] {
   bb0:
-    v0 = or arg0, arg1
-    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    ret v1
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = or v0, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
 }
