@@ -46,6 +46,9 @@ export default function ArtifactDiff({ before, after, path, storagePath, languag
   if (oldFile === null && newFile === null) {
     return <p className="empty">This artifact was not published by either side.</p>
   }
+  if (oldFile && newFile && oldFile.contents === newFile.contents) {
+    return <div className="artifact-diff"><div className="diff-tools"><span>No changes</span></div><pre className="unchanged-artifact">{oldFile.contents}</pre></div>
+  }
   return <div className="artifact-diff">
     <div className="diff-tools"><button className={style === 'split' ? 'active' : ''} onClick={() => setStyle('split')}>Split</button><button className={style === 'unified' ? 'active' : ''} onClick={() => setStyle('unified')}>Unified</button></div>
     {oldFile && newFile ? <MultiFileDiff className="solar-diff" oldFile={oldFile} newFile={newFile} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} disableWorkerPool /> : oldFile ? <MultiFileDiff className="solar-diff" oldFile={oldFile} newFile={null} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} disableWorkerPool /> : <MultiFileDiff className="solar-diff" oldFile={null} newFile={newFile!} options={{ diffStyle: style, overflow: 'scroll', themeType: theme }} disableWorkerPool />}

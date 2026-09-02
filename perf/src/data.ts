@@ -17,7 +17,7 @@ async function getJson<T>(root: string, path: string, fresh = false): Promise<T>
 export function loadIndex() {
   if (!indexPromise) {
     indexPromise = (async () => {
-      const roots = (configuredRoot || !import.meta.env.DEV) ? [activeRoot] : [githubRoot, localRoot]
+      const roots = (configuredRoot || !import.meta.env.DEV) ? [activeRoot] : [localRoot, githubRoot]
       let failure: unknown
       for (const root of roots) {
         try {
@@ -57,9 +57,13 @@ export async function loadArtifact(
   storagePath: string,
 ): Promise<string | null> {
   const parts = [commit, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
-  const response = await fetch(`${await dataRoot()}runs/${parts.join('/')}`)
-  if (response.status === 404) return null
-  if (!response.ok) throw new Error(`Could not load artifact: ${response.statusText}`)
-  if (!response.headers.get('content-type')?.includes('application/json')) return null
-  return response.json() as Promise<string>
+  const root = await dataRoot()
+  const roots = configuredRoot || !import.meta.env.DEV ? [root] : [...new Set([localRoot, root, githubRoot])]
+  for (const candidate of roots) {
+    const response = await fetch(`${candidate}runs/${parts.join('/')}`)
+    if (response.status === 404) continue
+    if (!response.ok) throw new Error(`Could not load artifact: ${response.statusText}`)
+    return response.json() as Promise<string>
+  }
+  return null
 }

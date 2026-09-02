@@ -4,6 +4,7 @@ import { changeClass, formatChange } from './change'
 import { loadIndex } from './data'
 import type { MetricSummary, RunIndex, RunSummary, Theme } from './types'
 import { Compare } from './Compare'
+import { FileViewer } from './FileViewer'
 
 const short = (commit: string) => commit.slice(0, 8)
 
@@ -77,13 +78,14 @@ export function App() {
   const route = new URLSearchParams(window.location.search)
   const baseCommit = route.get('base')
   const headCommit = route.get('head')
-  const content = baseCommit && headCommit && baseCommit !== headCommit ? <Compare base={baseCommit} head={headCommit} theme={theme} /> : <Home />
-  return <><SiteHeader theme={theme} onToggleTheme={() => setTheme((value) => value === 'light' ? 'dark' : 'light')} />{content}<SiteFooter /></>
+  const fileViewer = route.get('view') === 'files' && route.get('benchmark')
+  const content = baseCommit && headCommit && baseCommit !== headCommit ? fileViewer ? <FileViewer base={baseCommit} head={headCommit} benchmark={route.get('benchmark')!} theme={theme} /> : <Compare base={baseCommit} head={headCommit} theme={theme} /> : <Home />
+  return <><SiteHeader compact={Boolean(fileViewer)} theme={theme} onToggleTheme={() => setTheme((value) => value === 'light' ? 'dark' : 'light')} />{content}{!fileViewer && <SiteFooter />}</>
 }
 
-function SiteHeader({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
+function SiteHeader({ compact, theme, onToggleTheme }: { compact: boolean; theme: Theme; onToggleTheme: () => void }) {
   const nextTheme = theme === 'light' ? 'dark' : 'light'
-  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>Performance</span></a><nav><a className="nav-active" href={import.meta.env.BASE_URL}>Dashboard</a><a href="https://github.com/paradigmxyz/solar">Repository</a><button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>{theme === 'light' ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}</button></nav></header>
+  return <header className={compact ? 'file-header' : ''}><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>Performance</span></a><nav>{compact ? <a href={import.meta.env.BASE_URL}>Overview</a> : <><a className="nav-active" href={import.meta.env.BASE_URL}>Dashboard</a><a href="https://github.com/paradigmxyz/solar">Repository</a></>}<button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>{theme === 'light' ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}</button></nav></header>
 }
 
 function SiteFooter() { return <footer>Measured by the in-repository runtime corpus.</footer> }
