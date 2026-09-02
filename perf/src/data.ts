@@ -63,7 +63,13 @@ export async function loadArtifact(
     const response = await fetch(`${candidate}runs/${parts.join('/')}`)
     if (response.status === 404) continue
     if (!response.ok) throw new Error(`Could not load artifact: ${response.statusText}`)
-    return response.json() as Promise<string>
+    const contents = await response.text()
+    if (/^\s*<!doctype html/i.test(contents)) continue
+    try {
+      return JSON.parse(contents) as string
+    } catch {
+      throw new Error('Could not parse artifact JSON')
+    }
   }
   return null
 }
