@@ -5,6 +5,7 @@
 //@ run-call: C::signedExtend => 1
 //@ run-call: C::rawScratchReuse => 1
 //@ run-call: C::memoryStoreCleanup => 1
+//@ run-call: C::internalAssemblyRead => 0x101
 
 // Inline assembly assigns raw words into Solidity-typed variables. Reads
 // inside assembly keep the raw word (solady-style code shifts a typed
@@ -67,6 +68,20 @@ contract C {
         uint256 b = firstShiftedByte(0xA9036907dCcae6a1E0033479B12E837e5cF5a02f);
         require(b == 0xA9, "raw shift");
         return 1;
+    }
+
+    function internalAssemblyRead() external pure returns (uint256) {
+        uint8 value;
+        assembly {
+            value := 0x0101
+        }
+        return readRaw(value);
+    }
+
+    function readRaw(uint8 value) internal pure returns (uint256 raw) {
+        assembly {
+            raw := value
+        }
     }
 
     function memoryStoreCleanup() external pure returns (uint256 result) {

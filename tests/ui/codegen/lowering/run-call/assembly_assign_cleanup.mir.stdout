@@ -102,6 +102,17 @@ fn @rawScratchReuse() -> u256 [selector=0xbc90d10b, pure, abi_params=[], abi_ret
     invalid
 }
 
+fn @internalAssemblyRead() -> u256 [selector=0x282e3bb7, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @readRaw, 1, 257
+    ret v0
+}
+
+fn @readRaw(arg0: u8) -> u256 [pure] {
+  bb0:
+    ret arg0
+}
+
 fn @memoryStoreCleanup() -> u256 [selector=0xa32f54c2, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = not 0

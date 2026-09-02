@@ -411,7 +411,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(expr.span, "named internal function argument");
             };
             let value = self.lower_typed_expr(argument, parameter)?;
-            let value = self.normalize_internal_call_argument(value, parameter);
             values.push(self.materialize_call_argument(parameter, value, argument.span)?);
         }
         values.insert(0, function_value);
@@ -629,14 +628,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.normalize_abi_scalar(value, ty)
     }
 
-    fn normalize_internal_call_argument(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
-        if matches!(ty.peel_refs().kind, TyKind::Udvt(..)) {
-            value
-        } else {
-            self.normalize_dirty_scalar(value, ty)
-        }
-    }
-
     // External functions are low-aligned as scalar MIR values, but Solidity memory stores their
     // 24-byte representation left-aligned. Keep the conversion at typed memory boundaries.
     pub(super) fn normalize_memory_scalar(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
@@ -738,7 +729,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(receiver, parameter_ty)?
             };
-            let value = self.normalize_internal_call_argument(value, parameter_ty);
             values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
         let mut parameter_indices = (receiver_count..function.parameters.len()).collect::<Vec<_>>();
@@ -762,7 +752,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 self.lower_typed_expr(argument, parameter_ty)?
             };
-            let value = self.normalize_internal_call_argument(value, parameter_ty);
             arguments[index - receiver_count] =
                 Some(self.materialize_call_argument(parameter_ty, value, argument.span)?);
         }
