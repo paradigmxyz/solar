@@ -19,6 +19,9 @@ use solar_config::EvmVersion;
 /// Rewrite-rule name of a MIR value.
 type Value = ValueId;
 
+/// Bound on the results one `multi` term collects, required by generated code.
+const MAX_ISLE_RETURNS: usize = 8;
+
 #[allow(
     clippy::all,
     clippy::nursery,
@@ -50,9 +53,9 @@ impl<'a> RuleContext<'a> {
         Self { func, evm_version }
     }
 
-    /// Returns an equivalent instruction for `op`, when a rule applies.
-    pub(super) fn rewrite(&mut self, op: &Op) -> Option<Op> {
-        generated::constructor_rewrite(self, op)
+    /// Appends every equivalent instruction the rules can build for `op`.
+    pub(super) fn rewrite(&mut self, op: &Op, alternatives: &mut Vec<Op>) {
+        generated::constructor_rewrite(self, op, alternatives);
     }
 
     /// Returns the value `op` is equal to, when a rule applies.

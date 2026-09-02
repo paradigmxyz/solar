@@ -68,8 +68,8 @@ impl MirPass for Egraph {
     }
 }
 
-/// Bound on chained `rewrite` applications per class.
-const MAX_REWRITES: usize = 8;
+/// Bound on the nodes of one class, counting the instruction as written.
+const MAX_NODES: usize = 12;
 
 /// A hash-consing key: a node over canonical operands and its result type.
 type NodeKey = (Op, Option<MirType>);
@@ -217,20 +217,23 @@ impl<'a> Builder<'a> {
         let previous = self.memo.insert(key, result);
         self.undo.push((key, previous));
 
-        // Grow the class with equivalent nodes, then look for a value it already equals.
+        // Grow the class with every equivalent node the rules reach, breadth
+        // first, then look for a value it already equals.
         let mut nodes = vec![op];
-        let mut current = op;
-        for _ in 0..MAX_REWRITES {
-            let Some(next) = isle::RuleContext::new(self.func, self.evm_version).rewrite(&current)
-            else {
-                break;
-            };
-            let next = next.map_values(|value| self.resolve(value));
-            if nodes.contains(&next) {
-                break;
+        let mut frontier = 0;
+        let mut alternatives = Vec::new();
+        while frontier < nodes.len() && nodes.len() < MAX_NODES {
+            let current = nodes[frontier];
+            frontier += 1;
+            alternatives.clear();
+            isle::RuleContext::new(self.func, self.evm_version)
+                .rewrite(&current, &mut alternatives);
+            for next in alternatives.drain(..) {
+                let next = next.map_values(|value| self.resolve(value));
+                if !nodes.contains(&next) && nodes.len() < MAX_NODES {
+                    nodes.push(next);
+                }
             }
-            nodes.push(next);
-            current = next;
         }
         for node in &nodes {
             let kind = node.into_kind().expect("nodes are complete instructions");
@@ -282,11 +285,12 @@ impl<'a> Builder<'a> {
         }
         let mut current = op.map_values(|value| self.resolve(value));
         let mut rewritten = false;
-        for _ in 0..MAX_REWRITES {
-            let Some(next) = isle::RuleContext::new(self.func, self.evm_version).rewrite(&current)
-            else {
-                break;
-            };
+        let mut alternatives = Vec::new();
+        for _ in 0..MAX_NODES {
+            alternatives.clear();
+            isle::RuleContext::new(self.func, self.evm_version)
+                .rewrite(&current, &mut alternatives);
+            let Some(&next) = alternatives.first() else { break };
             current = next.map_values(|value| self.resolve(value));
             rewritten = true;
         }
