@@ -18,7 +18,7 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Metadata, Module, PushValue},
+        ir::{Instruction, Metadata, Module},
         op::{self, WORD_BYTES},
     },
     target::GasTier,
