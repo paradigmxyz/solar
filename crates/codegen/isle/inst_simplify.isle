@@ -1,0 +1,210 @@
+;; Local MIR instruction simplification.
+;;
+;; `simplify` returns the value an instruction is equal to, when one of these
+;; rules applies. The driver in `transform/inst_simplify.rs` constant-folds
+;; first, hands the instruction over with its operands resolved through the
+;; current replacement map, and inspects operands of defining instructions as
+;; written. Every rule must be exact for all 256-bit EVM words.
+;;
+;; Rules on one operation are tried from the highest priority down, so the
+;; priorities encode the order of the checks they replaced.
+
+;; Predicates and projections implemented in `transform/inst_simplify/isle.rs`.
+(decl iconst (U256) Value)
+(extern extractor iconst iconst)
+(decl zero () Value)
+(extern extractor zero zero)
+(decl one () Value)
+(extern extractor one one)
+(decl all_ones () Value)
+(extern extractor all_ones all_ones)
+(decl uint160_mask () Value)
+(extern extractor uint160_mask uint160_mask)
+;; A value known to be exactly zero or one: a boolean immediate or a comparison.
+(decl bool_value () Value)
+(extern extractor bool_value bool_value)
+;; An address produced by an EVM opcode, so its upper 96 bits are clear.
+(decl clean_address () Value)
+(extern extractor clean_address clean_address)
+
+(decl pure imm (U256) Value)
+(extern constructor imm imm)
+(decl pure imm_bool (bool) Value)
+(extern constructor imm_bool imm_bool)
+(decl pure u256 (u64) U256)
+(extern constructor u256 u256)
+(decl pure u256_max () U256)
+(extern constructor u256_max u256_max)
+(decl pure u256_not (U256) U256)
+(extern constructor u256_not u256_not)
+(decl pure u256_is_zero (U256) bool)
+(extern constructor u256_is_zero u256_is_zero)
+(decl pure u256_gt (U256 u64) bool)
+(extern constructor u256_gt u256_gt)
+(decl pure u256_ge (U256 u64) bool)
+(extern constructor u256_ge u256_ge)
+(decl pure u256_lt (U256 u64) bool)
+(extern constructor u256_lt u256_lt)
+;; `(c & bits) == bits`
+(decl pure u256_has_bits (U256 u64) bool)
+(extern constructor u256_has_bits u256_has_bits)
+;; Identical values, or equal immediates.
+(decl pure same_value (Value Value) bool)
+(extern constructor same_value same_value)
+(decl pure has_known_sign_bit (Value) bool)
+(extern constructor has_known_sign_bit has_known_sign_bit)
+(decl pure object_data_offset (MemoryObjectKind) u64)
+(extern constructor object_data_offset object_data_offset)
+(decl pure partial field_offset (MemoryObjectLayout u64) u64)
+(extern constructor field_offset field_offset)
+(decl pure layout_kind (MemoryObjectLayout) MemoryObjectKind)
+(extern constructor layout_kind layout_kind)
+
+(decl partial simplify (Op) Value)
+
+;; Arithmetic.
+(rule 2 (simplify (Op.Add a (zero))) a)
+(rule 1 (simplify (Op.Add (zero) b)) b)
+
+(rule 2 (simplify (Op.Sub a (zero))) a)
+(rule 1 (simplify (Op.Sub a a)) (imm (u256 0)))
+
+(rule 4 (simplify (Op.Mul (and a (zero)) _)) a)
+(rule 3 (simplify (Op.Mul a (one))) a)
+(rule 2 (simplify (Op.Mul _ (and b (zero)))) b)
+(rule 1 (simplify (Op.Mul (one) b)) b)
+
+;; Division by zero yields zero on the EVM.
+(rule 4 (simplify (Op.Div (and a (zero)) _)) a)
+(rule 3 (simplify (Op.Div a (one))) a)
+(rule 2 (simplify (Op.Div _ (zero))) (imm (u256 0)))
+;; `clz` is at most 256.
+(rule 1 (simplify (Op.Div (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm (u256 0)))
+(rule 3 (simplify (Op.SDiv (and a (zero)) _)) a)
+(rule 2 (simplify (Op.SDiv a (one))) a)
+(rule 1 (simplify (Op.SDiv _ (zero))) (imm (u256 0)))
+
+(rule 5 (simplify (Op.Mod (and a (zero)) _)) a)
+(rule 4 (simplify (Op.Mod _ (zero))) (imm (u256 0)))
+(rule 3 (simplify (Op.Mod _ (one))) (imm (u256 0)))
+(rule 2 (simplify (Op.Mod a a)) (imm (u256 0)))
+(rule 1 (simplify (Op.Mod (and a (clz _)) (iconst b))) (if-let true (u256_gt b 256)) a)
+(rule 4 (simplify (Op.SMod (and a (zero)) _)) a)
+(rule 3 (simplify (Op.SMod _ (zero))) (imm (u256 0)))
+(rule 2 (simplify (Op.SMod _ (one))) (imm (u256 0)))
+(rule 1 (simplify (Op.SMod a a)) (imm (u256 0)))
+
+(rule 3 (simplify (Op.Exp _ (zero))) (imm (u256 1)))
+(rule 2 (simplify (Op.Exp (and a (one)) _)) a)
+(rule 1 (simplify (Op.Exp a (one))) a)
+
+(rule 3 (simplify (Op.AddMod _ _ (zero))) (imm (u256 0)))
+(rule 2 (simplify (Op.AddMod _ _ (one))) (imm (u256 0)))
+(rule 1 (simplify (Op.AddMod (zero) (zero) _)) (imm (u256 0)))
+
+(rule 4 (simplify (Op.MulMod _ _ (zero))) (imm (u256 0)))
+(rule 3 (simplify (Op.MulMod _ _ (one))) (imm (u256 0)))
+(rule 2 (simplify (Op.MulMod (zero) _ _)) (imm (u256 0)))
+(rule 1 (simplify (Op.MulMod _ (zero) _)) (imm (u256 0)))
+
+;; `signextend(byte, value)` keeps `value` when it already fits.
+(rule 3 (simplify (Op.SignExtend _ (and value (zero)))) value)
+(rule 2 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (u256_ge byte 31)) value)
+(rule 1 (simplify (Op.SignExtend (iconst byte) (and value (clz _))))
+        (if-let true (u256_ge byte 1))
+        value)
+
+;; Bitwise.
+;; A `clz` result fits in nine bits.
+(rule 12 (simplify (Op.And (and a (clz _)) (iconst mask))) (if-let true (u256_has_bits mask 511)) a)
+(rule 11 (simplify (Op.And (iconst mask) (and b (clz _)))) (if-let true (u256_has_bits mask 511)) b)
+(rule 10 (simplify (Op.And a a)) a)
+(rule 9 (simplify (Op.And (and a (zero)) _)) a)
+(rule 8 (simplify (Op.And a (all_ones))) a)
+(rule 7 (simplify (Op.And (and a (clean_address)) (uint160_mask))) a)
+(rule 6 (simplify (Op.And _ (and b (zero)))) b)
+(rule 5 (simplify (Op.And (all_ones) b)) b)
+(rule 4 (simplify (Op.And (uint160_mask) (and b (clean_address)))) b)
+(rule 3 (simplify (Op.And (bnot b) b)) (imm (u256 0)))
+(rule 2 (simplify (Op.And a (bnot a))) (imm (u256 0)))
+
+(rule 7 (simplify (Op.Or a a)) a)
+(rule 6 (simplify (Op.Or (and a (all_ones)) _)) a)
+(rule 5 (simplify (Op.Or a (zero))) a)
+(rule 4 (simplify (Op.Or _ (and b (all_ones)))) b)
+(rule 3 (simplify (Op.Or (zero) b)) b)
+(rule 2 (simplify (Op.Or (bnot b) b)) (imm (u256_max)))
+(rule 1 (simplify (Op.Or a (bnot a))) (imm (u256_max)))
+
+(rule 5 (simplify (Op.Xor a a)) (imm (u256 0)))
+(rule 4 (simplify (Op.Xor (zero) b)) b)
+(rule 3 (simplify (Op.Xor a (zero))) a)
+(rule 2 (simplify (Op.Xor (bnot b) b)) (imm (u256_max)))
+(rule 1 (simplify (Op.Xor a (bnot a))) (imm (u256_max)))
+
+(rule 2 (simplify (Op.Not (bnot x))) x)
+(rule 1 (simplify (Op.Not (iconst c))) (imm (u256_not c)))
+
+(rule (simplify (Op.Clz a)) (if-let true (has_known_sign_bit a)) (imm (u256 0)))
+
+(rule 3 (simplify (Op.Shl (zero) value)) value)
+(rule 2 (simplify (Op.Shl _ (and value (zero)))) value)
+(rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
+
+(rule 4 (simplify (Op.Shr (zero) value)) value)
+(rule 3 (simplify (Op.Shr _ (and value (zero)))) value)
+(rule 2 (simplify (Op.Shr (iconst shift) (clz _))) (if-let true (u256_ge shift 9)) (imm (u256 0)))
+(rule 1 (simplify (Op.Shr (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
+
+(rule 2 (simplify (Op.Sar (zero) value)) value)
+(rule 1 (simplify (Op.Sar _ (and value (zero)))) value)
+
+(rule 3 (simplify (Op.Byte _ (zero))) (imm (u256 0)))
+(rule 2 (simplify (Op.Byte (iconst index) _)) (if-let true (u256_ge index 32)) (imm (u256 0)))
+(rule 1 (simplify (Op.Byte (iconst index) (clz _))) (if-let true (u256_lt index 30)) (imm (u256 0)))
+
+;; Comparisons.
+(rule 2 (simplify (Op.IsZero (iconst c))) (imm_bool (u256_is_zero c)))
+(rule 1 (simplify (Op.IsZero (iszero (and inner (bool_value))))) inner)
+
+(rule 5 (simplify (Op.Eq a a)) (imm_bool true))
+(rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool false))
+(rule 3 (simplify (Op.Eq (iconst c) (clz _))) (if-let true (u256_gt c 256)) (imm_bool false))
+(rule 2 (simplify (Op.Eq (and a (bool_value)) (one))) a)
+(rule 1 (simplify (Op.Eq (one) (and b (bool_value)))) b)
+
+(rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm_bool true))
+(rule 7 (simplify (Op.Lt (iconst a) (clz _))) (if-let true (u256_ge a 256)) (imm_bool false))
+(rule 6 (simplify (Op.Lt a a)) (imm_bool false))
+(rule 5 (simplify (Op.Lt _ (zero))) (imm_bool false))
+(rule 4 (simplify (Op.Lt (zero) (and b (bool_value)))) b)
+(rule 3 (simplify (Op.Lt (bool_value) (iconst c))) (if-let true (u256_gt c 1)) (imm_bool true))
+(rule 2 (simplify (Op.Lt (iconst c) (bool_value))) (if-let true (u256_ge c 1)) (imm_bool false))
+
+(rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b 256)) (imm_bool false))
+(rule 7 (simplify (Op.Gt (iconst a) (clz _))) (if-let true (u256_gt a 256)) (imm_bool true))
+(rule 6 (simplify (Op.Gt a a)) (imm_bool false))
+(rule 5 (simplify (Op.Gt (zero) _)) (imm_bool false))
+(rule 4 (simplify (Op.Gt (and a (bool_value)) (zero))) a)
+(rule 3 (simplify (Op.Gt (iconst c) (bool_value))) (if-let true (u256_gt c 1)) (imm_bool true))
+(rule 2 (simplify (Op.Gt (bool_value) (iconst c))) (if-let true (u256_ge c 1)) (imm_bool false))
+
+(rule (simplify (Op.SLt a a)) (imm_bool false))
+(rule (simplify (Op.SGt a a)) (imm_bool false))
+
+;; Selection.
+(rule 4 (simplify (Op.Select (one) then_value _)) then_value)
+(rule 3 (simplify (Op.Select (zero) _ else_value)) else_value)
+(rule 2 (simplify (Op.Select _ then_value else_value))
+        (if-let true (same_value then_value else_value))
+        then_value)
+(rule 1 (simplify (Op.Select (and cond (bool_value)) (one) (zero))) cond)
+
+;; Memory-object projections that coincide with the object reference.
+(rule (simplify (Op.MemoryObjectData object kind)) (if-let 0 (object_data_offset kind)) object)
+(rule (simplify (Op.MemoryObjectFieldAddr object layout field))
+      (if-let 0 (field_offset layout field))
+      object)
+(rule (simplify (Op.MemoryObjectElementAddr object layout (zero)))
+      (if-let 0 (object_data_offset (layout_kind layout)))
+      object)
