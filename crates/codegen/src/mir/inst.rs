@@ -1236,16 +1236,6 @@ impl InstKind {
     /// Returns the mnemonic for this instruction.
     #[must_use]
     pub(crate) const fn mnemonic(&self) -> &'static str {
-        match self {
-            Self::MakeSlice { location: SliceLocation::Memory, .. } => return "make_memory_slice",
-            Self::MakeSlice { location: SliceLocation::Calldata, .. } => {
-                return "make_calldata_slice";
-            }
-            Self::MakeSlice { location: SliceLocation::Returndata, .. } => {
-                return "make_returndata_slice";
-            }
-            _ => {}
-        }
         self.op_def().mnemonic
     }
 
