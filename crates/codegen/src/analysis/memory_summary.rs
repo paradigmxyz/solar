@@ -376,21 +376,7 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
             worklist.push(result);
             continue;
         }
-        if matches!(
-            kind,
-            InstKind::MLoad(_)
-                | InstKind::CalldataLoad(_)
-                | InstKind::SLoad(_)
-                | InstKind::TLoad(_)
-                | InstKind::Keccak256(_, _)
-                | InstKind::MemoryObjectLoadField { .. }
-                | InstKind::MemoryObjectLoadElement { .. }
-                | InstKind::MemoryObjectLoadByte { .. }
-                | InstKind::MemoryObjectLen(_, _)
-                | InstKind::MemorySliceLoadWord { .. }
-                | InstKind::CalldataSliceLoadWord { .. }
-                | InstKind::SliceLen(_)
-        ) {
+        if instruction_loads_data(kind) {
             continue;
         }
         for operand in kind.operands() {
@@ -562,10 +548,11 @@ fn capture_sources(
     summary.captures.union(&sources[value]);
 }
 
-/// Tracks which parameters a value is derived from. Only pointer-preserving
-/// operations propagate sources; loading pointer bits through memory is
-/// deliberately not guessed, and storing a parameter is already a capture.
-/// Direct argument sources are handled lazily while propagating or capturing.
+/// Tracks which parameters a value is derived from.
+///
+/// Capture summaries must follow every data dependency: a helper can return
+/// an arithmetic or bitwise identity of a pointer parameter. Direct argument
+/// sources are handled lazily while propagating or capturing.
 fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
     let params = func.params.len();
     let mut sources = IndexVec::from_vec(vec![DenseBitSet::new_empty(params); func.num_values()]);
@@ -588,28 +575,12 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
                 worklist.push_back(operand);
             }
         };
-        match &func.inst(inst_id).kind {
-            InstKind::Add(first, second) | InstKind::Sub(first, second) => {
-                add_user(*first);
-                add_user(*second);
-            }
-            InstKind::MakeSlice { ptr, .. } => add_user(*ptr),
-            InstKind::Select(_, first, second) => {
-                add_user(*first);
-                add_user(*second);
-            }
-            InstKind::Phi(incoming) => {
-                for &(_, value) in incoming {
-                    add_user(value);
-                }
-            }
-            InstKind::SlicePtr(value)
-            | InstKind::MemoryObjectData(value, _)
-            | InstKind::MemoryObjectFieldAddr { object: value, .. } => add_user(*value),
-            InstKind::MemoryObjectElementAddr { object, .. } => {
-                add_user(*object);
-            }
-            _ => {}
+        let kind = &func.inst(inst_id).kind;
+        if instruction_loads_data(kind) {
+            continue;
+        }
+        for operand in kind.operands() {
+            add_user(operand);
         }
     }
 
@@ -623,6 +594,24 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         }
     }
     sources
+}
+
+fn instruction_loads_data(kind: &InstKind) -> bool {
+    matches!(
+        kind,
+        InstKind::MLoad(_)
+            | InstKind::CalldataLoad(_)
+            | InstKind::SLoad(_)
+            | InstKind::TLoad(_)
+            | InstKind::Keccak256(_, _)
+            | InstKind::MemoryObjectLoadField { .. }
+            | InstKind::MemoryObjectLoadElement { .. }
+            | InstKind::MemoryObjectLoadByte { .. }
+            | InstKind::MemoryObjectLen(_, _)
+            | InstKind::MemorySliceLoadWord { .. }
+            | InstKind::CalldataSliceLoadWord { .. }
+            | InstKind::SliceLen(_)
+    )
 }
 
 #[cfg(test)]
@@ -654,6 +643,17 @@ mod tests {
         returning.returns.push(MirType::MemPtr);
         let returning = module.add_function(returning);
 
+        let mut obfuscated = Function::new(Ident::with_dummy_span(sym::ret));
+        {
+            let mut builder = FunctionBuilder::new(&mut obfuscated);
+            let ptr = builder.add_param(MirType::MemPtr);
+            let zero = builder.imm(0);
+            let value = builder.xor(ptr, zero);
+            builder.ret([value]);
+        }
+        obfuscated.returns.push(MirType::MemPtr);
+        let obfuscated = module.add_function(obfuscated);
+
         let mut resetter = Function::new(Ident::with_dummy_span(sym::fmp));
         {
             let mut builder = FunctionBuilder::new(&mut resetter);
@@ -684,6 +684,7 @@ mod tests {
         let summaries = MemoryCallSummaries::new(&module);
         assert!(!summaries.get(reader_caller).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(returning_caller).unwrap().captures_param(ArgIdx::new(0)));
+        assert!(summaries.get(obfuscated).unwrap().captures_param(ArgIdx::new(0)));
         assert!(summaries.get(resetter).unwrap().may_reset_fmp());
     }
 }
