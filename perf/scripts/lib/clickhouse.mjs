@@ -23,7 +23,7 @@ async function request(query, body = query) {
   const response = await fetch(url, {
     method: 'POST',
     headers: headers(settings),
-    body,
+    body: body === query ? query : `${query}\n${body}`,
   })
   if (response.ok) return response
   throw new Error(`ClickHouse request failed (${response.status}): ${await response.text()}`)

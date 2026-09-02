@@ -9,6 +9,7 @@
     "dev": "vp dev",
     "db:backfill": "node scripts/ingest-github-runs.mjs",
     "db:schema": "node scripts/apply-schema.mjs",
+    "db:verify": "node scripts/verify-clickhouse.mjs",
     "format": "vp fmt",
     "lint": "vp lint",
     "test": "vp test --run",

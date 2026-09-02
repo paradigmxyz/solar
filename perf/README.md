@@ -41,6 +41,33 @@ Set `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, and `CLICKHOUSE_PASSWORD`, then create 
 pnpm db:schema
 ```
 
+### Local end-to-end test
+
+Docker Compose starts a local ClickHouse with the schema mounted as an init script. It stores data
+in a named Docker volume and only binds ports 8123 and 9000 on localhost. The local default-user
+password is `local-dev`; it is only for the Compose instance.
+
+```bash
+docker compose up -d --wait
+cp .dev.vars.example .dev.vars
+set -a && source .dev.vars && set +a
+pnpm db:verify
+node scripts/ingest-run.mjs \
+  --results ../target/codegen-bench/site-preview/3d436956/results.json \
+  --artifacts ../target/codegen-bench/site-preview/3d436956/artifacts \
+  --commit 3d436956c9fabea5c92e08612bd8d5ade5501a57 \
+  --workflow-run 1
+pnpm worker:dev --local
+```
+
+In a second terminal, start the site against the local Worker:
+
+```bash
+VITE_PERF_API_URL=http://127.0.0.1:8787 pnpm dev
+```
+
+Stop the database with `docker compose down`. Add `-v` only when you want to discard local data.
+
 `.github/workflows/perf-ingest.yml` imports a completed Benchmark workflow immediately and scans
 the retained workflow history every 15 minutes. Run its manual dispatch once to backfill every
 GitHub Actions artifact that GitHub still retains. The importer is idempotent by workflow run ID,
