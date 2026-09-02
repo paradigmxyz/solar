@@ -64,12 +64,12 @@ async function importedRuns() {
 
 async function refreshMetadata(run) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
-  const pull = await pullRequest(repository, run.headSha)
   const [stored] = await select(
     `SELECT workflow_run_id, commit, branch, pr, started_at, workflow_name, source_schema, raw_results
      FROM runs FINAL WHERE workflow_run_id = ${run.databaseId} LIMIT 1`,
   )
   if (!stored) return false
+  const pull = await pullRequest(repository, run.headSha)
   await insert('runs', [
     { ...stored, pr: pull?.number || null, title: pull?.title || run.displayTitle || null },
   ])
