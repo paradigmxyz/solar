@@ -29,7 +29,11 @@ impl<'gcx> Gcx<'gcx> {
             let json::Function { state_mutability, .. } = self.function_abi(receive);
             items.push(json::Receive { state_mutability }.into());
         }
+        let is_library = c.kind.is_library();
         for f in self.interface_functions(id) {
+            if is_library && stores_data_in_storage(f.ty) {
+                continue;
+            }
             items.push(self.function_abi(f.id).into());
         }
         for event in self.interface_events(id).iter() {
@@ -118,6 +122,17 @@ impl<'gcx> Gcx<'gcx> {
         TySolcPrinter::new(self, &mut s).data_locations(false).print(ty).unwrap();
         s
     }
+}
+
+/// Returns `true` if any parameter or return of the given function type is stored in storage.
+///
+/// Storage references have no ABI encoding, so solc drops the library functions that use them from
+/// the JSON ABI, while still listing them in the method identifiers.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/interface/ABI.cpp#L52-L56>
+fn stores_data_in_storage(ty: Ty<'_>) -> bool {
+    let TyKind::Fn(f) = ty.kind else { return false };
+    f.tys().any(|ty| ty.data_stored_in(hir::DataLocation::Storage))
 }
 
 fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
