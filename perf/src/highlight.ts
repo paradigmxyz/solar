@@ -11,7 +11,17 @@ const solarIr = {
     { name: 'entity.name.function.solar', match: '@[A-Za-z_][A-Za-z0-9_]*' },
     {
       name: 'variable.annotation.solar',
-      match: '(?:![A-Za-z_][A-Za-z0-9_]*(?:\\([^)]*\\))?|\\[[^]\\n]+\\])',
+      match: '![A-Za-z_][A-Za-z0-9_]*(?:\\((?:[^()\\n]|\\([^()\\n]*\\))*\\))?',
+    },
+    {
+      name: 'meta.annotation.solar',
+      begin: '\\[',
+      end: '\\]',
+      patterns: [
+        { name: 'constant.numeric.solar', match: '\\b(?:0x[0-9a-fA-F]+|[0-9]+)\\b' },
+        { name: 'keyword.operator.solar', match: '=>' },
+        { name: 'keyword.control.solar', match: '\\bbb[0-9]*\\b' },
+      ],
     },
     {
       name: 'keyword.control.solar',
