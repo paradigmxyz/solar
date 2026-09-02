@@ -78,12 +78,6 @@ VITE_WEB_API_URL=http://127.0.0.1:8787 pnpm dev
 
 Stop the database with `docker compose down`. Add `-v` only when you want to discard local data.
 
-`.github/workflows/web-ingest.yml` imports a completed Benchmark workflow immediately and scans
-the retained workflow history every 15 minutes. Run its manual dispatch once to backfill every
-GitHub Actions artifact that GitHub still retains. The importer is idempotent by workflow run ID,
-records a raw input for later migrations, and skips expired or pre-artifact runs without stopping
-the rest of the backfill.
-
 `web-pages.yml` imports each completed Benchmark workflow into the Pages data directory, retains
 the latest 200 runs, and deploys the static viewer. It does not use `WEB_API_URL`.
 
