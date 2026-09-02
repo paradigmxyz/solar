@@ -12,52 +12,50 @@ fn @injectSigned(arg0: u256) -> i8 [pure] {
 
 fn @widenSmall(arg0: u8) -> u256 [pure] {
   bb0:
-    ret arg0
+    v0 = and arg0, 255
+    ret v0
 }
 
 fn @widenSigned(arg0: i8) -> i256 [pure] {
   bb0:
-    ret arg0
+    v0 = signextend 0, arg0
+    ret v0
 }
 
 fn @viaOperator(arg0: u256, arg1: u256) -> bool [selector=0x8c012361, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @inject, 1, arg0
     v1 = internal_call @inject, 1, arg1
-    v2 = and v0, 255
-    v3 = and v1, 255
-    v4 = internal_call @eqSmall, 1, v2, v3
-    ret v4
+    v2 = internal_call @eqSmall, 1, v0, v1
+    ret v2
 }
 
 fn @viaCall(arg0: u256, arg1: u256) -> bool [selector=0xb447a4d9, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
     v0 = internal_call @inject, 1, arg0
-    v1 = and v0, 255
-    v2 = internal_call @inject, 1, arg1
-    v3 = and v2, 255
-    v4 = internal_call @eqSmall, 1, v1, v3
-    ret v4
+    v1 = internal_call @inject, 1, arg1
+    v2 = internal_call @eqSmall, 1, v0, v1
+    ret v2
 }
 
 fn @viaWiden(arg0: u256) -> u256 [selector=0xb878f209, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @inject, 1, arg0
-    v1 = and v0, 255
-    v2 = internal_call @widenSmall, 1, v1
-    ret v2
+    v1 = internal_call @widenSmall, 1, v0
+    ret v1
 }
 
 fn @viaWidenSigned(arg0: u256) -> i256 [selector=0xe025fca0, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = internal_call @injectSigned, 1, arg0
-    v1 = signextend 0, v0
-    v2 = internal_call @widenSigned, 1, v1
-    ret v2
+    v1 = internal_call @widenSigned, 1, v0
+    ret v1
 }
 
 fn @eqSmall(arg0: u8, arg1: u8) -> bool [pure] {
   bb0:
-    v0 = eq arg0, arg1
-    ret v0
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = eq v0, v1
+    ret v2
 }

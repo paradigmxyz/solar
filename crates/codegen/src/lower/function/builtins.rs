@@ -713,7 +713,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::UdvtUnwrap => {
                 let value = self.builtin_args::<1>(builtin, &args)?.first()?;
-                self.lower_expr(value)
+                let TyKind::Udvt(underlying, _) = self.cx.gcx.type_of_expr(value.id)?.kind else {
+                    return report_error(
+                        self.cx.gcx,
+                        expr.span,
+                        "codegen expected UDVT unwrap to receive a user-defined value type",
+                    );
+                };
+                self.lower_typed_expr(value, underlying)
             }
             Builtin::Selfdestruct
             | Builtin::Require

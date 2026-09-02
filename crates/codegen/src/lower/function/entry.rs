@@ -19,6 +19,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.values.insert(param, value);
+                if matches!(ty.peel_refs().kind, TyKind::Udvt(..)) {
+                    self.dirty_values.insert(value);
+                }
             }
         }
         for &ret in function.returns {
