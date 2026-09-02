@@ -152,7 +152,10 @@ async function ingest(repository, run, refresh, knownRuns) {
     knownRuns.add(run.databaseId)
     return true
   } catch (error) {
-    if (error.stderr?.includes('no valid artifacts found to download')) {
+    if (
+      error.stderr?.includes('no valid artifacts found to download') ||
+      error.message.includes('Downloaded artifact has no results.json')
+    ) {
       await insert('runs', [runDocument(run, 0, '')])
       knownRuns.add(run.databaseId)
       return true
