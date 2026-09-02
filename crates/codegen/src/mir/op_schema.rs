@@ -127,6 +127,10 @@ pub(crate) trait Operands {
     fn view(&self) -> Self::View;
     /// Applies `f` to every value operand of a projection.
     fn map_view(view: Self::View, f: &mut impl FnMut(ValueId) -> ValueId) -> Self::View;
+    /// Rebuilds the field from its projection, unless the projection elided it.
+    fn from_view(view: Self::View) -> Option<Self>
+    where
+        Self: Sized;
 }
 
 impl Operands for ValueId {
@@ -152,6 +156,11 @@ impl Operands for ValueId {
     #[inline]
     fn map_view(view: Self, f: &mut impl FnMut(Self) -> Self) -> Self {
         f(view)
+    }
+
+    #[inline]
+    fn from_view(view: Self) -> Option<Self> {
+        Some(view)
     }
 }
 
@@ -181,6 +190,11 @@ impl Operands for Option<ValueId> {
     fn map_view(view: Self, f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
         view.map(f)
     }
+
+    #[inline]
+    fn from_view(view: Self) -> Option<Self> {
+        Some(view)
+    }
 }
 
 impl Operands for Box<[ValueId]> {
@@ -203,6 +217,11 @@ impl Operands for Box<[ValueId]> {
 
     #[inline]
     fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+
+    #[inline]
+    fn from_view((): ()) -> Option<Self> {
+        None
+    }
 }
 
 impl Operands for Vec<(BlockId, ValueId)> {
@@ -225,6 +244,11 @@ impl Operands for Vec<(BlockId, ValueId)> {
 
     #[inline]
     fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+
+    #[inline]
+    fn from_view((): ()) -> Option<Self> {
+        None
+    }
 }
 
 /// Declares field types that never hold value operands.
@@ -251,6 +275,11 @@ macro_rules! attributes {
                 fn map_view(view: Self, _f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
                     view
                 }
+
+                #[inline]
+                fn from_view(view: Self) -> Option<Self> {
+                    Some(view)
+                }
             }
         )+
     };
@@ -276,6 +305,11 @@ macro_rules! opaque_attributes {
 
                 #[inline]
                 fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+
+                #[inline]
+                fn from_view((): ()) -> Option<Self> {
+                    None
+                }
             }
         )+
     };
@@ -483,6 +517,18 @@ macro_rules! define_mir_ops {
                     ]),
                 )+
             ];
+
+            /// Rebuilds the instruction, unless a payload was elided from the view.
+            #[must_use]
+            pub(crate) fn into_kind(self) -> Option<$inst_name> {
+                Some(match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => $inst_name::$variant
+                            $( ( $( <$operand_ty as Operands>::from_view($operand)? ),+ ) )?
+                            $( { $( $field: <$field_ty as Operands>::from_view($field)? ),+ } )?,
+                    )+
+                })
+            }
 
             /// Applies `f` to every value operand.
             #[must_use]
@@ -1248,6 +1294,8 @@ mod tests {
         let mapped = add.op().map_values(|value| ValueId::new(value.index() + 10));
         assert_eq!(mapped, Op::Add { a: ValueId::new(10), b: ValueId::new(11) });
         assert_eq!(InstKind::MSize.op(), Op::MSize);
+        assert_eq!(add.op().into_kind().as_ref(), Some(&add));
+        assert_eq!(InstKind::Phi(Vec::new()).op().into_kind(), None);
     }
 
     #[test]
