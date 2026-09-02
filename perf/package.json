@@ -32,5 +32,5 @@
     "vite-plus": "catalog:",
     "wrangler": "^4.127.1"
   },
-  "packageManager": "pnpm@11.1.0"
+  "packageManager": "pnpm@11.25.0"
 }
