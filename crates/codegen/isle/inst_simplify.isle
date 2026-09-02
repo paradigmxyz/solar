@@ -1,10 +1,12 @@
 ;; Local MIR instruction simplification.
 ;;
-;; `simplify` returns the value an instruction is equal to, when one of these
-;; rules applies. The driver in `transform/inst_simplify.rs` constant-folds
-;; first, hands the instruction over with its operands resolved through the
-;; current replacement map, and inspects operands of defining instructions as
-;; written. Every rule must be exact for all 256-bit EVM words.
+;; `rewrite` returns a cheaper instruction to compute in place of the given
+;; one, and `simplify` returns the value an instruction is equal to. The
+;; driver in `transform/inst_simplify.rs` tries `rewrite` first, then
+;; constant-folds, then `simplify`. It hands the instruction over with its
+;; operands resolved through the current replacement map and inspects operands
+;; of defining instructions as written. Every rule must be exact for all
+;; 256-bit EVM words.
 ;;
 ;; Rules on one operation are tried from the highest priority down, so the
 ;; priorities encode the order of the checks they replaced.
@@ -26,6 +28,25 @@
 ;; An address produced by an EVM opcode, so its upper 96 bits are clear.
 (decl clean_address () Value)
 (extern extractor clean_address clean_address)
+;; The `address` opcode.
+(decl current_address () Value)
+(extern extractor current_address current_address)
+;; A non-zero immediate.
+(decl nonzero_const (U256) Value)
+(extern extractor nonzero_const nonzero_const)
+(decl pure is_const (Value) bool)
+(extern constructor is_const is_const)
+(decl pure is_zero_or_one (Value) bool)
+(extern constructor is_zero_or_one is_zero_or_one)
+;; `mask` clears the upper 96 bits of `value`, which are already clear.
+(decl pure masks_clean_address (U256 Value) bool)
+(extern constructor masks_clean_address masks_clean_address)
+(decl pure differ (Value Value) bool)
+(extern constructor differ differ)
+(decl pure has_bitwise_shifting () bool)
+(extern constructor has_bitwise_shifting has_bitwise_shifting)
+(decl pure has_self_balance () bool)
+(extern constructor has_self_balance has_self_balance)
 
 (decl pure imm (U256) Value)
 (extern constructor imm imm)
@@ -48,6 +69,24 @@
 ;; `(c & bits) == bits`
 (decl pure u256_has_bits (U256 u64) bool)
 (extern constructor u256_has_bits u256_has_bits)
+(decl pure u256_eq (U256 u64) bool)
+(extern constructor u256_eq u256_eq)
+(decl pure u256_is_one (U256) bool)
+(extern constructor u256_is_one u256_is_one)
+(decl pure u256_is_all_ones (U256) bool)
+(extern constructor u256_is_all_ones u256_is_all_ones)
+;; Wrapping arithmetic.
+(decl pure u256_add (U256 U256) U256)
+(extern constructor u256_add u256_add)
+(decl pure u256_sub (U256 U256) U256)
+(extern constructor u256_sub u256_sub)
+(decl pure u256_neg (U256) U256)
+(extern constructor u256_neg u256_neg)
+(decl pure u256_and (U256 U256) U256)
+(extern constructor u256_and u256_and)
+;; The non-zero shift amount of a power of two.
+(decl pure partial power_of_two_shift (U256) U256)
+(extern constructor power_of_two_shift power_of_two_shift)
 ;; Identical values, or equal immediates.
 (decl pure same_value (Value Value) bool)
 (extern constructor same_value same_value)
@@ -59,6 +98,106 @@
 (extern constructor field_offset field_offset)
 (decl pure layout_kind (MemoryObjectLayout) MemoryObjectKind)
 (extern constructor layout_kind layout_kind)
+
+;;;; In-place rewrites.
+
+(decl partial rewrite (Op) Op)
+
+;; Fold a constant into an existing offset of the other operand, or move the
+;; constant to the right.
+(rule 7 (rewrite (Op.Add (add base (iconst existing)) (nonzero_const offset)))
+        (Op.Add base (imm (u256_add existing offset))))
+(rule 6 (rewrite (Op.Add (add (iconst existing) base) (nonzero_const offset)))
+        (Op.Add base (imm (u256_add existing offset))))
+(rule 5 (rewrite (Op.Add (sub base (iconst existing)) (nonzero_const offset)))
+        (Op.Add base (imm (u256_add (u256_neg existing) offset))))
+(rule 4 (rewrite (Op.Add (nonzero_const offset) (add base (iconst existing))))
+        (Op.Add base (imm (u256_add existing offset))))
+(rule 3 (rewrite (Op.Add (nonzero_const offset) (add (iconst existing) base)))
+        (Op.Add base (imm (u256_add existing offset))))
+(rule 2 (rewrite (Op.Add (nonzero_const offset) (sub base (iconst existing))))
+        (Op.Add base (imm (u256_add (u256_neg existing) offset))))
+(rule 1 (rewrite (Op.Add (and a (nonzero_const _)) b)) (if-let false (is_const b)) (Op.Add b a))
+
+(rule 3 (rewrite (Op.Sub (add base (iconst existing)) (iconst offset)))
+        (Op.Add base (imm (u256_sub existing offset))))
+(rule 2 (rewrite (Op.Sub (add (iconst existing) base) (iconst offset)))
+        (Op.Add base (imm (u256_sub existing offset))))
+(rule 1 (rewrite (Op.Sub (sub base (iconst existing)) (iconst offset)))
+        (Op.Add base (imm (u256_sub (u256_neg existing) offset))))
+
+;; Move a constant factor to the right, then turn a power of two into a shift.
+(rule 2 (rewrite (Op.Mul (and a (iconst c)) b))
+        (if-let false (is_const b))
+        (if-let false (u256_is_zero c))
+        (if-let false (u256_is_one c))
+        (Op.Mul b a))
+(rule 1 (rewrite (Op.Mul value (iconst c)))
+        (if-let false (is_zero_or_one value))
+        (if-let false (u256_is_zero c))
+        (if-let false (u256_is_one c))
+        (if-let true (has_bitwise_shifting))
+        (if-let shift (power_of_two_shift c))
+        (Op.Shl (imm shift) value))
+
+(rule (rewrite (Op.Div a (iconst c)))
+      (if-let true (has_bitwise_shifting))
+      (if-let shift (power_of_two_shift c))
+      (Op.Shr (imm shift) a))
+
+(rule (rewrite (Op.Mod a (iconst c)))
+      (if-let _ (power_of_two_shift c))
+      (Op.And a (imm (u256_sub c (u256 1)))))
+
+(rule (rewrite (Op.Exp a (iconst c))) (if-let true (u256_eq c 2)) (Op.Mul a a))
+
+;; Move a constant mask to the right, then merge it into an existing mask.
+(rule 3 (rewrite (Op.And (and a (iconst c)) b))
+        (if-let false (is_const b))
+        (if-let false (u256_is_zero c))
+        (if-let false (u256_is_all_ones c))
+        (if-let false (masks_clean_address c b))
+        (Op.And b a))
+(rule 2 (rewrite (Op.And (band base (iconst existing)) (iconst mask)))
+        (if-let false (u256_is_zero mask))
+        (if-let false (u256_is_all_ones mask))
+        (Op.And base (imm (u256_and mask existing))))
+(rule 1 (rewrite (Op.And (band (iconst existing) base) (iconst mask)))
+        (if-let false (u256_is_zero mask))
+        (if-let false (u256_is_all_ones mask))
+        (Op.And base (imm (u256_and mask existing))))
+
+(rule 2 (rewrite (Op.Xor (all_ones) b)) (Op.Not b))
+(rule 1 (rewrite (Op.Xor a (all_ones))) (Op.Not a))
+
+;; Comparisons against zero and against the range of `clz`.
+(rule 6 (rewrite (Op.Eq (and a (zero)) b)) (if-let true (differ a b)) (Op.IsZero b))
+(rule 5 (rewrite (Op.Eq a (and b (zero)))) (if-let true (differ a b)) (Op.IsZero a))
+(rule 4 (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
+(rule 3 (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.IsZero input))
+(rule 2 (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
+(rule 1 (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.IsZero input))
+
+(rule (rewrite (Op.IsZero (clz input))) (Op.SLt input (imm (u256 0))))
+
+;; `a < 1` is `a == 0` for unsigned comparisons.
+(rule 3 (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
+(rule 2 (rewrite (Op.Lt (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.IsZero input))
+(rule 1 (rewrite (Op.Lt a (one))) (Op.IsZero a))
+
+;; `1 > b` is `b == 0` for unsigned comparisons.
+(rule 3 (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.IsZero input))
+(rule 2 (rewrite (Op.Gt (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
+(rule 1 (rewrite (Op.Gt (one) b)) (Op.IsZero b))
+
+(rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.IsZero input))
+(rule (rewrite (Op.Byte (iconst c) (clz input))) (if-let true (u256_eq c 30)) (Op.IsZero input))
+
+(rule (rewrite (Op.Select (and cond (bool_value)) (zero) (one))) (Op.IsZero cond))
+
+(rule (rewrite (Op.Balance (current_address))) (if-let true (has_self_balance)) (Op.SelfBalance))
+
+;;;; Value replacements.
 
 (decl partial simplify (Op) Value)
 
