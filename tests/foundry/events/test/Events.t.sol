@@ -11,6 +11,7 @@ interface Vm {
     }
 
     function expectEmit(bool, bool, bool, bool) external;
+    function expectRevert(bytes calldata) external;
     function getRecordedLogs() external returns (Log[] memory logs);
     function recordLogs() external;
 }
@@ -58,5 +59,19 @@ contract EventsTest {
         require(logs.length == 1);
         require(logs[0].topics.length == 2);
         require(logs[0].topics[1] == DEFAULT_DYNAMIC_TOPIC);
+    }
+
+    function test_EmitDirtyIndexedScalar() public {
+        vm.recordLogs();
+        events.emitDirtyIndexedScalar();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 2);
+        require(logs[0].topics[1] == keccak256(abi.encode(uint256(1))));
+    }
+
+    function test_EmitInvalidIndexedEnum() public {
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x21));
+        events.emitInvalidIndexedEnum();
     }
 }

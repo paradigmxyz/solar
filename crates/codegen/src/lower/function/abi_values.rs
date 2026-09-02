@@ -1065,7 +1065,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .expect("function words always require cleanup")
                     .cleanup(&mut self.builder, value)
             }
-            _ => value,
+            _ => self.normalize_abi_scalar(value, ty),
         };
         self.builder.memory_object_store_word(output, offset, value);
         let word = self.builder.imm(32);
