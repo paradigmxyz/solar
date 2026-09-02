@@ -48,7 +48,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &pure_eval::PureEval,
     &cse::Cse,
     &pre::Pre,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &load_pre::LoadPre,
@@ -165,7 +165,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &SizeOnly::new(sroa::Sroa),
     &sccp::Sccp,
     &pure_eval::PureEval,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -199,7 +199,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -224,7 +224,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
@@ -252,6 +252,9 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
+    // Memory lowering materializes address arithmetic; number and simplify it
+    // once more before the physical shape is fixed.
+    &egraph::Egraph::NUMBERING,
     &lower_evm_shaped::LowerEvmShaped,
     // Late lowering can leave pure address and length calculations unused.
     // Remove their complete dependency chains before selecting physical stack order.

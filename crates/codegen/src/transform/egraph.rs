@@ -46,11 +46,22 @@ mod isle;
 const TRACE_TARGET: &str = "solar::codegen::mir::egraph";
 
 /// Function pass for e-graph based simplification and value numbering.
-pub(crate) struct Egraph;
+pub(crate) struct Egraph {
+    /// Whether `rewrite` rules add alternative nodes.
+    rewrites: bool,
+}
+
+impl Egraph {
+    /// Numbering, simplification, and rewrites.
+    pub(crate) const FULL: Self = Self { rewrites: true };
+    /// Numbering and simplification only, for late positions where a rewrite
+    /// that reaches past an operand would extend live ranges on the stack.
+    pub(crate) const NUMBERING: Self = Self { rewrites: false };
+}
 
 impl MirPass for Egraph {
     fn name(&self) -> &'static str {
-        "egraph"
+        if self.rewrites { "egraph" } else { "egraph-numbering" }
     }
 
     fn run_pass(
@@ -60,7 +71,8 @@ impl MirPass for Egraph {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            Builder::new(func, gcx.sess.opts.evm_version, Rc::clone(&analyses.cfg)).run() != 0
+            let cfg = Rc::clone(&analyses.cfg);
+            Builder::new(func, gcx.sess.opts.evm_version, cfg, self.rewrites).run() != 0
         })
     }
 }
@@ -86,6 +98,8 @@ struct Builder<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
     cfg: Rc<CfgInfo>,
+    /// Whether `rewrite` rules add alternative nodes.
+    rewrites: bool,
     /// One identity for equal immediates, so nodes over them compare equal.
     immediates: FxHashMap<Immediate, ValueId>,
     /// One identity for equal immediates and for each function argument.
@@ -108,13 +122,19 @@ struct Builder<'a> {
 }
 
 impl<'a> Builder<'a> {
-    fn new(func: &'a mut Function, evm_version: EvmVersion, cfg: Rc<CfgInfo>) -> Self {
+    fn new(
+        func: &'a mut Function,
+        evm_version: EvmVersion,
+        cfg: Rc<CfgInfo>,
+        rewrites: bool,
+    ) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
         let (immediates, leaves) = canonical_leaves(func);
         Self {
             func,
             evm_version,
             cfg,
+            rewrites,
             immediates,
             leaves,
             merged: FxHashMap::default(),
@@ -213,7 +233,7 @@ impl<'a> Builder<'a> {
         // Grow the class with equivalent nodes, then look for a value it already equals.
         let mut nodes = vec![op];
         let mut current = op;
-        for _ in 0..MAX_REWRITES {
+        for _ in 0..(if self.rewrites { MAX_REWRITES } else { 0 }) {
             let Some(next) = isle::RuleContext::new(self.func, self.evm_version).rewrite(&current)
             else {
                 break;
@@ -269,6 +289,9 @@ impl<'a> Builder<'a> {
 
     /// Applies the rewrite rules to an instruction outside the e-graph.
     fn rewrite_in_place(&mut self, inst_id: InstId) {
+        if !self.rewrites {
+            return;
+        }
         let op = self.func.inst(inst_id).kind.op();
         if op.into_kind().is_none() {
             return;
