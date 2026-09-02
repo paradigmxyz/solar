@@ -41,9 +41,12 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min
+  const padding = range === 0 ? Math.max(Math.abs(max) * 0.04, 1) : range * 0.1
+  const chartMin = min - padding
+  const chartMax = max + padding
   const path = points.map((run, index) => {
-    const x = (index / Math.max(points.length - 1, 1)) * 100
-    const y = range === 0 ? 50 : 88 - ((run.metrics[metric]! - min) / range) * 76
+    const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
+    const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
     return `${index ? 'L' : 'M'} ${x} ${y}`
   }).join(' ')
   const first = values[0]
@@ -59,11 +62,15 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
       {points.length < 2 ? <div className="empty-graph">Waiting for two main-branch runs.</div> : <>
         <div className="chart-body">
           <div className="chart-scale"><span>{formatValue(max, unit)}</span><span>{formatValue(min, unit)}</span></div>
-          <svg className="history" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${title} over time`}>
-            <path className="grid" d="M0 12H100 M0 50H100 M0 88H100" />
-            <path className="series" d={path} />
-            {points.map((run, index) => { const x = (index / Math.max(points.length - 1, 1)) * 100; const y = range === 0 ? 50 : 88 - ((run.metrics[metric]! - min) / range) * 76; return <circle key={run.commit} className={index === (hovered ?? points.length - 1) ? 'active-point' : ''} cx={x} cy={y} r="2" onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)}><title>{`${formatValue(run.metrics[metric]!, unit)} · ${short(run.commit)} · ${new Date(run.timestamp).toLocaleDateString()}`}</title></circle> })}
-          </svg>
+          <div className="history-plot">
+            <svg className="history" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${title} over time`}><path className="grid" d="M0 12H100 M0 50H100 M0 88H100" /><path className="series" d={path} /></svg>
+            {points.map((run, index) => {
+              const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
+              const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
+              const label = `${formatValue(run.metrics[metric]!, unit)} · ${short(run.commit)} · ${new Date(run.timestamp).toLocaleDateString()}`
+              return <button key={run.commit} className={`history-point${index === (hovered ?? points.length - 1) ? ' active-point' : ''}`} style={{ left: `${x}%`, top: `${y}%` }} onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)} onFocus={() => setHovered(index)} onBlur={() => setHovered(null)} aria-label={label} title={label} />
+            })}
+          </div>
         </div>
         <div className="chart-dates"><span>{new Date(points[0].timestamp).toLocaleDateString()}</span><span>{new Date(points.at(-1)!.timestamp).toLocaleDateString()}</span></div>
       </>}

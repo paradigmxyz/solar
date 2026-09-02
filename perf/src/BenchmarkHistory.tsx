@@ -43,16 +43,22 @@ export function BenchmarkHistory({ benchmark, metric, unit }: Props) {
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min
-  const y = (value: number) => range === 0 ? 50 : 90 - ((value - min) / range) * 80
-  const x = (index: number) => (index / (points.length - 1)) * 100
+  const padding = range === 0 ? Math.max(Math.abs(max) * 0.04, 1) : range * 0.1
+  const chartMin = min - padding
+  const chartMax = max + padding
+  const y = (value: number) => 90 - ((value - chartMin) / (chartMax - chartMin)) * 80
+  const x = (index: number) => 3 + (index / (points.length - 1)) * 94
   const path = points.map((point, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(point.value)}`).join(' ')
   const active = points[hovered ?? points.length - 1]
   return <div className="detail-history">
     <div className="history-value"><strong>{formatValue(active.value, unit)}</strong><span>{active.commit.slice(0, 8)} · {new Date(active.timestamp).toLocaleDateString()}</span></div>
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Benchmark history">
-      <path className="grid" d="M0 10H100 M0 50H100 M0 90H100" /><path className="series" d={path} />
-      {points.map((point, index) => <circle key={point.commit} className={index === (hovered ?? points.length - 1) ? 'active-point' : ''} cx={x(index)} cy={y(point.value)} r="2" onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)}><title>{`${formatValue(point.value, unit)} · ${point.commit.slice(0, 8)} · ${new Date(point.timestamp).toLocaleDateString()}`}</title></circle>)}
-    </svg>
+    <div className="history-plot">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Benchmark history"><path className="grid" d="M0 10H100 M0 50H100 M0 90H100" /><path className="series" d={path} /></svg>
+      {points.map((point, index) => {
+        const label = `${formatValue(point.value, unit)} · ${point.commit.slice(0, 8)} · ${new Date(point.timestamp).toLocaleDateString()}`
+        return <button key={point.commit} className={`history-point${index === (hovered ?? points.length - 1) ? ' active-point' : ''}`} style={{ left: `${x(index)}%`, top: `${y(point.value)}%` }} onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)} onFocus={() => setHovered(index)} onBlur={() => setHovered(null)} aria-label={label} title={label} />
+      })}
+    </div>
     <div className="history-range"><span>{formatValue(min, unit)}</span><span>{formatValue(max, unit)}</span></div>
   </div>
 }
