@@ -1,0 +1,25 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:D ===
+@module D
+fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul 2, arg0
+    v1 = iszero arg0
+    v2 = div v0, arg0
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/unused_bound_library_function.sol:UnusedBoundLibraryFunction ===
+@module UnusedBoundLibraryFunction
+fn @f(arg0: u256) [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    stop
+}

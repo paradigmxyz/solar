@@ -144,17 +144,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Expr(expr) => {
                 let expr = expr.peel_parens();
-                let is_item_reference = matches!(
-                    self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
-                    Some(TyKind::Type(_))
-                ) || matches!(
-                    expr.kind,
-                    ExprKind::Member(receiver, _)
-                        if matches!(
-                            self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
-                            Some(TyKind::Type(_))
-                        )
-                );
+                let is_item_reference =
+                    matches!(
+                        self.cx.gcx.type_of_expr(expr.id).map(|ty| ty.kind),
+                        Some(TyKind::Type(_))
+                    ) || self.cx.gcx.resolved_function(expr).is_some_and(|function| {
+                        self.cx.gcx.hir.function(function).contract.is_some_and(|contract| {
+                            self.cx.gcx.hir.contract(contract).kind.is_library()
+                        })
+                    }) || matches!(
+                        expr.kind,
+                        ExprKind::Member(receiver, _)
+                            if matches!(
+                                self.cx.gcx.type_of_expr(receiver.id).map(|ty| ty.kind),
+                                Some(TyKind::Type(_))
+                            )
+                    );
                 if is_item_reference {
                     return Some(());
                 }
