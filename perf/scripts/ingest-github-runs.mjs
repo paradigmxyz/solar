@@ -49,9 +49,11 @@ async function runs(repository, runId, limit) {
   return JSON.parse(stdout)
 }
 
-async function imported(runId) {
-  return (
-    (await select(`SELECT 1 FROM runs FINAL WHERE workflow_run_id = ${runId} LIMIT 1`)).length > 0
+async function importedRuns() {
+  return new Set(
+    (await select('SELECT workflow_run_id FROM runs FINAL')).map((run) =>
+      Number(run.workflow_run_id),
+    ),
   )
 }
 
@@ -66,9 +68,9 @@ async function refreshMetadata(run) {
   return true
 }
 
-async function ingest(repository, run, refresh) {
+async function ingest(repository, run, refresh, knownRuns) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
-  if (!refresh && (await imported(run.databaseId))) return false
+  if (!refresh && knownRuns.has(run.databaseId)) return false
   const directory = await mkdtemp(join(tmpdir(), 'solar-perf-'))
   try {
     await exec('gh', [
@@ -101,6 +103,7 @@ async function ingest(repository, run, refresh) {
       '--timestamp',
       run.createdAt,
     ])
+    knownRuns.add(run.databaseId)
     return true
   } catch (error) {
     console.warn(`Skipped workflow run ${run.databaseId}: ${error.message}`)
@@ -114,14 +117,24 @@ const options = args()
 const repository = options.repo || process.env.GITHUB_REPOSITORY || 'paradigmxyz/solar'
 const limit = options.limit || '10000'
 const available = await runs(repository, options['workflow-run'], limit)
+const concurrency = Number(options.concurrency || '8')
+if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 16)
+  throw new Error('Concurrency must be an integer from 1 to 16')
+const knownRuns = await importedRuns()
+console.log(`Scanning ${available.length} GitHub Actions runs with ${concurrency} workers`)
 let count = 0
-for (const run of available) {
-  count += Number(
-    options['metadata-only'] === 'true'
-      ? await refreshMetadata(run)
-      : await ingest(repository, run, options.refresh === 'true'),
-  )
+let next = 0
+async function worker() {
+  while (next < available.length) {
+    const run = available[next++]
+    count += Number(
+      options['metadata-only'] === 'true'
+        ? await refreshMetadata(run)
+        : await ingest(repository, run, options.refresh === 'true', knownRuns),
+    )
+  }
 }
+await Promise.all(Array.from({ length: Math.min(concurrency, available.length) }, worker))
 console.log(
   `${options['metadata-only'] === 'true' ? 'Updated' : 'Ingested'} ${count} GitHub Actions run${count === 1 ? '' : 's'}`,
 )
