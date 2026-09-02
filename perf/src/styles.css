@@ -212,7 +212,6 @@ button:disabled {
 }
 .graph-card {
   min-width: 0;
-  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface);
@@ -946,7 +945,6 @@ header.file-header {
   position: relative;
   min-width: 0;
   height: 100%;
-  overflow: hidden;
 }
 .history-point {
   position: absolute;
@@ -999,15 +997,6 @@ header.file-header {
   pointer-events: none;
   transform: translate(10px, -120%);
   white-space: nowrap;
-}
-.chart-tooltip.tooltip-left {
-  transform: translate(calc(-100% - 10px), -120%);
-}
-.chart-tooltip.tooltip-below {
-  transform: translate(10px, 10px);
-}
-.chart-tooltip.tooltip-left.tooltip-below {
-  transform: translate(calc(-100% - 10px), 10px);
 }
 .history-point:hover,
 .history-point:focus-visible,
