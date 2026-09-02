@@ -462,36 +462,68 @@ fn generate_contract_bytecode(
     })
 }
 
-/// Locates every `PUSH20 <placeholder>` in the bytecode.
+/// Locates every instruction-aligned `PUSH20 <placeholder>` in the bytecode.
 ///
 /// The placeholders stay in the artifact bytes: a dependent contract embeds this artifact
 /// verbatim and must find them again in its own scan, and outputs print them in solc's textual
 /// form rather than as a silently linked zero address.
 fn collect_library_references(bytecode: &[u8], links: &[LibraryLink]) -> Vec<LibraryReference> {
     let mut references = Vec::new();
-    for link in links {
-        let offsets = bytecode
-            .windows(21)
-            .enumerate()
-            .filter_map(|(offset, bytes)| {
-                (bytes[0] == evm::op::PUSH20 && bytes[1..] == link.placeholder)
-                    .then_some(offset + 1)
-            })
-            .collect::<Vec<_>>();
-        for start in offsets {
+    let mut offset = 0;
+    while let Some(&opcode) = bytecode.get(offset) {
+        offset += 1;
+        let push_width = if (evm::op::PUSH1..=evm::op::PUSH32).contains(&opcode) {
+            usize::from(opcode - evm::op::PUSH1 + 1)
+        } else {
+            0
+        };
+        let Some(data) = bytecode.get(offset..offset.saturating_add(push_width)) else {
+            break;
+        };
+        if opcode == evm::op::PUSH20
+            && let Some(link) = links.iter().find(|link| data == link.placeholder)
+        {
             references.push(LibraryReference {
                 source: link.source.clone(),
                 name: link.name.clone(),
-                start,
+                start: offset,
             });
         }
+        offset += push_width;
     }
-    references.sort_unstable_by_key(|reference| reference.start);
     references
 }
 
 fn append_runtime_data(module: &mut Module, data: Option<&Bytes>) {
     if let Some(data) = data.filter(|data| !data.is_empty()) {
         module.append_runtime_data(data.clone(), None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn library_references_skip_push_data() {
+        let link = LibraryLink {
+            source: "source.sol".to_string(),
+            name: "Library".to_string(),
+            placeholder: [42; 20],
+        };
+        let mut bytecode = vec![evm::op::PUSH20 + 1, evm::op::PUSH20];
+        bytecode.extend(link.placeholder);
+        let start = bytecode.len() + 1;
+        bytecode.push(evm::op::PUSH20);
+        bytecode.extend(link.placeholder);
+
+        assert_eq!(
+            collect_library_references(&bytecode, &[link]),
+            [LibraryReference {
+                source: "source.sol".to_string(),
+                name: "Library".to_string(),
+                start,
+            }]
+        );
     }
 }
