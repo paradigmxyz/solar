@@ -176,7 +176,9 @@ jobs:
         run: |
           git -C published rm -r --ignore-unmatch assets index.html
           cp -R source/web/dist/. published/
-          node source/web/scripts/prune-runs.mjs published/data
+          if [[ -f published/data/index.json ]]; then
+            node source/web/scripts/prune-runs.mjs published/data
+          fi
           touch published/.nojekyll
           git -C published config user.name github-actions[bot]
           git -C published config user.email 41898282+github-actions[bot]@users.noreply.github.com
