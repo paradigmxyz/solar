@@ -18,7 +18,7 @@ use crate::{
 };
 use normalize_path::NormalizePath;
 use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
-use solar_interface::source_map::SourceMap;
+use solar_interface::{data_structures::smallvec::SmallVec, source_map::SourceMap};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -609,9 +609,10 @@ pub(crate) struct WorkspacePathIndex<'a> {
     import_entries: Vec<WorkspaceImportPathIndexEntry>,
 }
 
-pub(crate) struct WorkspacePathQuery<'a> {
-    import_entries: &'a [WorkspaceImportPathIndexEntry],
-    path: PathBuf,
+type WorkspacePathMatch = (usize, usize, u8, usize);
+
+pub(crate) struct WorkspacePathQuery {
+    matches: SmallVec<[WorkspacePathMatch; 16]>,
 }
 
 struct WorkspaceImportPathIndexEntry {
@@ -636,8 +637,31 @@ impl<'a> WorkspacePathIndex<'a> {
         Self { workspaces, import_entries }
     }
 
-    pub(crate) fn query(&self, path: &Path) -> WorkspacePathQuery<'_> {
-        WorkspacePathQuery { import_entries: &self.import_entries, path: path.normalize() }
+    pub(crate) fn query(&self, path: &Path) -> WorkspacePathQuery {
+        // Most callers need several ownership projections for the same path, so resolve roots
+        // once and keep the matching workspace metadata in the query object.
+        let matches = if path.is_normalized() {
+            self.matching_entries(path)
+        } else {
+            let normalized = path.normalize();
+            self.matching_entries(&normalized)
+        };
+        WorkspacePathQuery { matches }
+    }
+
+    fn matching_entries(&self, path: &Path) -> SmallVec<[WorkspacePathMatch; 16]> {
+        self.import_entries
+            .iter()
+            .filter_map(|entry| {
+                let (root_depth, root_kind) = entry
+                    .roots
+                    .iter()
+                    .filter(|root| path.starts_with(&root.path))
+                    .map(|root| (root.depth, root.kind))
+                    .max()?;
+                Some((entry.idx, root_depth, root_kind, entry.base_depth))
+            })
+            .collect()
     }
 
     pub(crate) fn workspace_idx_for_import_path(&self, path: &Path) -> Option<usize> {
@@ -740,9 +764,11 @@ impl<'a> WorkspacePathIndex<'a> {
     }
 }
 
-impl WorkspacePathQuery<'_> {
+impl WorkspacePathQuery {
     pub(crate) fn workspace_idx_for_path(&self) -> usize {
-        self.import_path_matches()
+        self.matches
+            .iter()
+            .copied()
             .max_by_key(|&(idx, root_depth, root_kind, base_depth)| {
                 (root_depth, root_kind, base_depth, idx)
             })
@@ -756,7 +782,7 @@ impl WorkspacePathQuery<'_> {
     /// workspaces at both levels has no unique owner.
     pub(crate) fn workspace_idx_for_import_path(&self) -> Option<usize> {
         let mut best = None;
-        for (idx, root_depth, root_kind, _) in self.import_path_matches() {
+        for (idx, root_depth, root_kind, _) in self.matches.iter().copied() {
             let score = (root_depth, root_kind);
             match best.as_mut() {
                 Some((best_score, _, _)) if score < *best_score => {}
@@ -771,21 +797,7 @@ impl WorkspacePathQuery<'_> {
     pub(crate) fn workspace_idxs_for_import_path(
         &self,
     ) -> impl DoubleEndedIterator<Item = usize> + '_ {
-        self.import_path_matches().map(|(idx, _, _, _)| idx)
-    }
-
-    fn import_path_matches(
-        &self,
-    ) -> impl DoubleEndedIterator<Item = (usize, usize, u8, usize)> + '_ {
-        self.import_entries.iter().filter_map(move |entry| {
-            let (root_depth, root_kind) = entry
-                .roots
-                .iter()
-                .filter(|root| self.path.starts_with(&root.path))
-                .map(|root| (root.depth, root.kind))
-                .max()?;
-            Some((entry.idx, root_depth, root_kind, entry.base_depth))
-        })
+        self.matches.iter().map(|(idx, _, _, _)| *idx)
     }
 }
 
@@ -1543,6 +1555,13 @@ mod tests {
         assert_eq!(
             index.workspace_idx_for_import_path(&project.path("/project/test/Owned.t.sol")),
             Some(0)
+        );
+
+        let non_normalized = project.root().join("project/test/../test/Owned.sol");
+        assert!(!non_normalized.is_normalized());
+        assert_eq!(
+            index.workspace_idx_for_import_path(&non_normalized),
+            index.workspace_idx_for_import_path(&project.path("/project/test/Owned.sol"))
         );
     }
 

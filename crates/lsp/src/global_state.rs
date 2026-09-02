@@ -2456,11 +2456,12 @@ impl AnalysisBatch {
         batch
     }
 
-    fn push_file(&mut self, path: PathBuf, mut contents: String) {
+    fn push_file(&mut self, path: PathBuf, contents: String) {
         if self.seen_paths.contains(&path) {
             return;
         }
-        contents.shrink_to_fit();
+        // `SourceFile::new` trims uniquely owned sources after indexing; doing it here can
+        // reallocate every disk source twice.
         self.push_shared_file(path, Arc::new(contents));
     }
 
