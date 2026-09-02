@@ -147,7 +147,7 @@ export function Compare({ base, head }: Props) {
           const beforeValue = value(before, metrics[metric].key)
           const afterValue = value(after, metrics[metric].key)
           const delta = change(beforeValue, afterValue)
-          const source = benchmarkSource(after.test_id)
+          const source = benchmarkSource(after.test_id, head)
           return (
             <div key={after.test_id} className="benchmark-row">
               <button

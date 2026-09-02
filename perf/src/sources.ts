@@ -1,5 +1,5 @@
-const corpus =
-  'https://github.com/walnuthq/solidity-compiler-benchmarks/tree/01209d2b8ac81645b92e3ef801b5bcdfd61bfd69'
+const benchmarkHarness =
+  'https://github.com/walnuthq/solidity-compiler-benchmarks/blob/01209d2b8ac81645b92e3ef801b5bcdfd61bfd69/gas_bench.py'
 
 interface BenchmarkSource {
   label: string
@@ -7,6 +7,18 @@ interface BenchmarkSource {
 }
 
 const sources: Record<string, BenchmarkSource> = {
+  factorial: {
+    label: 'Benchmark source',
+    url: `${benchmarkHarness}#L79-L107`,
+  },
+  'sum-array': {
+    label: 'Benchmark source',
+    url: `${benchmarkHarness}#L136-L160`,
+  },
+  arithmetic: {
+    label: 'Benchmark source',
+    url: `${benchmarkHarness}#L161-L185`,
+  },
   'uniswap-v2-pair': {
     label: 'Uniswap v2-core',
     url: 'https://github.com/Uniswap/v2-core/blob/ee547b17853e71ed4e0101ccfd52e70d5acded58/contracts/UniswapV2Pair.sol',
@@ -24,8 +36,8 @@ const sources: Record<string, BenchmarkSource> = {
     url: 'https://github.com/OffchainLabs/nitro-contracts/blob/0b8c04e8f5f66fe6678a4f53aa15f23da417260e/src/osp/OneStepProofEntry.sol',
   },
   'aave-l2-encoder': {
-    label: 'Aave V3 core',
-    url: 'https://github.com/aave/aave-v3-core/tree/782f51917056a53a2c228701058a6c3fb233684a',
+    label: 'Benchmark harness',
+    url: 'https://github.com/walnuthq/solidity-compiler-benchmarks/blob/01209d2b8ac81645b92e3ef801b5bcdfd61bfd69/fixtures/aave/L2EncoderHarness.sol',
   },
   'lilweb3-ens': {
     label: 'lil-web3',
@@ -57,6 +69,18 @@ const sources: Record<string, BenchmarkSource> = {
   },
 }
 
-export function benchmarkSource(testId: string): BenchmarkSource {
-  return sources[testId] ?? { label: 'Benchmark corpus', url: corpus }
+export function benchmarkSource(testId: string, solarCommit: string): BenchmarkSource {
+  if (testId === 'counter') {
+    return {
+      label: 'Benchmark source',
+      url: `https://github.com/paradigmxyz/solar/blob/${solarCommit}/testdata/Counter.sol`,
+    }
+  }
+
+  return (
+    sources[testId] ?? {
+      label: 'Benchmark definition',
+      url: `https://github.com/paradigmxyz/solar/blob/${solarCommit}/benches/runtime/cases.py`,
+    }
+  )
 }
