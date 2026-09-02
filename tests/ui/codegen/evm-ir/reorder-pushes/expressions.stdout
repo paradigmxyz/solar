@@ -1,0 +1,45 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/expressions.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/expressions.evmir (after reorder-pushes) ===
+  @module ReorderExpressions
+  bb0:
++   push 10
+    push 0
+    calldataload
+-   push 10
+-   swap 1
+    sub
+    stop
+  bb1:
+-   calldatasize
+    push 3
+-   swap 1
++   calldatasize
+    mod
+    stop
+  bb2:
++   push 10
+    push 0
+    calldataload
+    push 31
+    add
+-   push 10
+-   swap 1
+    sub
+    stop
+  bb3:
++   push 10
+    push 0
+    mload
+-   push 10
+-   swap 1
+    sub
+    stop
+  bb4:
++   push 10
+    push 0
+    sload
+-   push 10
+-   swap 1
+    sub
+    stop
+  

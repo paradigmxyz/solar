@@ -16,8 +16,8 @@ bb1:
 
 // CHECK-LABEL: bb2:
 // CHECK: {{^[ +].*}}push bb3
-// CHECK: - push bb7
-// CHECK-NEXT: + push bb8
+// CHECK: {{^[ +].*}}push bb7
+// CHECK: {{^[ +].*}}push bb9
 // CHECK: - jump bb4
 // CHECK: + push 1
 // CHECK-NEXT: + pop
@@ -27,6 +27,8 @@ bb2:
   push bb3
   pop
   push bb7
+  pop
+  push bb9
   pop
   jump bb4
 
@@ -50,13 +52,29 @@ bb5:
 bb6:
   stop
 
-// A pushed label that is not a direct jump operand is a return address or another indirect
-// jump target, which lands on the thunk's target just as well.
-// CHECK: - bb7:
-// CHECK-NEXT: - jump bb8
-// CHECK-NEXT: {{^ .*}}bb8:
-// CHECK-NEXT: {{^ .*}}stop
+// CHECK-LABEL: bb7:
+// CHECK: - jump bb8
+// CHECK: - bb8:
+// CHECK: {{^[ +].*}}stop
 bb7:
   jump bb8
 bb8:
+  stop
+
+// Physical branches use an encoded target push and `JUMPI` before the
+// unconditional terminator.
+// CHECK-LABEL: bb9:
+// CHECK: {{^[ +].*}}push 7
+// CHECK: - push bb10
+// CHECK: - jumpi
+// CHECK: - jump bb10
+// CHECK: - bb10:
+// CHECK: + pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb9:
+  push 7
+  push bb10
+  jumpi
+  jump bb10
+bb10:
   stop

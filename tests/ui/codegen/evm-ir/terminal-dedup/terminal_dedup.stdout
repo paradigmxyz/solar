@@ -3,7 +3,7 @@
   @module module
   bb0:
     push 1
-    jumpi bb1, bb2
+    indexed_jump bb1, bb2
 - bb1 [cold]:
 + bb1:
     push 64
@@ -16,6 +16,4 @@
 -   push 0
 -   revert
 +   jump bb1
-  bb3:
-    stop
   

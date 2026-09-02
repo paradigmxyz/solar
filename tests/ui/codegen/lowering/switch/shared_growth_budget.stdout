@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/switch/shared_growth_budget.sol:SwitchSharedGrowthBudget (creation) ===
-// === deployment ===
-@module deployment
+// === SwitchSharedGrowthBudget_deployment ===
+@module SwitchSharedGrowthBudget_deployment
 bb0:
-  push 449
+  push 432
   codesize
   sub
   dup 1
-  push 449
+  push 432
   push 192
   codecopy
   push 192
@@ -22,13 +22,11 @@ bb0:
   push bb19
   jumpi
   push 192
-  push 449
+  push 432
   codesize
   sub
   add
-  push 192
-  push 32
-  add
+  push 224
   gt
   push bb19
   jumpi
@@ -50,16 +48,16 @@ bb0:
   sstore
   jump bb20
 bb20:
-  push 230
+  push 226
   dup 1
-  push 219
+  push 206
   push 0
   codecopy
   push 0
   return
 bb19 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb3:
   dup 1
@@ -87,15 +85,12 @@ bb5:
   dup 1
   push 0xcbf99d38
   sub
-  push bb6
+  push bb20
   jumpi
   pop
   push 300
   push 0
   sstore
-  jump bb20
-bb6:
-  pop
   jump bb20
 bb7:
   dup 1
@@ -123,19 +118,16 @@ bb9:
   dup 1
   push 0x7238232f
   sub
-  push bb10
+  push bb20
   jumpi
   pop
   push 304
   push 0
   sstore
   jump bb20
-bb10:
-  pop
-  jump bb20
 
-// === runtime ===
-@module runtime
+// === SwitchSharedGrowthBudget_runtime ===
+@module SwitchSharedGrowthBudget_runtime
 bb0:
   callvalue
   push bb3
@@ -165,7 +157,7 @@ bb0:
   indexed_jump bb13, bb13, bb6, bb7, bb13, bb13, bb13, bb8, bb9, bb13, bb13, bb10, bb13, bb11, bb13, bb12
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb6:
   dup 1
@@ -214,7 +206,6 @@ bb9:
   sub
   push bb13
   jumpi
-  pop
   jump bb14
 bb10:
   dup 1

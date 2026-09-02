@@ -67,4 +67,48 @@
     push 0
     mstore
     stop
+  bb4:
+    calldatasize
+    calldatasize
+-   swap 1
+    pop
+    pop
+    push 0
+    mstore
+    stop
+  bb5:
+    calldatasize
+    calldatasize
+    calldatasize
+    calldatasize
+-   swap 3
+    pop
+    pop
+    pop
+    pop
+    push 0
+    mstore
+    stop
+  bb6:
+    callf !meta(stack=0->18)
+    swap 16
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    pop
+    swap 1
+    pop
+    stop
   

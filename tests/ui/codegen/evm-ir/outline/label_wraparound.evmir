@@ -1,4 +1,4 @@
-//@ compile-flags: -Zevm-ir-pipeline=outline
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=outline
 //@ filecheck:
 @module LabelWraparound
 
@@ -8,8 +8,8 @@
 // CHECK: + jump bb0
 // CHECK: + bb0:
 bb4294967295:
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
   pop
-  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
   pop
   stop

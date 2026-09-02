@@ -81,6 +81,7 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 struct Parser<'sess, 'ast> {
     parser: crate::ir_parse::Parser<'sess, 'ast>,
     pending_function_ref: Option<(MangledSymbol, Span)>,
+    parsed_dispatch_entry: bool,
     function_refs: Vec<PendingFunctionRef>,
     arg_values: Vec<ValueId>,
     block_labels: FxHashMap<u32, BlockLabel>,
@@ -119,6 +120,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Self {
             parser: crate::ir_parse::Parser::new(sess, arena, source),
             pending_function_ref: None,
+            parsed_dispatch_entry: false,
             function_refs: Vec::new(),
             arg_values: Vec::new(),
             block_labels: FxHashMap::default(),
@@ -212,7 +214,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         while !self.parser.is_eof() {
             let func = self.parse_function()?;
+            let is_dispatch_entry = self.parsed_dispatch_entry;
             let function = module.add_function(func);
+            if is_dispatch_entry {
+                if module.dispatch_entry().is_some() {
+                    return Err(self.parser.error("module has multiple `entry` routing functions"));
+                }
+                module.set_dispatch_entry(function);
+            }
             function_refs
                 .extend(self.function_refs.drain(..).map(|reference| (function, reference)));
         }
@@ -322,6 +331,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_function(&mut self) -> PResult<'sess, Function> {
+        self.parsed_dispatch_entry = false;
         self.arg_values.clear();
         self.block_labels.clear();
         self.block_order.clear();
@@ -494,7 +504,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
                 }
-                sym::entry => builder.func_mut().attributes.is_dispatch_entry = true,
+                sym::entry => self.parsed_dispatch_entry = true,
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
                 }

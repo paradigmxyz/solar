@@ -12,18 +12,18 @@ contract ImmutableBytePatches {
         fixedBytesValue = fixedBytesValue_;
     }
 
-    // CHECK-LABEL: @module deployment
+    // CHECK-LABEL: @module ImmutableBytePatches_deployment
     // CHECK: codecopy
     // CHECK: codecopy
-    // CHECK: mload
-    // CHECK-NEXT: push
-    // CHECK-NEXT: mstore8
     // CHECK: mload
     // CHECK-NEXT: push
     // CHECK-NEXT: mstore8
     // CHECK: mload
     // CHECK-NEXT: push 0
     // CHECK-NEXT: byte
+    // CHECK-NEXT: push
+    // CHECK-NEXT: mstore8
+    // CHECK: mload
     // CHECK-NEXT: push
     // CHECK-NEXT: mstore8
     function read() external view returns (uint8, int8, bytes1) {

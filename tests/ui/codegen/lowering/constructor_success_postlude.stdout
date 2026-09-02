@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_success_postlude.sol:ConstructorSuccessPostlude (creation) ===
-// === deployment ===
-@module deployment
+// === ConstructorSuccessPostlude_deployment ===
+@module ConstructorSuccessPostlude_deployment
 bb0:
-  push 73
+  push 82
   codesize
   sub
   dup 1
-  push 73
+  push 82
   push 224
   codecopy
   push 224
@@ -23,7 +23,10 @@ bb0:
   jumpi
   push 224
   dup 1
-  push 73
+  push 192
+  mstore
+  dup 1
+  push 82
   codesize
   sub
   add
@@ -31,8 +34,12 @@ bb0:
   dup 3
   add
   gt
+  swap 1
+  pop
   push bb5
   jumpi
+  push 192
+  mload
   mload
   push 2
   gt
@@ -45,19 +52,19 @@ bb0:
   jumpi
   push 3
   dup 1
-  push 70
+  push 79
   push 0
   codecopy
   push 0
   return
 bb5 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 
-// === runtime ===
-@module runtime
+// === ConstructorSuccessPostlude_runtime ===
+@module ConstructorSuccessPostlude_runtime
 bb0:
   push 0
-  dup 1
+  push 0
   revert

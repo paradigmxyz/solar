@@ -6,6 +6,7 @@
 // CHECK: {{^[ +].*}}bb2:
 // CHECK: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}bb4:
 bb0:
   push 1
   push bb1
@@ -16,4 +17,15 @@ bb1:
 bb2:
   jump bb3
 bb3:
+  push 1
+  jumpi bb4, bb5
+bb4:
+  jump bb6
+bb5:
+  push 1
+  push 2
+  push 3
+  push 4
+  jump bb6
+bb6:
   stop

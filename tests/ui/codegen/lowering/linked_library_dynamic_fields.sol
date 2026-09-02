@@ -17,7 +17,7 @@ library L {
         address who;
     }
 
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module L_runtime
     // CHECK: push 0xfa06cb96
     // CHECK: eq
     // CHECK-NEXT: push [[APPLY:bb[0-9]+]]
@@ -42,7 +42,7 @@ library L {
 }
 
 contract C {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module C_runtime
     // CHECK: push 0x2220ae27
     // CHECK: eq
     // CHECK-NEXT: push [[GO:bb[0-9]+]]

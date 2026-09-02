@@ -320,13 +320,6 @@ impl Liveness {
         self.last_use_in_block.get(&(val, block)).copied()
     }
 
-    /// Returns the last use location recorded for every value and block pair.
-    pub(crate) fn last_uses(
-        &self,
-    ) -> impl Iterator<Item = ((ValueId, BlockId), Option<usize>)> + '_ {
-        self.last_use_in_block.iter().map(|(&(value, block), &last_use)| ((value, block), last_use))
-    }
-
     /// Returns whether a value defined before `inst_idx` is used at or after that instruction.
     #[must_use]
     pub(crate) fn is_used_at_or_after(
@@ -341,22 +334,6 @@ impl Liveness {
 
         match self.last_use_in_block.get(&(val, block)) {
             Some(Some(last_idx)) => *last_idx >= inst_idx,
-            Some(None) => true,
-            None => false,
-        }
-    }
-
-    /// Returns whether a value is used again in `block` after `inst_idx`, by a later
-    /// instruction or by the terminator; uses in successor blocks do not count.
-    #[must_use]
-    pub(crate) fn is_used_after_in_block(
-        &self,
-        val: ValueId,
-        block: BlockId,
-        inst_idx: usize,
-    ) -> bool {
-        match self.last_use_in_block.get(&(val, block)) {
-            Some(Some(last_idx)) => *last_idx > inst_idx,
             Some(None) => true,
             None => false,
         }

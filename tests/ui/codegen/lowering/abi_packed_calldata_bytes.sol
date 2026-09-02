@@ -9,14 +9,26 @@
 
 contract P {
     // CHECK: push 0x21bd63cb
+    // CHECK: eq
+    // CHECK-NEXT: push [[H_BODY:bb[0-9]+]]
     // CHECK: push 0xf1245422
+    // CHECK: eq
+    // CHECK-NEXT: push [[H2_BODY:bb[0-9]+]]
+    // CHECK: [[H_BODY]]:
+    // CHECK: push {{bb[0-9]+}}
     // CHECK: calldatacopy
+    // CHECK: jump [[DONE:bb[0-9]+]]
+    // CHECK: [[DONE]]:
     // CHECK: keccak256
+    // CHECK: return
+    // CHECK: [[H2_BODY]]:
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK: calldatacopy
+    // CHECK: jump [[DONE:bb[0-9]+]]
     function h(bytes calldata a, uint256 x) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(a, x));
     }
 
-    // CHECK: calldatacopy
     function h2(bytes calldata a, address b) external pure returns (bytes32) {
         return keccak256(abi.encodePacked("pre", a, b));
     }

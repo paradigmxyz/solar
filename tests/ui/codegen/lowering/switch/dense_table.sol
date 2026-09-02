@@ -2,7 +2,8 @@
 //@ filecheck: --check-prefix=TABLE
 
 // TABLE: push 10
-// TABLE-NEXT: swap 1
+// TABLE-NEXT: push 4
+// TABLE-NEXT: calldataload
 // TABLE-NEXT: sub
 // TABLE-NEXT: dup 1
 // TABLE-NEXT: push 24

@@ -10,7 +10,7 @@
 //! with allocations made in that block, not with the number of stable
 //! reservations in the function.
 
-use crate::mir::ValueId;
+use crate::{backend::evm::op::WORD_BYTES, mir::ValueId};
 use solar_data_structures::{
     bit_set::GrowableBitSet,
     map::{FxHashMap, StdEntry},
@@ -19,7 +19,7 @@ use solar_data_structures::{
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct SpillSlot {
-    /// Offset in the spill area (in 32-byte words).
+    /// Offset in the spill area, in words.
     pub offset: u32,
 }
 
@@ -34,8 +34,6 @@ pub(crate) struct SpillManager {
     stored: GrowableBitSet<ValueId>,
     /// Values whose unstored slot may be rematerialized from stable inputs.
     recomputable: GrowableBitSet<ValueId>,
-    /// Cheap instruction results that require their own stable store.
-    mandatory_store: GrowableBitSet<ValueId>,
     /// Cross-block values whose slots must remain stable for the function.
     stable: GrowableBitSet<ValueId>,
     /// Values allocated since the last block boundary.
@@ -57,13 +55,25 @@ impl SpillManager {
             reloadable: GrowableBitSet::new_empty(),
             stored: GrowableBitSet::new_empty(),
             recomputable: GrowableBitSet::new_empty(),
-            mandatory_store: GrowableBitSet::new_empty(),
             stable: GrowableBitSet::new_empty(),
             block_locals: Vec::new(),
             free_offsets: Vec::new(),
             next_offset: 0,
             max_offset: 0,
         }
+    }
+
+    /// Clears every slot assignment while retaining allocations for the next function.
+    pub(crate) fn clear(&mut self) {
+        self.slots.clear();
+        self.reloadable.clear();
+        self.stored.clear();
+        self.recomputable.clear();
+        self.stable.clear();
+        self.block_locals.clear();
+        self.free_offsets.clear();
+        self.next_offset = 0;
+        self.max_offset = 0;
     }
 
     /// Allocates a spill slot for a value.
@@ -124,7 +134,6 @@ impl SpillManager {
         self.reloadable.remove(value);
         self.stored.remove(value);
         self.recomputable.remove(value);
-        self.mandatory_store.remove(value);
         self.free_offsets.push(slot.offset);
         true
     }
@@ -189,13 +198,6 @@ impl SpillManager {
         self.reloadable.iter()
     }
 
-    /// Drops a value's mandatory-store obligation. Used when a value is kept
-    /// stack-resident across a memory clobber and consumed before any block
-    /// exit, so it needs no memory home at all.
-    pub(crate) fn clear_store_requirement(&mut self, value: ValueId) {
-        self.mandatory_store.remove(value);
-    }
-
     /// Marks an unstored value as safe to rematerialize from stable inputs.
     pub(crate) fn mark_recomputable(&mut self, value: ValueId) {
         debug_assert!(self.slots.contains_key(&value));
@@ -206,24 +208,6 @@ impl SpillManager {
     #[must_use]
     pub(crate) fn is_recomputable(&self, value: ValueId) -> bool {
         self.recomputable.contains(value)
-    }
-
-    /// Marks a cheap instruction result as requiring its own stable store.
-    pub(crate) fn require_store(&mut self, value: ValueId) {
-        debug_assert!(self.slots.contains_key(&value));
-        self.mandatory_store.insert(value);
-    }
-
-    /// Returns true if the value must establish its own stable store.
-    #[must_use]
-    pub(crate) fn requires_store(&self, value: ValueId) -> bool {
-        self.mandatory_store.contains(value)
-    }
-
-    /// Returns a reserved value whose mandatory store was not emitted.
-    #[must_use]
-    pub(crate) fn unstored_required(&self) -> Option<ValueId> {
-        self.mandatory_store.iter().find(|&value| !self.stored.contains(value))
     }
 
     /// Forgets that already-emitted code stored this value. A value carried on
@@ -238,7 +222,7 @@ impl SpillManager {
     /// Returns the total size of the spill area in bytes.
     #[must_use]
     pub(crate) fn spill_area_size(&self) -> u32 {
-        self.max_offset * 32
+        self.max_offset * WORD_BYTES as u32
     }
 }
 
@@ -285,7 +269,6 @@ mod tests {
         let mut manager = SpillManager::new();
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
-        let v2 = ValueId::from_usize(2);
 
         manager.allocate(v0);
         assert!(!manager.is_reloadable(v0));
@@ -299,13 +282,6 @@ mod tests {
         manager.mark_stored(v1);
         assert!(manager.is_reloadable(v1));
         assert!(manager.is_stored(v1));
-
-        manager.reserve(v2);
-        manager.require_store(v2);
-        assert!(manager.requires_store(v2));
-        assert_eq!(manager.unstored_required(), Some(v2));
-        manager.mark_stored(v2);
-        assert_eq!(manager.unstored_required(), None);
     }
 
     #[test]
@@ -323,7 +299,7 @@ mod tests {
 
         let slot1 = manager.allocate(v1);
         assert_eq!(slot1, slot0);
-        assert_eq!(manager.spill_area_size(), 32);
+        assert_eq!(manager.spill_area_size(), WORD_BYTES as u32);
     }
 
     #[test]
@@ -347,7 +323,7 @@ mod tests {
         let slot1 = manager.reserve_at(v1, 0);
 
         assert_eq!(slot0, slot1);
-        assert_eq!(manager.spill_area_size(), 32);
+        assert_eq!(manager.spill_area_size(), WORD_BYTES as u32);
         assert_eq!(manager.allocate(local).offset, 1);
     }
 

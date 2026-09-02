@@ -11,7 +11,20 @@
   bb2:
     jump bb3
   bb3:
-+   stop
+    push 1
+    jumpi bb4, bb5
 + bb1:
-    stop
++   stop
+  bb4:
+    jump bb6
++ bb6:
++   stop
+  bb5:
+    push 1
+    push 2
+    push 3
+    push 4
+    jump bb6
+- bb6:
+-   stop
   

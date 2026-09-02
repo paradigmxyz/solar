@@ -1,0 +1,17 @@
+// === ROOT/tests/ui/codegen/evm-ir/dce/post_elimination_peephole.evmir (after pipeline-default) ===
+@module PostEliminationPeephole
+bb0:
+  push 320
+  dup 1
+  push 256
+  mstore
+  mload
+  push 1
+  dup 2
+  and
+  sub
+  push bb1
+  jumpi
+  stop
+bb1:
+  stop

@@ -8,7 +8,7 @@ fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_return
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
+    mstore v1, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
     v2 = memory_object_len memorybytes, v0
     v3 = gt v2, 0
     jumpi v3, bb1, bb2
@@ -18,7 +18,7 @@ fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_return
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v4, 3
     v5 = memory_object_data memorybytes, v4
-    mstore v5, 0x5f80fd0000000000000000000000000000000000000000000000000000000000
+    mstore v5, 0x5f5ffd0000000000000000000000000000000000000000000000000000000000
     v6 = memory_object_len memorybytes, v4
     v7 = gt v6, 0
     jump bb3
@@ -47,7 +47,7 @@ fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], a
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 3
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x5f80fd0000000000000000000000000000000000000000000000000000000000
+    mstore v1, 0x5f5ffd0000000000000000000000000000000000000000000000000000000000
     v2 = memory_object_len memorybytes, v0
     v3 = gt v2, 0
     jumpi v3, bb1, bb2
@@ -57,7 +57,7 @@ fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], a
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v4, 3
     v5 = memory_object_data memorybytes, v4
-    mstore v5, 0x5f80fd0000000000000000000000000000000000000000000000000000000000
+    mstore v5, 0x5f5ffd0000000000000000000000000000000000000000000000000000000000
     v6 = memory_object_len memorybytes, v4
     v7 = gt v6, 0
     jump bb3
@@ -70,7 +70,7 @@ fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], a
     v9 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v9, 3
     v10 = memory_object_data memorybytes, v9
-    mstore v10, 0x5f80fd0000000000000000000000000000000000000000000000000000000000
+    mstore v10, 0x5f5ffd0000000000000000000000000000000000000000000000000000000000
     v11 = memory_object_len memorybytes, v9
     v12 = gt v11, 0
     jump bb6
@@ -85,7 +85,7 @@ fn @deploysRevertingRuntime() -> bool [selector=0x7c2d5470, abi_params=[], abi_r
     v1 = not 31
     v2 = and 51, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
     v4 = slice_ptr v0
     v5 = add v3, 20
     mcopy v5, v4, 0 !metadata(memory=heap)
@@ -121,7 +121,7 @@ fn @hasCode() -> bool [selector=0xfffc60a2, abi_params=[], abi_returns=[word<boo
     v1 = not 31
     v2 = and 51, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
     v4 = slice_ptr v0
     v5 = add v3, 20
     mcopy v5, v4, 0 !metadata(memory=heap)
@@ -142,7 +142,7 @@ fn @rejectsCalls() -> bool [selector=0x99b623b6, abi_params=[], abi_returns=[wor
     v1 = not 31
     v2 = and 51, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
     v4 = slice_ptr v0
     v5 = add v3, 20
     mcopy v5, v4, 0 !metadata(memory=heap)

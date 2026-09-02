@@ -944,7 +944,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((values, types))
     }
 
-    pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> U256 {
+    fn linked_library_address(&self, function_id: hir::FunctionId) -> Option<U256> {
         let contract_id = self
             .cx
             .gcx
@@ -957,16 +957,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
         let libraries = &self.cx.gcx.sess.opts.libraries;
         let name = contract.name.as_str_in(self.cx.gcx.sess);
-        if let Some(address) = libraries
+        libraries
             .iter()
             .find(|library| library.name == name && library.source.as_deref() == Some(&source))
             .or_else(|| {
                 libraries.iter().find(|library| library.name == name && library.source.is_none())
             })
             .map(|library| U256::from_be_slice(library.address.as_slice()))
-        {
+    }
+
+    pub(super) fn library_address(&mut self, function_id: hir::FunctionId) -> U256 {
+        if let Some(address) = self.linked_library_address(function_id) {
             return address;
         }
+
+        let contract_id = self
+            .cx
+            .gcx
+            .hir
+            .function(function_id)
+            .contract
+            .expect("library function must have a contract");
+        let contract = self.cx.gcx.hir.contract(contract_id);
+        let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
 
         let name = contract.name.as_str_in(self.cx.gcx.sess).to_string();
         let hash = keccak256(format!("{source}:{name}"));

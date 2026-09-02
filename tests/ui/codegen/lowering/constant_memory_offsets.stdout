@@ -1,0 +1,113 @@
+// === ROOT/tests/ui/codegen/lowering/constant_memory_offsets.sol:ConstantMemoryOffsets (runtime) ===
+@module ConstantMemoryOffsets_runtime
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xe77e024
+  eq
+  push bb6
+  jumpi
+  dup 1
+  push 0x391e2457
+  sub
+  push bb4
+  jumpi
+  push 192
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 160
+  mstore
+  push 128
+  dup 2
+  add
+  push 64
+  mstore
+  push 128
+  calldatasize
+  dup 3
+  calldatacopy
+  push 64
+  dup 2
+  add
+  push 7
+  swap 1
+  mstore
+  push 128
+  jump bb9
+bb9:
+  swap 1
+  keccak256
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb6:
+  push 224
+  dup 1
+  push 64
+  mstore
+  dup 1
+  push 160
+  mstore
+  push 128
+  dup 2
+  add
+  dup 1
+  push 192
+  mstore
+  dup 2
+  dup 2
+  lt
+  push 0
+  not
+  push 192
+  shr
+  dup 3
+  gt
+  or
+  push bb8
+  jumpi
+  push 64
+  mstore
+  push 128
+  calldatasize
+  dup 3
+  calldatacopy
+  push 3
+  dup 2
+  mstore
+  push 96
+  dup 2
+  add
+  push 7
+  swap 1
+  mstore
+  push 32
+  add
+  push 96
+  jump bb9
+bb8 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
+  push 36
+  push 0
+  revert

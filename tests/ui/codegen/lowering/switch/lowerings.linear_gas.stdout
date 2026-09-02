@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
-@module runtime
+@module SwitchLowerings_runtime
 bb0:
   callvalue
-  push bb2
+  push bb11
   jumpi
   push 0
   calldataload
@@ -21,6 +21,10 @@ bb0:
   push 32
   push 0
   return
+bb11:
+  push 0
+  push 0
+  revert
 bb4:
   dup 1
   push 16
@@ -112,18 +116,9 @@ bb10:
   push 32
   push 0
   return
-bb11:
-  pop
-  push 0
-  push 0
-  revert
-bb2 [cold]:
-  push 0
-  dup 1
-  revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x96 ; bb8
+PUSH1 0x1a ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -133,7 +128,7 @@ MSTORE
 DUP1
 PUSH1 0x08
 SUB
-PUSH1 0x1a ; bb0
+PUSH1 0x1e ; bb1
 JUMPI
 POP
 PUSH1 0x64
@@ -144,10 +139,15 @@ PUSH0
 RETURN
 ; bb0
 JUMPDEST
+PUSH0
+PUSH0
+REVERT
+; bb1
+JUMPDEST
 DUP1
 PUSH1 0x10
 SUB
-PUSH1 0x2b ; bb1
+PUSH1 0x2f ; bb2
 JUMPI
 POP
 PUSH1 0x65
@@ -156,12 +156,12 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb1
+; bb2
 JUMPDEST
 DUP1
 PUSH1 0x18
 SUB
-PUSH1 0x3c ; bb2
+PUSH1 0x40 ; bb3
 JUMPI
 POP
 PUSH1 0x66
@@ -170,12 +170,12 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb2
+; bb3
 JUMPDEST
 DUP1
 PUSH1 0x20
 SUB
-PUSH1 0x4d ; bb3
+PUSH1 0x51 ; bb4
 JUMPI
 POP
 PUSH1 0x67
@@ -184,12 +184,12 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb3
+; bb4
 JUMPDEST
 DUP1
 PUSH1 0x28
 SUB
-PUSH1 0x5e ; bb4
+PUSH1 0x62 ; bb5
 JUMPI
 POP
 PUSH1 0x68
@@ -198,12 +198,12 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb4
+; bb5
 JUMPDEST
 DUP1
 PUSH1 0x30
 SUB
-PUSH1 0x6f ; bb5
+PUSH1 0x73 ; bb6
 JUMPI
 POP
 PUSH1 0x69
@@ -212,12 +212,12 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb5
+; bb6
 JUMPDEST
 DUP1
 PUSH1 0x38
 SUB
-PUSH1 0x80 ; bb6
+PUSH1 0x84 ; bb7
 JUMPI
 POP
 PUSH1 0x6a
@@ -226,12 +226,12 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb6
+; bb7
 JUMPDEST
 DUP1
 PUSH1 0x40
 SUB
-PUSH1 0x91 ; bb7
+PUSH1 0x1a ; bb0
 JUMPI
 POP
 PUSH1 0x6b
@@ -240,14 +240,3 @@ MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb7
-JUMPDEST
-POP
-PUSH0
-PUSH0
-REVERT
-; bb8
-JUMPDEST
-PUSH0
-DUP1
-REVERT

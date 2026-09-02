@@ -1,0 +1,31 @@
+//@ compile-flags: -Zevm-ir-pipeline=dce
+//@ filecheck:
+@module DeadStackTail
+
+// The target pushes its RETURN operands, so it never reads the incoming stack.
+// CHECK-LABEL: bb0:
+// CHECK-NOT: {{^[ +].*}}push
+// CHECK-NOT: {{^[ +].*}}add
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}jump bb1
+bb0:
+  push 1
+  push 2
+  add
+  pop
+  jump bb1
+bb1:
+  push 0
+  push 0
+  return
+
+// A target that consumes its entry value must retain the predecessor tail.
+// CHECK-LABEL: bb2:
+// CHECK: {{^[ +].*}}push 7
+// CHECK: {{^[ +].*}}jump bb3
+bb2:
+  push 7
+  jump bb3
+bb3:
+  push 0
+  revert

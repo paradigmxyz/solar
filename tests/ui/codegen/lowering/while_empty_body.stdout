@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/while_empty_body.sol:WhileEmptyBody (creation) ===
-// === deployment ===
-@module deployment
+// === WhileEmptyBody_deployment ===
+@module WhileEmptyBody_deployment
 bb0:
   callvalue
   push bb1
@@ -17,8 +17,8 @@ bb1:
   push 0
   revert
 
-// === runtime ===
-@module runtime
+// === WhileEmptyBody_runtime ===
+@module WhileEmptyBody_runtime
 bb0:
   callvalue
   push bb3
@@ -38,7 +38,7 @@ bb0:
   push bb3
   jumpi
   jump bb5
-bb5 [loop]:
+bb5:
   push 4
   calldataload
   push bb5
@@ -46,5 +46,5 @@ bb5 [loop]:
   stop
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert

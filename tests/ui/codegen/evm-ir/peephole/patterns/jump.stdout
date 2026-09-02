@@ -9,8 +9,8 @@
     jumpi
     stop
   bb1:
-    push 1
-    push 2
+    calldatasize
+    returndatasize
 -   eq
 -   iszero
 +   sub

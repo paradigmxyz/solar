@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/evm-ir/dce/dead_stack_tail.evmir (before dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/dce/dead_stack_tail.evmir (after dce) ===
+  @module DeadStackTail
+  bb0:
+-   push 1
+-   push 2
+-   add
+-   pop
+    jump bb1
+  bb1:
+    push 0
+    push 0
+    return
+  bb2:
+    push 7
+    jump bb3
+  bb3:
+    push 0
+    revert
+  

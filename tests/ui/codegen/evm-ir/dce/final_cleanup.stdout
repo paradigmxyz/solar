@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/evm-ir/dce/final_cleanup.evmir (after pipeline-default) ===
+@module FinalDceCleanup
+bb0:
+  push 320
+  dup 1
+  push 256
+  mstore
+  mload
+  push 1
+  dup 2
+  and
+  sub
+  push bb3
+  jumpi
+  push 32
+  mload
+  stop
+bb3:
+  stop

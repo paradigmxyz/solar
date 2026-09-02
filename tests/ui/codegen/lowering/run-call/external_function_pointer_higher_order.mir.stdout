@@ -16,7 +16,7 @@ fn @addTwo(arg0: u256) -> u256 [selector=0xcae57913, pure, abi_params=[u256], ab
 // === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrder ===
 @module ExternalFunctionPointerHigherOrder
 data:
-  ExternalFunctionPointerHigherOrderTarget_initcode_0: hex"34600d57607e8060115f395ff35b5f5ffd34601a575f3560e01c8063cae5791314601657601a565b601e565b5f80fd5b6024361015607a576076565b6002600435016004358110156066577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6080526020608001608090036080f35b5f80fd5b602a56"
+  ExternalFunctionPointerHigherOrderTarget_initcode_0: hex"34600d57608a8060115f395ff35b5f5ffd34601a575f3560e01c8063cae5791314601657601a565b601e565b5f5ffd5b60243610156086576082565b6002600435018060a0528060a052600435811015606e577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b8060a0526080526020608001608090036080f35b5f5ffd5b602a56"
 
 fn @store(arg0: function) [selector=0xf018a0a7, abi_params=[function], abi_returns=[]] {
   bb0:
@@ -70,13 +70,13 @@ fn @t() -> u256 [selector=0x92d0d153, abi_params=[], abi_returns=[word]] {
     v6 = gas
     v7 = abi_encode []
     v8 = not 31
-    v9 = and 174, v8
+    v9 = and 186, v8
     v10 = alloc raw, exact, uninitialized, infallible, v9
-    data_copy ExternalFunctionPointerHigherOrderTarget_initcode_0, v10, 143
+    data_copy ExternalFunctionPointerHigherOrderTarget_initcode_0, v10, 155
     v11 = slice_ptr v7
-    v12 = add v10, 143
+    v12 = add v10, 155
     mcopy v12, v11, 0 !metadata(memory=heap)
-    v13 = create 0, v10, 143
+    v13 = create 0, v10, 155
     jumpi v13, bb2, bb1
   bb1:
     revert_returndata

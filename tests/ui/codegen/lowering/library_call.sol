@@ -7,7 +7,7 @@
 // lowered to a DELEGATECALL.
 
 library Lib {
-    // COMMON-LABEL: @module runtime
+    // COMMON-LABEL: @module Lib_runtime
     // COMMON: push 0xed2f0bb8
     // COMMON: keccak256
     // COMMON: sload
@@ -26,7 +26,7 @@ library Lib {
 contract C {
     mapping(address => uint256) bal;
 
-    // LINKED-LABEL: @module runtime
+    // LINKED-LABEL: @module C_runtime
     // LINKED: push 0x3dd41ca6
     // LINKED: push 0xed2f0bb8
     // LINKED: mstore

@@ -215,7 +215,7 @@ fn ensure_contract_bytecode(
     // Valid code cannot have recursive creation dependencies; seed the entry
     // so an unexpected cycle terminates instead of recursing forever.
     bytecodes.insert(contract_id, codegen::lower::ContractBytecodes::default());
-    for dep in gcx.contract_bytecode_dependencies(contract_id) {
+    for dep in gcx.contract_bytecode_dependencies(contract_id).iter() {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
     let mut module = codegen::lower::lower_contract(gcx, contract_id, bytecodes);

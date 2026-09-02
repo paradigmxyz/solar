@@ -2,9 +2,9 @@
 //@ filecheck:
 
 contract SwitchSharedGrowthBudget {
-    // CHECK-LABEL: @module deployment
+    // CHECK-LABEL: @module SwitchSharedGrowthBudget_deployment
     // CHECK-NOT: indexed_jump
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module SwitchSharedGrowthBudget_runtime
     // CHECK: indexed_jump
     constructor(uint256 key) {
         assembly {

@@ -4,7 +4,10 @@
 //! sema evaluates Solidity source constants and reports semantic errors, while
 //! MIR folding must match 256-bit EVM wrapping and zero-divisor semantics.
 
-use crate::mir::{InstKind, ValueId};
+use crate::{
+    backend::evm::op,
+    mir::{InstKind, ValueId},
+};
 use alloy_primitives::U256;
 use std::cmp::Ordering;
 
@@ -18,35 +21,58 @@ pub(crate) fn eval_inst<E>(
     kind: &InstKind,
     mut get: impl FnMut(ValueId) -> Result<U256, E>,
 ) -> Result<Option<U256>, E> {
-    Ok(Some(match *kind {
-        InstKind::Add(a, b) => get(a)?.wrapping_add(get(b)?),
-        InstKind::Sub(a, b) => get(a)?.wrapping_sub(get(b)?),
-        InstKind::Mul(a, b) => get(a)?.wrapping_mul(get(b)?),
-        InstKind::Div(a, b) => div(get(a)?, get(b)?),
-        InstKind::SDiv(a, b) => i256_div(get(a)?, get(b)?),
-        InstKind::Mod(a, b) => rem(get(a)?, get(b)?),
-        InstKind::SMod(a, b) => i256_mod(get(a)?, get(b)?),
-        InstKind::Exp(a, b) => get(a)?.wrapping_pow(get(b)?),
-        InstKind::AddMod(a, b, n) => get(a)?.add_mod(get(b)?, get(n)?),
-        InstKind::MulMod(a, b, n) => get(a)?.mul_mod(get(b)?, get(n)?),
-        InstKind::And(a, b) => get(a)? & get(b)?,
-        InstKind::Or(a, b) => get(a)? | get(b)?,
-        InstKind::Xor(a, b) => get(a)? ^ get(b)?,
-        InstKind::Not(a) => !get(a)?,
-        InstKind::Clz(a) => U256::from(get(a)?.leading_zeros()),
-        InstKind::Shl(shift, value) => shl(get(shift)?, get(value)?),
-        InstKind::Shr(shift, value) => shr(get(shift)?, get(value)?),
-        InstKind::Sar(shift, value) => sar(get(shift)?, get(value)?),
-        InstKind::Byte(index, value) => byte(get(index)?, get(value)?),
-        InstKind::SignExtend(size, value) => signextend(get(size)?, get(value)?),
-        InstKind::Lt(a, b) => U256::from(get(a)? < get(b)?),
-        InstKind::Gt(a, b) => U256::from(get(a)? > get(b)?),
-        InstKind::SLt(a, b) => U256::from(i256_cmp(&get(a)?, &get(b)?) == Ordering::Less),
-        InstKind::SGt(a, b) => U256::from(i256_cmp(&get(a)?, &get(b)?) == Ordering::Greater),
-        InstKind::Eq(a, b) => U256::from(get(a)? == get(b)?),
-        InstKind::IsZero(a) => U256::from(get(a)?.is_zero()),
-        _ => return Ok(None),
-    }))
+    let Some(opcode) = kind.evm_opcode() else { return Ok(None) };
+    let Some((inputs, 1)) = op::stack_io(opcode) else { return Ok(None) };
+    if inputs > 3 {
+        return Ok(None);
+    }
+
+    let mut values = [U256::ZERO; 3];
+    let values = &mut values[..usize::from(inputs)];
+    if eval_opcode(opcode, values).is_none() {
+        return Ok(None);
+    }
+    let operands = kind.operands();
+    if operands.len() != values.len() {
+        return Ok(None);
+    }
+    for (value, operand) in values.iter_mut().zip(operands) {
+        *value = get(operand)?;
+    }
+    Ok(eval_opcode(opcode, values))
+}
+
+/// Evaluates a pure EVM opcode with concrete operands in pop order.
+pub(crate) fn eval_opcode(opcode: u8, operands: &[U256]) -> Option<U256> {
+    Some(match (opcode, operands) {
+        (op::ADD, &[a, b]) => a.wrapping_add(b),
+        (op::SUB, &[a, b]) => a.wrapping_sub(b),
+        (op::MUL, &[a, b]) => a.wrapping_mul(b),
+        (op::DIV, &[a, b]) => div(a, b),
+        (op::SDIV, &[a, b]) => i256_div(a, b),
+        (op::MOD, &[a, b]) => rem(a, b),
+        (op::SMOD, &[a, b]) => i256_mod(a, b),
+        (op::EXP, &[a, b]) => a.wrapping_pow(b),
+        (op::ADDMOD, &[a, b, n]) => a.add_mod(b, n),
+        (op::MULMOD, &[a, b, n]) => a.mul_mod(b, n),
+        (op::AND, &[a, b]) => a & b,
+        (op::OR, &[a, b]) => a | b,
+        (op::XOR, &[a, b]) => a ^ b,
+        (op::NOT, &[a]) => !a,
+        (op::CLZ, &[a]) => U256::from(a.leading_zeros()),
+        (op::SHL, &[shift, value]) => shl(shift, value),
+        (op::SHR, &[shift, value]) => shr(shift, value),
+        (op::SAR, &[shift, value]) => sar(shift, value),
+        (op::BYTE, &[index, value]) => byte(index, value),
+        (op::SIGNEXTEND, &[size, value]) => signextend(size, value),
+        (op::LT, &[a, b]) => U256::from(a < b),
+        (op::GT, &[a, b]) => U256::from(a > b),
+        (op::SLT, &[a, b]) => U256::from(i256_cmp(&a, &b) == Ordering::Less),
+        (op::SGT, &[a, b]) => U256::from(i256_cmp(&a, &b) == Ordering::Greater),
+        (op::EQ, &[a, b]) => U256::from(a == b),
+        (op::ISZERO, &[a]) => U256::from(a.is_zero()),
+        _ => return None,
+    })
 }
 
 fn div(a: Word, b: Word) -> Word {

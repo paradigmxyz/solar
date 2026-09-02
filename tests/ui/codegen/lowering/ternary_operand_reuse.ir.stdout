@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse (runtime) ===
+@module TernaryOperandReuse_runtime
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x718ec94
+  eq
+  push bb5
+  jumpi
+  dup 1
+  push 0xfd9e0caf
+  eq
+  push bb8
+  jumpi
+  jump bb4
+bb4 [cold]:
+  push 0
+  push 0
+  revert
+bb5:
+  push 68
+  calldatasize
+  lt
+  push bb4
+  jumpi
+  caller
+  push 36
+  calldataload
+  push 4
+  calldataload
+  addmod
+  jump bb9
+bb9:
+  push 0
+  mstore
+  caller
+  push 32
+  mstore
+  push 64
+  push 0
+  return
+bb8:
+  push 36
+  calldatasize
+  lt
+  push bb4
+  jumpi
+  push 4
+  calldataload
+  caller
+  caller
+  mulmod
+  jump bb9

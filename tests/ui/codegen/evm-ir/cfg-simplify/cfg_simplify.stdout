@@ -11,8 +11,9 @@
     push 1
     push bb3
     pop
--   push bb7
-+   push bb8
+    push bb7
+    pop
+    push bb9
     pop
 -   jump bb4
 +   push 1
@@ -28,8 +29,16 @@
 -   jumpi bb6, bb6
 - bb6:
 -   stop
-- bb7:
+  bb7:
 -   jump bb8
-  bb8:
+- bb8:
+    stop
+  bb9:
+    push 7
+-   push bb10
+-   jumpi
+-   jump bb10
+- bb10:
++   pop
     stop
   

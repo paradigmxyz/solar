@@ -53,6 +53,11 @@ pub(crate) fn parse_pass_pipeline<P: Copy>(
     Ok(Some(passes))
 }
 
+/// Returns whether pass managers should validate IR after each pass.
+pub(crate) fn should_validate_ir(gcx: Gcx<'_>) -> bool {
+    gcx.sess.opts.unstable.validate_ir.unwrap_or(cfg!(debug_assertions))
+}
+
 /// Returns the display label for a configured IR pipeline.
 pub fn pipeline_label(value: &str) -> &str {
     if value == "default" { "pipeline-default" } else { value }
@@ -162,7 +167,7 @@ fn run_passes_inner(
             analyses.finish_pass(pass_changed);
             changed |= pass_changed;
 
-            if validate_each && cfg!(debug_assertions) {
+            if validate_each && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
             }
         }
@@ -185,7 +190,7 @@ fn run_passes_inner(
         let phase_changed = module.phase != new_phase;
         module.advance_phase(new_phase);
         changed |= phase_changed;
-        if cfg!(debug_assertions) {
+        if validate_each && should_validate_ir(gcx) {
             validate_module_after_pass(module, new_phase.name());
         }
     }

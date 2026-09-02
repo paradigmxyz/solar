@@ -597,8 +597,6 @@ pub(crate) struct FunctionAttributes {
     pub(crate) is_fallback: bool,
     /// Whether this is a receive function.
     pub(crate) is_receive: bool,
-    /// Whether this is the synthesized runtime dispatch entry.
-    pub(crate) is_dispatch_entry: bool,
     /// Whether this function originated from a Yul function definition.
     pub(crate) is_yul: bool,
     /// Whether a removed return value may still reference caller-visible memory.
@@ -621,7 +619,6 @@ impl Default for FunctionAttributes {
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
-            is_dispatch_entry: false,
             is_yul: false,
             may_return_memory: false,
             is_function_pointer_dispatcher: false,

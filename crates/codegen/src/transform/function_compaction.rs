@@ -79,20 +79,25 @@ impl MirPass for MergeEquivalentFunctions {
 }
 
 /// Returns whether `func` has a private MIR signature that direct callers may rewrite.
-fn is_internal_body(func: &Function) -> bool {
+fn is_internal_body(module: &Module, func_id: FunctionId, func: &Function) -> bool {
     func.selector.is_none()
         && !func.is_public()
         && !func.attributes.is_constructor
         && !func.attributes.is_fallback
         && !func.attributes.is_receive
-        && !func.attributes.is_dispatch_entry
+        && module.dispatch_entry() != Some(func_id)
 }
 
-fn has_rewritable_signature(func: &Function, is_called: bool) -> bool {
+fn has_rewritable_signature(
+    module: &Module,
+    func_id: FunctionId,
+    func: &Function,
+    is_called: bool,
+) -> bool {
     is_called
         && !func.params.is_empty()
         && func.params.len() == func.arg_indices().count()
-        && is_internal_body(func)
+        && is_internal_body(module, func_id, func)
         && frame_offsets_are_local(func)
 }
 
@@ -228,7 +233,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
     // into a live callee argument. Starting candidate arguments dead computes transitive deadness,
     // including arguments forwarded around an otherwise-unused recursive cycle.
     for (func_id, func) in module.functions.iter_enumerated() {
-        if !has_rewritable_signature(func, called.contains(func_id)) {
+        if !has_rewritable_signature(module, func_id, func, called.contains(func_id)) {
             live[func_id].insert_all();
         }
     }
@@ -389,7 +394,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
             && func.returns.len() == 1
-            && is_internal_body(func)
+            && is_internal_body(module, func_id, func)
             && frame_offsets_are_local(func)
             && returned_value_dependencies_are_pure(func)
         {
@@ -623,7 +628,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
         let recursive = CallGraphInfo::new(module);
         let mut groups = FxHashMap::<u64, Vec<FunctionId>>::default();
         for (func_id, func) in module.functions.iter_enumerated() {
-            if !merged.contains(func_id) && is_merge_candidate(func_id, func, &recursive) {
+            if !merged.contains(func_id) && is_merge_candidate(module, func_id, func, &recursive) {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
             }
         }
@@ -672,9 +677,14 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     total
 }
 
-fn is_merge_candidate(func_id: FunctionId, func: &Function, calls: &CallGraphInfo) -> bool {
+fn is_merge_candidate(
+    module: &Module,
+    func_id: FunctionId,
+    func: &Function,
+    calls: &CallGraphInfo,
+) -> bool {
     !func.blocks.is_empty()
-        && is_internal_body(func)
+        && is_internal_body(module, func_id, func)
         && (!calls.is_recursive(func_id) || has_only_direct_self_recursion(func_id, func, calls))
 }
 
@@ -827,10 +837,9 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_constructor == rhs.attributes.is_constructor
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
-        && lhs.attributes.is_dispatch_entry == rhs.attributes.is_dispatch_entry
+        && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
-        && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
         && lhs.attributes.no_inline == rhs.attributes.no_inline
 }
 

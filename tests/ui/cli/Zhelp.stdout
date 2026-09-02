@@ -54,6 +54,9 @@ Options:
       -Zpass-diff
           Print a before-and-after diff for each pass explicitly selected by an IR pipeline
 
+      -Zvalidate-ir=<BOOL>
+          Validate MIR and EVM IR after each pass. Enabled by default in debug builds. Accepts `true` or `false`
+
       -Ztime-passes
           Print the time spent in each MIR and EVM IR pass
 

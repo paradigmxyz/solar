@@ -22,21 +22,18 @@ impl Assembler<'_> {
 
         ir::builder::resolve_known_deferred_constants(&mut ir_program, &self.deferred_values);
 
-        let input_is_valid = cfg!(debug_assertions) && ir::builder::is_valid(&ir_program);
+        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(&ir_program);
         let errors_before = self.gcx.dcx().err_count();
         let _changed = ir::run_pipeline(self.gcx, &mut ir_program, None);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        debug_assert!(!input_is_valid || ir::builder::is_valid(&ir_program));
+        debug_assert!(!input_is_valid || ir::verify::Verifier::is_valid(&ir_program));
         let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        if !self.gcx.sess.opts.evm_version.has_bitwise_shifting() {
-            ir::validate(self.gcx.dcx(), &ir_program);
-        }
-        ir::validate_evm_version(self.gcx.dcx(), &ir_program, self.gcx.sess.opts.evm_version);
+        ir::verify::Verifier::new(self.gcx).verify_after_legalization(&ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
@@ -46,7 +43,15 @@ impl Assembler<'_> {
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        let evm_ir = capture_evm_ir.then_some(ir_program);
+        let evm_ir = if capture_evm_ir {
+            Some(ir_program)
+        } else {
+            self.program = ir_program;
+            self.program.clear();
+            None
+        };
+        self.block_labels = labels;
+        self.block_labels.clear();
         PreparedAssembly {
             evm_ir,
             program,
@@ -224,7 +229,7 @@ fn allocate_referenced_labels(
             }
         }
         if let Some(terminator) = &block.terminator {
-            let next = next_block(module, block_id);
+            let next = module.next_block(block_id);
             terminator.kind.visit_label_targets(next, |target| {
                 referenced.insert(target);
             });
@@ -279,7 +284,7 @@ fn lower_instruction(
                     |value| AsmInst::op_immediate(opcode, value),
                 ))
             }
-            op::StackOpLowering::LegacyExchange(opcodes) => {
+            op::StackOpLowering::SwapSequence(opcodes) => {
                 for opcode in opcodes {
                     program.push_op(opcode);
                 }
@@ -309,7 +314,7 @@ fn lower_terminator(
                 program.push_op(op::JUMP);
                 return;
             }
-            if next_block(module, block_id) == Some(*target) {
+            if module.next_block(block_id) == Some(*target) {
                 return;
             }
             let label = label_for_block(assembler, module, *target, labels);
@@ -317,7 +322,7 @@ fn lower_terminator(
             program.push_op(op::JUMP);
         }
         ir::TerminatorKind::JumpI { then_block, else_block } => {
-            let next = next_block(module, block_id);
+            let next = module.next_block(block_id);
             if next == Some(*else_block) {
                 let label = label_for_block(assembler, module, *then_block, labels);
                 program.push_label(label);
@@ -340,16 +345,11 @@ fn lower_terminator(
             indexed_jump::lower(assembler, program, targets, module, labels, indexed_jump);
         }
         ir::TerminatorKind::Op(opcode) => {
-            if *opcode != op::STOP || next_block(module, block_id).is_some() {
+            if *opcode != op::STOP || module.next_block(block_id).is_some() {
                 program.push_op(*opcode);
             }
         }
     }
-}
-
-pub(super) fn next_block(module: &ir::Module, block: BlockId) -> Option<BlockId> {
-    let next = block.index() + 1;
-    (next < module.blocks.len()).then(|| BlockId::from_usize(next))
 }
 
 pub(super) fn label_for_block(

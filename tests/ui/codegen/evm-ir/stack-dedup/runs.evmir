@@ -1,0 +1,16 @@
+//@compile-flags: -Zevm-ir-pipeline=stack-dedup
+//@filecheck:
+@module StackDedup
+
+// Remove a permutation that exchanges two copies separated by pushes and another swap.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}swap 3
+// CHECK-NEXT: -   swap 2
+bb0:
+  push 45
+  dup 1
+  push 46
+  push 47
+  swap 3
+  swap 2
+  stop

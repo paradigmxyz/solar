@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/global_stack_calldata_alias.sol:Test (runtime) ===
-@module runtime
+@module Test_runtime
 bb0:
   callvalue
   push bb3
@@ -38,15 +38,21 @@ bb0:
 bb25:
   dup 3
   add
+  dup 1
+  push 160
+  mstore
   swap 1
   pop
   jump bb24
 bb24:
-  swap 1
-  dup 2
+  dup 1
+  push 160
+  mstore
   lt
   push bb10
   jumpi
+  push 160
+  mload
   jump bb23
 bb23:
   push 128
@@ -56,7 +62,7 @@ bb23:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb9:
   push 2

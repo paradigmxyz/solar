@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:DataTypes (runtime) ===
-@module runtime
+@module DataTypes_runtime
 bb0:
   push 0
-  dup 1
+  push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
-@module runtime
+@module Inner_runtime
 bb0:
   callvalue
   push bb3
@@ -31,6 +31,9 @@ bb0:
   calldataload
   dup 2
   add
+  dup 1
+  push 160
+  mstore
   swap 1
   dup 2
   lt
@@ -49,7 +52,7 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb7 [cold]:
   push 0x4e487b71
@@ -64,7 +67,7 @@ bb7 [cold]:
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
-@module runtime
+@module Outer_runtime
 bb0:
   callvalue
   push bb3
@@ -100,11 +103,14 @@ bb13:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb7:
   push 64
   mload
+  dup 1
+  push 224
+  mstore
   push 96
   dup 2
   add
@@ -130,6 +136,9 @@ bb7:
   swap 1
   mstore
   gas
+  dup 1
+  push 256
+  mstore
   push 0
   push 0
   push 68
@@ -144,9 +153,15 @@ bb7:
   push bb11
   jumpi
   returndatasize
+  dup 1
+  push 192
+  mstore
   push 63
   dup 2
   add
+  dup 1
+  push 160
+  mstore
   dup 2
   dup 2
   lt
@@ -157,6 +172,9 @@ bb7:
   and
   push 64
   mload
+  dup 1
+  push 224
+  mstore
   swap 1
   dup 2
   add
@@ -168,7 +186,13 @@ bb7:
   push 32
   dup 2
   add
+  dup 1
+  push 160
+  mstore
   dup 3
+  dup 1
+  push 192
+  mstore
   push 0
   dup 3
   returndatacopy
@@ -184,14 +208,18 @@ bb7:
   push 32
   gt
   or
+  swap 1
+  pop
   push bb3
   jumpi
+  push 160
+  mload
   mload
   jump bb13
 bb11 [cold]:
   returndatasize
   push 0
-  dup 1
+  push 0
   returndatacopy
   returndatasize
   push 0
@@ -209,7 +237,7 @@ bb12 [cold]:
   push 0
   revert
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:C (runtime) ===
-@module runtime
+@module C_runtime
 bb0:
   callvalue
   push bb3
@@ -233,6 +261,9 @@ bb0:
   jumpi
   push 64
   mload
+  dup 1
+  push 224
+  mstore
   push 96
   dup 2
   add
@@ -257,6 +288,9 @@ bb0:
   swap 1
   mstore
   gas
+  dup 1
+  push 256
+  mstore
   push 0
   push 0
   push 68
@@ -271,9 +305,15 @@ bb0:
   push bb9
   jumpi
   returndatasize
+  dup 1
+  push 192
+  mstore
   push 63
   dup 2
   add
+  dup 1
+  push 160
+  mstore
   dup 2
   dup 2
   lt
@@ -284,6 +324,9 @@ bb0:
   and
   push 64
   mload
+  dup 1
+  push 224
+  mstore
   swap 1
   dup 2
   add
@@ -295,7 +338,13 @@ bb0:
   push 32
   dup 2
   add
+  dup 1
+  push 160
+  mstore
   dup 3
+  dup 1
+  push 192
+  mstore
   push 0
   dup 3
   returndatacopy
@@ -311,8 +360,12 @@ bb0:
   push 32
   gt
   or
+  swap 1
+  pop
   push bb3
   jumpi
+  push 160
+  mload
   mload
   push 128
   mstore
@@ -321,12 +374,12 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb9 [cold]:
   returndatasize
   push 0
-  dup 1
+  push 0
   returndatacopy
   returndatasize
   push 0

@@ -50,9 +50,9 @@ fn @rejectsExplicit() -> bool [selector=0x90887b1f, payable, abi_params=[], abi_
     v2 = add v1, 32
     mstore v2, 0xffffffffffffffffffffffffffffffffe01660405234605f5760c060c0607038
     v3 = add v1, 64
-    mstore v3, 0x3016020820191508111905015605b576057565b6063565b5f80fd5b6053565b
+    mstore v3, 0x3016020820191508111905015605b576057565b6063565b5f5ffd5b6053565b
     v4 = add v1, 96
-    mstore v4, 0x5f80fd5b600380606d5f395ff35f80fd00000000000000000000000000000000
+    mstore v4, 0x5f5ffd5b600380606d5f395ff35f5ffd00000000000000000000000000000000
     v5 = memory_object_len memorybytes, v0
     v6 = add 0, v5
     v7 = lt v6, 0
@@ -101,7 +101,7 @@ fn @rejectsImplicit() -> bool [selector=0x05da30eb, payable, abi_params=[], abi_
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x34600d5760038060115f395ff35b5f5ffd5f80fd000000000000000000000000
+    mstore v1, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
     v2 = internal_call @deploy, 1, v0
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     v4 = eq v3, 0
@@ -113,7 +113,7 @@ fn @rejectsSynthetic() -> bool [selector=0x28868c98, payable, abi_params=[], abi
     v0 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v0, 33
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x60c06040523460105760015f556014565b5f80fd5b600380601e5f395ff35f80
+    mstore v1, 0x60c06040523460105760015f556014565b5f5ffd5b600380601e5f395ff35f5f
     v2 = add v1, 32
     mstore v2, 0xfd00000000000000000000000000000000000000000000000000000000000000
     v3 = internal_call @deploy, 1, v0
@@ -127,7 +127,7 @@ fn @rejectsInherited() -> bool [selector=0xb3ba0b5d, payable, abi_params=[], abi
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 29
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x60c060405234600c576010565b5f80fd5b600380601a5f395ff35f80fd000000
+    mstore v1, 0x60c060405234600c576010565b5f5ffd5b600380601a5f395ff35f5ffd000000
     v2 = internal_call @deploy, 1, v0
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     v4 = eq v3, 0
@@ -139,7 +139,7 @@ fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 17
     v1 = memory_object_data memorybytes, v0
-    mstore v1, 0x60c0604052600380600e5f395ff35f80fd000000000000000000000000000000
+    mstore v1, 0x60c0604052600380600e5f395ff35f5ffd000000000000000000000000000000
     v2 = internal_call @deploy, 1, v0
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     v4 = eq v3, 0

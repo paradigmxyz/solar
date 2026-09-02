@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/cold_call_fallthrough.sol:ColdCallFallthrough (runtime) ===
-@module runtime
+@module ColdCallFallthrough_runtime
 bb0:
   callvalue
   push bb4
@@ -21,7 +21,7 @@ bb0:
   jump bb4
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb5:
   push 160
@@ -55,11 +55,10 @@ bb15 [cold]:
   push bb17
   jumpi
   pop
+  push 4
   push 0x7a65726f
   push 224
   shl
-  push 4
-  swap 1
   jump bb22
 bb22 [cold]:
   push 0x8c379a0
@@ -122,9 +121,8 @@ bb19 [cold]:
   push 0x74776f
   jump bb24
 bb21 [cold]:
+  push 5
   push 0x6f74686572
   push 216
   shl
-  push 5
-  swap 1
   jump bb22

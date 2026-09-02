@@ -1,12 +1,32 @@
 //! Outline repeated closed computations and large immediate pushes.
+//!
+//! The pass finds repeated straight-line machine instruction runs, replaces each profitable site
+//! with a jump to one shared body, and returns from that body through a stack-held continuation.
+//! It also finds structurally equal runs whose concrete pushes differ, turning those pushes into
+//! stack parameters in size-oriented modes. A final specialized path shares repeated large pushes
+//! when the call and return sequence is smaller than spelling out each literal.
+//!
+//! Candidates must be closed stack computations with known effects: they consume a fixed number
+//! of inputs, produce a fixed number of outputs, contain no control flow or observable operation,
+//! and contain no control flow or observable operation. Profitability includes the shared body,
+//! per-site call sequence, continuation labels, and target-dependent push widths. Sites are
+//! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
+//! representation.
+//!
+//! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
+//! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
+//! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
+//! Outlining runs before late CFG/CSE/DCE cleanup, which removes jump thunks and redundancies
+//! exposed by sharing; assembly remains responsible only for final label offsets and push widths.
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, MachineInstKey, StackDepths, instruction_size_lower_bound},
+    compact_pushes::selected_len,
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op, push_len,
+    op,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -41,7 +61,6 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
         target: "solar::codegen::evm_ir::outline",
         module = %module.name,
         blocks = module.blocks.len(),
-        unknown_target_stack_headroom = module.unknown_target_stack_headroom,
         "analyzing machine instruction outlines"
     );
     let mut state = RunState::default();
@@ -104,7 +123,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 // before the shared stub's fixed overhead. A run no larger than that site can
                 // never save bytes regardless of its occurrence count, so do not intern it.
                 let can_amortize = run_size > 7 + inputs as usize;
-                let added_peak = 2usize.max(1 + peak as usize);
                 if len >= MIN_MACHINE_RUN && can_amortize && (closed || open_size_run) {
                     let key = MachineInstSlice {
                         hash: hashes.range(block_id, start, end),
@@ -116,7 +134,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                         len,
                         inputs: inputs as u16,
                         outputs: outputs as u16,
-                        added_peak,
                     });
                 }
             }
@@ -127,7 +144,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     if groups.is_empty() {
         return false;
     }
-    let Some(depths) = StackDepths::new(module) else { return false };
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
         (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
@@ -137,9 +153,6 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     for (_, sites) in groups {
         let mut free = SmallVec::<[Site; 2]>::new();
         for site in sites {
-            if !depths.has_headroom(site.block, site.start, site.added_peak) {
-                continue;
-            }
             let end = site.start + site.len;
             let instruction_count = module.blocks[site.block].instructions.len();
             let claimed = claimed
@@ -290,8 +303,10 @@ fn outline_parametric_machine_runs(
         }
     }
 
-    let Some(depths) = StackDepths::new(module) else { return false };
     let mut groups: Vec<_> = candidates.into_iter().filter(|(_, sites)| sites.len() >= 2).collect();
+    if groups.is_empty() {
+        return false;
+    }
     groups.sort_unstable_by_key(|(key, sites)| {
         let first = sites[0];
         (std::cmp::Reverse(key.insts.len()), first.block.index(), first.start)
@@ -348,12 +363,6 @@ fn outline_parametric_machine_runs(
         if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
             continue;
         }
-        let added_peak = parameters.len() + 2;
-        free.retain(|site| depths.has_headroom(site.block, site.start, added_peak));
-        if free.len() < 2 {
-            continue;
-        }
-
         let Some(stub_body) = parameterize_body(first_body, &parameters) else { continue };
         let inline_size = free
             .iter()
@@ -541,22 +550,18 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
-            let push_size = push_len(gcx.sess.opts.evm_version, value);
+            let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
             let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
-            (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING).then_some(value)
+            (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING)
+                .then_some((value, push_size))
         })
         .collect();
     if values.is_empty() {
         return false;
     }
-    let Some(depths) = StackDepths::new(module) else { return false };
-    for occurrences in sites.values_mut() {
-        occurrences.retain(|site| depths.has_headroom(site.0, site.1, 2));
-    }
-    values.retain(|value| {
+    values.retain(|(value, push_size)| {
         let occurrences = &sites[value];
-        let push_size = push_len(gcx.sess.opts.evm_version, *value);
         let inline = occurrences.len() * push_size;
         let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
         occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
@@ -565,12 +570,12 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         return false;
     }
     values.sort_unstable();
-    let site_count = values.iter().map(|value| sites[value].len()).sum::<usize>();
+    let site_count = values.iter().map(|(value, _)| sites[value].len()).sum::<usize>();
     let Some(labels) = state.labels(module, values.len() + site_count) else { return false };
     let mut labels = labels.into_iter();
 
     let mut edits = OutlineEdits::default();
-    for value in values {
+    for (value, _) in values {
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
         stub.instructions.push(Instruction::push_value(value));
         stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(1)));
@@ -637,12 +642,11 @@ fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {
         return Some((0, 0, 1));
     }
     if let Some(stack_op) = inst.as_stack_op() {
-        return Some(match stack_op {
-            op::StackOp::Dup(depth) => (u16::from(depth), 0, 1),
-            op::StackOp::Swap(depth) => (u16::from(depth) + 1, 0, 0),
-            op::StackOp::Exchange(_, depth) => (u16::from(depth) + 1, 0, 0),
-            op::StackOp::Pop => (1, 1, 0),
-        });
+        let required = u16::try_from(stack_op.required_depth()).ok()?;
+        let growth = stack_op.net_growth();
+        let inputs = u16::try_from(growth.saturating_neg().max(0)).ok()?;
+        let outputs = u16::try_from(growth.max(0)).ok()?;
+        return Some((required, inputs, outputs));
     }
     Some(match inst.opcode {
         op::CALLDATASIZE | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => (0, 0, 1),
@@ -677,7 +681,6 @@ struct Site {
     len: usize,
     inputs: u16,
     outputs: u16,
-    added_peak: usize,
 }
 
 struct ChosenGroup {

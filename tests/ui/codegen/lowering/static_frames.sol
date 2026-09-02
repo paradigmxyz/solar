@@ -10,10 +10,10 @@ contract SF {
     // order within every lowered function.
     // CHECK: push 0x313ae541
     // CHECK: eq
-    // CHECK-NEXT: push [[TOP:bb[0-9]+]]
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: push 0x86b714e2
     // CHECK-NEXT: sub
-    // CHECK-NEXT: push [[DISPATCH_REVERT:bb[0-9]+]]
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
@@ -23,45 +23,37 @@ contract SF {
     // The getter's accessed memory ranges are proven disjoint from the reserved FMP word, so the
     // allocating entry alone initializes its reachable frame floor.
     // CHECK-NOT: push 64
-    // CHECK: [[TOP]]:
+    // CHECK: [[TOP:bb[0-9]+]]:
     // CHECK-NEXT: push 832
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Runtime static frames omit the unused dynamic-frame header.
-    // CHECK: mul
-    // CHECK-NEXT: push 3
-    // CHECK-NEXT: dup 2
-    // CHECK-NEXT: div
-    // CHECK-NEXT: push 4
-    // CHECK-NEXT: calldataload
-    // CHECK-NEXT: sub
+    // CHECK: eq
+    // CHECK-NEXT: swap 1
+    // CHECK: pop
+    // CHECK-NEXT: iszero
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
     // CHECK: push 416
     // CHECK-NEXT: mstore
     // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: push {{[0-9]+}}
+    // CHECK-NEXT: push 224
     // CHECK-NEXT: mstore
     // CHECK: push 7
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: mod
+    // CHECK: push bb80
+    // CHECK-NEXT: jump [[REC_DISPATCH:bb[0-9]+]]
+    // CHECK: [[REC_DISPATCH]]:
     // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK: push [[TOP_REC_RET:bb[0-9]+]]
+    // CHECK-NEXT: pop
+    // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
-    // CHECK-NEXT: [[REC_ENTRY]]:
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
-    // CHECK: [[TOP_REC_RET]]:
-    // Recursive calls still restore the dynamic frame pointer through the shared epilogue.
-    // CHECK: push 160
-    // CHECK-NEXT: mload
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

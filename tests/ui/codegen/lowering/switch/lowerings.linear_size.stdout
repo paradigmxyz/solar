@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
-@module runtime
+@module SwitchLowerings_runtime
 bb0:
   callvalue
-  push bb2
+  push bb11
   jumpi
   push 0
   calldataload
@@ -23,6 +23,10 @@ bb12:
   push 32
   push 0
   return
+bb11:
+  push 0
+  push 0
+  revert
 bb4:
   dup 1
   push 16
@@ -86,18 +90,9 @@ bb10:
   pop
   push 107
   jump bb12
-bb11:
-  pop
-  push 0
-  dup 1
-  revert
-bb2 [cold]:
-  push 0
-  dup 1
-  revert
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x82 ; bb9
+PUSH1 0x1b ; bb1
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -107,7 +102,7 @@ MSTORE
 DUP1
 PUSH1 0x08
 SUB
-PUSH1 0x1b ; bb1
+PUSH1 0x1f ; bb2
 JUMPI
 POP
 PUSH1 0x64
@@ -120,89 +115,83 @@ PUSH0
 RETURN
 ; bb1
 JUMPDEST
+PUSH0
+PUSH0
+REVERT
+; bb2
+JUMPDEST
 DUP1
 PUSH1 0x10
 SUB
-PUSH1 0x29 ; bb2
+PUSH1 0x2d ; bb3
 JUMPI
 POP
 PUSH1 0x65
 PUSH1 0x14 ; bb0
 JUMP
-; bb2
+; bb3
 JUMPDEST
 DUP1
 PUSH1 0x18
 SUB
-PUSH1 0x37 ; bb3
+PUSH1 0x3b ; bb4
 JUMPI
 POP
 PUSH1 0x66
 PUSH1 0x14 ; bb0
 JUMP
-; bb3
+; bb4
 JUMPDEST
 DUP1
 PUSH1 0x20
 SUB
-PUSH1 0x45 ; bb4
+PUSH1 0x49 ; bb5
 JUMPI
 POP
 PUSH1 0x67
 PUSH1 0x14 ; bb0
 JUMP
-; bb4
+; bb5
 JUMPDEST
 DUP1
 PUSH1 0x28
 SUB
-PUSH1 0x53 ; bb5
+PUSH1 0x57 ; bb6
 JUMPI
 POP
 PUSH1 0x68
 PUSH1 0x14 ; bb0
 JUMP
-; bb5
+; bb6
 JUMPDEST
 DUP1
 PUSH1 0x30
 SUB
-PUSH1 0x61 ; bb6
+PUSH1 0x65 ; bb7
 JUMPI
 POP
 PUSH1 0x69
 PUSH1 0x14 ; bb0
 JUMP
-; bb6
+; bb7
 JUMPDEST
 DUP1
 PUSH1 0x38
 SUB
-PUSH1 0x6f ; bb7
+PUSH1 0x73 ; bb8
 JUMPI
 POP
 PUSH1 0x6a
 PUSH1 0x14 ; bb0
 JUMP
-; bb7
+; bb8
 JUMPDEST
 DUP1
 PUSH1 0x40
 SUB
-PUSH1 0x7d ; bb8
+PUSH1 0x1b ; bb1
 JUMPI
 POP
 PUSH1 0x6b
 PUSH1 0x14 ; bb0
 JUMP
-; bb8
-JUMPDEST
-POP
-PUSH0
-DUP1
-REVERT
-; bb9
-JUMPDEST
-PUSH0
-DUP1
-REVERT

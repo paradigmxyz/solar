@@ -20,7 +20,7 @@ use super::{
             assembly::{estimated_indexed_jump_code_size, packs_indexed_jump},
             immediate_materialization_cost,
         },
-        op, push_len,
+        op::{self, push_len},
         stack::StackOp,
     },
     EvmCodegen,
@@ -1579,7 +1579,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.emit_operand(func, entries[mid].value_id);
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.asm.emit_push_label(left_label);
+        self.emit_push_label(left_label);
         self.asm.emit_op(op::JUMPI);
         self.scheduler.instruction_executed(1, None);
 
@@ -1804,13 +1804,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.scheduler.stack.push_unknown();
         self.asm.emit_op(op::GT);
         self.scheduler.instruction_executed_untracked(2);
-        self.asm.emit_push_label(in_range);
+        self.emit_push_label(in_range);
         self.asm.emit_op(op::JUMPI);
         self.scheduler.instruction_executed(1, None);
 
         let indexed_stack = self.scheduler.stack.clone();
         self.emit_stack_op(StackOp::Pop);
-        self.asm.emit_push_label(self.block_labels[&default]);
+        self.emit_push_label(self.block_labels[&default]);
         self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(in_range);
@@ -1849,20 +1849,20 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.instruction_executed_untracked(2);
         }
         if self.emitting_entry {
-            self.asm.emit_push_label(self.block_labels[&target]);
+            self.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMPI);
             self.scheduler.instruction_executed(1, None);
         } else {
             self.asm.emit_op(op::ISZERO);
             self.scheduler.instruction_executed_untracked(1);
             let next = miss.unwrap_or_else(|| self.asm.new_label());
-            self.asm.emit_push_label(next);
+            self.emit_push_label(next);
             self.asm.emit_op(op::JUMPI);
             self.scheduler.instruction_executed(1, None);
 
             let next_stack = self.scheduler.stack.clone();
             self.emit_stack_op(StackOp::Pop);
-            self.asm.emit_push_label(self.block_labels[&target]);
+            self.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
 
             if miss.is_none() {
@@ -1877,7 +1877,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_stack_op(StackOp::Pop);
         }
         if !can_fallthrough {
-            self.asm.emit_push_label(self.block_labels[&default]);
+            self.emit_push_label(self.block_labels[&default]);
             self.asm.emit_op(op::JUMP);
         }
     }
@@ -2043,7 +2043,7 @@ mod tests {
 
     #[test]
     fn models_locally_packed_indexed_jump_sizes() {
-        assert_eq!(estimated_indexed_jump_code_size(20, 1, 1, EvmVersion::Cancun, true), 30);
+        assert_eq!(estimated_indexed_jump_code_size(20, 1, 1, EvmVersion::Cancun, true), 27);
         assert_eq!(estimated_indexed_jump_code_size(33, 1, 1, EvmVersion::Cancun, true), 57);
         assert_eq!(estimated_indexed_jump_code_size(20, 2, 2, EvmVersion::Cancun, false), 108);
     }

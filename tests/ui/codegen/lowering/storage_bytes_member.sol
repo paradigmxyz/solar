@@ -43,6 +43,15 @@ contract StorageBytesMember {
     // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
     // CHECK: [[PUSH_RANGE]]:
     // CHECK: keccak256
+    // CHECK: jump [[LOOP:bb[0-9]+]]
+    // CHECK: [[LOOP]]:
+    // CHECK: push [[LOOP_BODY:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK: [[LOOP_BODY]]:
+    // CHECK: sload
+    // CHECK: mcopy
+    // CHECK: sstore
+    // CHECK: jump [[LOOP]]
     function pushRange(uint8 from, uint8 count) external {
         KeccakState storage state = states[msg.sender];
         for (uint256 i = 0; i < count; i++) {
@@ -52,7 +61,6 @@ contract StorageBytesMember {
 
     // CHECK: [[POP_ONE]]:
     // CHECK: keccak256
-    // CHECK: sload
     function popOne() external {
         KeccakState storage state = states[msg.sender];
         state.part.pop();
@@ -61,13 +69,18 @@ contract StorageBytesMember {
     // CHECK: [[LEN]]:
     // CHECK: keccak256
     // CHECK: mload
+    // CHECK: jump [[RETURN:bb[0-9]+]]
+    // CHECK: [[RETURN]]:
+    // CHECK: return
     function len() external view returns (uint256) {
         KeccakState storage state = states[msg.sender];
         return state.part.length;
     }
 
     // CHECK: [[AT]]:
-    // CHECK: keccak256
+    // CHECK: caller
+    // CHECK: push 32
+    // CHECK-NEXT: mstore
     // CHECK: mload
     // CHECK: mload
     function at(uint256 i) external view returns (bytes1) {
@@ -84,8 +97,9 @@ contract StorageBytesMember {
     }
 
     // CHECK: [[WHOLE]]:
-    // CHECK: keccak256
-    // CHECK: sload
+    // CHECK: caller
+    // CHECK: push 32
+    // CHECK-NEXT: mstore
     // CHECK: mcopy
     // CHECK: return
     function whole() external view returns (bytes memory) {

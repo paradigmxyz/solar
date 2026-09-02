@@ -9,7 +9,7 @@
 contract StackPhiLoop {
     uint256 private stored;
 
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module StackPhiLoop_runtime
     // CHECK: push 0x50d1f082
     // CHECK: push 0x71b76bb2
     // CHECK: eq
@@ -19,7 +19,7 @@ contract StackPhiLoop {
     // CHECK: push 7
     // CHECK: [[CARRIED_MERGE:bb[0-9]+]]:
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
-    // CHECK: [[CARRIED_HEADER]] [loop]:
+    // CHECK: [[CARRIED_HEADER]]:
     // CHECK: jumpi
     // CHECK: jump [[CARRIED_HEADER]]
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {

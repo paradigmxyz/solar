@@ -1,9 +1,23 @@
 //! Block-local common-subexpression regeneration over scheduled EVM IR.
+//!
+//! The pass symbolically executes each basic block and interns expressions by opcode, operands,
+//! and the relevant memory or storage epoch. When an expression already exists on the physical
+//! stack, it removes the repeated computation and regenerates the value with a reachable `DUP`.
+//! It also tracks known constant-address memory words, removing stores of an unchanged value and
+//! replacing loads with the expression last stored at that address.
+//!
+//! Expression spans are reusable only when they are closed: the interval must consume no value
+//! from before the interval and produce only the tracked result. Unknown stack effects and
+//! observable writes invalidate the affected symbolic state. Memory and storage reads carry
+//! separate epochs, so a write prevents reuse across a possible state change without blocking
+//! unrelated pure expressions. Rewrites stay within one block and respect the target's reachable
+//! stack depth; the pass does not perform alias analysis or move instructions across control flow.
+//!
+//! This runs after physical stack scheduling, where repeated expressions and redundant constant
+//! memory traffic are visible. Peephole cleanup follows it because removing a computation can
+//! expose adjacent stack and arithmetic simplifications.
 
-use super::{
-    EvmPass,
-    peephole::{Peephole, is_removable_copy},
-};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module, PushValue, default_instruction_stack_effect},
     op,
@@ -15,9 +29,6 @@ use std::hash::{Hash, Hasher};
 
 pub(super) struct BlockCse;
 
-/// Default-pipeline adapter that cleans up only when regeneration changed the module.
-pub(super) struct BlockCseCleanup;
-
 impl EvmPass for BlockCse {
     fn name(&self) -> &'static str {
         "block-cse"
@@ -28,20 +39,6 @@ impl EvmPass for BlockCse {
         let stack_access_limit = gcx.sess.opts.evm_version.reachable_stack_depth();
         for block in &mut module.blocks {
             changed |= regenerate_block(&mut block.instructions, stack_access_limit);
-        }
-        changed
-    }
-}
-
-impl EvmPass for BlockCseCleanup {
-    fn name(&self) -> &'static str {
-        "block-cse"
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let changed = BlockCse.run_pass(gcx, module);
-        if changed {
-            let _ = Peephole.run_pass(gcx, module);
         }
         changed
     }
@@ -192,11 +189,11 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
             }
             match const_addr {
                 Some(address) if opcode == op::MSTORE => {
-                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= op::WORD_BYTES as u64);
                     known_stores.insert(address, value.expr);
                 }
                 Some(address) => {
-                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= 32);
+                    known_stores.retain(|&slot, _| slot.abs_diff(address) >= op::WORD_BYTES as u64);
                 }
                 None => known_stores.clear(),
             }
@@ -512,6 +509,12 @@ fn append_unknown(
     let origin = instructions.len();
     instructions.push(inst);
     stack.push(StackValue { expr: fresh(next_expr), span: None, origin: Some(origin) });
+}
+
+/// Returns whether an instruction is a pure single-word push or copy whose
+/// removal cannot change anything except the word it pushed.
+fn is_removable_copy(inst: &Instruction) -> bool {
+    inst.is_encoded_push() || matches!(inst.as_stack_op(), Some(op::StackOp::Dup(_)))
 }
 
 /// Returns whether a block addresses the same constant memory word from more

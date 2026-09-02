@@ -22,7 +22,7 @@
 //@[perfect_size] filecheck: --check-prefix=PERFECTSIZE
 
 contract SwitchLowerings {
-    // LINEAR-LABEL: @module runtime
+    // LINEAR-LABEL: @module SwitchLowerings_runtime
     // LINEAR: push 8
     // LINEAR-NEXT: sub
     // LINEAR-NEXT: push {{bb[0-9]+}}
@@ -30,25 +30,31 @@ contract SwitchLowerings {
     // LINEAR: push 16
     // LINEAR-NEXT: sub
 
-    // BINARY-LABEL: @module runtime
+    // BINARY-LABEL: @module SwitchLowerings_runtime
     // BINARY: push 40
     // BINARY-NEXT: gt
     // BINARY-NEXT: push {{bb[0-9]+}}
     // BINARY-NEXT: jumpi
 
-    // BUCKETSGAS-LABEL: @module runtime
+    // BUCKETSGAS-LABEL: @module SwitchLowerings_runtime
     // BUCKETSGAS: push 9
-    // BUCKETSGAS-NEXT: swap 1
+    // BUCKETSGAS-NEXT: dup 2
     // BUCKETSGAS-NEXT: mod
     // BUCKETSGAS-NEXT: indexed_jump
 
-    // BUCKETSSIZE-LABEL: @module runtime
+    // BUCKETSSIZE-LABEL: @module SwitchLowerings_runtime
     // BUCKETSSIZE: push 8
-    // BUCKETSSIZE-NEXT: swap 1
+    // BUCKETSSIZE-NEXT: dup 2
     // BUCKETSSIZE-NEXT: mod
     // BUCKETSSIZE-NEXT: indexed_jump
+    // BUCKETSSIZE: PUSH1 0x18
+    // BUCKETSSIZE-NEXT: ADD
+    // BUCKETSSIZE-NEXT: PUSH8
+    // BUCKETSSIZE-NEXT: SWAP1
+    // BUCKETSSIZE-NEXT: BYTE
+    // BUCKETSSIZE-NEXT: JUMP ; unknown
 
-    // DENSE-LABEL: @module runtime
+    // DENSE-LABEL: @module SwitchLowerings_runtime
     // DENSE: push 8
     // DENSE-NEXT: swap 1
     // DENSE-NEXT: sub
@@ -56,7 +62,7 @@ contract SwitchLowerings {
     // DENSE-NEXT: gt
     // DENSE: indexed_jump
 
-    // PERFECTGAS-LABEL: @module runtime
+    // PERFECTGAS-LABEL: @module SwitchLowerings_runtime
     // PERFECTGAS: push 3
     // PERFECTGAS-NEXT: shr
     // PERFECTGAS-NEXT: push 7
@@ -67,12 +73,13 @@ contract SwitchLowerings {
     // PERFECTGAS-NEXT: push {{bb[0-9]+}}
     // PERFECTGAS-NEXT: jumpi
 
-    // PERFECTSIZE-LABEL: @module runtime
+    // PERFECTSIZE-LABEL: @module SwitchLowerings_runtime
     // PERFECTSIZE: push 8
     // PERFECTSIZE-NEXT: swap 1
     // PERFECTSIZE-NEXT: sub
     // PERFECTSIZE: push 3
     // PERFECTSIZE-NEXT: shr
+    // PERFECTSIZE-NEXT: swap 1
     // PERFECTSIZE: push 253
     // PERFECTSIZE-NEXT: shl
     // PERFECTSIZE-NEXT: or

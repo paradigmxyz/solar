@@ -1,0 +1,7 @@
+- // === ROOT/tests/ui/codegen/evm-ir/validation/evm_version.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/validation/evm_version.evmir (after none) ===
+  @module module
+  bb0:
+    selfbalance
+    stop
+  

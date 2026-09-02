@@ -114,7 +114,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_data.sol:CodeSizeData (runtime) ===
-@module runtime
+@module CodeSizeData_runtime
 bb0:
   callvalue
   push bb5
@@ -141,12 +141,15 @@ bb0:
   jump bb5
 bb5 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb6:
   push 352
   dup 1
   push 64
+  mstore
+  dup 1
+  push 288
   mstore
   push 288
   dup 2
@@ -159,6 +162,9 @@ bb6:
   push 32
   dup 2
   add
+  dup 1
+  push 192
+  mstore
   push 224
   dup 2
   add
@@ -167,13 +173,19 @@ bb6:
   mstore
   push 241
   dup 2
+  dup 1
+  push 192
+  mstore
   push_data literal_0
-  jump bb14
-bb14:
+  jump bb13
+bb13:
   swap 1
   codecopy
   push 64
   mload
+  dup 1
+  push 256
+  mstore
   push 32
   dup 2
   add
@@ -204,32 +216,45 @@ bb14:
   push 31
   not
   and
+  dup 1
+  push 224
+  mstore
   push 64
   dup 4
   add
-  dup 2
-  push 128
-  mload
+  push 160
+  mstore
   swap 2
-  swap 1
-  exchange 2, 3
-  exchange 4, 5
-  push bb13
+  pop
+  pop
+  iszero
+  push bb8
   jumpi
+  push 0
+  push 32
+  push 224
+  mload
+  sub
+  push 160
+  mload
+  add
+  mstore
   jump bb8
 bb8:
-  swap 1
-  dup 2
+  push 224
+  mload
+  push 160
+  mload
   add
-  dup 3
-  dup 6
-  dup 4
+  push 128
+  mload
+  push 192
+  mload
+  push 160
+  mload
   mcopy
-  swap 2
-  pop
-  pop
-  swap 2
-  pop
+  push 256
+  mload
   swap 1
   sub
   push 31
@@ -240,6 +265,9 @@ bb8:
   and
   push 64
   mload
+  dup 1
+  push 320
+  mstore
   swap 1
   dup 2
   add
@@ -253,6 +281,9 @@ bb9:
   dup 1
   push 64
   mstore
+  dup 1
+  push 288
+  mstore
   push 224
   dup 2
   add
@@ -264,6 +295,9 @@ bb9:
   push 32
   dup 2
   add
+  dup 1
+  push 192
+  mstore
   push 160
   dup 2
   add
@@ -272,8 +306,11 @@ bb9:
   mstore
   push 161
   dup 2
+  dup 1
+  push 192
+  mstore
   push_data literal_1
-  jump bb14
+  jump bb13
 bb12:
   push 1
   codesize
@@ -292,16 +329,6 @@ bb12:
   push 32
   push 128
   return
-bb13:
-  push 32
-  dup 3
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  jump bb8
 
 @data literal_0 hex"414141414141414141414141414141414141414141414141414141414141414130313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a21"
 @data literal_1 hex"303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a"

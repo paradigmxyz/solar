@@ -82,4 +82,29 @@
     push 1
 -   exp
     stop
+  bb16:
+-   push 31
+-   push 36
+-   add
++   push 67
+    stop
+  bb17:
+-   push 32
+-   push 4
+-   mul
++   push 128
+    stop
+  bb18:
+-   push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+-   push 1
+-   add
++   push 0
++   not
+    stop
+  bb19:
+-   push 5
+-   push 31
+-   sub
++   push 26
+    stop
   

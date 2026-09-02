@@ -1,4 +1,4 @@
-//@compile-flags: -Zevm-ir-pipeline=peephole
+//@compile-flags: -Zevm-ir-pipeline=peephole,dce
 //@filecheck:
 @module module
 
@@ -17,5 +17,59 @@ bb1:
   push bb2
   pop
   stop
+
+// STOP cannot observe a trailing physical stack suffix.
+// CHECK-LABEL: after dce
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-NOT: {{^[ +].*}}push
+// CHECK-NOT: {{^[ +].*}}dup
+// CHECK-NOT: {{^[ +].*}}swap
+// CHECK: {{^[ +].*}}stop
 bb2:
+  push 1
+  dup 1
+  push 2
+  swap 1
+  pop
+  pop
   stop
+
+// The cleanup can also remove stack operations that consume incoming words.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop
+bb3:
+  pop
+  stop
+
+// INVALID also cannot observe a trailing stack suffix.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-NOT: {{^[ +].*}}push
+// CHECK: {{^[ +].*}}invalid
+bb4:
+  push 1
+  invalid
+
+// Peephole first reduces a self-contained calculation to a push, then the
+// terminal cleanup removes it.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK-NOT: {{^[ +].*}}push
+// CHECK-NOT: {{^[ +].*}}add
+// CHECK: {{^[ +].*}}stop
+bb5:
+  push 1
+  push 2
+  add
+  stop
+
+// Explicitly pushed REVERT operands leave the preceding stack suffix dead.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}push 0
+// CHECK: {{^[ +].*}}push 0
+// CHECK: {{^[ +].*}}revert
+bb6:
+  pop
+  push 0
+  push 0
+  revert

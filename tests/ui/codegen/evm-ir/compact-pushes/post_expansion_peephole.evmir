@@ -6,8 +6,12 @@
 // subsequent peephole pass so the two `not` instructions cancel.
 // CHECK-LABEL: bb0:
 // CHECK-NEXT: push 0
+// CHECK-NEXT: push 0
+// CHECK-NEXT: mstore
 // CHECK-NEXT: stop
 bb0:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   not
+  push 0
+  mstore
   stop

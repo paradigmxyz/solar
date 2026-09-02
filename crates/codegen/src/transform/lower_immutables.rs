@@ -65,11 +65,12 @@ impl MirPass for LowerImmutables {
 fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
     let mut reachable = DenseBitSet::new_empty(module.functions.len());
     let mut worklist = VecDeque::new();
+    if let Some(entry) = module.dispatch_entry() {
+        reachable.insert(entry);
+        worklist.push_back(entry);
+    }
     for (func_id, func) in module.functions.iter_enumerated() {
-        if (func.attributes.is_dispatch_entry
-            || func.selector.is_some()
-            || func.attributes.is_fallback
-            || func.attributes.is_receive)
+        if (func.selector.is_some() || func.attributes.is_fallback || func.attributes.is_receive)
             && reachable.insert(func_id)
         {
             worklist.push_back(func_id);

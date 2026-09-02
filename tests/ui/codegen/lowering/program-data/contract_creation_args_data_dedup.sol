@@ -23,7 +23,7 @@ contract ChildWithArg {
 // MIR: ChildWithArg_initcode_0: hex"
 // MIR-NOT: ChildWithArg_initcode_1:
 // OPT-LABEL: contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
-// OPT: @module runtime
+// OPT: @module FactoryWithArgs_runtime
 // OPT-COUNT-4: push_data ChildWithArg_initcode_0
 // OPT: @data ChildWithArg_initcode_0 hex"
 // OPT-NOT: @data ChildWithArg_initcode_1

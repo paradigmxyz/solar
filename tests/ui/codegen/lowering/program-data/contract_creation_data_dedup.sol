@@ -21,7 +21,7 @@ contract Child {
 // MIR: Child_initcode_0: hex"
 // MIR-NOT: Child_initcode_1:
 // OPT-LABEL: contract_creation_data_dedup.sol:Factory (runtime) ===
-// OPT: @module runtime
+// OPT: @module Factory_runtime
 // OPT-COUNT-3: push_data Child_initcode_0
 // OPT: @data Child_initcode_0 hex"
 // OPT-NOT: @data Child_initcode_1

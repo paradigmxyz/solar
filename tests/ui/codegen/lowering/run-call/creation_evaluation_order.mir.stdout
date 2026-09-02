@@ -8,7 +8,7 @@ fn @constructor(arg0: u256) [constructor, payable, abi_params=[u256]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===
 @module CreationEvaluationOrder
 data:
-  CreationEvaluationOrderChild_initcode_0: hex"6068380380606860c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c060c0606838030160208201915081119050156057576053565b605b565b5f80fd5b604f565b60038060655f395ff35f80fd"
+  CreationEvaluationOrderChild_initcode_0: hex"6068380380606860c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c060c0606838030160208201915081119050156057576053565b605b565b5f5ffd5b604f565b60038060655f395ff35f5ffd"
 
 fn @valueOpt() -> u256 {
   bb0:

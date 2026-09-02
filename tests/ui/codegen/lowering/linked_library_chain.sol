@@ -9,9 +9,9 @@
 // verified equal to solc 0.8.30's linked flow separately.
 
 library DataTypes {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module DataTypes_runtime
     // CHECK: push 0
-    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: push 0
     // CHECK-NEXT: revert
     struct Map {
         uint256 data;
@@ -19,7 +19,7 @@ library DataTypes {
 }
 
 library Inner {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module Inner_runtime
     // CHECK: push 0xfaf4836c
     // CHECK: sload
     // CHECK: sstore
@@ -31,7 +31,7 @@ library Inner {
 }
 
 library Outer {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module Outer_runtime
     // CHECK: push 0x5e0b1cef
     // CHECK: push 0xfaf4836c
     // CHECK: push 0x1000000000000000000000000000000000000001
@@ -49,7 +49,7 @@ library Outer {
 contract C {
     DataTypes.Map map;
 
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module C_runtime
     // CHECK: push 0xb20e7344
     // CHECK: push 0x5e0b1cef
     // CHECK: push 0x1000000000000000000000000000000000000002

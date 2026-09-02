@@ -127,7 +127,6 @@ fn build_entry(
     let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
 
     let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
-    entry.attributes.is_dispatch_entry = true;
     {
         let mut builder = FunctionBuilder::new(&mut entry);
 
@@ -211,7 +210,8 @@ fn build_entry(
         builder.revert(zero, zero);
     }
 
-    module.add_function(entry);
+    let entry = module.add_function(entry);
+    module.set_dispatch_entry(entry);
 }
 
 /// Loads the 4-byte function selector from the first calldata word.

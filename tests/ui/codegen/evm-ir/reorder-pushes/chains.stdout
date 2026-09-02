@@ -1,0 +1,99 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/chains.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/chains.evmir (after reorder-pushes) ===
+  @module ReorderChains
+  bb0:
+    push 1
+-   dup 1
+    push 10
+-   swap 1
++   dup 2
+    sub
+    stop
+  bb1:
+-   calldatasize
+    push 1
+-   swap 1
+    push 2
+-   swap 1
++   calldatasize
+    sub
+    stop
+  bb2:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->2)
++   push 1
+    calldatasize
+    calldatasize
+    add
+-   push 1
+-   swap 1
+    sub
+    stop
+  bb3:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
++   push 1
++   push 2
+    calldatasize
+    calldatasize
+    add
+-   push 1
+-   swap 1
+-   push 2
+-   swap 1
+    sub
+    stop
+  bb4:
+-   calldatasize
++   push 20
+    push 10
+-   swap 1
++   calldatasize
+    sub
+-   push 20
+-   swap 1
+    sub
+    stop
+  bb5:
+-   calldatasize
+    push 1
+-   swap 1
+    push 2
+-   swap 1
+    push 3
+-   swap 1
+    push 4
+-   swap 1
+    push 5
+-   swap 1
+    push 6
+-   swap 1
+    push 7
+-   swap 1
+    push 8
+-   swap 1
+    push 9
+-   swap 1
+    push 10
+-   swap 1
+    push 11
+-   swap 1
+    push 12
+-   swap 1
+    push 13
+-   swap 1
+    push 14
+-   swap 1
+    push 15
+-   swap 1
+    push 16
+-   swap 1
++   calldatasize
+    stop
+  

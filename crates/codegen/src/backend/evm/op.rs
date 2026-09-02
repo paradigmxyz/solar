@@ -1,7 +1,12 @@
 //! EVM opcode definitions and metadata.
 
+use crate::mir::InstKind;
+use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
+
+/// Number of bytes in an EVM word.
+pub(crate) const WORD_BYTES: usize = 32;
 
 const UNKNOWN_PREFIX: &str = "op_";
 
@@ -268,6 +273,82 @@ opcodes! {
     0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0);
 }
 
+/// Returns the encoded length of a minimally sized PUSH for an EVM version.
+pub(crate) fn push_len(evm_version: EvmVersion, value: U256) -> usize {
+    if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
+}
+
+impl InstKind {
+    /// Returns the EVM opcode that directly implements this instruction.
+    pub(crate) const fn evm_opcode(&self) -> Option<u8> {
+        Some(match self {
+            Self::Add(..) => ADD,
+            Self::Sub(..) => SUB,
+            Self::Mul(..) => MUL,
+            Self::Div(..) => DIV,
+            Self::SDiv(..) => SDIV,
+            Self::Mod(..) => MOD,
+            Self::SMod(..) => SMOD,
+            Self::Exp(..) => EXP,
+            Self::AddMod(..) => ADDMOD,
+            Self::MulMod(..) => MULMOD,
+            Self::And(..) => AND,
+            Self::Or(..) => OR,
+            Self::Xor(..) => XOR,
+            Self::Not(..) => NOT,
+            Self::Clz(..) => CLZ,
+            Self::Shl(..) => SHL,
+            Self::Shr(..) => SHR,
+            Self::Sar(..) => SAR,
+            Self::Byte(..) => BYTE,
+            Self::Lt(..) => LT,
+            Self::Gt(..) => GT,
+            Self::SLt(..) => SLT,
+            Self::SGt(..) => SGT,
+            Self::Eq(..) => EQ,
+            Self::IsZero(..) => ISZERO,
+            Self::MLoad(..) => MLOAD,
+            Self::MStore(..) => MSTORE,
+            Self::MStore8(..) => MSTORE8,
+            Self::MSize => MSIZE,
+            Self::SLoad(..) => SLOAD,
+            Self::SStore(..) => SSTORE,
+            Self::TLoad(..) => TLOAD,
+            Self::TStore(..) => TSTORE,
+            Self::CalldataLoad(..) => CALLDATALOAD,
+            Self::CalldataSize => CALLDATASIZE,
+            Self::Keccak256(..) => KECCAK256,
+            Self::Caller => CALLER,
+            Self::CallValue => CALLVALUE,
+            Self::Address => ADDRESS,
+            Self::Origin => ORIGIN,
+            Self::GasPrice => GASPRICE,
+            Self::Gas => GAS,
+            Self::Timestamp => TIMESTAMP,
+            Self::BlockNumber => NUMBER,
+            Self::Coinbase => COINBASE,
+            Self::ChainId => CHAINID,
+            Self::SelfBalance => SELFBALANCE,
+            Self::BaseFee => BASEFEE,
+            Self::BlobBaseFee => BLOBBASEFEE,
+            Self::GasLimit => GASLIMIT,
+            Self::SlotNum => SLOTNUM,
+            Self::PrevRandao => PREVRANDAO,
+            Self::Balance(..) => BALANCE,
+            Self::BlockHash(..) => BLOCKHASH,
+            Self::BlobHash(..) => BLOBHASH,
+            Self::ExtCodeSize(..) => EXTCODESIZE,
+            Self::ExtCodeHash(..) => EXTCODEHASH,
+            Self::CodeSize => CODESIZE,
+            Self::ReturnDataSize => RETURNDATASIZE,
+            Self::SignExtend(..) => SIGNEXTEND,
+            Self::Create(..) => CREATE,
+            Self::Create2(..) => CREATE2,
+            _ => return None,
+        })
+    }
+}
+
 /// Returns the PUSH opcode for the given width (1-32).
 #[must_use]
 pub(crate) const fn push(width: u8) -> u8 {
@@ -307,8 +388,8 @@ pub(crate) enum StackOp {
 pub(crate) enum StackOpLowering {
     /// One opcode with an optional immediate byte.
     Direct(u8, Option<u8>),
-    /// Three legacy `SWAP` opcodes implementing a shallow `EXCHANGE`.
-    LegacyExchange([u8; 3]),
+    /// Three `SWAP` opcodes implementing a shallow `EXCHANGE`.
+    SwapSequence([u8; 3]),
 }
 
 /// Exact cost of a lowered stack operation.
@@ -320,9 +401,36 @@ pub(crate) struct StackOpMetrics {
 }
 
 impl StackOp {
-    /// Decodes a legacy one-byte stack opcode.
+    /// Returns the stack depth required to execute this operation.
     #[must_use]
-    pub(crate) const fn from_legacy_opcode(opcode: u8) -> Option<Self> {
+    pub(crate) const fn required_depth(self) -> usize {
+        match self {
+            Self::Dup(depth) => depth as usize,
+            Self::Swap(depth) => depth as usize + 1,
+            Self::Exchange(first, second) => {
+                if first > second {
+                    first as usize + 1
+                } else {
+                    second as usize + 1
+                }
+            }
+            Self::Pop => 1,
+        }
+    }
+
+    /// Returns this operation's net stack growth.
+    #[must_use]
+    pub(crate) const fn net_growth(self) -> isize {
+        match self {
+            Self::Dup(_) => 1,
+            Self::Pop => -1,
+            Self::Swap(_) | Self::Exchange(_, _) => 0,
+        }
+    }
+
+    /// Decodes a one-byte stack opcode.
+    #[must_use]
+    pub(crate) const fn from_single_byte_evm_opcode(opcode: u8) -> Option<Self> {
         match opcode {
             POP => Some(Self::Pop),
             DUP1..=DUP16 => Some(Self::Dup(opcode - DUP1 + 1)),
@@ -333,7 +441,7 @@ impl StackOp {
 
     /// Returns the one-byte encoding when this operation has one.
     #[must_use]
-    pub(crate) const fn legacy_opcode(self) -> Option<u8> {
+    pub(crate) const fn single_byte_evm_opcode(self) -> Option<u8> {
         match self {
             Self::Dup(n @ 1..=16) => Some(dup(n)),
             Self::Swap(n @ 1..=16) => Some(swap(n)),
@@ -369,7 +477,7 @@ impl StackOp {
         if !self.is_valid() {
             return None;
         }
-        if let Some(opcode) = self.legacy_opcode() {
+        if let Some(opcode) = self.single_byte_evm_opcode() {
             return Some(StackOpLowering::Direct(opcode, None));
         }
 
@@ -384,7 +492,7 @@ impl StackOp {
                 StackOpLowering::Direct(EXCHANGE, Some(encode_exchange(n, m)))
             }
             Self::Exchange(n, m) if m <= 16 => {
-                StackOpLowering::LegacyExchange([swap(n), swap(m), swap(n)])
+                StackOpLowering::SwapSequence([swap(n), swap(m), swap(n)])
             }
             _ => return None,
         };
@@ -396,7 +504,7 @@ impl StackOp {
     pub(crate) fn metrics(self, evm_version: EvmVersion) -> Option<StackOpMetrics> {
         let (assembled_len, instruction_count) = match self.lowering(evm_version)? {
             StackOpLowering::Direct(_, immediate) => (1 + usize::from(immediate.is_some()), 1),
-            StackOpLowering::LegacyExchange(opcodes) => (opcodes.len(), opcodes.len()),
+            StackOpLowering::SwapSequence(opcodes) => (opcodes.len(), opcodes.len()),
         };
         let gas_per_instruction = if matches!(self, Self::Pop) { 2 } else { 3 };
         Some(StackOpMetrics {
@@ -490,6 +598,21 @@ pub(crate) const fn is_commutative(op: u8) -> bool {
     matches!(op, ADD | MUL | EQ | AND | OR | XOR)
 }
 
+/// Returns the equivalent binary opcode after swapping its stack operands.
+#[must_use]
+pub(crate) const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
+    if is_commutative(opcode) {
+        return Some(opcode);
+    }
+    Some(match opcode {
+        LT => GT,
+        GT => LT,
+        SLT => SGT,
+        SGT => SLT,
+        _ => return None,
+    })
+}
+
 /// Returns whether an opcode is pure: it has no side effects and its result is a deterministic
 /// function of its stack operands alone (no memory, storage, or environment dependency), so two
 /// occurrences with equal operands always produce the same value.
@@ -523,6 +646,51 @@ pub(crate) const fn is_pure(op: u8) -> bool {
             | SAR
             | CLZ
     )
+}
+
+/// Returns whether inserting a push immediately before this opcode preserves its behavior.
+///
+/// This includes opcodes that expand memory or warm an account or storage slot because the push
+/// does not affect those changes. Position and gas observations are excluded.
+#[must_use]
+pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
+    is_pure(op)
+        || matches!(
+            op,
+            KECCAK256
+                | ADDRESS
+                | BALANCE
+                | ORIGIN
+                | CALLER
+                | CALLVALUE
+                | CALLDATALOAD
+                | CALLDATASIZE
+                | CODESIZE
+                | GASPRICE
+                | EXTCODESIZE
+                | RETURNDATASIZE
+                | EXTCODEHASH
+                | BLOCKHASH
+                | COINBASE
+                | TIMESTAMP
+                | NUMBER
+                | PREVRANDAO
+                | GASLIMIT
+                | CHAINID
+                | SELFBALANCE
+                | BASEFEE
+                | BLOBHASH
+                | BLOBBASEFEE
+                | MLOAD
+                | SLOAD
+                | MSIZE
+                | TLOAD
+                | PUSH0
+                | DATALOAD
+                | DATALOADN
+                | DATASIZE
+                | RETURNDATALOAD
+        )
 }
 
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.

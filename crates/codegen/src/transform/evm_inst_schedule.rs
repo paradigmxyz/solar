@@ -127,8 +127,13 @@ impl EvmInstSchedule {
             return false;
         }
 
+        Self::is_movable_effect(inst.kind.effect_kind())
+            && inst.metadata.effect().is_none_or(Self::is_movable_effect)
+    }
+
+    fn is_movable_effect(effect: crate::mir::EffectKind) -> bool {
         matches!(
-            inst.metadata.effect().unwrap_or_else(|| inst.kind.effect_kind()),
+            effect,
             crate::mir::EffectKind::Pure
                 | crate::mir::EffectKind::MemoryRead
                 | crate::mir::EffectKind::StorageRead
@@ -297,20 +302,31 @@ impl EvmInstSchedule {
     }
 
     fn shared_results(func: &Function) -> DenseBitSet<InstId> {
-        let mut counts = index_vec![0u32; func.num_values()];
+        let mut user_counts = index_vec![0u32; func.num_values()];
+        let mut seen = index_vec![0usize; func.num_values()];
+        let mut generation = 0usize;
         // Instruction arenas retain replaced and eliminated instructions, but only instructions
         // still present in a block reach codegen. Retired uses must not make a live single-use tree
-        // look shared and disable scheduling for its whole segment.
+        // look shared and disable scheduling for its whole segment. Repeated operands in one
+        // consumer count as one user.
         for block in &func.blocks {
             for &inst_id in &block.instructions {
-                for operand in func.inst(inst_id).kind.operands() {
-                    counts[operand] += 1;
-                }
+                generation += 1;
+                count_distinct_users(
+                    func.inst(inst_id).kind.operands(),
+                    &mut user_counts,
+                    &mut seen,
+                    generation,
+                );
             }
             if let Some(terminator) = &block.terminator {
-                for operand in terminator.operands() {
-                    counts[operand] += 1;
-                }
+                generation += 1;
+                count_distinct_users(
+                    terminator.operands(),
+                    &mut user_counts,
+                    &mut seen,
+                    generation,
+                );
             }
         }
 
@@ -318,7 +334,7 @@ impl EvmInstSchedule {
         for block in &func.blocks {
             for &inst_id in &block.instructions {
                 if let Some(result) = func.inst_result_value(inst_id)
-                    && counts[result] > 1
+                    && user_counts[result] > 1
                 {
                     shared.insert(inst_id);
                 }
@@ -354,6 +370,20 @@ impl EvmInstSchedule {
                     scratch.work.push((*dependency, false));
                 }
             }
+        }
+    }
+}
+
+fn count_distinct_users(
+    operands: impl IntoIterator<Item = ValueId>,
+    counts: &mut IndexVec<ValueId, u32>,
+    seen: &mut IndexVec<ValueId, usize>,
+    generation: usize,
+) {
+    for operand in operands {
+        if seen[operand] != generation {
+            seen[operand] = generation;
+            counts[operand] += 1;
         }
     }
 }

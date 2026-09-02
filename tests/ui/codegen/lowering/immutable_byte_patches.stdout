@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_byte_patches.sol:ImmutableBytePatches (creation) ===
-// === deployment ===
-@module deployment
+// === ImmutableBytePatches_deployment ===
+@module ImmutableBytePatches_deployment
 bb0:
-  push 195
+  push 191
   codesize
   sub
   dup 1
-  push 195
+  push 191
   push 320
   codecopy
   push 320
@@ -23,7 +23,10 @@ bb0:
   jumpi
   push 320
   dup 1
-  push 195
+  push 288
+  mstore
+  dup 1
+  push 191
   codesize
   sub
   add
@@ -31,16 +34,20 @@ bb0:
   dup 3
   add
   gt
+  swap 1
+  pop
   push bb6
   jumpi
-  dup 1
+  push 288
+  mload
   mload
   push 8
   shr
   push bb6
   jumpi
   push 32
-  dup 2
+  push 288
+  mload
   add
   mload
   dup 1
@@ -50,56 +57,46 @@ bb0:
   push bb6
   jumpi
   push 64
+  push 288
+  mload
   add
   mload
   push 8
   shl
   push bb6
   jumpi
+  push 96
   push 320
-  mload
   push 192
-  mstore
-  push 320
-  push 32
-  add
-  mload
-  push 224
-  mstore
-  push 320
-  push 64
-  add
-  mload
-  push 256
-  mstore
-  push 57
+  mcopy
+  push 56
   dup 1
-  push 138
+  push 135
   push 0
   codecopy
   push 192
   mload
   push 20
   mstore8
-  push 224
-  mload
-  push 22
-  mstore8
   push 256
   mload
   push 0
   byte
-  push 26
+  push 22
+  mstore8
+  push 224
+  mload
+  push 27
   mstore8
   push 0
   return
 bb6 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 
-// === runtime ===
-@module runtime
+// === ImmutableBytePatches_runtime ===
+@module ImmutableBytePatches_runtime
 bb0:
   callvalue
   push bb3
@@ -114,13 +111,12 @@ bb0:
   push bb3
   jumpi
   push_immutable 0, 1
-  push_immutable 1, 1
-  push 0
-  signextend
   push_immutable 2, 1
   push 248
   shl
-  swap 1
+  push_immutable 1, 1
+  push 0
+  signextend
   push 0
   signextend
   dup 3
@@ -140,5 +136,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert

@@ -15,6 +15,7 @@ use solar_sema::{Gcx, hir::ContractId};
 use crate::mir::Module;
 
 pub use data::ContractBytecodes;
+pub(crate) use data::{data_copy_cost, data_copy_gas, data_copy_is_profitable};
 
 /// Lowers a contract from HIR to MIR.
 pub fn lower_contract(

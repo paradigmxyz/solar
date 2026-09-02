@@ -24,9 +24,9 @@
 //!   value or an anonymous word produced by low-level code.
 //! - [`scheduler`] prepares the ordered operands for one instruction. It can consume dead values in
 //!   place, preserve live values, duplicate or swap accessible values, and rematerialize
-//!   immediates, arguments, or stored spills. Under size optimization, equal immediate operands
-//!   share one backend value identity. Plans are replayable and are applied to the model only when
-//!   chosen.
+//!   immediates, stable nullary reads, arguments, or stored spills. Under size optimization, equal
+//!   immediate operands share one backend value identity. Plans are replayable and are applied to
+//!   the model only when chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Layouts of up to four words
 //!   compare nontrivial greedy sequences with bounded shortest-action search and accept only Pareto
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
@@ -174,11 +174,8 @@
 //! planned as loads. They are recomputed only when their complete dependency
 //! tree ends in stable inputs such as arguments, immediates, calldata, and
 //! transaction/block context; constructor-staged immutable loads are memory-backed
-//! and therefore excluded. When another block must reload such a value, the
-//! arithmetic result itself receives a mandatory stable store at its definition
-//! before local planning can consume it. A value used only as a phi-edge source
-//! does not require that mandatory store solely for the edge; a successfully
-//! preserved phi edge carries it on the stack.
+//! and therefore excluded. A successfully preserved phi edge carries its source
+//! on the stack.
 //! `-O none` bypasses the planner and retains the straightforward emission path.
 //!
 //! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
@@ -222,7 +219,9 @@ mod spill;
 pub(crate) use super::op::StackOp;
 pub(crate) use model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel};
 pub(crate) use scheduler::{
-    OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler,
+    OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler, cross_block_values,
+    is_cross_block_recomputable_kind, is_rematerializable_leaf, rematerializable_nullary_opcode,
+    rematerializable_nullary_value,
 };
-pub(crate) use shuffler::TargetSlot;
+pub(crate) use shuffler::{TargetSlot, lowered_stack_cost, resynthesize_physical_ops};
 pub(crate) use spill::SpillSlot;

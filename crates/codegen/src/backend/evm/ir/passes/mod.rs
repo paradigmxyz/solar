@@ -9,24 +9,30 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(in crate::backend::evm) mod compact_pushes;
+mod constant_data;
 pub(super) mod data;
 mod dce;
 mod legalize_shifts;
 mod outline;
 mod peephole;
+mod reorder_pushes;
 mod share_reverts;
+mod stack_normalize;
 mod tail_merge;
 mod terminal_dedup;
 pub(super) mod utils;
 
-pub(in crate::backend::evm) use legalize_shifts::{LEGACY_SHIFT_STACK_HEADROOM, legalize_shifts};
+pub(in crate::backend::evm) use legalize_shifts::legalize_shifts;
 
 use super::Module;
 use crate::{
-    pass_manager::{parse_pass_pipeline, pipeline_output_name, print_pass_diff},
+    pass_manager::{
+        parse_pass_pipeline, pipeline_output_name, print_pass_diff, should_validate_ir,
+    },
     timing::PassTimer,
 };
-use solar_config::OptimizationMode;
+use solar_config::{EvmVersion, OptimizationMode};
+use solar_interface::diagnostics::DiagCtxt;
 use solar_sema::Gcx;
 
 pub use crate::pass_manager::pipeline_label;
@@ -55,11 +61,15 @@ pub trait EvmPass: Sync {
 pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
     &peephole::Peephole,
+    &dce::Dce,
+    &reorder_pushes::REORDER_PUSHES,
     &share_reverts::ShareReverts,
+    &stack_normalize::StackDedup,
+    &stack_normalize::StackNormalize,
     &compact_pushes::CompactPushes,
+    &constant_data::ConstantData,
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
-    &dce::Dce,
     &legalize_shifts::LegalizeShifts,
     &cfg_simplify::CfgSimplify,
     &outline::Outline,
@@ -75,8 +85,7 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &coalesce_copies::CoalesceCopies,
     &cfg_simplify::CfgSimplify,
     &data::PackExistingData,
-    &compact_pushes::CompactPushes,
-    &peephole::Peephole,
+    &peephole::Cleanup(compact_pushes::CompactPushes),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     // Simplify and merge the explicit control-flow graph.
@@ -88,15 +97,18 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     // Outline only after straight-line paths and terminal tails are canonical.
     &outline::Outline,
     &cfg_simplify::CfgSimplify,
-    &compact_pushes::CompactPushes,
+    // Stack allocation can leave `producer; push; swap1` when the producer was emitted first.
+    // Reorder it only after structural sharing is fixed so local stack cleanup cannot perturb
+    // outlining choices.
+    &reorder_pushes::REORDER_PUSHES,
     &peephole::Peephole,
     // Regenerate only after structural sharing is fixed. Doing this before
     // tail merging can make otherwise-identical blocks context-dependent and
     // lose more shared bytes than the local CSE removes.
-    &block_cse::BlockCseCleanup,
-    &dce::Dce,
-    // DCE retargets physical stack operations and exposes local rewrites.
-    &peephole::Peephole,
+    &peephole::Cleanup(block_cse::BlockCse),
+    &peephole::Cleanup(dce::Dce),
+    // Stack normalization exposes local rewrites.
+    &peephole::Cleanup(stack_normalize::StackNormalize),
     // Pack address-sensitive terminal blocks, then clean up any adjacent
     // revert branch that remains profitable in the final layout.
     &block_layout::BlockLayout,
@@ -113,16 +125,23 @@ static DEFAULT_PIPELINE: &[&dyn EvmPass] = &[
     &tail_merge::TailMerge,
     &outline::Outline,
     &cfg_simplify::CfgSimplify,
-    &compact_pushes::CompactPushes,
+    &reorder_pushes::FINAL_REORDER_PUSHES,
     &peephole::Peephole,
-    &block_cse::BlockCseCleanup,
-    &dce::Dce,
+    &peephole::Cleanup(block_cse::BlockCse),
+    &peephole::Cleanup(dce::Dce),
+    &peephole::Cleanup(stack_normalize::StackNormalize),
     &block_layout::BlockLayout,
     &share_reverts::ShareReverts,
     &cfg_simplify::CfgSimplify,
     &block_layout::BlockLayout,
     // Materialize constants and finalize the referenced data pool after all code transforms.
+    &constant_data::ConstantData,
     &data::PackData,
+    // Data packing can add compactable immediates and local stack shuffles.
+    &compact_pushes::CompactPushes,
+    &peephole::Peephole,
+    &stack_normalize::StackDedup,
+    &peephole::Cleanup(dce::Dce),
 ];
 
 /// Finds an EVM IR pass by command-line name.
@@ -138,7 +157,13 @@ pub fn run_passes(
     passes: &[&dyn EvmPass],
     name: Option<&str>,
 ) -> bool {
-    run_passes_inner(gcx, module, passes, name)
+    run_passes_inner(gcx, module, passes, true, name)
+}
+
+/// Runs EVM IR passes without validating after each pass.
+#[must_use]
+pub fn run_passes_no_validate(gcx: Gcx<'_>, module: &mut Module, passes: &[&dyn EvmPass]) -> bool {
+    run_passes_inner(gcx, module, passes, false, None)
 }
 
 #[must_use]
@@ -146,6 +171,7 @@ fn run_passes_inner(
     gcx: Gcx<'_>,
     module: &mut Module,
     passes: &[&dyn EvmPass],
+    validate_each: bool,
     name: Option<&str>,
 ) -> bool {
     let output_name =
@@ -170,6 +196,9 @@ fn run_passes_inner(
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
+            if validate_each && should_validate_ir(gcx) {
+                validate_module_after_pass(module, pass_name);
+            }
         }
 
         if let Some(before) = before {
@@ -182,12 +211,20 @@ fn run_passes_inner(
     changed
 }
 
+fn validate_module_after_pass(module: &Module, pass_name: &str) {
+    let dcx = DiagCtxt::new_early();
+    super::verify::Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module_shape(module);
+    if dcx.has_errors().is_err() {
+        panic!("EVM IR validation failed after `{pass_name}`");
+    }
+}
+
 /// Runs the configured EVM IR pipeline, or the canonical pipeline when none was provided.
 ///
 /// `name` overrides the module name in pass output.
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
-    super::verify::validate_stack_ops_for_evm_version(gcx.dcx(), module, gcx.sess.opts.evm_version);
+    super::verify::Verifier::new(gcx).verify_before_pipeline(module);
     if gcx.dcx().has_errors().is_err() {
         return false;
     }

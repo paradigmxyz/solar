@@ -1,0 +1,176 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/runs.evmir (after stack-normalize) ===
+  @module module
+  bb0:
+    push 1
+    push 2
+    push 3
+-   dup 3
+-   dup 3
+-   swap 1
+-   swap 2
+    pop
+-   swap 2
+-   pop
+-   swap 2
+-   pop
+    stop
+  bb1:
+    push 4
+    push 5
+    push 6
+-   swap 1
+    swap 2
+    swap 1
+-   swap 2
+    stop
+  bb2:
+    push 7
+    push 8
+-   swap 1
+-   swap 1
+    stop
+  bb3:
+    push 9
+    push 10
+    push 11
+    push 12
+    push 13
+    push 14
+    push 15
+    swap 1
+    swap 2
+    swap 1
+    swap 3
+    swap 4
+    swap 5
+    swap 3
+-   swap 1
+-   swap 2
+-   swap 1
+-   swap 2
+-   swap 1
+-   swap 2
+    stop
+  bb4:
+    push 16
+    push 17
+    push 18
+-   swap 2
++   dup 2
++   swap 3
+    pop
+-   dup 1
+-   swap 2
+    stop
+  bb5:
+    push 19
+    push 20
+    push 21
+    dup 2
+-   exchange 2, 3
++   swap 3
++   swap 2
+    add
+    stop
+  bb6:
+    push 22
+    push 23
+    swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+-   swap 1
+    stop
+  bb7:
+    push 24
+    push 25
+    push 26
+    push bb8
+    push 0
+    add
+    jump
+  bb8:
+-   swap 3
+    swap 1
+    swap 2
+    swap 1
+-   swap 3
+    stop
+  bb9:
+    push 27
+    push 28
+    push 29
+    push 30
+    push 31
+    push 32
+-   swap 3
++   swap 5
+    pop
+    pop
+    pop
+-   swap 2
+    pop
+    stop
+  bb10:
+    push 33
+    push 34
+    push 35
+    push 36
+    push 37
+-   swap 2
++   swap 4
+    pop
+    pop
+-   swap 2
+    pop
+    stop
+  bb11:
+    push 38
+    push 39
+    push 40
+    push 41
+    push 42
+    push 43
+    push 44
+-   swap 4
++   swap 6
+    pop
+    pop
+    pop
+    pop
+-   swap 2
+    pop
+    stop
+  bb12:
+    push 45
+    push 46
+    push 47
+    push 48
+-   swap 1
++   swap 3
+    pop
+-   swap 2
+    pop
+    stop
+  

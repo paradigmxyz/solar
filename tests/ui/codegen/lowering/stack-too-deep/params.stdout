@@ -1,11 +1,11 @@
 // === ROOT/tests/ui/codegen/lowering/stack-too-deep/params.sol:StackTooDeepParams (creation) ===
-// === deployment ===
-@module deployment
+// === StackTooDeepParams_deployment ===
+@module StackTooDeepParams_deployment
 bb0:
   callvalue
   push bb1
   jumpi
-  push 285
+  push 417
   dup 1
   push 18
   push 0
@@ -17,8 +17,8 @@ bb1:
   push 0
   revert
 
-// === runtime ===
-@module runtime
+// === StackTooDeepParams_runtime ===
+@module StackTooDeepParams_runtime
 bb0:
   callvalue
   push bb3
@@ -35,7 +35,7 @@ bb0:
   jump bb3
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb25 [cold]:
   push 0x4e487b71
@@ -60,174 +60,250 @@ bb4:
   push 4
   calldataload
   add
+  dup 1
+  push 160
+  mstore
   push 4
   calldataload
-  dup 2
-  lt
+  gt
   push bb25
   jumpi
   push 68
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 100
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 132
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 164
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 196
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 228
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 260
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 292
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 324
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 356
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 388
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 420
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 452
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 484
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 516
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 548
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
   push 580
   calldataload
-  dup 2
+  push 160
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 192
+  mstore
+  push 160
+  mload
+  gt
   push bb25
   jumpi
   push 612
   calldataload
-  dup 2
+  push 192
+  mload
   add
-  swap 1
-  dup 2
-  lt
+  dup 1
+  push 160
+  mstore
+  push 192
+  mload
+  gt
   push bb25
   jumpi
+  push 160
+  mload
   push 128
   mstore
   push 32

@@ -193,6 +193,7 @@ pub(crate) fn display_function_dot<'a>(
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
     module: Option<&'a Module>,
+    is_dispatch_entry: bool,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
         func: &'a Function,
@@ -262,7 +263,7 @@ pub(crate) fn display_function_text<'a>(
                 write!(f, "({})", func.returns.iter().format(", "))?;
             }
         }
-        write!(f, "{}", display_function_attributes(func))?;
+        write!(f, "{}", display_function_attributes(func, is_dispatch_entry))?;
         writeln!(f, " {{")?;
 
         let cfg = CfgInfo::new(func);
@@ -279,7 +280,7 @@ pub(crate) fn display_function_text<'a>(
     })
 }
 
-fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
+fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let mut first = true;
         if let Some(selector) = func.selector {
@@ -292,7 +293,7 @@ fn display_function_attributes(func: &Function) -> impl fmt::Display + '_ {
         if func.attributes.is_constructor {
             write_function_attribute(f, &mut first, "constructor")?;
         }
-        if func.attributes.is_dispatch_entry {
+        if is_dispatch_entry {
             write_function_attribute(f, &mut first, "entry")?;
         }
         if func.attributes.may_return_memory {

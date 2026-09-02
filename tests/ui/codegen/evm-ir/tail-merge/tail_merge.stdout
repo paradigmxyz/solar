@@ -5,7 +5,7 @@
     push 1
     push bb1
     jumpi
-    jump bb2
+    jump bb1
   bb1 [cold]:
     push 11
 -   push 22

@@ -1,5 +1,5 @@
 //@ compile-flags: --emit=bin-runtime
-//@ run-call: runtimeCodeHash => 0x3c55237b3869f93f3e570793afec9785f20a4ee7cd0a7798a418838c833228e0
+//@ run-call: runtimeCodeHash => 0x2451445de446d278512ff1eedde6f7cdfd6a01b16d0a0de35d2f60e96e15280f
 
 library Math {
     function square(uint256 value) internal pure returns (uint256) {

@@ -1,0 +1,20 @@
+// === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/compacted_push.evmir (after pipeline-default) ===
+@module CompactedPush
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push bb1
+  jump
+bb1:
+  push 1
+  push 128
+  shl
+  calldatasize
+  sub
+  push 0
+  mstore
+  stop

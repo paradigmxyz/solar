@@ -1,11 +1,28 @@
 //! Late dead-value elimination over scheduled EVM IR.
+//!
+//! Stack scheduling can leave a duplicated value that survives through several physical stack
+//! operations only to be discarded by `POP`. Starting from each `DUP`, this pass symbolically
+//! follows the copied occurrence through the block. It removes that occurrence, retargets the
+//! intervening `DUP`, `SWAP`, and `EXCHANGE` operations to the compressed stack, and accepts the
+//! candidate when the omitted copy reaches its discard.
+//!
+//! The simulation stops when an ordinary instruction consumes the selected occurrence, when the
+//! target cannot encode a required replacement stack operation, or when another live occurrence
+//! cannot be reached. Candidate costs use the target's lowered stack operations. A rewrite must
+//! improve bytes or static gas without making the other metric worse; size mode also disables
+//! optional duplicate retargeting that can trade bytes for gas.
+//!
+//! This is a post-scheduling cleanup. It removes duplicated stack values within one block, then
+//! removes a trailing pure stack computation before a halting terminal, including across an
+//! unconditional edge to a block that never reads its incoming stack.
 
 use super::EvmPass;
 use crate::backend::evm::{
-    ir::{Instruction, Module, default_instruction_stack_effect},
+    ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
     op::{self, StackOp},
 };
 use solar_config::EvmVersion;
+use solar_data_structures::index::IndexVec;
 use solar_sema::Gcx;
 
 pub(super) struct Dce;
@@ -16,12 +33,112 @@ impl EvmPass for Dce {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        eliminate_dead_stack_copies(
+        let copies_changed = eliminate_dead_stack_copies(
             module,
             !gcx.sess.opts.optimization.is_size(),
             gcx.sess.opts.evm_version,
-        )
+        );
+        cleanup_dead_stack_tails(module) || copies_changed
     }
+}
+
+fn cleanup_dead_stack_tails(module: &mut Module) -> bool {
+    let mut changed = false;
+    for block in &mut module.blocks {
+        if let Some(range) = block
+            .terminator
+            .as_ref()
+            .and_then(|term| halting_terminal_tail_range(&block.instructions, term))
+        {
+            block.instructions.drain(range);
+            changed = true;
+        }
+    }
+    let ignored_entries =
+        module.blocks.iter().map(block_ignores_entry_stack).collect::<IndexVec<BlockId, _>>();
+    for block in &mut module.blocks {
+        if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
+            && ignored_entries[*target]
+            && let Some(start) = discardable_tail_start(&block.instructions)
+        {
+            block.instructions.truncate(start);
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn block_ignores_entry_stack(block: &Block) -> bool {
+    let Some(Terminator { kind, implicit_stop: false, .. }) = &block.terminator else {
+        return false;
+    };
+    let Some((inputs, _)) = halting_stack_io(kind) else { return false };
+    let mut depth = 0usize;
+    for inst in &block.instructions {
+        if !inst.has_canonical_stack_effect()
+            || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
+        {
+            return false;
+        }
+        let (inputs, outputs) = if let Some(stack_op) = inst.as_stack_op() {
+            let inputs = stack_op.required_depth();
+            let outputs = inputs.checked_add_signed(stack_op.net_growth()).unwrap();
+            (inputs, outputs)
+        } else if let Some(effect) = inst.effective_stack_effect() {
+            (usize::from(effect.inputs), usize::from(effect.outputs))
+        } else {
+            return false;
+        };
+        if depth < inputs {
+            return false;
+        }
+        depth = depth - inputs + outputs;
+    }
+    depth >= usize::from(inputs)
+}
+
+fn halting_terminal_tail_range(
+    instructions: &[Instruction],
+    terminator: &Terminator,
+) -> Option<std::ops::Range<usize>> {
+    if terminator.implicit_stop {
+        return None;
+    }
+    let (inputs, _) = halting_stack_io(&terminator.kind)?;
+    let operands = instructions.len().checked_sub(usize::from(inputs))?;
+    if !instructions[operands..]
+        .iter()
+        .all(|inst| inst.is_encoded_push() && inst.has_canonical_stack_effect())
+    {
+        return None;
+    }
+    let start = discardable_tail_start(&instructions[..operands])?;
+    Some(start..operands)
+}
+
+const fn halting_stack_io(kind: &TerminatorKind) -> Option<(u8, u8)> {
+    let TerminatorKind::Op(
+        opcode @ (op::STOP | op::INVALID | op::RETURN | op::REVERT | op::SELFDESTRUCT),
+    ) = *kind
+    else {
+        return None;
+    };
+    op::stack_io(opcode)
+}
+
+fn discardable_tail_start(instructions: &[Instruction]) -> Option<usize> {
+    let start = instructions
+        .iter()
+        .rposition(|inst| !is_discardable_tail_instruction(inst))
+        .map_or(0, |index| index + 1);
+    (start < instructions.len()).then_some(start)
+}
+
+fn is_discardable_tail_instruction(inst: &Instruction) -> bool {
+    inst.has_canonical_stack_effect()
+        && (inst.is_encoded_push()
+            || inst.as_stack_op().is_some()
+            || inst.as_evm_opcode().is_some_and(op::is_pure))
 }
 
 /// Removes stack copies that are eventually discarded without being consumed.
@@ -280,11 +397,12 @@ fn find_candidate(
                 candidate.replace(index, StackOp::Exchange(n, m), replacement, evm_version);
             }
             None => {
-                if inst.as_legacy_opcode().is_some_and(is_analysis_boundary) {
+                if !inst.has_canonical_stack_effect()
+                    || inst.as_evm_opcode().is_some_and(is_analysis_boundary)
+                {
                     return None;
                 }
-                let effect =
-                    inst.metadata.stack.or_else(|| default_instruction_stack_effect(inst))?;
+                let effect = inst.effective_stack_effect()?;
                 let inputs = usize::from(effect.inputs);
                 if inputs > slots.len()
                     || slots[slots.len() - inputs..].iter().any(|slot| slot.is_ghost)

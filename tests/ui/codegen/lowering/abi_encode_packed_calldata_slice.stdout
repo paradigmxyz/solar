@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_calldata_slice.sol:AbiEncodePackedCalldataSlice (runtime) ===
-@module runtime
+@module AbiEncodePackedCalldataSlice_runtime
 bb0:
   callvalue
   push bb4
@@ -21,7 +21,7 @@ bb0:
   jump bb4
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb5:
   push 320
@@ -42,6 +42,9 @@ bb15:
   push 4
   dup 2
   add
+  dup 1
+  push 288
+  mstore
   push 36
   dup 3
   add
@@ -59,26 +62,28 @@ bb15:
   or
   dup 3
   calldataload
-  dup 3
+  swap 2
   calldatasize
   sub
-  swap 3
-  pop
   swap 1
   swap 2
-  lt
+  gt
   or
-  push bb17
+  push bb4
   jumpi
   swap 1
   jump
 bb7:
   dup 1
+  push 160
+  mstore
+  dup 1
   calldataload
   swap 1
   push 32
   add
-  swap 1
+  push 192
+  mstore
   push 68
   calldataload
   gt
@@ -95,12 +100,16 @@ bb7:
   push 68
   calldataload
   sub
-  swap 1
   push 36
   calldataload
+  push 192
+  mload
   add
   push 64
   mload
+  dup 1
+  push 160
+  mstore
   dup 3
   dup 3
   dup 3
@@ -136,27 +145,38 @@ bb10:
   jump bb15
 bb12:
   dup 1
+  push 224
+  mstore
+  dup 1
   calldataload
+  dup 1
+  push 160
+  mstore
   swap 1
   push 32
   add
+  push 192
+  mstore
   push 36
   calldataload
-  dup 3
-  lt
+  gt
   push bb4
   jumpi
   push 36
   calldataload
-  swap 1
-  swap 2
+  push 160
+  mload
   sub
-  swap 1
   push 36
   calldataload
+  push 192
+  mload
   add
   push 64
   mload
+  dup 1
+  push 224
+  mstore
   push 112
   push 248
   shl
@@ -178,8 +198,3 @@ bb12:
   mstore
   push 32
   jump bb18
-bb17 [cold]:
-  pop
-  push 0
-  dup 1
-  revert

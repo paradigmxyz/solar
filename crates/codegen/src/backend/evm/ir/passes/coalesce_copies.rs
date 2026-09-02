@@ -1,9 +1,15 @@
 //! Coalesce adjacent constant word copies into `MCOPY`.
+//!
+//! The pass recognizes consecutive `MLOAD`/`MSTORE` pairs with constant, contiguous source and
+//! destination addresses. It replaces a non-overlapping run with one `MCOPY` when the target
+//! supports it and the replacement is smaller without using more static gas. Overlapping ranges
+//! remain unchanged because repeated word copies have memmove-like ordering that `MCOPY` does not
+//! necessarily preserve.
 
-use super::{EvmPass, utils::StackDepths};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module},
-    op,
+    op::{self, WORD_BYTES},
 };
 use alloy_primitives::U256;
 use solar_config::OptimizationMode;
@@ -26,19 +32,15 @@ impl EvmPass for CoalesceCopies {
     }
 }
 
-const WORD_BYTES: usize = 32;
 const COPY_INSTRUCTIONS: usize = 4;
 
 fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
     if !module.blocks.iter().any(|block| has_candidate(gcx, &block.instructions)) {
         return false;
     }
-    let Some(depths) = StackDepths::new(module) else { return false };
     let mut groups = 0usize;
     let mut words = 0usize;
-    for block_index in 0..module.blocks.len() {
-        let block_id = crate::backend::evm::ir::BlockId::from_usize(block_index);
-        let block = &mut module.blocks[block_id];
+    for block in &mut module.blocks {
         let mut edits = Vec::new();
         let mut index = 0;
         while index + COPY_INSTRUCTIONS <= block.instructions.len() {
@@ -59,10 +61,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
             {
                 count += 1;
             }
-            if count < 2
-                || !ranges_disjoint(source, destination, count)
-                || !depths.has_headroom(block_id, index, 3)
-            {
+            if count < 2 || !ranges_disjoint(source, destination, count) {
                 index += COPY_INSTRUCTIONS;
                 continue;
             }
@@ -135,14 +134,7 @@ fn word_copy(instructions: &[Instruction]) -> Option<(U256, U256)> {
     if load.opcode != op::MLOAD || store.opcode != op::MSTORE {
         return None;
     }
-    Some((immediate(source)?, immediate(destination)?))
-}
-
-fn immediate(inst: &Instruction) -> Option<U256> {
-    if inst.deferred_push().is_some() || inst.immutable_push().is_some() {
-        return None;
-    }
-    inst.pushed_value()
+    Some((source.concrete_immediate()?, destination.concrete_immediate()?))
 }
 
 fn ranges_disjoint(source: U256, destination: U256, words: usize) -> bool {

@@ -1,0 +1,86 @@
+//@ revisions: osaka osaka_size amsterdam
+//@[osaka] compile-flags: -Ogas --evm-version osaka -Zevm-ir-pipeline=reorder-pushes,peephole
+//@[osaka] filecheck: --check-prefixes=COMMON,OSAKA,PEEPHOLE
+//@[osaka_size] compile-flags: -Osize --evm-version osaka -Zevm-ir-pipeline=reorder-pushes,peephole
+//@[osaka_size] filecheck: --check-prefixes=COMMON,OSAKA,PEEPHOLE
+//@[amsterdam] compile-flags: -Ogas --evm-version amsterdam -Zevm-ir-pipeline=reorder-pushes,peephole
+//@[amsterdam] filecheck: --check-prefixes=COMMON,AMSTERDAM,PEEPHOLE
+@module MixedStack
+
+// COMMON-LABEL: bb0:
+// COMMON: -   dup 1
+// COMMON: {{^[ +].*}}push 10
+// COMMON: -   swap 1
+// COMMON: +   dup 2
+bb0:
+  push 1
+  dup 1
+  push 10
+  swap 1
+  sub
+  stop
+
+// COMMON-LABEL: bb1:
+// COMMON: -   dup 15
+// COMMON: {{^[ +].*}}push_deferred 0
+// COMMON: -   swap 1
+// COMMON: +   dup 16
+bb1:
+  callf !meta(stack=0->15)
+  dup 15
+  push_deferred 0
+  swap 1
+  sub
+  stop
+
+// OSAKA-LABEL: bb2:
+// OSAKA: {{^    dup 16}}
+// OSAKA-NEXT: {{^    push_immutable 0, 32}}
+// OSAKA-NEXT: {{^    swap 1}}
+// AMSTERDAM-LABEL: bb2:
+// AMSTERDAM: -   dup 16
+// AMSTERDAM: {{^[ +].*}}push_immutable 0, 32
+// AMSTERDAM: -   swap 1
+// AMSTERDAM: +   dup 17
+bb2:
+  callf !meta(stack=0->16)
+  dup 16
+  push_immutable 0, 32
+  swap 1
+  sub
+  stop
+
+// Reordering exposes the standard `DUPn POP` cleanup to the following peephole pass.
+// COMMON-LABEL: bb3:
+// COMMON: -   dup 1
+// COMMON: {{^[ +].*}}push 10
+// COMMON: -   swap 1
+bb3:
+  push 1
+  dup 1
+  push 10
+  swap 1
+  pop
+  stop
+
+// Unary operations on the duplicated value move with the rebased DUP.
+// COMMON-LABEL: bb4:
+// COMMON: -   dup 1
+// COMMON: -   iszero
+// COMMON: {{^[ +].*}}push 32
+// COMMON: -   swap 1
+// COMMON: +   dup 2
+// COMMON: +   iszero
+bb4:
+  push 1
+  dup 1
+  iszero
+  push 32
+  swap 1
+  sub
+  stop
+
+// PEEPHOLE-LABEL: after peephole
+// PEEPHOLE: bb3:
+// PEEPHOLE: -   dup 2
+// PEEPHOLE-NEXT: -   pop

@@ -81,7 +81,78 @@
   bb8:
     calldatasize
     calldatasize
+    pop
+    pop
+    stop
+  bb9:
+    push 1
+    dup 1
+-   swap 1
+    push 0
+    mstore
+    stop
+  bb10:
+    push 1
+    push 2
+    push 3
+    dup 3
+-   swap 3
+    push 0
+    mstore
+    stop
+  bb11:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    swap 3
+    push 0
+    push 1
+-   swap 1
+-   swap 2
+-   swap 1
++   exchange 1, 2
+    pop
+    swap 1
+    pop
+    swap 4
+    push 0
+    mstore
+    stop
+  bb12:
+    calldatasize
+    push 0
 -   pop
--   pop
+-   push 0
+    mstore
+    stop
+  bb13:
+    calldatasize
+    push_deferred 0
+    pop
+    push 0
+    mstore
+    stop
+  bb14:
+    push 0
+    push 1
+-   swap 1
+-   swap 2
+-   swap 1
++   exchange 1, 2
+    pop
+    swap 1
+    pop
+    stop
+  bb15:
+    push 0
+    push 1
+-   dup 2
+-   dup 1
++   push 0
++   push 0
+    push 0
+    mstore
     stop
   

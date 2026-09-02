@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
-@module runtime
+@module AssemblerBlockDedup_runtime
 bb0:
   callvalue
   push bb6
@@ -31,7 +31,7 @@ bb0:
   jump bb6
 bb6 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb7:
   push 1

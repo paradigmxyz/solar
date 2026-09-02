@@ -32,6 +32,11 @@ pub use never::Never;
 mod drop_guard;
 pub use drop_guard::{DropGuard, defer};
 
+#[doc(hidden)]
+mod drop_arena;
+#[doc(hidden)]
+pub use drop_arena::DropArena;
+
 mod interned;
 pub use interned::Interned;
 

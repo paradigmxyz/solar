@@ -20,19 +20,19 @@ fn @six(arg0: u256) -> u256 [selector=0x84b8ba08, pure, abi_params=[u256], abi_r
 // === ROOT/tests/ui/codegen/lowering/run-call/keep_reloaded_store.sol:KeepReloadedStore ===
 @module KeepReloadedStore
 data:
-  Target_initcode_0: hex"34600d57608a8060115f395ff35b5f5ffd34601a575f3560e01c806384b8ba0814601657601a565b601e565b5f80fd5b60243610156086576082565b6006600435026006156006820460043590148117905015156072577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6080526020608001608090036080f35b5f80fd5b602a56"
+  Target_initcode_0: hex"34600d5760968060115f395ff35b5f5ffd34601a575f3560e01c806384b8ba0814601657601a565b601e565b5f5ffd5b6024361015609257608e565b6006600435028060a0528060a052600615600682046004359014811790501515607a577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b8060a0526080526020608001608090036080f35b5f5ffd5b602a56"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 186, v1
+    v2 = and 198, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Target_initcode_0, v3, 155
+    data_copy Target_initcode_0, v3, 167
     v4 = slice_ptr v0
-    v5 = add v3, 155
+    v5 = add v3, 167
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 155
+    v6 = create 0, v3, 167
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

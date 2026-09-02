@@ -5,16 +5,14 @@ use crate::{
     backend::evm::{
         assembler::{ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label},
         ir::assembly::DeferredAlloc,
-        op, push_len,
+        op::{self, push_len},
     },
     memory::EvmMemoryLayout,
     mir::{DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::index_vec, map::FxHashMap};
-use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
-use std::ops::Range;
 
 impl<'gcx> Assembler<'gcx> {
     /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
@@ -43,7 +41,7 @@ impl<'gcx> Assembler<'gcx> {
                 .emit());
         }
 
-        debug_assert!(is_valid(&module));
+        debug_assert!(ir::verify::Verifier::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
         for (index, block) in module.blocks.iter_mut().enumerate() {
@@ -188,66 +186,6 @@ impl<'gcx> Assembler<'gcx> {
             (block.index() + 1 < self.program.blocks.len())
                 .then(|| ir::BlockId::from_usize(block.index() + 1))
         }
-    }
-
-    /// Number of blocks the program holds so far; the next defined label starts block `len`.
-    pub(crate) fn block_count(&self) -> usize {
-        self.program.blocks.len()
-    }
-
-    /// Control-flow edges among the blocks in `range`, for dataflow over one function's code
-    /// before finalization. A block reaches every block whose label it pushes (jump and jumpi
-    /// targets, and a return address pushed before a call), its indexed-jump targets, and the
-    /// next block when it ends without a terminator. A block that jumps or branches through a
-    /// stack word reaches every block in `range` whose label is pushed anywhere in it. Targets
-    /// outside `range` — other functions — are omitted: they never touch this function's frame
-    /// and control comes back only through a pushed return label.
-    pub(crate) fn dataflow_edges(&self, range: Range<usize>) -> Vec<(ir::BlockId, ir::BlockId)> {
-        let in_range = |block: ir::BlockId| range.contains(&block.index());
-        let mut edges = Vec::new();
-        let mut address_taken = Vec::new();
-        let mut take = |edges: &mut Vec<_>, source, target| {
-            if in_range(source) && in_range(target) {
-                edges.push((source, target));
-                if !address_taken.contains(&target) {
-                    address_taken.push(target);
-                }
-            }
-        };
-        for &(source, _, label) in &self.label_relocations {
-            if let Some(&target) = self.label_blocks.get(&label) {
-                take(&mut edges, source, target);
-            }
-        }
-        for (source, targets) in &self.indexed_jump_relocations {
-            for label in targets {
-                if let Some(&target) = self.label_blocks.get(label) {
-                    take(&mut edges, *source, target);
-                }
-            }
-        }
-        for index in range.clone() {
-            let block = ir::BlockId::from_usize(index);
-            let instructions = &self.program.blocks[block].instructions;
-            let dynamic = instructions.iter().enumerate().any(|(position, inst)| {
-                !inst.is_encoded_push()
-                    && matches!(inst.opcode, op::JUMP | op::JUMPI)
-                    && !position
-                        .checked_sub(1)
-                        .and_then(|previous| instructions.get(previous))
-                        .is_some_and(ir::Instruction::is_encoded_push)
-            });
-            if dynamic {
-                edges.extend(address_taken.iter().map(|&target| (block, target)));
-            }
-            if !self.block_has_explicit_terminator(block)
-                && self.explicit_jump_target(block).is_none()
-                && range.contains(&(index + 1))
-            {
-                edges.push((block, ir::BlockId::from_usize(index + 1)));
-            }
-        }
-        edges
     }
 
     fn explicit_jump_target(&self, block: ir::BlockId) -> Option<ir::BlockId> {
@@ -407,18 +345,6 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    /// Marks a label-started block as running once per loop iteration.
-    pub(in crate::backend::evm) fn mark_label_loop(&mut self, label: Label) {
-        self.loop_labels.insert(label);
-        if let Some(&block) = self.label_blocks.get(&label) {
-            self.program.blocks[block].metadata.in_loop = true;
-        }
-    }
-
-    pub(in crate::backend::evm) fn new_ir_module() -> ir::Module {
-        ir::Module::new(sym::asm)
-    }
-
     fn current_block(&mut self) -> ir::BlockId {
         if let Some(block) = self.current_block {
             return block;
@@ -441,57 +367,14 @@ impl<'gcx> Assembler<'gcx> {
         (block, self.program.blocks[block].instructions.len())
     }
 
-    /// Removes the instructions in `range` from `block` again. Relocations inside the range are
-    /// dropped and later ones in the block shift down; the range must lie within the block.
-    /// Removes instruction ranges, which must not overlap within a block, dropping the
-    /// relocations inside them and shifting the ones after them in one pass over each
-    /// relocation list; the result is that of removing the ranges one at a time, later
-    /// ranges first.
-    pub(crate) fn remove_instructions(&mut self, removals: &mut [(ir::BlockId, Range<usize>)]) {
-        removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
-        // Each block's ranges in order, with the number of instructions removed before each.
-        let mut per_block: FxHashMap<ir::BlockId, Vec<(Range<usize>, usize)>> =
-            FxHashMap::default();
-        for (block, range) in removals.iter() {
-            let ranges = per_block.entry(*block).or_default();
-            let before = ranges.last().map_or(0, |(range, before)| before + range.len());
-            ranges.push((range.clone(), before));
-        }
-        fn shift<T>(
-            relocations: &mut Vec<(ir::BlockId, usize, T)>,
-            per_block: &FxHashMap<ir::BlockId, Vec<(Range<usize>, usize)>>,
-        ) {
-            relocations.retain_mut(|(block, index, _)| {
-                let Some(ranges) = per_block.get(block) else { return true };
-                // The last range starting at or before the instruction.
-                let position = ranges.partition_point(|(range, _)| range.start <= *index);
-                let Some((range, before)) = position.checked_sub(1).map(|i| &ranges[i]) else {
-                    return true;
-                };
-                if range.contains(index) {
-                    return false;
-                }
-                *index -= before + range.len();
-                true
-            });
-        }
-        shift(&mut self.label_relocations, &per_block);
-        shift(&mut self.deferred_relocations, &per_block);
-        shift(&mut self.alloc_relocations, &per_block);
-        for (block, ranges) in per_block {
-            let instructions = &mut self.program.blocks[block].instructions;
-            for (range, _) in ranges.into_iter().rev() {
-                instructions.drain(range);
-            }
-        }
-    }
-
     pub(in crate::backend::evm) fn finish_evm_ir(
         &mut self,
     ) -> Option<(ir::Module, Vec<Option<Label>>)> {
-        let mut module = std::mem::replace(&mut self.program, Self::new_ir_module());
+        let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
+            module.clear();
+            self.program = module;
             return None;
         }
 
@@ -513,7 +396,7 @@ impl<'gcx> Assembler<'gcx> {
         alloc_relocations.sort_unstable_by_key(|&(block, instruction, _)| {
             std::cmp::Reverse((block, instruction))
         });
-        for (block, instruction, id) in alloc_relocations {
+        for (block, instruction, id) in alloc_relocations.drain(..) {
             let resolution = self
                 .deferred_allocations
                 .get(&id)
@@ -535,6 +418,7 @@ impl<'gcx> Assembler<'gcx> {
             module.blocks[block].instructions.splice(instruction..=instruction, replacement);
         }
         self.deferred_allocations.clear();
+        self.alloc_relocations = alloc_relocations;
 
         if self.program_is_finalized {
             self.program_is_finalized = false;
@@ -555,28 +439,33 @@ impl<'gcx> Assembler<'gcx> {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
             let block = &mut module.blocks[block_id];
-            let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
+            let (terminator, remove) = if let [.., push, jump] = block.instructions.as_slice()
                 && !jump.is_encoded_push()
                 && jump.opcode == op::JUMP
                 && let Some(target) = push.pushed_block()
                 && push.is_encoded_push()
             {
-                (ir::TerminatorKind::Jump(target), 2)
+                (ir::Terminator::new(ir::TerminatorKind::Jump(target)), 2)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && last.opcode == op::STOP
             {
-                (ir::TerminatorKind::Op(op::STOP), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)), 1)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
             {
-                (ir::TerminatorKind::Op(last.opcode), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1)
             } else {
-                (next.map_or(ir::TerminatorKind::Op(op::STOP), ir::TerminatorKind::Jump), 0)
+                (
+                    next.map_or_else(ir::Terminator::implicit_stop, |target| {
+                        ir::Terminator::new(ir::TerminatorKind::Jump(target))
+                    }),
+                    0,
+                )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            block.terminator = Some(ir::Terminator::new(kind));
+            block.terminator = Some(terminator);
         }
 
         for (block, targets) in self.indexed_jump_relocations.drain(..) {
@@ -608,10 +497,4 @@ pub(in crate::backend::evm) fn resolve_known_deferred_constants(
             }
         }
     }
-}
-
-pub(in crate::backend::evm) fn is_valid(module: &ir::Module) -> bool {
-    let dcx = DiagCtxt::with_silent_emitter(None);
-    ir::validate(&dcx, module);
-    dcx.has_errors().is_ok()
 }

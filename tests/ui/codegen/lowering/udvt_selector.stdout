@@ -9,7 +9,7 @@
   "version": "VERSION"
 }
 // === ROOT/tests/ui/codegen/lowering/udvt_selector.sol:UdvtSelector (runtime) ===
-@module runtime
+@module UdvtSelector_runtime
 bb0:
   callvalue
   push bb3
@@ -33,6 +33,9 @@ bb0:
   push 4
   calldataload
   add
+  dup 1
+  push 160
+  mstore
   push 4
   calldataload
   dup 2
@@ -46,7 +49,7 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb7 [cold]:
   push 0x4e487b71

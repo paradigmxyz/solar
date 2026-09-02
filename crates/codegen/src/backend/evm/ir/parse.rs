@@ -203,7 +203,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mnemonic = self.parser.parse_ident()?;
         if let Some(kind) = self.parse_terminator_kind(mnemonic, module)? {
             let metadata = self.parse_metadata()?;
-            module.blocks[block].terminator = Some(Terminator { kind, metadata });
+            module.blocks[block].terminator =
+                Some(Terminator { kind, metadata, implicit_stop: false });
             return Ok(());
         }
 

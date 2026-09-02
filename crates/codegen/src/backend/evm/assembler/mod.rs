@@ -7,7 +7,7 @@
 //! - Opaque program-data placement.
 //! - Byte emission.
 
-use super::EVM_WORD_BYTES;
+use super::op::WORD_BYTES;
 use crate::{
     backend::evm::{
         ir::{self, assembly},
@@ -17,6 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
+use solar_interface::{Symbol, sym};
 use solar_sema::Gcx;
 
 mod id_counter;
@@ -69,6 +70,16 @@ pub(crate) enum ArtifactKind {
     Runtime,
     /// Creation bytecode that runs during deployment.
     Constructor,
+}
+
+impl ArtifactKind {
+    /// Returns this artifact's name in EVM IR output.
+    pub(in crate::backend::evm) const fn name(self) -> Symbol {
+        match self {
+            Self::Runtime => sym::runtime,
+            Self::Constructor => sym::deployment,
+        }
+    }
 }
 
 /// Final EVM IR lowered to reusable primitive assembly.
@@ -141,7 +152,7 @@ impl<'gcx> Assembler<'gcx> {
         Self {
             gcx,
             artifact_kind: ArtifactKind::Runtime,
-            program: Self::new_ir_module(),
+            program: ir::Module::new(sym::asm),
             program_is_finalized: false,
             current_block: None,
             block_labels: Vec::new(),
@@ -165,7 +176,7 @@ impl<'gcx> Assembler<'gcx> {
     /// Clears all emitted instructions and local identifiers.
     pub(crate) fn clear(&mut self) {
         self.artifact_kind = ArtifactKind::Runtime;
-        self.program = Self::new_ir_module();
+        self.program.clear();
         self.program_is_finalized = false;
         self.current_block = None;
         self.block_labels.clear();
@@ -190,19 +201,9 @@ impl<'gcx> Assembler<'gcx> {
         self.artifact_kind = kind;
     }
 
-    /// Records stack growth proven safe by the MIR backend.
-    pub(crate) fn set_unknown_target_stack_headroom(&mut self, headroom: usize) {
-        self.program.unknown_target_stack_headroom = headroom;
-    }
-
-    /// Records the transient growth the MIR backend reserved for legacy shift legalization.
-    pub(crate) fn set_legacy_shift_stack_headroom(&mut self, headroom: usize) {
-        self.program.legacy_shift_stack_headroom = headroom;
-    }
-
-    /// Records whether the backend reserved stack growth for program-data copies.
-    pub(crate) fn set_data_copy_has_headroom(&mut self, has_headroom: bool) {
-        self.program.data_copy_has_headroom = has_headroom;
+    /// Sets the source module name carried by emitted EVM IR.
+    pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
+        self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
     }
 
     /// Enables size-oriented outlining for an oversized gas-mode runtime.
@@ -605,8 +606,8 @@ impl<'gcx> BytecodeAssembler<'gcx> {
 
         self.bytecode.push(op::push(width));
 
-        let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
-        let start = EVM_WORD_BYTES - width as usize;
+        let bytes = value.to_be_bytes::<WORD_BYTES>();
+        let start = WORD_BYTES - width as usize;
         self.bytecode.extend_from_slice(&bytes[start..]);
     }
 

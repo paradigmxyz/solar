@@ -31,20 +31,20 @@ fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
 @module ExternalCallReturndataSize
 data:
-  LongReturn_initcode_0: hex"34600d5760b68060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f80fd5b610360604052604051610280810160405261028036823760145f101515606c575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b602a8152601460011015603f5760208101602b8152505f5b601481101560a5576020810282015160208202608001526001810190506084565b610280608001915050608090036080f3"
-  ShortReturn_initcode_1: hex"34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f80fd5b602a6080526020608001608090036080f3"
+  LongReturn_initcode_0: hex"34600d5760de8060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b610360604052604051806103005280610300526102808101604052610280368280610300523760145f1015905015607d575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b602a610300515260146001101560505760206103005101602b8152505f5b8061032052601481101560ce5760208180610320520261030051015160208202608001526001810190508061034052609b565b6102806080019050608090036080f3"
+  ShortReturn_initcode_1: hex"34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b602a6080526020608001608090036080f3"
 
 fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 230, v1
+    v2 = and 270, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 199
+    data_copy LongReturn_initcode_0, v3, 239
     v4 = slice_ptr v0
-    v5 = add v3, 199
+    v5 = add v3, 239
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 199
+    v6 = create 0, v3, 239
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -78,13 +78,13 @@ fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_params=[], abi_return
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 230, v1
+    v2 = and 270, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 199
+    data_copy LongReturn_initcode_0, v3, 239
     v4 = slice_ptr v0
-    v5 = add v3, 199
+    v5 = add v3, 239
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 199
+    v6 = create 0, v3, 239
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -123,13 +123,13 @@ fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_params=[], abi_r
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 230, v1
+    v2 = and 270, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 199
+    data_copy LongReturn_initcode_0, v3, 239
     v4 = slice_ptr v0
-    v5 = add v3, 199
+    v5 = add v3, 239
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 199
+    v6 = create 0, v3, 239
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -169,13 +169,13 @@ fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_params=[], abi_
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 230, v1
+    v2 = and 270, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 199
+    data_copy LongReturn_initcode_0, v3, 239
     v4 = slice_ptr v0
-    v5 = add v3, 199
+    v5 = add v3, 239
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 199
+    v6 = create 0, v3, 239
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

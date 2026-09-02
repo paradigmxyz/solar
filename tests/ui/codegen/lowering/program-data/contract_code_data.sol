@@ -21,7 +21,7 @@ contract CodeTarget {
 // MIR: CodeTarget_runtime_code_[[RUNTIME:[0-9]+]]: hex"
 // MIR-NOT: CodeTarget_initcode_1:
 // OPT-LABEL: contract_code_data.sol:CodeFactory (runtime) ===
-// OPT: @module runtime
+// OPT: @module CodeFactory_runtime
 // OPT: push_data CodeTarget_initcode_0+{{[0-9]+}}
 // OPT: @data CodeTarget_initcode_0 hex"
 // OPT-NOT: @data CodeTarget_runtime_code_

@@ -1,0 +1,120 @@
+//@ revisions: explicit default default_size
+//@[explicit] compile-flags: -Ogas -Zevm-ir-pipeline=reorder-pushes,compact-pushes
+//@[explicit] filecheck: --check-prefixes=EXPLICIT,COMMON
+//@[default] compile-flags: -Ogas -Zevm-ir-pipeline=default
+//@[default] filecheck: --check-prefixes=DEFAULT,COMMON
+//@[default_size] compile-flags: -Osize -Zevm-ir-pipeline=default
+//@[default_size] filecheck: --check-prefixes=DEFAULT,COMMON
+@module CompactedPush
+
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push bb1
+  push 0
+  add
+  jump
+// EXPLICIT-LABEL: after compact-pushes
+// DEFAULT-LABEL: after pipeline-default
+// COMMON: bb1:
+// EXPLICIT: push 1
+// EXPLICIT-NEXT: push 128
+// EXPLICIT-NEXT: shl
+// EXPLICIT-NEXT: calldatasize
+// EXPLICIT-NEXT: sub
+// DEFAULT: push 1
+// DEFAULT-NEXT: push 128
+// DEFAULT-NEXT: shl
+// DEFAULT-NEXT: calldatasize
+// DEFAULT-NEXT: sub
+bb1:
+  calldatasize
+  push 0x100000000000000000000000000000000
+  swap 1
+  sub
+  push 0
+  mstore
+  stop
+
+// A compact recipe can also be the producer moved after a literal push.
+// EXPLICIT-LABEL: bb2:
+// EXPLICIT: {{^[ +].*}}push 10
+// EXPLICIT: push 1
+// EXPLICIT: push 128
+// EXPLICIT: shl
+// EXPLICIT-NOT: swap 1
+// EXPLICIT: sub
+bb2:
+  callf !meta(stack=0->3)
+  pop
+  pop
+  pop
+  push 0x100000000000000000000000000000000
+  push 10
+  swap 1
+  sub
+  stop
+
+
+// A compact recipe can follow a rebased duplicate.
+// EXPLICIT-LABEL: bb3:
+// EXPLICIT: push 1
+// EXPLICIT: push 1
+// EXPLICIT: push 128
+// EXPLICIT: shl
+// EXPLICIT: dup 2
+// EXPLICIT: sub
+bb3:
+  push 1
+  dup 1
+  push 0x100000000000000000000000000000000
+  swap 1
+  sub
+  stop
+
+// Full-word NOT materialization is a movable immediate recipe.
+// EXPLICIT-LABEL: bb4:
+// EXPLICIT: push 0
+// EXPLICIT: not
+// EXPLICIT-NOT: swap 1
+// EXPLICIT: calldatasize
+// EXPLICIT: sub
+bb4:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  swap 1
+  sub
+  stop
+
+// A compact inverse can be the producer moved after a literal.
+// EXPLICIT-LABEL: bb5:
+// EXPLICIT: push 10
+// EXPLICIT: push 1
+// EXPLICIT: not
+// EXPLICIT-NOT: swap 1
+// EXPLICIT: sub
+bb5:
+  push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+  push 10
+  swap 1
+  sub
+  stop
+
+// Lower masks are movable immediate recipes.
+// EXPLICIT-LABEL: bb6:
+// EXPLICIT: push 0
+// EXPLICIT: not
+// EXPLICIT: push 8
+// EXPLICIT: shr
+// EXPLICIT: calldatasize
+// EXPLICIT: sub
+bb6:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  swap 1
+  sub
+  stop

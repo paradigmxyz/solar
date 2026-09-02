@@ -32,10 +32,10 @@ impl<'gcx> Gcx<'gcx> {
         for f in self.interface_functions(id) {
             items.push(self.function_abi(f.id).into());
         }
-        for event in self.interface_events(id) {
+        for event in self.interface_events(id).iter() {
             items.push(self.event_abi(event).into());
         }
-        for error in self.interface_errors(id) {
+        for error in self.interface_errors(id).iter() {
             items.push(self.error_abi(error).into());
         }
 

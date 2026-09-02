@@ -1,11 +1,22 @@
-//! Machine-level EVM control-flow simplification.
+//! Simplify machine-level EVM control flow before block layout and assembly.
+//!
+//! The pass truncates instructions after a terminal opcode, folds branches whose two edges have
+//! the same target, redirects label-only jump thunks, removes unreachable blocks, and merges an
+//! unconditional predecessor into its sole unaddressed successor. It repeats these steps because
+//! each rewrite can expose another. Degenerate branches include both structural
+//! [`TerminatorKind::JumpI`] terminators and the physical `PUSH target; JUMPI; jump target` form
+//! emitted when edge-specific stack scheduling lowers one branch edge before EVM IR construction.
+//!
+//! Address-taken blocks remain distinct, and block merging requires one reference so changing a
+//! predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
+//! `POP`; later dead-code elimination may remove the pure condition computation.
 
 use super::{
     EvmPass,
     utils::{remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
-    ir::{BlockId, Module, PushValue, Terminator, TerminatorKind},
+    ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -30,7 +41,8 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     loop {
         let truncated = truncate_after_terminal(module);
         let degenerate = simplify_degenerate_branches(module);
-        let redirected = redirect_jump_thunks(module, &mut state.thunks, &mut state.order);
+        let redirected =
+            redirect_jump_thunks(module, &mut state.thunks, &mut state.addressed, &mut state.order);
         let swept = remove_unreachable_blocks(
             module,
             &mut state.reachable,
@@ -48,6 +60,7 @@ fn simplify_cfg(_gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 struct RunState {
     thunks: FxHashMap<BlockId, BlockId>,
+    addressed: DenseBitSet<BlockId>,
     reachable: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
     references: IndexVec<BlockId, usize>,
@@ -59,6 +72,7 @@ impl Default for RunState {
     fn default() -> Self {
         Self {
             thunks: FxHashMap::default(),
+            addressed: DenseBitSet::new_empty(0),
             reachable: DenseBitSet::new_empty(0),
             pending: Vec::new(),
             references: IndexVec::new(),
@@ -100,19 +114,33 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        let Some(TerminatorKind::JumpI { then_block, else_block }) =
+        if let Some(TerminatorKind::JumpI { then_block, else_block }) =
             block.terminator.as_ref().map(|term| &term.kind)
-        else {
-            continue;
-        };
-        if then_block != else_block {
+            && then_block == else_block
+        {
+            let target = *then_block;
+            block
+                .instructions
+                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
+            block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+            changed = true;
             continue;
         }
 
-        let target = *then_block;
-        block.instructions.push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
-        block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
-        changed = true;
+        if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
+            && let [.., pushed, jumpi] = block.instructions.as_slice()
+            && pushed.has_canonical_stack_effect()
+            && pushed.is_encoded_push()
+            && pushed.value == Some(PushValue::Block(*target))
+            && jumpi.has_canonical_stack_effect()
+            && jumpi.as_evm_opcode() == Some(op::JUMPI)
+        {
+            block.instructions.truncate(block.instructions.len() - 2);
+            block
+                .instructions
+                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
+            changed = true;
+        }
     }
     changed
 }
@@ -120,14 +148,24 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
 fn redirect_jump_thunks(
     module: &mut Module,
     thunks: &mut FxHashMap<BlockId, BlockId>,
+    addressed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
-    // A thunk is an empty block that only jumps on. Every reference to it, a direct jump label
-    // or a return address an internal call pushes for its callee to jump back to, lands on the
-    // thunk's target just as well, so the thunk itself is never needed.
+    addressed.clear_to(module.blocks.len());
+    for block in &module.blocks {
+        for (at, inst) in block.instructions.iter().enumerate() {
+            if let Some(PushValue::Block(target)) = &inst.value
+                && !is_direct_jump_label(block, at)
+            {
+                addressed.insert(*target);
+            }
+        }
+    }
+
     thunks.clear();
     for (block_id, block) in module.blocks.iter_enumerated() {
-        if block.instructions.is_empty()
+        if !addressed.contains(block_id)
+            && block.instructions.is_empty()
             && let Some(TerminatorKind::Jump(target)) =
                 block.terminator.as_ref().map(|term| &term.kind)
         {
@@ -154,7 +192,9 @@ fn redirect_jump_thunks(
     let mut changed = false;
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
-            if let Some(PushValue::Block(target)) = &mut block.instructions[at].value {
+            if is_direct_jump_label(block, at)
+                && let Some(PushValue::Block(target)) = &mut block.instructions[at].value
+            {
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
@@ -179,6 +219,15 @@ fn redirect_jump_thunks(
     changed
 }
 
+fn is_direct_jump_label(block: &Block, at: usize) -> bool {
+    block.instructions.get(at + 1).is_some_and(|inst| matches!(inst.opcode, op::JUMP | op::JUMPI))
+        || (at + 1 == block.instructions.len()
+            && block
+                .terminator
+                .as_ref()
+                .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
+}
+
 #[must_use]
 fn remove_unreachable_blocks(
     module: &mut Module,
@@ -189,11 +238,7 @@ fn remove_unreachable_blocks(
     if module.blocks.is_empty() {
         return false;
     }
-    if reachable.domain_size() != module.blocks.len() {
-        *reachable = DenseBitSet::new_empty(module.blocks.len());
-    } else {
-        reachable.clear();
-    }
+    reachable.clear_to(module.blocks.len());
     pending.clear();
     pending.push(BlockId::ENTRY);
     while let Some(block_id) = pending.pop() {
