@@ -101,9 +101,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             });
             let values = self.lower_call_arguments(
                 args,
-                constructor.parameters.len(),
-                Some(parameter_names.as_slice()),
-                false,
+                CallArgumentParams {
+                    count: constructor.parameters.len(),
+                    names: Some(parameter_names.as_slice()),
+                    reverse: false,
+                },
                 constructor.span,
                 "named base constructor argument",
                 |this, index, argument| {

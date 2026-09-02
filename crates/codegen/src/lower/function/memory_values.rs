@@ -95,9 +95,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
         let arguments = self.lower_call_arguments(
             args,
-            struct_fields.len(),
-            Some(parameter_names.as_slice()),
-            false,
+            CallArgumentParams {
+                count: struct_fields.len(),
+                names: Some(parameter_names.as_slice()),
+                reverse: false,
+            },
             args.span,
             "struct constructor argument",
             |this, index, argument| {

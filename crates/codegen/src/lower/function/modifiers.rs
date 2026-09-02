@@ -97,9 +97,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let saved_parameters = self.snapshot_bindings(modifier_function.parameters);
         self.lower_call_arguments(
             modifier.args,
-            modifier_function.parameters.len(),
-            parameter_names.as_deref(),
-            false,
+            CallArgumentParams {
+                count: modifier_function.parameters.len(),
+                names: parameter_names.as_deref(),
+                reverse: false,
+            },
             modifier.span,
             "named modifier argument",
             |this, index, argument| {

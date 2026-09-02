@@ -241,9 +241,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let arguments = self.lower_call_arguments(
             args,
-            parameters.len(),
-            Some(parameter_names.as_slice()),
-            false,
+            CallArgumentParams {
+                count: parameters.len(),
+                names: Some(parameter_names.as_slice()),
+                reverse: false,
+            },
             args.span,
             "constructor argument",
             |this, index, argument| {
@@ -406,9 +408,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|source| self.cx.gcx.callable_param_names(source));
         let mut values = self.lower_call_arguments(
             args,
-            function.parameters.len(),
-            parameter_names.as_deref(),
-            false,
+            CallArgumentParams {
+                count: function.parameters.len(),
+                names: parameter_names.as_deref(),
+                reverse: false,
+            },
             expr.span,
             "named internal function argument",
             |this, index, argument| {
@@ -737,9 +741,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let arguments = self.lower_call_arguments(
             args,
-            function.parameters.len() - receiver_count,
-            parameter_names.as_deref(),
-            function.is_yul,
+            CallArgumentParams {
+                count: function.parameters.len() - receiver_count,
+                names: parameter_names.as_deref(),
+                reverse: function.is_yul,
+            },
             expr.span,
             "named function argument",
             |this, argument_index, argument| {
@@ -916,9 +922,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_types = parameter_types.collect::<Vec<_>>();
         let values_and_types = self.lower_call_arguments(
             args,
-            parameter_types.len(),
-            parameter_names.map(CallableParamNames::as_slice),
-            false,
+            CallArgumentParams {
+                count: parameter_types.len(),
+                names: parameter_names.map(CallableParamNames::as_slice),
+                reverse: false,
+            },
             span,
             error,
             |this, index, argument| {

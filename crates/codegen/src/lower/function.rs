@@ -228,6 +228,12 @@ struct FunctionLowerer<'gcx, 'ctx> {
     in_inline_assembly: bool,
 }
 
+struct CallArgumentParams<'a> {
+    count: usize,
+    names: Option<&'a [Option<Symbol>]>,
+    reverse: bool,
+}
+
 struct LoopTargets {
     break_block: BlockId,
     continue_block: BlockId,
@@ -456,9 +462,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_call_arguments<'a, T>(
         &mut self,
         args: hir::CallArgs<'a>,
-        parameter_count: usize,
-        parameter_names: Option<&[Option<Symbol>]>,
-        reverse: bool,
+        params: CallArgumentParams<'_>,
         span: Span,
         error: &'static str,
         mut lower: impl FnMut(&mut Self, usize, &'a hir::Expr<'a>) -> Option<T>,
@@ -466,7 +470,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let mut source_args = match args.kind {
             hir::CallArgsKind::Unnamed(args) => args.iter().enumerate().collect::<Vec<_>>(),
             hir::CallArgsKind::Named(args) => {
-                let Some(parameter_names) = parameter_names else {
+                let Some(parameter_names) = params.names else {
                     return self.cx.report_unsupported(span, error);
                 };
                 let arguments = args
@@ -484,11 +488,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 arguments
             }
         };
-        if reverse {
+        if params.reverse {
             source_args.reverse();
         }
-        let mut values = Vec::with_capacity(parameter_count);
-        values.resize_with(parameter_count, || None);
+        let mut values = Vec::with_capacity(params.count);
+        values.resize_with(params.count, || None);
         for (index, argument) in source_args {
             values[index] = Some(lower(self, index, argument)?);
         }

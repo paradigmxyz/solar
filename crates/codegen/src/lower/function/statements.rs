@@ -425,9 +425,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.cx.gcx.callable_param_names(CallableParamSource::Error(error_id));
         let arguments = self.lower_call_arguments(
             args,
-            parameters.len(),
-            Some(parameter_names.as_slice()),
-            false,
+            CallArgumentParams {
+                count: parameters.len(),
+                names: Some(parameter_names.as_slice()),
+                reverse: false,
+            },
             args.span,
             "error argument",
             |this, index, argument| {
@@ -491,9 +493,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let arguments = self.lower_call_arguments(
             *args,
-            event.parameters.len(),
-            Some(parameter_names.as_slice()),
-            false,
+            CallArgumentParams {
+                count: event.parameters.len(),
+                names: Some(parameter_names.as_slice()),
+                reverse: false,
+            },
             args.span,
             "event argument",
             |this, index, argument| {
