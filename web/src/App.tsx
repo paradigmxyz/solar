@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
+import solarLogo from './solar-logo.png'
 import { Compare } from './Compare'
 import { FileViewer } from './FileViewer'
 import type { Theme } from './types'
@@ -70,7 +71,8 @@ function SiteHeader({
   return (
     <header className={compact ? 'file-header' : ''}>
       <a className="wordmark" href={comparison}>
-        solar<span>Web</span>
+        <img alt="Solar" src={solarLogo} />
+        <span>Web</span>
       </a>
       <nav>
         {compact && <a href={comparison}>Benchmark</a>}

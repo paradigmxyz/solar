@@ -68,14 +68,14 @@ header {
 .wordmark {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: var(--text);
-  font-size: 24px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.08em;
+  gap: 8px;
   text-decoration: none;
-  text-transform: uppercase;
+}
+.wordmark img {
+  display: block;
+  width: 31px;
+  height: 31px;
+  border-radius: 4px;
 }
 .wordmark span {
   border-radius: 4px;
@@ -577,7 +577,11 @@ footer {
     height: 68px;
   }
   .wordmark {
-    font-size: 20px;
+    gap: 7px;
+  }
+  .wordmark img {
+    width: 27px;
+    height: 27px;
   }
   .wordmark span {
     font-size: 10px;
