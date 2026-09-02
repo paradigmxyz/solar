@@ -264,6 +264,9 @@ jobs:
       - name: Test performance site
         working-directory: perf
         run: vp test --run
+      - name: Check performance Worker
+        working-directory: perf
+        run: pnpm worker:check
       - name: Build performance site
         working-directory: perf
         run: vp build

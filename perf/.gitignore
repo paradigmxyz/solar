@@ -1,4 +1,6 @@
 dist/
 node_modules/
+.wrangler/
 *.tsbuildinfo
 public/data/runs/
+.dev.vars

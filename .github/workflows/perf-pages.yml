@@ -101,6 +101,11 @@ jobs:
         working-directory: source/perf
         run: vp test --run
 
+      - name: Check performance Worker
+        if: steps.data.outcome == 'success'
+        working-directory: source/perf
+        run: pnpm worker:check
+
       - name: Build site
         if: steps.data.outcome == 'success'
         working-directory: source/perf

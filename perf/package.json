@@ -9,10 +9,13 @@
     "dev": "vp dev",
     "format": "vp fmt",
     "lint": "vp lint",
-    "test": "vp test --run"
+    "test": "vp test --run",
+    "worker:dev": "wrangler dev",
+    "worker:check": "wrangler deploy --dry-run"
   },
   "dependencies": {
     "@pierre/diffs": "^1.3.6",
+    "hono": "^4.13.5",
     "lucide-react": "^0.468.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
@@ -26,7 +29,8 @@
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.2",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "wrangler": "^4.127.1"
   },
   "packageManager": "pnpm@11.1.0"
 }

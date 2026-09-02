@@ -2,11 +2,21 @@ import type { RunDocument, RunIndex } from './types'
 
 const localRoot = `${import.meta.env.BASE_URL}data/`
 const githubRoot = 'https://raw.githubusercontent.com/paradigmxyz/solar/gh-pages/data/'
-const configuredRoot = import.meta.env.VITE_PERF_DATA_URL
+const configuredApi = import.meta.env.VITE_PERF_API_URL
+const configuredDataRoot = import.meta.env.VITE_PERF_DATA_URL
+const configuredRoot = configuredApi
+  ? `${configuredApi.replace(/\/$/, '')}/api/data/`
+  : configuredDataRoot
 const normalizeRoot = (root: string) => (root.endsWith('/') ? root : `${root}/`)
 let activeRoot = normalizeRoot(configuredRoot || (import.meta.env.DEV ? githubRoot : localRoot))
-let rootResolved = Boolean(configuredRoot) || !import.meta.env.DEV
+let rootResolved = Boolean(configuredDataRoot) || !import.meta.env.DEV
 let indexPromise: Promise<RunIndex> | null = null
+
+function fallbackRoots(root: string) {
+  if (configuredDataRoot) return [root]
+  if (configuredApi) return [...new Set([root, localRoot, githubRoot])]
+  return import.meta.env.DEV ? [localRoot, githubRoot] : [root]
+}
 
 async function getJson<T>(root: string, path: string, fresh = false): Promise<T> {
   const response = await fetch(`${root}${path}`, fresh ? { cache: 'no-store' } : undefined)
@@ -17,7 +27,7 @@ async function getJson<T>(root: string, path: string, fresh = false): Promise<T>
 export function loadIndex() {
   if (!indexPromise) {
     indexPromise = (async () => {
-      const roots = configuredRoot || !import.meta.env.DEV ? [activeRoot] : [localRoot, githubRoot]
+      const roots = fallbackRoots(activeRoot)
       let failure: unknown
       for (const root of roots) {
         try {
@@ -58,8 +68,7 @@ export async function loadArtifact(
 ): Promise<string | null> {
   const parts = [commit, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
   const root = await dataRoot()
-  const roots =
-    configuredRoot || !import.meta.env.DEV ? [root] : [...new Set([localRoot, root, githubRoot])]
+  const roots = fallbackRoots(root)
   for (const candidate of roots) {
     const response = await fetch(`${candidate}runs/${parts.join('/')}`)
     if (response.status === 404) continue
