@@ -200,6 +200,17 @@ function HistoryGraph({
                     onPointerLeave={() => setHovered(null)}
                     onFocus={() => setHovered(index)}
                     onBlur={() => setHovered(null)}
+                    onClick={() => {
+                      const head = points.at(-1)!
+                      if (run.commit === head.commit) return
+                      const url = new URL(window.location.href)
+                      url.search = new URLSearchParams({
+                        base: run.commit,
+                        head: head.commit,
+                      }).toString()
+                      window.location.href = url.toString()
+                    }}
+                    disabled={run.commit === points.at(-1)?.commit}
                     aria-label={label}
                     title={label}
                   />
