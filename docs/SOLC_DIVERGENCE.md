@@ -139,7 +139,7 @@ No intentional divergences documented yet.
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
 
 - ID: CODEGEN-002
-- Status: parity debt
+- Status: intentional
 - Difference: ABI-heavy contracts can have substantially larger deployed
   bytecode than their `solc` equivalents. Seaport currently has six helpers
   that fit below EIP-170's 24,576-byte limit with `solc` but exceed it with
@@ -156,6 +156,43 @@ No intentional divergences documented yet.
   and EIP-170 parity for the rest of the corpus.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
+
+### CODEGEN-003: Integer literal expressions lose arbitrary precision during lowering
+
+- ID: CODEGEN-003
+- Status: intentional
+- Difference: `solc` keeps a number-literal expression at arbitrary precision
+  until conversion to a non-literal type. `solar`'s type checker computes the
+  same literal-only expression with `BigInt` and retains an `IntLiteral` type,
+  but function lowering ignores that computed value. It recursively emits
+  `U256` EVM operations for its leaves and operators. An intermediate that
+  exceeds an EVM word can therefore wrap or, when given a checked integer type
+  by lowering, revert with `Panic(0x11)` before a later literal operation
+  reduces it. `(2**255 + 2**255) % 7` is one reproducer: solc returns `2`;
+  solar reverts. The divergence also covers literal-only expressions with
+  oversized intermediates followed by division, comparison, subtraction,
+  shifts, or another operation that makes the final result representable.
+- Rationale: this codegen path intentionally lowers function-body operations
+  as EVM-width operations, even when type checking has evaluated an all-literal
+  tree. We do not materialize the type checker's literal result here.
+- Coverage: `symbolic-audit/literal_addmod_fold.sol`; upstream source
+  `testdata/solidity/test/libsolidity/semanticTests/arithmetics/addmod_mulmod.sol`.
+
+### CODEGEN-004: Public array getters return a panic instead of an empty revert
+
+- ID: CODEGEN-004
+- Status: intentional
+- Difference: on an out-of-bounds index, generated public getters for arrays
+  and mappings of arrays use `Panic(0x32)`. `solc`'s generated getters use
+  `revert(0, 0)` instead. Ordinary source-level array indexing still uses
+  `Panic(0x32)` in both compilers.
+- Rationale: getter lowering intentionally reuses ordinary array-index
+  lowering. An out-of-bounds getter therefore keeps the normal `Panic(0x32)`
+  behavior instead of matching solc's empty revert data.
+- Coverage: `symbolic-audit/getter_out_of_bounds.sol`; the symbolic audit
+  reproduced the behavior in 13 functions across 11 upstream semantic tests.
+  Solc tracks the getter's empty revert data in
+  [issue #16660](https://github.com/argotorg/solidity/issues/16660).
 
 ### CODEGEN-005: Narrow storage array indexes are cleaned
 
