@@ -1,7 +1,7 @@
 //@ compile-flags: --emit=abi,hashes --pretty-json
 
-// A `library` may expose `public`/`external` functions taking `storage`
-// reference parameters. Storage references have no ABI encoding, so solc
+// A `library` may expose `public`/`external` functions taking or returning
+// `storage` references. Storage references have no ABI encoding, so solc
 // omits those functions from the JSON ABI, but still lists them in the
 // method identifiers with a `storage` location suffix.
 
@@ -12,6 +12,11 @@ library L {
 
     struct Plain {
         uint256 a;
+    }
+
+    struct Nested {
+        Plain p;
+        Set s;
     }
 
     function withMapping(Set storage s) external view returns (uint256) {
@@ -28,6 +33,25 @@ library L {
 
     function arrParam(uint256[] storage a) external view returns (uint256) {
         return a.length;
+    }
+
+    function setArrParam(Set[] storage a) external view returns (uint256) {
+        return a.length;
+    }
+
+    function nestedParam(Nested storage n) external view returns (uint256) {
+        return n.p.a;
+    }
+
+    // `public`, not `external`.
+    function pubParam(Set storage s) public view returns (uint256) {
+        return s.idx[0];
+    }
+
+    // A `storage` return is omitted just like a `storage` parameter.
+    function storageReturn(uint256[] storage a) external view returns (uint256[] storage) {
+        require(a.length > 0);
+        return a;
     }
 
     function ext(uint256 x) external pure returns (uint256) {
