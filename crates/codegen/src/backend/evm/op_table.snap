@@ -1,170 +1,170 @@
-0x00 stop             io=0/0 since=homestead terminal
-0x01 add              io=2/1 since=homestead pure commutative
-0x02 mul              io=2/1 since=homestead pure commutative
-0x03 sub              io=2/1 since=homestead pure
-0x04 div              io=2/1 since=homestead pure
-0x05 sdiv             io=2/1 since=homestead pure
-0x06 mod              io=2/1 since=homestead pure
-0x07 smod             io=2/1 since=homestead pure
-0x08 addmod           io=3/1 since=homestead pure
-0x09 mulmod           io=3/1 since=homestead pure
-0x0a exp              io=2/1 since=homestead pure
-0x0b signextend       io=2/1 since=homestead pure
-0x10 lt               io=2/1 since=homestead pure
-0x11 gt               io=2/1 since=homestead pure
-0x12 slt              io=2/1 since=homestead pure
-0x13 sgt              io=2/1 since=homestead pure
-0x14 eq               io=2/1 since=homestead pure commutative
-0x15 iszero           io=1/1 since=homestead pure
-0x16 and              io=2/1 since=homestead pure commutative
-0x17 or               io=2/1 since=homestead pure commutative
-0x18 xor              io=2/1 since=homestead pure commutative
-0x19 not              io=1/1 since=homestead pure
-0x1a byte             io=2/1 since=homestead pure
-0x1b shl              io=2/1 since=constantinople pure
-0x1c shr              io=2/1 since=constantinople pure
-0x1d sar              io=2/1 since=constantinople pure
-0x1e clz              io=1/1 since=osaka pure
-0x20 keccak256        io=2/1 since=homestead
-0x30 address          io=0/1 since=homestead
-0x31 balance          io=1/1 since=homestead
-0x32 origin           io=0/1 since=homestead
-0x33 caller           io=0/1 since=homestead
-0x34 callvalue        io=0/1 since=homestead
-0x35 calldataload     io=1/1 since=homestead
-0x36 calldatasize     io=0/1 since=homestead
-0x37 calldatacopy     io=3/0 since=homestead writes_memory
-0x38 codesize         io=0/1 since=homestead
-0x39 codecopy         io=3/0 since=homestead writes_memory
-0x3a gasprice         io=0/1 since=homestead
-0x3b extcodesize      io=1/1 since=homestead
-0x3c extcodecopy      io=4/0 since=homestead writes_memory
-0x3d returndatasize   io=0/1 since=byzantium
-0x3e returndatacopy   io=3/0 since=byzantium writes_memory
-0x3f extcodehash      io=1/1 since=constantinople
-0x40 blockhash        io=1/1 since=homestead
-0x41 coinbase         io=0/1 since=homestead
-0x42 timestamp        io=0/1 since=homestead
-0x43 number           io=0/1 since=homestead
-0x44 prevrandao       io=0/1 since=homestead
-0x45 gaslimit         io=0/1 since=homestead
-0x46 chainid          io=0/1 since=istanbul
-0x47 selfbalance      io=0/1 since=istanbul
-0x48 basefee          io=0/1 since=london
-0x49 blobhash         io=1/1 since=cancun
-0x4a blobbasefee      io=0/1 since=cancun
-0x4b slotnum          io=0/1 since=amsterdam
-0x50 pop              io=1/0 since=homestead
-0x51 mload            io=1/1 since=homestead
-0x52 mstore           io=2/0 since=homestead writes_memory
-0x53 mstore8          io=2/0 since=homestead writes_memory
-0x54 sload            io=1/1 since=homestead
-0x55 sstore           io=2/0 since=homestead writes_storage
-0x56 jump             io=1/0 since=homestead terminal
-0x57 jumpi            io=2/0 since=homestead
-0x58 pc               io=0/1 since=homestead
-0x59 msize            io=0/1 since=homestead
-0x5a gas              io=0/1 since=homestead
-0x5b jumpdest         io=0/0 since=homestead
-0x5c tload            io=1/1 since=cancun
-0x5d tstore           io=2/0 since=cancun writes_storage
-0x5e mcopy            io=3/0 since=cancun writes_memory
-0x5f push0            io=0/1 since=shanghai
-0x60 push1            io=0/1 since=homestead
-0x61 push2            io=0/1 since=homestead
-0x62 push3            io=0/1 since=homestead
-0x63 push4            io=0/1 since=homestead
-0x64 push5            io=0/1 since=homestead
-0x65 push6            io=0/1 since=homestead
-0x66 push7            io=0/1 since=homestead
-0x67 push8            io=0/1 since=homestead
-0x68 push9            io=0/1 since=homestead
-0x69 push10           io=0/1 since=homestead
-0x6a push11           io=0/1 since=homestead
-0x6b push12           io=0/1 since=homestead
-0x6c push13           io=0/1 since=homestead
-0x6d push14           io=0/1 since=homestead
-0x6e push15           io=0/1 since=homestead
-0x6f push16           io=0/1 since=homestead
-0x70 push17           io=0/1 since=homestead
-0x71 push18           io=0/1 since=homestead
-0x72 push19           io=0/1 since=homestead
-0x73 push20           io=0/1 since=homestead
-0x74 push21           io=0/1 since=homestead
-0x75 push22           io=0/1 since=homestead
-0x76 push23           io=0/1 since=homestead
-0x77 push24           io=0/1 since=homestead
-0x78 push25           io=0/1 since=homestead
-0x79 push26           io=0/1 since=homestead
-0x7a push27           io=0/1 since=homestead
-0x7b push28           io=0/1 since=homestead
-0x7c push29           io=0/1 since=homestead
-0x7d push30           io=0/1 since=homestead
-0x7e push31           io=0/1 since=homestead
-0x7f push32           io=0/1 since=homestead
-0x80 dup1             io=1/2 since=homestead
-0x81 dup2             io=2/3 since=homestead
-0x82 dup3             io=3/4 since=homestead
-0x83 dup4             io=4/5 since=homestead
-0x84 dup5             io=5/6 since=homestead
-0x85 dup6             io=6/7 since=homestead
-0x86 dup7             io=7/8 since=homestead
-0x87 dup8             io=8/9 since=homestead
-0x88 dup9             io=9/10 since=homestead
-0x89 dup10            io=10/11 since=homestead
-0x8a dup11            io=11/12 since=homestead
-0x8b dup12            io=12/13 since=homestead
-0x8c dup13            io=13/14 since=homestead
-0x8d dup14            io=14/15 since=homestead
-0x8e dup15            io=15/16 since=homestead
-0x8f dup16            io=16/17 since=homestead
-0x90 swap1            io=2/2 since=homestead
-0x91 swap2            io=3/3 since=homestead
-0x92 swap3            io=4/4 since=homestead
-0x93 swap4            io=5/5 since=homestead
-0x94 swap5            io=6/6 since=homestead
-0x95 swap6            io=7/7 since=homestead
-0x96 swap7            io=8/8 since=homestead
-0x97 swap8            io=9/9 since=homestead
-0x98 swap9            io=10/10 since=homestead
-0x99 swap10           io=11/11 since=homestead
-0x9a swap11           io=12/12 since=homestead
-0x9b swap12           io=13/13 since=homestead
-0x9c swap13           io=14/14 since=homestead
-0x9d swap14           io=15/15 since=homestead
-0x9e swap15           io=16/16 since=homestead
-0x9f swap16           io=17/17 since=homestead
-0xa0 log0             io=2/0 since=homestead
-0xa1 log1             io=3/0 since=homestead
-0xa2 log2             io=4/0 since=homestead
-0xa3 log3             io=5/0 since=homestead
-0xa4 log4             io=6/0 since=homestead
-0xd0 dataload         io=1/1 since=never
-0xd1 dataloadn        io=0/1 since=never
-0xd2 datasize         io=0/1 since=never
-0xd3 datacopy         io=3/0 since=never writes_memory
-0xe0 rjump            io=0/0 since=never
-0xe1 rjumpi           io=1/0 since=never
-0xe2 rjumpv           io=1/0 since=never
-0xe3 callf            io=? since=never writes_memory writes_storage
-0xe4 retf             io=? since=never
-0xe5 jumpf            io=? since=never
-0xe6 dupn             io=0/1 since=amsterdam
-0xe7 swapn            io=0/0 since=amsterdam
-0xe8 exchange         io=0/0 since=amsterdam
-0xec eofcreate        io=4/1 since=never writes_storage
-0xee returncontract   io=2/0 since=never
-0xf0 create           io=3/1 since=homestead writes_storage
-0xf1 call             io=7/1 since=homestead writes_memory writes_storage
-0xf2 callcode         io=7/1 since=homestead writes_memory writes_storage
-0xf3 return           io=2/0 since=homestead terminal
-0xf4 delegatecall     io=6/1 since=homestead writes_memory writes_storage
-0xf5 create2          io=4/1 since=constantinople writes_storage
-0xf7 returndataload   io=1/1 since=never
-0xf8 extcall          io=4/1 since=never writes_storage
-0xf9 extdelegatecall  io=3/1 since=never writes_storage
-0xfa staticcall       io=6/1 since=byzantium writes_memory writes_storage
-0xfb extstaticcall    io=3/1 since=never
-0xfd revert           io=2/0 since=byzantium terminal
-0xfe invalid          io=0/0 since=homestead terminal
-0xff selfdestruct     io=1/0 since=homestead terminal
+0x00 stop             io=0/0 since=homestead gas=0 terminal
+0x01 add              io=2/1 since=homestead gas=3 pure commutative
+0x02 mul              io=2/1 since=homestead gas=5 pure commutative
+0x03 sub              io=2/1 since=homestead gas=3 pure
+0x04 div              io=2/1 since=homestead gas=5 pure
+0x05 sdiv             io=2/1 since=homestead gas=5 pure
+0x06 mod              io=2/1 since=homestead gas=5 pure
+0x07 smod             io=2/1 since=homestead gas=5 pure
+0x08 addmod           io=3/1 since=homestead gas=8 pure
+0x09 mulmod           io=3/1 since=homestead gas=8 pure
+0x0a exp              io=2/1 since=homestead gas=10 +50 pure
+0x0b signextend       io=2/1 since=homestead gas=5 pure
+0x10 lt               io=2/1 since=homestead gas=3 pure
+0x11 gt               io=2/1 since=homestead gas=3 pure
+0x12 slt              io=2/1 since=homestead gas=3 pure
+0x13 sgt              io=2/1 since=homestead gas=3 pure
+0x14 eq               io=2/1 since=homestead gas=3 pure commutative
+0x15 iszero           io=1/1 since=homestead gas=3 pure
+0x16 and              io=2/1 since=homestead gas=3 pure commutative
+0x17 or               io=2/1 since=homestead gas=3 pure commutative
+0x18 xor              io=2/1 since=homestead gas=3 pure commutative
+0x19 not              io=1/1 since=homestead gas=3 pure
+0x1a byte             io=2/1 since=homestead gas=3 pure
+0x1b shl              io=2/1 since=constantinople gas=3 pure
+0x1c shr              io=2/1 since=constantinople gas=3 pure
+0x1d sar              io=2/1 since=constantinople gas=3 pure
+0x1e clz              io=1/1 since=osaka gas=5 pure
+0x20 keccak256        io=2/1 since=homestead gas=30 +6
+0x30 address          io=0/1 since=homestead gas=2
+0x31 balance          io=1/1 since=homestead gas=20 tangerineWhistle=400 istanbul=700 berlin=2600
+0x32 origin           io=0/1 since=homestead gas=2
+0x33 caller           io=0/1 since=homestead gas=2
+0x34 callvalue        io=0/1 since=homestead gas=2
+0x35 calldataload     io=1/1 since=homestead gas=3
+0x36 calldatasize     io=0/1 since=homestead gas=2
+0x37 calldatacopy     io=3/0 since=homestead gas=3 +3 writes_memory
+0x38 codesize         io=0/1 since=homestead gas=2
+0x39 codecopy         io=3/0 since=homestead gas=3 +3 writes_memory
+0x3a gasprice         io=0/1 since=homestead gas=2
+0x3b extcodesize      io=1/1 since=homestead gas=20 tangerineWhistle=700 berlin=2600
+0x3c extcodecopy      io=4/0 since=homestead gas=20 tangerineWhistle=700 berlin=2600 writes_memory
+0x3d returndatasize   io=0/1 since=byzantium gas=2
+0x3e returndatacopy   io=3/0 since=byzantium gas=3 +3 writes_memory
+0x3f extcodehash      io=1/1 since=constantinople gas=400 istanbul=700 berlin=2600
+0x40 blockhash        io=1/1 since=homestead gas=20
+0x41 coinbase         io=0/1 since=homestead gas=2
+0x42 timestamp        io=0/1 since=homestead gas=2
+0x43 number           io=0/1 since=homestead gas=2
+0x44 prevrandao       io=0/1 since=homestead gas=2
+0x45 gaslimit         io=0/1 since=homestead gas=2
+0x46 chainid          io=0/1 since=istanbul gas=2
+0x47 selfbalance      io=0/1 since=istanbul gas=5
+0x48 basefee          io=0/1 since=london gas=2
+0x49 blobhash         io=1/1 since=cancun gas=3
+0x4a blobbasefee      io=0/1 since=cancun gas=2
+0x4b slotnum          io=0/1 since=amsterdam gas=2
+0x50 pop              io=1/0 since=homestead gas=2
+0x51 mload            io=1/1 since=homestead gas=3
+0x52 mstore           io=2/0 since=homestead gas=3 writes_memory
+0x53 mstore8          io=2/0 since=homestead gas=3 writes_memory
+0x54 sload            io=1/1 since=homestead gas=50 tangerineWhistle=200 istanbul=800 berlin=2100
+0x55 sstore           io=2/0 since=homestead gas=5000 writes_storage
+0x56 jump             io=1/0 since=homestead gas=8 terminal
+0x57 jumpi            io=2/0 since=homestead gas=10
+0x58 pc               io=0/1 since=homestead gas=2
+0x59 msize            io=0/1 since=homestead gas=2
+0x5a gas              io=0/1 since=homestead gas=2
+0x5b jumpdest         io=0/0 since=homestead gas=1
+0x5c tload            io=1/1 since=cancun gas=100
+0x5d tstore           io=2/0 since=cancun gas=100 writes_storage
+0x5e mcopy            io=3/0 since=cancun gas=3 +3 writes_memory
+0x5f push0            io=0/1 since=shanghai gas=2
+0x60 push1            io=0/1 since=homestead gas=3
+0x61 push2            io=0/1 since=homestead gas=3
+0x62 push3            io=0/1 since=homestead gas=3
+0x63 push4            io=0/1 since=homestead gas=3
+0x64 push5            io=0/1 since=homestead gas=3
+0x65 push6            io=0/1 since=homestead gas=3
+0x66 push7            io=0/1 since=homestead gas=3
+0x67 push8            io=0/1 since=homestead gas=3
+0x68 push9            io=0/1 since=homestead gas=3
+0x69 push10           io=0/1 since=homestead gas=3
+0x6a push11           io=0/1 since=homestead gas=3
+0x6b push12           io=0/1 since=homestead gas=3
+0x6c push13           io=0/1 since=homestead gas=3
+0x6d push14           io=0/1 since=homestead gas=3
+0x6e push15           io=0/1 since=homestead gas=3
+0x6f push16           io=0/1 since=homestead gas=3
+0x70 push17           io=0/1 since=homestead gas=3
+0x71 push18           io=0/1 since=homestead gas=3
+0x72 push19           io=0/1 since=homestead gas=3
+0x73 push20           io=0/1 since=homestead gas=3
+0x74 push21           io=0/1 since=homestead gas=3
+0x75 push22           io=0/1 since=homestead gas=3
+0x76 push23           io=0/1 since=homestead gas=3
+0x77 push24           io=0/1 since=homestead gas=3
+0x78 push25           io=0/1 since=homestead gas=3
+0x79 push26           io=0/1 since=homestead gas=3
+0x7a push27           io=0/1 since=homestead gas=3
+0x7b push28           io=0/1 since=homestead gas=3
+0x7c push29           io=0/1 since=homestead gas=3
+0x7d push30           io=0/1 since=homestead gas=3
+0x7e push31           io=0/1 since=homestead gas=3
+0x7f push32           io=0/1 since=homestead gas=3
+0x80 dup1             io=1/2 since=homestead gas=3
+0x81 dup2             io=2/3 since=homestead gas=3
+0x82 dup3             io=3/4 since=homestead gas=3
+0x83 dup4             io=4/5 since=homestead gas=3
+0x84 dup5             io=5/6 since=homestead gas=3
+0x85 dup6             io=6/7 since=homestead gas=3
+0x86 dup7             io=7/8 since=homestead gas=3
+0x87 dup8             io=8/9 since=homestead gas=3
+0x88 dup9             io=9/10 since=homestead gas=3
+0x89 dup10            io=10/11 since=homestead gas=3
+0x8a dup11            io=11/12 since=homestead gas=3
+0x8b dup12            io=12/13 since=homestead gas=3
+0x8c dup13            io=13/14 since=homestead gas=3
+0x8d dup14            io=14/15 since=homestead gas=3
+0x8e dup15            io=15/16 since=homestead gas=3
+0x8f dup16            io=16/17 since=homestead gas=3
+0x90 swap1            io=2/2 since=homestead gas=3
+0x91 swap2            io=3/3 since=homestead gas=3
+0x92 swap3            io=4/4 since=homestead gas=3
+0x93 swap4            io=5/5 since=homestead gas=3
+0x94 swap5            io=6/6 since=homestead gas=3
+0x95 swap6            io=7/7 since=homestead gas=3
+0x96 swap7            io=8/8 since=homestead gas=3
+0x97 swap8            io=9/9 since=homestead gas=3
+0x98 swap9            io=10/10 since=homestead gas=3
+0x99 swap10           io=11/11 since=homestead gas=3
+0x9a swap11           io=12/12 since=homestead gas=3
+0x9b swap12           io=13/13 since=homestead gas=3
+0x9c swap13           io=14/14 since=homestead gas=3
+0x9d swap14           io=15/15 since=homestead gas=3
+0x9e swap15           io=16/16 since=homestead gas=3
+0x9f swap16           io=17/17 since=homestead gas=3
+0xa0 log0             io=2/0 since=homestead gas=375 +8
+0xa1 log1             io=3/0 since=homestead gas=750 +8
+0xa2 log2             io=4/0 since=homestead gas=1125 +8
+0xa3 log3             io=5/0 since=homestead gas=1500 +8
+0xa4 log4             io=6/0 since=homestead gas=1875 +8
+0xd0 dataload         io=1/1 since=never gas=4
+0xd1 dataloadn        io=0/1 since=never gas=3
+0xd2 datasize         io=0/1 since=never gas=2
+0xd3 datacopy         io=3/0 since=never gas=3 +3 writes_memory
+0xe0 rjump            io=0/0 since=never gas=2
+0xe1 rjumpi           io=1/0 since=never gas=4
+0xe2 rjumpv           io=1/0 since=never gas=4
+0xe3 callf            io=? since=never gas=5 writes_memory writes_storage
+0xe4 retf             io=? since=never gas=3
+0xe5 jumpf            io=? since=never gas=5
+0xe6 dupn             io=0/1 since=amsterdam gas=3
+0xe7 swapn            io=0/0 since=amsterdam gas=3
+0xe8 exchange         io=0/0 since=amsterdam gas=3
+0xec eofcreate        io=4/1 since=never gas=32000 writes_storage
+0xee returncontract   io=2/0 since=never gas=0
+0xf0 create           io=3/1 since=homestead gas=32000 writes_storage
+0xf1 call             io=7/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xf2 callcode         io=7/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xf3 return           io=2/0 since=homestead gas=0 terminal
+0xf4 delegatecall     io=6/1 since=homestead gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xf5 create2          io=4/1 since=constantinople gas=32000 writes_storage
+0xf7 returndataload   io=1/1 since=never gas=3
+0xf8 extcall          io=4/1 since=never gas=40 tangerineWhistle=700 berlin=2600 writes_storage
+0xf9 extdelegatecall  io=3/1 since=never gas=40 tangerineWhistle=700 berlin=2600 writes_storage
+0xfa staticcall       io=6/1 since=byzantium gas=40 tangerineWhistle=700 berlin=2600 writes_memory writes_storage
+0xfb extstaticcall    io=3/1 since=never gas=40 tangerineWhistle=700 berlin=2600
+0xfd revert           io=2/0 since=byzantium gas=0 terminal
+0xfe invalid          io=0/0 since=homestead gas=0 terminal
+0xff selfdestruct     io=1/0 since=homestead gas=0 tangerineWhistle=5000 terminal
