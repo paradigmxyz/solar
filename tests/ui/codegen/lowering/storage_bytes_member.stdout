@@ -109,34 +109,36 @@ bb15:
   push 64
   push 0
   keccak256
-  push 160
+  push 192
   mstore
   push 255
   push 36
   calldataload
   and
-  push 128
+  push 160
   mstore
   push 0
+  push 128
+  mstore
   jump bb19
 bb19 [loop]:
   push 128
   mload
-  dup 2
   lt
   push bb22
   jumpi
   stop
 bb22 [loop]:
   push 1
-  push 160
+  push 192
   mload
   add
   push 255
   push 4
   calldataload
   and
-  dup 3
+  push 128
+  mload
   add
   push 255
   and
@@ -276,6 +278,8 @@ bb27 [loop]:
   swap 1
   sstore
   push 65
+  jump bb82
+bb82:
   swap 1
   sstore
   jump bb21
@@ -650,8 +654,6 @@ bb60:
   swap 2
   push 248
   shr
-  push 255
-  and
   swap 1
   shl
   or

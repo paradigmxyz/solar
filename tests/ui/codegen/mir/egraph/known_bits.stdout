@@ -1,0 +1,35 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/known_bits.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/known_bits.mir (after egraph) ===
+  @module KnownBits
+  fn @masks_covering_known_bits(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+    bb0:
+      v0 = lt arg0, arg1
+-     v1 = and v0, 1
+      v2 = byte 31, arg0
+-     v3 = and v2, 255
+      v4 = shr 248, arg1
+-     v5 = and 255, v4
+      v6 = caller
+-     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+-     ret v1, v3, v5, v7
++     ret v0, v2, v4, v6
+  }
+  
+  fn @masks_narrowing_words(arg0: u256) -> (u256, u256) {
+    bb0:
+      v0 = byte 31, arg0
+      v1 = and v0, 127
+      v2 = and arg0, 255
+      ret v1, v2
+  }
+  
+  fn @bounded_bools(arg0: u256) -> (bool, bool) {
+    bb0:
+      v0 = and arg0, 1
+      v1 = iszero v0
+-     v2 = iszero v1
+-     v3 = eq v0, 1
+-     ret v2, v3
++     ret v0, v0
+  }
+  
