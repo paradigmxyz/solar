@@ -19,14 +19,9 @@
 (extern extractor one one)
 (decl all_ones () Value)
 (extern extractor all_ones all_ones)
-(decl uint160_mask () Value)
-(extern extractor uint160_mask uint160_mask)
-;; A value known to be exactly zero or one: a boolean immediate or a comparison.
+;; A value whose definition bounds it to zero or one.
 (decl bool_value () Value)
 (extern extractor bool_value bool_value)
-;; An address produced by an EVM opcode, so its upper 96 bits are clear.
-(decl clean_address () Value)
-(extern extractor clean_address clean_address)
 ;; The `address` opcode.
 (decl current_address () Value)
 (extern extractor current_address current_address)
@@ -40,6 +35,9 @@
 ;; `mask` clears the upper 96 bits of `value`, which are already clear.
 (decl pure masks_clean_address (U256 Value) bool)
 (extern constructor masks_clean_address masks_clean_address)
+;; `mask` keeps every bit the definition of `value` can set.
+(decl pure mask_covers (U256 Value) bool)
+(extern constructor mask_covers mask_covers)
 (decl pure differ (Value Value) bool)
 (extern constructor differ differ)
 (decl pure has_bitwise_shifting () bool)
@@ -253,16 +251,17 @@
         value)
 
 ;; Bitwise.
+;; A mask that keeps every bit the other operand can have is a no-op. This
+;; covers all-ones masks, address masks over clean addresses, and masks over
+;; comparison results, `byte`, and shifted or masked words.
+(rule 14 (simplify (Op.And a (iconst mask))) (if-let true (mask_covers mask a)) a)
+(rule 13 (simplify (Op.And (iconst mask) b)) (if-let true (mask_covers mask b)) b)
 ;; A `clz` result fits in nine bits.
 (rule 12 (simplify (Op.And (and a (clz _)) (iconst mask))) (if-let true (u256_has_bits mask 511)) a)
 (rule 11 (simplify (Op.And (iconst mask) (and b (clz _)))) (if-let true (u256_has_bits mask 511)) b)
 (rule 10 (simplify (Op.And a a)) a)
 (rule 9 (simplify (Op.And (and a (zero)) _)) a)
-(rule 8 (simplify (Op.And a (all_ones))) a)
-(rule 7 (simplify (Op.And (and a (clean_address)) (uint160_mask))) a)
 (rule 6 (simplify (Op.And _ (and b (zero)))) b)
-(rule 5 (simplify (Op.And (all_ones) b)) b)
-(rule 4 (simplify (Op.And (uint160_mask) (and b (clean_address)))) b)
 (rule 3 (simplify (Op.And (bnot b) b)) (imm (u256 0)))
 (rule 2 (simplify (Op.And a (bnot a))) (imm (u256 0)))
 
