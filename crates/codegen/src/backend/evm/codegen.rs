@@ -49,9 +49,10 @@ use solar_data_structures::{
 use solar_sema::Gcx;
 use std::cell::OnceCell;
 
+mod select;
 mod switch;
 
-use self::switch::MAX_GAS_CODE_GROWTH;
+use self::{select::OpcodeLowering, switch::MAX_GAS_CODE_GROWTH};
 
 /// A dynamic-length write to a low absolute base below this bound above
 /// `HEAP_START` is treated as possibly reaching the spill area.
@@ -6490,18 +6491,75 @@ impl<'gcx> EvmCodegen<'gcx> {
         // This ensures cross-block values are preserved in memory.
         self.spill_live_out_operands(func, liveness, block, &operands);
 
-        match kind {
-            kind if let Some(opcode) = kind.evm_opcode() => {
-                self.emit_evm_opcode(
-                    func,
-                    &operands,
-                    opcode,
-                    result_value,
-                    liveness,
-                    block,
-                    inst_idx,
-                );
+        if let Some(lowering) = select::opcode_lowering(kind) {
+            self.emit_opcode_lowering(
+                func,
+                lowering,
+                &operands,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            );
+        } else {
+            self.generate_custom_inst(
+                func_id,
+                inst_id,
+                func,
+                kind,
+                liveness,
+                block,
+                inst_idx,
+                result_value,
+            );
+        }
+
+        if let Some(result) = result_value
+            && liveness.live_out(block).contains(result)
+            && !self.is_stack_phi_source(block, result)
+        {
+            self.spill_value_if_needed(func, result);
+        }
+
+        // A constant-offset calldata load is the same physical word as the
+        // corresponding external argument. Once its instruction result dies,
+        // adopt a surviving stack copy as the argument instead of loading that
+        // word again on the first planned edge.
+        for operand in operands {
+            if liveness.is_dead_after(operand, block, inst_idx)
+                && let Some(&arg) = self.global_stack_aliases.get(&operand)
+                && !liveness.is_dead_after(arg, block, inst_idx)
+                && !self.scheduler.stack.contains(arg)
+            {
+                self.scheduler.stack.rename(operand, arg);
             }
+        }
+
+        // Drop dead values after the instruction
+        let dead_ops = self.scheduler.drop_dead_values(liveness, block, inst_idx);
+        for op in dead_ops {
+            self.asm.emit_stack_op(op);
+        }
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.scheduler.depth() <= 1024);
+        }
+    }
+
+    /// Emits an operation whose lowering is not one opcode with a fixed stack contract.
+    #[allow(clippy::too_many_arguments)]
+    fn generate_custom_inst(
+        &mut self,
+        func_id: FunctionId,
+        inst_id: InstId,
+        func: &Function,
+        kind: &InstKind,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+        result_value: Option<ValueId>,
+    ) {
+        match kind {
             InstKind::Alloc { size, .. } => {
                 debug_assert!(func.inst(inst_id).metadata.deferred_alloc());
                 let size =
@@ -6514,6 +6572,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 unreachable!("abstract allocation instruction reached EVM emission")
             }
 
+            // Immutables
             InstKind::StoreImmutable(..) => {
                 unreachable!("immutable stores must be lowered before EVM codegen")
             }
@@ -6581,11 +6640,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Phi nodes are skipped (handled by copies)
             InstKind::Phi(_) => {}
 
-            // External calls
-            //
-            // These use emit_value_fresh to guarantee correct values regardless of scheduler
-            // state. The stack-aware emit_op_with_effect ensures proper
-            // tracking after emission.
+            // The stack-aware emit_op_with_effect ensures proper tracking after emission.
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 // CALL(gas, addr, value, argsOffset, argsSize, retOffset, retSize)
                 // EVM pops in order: gas (TOS), addr, value, argsOffset, argsSize, retOffset,
@@ -6733,120 +6788,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.scheduler.instruction_executed(0, result_value);
             }
 
-            // Log operations
-            InstKind::Log0(offset, size) => {
-                // LOG0(offset, size) - stack order: offset on top, then size
-                self.emit_log(func, op::LOG0, &[*size, *offset], liveness, block, inst_idx);
-            }
-            InstKind::Log1(offset, size, topic1) => {
-                // LOG1(offset, size, topic1) - stack order: offset, size, topic1
-                self.emit_log(
-                    func,
-                    op::LOG1,
-                    &[*topic1, *size, *offset],
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-            InstKind::Log2(offset, size, topic1, topic2) => {
-                // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1,
-                // topic2
-                self.emit_log(
-                    func,
-                    op::LOG2,
-                    &[*topic2, *topic1, *size, *offset],
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-            InstKind::Log3(offset, size, topic1, topic2, topic3) => {
-                // LOG3(offset, size, topic1, topic2, topic3)
-                self.emit_log(
-                    func,
-                    op::LOG3,
-                    &[*topic3, *topic2, *topic1, *size, *offset],
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-            InstKind::Log4(offset, size, topic1, topic2, topic3, topic4) => {
-                // LOG4(offset, size, topic1, topic2, topic3, topic4)
-                self.emit_log(
-                    func,
-                    op::LOG4,
-                    &[*topic4, *topic3, *topic2, *topic1, *size, *offset],
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-
             // Memory copy operations
-            InstKind::CalldataCopy(dest, offset, size) => {
-                // CALLDATACOPY(destOffset, offset, size)
-                self.emit_copy_op_live_aware(
-                    func,
-                    &[*size, *offset, *dest],
-                    op::CALLDATACOPY,
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-
             InstKind::DataCopy(data, dest, size) => {
                 self.emit_data_copy(func, *data, *dest, *size, liveness, block, inst_idx);
-            }
-
-            InstKind::CodeCopy(dest, offset, size) => {
-                // CODECOPY(destOffset, offset, size)
-                self.emit_copy_op_live_aware(
-                    func,
-                    &[*size, *offset, *dest],
-                    op::CODECOPY,
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-
-            InstKind::ReturnDataCopy(dest, offset, size) => {
-                // RETURNDATACOPY(destOffset, offset, size)
-                self.emit_copy_op_live_aware(
-                    func,
-                    &[*size, *offset, *dest],
-                    op::RETURNDATACOPY,
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-
-            InstKind::MCopy(dest, src, size) => {
-                // MCOPY(destOffset, srcOffset, size)
-                self.emit_copy_op_live_aware(
-                    func,
-                    &[*size, *src, *dest],
-                    op::MCOPY,
-                    liveness,
-                    block,
-                    inst_idx,
-                );
-            }
-
-            InstKind::ExtCodeCopy(addr, dest, offset, size) => {
-                // EXTCODECOPY(address, destOffset, offset, size)
-                self.emit_copy_op_live_aware(
-                    func,
-                    &[*size, *offset, *dest, *addr],
-                    op::EXTCODECOPY,
-                    liveness,
-                    block,
-                    inst_idx,
-                );
             }
 
             InstKind::MappingSlot(_, _)
@@ -6884,76 +6828,49 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::ClearStorage { .. } => {
                 unreachable!("aggregate operations must be lowered before EVM codegen")
             }
-            _ => unreachable!("MIR instruction was not handled: {kind:?}"),
-        }
-
-        if let Some(result) = result_value
-            && liveness.live_out(block).contains(result)
-            && !self.is_stack_phi_source(block, result)
-        {
-            self.spill_value_if_needed(func, result);
-        }
-
-        // A constant-offset calldata load is the same physical word as the
-        // corresponding external argument. Once its instruction result dies,
-        // adopt a surviving stack copy as the argument instead of loading that
-        // word again on the first planned edge.
-        for operand in operands {
-            if liveness.is_dead_after(operand, block, inst_idx)
-                && let Some(&arg) = self.global_stack_aliases.get(&operand)
-                && !liveness.is_dead_after(arg, block, inst_idx)
-                && !self.scheduler.stack.contains(arg)
-            {
-                self.scheduler.stack.rename(operand, arg);
-            }
-        }
-
-        // Drop dead values after the instruction
-        let dead_ops = self.scheduler.drop_dead_values(liveness, block, inst_idx);
-        for op in dead_ops {
-            self.asm.emit_stack_op(op);
+            _ => unreachable!("`{}` lowers through the opcode table", kind.mnemonic()),
         }
     }
 
+    /// Emits an operation that lowers to one opcode with a fixed stack contract.
     #[allow(clippy::too_many_arguments)]
-    fn emit_evm_opcode(
+    fn emit_opcode_lowering(
         &mut self,
         func: &Function,
+        lowering: OpcodeLowering,
         operands: &[ValueId],
-        opcode: u8,
-        result: Option<ValueId>,
+        result_value: Option<ValueId>,
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
     ) {
-        let (inputs, outputs) = op::stack_io(opcode).expect("MIR opcode has no stack effect");
-        assert_eq!(usize::from(inputs), operands.len(), "MIR opcode operand count mismatch");
-
-        match (inputs, outputs) {
-            (0, 1) => {
+        // Operands that the opcode consumes in operand order are pushed last to first.
+        let push_order = || operands.iter().rev().copied().collect::<SmallVec<[ValueId; 8]>>();
+        match lowering {
+            OpcodeLowering::Nullary(opcode) => {
                 self.asm.emit_op(opcode);
-                self.scheduler.instruction_executed(0, result);
+                self.scheduler.instruction_executed(0, result_value);
             }
-            (1, 1) => self.emit_unary_op_with_result(
+            OpcodeLowering::Unary(opcode) => self.emit_unary_op_with_result(
                 func,
                 operands[0],
                 opcode,
-                result,
+                result_value,
                 liveness,
                 block,
                 inst_idx,
             ),
-            (2, 1) => self.emit_binary_op_with_result(
+            OpcodeLowering::Binary(opcode) => self.emit_binary_op_with_result(
                 func,
                 operands[0],
                 operands[1],
                 opcode,
-                result,
+                result_value,
                 liveness,
                 block,
                 inst_idx,
             ),
-            (2, 0) => self.emit_store_op_live_aware(
+            OpcodeLowering::Store(opcode) => self.emit_store_op_live_aware(
                 func,
                 operands[0],
                 operands[1],
@@ -6962,12 +6879,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block,
                 inst_idx,
             ),
-            (_, 1) => {
-                let mut stack_order = SmallVec::<[ValueId; 8]>::from_slice(operands);
-                stack_order.reverse();
-                self.emit_nary_op(func, &stack_order, opcode, result, liveness, block, inst_idx);
+            OpcodeLowering::Nary(opcode) => self.emit_nary_op(
+                func,
+                &push_order(),
+                opcode,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            OpcodeLowering::MemoryCopy(opcode) => {
+                self.emit_copy_op_live_aware(func, &push_order(), opcode, liveness, block, inst_idx)
             }
-            _ => unreachable!("unsupported MIR opcode stack effect {inputs}->{outputs}"),
+            OpcodeLowering::Log(opcode) => {
+                self.emit_log(func, opcode, &push_order(), liveness, block, inst_idx);
+            }
         }
     }
 
