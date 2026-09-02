@@ -83,6 +83,7 @@ use crate::{
         utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
+    target::GasTier,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -215,13 +216,16 @@ struct LoadPreCostInput<'a> {
 }
 
 impl LoadPreCostModel {
-    const MEMORY_READ: i64 = 3;
-    const STORAGE_READ: i64 = 100;
-    const TRANSIENT_READ: i64 = 100;
-    const KECCAK_BASE: i64 = 30;
-    const KECCAK_WORD: i64 = 6;
-    const NON_LOOP_PHI_EDGE_COPY: i64 = 3;
-    const CROSS_BLOCK_OPERAND: i64 = 3;
+    const MEMORY_READ: i64 = GasTier::VeryLow.fixed_gas() as i64;
+    /// A repeated storage read is warm, whatever the first access cost.
+    const STORAGE_READ: i64 = GasTier::WARM_ACCESS_GAS as i64;
+    const TRANSIENT_READ: i64 = GasTier::Transient.fixed_gas() as i64;
+    const KECCAK_BASE: i64 = GasTier::Keccak.fixed_gas() as i64;
+    const KECCAK_WORD: i64 = GasTier::Keccak.fixed_dynamic_gas() as i64;
+    /// One `DUP` on the edge.
+    const NON_LOOP_PHI_EDGE_COPY: i64 = GasTier::VeryLow.fixed_gas() as i64;
+    /// One `DUP` to reach the operand.
+    const CROSS_BLOCK_OPERAND: i64 = GasTier::VeryLow.fixed_gas() as i64;
 
     fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
         let read = Self::read_cost(input.key);

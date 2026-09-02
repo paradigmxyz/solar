@@ -24,9 +24,12 @@ use super::{
     compact_pushes::selected_len,
     utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound},
 };
-use crate::backend::evm::{
-    ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
-    op,
+use crate::{
+    backend::evm::{
+        ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
+        op,
+    },
+    target::Target,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -568,14 +571,29 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         }
     }
 
-    const SITE_BYTES: usize = 8;
+    let target = Target::new(gcx);
+    // Each site:
+    // push2 return
+    // push2 body
+    // jump
+    // jumpdest
+    let site_bytes = (2 * target.opcode(op::PUSH2).bytes
+        + target.opcode(op::JUMP).bytes
+        + target.opcode(op::JUMPDEST).bytes) as usize;
+    // The shared body around the push:
+    // jumpdest
+    // swap1
+    // jump
+    let body_bytes = (target.opcode(op::JUMPDEST).bytes
+        + target.opcode(op::SWAP1).bytes
+        + target.opcode(op::JUMP).bytes) as usize;
     const MIN_SAVING: usize = 8;
     let mut values: Vec<_> = sites
         .iter()
         .filter_map(|(&value, occurrences)| {
             let push_size = selected_len(gcx, value);
             let inline = occurrences.len() * push_size;
-            let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
+            let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
             (occurrences.len() >= 2 && inline >= outlined + MIN_SAVING)
                 .then_some((value, push_size))
         })
@@ -586,7 +604,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     values.retain(|(value, push_size)| {
         let occurrences = &sites[value];
         let inline = occurrences.len() * push_size;
-        let outlined = occurrences.len() * SITE_BYTES + push_size + 3;
+        let outlined = occurrences.len() * site_bytes + push_size + body_bytes;
         occurrences.len() >= 2 && inline >= outlined + MIN_SAVING
     });
     if values.is_empty() {
