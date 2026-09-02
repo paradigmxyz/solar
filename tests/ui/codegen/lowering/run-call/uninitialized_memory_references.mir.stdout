@@ -14,29 +14,53 @@ fn @nullArrayElementsEncodeAsEmpty() -> bool [selector=0x71417b4d, pure, abi_par
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
-    v1 = abi_encode [memory_array<memory_bytes>], object, args v0
-    v2 = not 0
-    mstore 0, v2 !metadata(memory=scratch)
-    v3 = abi_encode [memory_array<memory_bytes>], object, args v0
-    mstore 0, 0 !metadata(memory=scratch)
-    v4 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v4, 2
-    v5 = abi_encode [memory_array<memory_array<word>>], object, args v4
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:
+    v5 = abi_encode [memory_array<memory_bytes>], object, args v0
     v6 = not 0
     mstore 0, v6 !metadata(memory=scratch)
-    v7 = abi_encode [memory_array<memory_array<word>>], object, args v4
-    v8 = keccak256_bytes v1
-    v9 = keccak256_bytes v3
-    v10 = eq v8, v9
-    jumpi v10, bb1, bb2
+    v7 = abi_encode [memory_array<memory_bytes>], object, args v0
+    mstore 0, 0 !metadata(memory=scratch)
+    v8 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v8, 2
+    jump bb4
+  bb4:
+    v9 = phi [bb3: 0], [bb5: v12]
+    v10 = lt v9, 2
+    jumpi v10, bb5, bb6
+  bb6:
+    v13 = abi_encode [memory_array<memory_array<word>>], object, args v8
+    v14 = not 0
+    mstore 0, v14 !metadata(memory=scratch)
+    v15 = abi_encode [memory_array<memory_array<word>>], object, args v8
+    v16 = keccak256_bytes v5
+    v17 = keccak256_bytes v7
+    v18 = eq v16, v17
+    jumpi v18, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v19 = keccak256_bytes v13
+    v20 = keccak256_bytes v15
+    v21 = eq v19, v20
+    jump bb9
+  bb9:
+    v22 = phi [bb7: v21], [bb8: 0]
+    ret v22
+  bb5:
+    v11 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v11, 0
+    memory_object_store_element memoryarray<1>, v8, v9, v11
+    v12 = add v9, 1
+    jump bb4
   bb2:
-    jump bb3
-  bb1:
-    v11 = keccak256_bytes v5
-    v12 = keccak256_bytes v7
-    v13 = eq v11, v12
-    jump bb3
-  bb3:
-    v14 = phi [bb1: v13], [bb2: 0]
-    ret v14
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v3, 0
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v4 = add v1, 1
+    jump bb1
 }

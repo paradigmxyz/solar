@@ -105,200 +105,212 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v1, 62
-    v2 = memory_object_data memorybytes, v1
-    mstore v2, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
-    v3 = add v2, 32
-    mstore v3, 0x8a09ff40000
-    v4 = memory_object_len memoryarray, v0
-    v5 = lt 0, v4
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
-  bb2:
-    memory_object_store_element memoryarray<1>, v0, 0, v1
-    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v7, 5
-    v8 = memory_object_data memorybytes, v7
-    mstore v8, 0x102030405000000000000000000000000000000000000000000000000000000
-    v9 = memory_object_len memoryarray, v0
-    v10 = lt 1, v9
-    v11 = iszero v10
-    jumpi v11, bb1, bb3
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
   bb3:
-    memory_object_store_element memoryarray<1>, v0, 1, v7
-    v12 = abi_encode [memory_array<memory_bytes>], args v0
-    v13 = slice_len v12
-    v14 = add 0x671, v13
-    v15 = lt v14, 0x671
-    jumpi v15, bb4, bb5
+    v5 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v5, 62
+    v6 = memory_object_data memorybytes, v5
+    mstore v6, 0x9e5b51c01b06aa9662e69b102026ffa1757b2a877ea1721d7e523dd900000000
+    v7 = add v6, 32
+    mstore v7, 0x8a09ff40000
+    v8 = memory_object_len memoryarray, v0
+    v9 = lt 0, v8
+    v10 = iszero v9
+    jumpi v10, bb4, bb5
   bb5:
-    v16 = add v14, 31
-    v17 = lt v16, v14
-    jumpi v17, bb4, bb6
+    memory_object_store_element memoryarray<1>, v0, 0, v5
+    v11 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v11, 5
+    v12 = memory_object_data memorybytes, v11
+    mstore v12, 0x102030405000000000000000000000000000000000000000000000000000000
+    v13 = memory_object_len memoryarray, v0
+    v14 = lt 1, v13
+    v15 = iszero v14
+    jumpi v15, bb4, bb6
   bb6:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc raw, exact, uninitialized, infallible, v19
-    data_copy NestedConstructor_initcode_0, v20, 0x671
-    v21 = slice_ptr v12
-    v22 = add v20, 0x671
-    mcopy v22, v21, v13 !metadata(memory=heap)
-    v23 = create 0, v20, v14
-    jumpi v23, bb8, bb7
-  bb7:
-    revert_returndata
+    memory_object_store_element memoryarray<1>, v0, 1, v11
+    v16 = abi_encode [memory_array<memory_bytes>], args v0
+    v17 = slice_len v16
+    v18 = add 0x671, v17
+    v19 = lt v18, 0x671
+    jumpi v19, bb7, bb8
   bb8:
-    v24 = gas
-    v25 = abi_encode [], selector 0xa1c6d2f600000000000000000000000000000000000000000000000000000000
-    v26 = slice_ptr v25
-    v27 = slice_len v25
-    v28 = staticcall v24, v23, v26, v27, 0, 32
-    jumpi v28, bb10, bb9
+    v20 = add v18, 31
+    v21 = lt v20, v18
+    jumpi v21, bb7, bb9
   bb9:
-    revert_returndata
+    v22 = not 31
+    v23 = and v20, v22
+    v24 = alloc raw, exact, uninitialized, infallible, v23
+    data_copy NestedConstructor_initcode_0, v24, 0x671
+    v25 = slice_ptr v16
+    v26 = add v24, 0x671
+    mcopy v26, v25, v17 !metadata(memory=heap)
+    v27 = create 0, v24, v18
+    jumpi v27, bb11, bb10
   bb10:
-    v29 = returndatasize
-    v30 = lt v29, 32
-    jumpi v30, bb11, bb12
-  bb12:
-    v31 = add 0, 0
-    v32 = mload v31
-    v33 = add 0, 0
-    v34 = mload v33
-    v35 = memory_object_len memoryarray, v0
-    v36 = lt 0, v35
-    v37 = iszero v36
-    jumpi v37, bb1, bb13
-  bb13:
-    v38 = memory_object_load_element memoryarray<1>, v0, 0
-    v39 = eq v38, 0
-    jumpi v39, bb14, bb15
-  bb14:
-    v40 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v40, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v40
-    jump bb15
-  bb15:
-    v41 = phi [bb13: v38], [bb14: v40]
-    v42 = keccak256_bytes v41
-    v43 = eq v34, v42
-    jumpi v43, bb16, bb17
-  bb17:
-    jump bb18
-  bb16:
-    v44 = gas
-    v45 = abi_encode [], selector 0xf799654200000000000000000000000000000000000000000000000000000000
-    v46 = slice_ptr v45
-    v47 = slice_len v45
-    v48 = staticcall v44, v23, v46, v47, 0, 32
-    jumpi v48, bb20, bb19
-  bb19:
     revert_returndata
-  bb20:
-    v49 = returndatasize
-    v50 = lt v49, 32
-    jumpi v50, bb11, bb21
-  bb21:
-    v51 = add 0, 0
-    v52 = mload v51
-    v53 = add 0, 0
-    v54 = mload v53
-    v55 = memory_object_len memoryarray, v0
-    v56 = lt 1, v55
-    v57 = iszero v56
-    jumpi v57, bb1, bb22
-  bb22:
-    v58 = memory_object_load_element memoryarray<1>, v0, 1
-    v59 = eq v58, 0
-    jumpi v59, bb23, bb24
-  bb23:
-    v60 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v60, 0
-    memory_object_store_element memoryarray<1>, v0, 1, v60
-    jump bb24
-  bb24:
-    v61 = phi [bb22: v58], [bb23: v60]
-    v62 = keccak256_bytes v61
-    v63 = eq v54, v62
+  bb11:
+    v28 = gas
+    v29 = abi_encode [], selector 0xa1c6d2f600000000000000000000000000000000000000000000000000000000
+    v30 = slice_ptr v29
+    v31 = slice_len v29
+    v32 = staticcall v28, v27, v30, v31, 0, 32
+    jumpi v32, bb13, bb12
+  bb12:
+    revert_returndata
+  bb13:
+    v33 = returndatasize
+    v34 = lt v33, 32
+    jumpi v34, bb14, bb15
+  bb15:
+    v35 = add 0, 0
+    v36 = mload v35
+    v37 = add 0, 0
+    v38 = mload v37
+    v39 = memory_object_len memoryarray, v0
+    v40 = lt 0, v39
+    v41 = iszero v40
+    jumpi v41, bb4, bb16
+  bb16:
+    v42 = memory_object_load_element memoryarray<1>, v0, 0
+    v43 = eq v42, 0
+    jumpi v43, bb17, bb18
+  bb17:
+    v44 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v44, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v44
     jump bb18
   bb18:
-    v64 = phi [bb24: v63], [bb17: 0]
-    v65 = gas
-    v66 = abi_encode [], selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
-    v67 = slice_ptr v66
-    v68 = slice_len v66
-    v69 = staticcall v65, v23, v67, v68, 0, 32
-    jumpi v69, bb26, bb25
-  bb25:
+    v45 = phi [bb16: v42], [bb17: v44]
+    v46 = keccak256_bytes v45
+    v47 = eq v38, v46
+    jumpi v47, bb19, bb20
+  bb20:
+    jump bb21
+  bb19:
+    v48 = gas
+    v49 = abi_encode [], selector 0xf799654200000000000000000000000000000000000000000000000000000000
+    v50 = slice_ptr v49
+    v51 = slice_len v49
+    v52 = staticcall v48, v27, v50, v51, 0, 32
+    jumpi v52, bb23, bb22
+  bb22:
     revert_returndata
+  bb23:
+    v53 = returndatasize
+    v54 = lt v53, 32
+    jumpi v54, bb14, bb24
+  bb24:
+    v55 = add 0, 0
+    v56 = mload v55
+    v57 = add 0, 0
+    v58 = mload v57
+    v59 = memory_object_len memoryarray, v0
+    v60 = lt 1, v59
+    v61 = iszero v60
+    jumpi v61, bb4, bb25
+  bb25:
+    v62 = memory_object_load_element memoryarray<1>, v0, 1
+    v63 = eq v62, 0
+    jumpi v63, bb26, bb27
   bb26:
-    v70 = returndatasize
-    v71 = lt v70, 32
-    jumpi v71, bb11, bb27
+    v64 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v64, 0
+    memory_object_store_element memoryarray<1>, v0, 1, v64
+    jump bb27
   bb27:
-    v72 = add 0, 0
-    v73 = mload v72
-    v74 = add 0, 0
-    v75 = mload v74
-    v76 = memory_object_len memoryarray, v0
-    v77 = lt 0, v76
-    v78 = iszero v77
-    jumpi v78, bb1, bb28
+    v65 = phi [bb25: v62], [bb26: v64]
+    v66 = keccak256_bytes v65
+    v67 = eq v58, v66
+    jump bb21
+  bb21:
+    v68 = phi [bb27: v67], [bb20: 0]
+    v69 = gas
+    v70 = abi_encode [], selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
+    v71 = slice_ptr v70
+    v72 = slice_len v70
+    v73 = staticcall v69, v27, v71, v72, 0, 32
+    jumpi v73, bb29, bb28
   bb28:
-    v79 = memory_object_load_element memoryarray<1>, v0, 0
-    v80 = eq v79, 0
-    jumpi v80, bb29, bb30
+    revert_returndata
   bb29:
-    v81 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v81, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v81
-    jump bb30
+    v74 = returndatasize
+    v75 = lt v74, 32
+    jumpi v75, bb14, bb30
   bb30:
-    v82 = phi [bb28: v79], [bb29: v81]
-    v83 = memory_object_len memorybytes, v82
-    v84 = shl 128, v83
-    v85 = memory_object_len memoryarray, v0
-    v86 = lt 1, v85
-    v87 = iszero v86
-    jumpi v87, bb1, bb31
+    v76 = add 0, 0
+    v77 = mload v76
+    v78 = add 0, 0
+    v79 = mload v78
+    v80 = memory_object_len memoryarray, v0
+    v81 = lt 0, v80
+    v82 = iszero v81
+    jumpi v82, bb4, bb31
   bb31:
-    v88 = memory_object_load_element memoryarray<1>, v0, 1
-    v89 = eq v88, 0
-    jumpi v89, bb32, bb33
+    v83 = memory_object_load_element memoryarray<1>, v0, 0
+    v84 = eq v83, 0
+    jumpi v84, bb32, bb33
   bb32:
-    v90 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v90, 0
-    memory_object_store_element memoryarray<1>, v0, 1, v90
+    v85 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v85, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v85
     jump bb33
   bb33:
-    v91 = phi [bb31: v88], [bb32: v90]
-    v92 = memory_object_len memorybytes, v91
-    v93 = or v84, v92
-    v94 = eq v75, v93
-    jumpi v64, bb34, bb35
-  bb35:
-    jump bb36
+    v86 = phi [bb31: v83], [bb32: v85]
+    v87 = memory_object_len memorybytes, v86
+    v88 = shl 128, v87
+    v89 = memory_object_len memoryarray, v0
+    v90 = lt 1, v89
+    v91 = iszero v90
+    jumpi v91, bb4, bb34
   bb34:
+    v92 = memory_object_load_element memoryarray<1>, v0, 1
+    v93 = eq v92, 0
+    jumpi v93, bb35, bb36
+  bb35:
+    v94 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v94, 0
+    memory_object_store_element memoryarray<1>, v0, 1, v94
     jump bb36
   bb36:
-    v95 = phi [bb34: v94], [bb35: 0]
-    jumpi v95, bb37, bb38
+    v95 = phi [bb34: v92], [bb35: v94]
+    v96 = memory_object_len memorybytes, v95
+    v97 = or v88, v96
+    v98 = eq v79, v97
+    jumpi v68, bb37, bb38
   bb38:
     jump bb39
   bb37:
     jump bb39
   bb39:
-    v96 = phi [bb37: 1], [bb38: 0]
-    ret v96
-  bb11:
+    v99 = phi [bb37: v98], [bb38: 0]
+    jumpi v99, bb40, bb41
+  bb41:
+    jump bb42
+  bb40:
+    jump bb42
+  bb42:
+    v100 = phi [bb40: 1], [bb41: 0]
+    ret v100
+  bb14:
     revert 0, 0
-  bb4:
+  bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
+  bb2:
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v3, 0
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v4 = add v1, 1
+    jump bb1
 }

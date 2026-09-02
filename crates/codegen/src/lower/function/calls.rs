@@ -130,6 +130,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let object =
                 self.builder.alloc_object(size, layout, AllocationSemantics::SOLIDITY_ZEROED);
             self.builder.set_memory_object_len(object, len, layout.kind());
+            if let TyKind::DynArray(element) = ty.peel_refs().kind
+                && self.types.memory_layout(element).is_some()
+            {
+                // for i in 0..length { object[i] = default(element) }
+                self.counted_loop(len, |this, index| {
+                    let value = this.default_object(element)?;
+                    this.builder.memory_object_store_element(object, layout, index, value);
+                    Some(())
+                })?;
+            }
             return Some(object);
         }
         if let Some(builtin) = self.cx.gcx.resolved_builtin(callee) {

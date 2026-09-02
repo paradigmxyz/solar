@@ -286,79 +286,97 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v0, 2
-    v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v1, 0, 0
-    memory_object_store_field memorystruct<3>, v1, 1, 96
-    memory_object_store_field memorystruct<3>, v1, 2, 96
-    memory_object_store_field memorystruct<3>, v1, 0, 42
-    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v2, 2
-    v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x6869000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<3>, v1, 1, v2
-    v4 = alloc memoryarray<1>, exact, zeroed, panic, 96
-    set_memory_object_len memoryarray, v4, 2
-    memory_object_store_field memorystruct<3>, v1, 2, v4
-    v5 = memory_object_load_field memorystruct<3>, v1, 2
-    v6 = memory_object_len memoryarray, v5
-    v7 = lt 0, v6
-    v8 = iszero v7
-    jumpi v8, bb1, bb2
-  bb2:
-    memory_object_store_element memoryarray<1>, v5, 0, 4
-    v9 = memory_object_load_field memorystruct<3>, v1, 2
-    v10 = memory_object_len memoryarray, v9
-    v11 = lt 1, v10
-    v12 = iszero v11
-    jumpi v12, bb1, bb3
-  bb3:
-    memory_object_store_element memoryarray<1>, v9, 1, 5
-    v13 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v13, 0, 0
-    memory_object_store_field memorystruct<3>, v13, 1, 96
-    memory_object_store_field memorystruct<3>, v13, 2, 96
-    memory_object_store_field memorystruct<3>, v13, 0, 43
-    v14 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v14, 3
-    v15 = memory_object_data memorybytes, v14
-    mstore v15, 0x6279650000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<3>, v13, 1, v14
-    v16 = alloc memoryarray<1>, exact, zeroed, panic, 64
-    set_memory_object_len memoryarray, v16, 1
-    memory_object_store_field memorystruct<3>, v13, 2, v16
-    v17 = memory_object_load_field memorystruct<3>, v13, 2
-    v18 = memory_object_len memoryarray, v17
-    v19 = lt 0, v18
-    v20 = iszero v19
-    jumpi v20, bb1, bb4
-  bb4:
-    memory_object_store_element memoryarray<1>, v17, 0, 6
-    v21 = memory_object_len memoryarray, v0
-    v22 = lt 0, v21
-    v23 = iszero v22
-    jumpi v23, bb1, bb5
-  bb5:
-    memory_object_store_element memoryarray<1>, v0, 0, v1
-    v24 = memory_object_len memoryarray, v0
-    v25 = lt 1, v24
-    v26 = iszero v25
-    jumpi v26, bb1, bb6
-  bb6:
-    memory_object_store_element memoryarray<1>, v0, 1, v13
-    v27 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
-    v28 = internal_call @dDynArr, 4, v27
-    v29 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v30 = add v29, 32
-    v31 = mload v30
-    v32 = add v29, 64
-    v33 = mload v32
-    v34 = add v29, 96
-    v35 = mload v34
-    ret v28, v31, v33, v35
+    jump bb1
   bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:
+    v7 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v7, 0, 0
+    memory_object_store_field memorystruct<3>, v7, 1, 96
+    memory_object_store_field memorystruct<3>, v7, 2, 96
+    memory_object_store_field memorystruct<3>, v7, 0, 42
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v8, 2
+    v9 = memory_object_data memorybytes, v8
+    mstore v9, 0x6869000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v7, 1, v8
+    v10 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v10, 2
+    memory_object_store_field memorystruct<3>, v7, 2, v10
+    v11 = memory_object_load_field memorystruct<3>, v7, 2
+    v12 = memory_object_len memoryarray, v11
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb4, bb5
+  bb5:
+    memory_object_store_element memoryarray<1>, v11, 0, 4
+    v15 = memory_object_load_field memorystruct<3>, v7, 2
+    v16 = memory_object_len memoryarray, v15
+    v17 = lt 1, v16
+    v18 = iszero v17
+    jumpi v18, bb4, bb6
+  bb6:
+    memory_object_store_element memoryarray<1>, v15, 1, 5
+    v19 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v19, 0, 0
+    memory_object_store_field memorystruct<3>, v19, 1, 96
+    memory_object_store_field memorystruct<3>, v19, 2, 96
+    memory_object_store_field memorystruct<3>, v19, 0, 43
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v20, 3
+    v21 = memory_object_data memorybytes, v20
+    mstore v21, 0x6279650000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v19, 1, v20
+    v22 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v22, 1
+    memory_object_store_field memorystruct<3>, v19, 2, v22
+    v23 = memory_object_load_field memorystruct<3>, v19, 2
+    v24 = memory_object_len memoryarray, v23
+    v25 = lt 0, v24
+    v26 = iszero v25
+    jumpi v26, bb4, bb7
+  bb7:
+    memory_object_store_element memoryarray<1>, v23, 0, 6
+    v27 = memory_object_len memoryarray, v0
+    v28 = lt 0, v27
+    v29 = iszero v28
+    jumpi v29, bb4, bb8
+  bb8:
+    memory_object_store_element memoryarray<1>, v0, 0, v7
+    v30 = memory_object_len memoryarray, v0
+    v31 = lt 1, v30
+    v32 = iszero v31
+    jumpi v32, bb4, bb9
+  bb9:
+    memory_object_store_element memoryarray<1>, v0, 1, v19
+    v33 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
+    v34 = internal_call @dDynArr, 4, v33
+    v35 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v36 = add v35, 32
+    v37 = mload v36
+    v38 = add v35, 64
+    v39 = mload v38
+    v40 = add v35, 96
+    v41 = mload v40
+    ret v34, v37, v39, v41
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
+  bb2:
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    memory_object_store_field memorystruct<3>, v3, 0, 0
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v4, 0
+    memory_object_store_field memorystruct<3>, v3, 1, v4
+    v5 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v5, 0
+    memory_object_store_field memorystruct<3>, v3, 2, v5
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v6 = add v1, 1
+    jump bb1
 }
 
 fn @fixedDynamicRoundtrip() -> (u256, u256) [selector=0x273ceef0, pure, abi_params=[], abi_returns=[word, word]] {
