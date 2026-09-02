@@ -1,0 +1,62 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/library_storage_params.sol:L": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "ext",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "memStruct",
+          "inputs": [
+            {
+              "name": "p",
+              "type": "tuple",
+              "internalType": "struct L.Plain",
+              "components": [
+                {
+                  "name": "a",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        }
+      ],
+      "hashes": {
+        "arrParam(uint256[] storage)": "75803ad4",
+        "ext(uint256)": "0be5edb6",
+        "mappingParam(mapping(uint256 => uint256) storage)": "8aa88f55",
+        "memStruct(L.Plain)": "e6d09e6b",
+        "plainStruct(L.Plain storage)": "2d886fae",
+        "withMapping(L.Set storage)": "6bd4ab76"
+      }
+    }
+  },
+  "version": "VERSION"
+}
