@@ -13,9 +13,10 @@
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
-    mir::Op,
+    mir::{Op, ValueId},
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_sema::Gcx;
 use std::{cmp::Ordering, ops};
@@ -178,6 +179,33 @@ impl GasTier {
         }
     }
 
+    /// The stack argument that sizes the dynamic work: the exponent of
+    /// `EXP`, the byte length of a hash or a log, the last argument of a copy.
+    const fn sizing_argument(self, arguments: usize) -> Option<usize> {
+        match self {
+            Self::Exp | Self::Keccak | Self::Log(_) => Some(1),
+            Self::Copy => arguments.checked_sub(1),
+            _ => None,
+        }
+    }
+
+    /// Units of dynamic work for `arguments`, in stack order with immediates
+    /// resolved: exponent bytes, hashed or copied words, or logged bytes. One
+    /// unit when the size is not known statically.
+    fn dynamic_units(self, arguments: &[Option<U256>]) -> u32 {
+        let Some(size) = self.sizing_argument(arguments.len()).and_then(|index| arguments[index])
+        else {
+            return u32::from(self.sizing_argument(arguments.len()).is_some());
+        };
+        let units = match self {
+            Self::Exp => U256::from(size.bit_len().div_ceil(8)),
+            Self::Keccak | Self::Copy => size.div_ceil(U256::from(32)),
+            Self::Log(_) => size,
+            _ => U256::ZERO,
+        };
+        u32::try_from(units).unwrap_or(u32::MAX)
+    }
+
     /// Gas of a tier priced the same on every EVM version, usable in constants.
     pub(crate) const fn fixed_gas(self) -> u32 {
         match self {
@@ -318,13 +346,22 @@ impl Target {
     }
 
     /// Expected cost of one MIR operation: its opcode, or a very-low instruction
-    /// for operations the backend expands by hand, plus one unit of dynamic work.
-    pub(crate) fn op(self, op: &Op) -> Cost {
+    /// for operations the backend expands by hand, plus its dynamic work sized
+    /// from the immediate operands `immediate` resolves, or one unit otherwise.
+    pub(crate) fn op(self, op: &Op, immediate: impl Fn(ValueId) -> Option<U256>) -> Cost {
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1);
         };
         let tier = op::definition(lowering.opcode()).map_or(GasTier::VeryLow, |def| def.gas);
-        Cost::new(tier.gas(self.evm_version) + tier.dynamic_gas(self.evm_version), 1)
+        let mut arguments = SmallVec::<[Option<U256>; 8]>::new();
+        // Only the visit matters; the mapped copy is discarded.
+        let _ = op.map_values(|value| {
+            arguments.push(immediate(value));
+            value
+        });
+        let dynamic =
+            tier.dynamic_gas(self.evm_version).saturating_mul(tier.dynamic_units(&arguments));
+        Cost::new(tier.gas(self.evm_version).saturating_add(dynamic), 1)
     }
 
     /// Gas of copying one more word with a copy opcode.
@@ -410,6 +447,24 @@ mod tests {
         assert!(gas.improves(1, 0));
         assert!(!gas.improves(1, -1));
         assert!(size.improves(-5, 1));
+    }
+
+    #[test]
+    fn dynamic_work_is_sized_from_immediates() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let exponent = |value: Option<U256>| {
+            target.op(&Op::Exp { a: ValueId::from_usize(0), b: ValueId::from_usize(1) }, |id| {
+                (id.index() == 1).then_some(value).flatten()
+            })
+        };
+        assert_eq!(exponent(None), Cost::new(60, 1));
+        assert_eq!(exponent(Some(U256::from(255))), Cost::new(60, 1));
+        assert_eq!(exponent(Some(U256::from(1 << 16))), Cost::new(160, 1));
+        assert_eq!(exponent(Some(U256::ZERO)), Cost::new(10, 1));
+        assert_eq!(GasTier::Keccak.dynamic_units(&[None, Some(U256::from(64))]), 2);
+        assert_eq!(GasTier::Copy.dynamic_units(&[None, None, Some(U256::from(33))]), 2);
+        assert_eq!(GasTier::Log(1).dynamic_units(&[None, Some(U256::from(5)), None]), 5);
+        assert_eq!(GasTier::VeryLow.dynamic_units(&[None, None]), 0);
     }
 
     #[test]

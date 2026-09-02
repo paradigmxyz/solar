@@ -848,7 +848,11 @@ impl Costs<'_> {
         let operands = operands_of(node);
         // An operand shared with other users is computed regardless of this
         // choice; an immediate is pushed at every use.
-        let mut cost = self.target.op(node);
+        let func = self.func;
+        let mut cost = self.target.op(node, |value| match func.value(value) {
+            Value::Immediate(immediate) => immediate.as_u256(),
+            _ => None,
+        });
         for &operand in &operands {
             if self.uses(operand) <= 1 || matches!(self.func.value(operand), Value::Immediate(_)) {
                 cost += self.class(operand);
