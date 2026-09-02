@@ -40,7 +40,7 @@
 //! ```
 
 use crate::mir::{
-    AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
+    ResultKind, AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, RequireKind, SliceLocation,
     StructId, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
@@ -244,6 +244,26 @@ impl<'a> Validator<'a> {
                     continue;
                 }
                 let inst = func.inst(inst_id);
+
+                let result_kind = inst.kind.op_def().result;
+                if result_kind != ResultKind::Custom
+                    && result_kind.produces_value() != inst.result_ty.is_some()
+                {
+                    self.emit_at_inst(
+                        format_args!(
+                            "`{}` {} a value but {} a result type",
+                            inst.kind.mnemonic(),
+                            if result_kind.produces_value() {
+                                "produces"
+                            } else {
+                                "does not produce"
+                            },
+                            if inst.result_ty.is_some() { "has" } else { "has no" },
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
 
                 match (inst.result_ty, func.inst_result_value(inst_id)) {
                     (Some(_), Some(result)) if result.index() >= num_values => {
