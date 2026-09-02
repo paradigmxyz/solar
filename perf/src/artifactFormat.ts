@@ -6,6 +6,10 @@ function formatJson(contents: string) {
   }
 }
 
+function formatPushData(data: string, width: number) {
+  return '0x' + data.replace(/^0x/i, '').toLowerCase().padStart(width * 2, '0')
+}
+
 function formatOpcodes(contents: string) {
   if (contents.trim().includes('\n')) return contents
   const instructions: { offset: number; name: string; data: string | null }[] = []
@@ -14,7 +18,7 @@ function formatOpcodes(contents: string) {
   for (let index = 0; index < tokens.length; index += 1) {
     const name = tokens[index]
     const push = /^PUSH([1-9]|[12][0-9]|3[0-2])$/.exec(name)
-    const data = push ? tokens[++index] ?? null : null
+    const data = push && tokens[index + 1] ? formatPushData(tokens[++index], Number(push[1])) : null
     instructions.push({ offset, name, data })
     offset += 1 + (push ? Number(push[1]) : 0)
   }
