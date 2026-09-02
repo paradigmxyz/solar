@@ -116,12 +116,12 @@ trait Operands {
 
 impl Operands for ValueId {
     #[inline]
-    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+    fn collect<A: Array<Item = Self>>(&self, out: &mut SmallVec<A>) {
         out.push(*self);
     }
 
     #[inline]
-    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut Self)) {
         f(self);
     }
 }
