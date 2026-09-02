@@ -1,13 +1,17 @@
 //! Declarative metadata for MIR operations.
 //!
-//! The payload of [`InstKind`](super::InstKind) remains a Rust enum because
-//! several operations carry domain-specific layouts and variable-length
-//! operands. This table is the operation-definition layer: it is the single
-//! source for stable names, effects, traits, and phase legality. The same
-//! descriptors can later drive textual and machine serialization without
-//! replacing the typed MIR representation.
+//! The table owns the typed [`InstKind`] enum as well as its compiler-facing
+//! metadata. Several operations carry domain-specific layouts and
+//! variable-length operands, so the generated representation remains a typed
+//! Rust enum while the declaration stays in one place. The descriptors can
+//! drive verification, textual serialization, and later machine serialization
+//! without making the optimizer reason about untyped operands.
 
-use super::{AllocationKind, EffectKind, InstKind, InstructionMetadata, MirPhase};
+use super::{
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationKind, AllocationSemantics, BlockId,
+    DataRef, EffectKind, FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, SliceLocation, StorageLayoutRef, ValueId,
+};
 
 /// A compact set of MIR phases in which an operation is structurally valid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -54,18 +58,27 @@ impl OpTraits {
 
 macro_rules! define_mir_ops {
     (
-        $(
-            $pattern:pat => {
-                tag: $tag:ident,
-                mnemonic: $mnemonic:literal,
-                phases: $phases:expr,
-                effect: $effect:ident,
-                traits: $traits:expr,
-                side_effects: $side_effects:expr,
-                category: $category:expr $(,)?
-            }
-        ),+ $(,)?
+        enum $inst_name:ident { $($variants:tt)* }
+        defs {
+            $(
+                $pattern:pat => {
+                    tag: $tag:ident,
+                    mnemonic: $mnemonic:literal,
+                    phases: $phases:expr,
+                    effect: $effect:ident,
+                    traits: $traits:expr,
+                    side_effects: $side_effects:expr,
+                    category: $category:expr $(,)?
+                }
+            ),+ $(,)?
+        }
     ) => {
+        /// The kind of a MIR instruction.
+        #[derive(Clone, Debug, PartialEq)]
+        pub(crate) enum $inst_name {
+            $($variants)*
+        }
+
         /// Compact compiler-internal tag for a MIR operation.
         #[repr(u8)]
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -92,7 +105,7 @@ macro_rules! define_mir_ops {
             pub(crate) phase_category: Option<&'static str>,
         }
 
-        impl InstKind {
+        impl $inst_name {
             /// Returns the declarative definition for this operation.
             #[inline]
             #[must_use]
@@ -142,6 +155,522 @@ macro_rules! define_mir_ops {
 }
 
 define_mir_ops! {
+    enum InstKind {
+    // Arithmetic operations
+    /// Addition: `a + b`
+    Add(ValueId, ValueId),
+    /// Subtraction: `a - b`
+    Sub(ValueId, ValueId),
+    /// Multiplication: `a * b`
+    Mul(ValueId, ValueId),
+    /// Unsigned division: `a / b`
+    Div(ValueId, ValueId),
+    /// Signed division: `a / b`
+    SDiv(ValueId, ValueId),
+    /// Unsigned modulo: `a % b`
+    Mod(ValueId, ValueId),
+    /// Signed modulo: `a % b`
+    SMod(ValueId, ValueId),
+    /// Exponentiation: `a ** b`
+    Exp(ValueId, ValueId),
+    /// Add modulo: `(a + b) % n`
+    AddMod(ValueId, ValueId, ValueId),
+    /// Multiply modulo: `(a * b) % n`
+    MulMod(ValueId, ValueId, ValueId),
+
+    // Bitwise operations
+    /// Bitwise AND: `a & b`
+    And(ValueId, ValueId),
+    /// Bitwise OR: `a | b`
+    Or(ValueId, ValueId),
+    /// Bitwise XOR: `a ^ b`
+    Xor(ValueId, ValueId),
+    /// Bitwise NOT: `~a`
+    Not(ValueId),
+    /// Count leading zero bits.
+    Clz(ValueId),
+    /// Left shift: `a << b`
+    Shl(ValueId, ValueId),
+    /// Logical right shift: `a >> b`
+    Shr(ValueId, ValueId),
+    /// Arithmetic right shift: `a >> b` (signed)
+    Sar(ValueId, ValueId),
+    /// Extract a byte: `byte(i, x)`
+    Byte(ValueId, ValueId),
+
+    // Comparison operations
+    /// Less than (unsigned): `a < b`
+    Lt(ValueId, ValueId),
+    /// Greater than (unsigned): `a > b`
+    Gt(ValueId, ValueId),
+    /// Less than (signed): `a < b`
+    SLt(ValueId, ValueId),
+    /// Greater than (signed): `a > b`
+    SGt(ValueId, ValueId),
+    /// Equality: `a == b`
+    Eq(ValueId, ValueId),
+    /// Check if zero: `a == 0`
+    IsZero(ValueId),
+
+    // Memory operations
+    /// Load from memory: `mload(offset)`
+    MLoad(ValueId),
+    /// Store to memory: `mstore(offset, value)`
+    MStore(ValueId, ValueId),
+    /// Store a single byte: `mstore8(offset, value)`
+    MStore8(ValueId, ValueId),
+    /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
+    MemoryZero(ValueId, ValueId),
+    /// Get memory size: `msize()`
+    MSize,
+    /// Read the free-memory pointer.
+    Fmp,
+    /// Set the free-memory pointer.
+    SetFmp(ValueId),
+    /// Reserve memory and return the previous free-memory pointer.
+    Alloc {
+        /// Requested byte count.
+        size: ValueId,
+        /// Semantic shape of the returned reference.
+        kind: AllocationKind,
+        /// Alignment, initialization, and failure behavior.
+        semantics: AllocationSemantics,
+    },
+    /// Read the logical length of a dynamic memory object.
+    MemoryObjectLen(ValueId, MemoryObjectKind),
+    /// Set the logical length of a dynamic memory object.
+    SetMemoryObjectLen(ValueId, ValueId, MemoryObjectKind),
+    /// Project the address of the first payload byte from an object.
+    MemoryObjectData(ValueId, MemoryObjectKind),
+    /// Address a direct field of a struct object.
+    MemoryObjectFieldAddr {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+    },
+    /// Address an array element under the semantic object layout.
+    MemoryObjectElementAddr {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+    },
+    /// Load one direct struct field without exposing its physical address.
+    MemoryObjectLoadField {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+    },
+    /// Store one direct struct field without exposing its physical address.
+    MemoryObjectStoreField {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Load one array element without exposing its physical address.
+    MemoryObjectLoadElement {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+    },
+    /// Load one byte from a bytes object without exposing its physical address.
+    MemoryObjectLoadByte {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte index.
+        index: ValueId,
+    },
+    /// Store one array element without exposing its physical address.
+    MemoryObjectStoreElement {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Store one byte in a bytes object without exposing its physical address.
+    MemoryObjectStoreByte {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte index.
+        index: ValueId,
+        /// Low byte to store.
+        value: ValueId,
+    },
+    /// Store one word at a byte offset in a bytes object without exposing its
+    /// physical address.
+    MemoryObjectStoreWord {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte offset from the payload start.
+        offset: ValueId,
+        /// Word to store.
+        value: ValueId,
+    },
+    /// Load one word from a memory slice at a byte offset without exposing its
+    /// physical address.
+    MemorySliceLoadWord {
+        /// Memory slice reference.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
+        offset: ValueId,
+    },
+    /// Load one word from a calldata slice at a byte offset without exposing
+    /// the physical calldata address.
+    CalldataSliceLoadWord {
+        /// Calldata slice reference.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
+        offset: ValueId,
+    },
+    /// Copy a typed slice into the payload of a dynamic memory object.
+    MemoryObjectCopyFromSlice {
+        /// Destination memory object reference.
+        object: ValueId,
+        /// Dynamic memory object kind.
+        kind: MemoryObjectKind,
+        /// Source logical slice.
+        source: ValueId,
+    },
+    /// Copy a typed slice into a byte offset in a dynamic memory object.
+    MemoryObjectCopyFromSliceAt {
+        /// Destination memory object reference.
+        object: ValueId,
+        /// Dynamic memory object kind.
+        kind: MemoryObjectKind,
+        /// Byte offset from the destination payload start.
+        offset: ValueId,
+        /// Source logical slice.
+        source: ValueId,
+    },
+    /// Copy a byte range between two dynamic memory objects.
+    MemoryObjectCopy {
+        /// Destination memory object reference.
+        destination: ValueId,
+        /// Destination memory object kind.
+        destination_kind: MemoryObjectKind,
+        /// Source memory object reference.
+        source: ValueId,
+        /// Source memory object kind.
+        source_kind: MemoryObjectKind,
+        /// Number of bytes to copy.
+        length: ValueId,
+    },
+    /// ABI-encode values into memory.
+    AbiEncode {
+        /// Storage policy for the encoded result.
+        mode: AbiEncodeMode,
+        /// Optional left-aligned four-byte selector prefix.
+        selector: Option<ValueId>,
+        /// Values corresponding to the tuple layout.
+        args: Box<[ValueId]>,
+        /// Interned semantic ABI layout.
+        layout: AbiLayoutRef,
+    },
+    /// Decode a memory-backed ABI tuple into semantic MIR values.
+    ///
+    /// The instruction result is the first tuple value. Additional values are
+    /// published through the multi-return buffer, matching ordinary MIR calls.
+    AbiDecode {
+        /// ABI-encoded bytes object.
+        data: ValueId,
+        /// Interned ABI input layout, including scalar validation types.
+        layout: AbiParamLayoutRef,
+    },
+    /// Copy a statically shaped aggregate from storage into an existing memory allocation.
+    StorageToMemory {
+        /// Base storage slot.
+        storage: ValueId,
+        /// Destination memory pointer.
+        memory: ValueId,
+        /// Aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Copy a statically shaped aggregate from memory into storage.
+    MemoryToStorage {
+        /// Source memory pointer.
+        memory: ValueId,
+        /// Base storage slot.
+        storage: ValueId,
+        /// Aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Clear every storage slot occupied by a statically shaped aggregate.
+    ClearStorage {
+        /// Base storage slot.
+        storage: ValueId,
+        /// Aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Copy memory: `mcopy(dest, src, len)`
+    MCopy(ValueId, ValueId, ValueId),
+
+    // Storage operations
+    /// Load from storage: `sload(slot)`
+    SLoad(ValueId),
+    /// Store to storage: `sstore(slot, value)`
+    SStore(ValueId, ValueId),
+    /// Transient load: `tload(slot)`
+    TLoad(ValueId),
+    /// Transient store: `tstore(slot, value)`
+    TStore(ValueId, ValueId),
+
+    // Calldata operations
+    /// Load from calldata: `calldataload(offset)`
+    CalldataLoad(ValueId),
+    /// Copy calldata to memory: `calldatacopy(destOffset, offset, size)`
+    CalldataCopy(ValueId, ValueId, ValueId),
+    /// Get calldata size: `calldatasize()`
+    CalldataSize,
+    /// Construct a logical `(pointer, length, location)` slice.
+    MakeSlice {
+        /// Address of the first element or byte.
+        ptr: ValueId,
+        /// Logical element or byte length.
+        len: ValueId,
+        /// Address space containing the slice data.
+        location: SliceLocation,
+    },
+    /// Project the data pointer from a slice.
+    SlicePtr(ValueId),
+    /// Project the logical length from a slice.
+    SliceLen(ValueId),
+    /// Address inside the current internal-call frame.
+    InternalFrameAddr(u64),
+    /// Load a mutable local through its logical frame slot.
+    ///
+    /// A plain memory read: deletable when its result is dead. Ordering
+    /// against frame stores, calls, and other frame traffic is carried by
+    /// effect kinds and the alias model's `frame_location`.
+    FrameLoad {
+        /// Byte offset within the function's local region.
+        offset: u64,
+        /// Calling convention that owns the local region.
+        mode: FrameMode,
+        /// Logical value representation stored in the slot.
+        kind: FrameSlotKind,
+    },
+    /// Store a mutable local through its logical frame slot.
+    FrameStore {
+        /// Byte offset within the function's local region.
+        offset: u64,
+        /// Calling convention that owns the local region.
+        mode: FrameMode,
+        /// Logical value representation stored in the slot.
+        kind: FrameSlotKind,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Base address of the constructor's copied ABI argument blob.
+    ConstructorArgsBase,
+    /// End address of the constructor's copied ABI argument blob.
+    ConstructorArgsEnd,
+
+    // Code operations
+    /// Copy constant module data to memory.
+    DataCopy(DataRef, ValueId, ValueId),
+    /// Get code size: `codesize()`
+    CodeSize,
+    /// Copy code to memory: `codecopy(destOffset, offset, size)`
+    CodeCopy(ValueId, ValueId, ValueId),
+    /// Get external code size: `extcodesize(addr)`
+    ExtCodeSize(ValueId),
+    /// Copy external code to memory: `extcodecopy(addr, destOffset, offset, size)`
+    ExtCodeCopy(ValueId, ValueId, ValueId, ValueId),
+    /// Get external code hash: `extcodehash(addr)`
+    ExtCodeHash(ValueId),
+    /// Assign an immutable during construction: `storeimmutable <name>, value`.
+    /// Lowered to constructor staging memory after MIR optimization.
+    StoreImmutable(ImmutableId, ValueId),
+    /// Read an immutable declared by the module: `loadimmutable <name>`.
+    ///
+    /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
+    /// constructor patches with the staged value before returning the runtime
+    /// code. In constructor code it reads the staging word instead.
+    LoadImmutable(ImmutableId),
+
+    // Return data operations
+    /// Get the current call's return data size: `returndatasize()`.
+    ///
+    /// Raw volatile query used by Yul and high-level call lowering.
+    ReturnDataSize,
+    /// Copy return data to memory: `returndatacopy(destOffset, offset, size)`
+    ReturnDataCopy(ValueId, ValueId, ValueId),
+
+    // Environment operations
+    /// Get caller address: `caller()`
+    Caller,
+    /// Get call value: `callvalue()`
+    CallValue,
+    /// Get origin address: `origin()`
+    Origin,
+    /// Get gas price: `gasprice()`
+    GasPrice,
+    /// Get block hash: `blockhash(blockNum)`
+    BlockHash(ValueId),
+    /// Get coinbase address: `coinbase()`
+    Coinbase,
+    /// Get block timestamp: `timestamp()`
+    Timestamp,
+    /// Get block number: `number()`
+    BlockNumber,
+    /// Get previous randao: `prevrandao()`
+    PrevRandao,
+    /// Get gas limit: `gaslimit()`
+    GasLimit,
+    /// Get beacon chain slot number: `slotnum()`
+    SlotNum,
+    /// Get chain ID: `chainid()`
+    ChainId,
+    /// Get this contract's address: `address()`
+    Address,
+    /// Get balance: `balance(addr)`
+    Balance(ValueId),
+    /// Get self balance: `selfbalance()`
+    SelfBalance,
+    /// Get remaining gas: `gas()`
+    Gas,
+    /// Get base fee: `basefee()`
+    BaseFee,
+    /// Get blob base fee: `blobbasefee()`
+    BlobBaseFee,
+    /// Get blob hash: `blobhash(index)`
+    BlobHash(ValueId),
+
+    // Hashing
+    /// Keccak256 hash: `keccak256(offset, size)`
+    Keccak256(ValueId, ValueId),
+    /// Keccak256 hash of a `memorybytes` object's contents:
+    /// `keccak256_bytes(object)`.
+    ///
+    /// Consumes the object reference directly, so the optimizer sees one
+    /// whole-object read instead of separate length and data-pointer
+    /// projections. `lower-memory-objects` expands it into those projections
+    /// and a physical `keccak256`.
+    Keccak256Bytes(ValueId),
+    /// Hash a fixed-width mapping key and its parent slot.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    MappingSlot(ValueId, ValueId),
+    /// Hash a `[length][data...]` memory value and its parent mapping slot.
+    MappingSlotMemory(ValueId, ValueId),
+    /// Hash a dynamically-sized calldata value and its parent mapping slot.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    MappingSlotCalldata(ValueId, ValueId),
+    /// Hash the slot of a dynamically-sized storage array to find its data.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    StorageArrayDataSlot(ValueId),
+    /// Resolve one element slot in a dynamic storage array.
+    ///
+    /// The array's base slot, element index, and logical slot stride stay
+    /// semantic until the mapping-slot lowering pass expands the hash and
+    /// offset calculation.
+    StorageArrayElementSlot { slot: ValueId, index: ValueId, element_slots: u64 },
+
+    // Call operations
+    // TODO(codegen): Consider unifying external calls as one instruction with a call-kind enum
+    // and shared operands once the MIR shape stabilizes.
+    /// External call: `call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+    Call {
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// Call code: `callcode(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+    CallCode {
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// Static call: `staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
+    StaticCall {
+        gas: ValueId,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// Delegate call: `delegatecall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
+    DelegateCall {
+        gas: ValueId,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// EOF external call: `extcall(addr, argsOffset, argsSize, value)`.
+    ExtCall { addr: ValueId, args_offset: ValueId, args_size: ValueId, value: ValueId },
+    /// EOF external delegate call: `extdelegatecall(addr, argsOffset, argsSize)`.
+    ExtDelegateCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
+    /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
+    ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
+    /// Internal function call lowered to a direct jump.
+    InternalCall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
+
+    // Contract creation
+    /// Create contract: `create(value, offset, size)`
+    Create(ValueId, ValueId, ValueId),
+    /// Create2 contract: `create2(value, offset, size, salt)`
+    Create2(ValueId, ValueId, ValueId, ValueId),
+
+    // Log operations
+    // TODO(codegen): Consider unifying log0..log4 as one instruction with a topic list.
+    /// Log with no topics: `log0(offset, size)`
+    Log0(ValueId, ValueId),
+    /// Log with 1 topic: `log1(offset, size, topic1)`
+    Log1(ValueId, ValueId, ValueId),
+    /// Log with 2 topics: `log2(offset, size, topic1, topic2)`
+    Log2(ValueId, ValueId, ValueId, ValueId),
+    /// Log with 3 topics: `log3(offset, size, topic1, topic2, topic3)`
+    Log3(ValueId, ValueId, ValueId, ValueId, ValueId),
+    /// Log with 4 topics: `log4(offset, size, topic1, topic2, topic3, topic4)`
+    Log4(ValueId, ValueId, ValueId, ValueId, ValueId, ValueId),
+
+    // SSA operations
+    /// Phi node: merge values from different predecessors.
+    Phi(Vec<(BlockId, ValueId)>),
+    /// Select: `select(cond, true_val, false_val)`
+    Select(ValueId, ValueId, ValueId),
+
+    // Sign extension
+    /// Sign extend: `signextend(b, x)` - extends the sign bit from byte position b
+    SignExtend(ValueId, ValueId),
+}
+    defs {
     Self::Add(_, _) => { tag: Add, mnemonic: "add", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
     Self::Sub(_, _) => { tag: Sub, mnemonic: "sub", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
     Self::Mul(_, _) => { tag: Mul, mnemonic: "mul", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
@@ -275,6 +804,7 @@ define_mir_ops! {
     Self::Phi(_) => { tag: Phi, mnemonic: "phi", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
     Self::Select(_, _, _) => { tag: Select, mnemonic: "select", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
     Self::SignExtend(_, _) => { tag: SignExtend, mnemonic: "signextend", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    }
 }
 
 #[cfg(test)]

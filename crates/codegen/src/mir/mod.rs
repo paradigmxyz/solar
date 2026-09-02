@@ -25,12 +25,12 @@ pub(crate) use value::{Immediate, Value};
 mod inst;
 pub(crate) use inst::{
     AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
-    AllocationKind, AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata,
+    AllocationKind, AllocationSemantics, EffectKind, Instruction, InstructionMetadata,
     MemoryRegion, StorageAlias,
 };
 
 mod op_schema;
-pub(crate) use op_schema::OpTraits;
+pub(crate) use op_schema::{InstKind, OpTraits};
 
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
