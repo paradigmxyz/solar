@@ -780,7 +780,7 @@ impl InstSimplifier {
         // The rules see the instruction with its operands resolved and inspect
         // the operands of defining instructions as written.
         let op = kind.op().map_values(resolve);
-        isle::RuleContext::new(func).simplify(&op)
+        isle::RuleContext::new(func, self.evm_version).simplify(&op)
     }
 
     fn const_fold_inst(
@@ -1079,67 +1079,12 @@ impl InstSimplifier {
         Self::is_const(func, value, U256::ZERO)
     }
 
-    fn is_one(func: &Function, value: ValueId) -> bool {
-        Self::is_const(func, value, U256::from(1))
-    }
-
-    fn is_bool_value(func: &Function, value: ValueId) -> bool {
-        match func.value(value) {
-            Value::Immediate(Immediate::Bool(_)) => true,
-            Value::Inst(inst_id) => matches!(
-                func.inst(*inst_id).kind,
-                InstKind::Lt(..)
-                    | InstKind::Gt(..)
-                    | InstKind::SLt(..)
-                    | InstKind::SGt(..)
-                    | InstKind::Eq(..)
-                    | InstKind::IsZero(..)
-            ),
-            // Solidity's `bool` type does not prove that the EVM word is
-            // canonical: inline assembly can assign dirty words to variables,
-            // arguments, and return values. Only values produced by an EVM
-            // comparison above are known to be exactly zero or one.
-            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
-        }
-    }
-
     fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
         a == b
             || match (func.value(a), func.value(b)) {
                 (Value::Immediate(a), Value::Immediate(b)) => a == b,
                 _ => false,
             }
-    }
-
-    fn is_all_ones(func: &Function, value: ValueId) -> bool {
-        Self::is_const(func, value, U256::MAX)
-    }
-
-    fn is_uint160_mask(func: &Function, value: ValueId) -> bool {
-        let mask = (U256::from(1) << 160) - U256::from(1);
-        Self::is_const(func, value, mask)
-    }
-
-    fn is_clean_address(func: &Function, value: ValueId) -> bool {
-        match func.value(value) {
-            Value::Inst(inst_id) => matches!(
-                func.inst(*inst_id).kind,
-                InstKind::Address
-                    | InstKind::Caller
-                    | InstKind::Origin
-                    | InstKind::Coinbase
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-            ),
-            _ => false,
-        }
-    }
-
-    fn is_current_address(func: &Function, value: ValueId) -> bool {
-        match func.value(value) {
-            Value::Inst(inst_id) => matches!(func.inst(*inst_id).kind, InstKind::Address),
-            _ => false,
-        }
     }
 
     fn rewrite_terminators(
