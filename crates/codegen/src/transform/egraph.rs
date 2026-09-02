@@ -106,8 +106,8 @@ struct Builder<'a> {
     memo: FxHashMap<NodeKey, ValueId>,
     /// Undo log restoring `memo` when a dominator scope closes.
     undo: Vec<(NodeKey, Option<ValueId>)>,
-    /// Phis congruent through loop-carried operands, mapped to the earliest
-    /// congruent phi of their block.
+    /// Phis congruent through loop-carried operands, mapped to the leader of
+    /// their class: a leaf, an earlier phi of the block, or a dominating value.
     optimistic: FxHashMap<ValueId, ValueId>,
     /// Hash-consing table for the phis of the current block.
     phis: FxHashMap<PhiKey, ValueId>,
@@ -283,7 +283,8 @@ impl<'a> Builder<'a> {
             self.merge(result, leader, inst_id);
             return;
         }
-        // A phi congruent to an earlier phi of this block through the loop:
+        // A phi congruent through the loop to an earlier phi of this block or
+        // to a dominating value:
         // %leader = phi [..], [latch: %x]
         // %result = phi [..], [latch: %y]   ; x ≡ y given leader ≡ result
         if let Some(&leader) = self.optimistic.get(&result) {
@@ -557,29 +558,25 @@ impl OptimisticNumbering<'_> {
 }
 
 /// Optimistic value numbering after Simpson: every value starts in one class
-/// and reverse-postorder numbering splits classes until a fixed point, so two
-/// phis of one block are congruent through loop-carried operands the
-/// dominator walk cannot see through. Returns each such phi mapped to the
-/// earliest congruent phi of its block, or nothing when the numbering does
-/// not converge.
+/// and reverse-postorder numbering splits classes until a fixed point, so a
+/// phi is congruent through loop-carried operands the dominator walk cannot
+/// see through. Returns each such phi mapped to the leader of its class that
+/// is available at the phi, or nothing when the numbering does not converge.
 fn optimistic_phi_leaders(
     func: &Function,
     cfg: &CfgInfo,
     leaves: &FxHashMap<ValueId, ValueId>,
 ) -> FxHashMap<ValueId, ValueId> {
     let mut leaders = FxHashMap::default();
-    // Only a cycle carries a value back into its own phi, and only a block
-    // with two phis has a pair to merge; elsewhere the dominator walk numbers
-    // every phi over already numbered operands.
-    let has_phi_pair = cfg.cyclic_blocks().iter().any(|block| {
+    // Only a cycle carries a value back into its own phi; elsewhere the
+    // dominator walk numbers every phi over already numbered operands.
+    let has_loop_phi = cfg.cyclic_blocks().iter().any(|block| {
         func.blocks[block]
             .instructions
             .iter()
-            .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .nth(1)
-            .is_some()
+            .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
     });
-    if !has_phi_pair {
+    if !has_loop_phi {
         return leaders;
     }
     let mut numbering = OptimisticNumbering {
@@ -600,14 +597,21 @@ fn optimistic_phi_leaders(
                 let Some(result) = func.inst_result_value(inst_id) else { continue };
                 let inst = func.inst(inst_id);
                 let key = match &inst.kind {
-                    InstKind::Phi(incoming) => OptimisticKey::Phi(
-                        block,
-                        incoming
+                    InstKind::Phi(incoming) => {
+                        let incoming: SmallVec<[(BlockId, u32); 4]> = incoming
                             .iter()
                             .map(|&(pred, value)| (pred, numbering.number(value)))
-                            .collect(),
-                        inst.result_ty,
-                    ),
+                            .collect();
+                        // A phi over one class is that class.
+                        if let Some(&(_, first)) = incoming.first()
+                            && first != TOP
+                            && incoming.iter().all(|&(_, number)| number == first)
+                        {
+                            numbering.fresh.insert(result, first);
+                            continue;
+                        }
+                        OptimisticKey::Phi(block, incoming, inst.result_ty)
+                    }
                     kind if is_node(kind) => {
                         let op = kind.op().map_values(|value| {
                             ValueId::from_usize(numbering.number(value) as usize)
@@ -628,22 +632,32 @@ fn optimistic_phi_leaders(
     if !converged {
         return leaders;
     }
-    let mut first = FxHashMap::<u32, ValueId>::default();
-    for block in cfg.rpo() {
-        first.clear();
-        for &inst_id in &func.blocks[*block].instructions {
-            let inst = func.inst(inst_id);
-            if !matches!(inst.kind, InstKind::Phi(_)) {
-                continue;
-            }
+    // The first value of each class in reverse postorder leads it; a phi
+    // merges into its leader when the leader is a leaf, an earlier phi or
+    // instruction of the same block, or defined in a dominating block.
+    let mut first = FxHashMap::<u32, (ValueId, Option<BlockId>)>::default();
+    for (&value, &number) in &numbering.numbers {
+        if !matches!(func.value(value), Value::Inst(_)) {
+            first.insert(number, (value, None));
+        }
+    }
+    for &block in cfg.rpo() {
+        for &inst_id in &func.blocks[block].instructions {
             let Some(result) = func.inst_result_value(inst_id) else { continue };
             let number = numbering.numbers[&result];
             match first.entry(number) {
                 StdEntry::Occupied(entry) => {
-                    leaders.insert(result, *entry.get());
+                    let (leader, leader_block) = *entry.get();
+                    if matches!(func.inst(inst_id).kind, InstKind::Phi(_))
+                        && leader_block.is_none_or(|leader_block| {
+                            leader_block == block || cfg.dominators().dominates(leader_block, block)
+                        })
+                    {
+                        leaders.insert(result, leader);
+                    }
                 }
                 StdEntry::Vacant(entry) => {
-                    entry.insert(result);
+                    entry.insert((result, Some(block)));
                 }
             }
         }
