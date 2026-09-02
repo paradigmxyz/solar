@@ -2729,7 +2729,6 @@ scenarios:
         let spec = crate::config::FixtureSpec {
             id: "fixture".into(),
             root: source_root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -2781,7 +2780,6 @@ scenarios:
         let spec = crate::config::FixtureSpec {
             id: "fixture".into(),
             root: source_root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -2831,7 +2829,6 @@ scenarios:
         let spec = crate::config::FixtureSpec {
             id: "fixture".into(),
             root: source_root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -2878,7 +2875,6 @@ scenarios:
         let spec = crate::config::FixtureSpec {
             id: "fixture".into(),
             root: source_root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -2948,7 +2944,6 @@ scenarios:
         let spec = crate::config::FixtureSpec {
             id: "fixture".into(),
             root: source_root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -3016,7 +3011,6 @@ scenarios:
         let spec = crate::config::FixtureSpec {
             id: "fixture".into(),
             root: source_root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -3073,7 +3067,6 @@ scenarios:
         let spec = crate::config::FixtureSpec {
             id: "fixture".into(),
             root: source_root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],

@@ -871,6 +871,7 @@ fn status_name(status: &RunStatus) -> &'static str {
 mod tests {
     use super::*;
     use crate::process::{Direction, RequestMeasurement, TraceEvent};
+    use snapbox::{assert_data_eq, str};
 
     fn process_metrics(
         accounting: ProcessAccounting,
@@ -1067,9 +1068,19 @@ mod tests {
             repetitions: 1,
         });
         let output = markdown(&summary);
-        assert!(output.contains("## Run metadata"));
-        assert!(output.contains(":red_circle: **FAILED**"));
-        assert!(output.contains("textDocument/didChange, textDocument/didSave"));
+        assert_data_eq!(
+            output,
+            str![[r#"
+# Cross-server Solidity LSP benchmark
+...
+## Run metadata
+...
+## Results
+...
+| external | synthetic | correctness | textDocument/didChange, textDocument/didSave | 0 | incorrect:1 | :red_circle: **FAILED** | - | - | - | - | - |
+...
+"#]],
+        );
     }
 
     #[test]
@@ -1122,9 +1133,21 @@ mod tests {
             dependencies: BTreeMap::new(),
         });
         let output = markdown(&summary);
-        assert!(output.contains("## Servers"));
-        assert!(output.contains("## Fixtures"));
-        assert!(output.contains("Fixture corpus"));
+        assert_data_eq!(
+            output,
+            str![[r#"
+# Cross-server Solidity LSP benchmark
+...
+## Servers
+...
+| server | Server 1 | available | server 1.0 | 1.0 | [..] | [..] | unavailable |
+...
+## Fixtures
+...
+| fixture | Fixture corpus | [..] | [..] | 2 | 20 | 200 | unavailable | unavailable |
+...
+"#]],
+        );
     }
 
     #[test]

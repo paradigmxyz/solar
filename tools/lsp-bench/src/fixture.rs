@@ -2,7 +2,7 @@
 
 use crate::{
     config::{CompilerSpec, FixtureSpec, SourceSpec},
-    lifecycle::{VERSION_PROBE_TIMEOUT, inspect_compiler_version},
+    lifecycle::{VERSION_PROBE_TIMEOUT, git_output, inspect_compiler_version},
 };
 use anyhow::{Context, Result, bail};
 use lsp_types::{Position, Url};
@@ -12,7 +12,6 @@ use std::{
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 use tempfile::TempDir;
 
@@ -198,7 +197,7 @@ impl FixtureSource {
 
     fn validate_anchors(&self) -> Result<()> {
         for (name, anchor) in &self.spec.anchors {
-            let path = self.relative_path(&anchor.path)?;
+            let path = fixture_path(&self.root, &anchor.path)?;
             let text = fs::read_to_string(&path)
                 .with_context(|| format!("failed to read anchor file `{}`", path.display()))?;
             let matches = text.match_indices(&anchor.needle).count();
@@ -220,21 +219,6 @@ impl FixtureSource {
             let _ = position_at(&text, text.find(&anchor.needle).unwrap() + anchor.offset);
         }
         Ok(())
-    }
-
-    fn relative_path(&self, relative: &Path) -> Result<PathBuf> {
-        if relative.is_absolute()
-            || relative
-                .components()
-                .any(|component| matches!(component, std::path::Component::ParentDir))
-        {
-            bail!("fixture path `{}` must be relative and stay in its root", relative.display())
-        }
-        let path = self.root.join(relative);
-        if !path.starts_with(&self.root) {
-            bail!("fixture path `{}` escapes its root", relative.display())
-        }
-        Ok(path)
     }
 }
 
@@ -266,7 +250,7 @@ impl Fixture {
     }
 
     pub(crate) fn path(&self, relative: &Path) -> Result<PathBuf> {
-        self.source.relative_path_for_materialized(self.root(), relative)
+        fixture_path(self.root(), relative)
     }
 
     pub(crate) fn anchor(&self, name: &str) -> Result<Anchor> {
@@ -300,25 +284,19 @@ impl Fixture {
     }
 }
 
-impl FixtureSource {
-    fn relative_path_for_materialized(
-        &self,
-        materialized: &Path,
-        relative: &Path,
-    ) -> Result<PathBuf> {
-        if relative.is_absolute()
-            || relative
-                .components()
-                .any(|component| matches!(component, std::path::Component::ParentDir))
-        {
-            bail!("fixture path `{}` must be relative and stay in its root", relative.display())
-        }
-        let path = materialized.join(relative);
-        if !path.starts_with(materialized) {
-            bail!("fixture path `{}` escapes its root", relative.display())
-        }
-        Ok(path)
+fn fixture_path(root: &Path, relative: &Path) -> Result<PathBuf> {
+    if relative.is_absolute()
+        || relative
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir))
+    {
+        bail!("fixture path `{}` must be relative and stay in its root", relative.display())
     }
+    let path = root.join(relative);
+    if !path.starts_with(root) {
+        bail!("fixture path `{}` escapes its root", relative.display())
+    }
+    Ok(path)
 }
 
 pub(crate) fn file_uri(path: &Path) -> Result<Url> {
@@ -396,23 +374,6 @@ fn validate_git_state(root: &Path, expected: &str) -> Result<()> {
 
 fn git_revision(root: &Path) -> Option<String> {
     git_output(root, &["rev-parse", "HEAD"]).ok()
-}
-
-fn git_output(root: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(args)
-        .output()
-        .with_context(|| format!("failed to run Git in `{}`", root.display()))?;
-    if !output.status.success() {
-        bail!(
-            "Git command failed in `{}`: {}",
-            root.display(),
-            String::from_utf8_lossy(&output.stderr).trim()
-        )
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 fn collect_solidity_files(root: &Path, directory: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
@@ -570,7 +531,6 @@ mod tests {
         let spec = FixtureSpec {
             id: "fixture".into(),
             root: root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec!["src".into()],
@@ -599,7 +559,6 @@ mod tests {
         let spec = FixtureSpec {
             id: "fixture".into(),
             root: root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -626,7 +585,6 @@ mod tests {
         let spec = FixtureSpec {
             id: "fixture".into(),
             root: root.path().into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],
@@ -730,7 +688,6 @@ mod tests {
         FixtureSpec {
             id: "fixture".into(),
             root: root.into(),
-            lsp_root: ".".into(),
             revision: None,
             enabled: true,
             source_roots: vec![".".into()],

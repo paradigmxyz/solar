@@ -19,8 +19,6 @@ pub(crate) struct Config {
     pub(crate) config_sha256: String,
     #[serde(default)]
     pub(crate) profiles: BTreeMap<String, ProfileSpec>,
-    #[serde(default)]
-    pub(crate) scenarios: Vec<ScenarioSpec>,
     #[serde(skip)]
     pub(crate) servers_lock_sha256: Option<String>,
     #[serde(skip)]
@@ -65,19 +63,6 @@ impl ProfileSpec {
             self.lifecycle_samples
         }
     }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct ScenarioSpec {
-    pub(crate) id: String,
-    pub(crate) fixture: String,
-    #[serde(default)]
-    pub(crate) profile: Option<String>,
-    #[serde(default)]
-    pub(crate) steps: Vec<StepSpec>,
-    #[serde(default)]
-    pub(crate) methods: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -162,8 +147,6 @@ pub(crate) struct ArtifactSpec {
 pub(crate) struct FixtureSpec {
     pub(crate) id: String,
     pub(crate) root: PathBuf,
-    #[serde(default = "default_lsp_root")]
-    pub(crate) lsp_root: PathBuf,
     #[serde(default)]
     pub(crate) revision: Option<String>,
     #[serde(default = "default_enabled")]
@@ -355,7 +338,7 @@ struct BenchmarkDocument {
     #[serde(default)]
     profiles: BTreeMap<String, ProfileSpec>,
     #[serde(default)]
-    scenarios: Vec<ScenarioSpec>,
+    scenarios: Vec<WorkloadSpec>,
     #[serde(default)]
     servers_lock: Option<PathBuf>,
     #[serde(default)]
@@ -440,22 +423,12 @@ impl Config {
             if !workloads.is_empty() {
                 bail!("benchmark config cannot define both `scenarios` and legacy `workloads`");
             }
-            workloads = document
-                .scenarios
-                .iter()
-                .map(|scenario| WorkloadSpec {
-                    id: scenario.id.clone(),
-                    fixture: scenario.fixture.clone(),
-                    methods: scenario.methods.clone(),
-                    steps: scenario.steps.clone(),
-                })
-                .collect();
+            workloads = document.scenarios;
         }
         let mut config = Self {
             schema_version: document.version,
             config_sha256,
             profiles: document.profiles,
-            scenarios: document.scenarios,
             servers_lock_sha256,
             fixtures_lock_sha256,
             servers,
@@ -668,10 +641,6 @@ impl Config {
             if fixture.source_roots.is_empty() {
                 fixture.source_roots.push(PathBuf::from("."));
             }
-            if fixture.lsp_root.as_os_str().is_empty() {
-                fixture.lsp_root = default_lsp_root();
-            }
-            validate_relative_path(&fixture.lsp_root, "fixture LSP root")?;
             for source_root in &fixture.source_roots {
                 validate_relative_path(source_root, "fixture source root")?;
             }
@@ -699,14 +668,6 @@ impl Config {
             config.fixtures.iter().map(|fixture| fixture.id.as_str()).collect::<BTreeSet<_>>();
         let workloads =
             config.workloads.iter().map(|workload| workload.id.as_str()).collect::<BTreeSet<_>>();
-        let profiles = config.profiles.keys().map(String::as_str).collect::<BTreeSet<_>>();
-        for scenario in &config.scenarios {
-            if let Some(profile) = &scenario.profile
-                && !profiles.contains(profile.as_str())
-            {
-                bail!("scenario `{}` refers to unknown profile `{profile}`", scenario.id)
-            }
-        }
         for workload in &config.workloads {
             if !fixtures.contains(workload.fixture.as_str()) {
                 bail!("workload `{}` refers to unknown fixture `{}`", workload.id, workload.fixture)
@@ -801,10 +762,6 @@ impl Config {
 
 fn default_enabled() -> bool {
     true
-}
-
-fn default_lsp_root() -> PathBuf {
-    PathBuf::from(".")
 }
 
 const fn default_warmup() -> usize {
@@ -1203,7 +1160,7 @@ mod tests {
         let path = directory.path().join("benchmark.yaml");
         fs::write(
             &path,
-            "version: 1\nservers_lock: servers.lock.yaml\nfixtures_lock: fixtures.lock.yaml\nprofiles:\n  smoke:\n    warmup: 1\n    samples: 2\nscenarios:\n  - id: synthetic-smoke\n    fixture: synthetic\n    profile: smoke\n    steps:\n      - kind: open\n        path: Main.sol\n",
+            "version: 1\nservers_lock: servers.lock.yaml\nfixtures_lock: fixtures.lock.yaml\nprofiles:\n  smoke:\n    warmup: 1\n    samples: 2\nscenarios:\n  - id: synthetic-smoke\n    fixture: synthetic\n    steps:\n      - kind: open\n        path: Main.sol\n",
         )
         .unwrap();
         fs::write(

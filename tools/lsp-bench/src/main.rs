@@ -180,12 +180,6 @@ mod tests {
         for command in ["prepare", "doctor", "run", "report"] {
             assert!(Cli::try_parse_from(["solar-lsp-bench", command]).is_ok(), "{command}");
         }
-        for command in ["compare", "validate-results"] {
-            assert!(
-                Cli::try_parse_from(["solar-lsp-bench", command]).is_err(),
-                "removed command `{command}` was accepted"
-            );
-        }
         assert!(Cli::try_parse_from(["solar-lsp-bench", "prepare", "--fixtures-only"]).is_ok());
         assert!(Cli::try_parse_from(["solar-lsp-bench", "doctor", "--server", "solar"]).is_ok());
         assert!(

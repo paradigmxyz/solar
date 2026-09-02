@@ -1386,10 +1386,19 @@ fn run_git(root: &Path, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn git_output(root: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new("git").arg("-C").arg(root).args(args).output()?;
+pub(crate) fn git_output(root: &Path, args: &[&str]) -> Result<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .output()
+        .with_context(|| format!("failed to run Git in `{}`", root.display()))?;
     if !output.status.success() {
-        bail!("Git command failed in `{}`", root.display())
+        bail!(
+            "Git command failed in `{}`: {}",
+            root.display(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
@@ -1533,7 +1542,6 @@ mod tests {
             schema_version: crate::config::SCHEMA_VERSION,
             config_sha256: String::new(),
             profiles: BTreeMap::new(),
-            scenarios: Vec::new(),
             servers_lock_sha256: None,
             fixtures_lock_sha256: None,
             servers: vec![server],

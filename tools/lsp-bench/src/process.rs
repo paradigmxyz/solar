@@ -1331,13 +1331,15 @@ impl LspProcess {
     }
 
     fn record_event(&mut self, direction: Direction, message: &Value) {
+        if self.observations.events.len() >= MAX_TRACE_EVENTS {
+            self.observations.trace_truncated = true;
+            return;
+        }
         let (message, message_bytes, truncated) = bounded_trace_message(message);
         if truncated {
             self.observations.trace_truncated = true;
         }
-        if self.observations.events.len() >= MAX_TRACE_EVENTS
-            || self.trace_bytes.saturating_add(message_bytes) > MAX_TRACE_BYTES
-        {
+        if self.trace_bytes.saturating_add(message_bytes) > MAX_TRACE_BYTES {
             self.observations.trace_truncated = true;
             return;
         }

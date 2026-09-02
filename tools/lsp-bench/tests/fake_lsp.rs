@@ -1,6 +1,7 @@
 #![allow(unused_crate_dependencies)]
 
 use serde_json::Value;
+use snapbox::{assert_data_eq, str};
 use std::{fs, io::Read, path::Path, process::Command};
 
 fn read_json(path: &Path) -> Value {
@@ -78,7 +79,6 @@ fixtures:
 scenarios:
   - id: smoke
     fixture: synthetic
-    profile: smoke
     steps:
       - kind: open
         path: Main.sol
@@ -98,7 +98,6 @@ scenarios:
           expected_label: add
   - id: cache-reuse
     fixture: synthetic
-    profile: smoke
     steps:
       - kind: open
         path: Main.sol
@@ -121,7 +120,6 @@ scenarios:
           expected_text: cache-reused
   - id: edit-save
     fixture: synthetic
-    profile: smoke
     steps:
       - kind: open
         path: Main.sol
@@ -141,7 +139,6 @@ scenarios:
           expected_name: Renamed
   - id: symbol-rename
     fixture: synthetic
-    profile: smoke
     steps:
       - kind: open
         path: Main.sol
@@ -158,7 +155,6 @@ scenarios:
           expected_name: Renamed
   - id: file-lifecycle
     fixture: synthetic
-    profile: smoke
     steps:
       - kind: open
         path: Main.sol
@@ -188,7 +184,6 @@ scenarios:
           present: false
   - id: cache-recovery
     fixture: synthetic
-    profile: smoke
     steps:
       - kind: open
         path: Main.sol
@@ -384,16 +379,21 @@ scenarios:
     );
 
     let summary_markdown = read_text(&output.join("summary.md"));
-    for expected in [
-        "# Cross-server Solidity LSP benchmark",
-        "## Run metadata",
-        "## Servers",
-        "## Results",
-        "| Server | Fixture | Workload |",
-        "p95",
-    ] {
-        assert!(summary_markdown.contains(expected), "missing `{expected}` from summary report");
-    }
+    assert_data_eq!(
+        &summary_markdown,
+        str![[r#"
+# Cross-server Solidity LSP benchmark
+...
+## Run metadata
+...
+## Servers
+...
+## Results
+
+| Server | Fixture | Workload | Capabilities | Successful | Statuses | Result | Metric | p50 | p95 | p99 | Max |
+...
+"#]],
+    );
     let sample_count = samples["samples"].as_array().unwrap().len();
     let jsonl = read_text(&output.join("samples.jsonl"));
     assert_eq!(jsonl.lines().count(), sample_count);
