@@ -243,8 +243,7 @@ fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     jumpi v23, bb1, bb6
   bb6:
     v29 = calldataload v15
-    v36 = and v29, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    ret v36
+    ret v29
   bb1:
     revert 0, 0
 }

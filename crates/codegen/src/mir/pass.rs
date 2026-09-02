@@ -52,7 +52,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &cse::Cse,
     &cse::FmpCse,
     &pre::Pre,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &load_pre::LoadPre::All,
@@ -175,7 +175,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
     &SizeOnly::new(sroa::Sroa),
     &sccp::Sccp,
     &pure_eval::PureEval,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
@@ -218,7 +218,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &SizeOnly::new(outline_reverts::OutlineReverts),
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     &sccp::Sccp,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
     &cfg_simplify::CfgSimplify,
@@ -239,7 +239,7 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
-    &egraph::Egraph,
+    &egraph::Egraph::FULL,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
     // Late CSE reduces runtime gas after aggregate lowering, but can grow
@@ -272,6 +272,9 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_alloc::LowerAlloc,
     &lower_memory_zero::LowerMemoryZero,
     &lower_mcopy::LowerMCopy,
+    // Memory lowering materializes address arithmetic; number and simplify it
+    // once more before the physical shape is fixed.
+    &egraph::Egraph::NUMBERING,
     &lower_evm_shaped::LowerEvmShaped,
 ];
 
