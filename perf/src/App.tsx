@@ -117,6 +117,9 @@ function HistoryGraph({
   const first = values[0]
   const latest = values.at(-1)
   const active = points[hovered ?? points.length - 1]
+  const activeIndex = hovered ?? points.length - 1
+  const activeX = 3 + (activeIndex / Math.max(points.length - 1, 1)) * 94
+  const activeY = position(active.metrics[metric]!)
   const change = first && latest !== undefined ? ((latest - first) / first) * 100 : null
   return (
     <section className="graph-card">
@@ -138,7 +141,23 @@ function HistoryGraph({
               <span>{formatValue(max, unit)}</span>
               <span>{formatValue(min, unit)}</span>
             </div>
-            <div className="history-plot">
+            <div
+              className="history-plot"
+              onPointerMove={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect()
+                const x = (event.clientX - bounds.left) / bounds.width
+                setHovered(
+                  Math.max(
+                    0,
+                    Math.min(
+                      points.length - 1,
+                      Math.round(((x - 0.03) / 0.94) * (points.length - 1)),
+                    ),
+                  ),
+                )
+              }}
+              onPointerLeave={() => setHovered(null)}
+            >
               <svg
                 className="history"
                 viewBox="0 0 100 100"
@@ -149,6 +168,25 @@ function HistoryGraph({
                 <path className="grid" d="M0 12H100 M0 50H100 M0 88H100" />
                 <path className="series" d={path} />
               </svg>
+              {hovered !== null && (
+                <>
+                  <span
+                    className="chart-crosshair chart-crosshair-x"
+                    style={{ left: `${activeX}%` }}
+                  />
+                  <span
+                    className="chart-crosshair chart-crosshair-y"
+                    style={{ top: `${activeY}%` }}
+                  />
+                  <span
+                    className="chart-tooltip"
+                    style={{ left: `${activeX}%`, top: `${activeY}%` }}
+                  >
+                    {new Date(active.timestamp).toLocaleString()} · {short(active.commit)} ·{' '}
+                    {formatValue(active.metrics[metric]!, unit)}
+                  </span>
+                </>
+              )}
               {points.map((run, index) => {
                 const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
                 const y = position(run.metrics[metric]!)

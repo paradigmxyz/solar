@@ -961,6 +961,45 @@ header.file-header {
   transform: translate(-50%, -50%);
   opacity: 0.65;
 }
+.chart-crosshair {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  border-color: var(--muted);
+  border-style: dashed;
+  opacity: 0.7;
+}
+.chart-crosshair-x {
+  top: 0;
+  bottom: 0;
+  border-left-width: 1px;
+}
+.chart-crosshair-y {
+  right: 0;
+  left: 0;
+  border-top-width: 1px;
+}
+.chart-tooltip {
+  position: absolute;
+  z-index: 3;
+  max-width: calc(100% - 12px);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--raised);
+  box-shadow: 0 3px 12px #0003;
+  color: var(--text);
+  font:
+    11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  padding: 6px 8px;
+  pointer-events: none;
+  transform: translate(10px, -120%);
+  white-space: nowrap;
+}
 .history-point:hover,
 .history-point:focus-visible,
 .history-point.active-point {
