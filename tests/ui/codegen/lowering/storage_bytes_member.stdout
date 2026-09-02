@@ -115,34 +115,38 @@ bb15:
   push 64
   push 0
   keccak256
-  push 160
+  push 192
   mstore
   push 255
   push 36
   calldataload
   and
-  push 128
+  push 160
   mstore
   push 0
+  push 128
+  mstore
   jump bb19
 bb19:
+  push 160
+  mload
   push 128
   mload
-  dup 2
   lt
   push bb22
   jumpi
   stop
 bb22:
   push 1
-  push 160
+  push 192
   mload
   add
   push 255
   push 4
   calldataload
   and
-  dup 3
+  push 128
+  mload
   add
   push 255
   and
@@ -153,8 +157,6 @@ bb22:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
@@ -216,12 +218,16 @@ bb22:
   swap 1
   sstore
   push 65
+  jump bb82
+bb82:
   swap 1
   sstore
-  jump bb21
-bb21:
+  push 128
+  mload
   push 1
   add
+  push 128
+  mstore
   jump bb19
 bb27:
   swap 1
@@ -259,16 +265,10 @@ bb27:
   swap 2
   push 248
   shr
-  push 255
-  and
-  jump bb82
-bb82:
   swap 1
   shl
   or
-  swap 1
-  sstore
-  jump bb21
+  jump bb82
 bb30:
   swap 1
   push 2
@@ -288,6 +288,9 @@ bb30:
   swap 2
   push 0
   byte
+  swap 1
+  shl
+  or
   jump bb82
 bb32:
   caller
@@ -306,8 +309,6 @@ bb32:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
@@ -464,8 +465,6 @@ bb42:
   push 1
   dup 2
   and
-  push 1
-  eq
   swap 1
   push 1
   shr
@@ -518,8 +517,6 @@ bb45:
   push 1
   dup 2
   and
-  push 1
-  eq
   swap 1
   push 1
   shr
@@ -607,8 +604,6 @@ bb54:
   push 1
   dup 2
   and
-  push 1
-  eq
   swap 1
   push 1
   shr
@@ -666,8 +661,6 @@ bb62:
   swap 2
   push 248
   shr
-  push 255
-  and
   swap 1
   shl
   or
@@ -706,8 +699,6 @@ bb64:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
