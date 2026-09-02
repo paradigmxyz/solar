@@ -117,7 +117,12 @@ the transition a named pass that advances the phase via
 MIR operations are declared once in `crates/codegen/src/mir/op_schema.rs`.
 Each row carries the typed payload with named tuple operands, the mnemonic,
 result kind, phase set, effect, traits, and side-effect flag. The macro
-generates operand traversal, the `Op` rewrite view, and the ISLE prelude.
+generates operand traversal, the `Op` rewrite view, the ISLE prelude, a
+constructor per operation that the textual parser uses for every operation
+built from value operands alone, and a `FunctionBuilder` method for every
+variant marked `#[builder(name)]` or `#[builder(name, void)]`. Give an
+operation custom text syntax or a custom builder only when it carries an
+attribute the generic forms cannot express.
 EVM opcodes are declared the same way in `backend/evm/op.rs`, with traits and
 availability per row and a snapshot of the whole table in `op_table.snap`.
 Add new operations to those tables only; never add a parallel `match` that
