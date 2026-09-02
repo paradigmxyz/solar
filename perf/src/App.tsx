@@ -72,11 +72,7 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
 }
 
 export function App() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const initial = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    document.documentElement.dataset.theme = initial
-    return initial
-  })
+  const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
@@ -85,7 +81,12 @@ export function App() {
   const headCommit = route.get('head')
   const fileViewer = route.get('view') === 'files' && route.get('benchmark')
   const content = baseCommit && headCommit && baseCommit !== headCommit ? fileViewer ? <FileViewer base={baseCommit} head={headCommit} benchmark={route.get('benchmark')!} theme={theme} /> : <Compare base={baseCommit} head={headCommit} theme={theme} /> : <Home />
-  return <><SiteHeader compact={Boolean(fileViewer)} theme={theme} onToggleTheme={() => setTheme((value) => value === 'light' ? 'dark' : 'light')} />{content}{!fileViewer && <SiteFooter />}</>
+  const toggleTheme = () => setTheme((value) => {
+    const next = value === 'light' ? 'dark' : 'light'
+    localStorage.setItem('solar-perf-theme', next)
+    return next
+  })
+  return <><SiteHeader compact={Boolean(fileViewer)} theme={theme} onToggleTheme={toggleTheme} />{content}{!fileViewer && <SiteFooter />}</>
 }
 
 function SiteHeader({ compact, theme, onToggleTheme }: { compact: boolean; theme: Theme; onToggleTheme: () => void }) {
