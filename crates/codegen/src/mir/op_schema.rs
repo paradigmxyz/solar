@@ -11,6 +11,9 @@
 //! the [`Operands`] trait says which. Operand traversal is generated from the
 //! declaration, so fields are listed in canonical operand order and tuple
 //! operands carry names that document their meaning.
+//!
+//! The same declaration produces [`Op`], the copyable instruction view that
+//! ISLE rewrite rules match on, and the ISLE prelude declaring it.
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationKind, AllocationSemantics, BlockId,
@@ -19,6 +22,8 @@ use super::{
     ValueId,
 };
 use smallvec::{Array, SmallVec};
+#[cfg(test)]
+use std::fmt::Write as _;
 
 /// A compact set of MIR phases in which an operation is structurally valid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -107,14 +112,28 @@ impl ResultKind {
 }
 
 /// Instruction field types, classified as value operands or attributes.
-trait Operands {
+pub(crate) trait Operands {
+    /// Copyable projection of the field seen by rewrite rules.
+    type View: Copy;
+    /// ISLE type name of the projection.
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str;
+
     /// Appends every value operand held by this field in canonical order.
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>);
     /// Visits every value operand held by this field mutably.
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId));
+    /// Projects the field for rewrite rules.
+    fn view(&self) -> Self::View;
+    /// Applies `f` to every value operand of a projection.
+    fn map_view(view: Self::View, f: &mut impl FnMut(ValueId) -> ValueId) -> Self::View;
 }
 
 impl Operands for ValueId {
+    type View = Self;
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "Value";
+
     #[inline]
     fn collect<A: Array<Item = Self>>(&self, out: &mut SmallVec<A>) {
         out.push(*self);
@@ -124,9 +143,23 @@ impl Operands for ValueId {
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut Self)) {
         f(self);
     }
+
+    #[inline]
+    fn view(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn map_view(view: Self, f: &mut impl FnMut(Self) -> Self) -> Self {
+        f(view)
+    }
 }
 
 impl Operands for Option<ValueId> {
+    type View = Self;
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "OptionValue";
+
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(*self);
@@ -138,9 +171,23 @@ impl Operands for Option<ValueId> {
             f(value);
         }
     }
+
+    #[inline]
+    fn view(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn map_view(view: Self, f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
+        view.map(f)
+    }
 }
 
 impl Operands for Box<[ValueId]> {
+    type View = ();
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "Unit";
+
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(self.iter().copied());
@@ -150,9 +197,19 @@ impl Operands for Box<[ValueId]> {
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         self.iter_mut().for_each(f);
     }
+
+    #[inline]
+    fn view(&self) {}
+
+    #[inline]
+    fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
 }
 
 impl Operands for Vec<(BlockId, ValueId)> {
+    type View = ();
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "Unit";
+
     #[inline]
     fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         out.extend(self.iter().map(|(_, value)| *value));
@@ -162,6 +219,12 @@ impl Operands for Vec<(BlockId, ValueId)> {
     fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
         self.iter_mut().for_each(|(_, value)| f(value));
     }
+
+    #[inline]
+    fn view(&self) {}
+
+    #[inline]
+    fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
 }
 
 /// Declares field types that never hold value operands.
@@ -169,22 +232,73 @@ macro_rules! attributes {
     ($($ty:ty),+ $(,)?) => {
         $(
             impl Operands for $ty {
+                type View = Self;
+                #[cfg(test)]
+                const ISLE_TYPE: &'static str = stringify!($ty);
+
                 #[inline]
                 fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
 
                 #[inline]
                 fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
+
+                #[inline]
+                fn view(&self) -> Self {
+                    *self
+                }
+
+                #[inline]
+                fn map_view(view: Self, _f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
+                    view
+                }
             }
         )+
     };
+}
+
+/// Declares attribute types that rewrite rules cannot inspect.
+macro_rules! opaque_attributes {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl Operands for $ty {
+                type View = ();
+                #[cfg(test)]
+                const ISLE_TYPE: &'static str = "Unit";
+
+                #[inline]
+                fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
+
+                #[inline]
+                fn view(&self) {}
+
+                #[inline]
+                fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+            }
+        )+
+    };
+}
+
+#[cfg(test)]
+/// Returns the ISLE term name of an operation: the lower-cased variant name,
+/// with the bitwise operations named as in Cranelift because `and` is an ISLE
+/// keyword.
+fn isle_op_name(variant: &str) -> String {
+    match variant {
+        "And" => "band".into(),
+        "Or" => "bor".into(),
+        "Xor" => "bxor".into(),
+        "Not" => "bnot".into(),
+        _ => variant.to_ascii_lowercase(),
+    }
 }
 
 attributes! {
     u32,
     u64,
     AbiEncodeMode,
-    AbiLayoutRef,
-    AbiParamLayoutRef,
     AllocationKind,
     AllocationSemantics,
     DataRef,
@@ -195,6 +309,11 @@ attributes! {
     MemoryObjectKind,
     MemoryObjectLayout,
     SliceLocation,
+}
+
+opaque_attributes! {
+    AbiLayoutRef,
+    AbiParamLayoutRef,
     StorageLayoutRef,
 }
 
@@ -301,6 +420,18 @@ macro_rules! define_mir_ops {
                 }
             }
 
+            /// Returns the rewrite-rule view of this instruction.
+            #[must_use]
+            pub(crate) fn op(&self) -> Op {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => Op::$variant
+                            $( { $( $operand: Operands::view($operand) ),+ } )?
+                            $( { $( $field: Operands::view($field) ),+ } )?,
+                    )+
+                }
+            }
+
             /// Returns the operation's phase-boundary diagnostic category.
             #[inline]
             #[must_use]
@@ -327,7 +458,102 @@ macro_rules! define_mir_ops {
                 None
             }
         }
+
+        /// Copyable view of an instruction for rewrite rules.
+        ///
+        /// Value operands keep their identity, attributes are carried by value,
+        /// and variable-length payloads are elided.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(crate) enum Op {
+            $(
+                $variant
+                $( { $( $operand: <$operand_ty as Operands>::View ),+ } )?
+                $( { $( $field: <$field_ty as Operands>::View ),+ } )?,
+            )+
+        }
+
+        impl Op {
+            #[cfg(test)]
+            /// Every operation with its field names and ISLE types, in declaration order.
+            const FIELDS: &'static [(&'static str, &'static [(&'static str, &'static str)])] = &[
+                $(
+                    (stringify!($variant), &[
+                        $( $( (stringify!($operand), <$operand_ty as Operands>::ISLE_TYPE), )+ )?
+                        $( $( (stringify!($field), <$field_ty as Operands>::ISLE_TYPE), )+ )?
+                    ]),
+                )+
+            ];
+
+            /// Applies `f` to every value operand.
+            #[must_use]
+            pub(crate) fn map_values(self, mut f: impl FnMut(ValueId) -> ValueId) -> Self {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => Self::$variant
+                            $( { $( $operand: <$operand_ty as Operands>::map_view($operand, &mut f) ),+ } )?
+                            $( { $( $field: <$field_ty as Operands>::map_view($field, &mut f) ),+ } )?,
+                    )+
+                }
+            }
+        }
     };
+}
+
+impl Op {
+    /// Returns the ISLE declarations of the view: its primitive types, the
+    /// `Op` enum, and one extractor per operation matching the instruction
+    /// that defines a value.
+    #[must_use]
+    #[cfg(test)]
+    pub(crate) fn isle_prelude() -> String {
+        let mut out = String::from(
+            ";; Generated from the MIR operation schema by `Op::isle_prelude`; do not edit.\n\
+             ;; `cargo nextest run -p solar-codegen isle_prelude` checks this file and\n\
+             ;; `SNAPSHOTS=overwrite` refreshes it.\n\n\
+             (type Value (primitive Value))\n\
+             (type U256 (primitive U256))\n",
+        );
+        let mut declared = vec!["Value", "U256", "u32", "u64", "bool"];
+        for (_, fields) in Self::FIELDS {
+            for (_, ty) in *fields {
+                if !declared.contains(ty) {
+                    declared.push(ty);
+                    writeln!(out, "(type {ty} (primitive {ty}))").unwrap();
+                }
+            }
+        }
+
+        out.push_str("\n(type Op extern (enum\n");
+        for (variant, fields) in Self::FIELDS {
+            write!(out, "  ({variant}").unwrap();
+            for (name, ty) in *fields {
+                write!(out, " ({name} {ty})").unwrap();
+            }
+            out.push_str(")\n");
+        }
+        out.push_str("))\n\n;; The instruction defining a value.\n(decl inst (Op) Value)\n(extern extractor inst inst_data)\n");
+
+        for (variant, fields) in Self::FIELDS {
+            let name = isle_op_name(variant);
+            write!(out, "\n(decl {name} (").unwrap();
+            for (index, (_, ty)) in fields.iter().enumerate() {
+                if index > 0 {
+                    out.push(' ');
+                }
+                out.push_str(ty);
+            }
+            write!(out, ") Value)\n(extractor ({name}").unwrap();
+            for (field, _) in *fields {
+                write!(out, " {field}").unwrap();
+            }
+            write!(out, ") (inst (Op.{variant}").unwrap();
+            for (field, _) in *fields {
+                write!(out, " {field}").unwrap();
+            }
+            out.push_str(")))\n");
+        }
+        out
+    }
 }
 
 define_mir_ops! {
@@ -1013,6 +1239,20 @@ mod tests {
             location: SliceLocation::Calldata,
         };
         assert_eq!(slice.mnemonic(), "make_calldata_slice");
+    }
+
+    #[test]
+    fn views_project_operands() {
+        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
+        assert_eq!(add.op(), Op::Add { a: ValueId::new(0), b: ValueId::new(1) });
+        let mapped = add.op().map_values(|value| ValueId::new(value.index() + 10));
+        assert_eq!(mapped, Op::Add { a: ValueId::new(10), b: ValueId::new(11) });
+        assert_eq!(InstKind::MSize.op(), Op::MSize);
+    }
+
+    #[test]
+    fn isle_prelude_matches_schema() {
+        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/prelude.isle"]);
     }
 
     #[test]
