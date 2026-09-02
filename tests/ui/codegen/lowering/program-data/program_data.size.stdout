@@ -26,7 +26,7 @@ fn @data() [selector=0x73d4a13a, pure] {
     mstore v7, v12
     v14 = add v12, 31
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v6, 64
+    v16 = add v7, 32
     jumpi v15, bb1, bb2
   bb1:
     v18 = sub v15, 32
@@ -66,7 +66,7 @@ fn @subslice() [selector=0xb9ad073e, pure] {
     mstore v7, v12
     v14 = add v12, 31
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v6, 64
+    v16 = add v7, 32
     jumpi v15, bb1, bb2
   bb1:
     v18 = sub v15, 32
@@ -111,7 +111,7 @@ fn @zeroData() [selector=0x6ec059cd, pure] {
     mstore v7, v12
     v14 = add v12, 31
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v6, 64
+    v16 = add v7, 32
     jumpi v15, bb1, bb2
   bb1:
     v18 = sub v15, 32
@@ -145,7 +145,7 @@ fn @zeroWord() [selector=0x4c092794, pure] {
     mstore v7, v12
     v14 = add v12, 31
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v6, 64
+    v16 = add v7, 32
     jumpi v15, bb1, bb2
   bb1:
     v18 = sub v15, 32
@@ -179,7 +179,7 @@ fn @splatData() [selector=0xe1910fda, pure] {
     mstore v10, v15
     v17 = add v15, 31
     v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = add v9, 64
+    v19 = add v10, 32
     jumpi v18, bb1, bb2
   bb1:
     v21 = sub v18, 32
@@ -429,8 +429,6 @@ bb42:
   mstore
   dup 4
   mstore
-  swap 2
-  pop
   push 31
   push 128
   mload
@@ -441,12 +439,11 @@ bb42:
   dup 1
   push 192
   mstore
-  push 64
-  dup 4
+  swap 3
+  push 32
   add
   push 224
   mstore
-  swap 2
   pop
   pop
   iszero
@@ -603,7 +600,7 @@ bb45:
   dup 1
   push 160
   mstore
-  swap 1
+  dup 2
   mstore
   push 31
   push 160
@@ -615,8 +612,8 @@ bb45:
   dup 1
   push 192
   mstore
-  push 64
-  dup 3
+  swap 1
+  push 32
   add
   push 128
   mstore

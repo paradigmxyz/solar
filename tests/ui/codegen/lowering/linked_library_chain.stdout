@@ -132,10 +132,9 @@ bb8:
   add
   push 4
   calldataload
-  swap 1
-  mstore
-  push 36
   dup 2
+  mstore
+  push 32
   add
   push 36
   calldataload
@@ -257,10 +256,9 @@ bb0:
   dup 2
   add
   push 0
-  swap 1
-  mstore
-  push 36
   dup 2
+  mstore
+  push 32
   add
   push 4
   calldataload

@@ -65,7 +65,7 @@ fn @words() [selector=0x5a7641c8, pure] {
     v46 = mul v43, v45
     mstore v41, v46
     v47 = shl 5, v46
-    v48 = add v40, 64
+    v48 = add v41, 32
     v50 = add v48, v47
     mcopy v48, v58, v47
     v51 = sub v50, v40
@@ -176,7 +176,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     v70 = mul v67, v69
     mstore v65, v70
     v71 = shl 5, v70
-    v72 = add v64, 64
+    v72 = add v65, 32
     v73 = add v54, 32
     v74 = add v72, v71
     jump bb19
@@ -204,7 +204,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     jump bb19
   bb17:
     v94 = add v23, 32
-    v95 = mul v55, 32
+    v95 = shl 5, v55
     v96 = add v94, v95
     v57 = mload v96
     v58 = iszero v57
@@ -220,7 +220,7 @@ fn @bools() [selector=0xcfb203c5, pure] {
     jumpi v38, bb12, bb1
   bb12:
     v91 = add v23, 32
-    v92 = mul v35, 32
+    v92 = shl 5, v35
     v93 = add v91, v92
     mstore v93, v37
     v39 = sub v33, 1
@@ -307,7 +307,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
     v65 = mload v23
     v68 = mul v65, v67
     mstore v63, v68
-    v69 = add v62, 64
+    v69 = add v63, 32
     v70 = shl 5, v68
     v71 = add v69, v70
     v72 = add v23, 32
@@ -383,7 +383,7 @@ fn @strs() [selector=0x68f4ce0b, pure] {
     v103 = add v49, 32
     mcopy v103, v39, v43
     v106 = add v23, 32
-    v107 = mul v35, 32
+    v107 = shl 5, v35
     v108 = add v106, v107
     mstore v108, v49
     v53 = sub v33, 1
@@ -517,7 +517,7 @@ fn @mixed() [selector=0x6791505c, pure] {
     v71 = mul v68, v70
     mstore v65, v71
     v72 = shl 5, v71
-    v73 = add v64, 128
+    v73 = add v65, 32
     v74 = add v2, 32
     v75 = add v73, v72
     mcopy v73, v74, v72 !metadata(memory=heap)
@@ -570,7 +570,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v0 = calldatasize
     v1 = calldataload arg0
     v2 = add v1, 4
-    v3 = add v1, 36
+    v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5

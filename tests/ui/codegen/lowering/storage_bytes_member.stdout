@@ -811,7 +811,7 @@ bb72:
   dup 1
   push 128
   mstore
-  swap 1
+  dup 2
   mstore
   push 31
   push 128
@@ -820,8 +820,8 @@ bb72:
   push 31
   not
   and
-  push 64
-  dup 3
+  swap 1
+  push 32
   add
   dup 2
   push 128
