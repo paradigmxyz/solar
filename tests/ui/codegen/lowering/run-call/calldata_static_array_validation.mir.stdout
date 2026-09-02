@@ -85,6 +85,36 @@ fn @nested(arg0: calldataslice) -> u8 [selector=0xf4e4bddf, pure, abi_params=[ar
     revert 0, 36
 }
 
+fn @passToInternal(arg0: calldataslice) -> u8 [selector=0xbdb87238, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = internal_call @second, 1, arg0
+    ret v0
+}
+
+fn @second(arg0: calldataslice) -> u8 [pure] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 32
+    v5 = calldataload v4
+    v6 = and v5, 255
+    v7 = eq v5, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    ret v5
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @copyToMemory(arg0: calldataslice) -> u8 [selector=0x13aac4cb, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>]] {
   bb0:
     v0 = slice_ptr arg0

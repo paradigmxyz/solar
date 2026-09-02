@@ -1072,7 +1072,7 @@ impl LowerAbiCx {
                         || (location == AbiParamLocation::Memory
                             && Self::requires_calldata_element_validation(ty))
                         || !matches!(decode_type, MirType::Slice(SliceLocation::Calldata))
-                        || Self::needs_full_calldata_array_validation(builder.func(), uses, ty);
+                        || self.needs_full_calldata_array_validation(builder.func(), uses, ty);
                     let decode_options = DecodeOptions {
                         validate_array_elements,
                         ..DecodeOptions::new(constructor, input_end, self.has_bitwise_shifting)
@@ -2409,6 +2409,7 @@ impl LowerAbiCx {
     /// A full pass is only needed when the array itself crosses another ABI or
     /// memory boundary, such as encoding or passing it to another function.
     fn needs_full_calldata_array_validation(
+        &self,
         func: &Function,
         uses: &[ValueId],
         ty: &crate::mir::AbiParamType,
@@ -2444,8 +2445,19 @@ impl LowerAbiCx {
                 | InstKind::DelegateCall { .. }
                 | InstKind::ExtCall { .. }
                 | InstKind::ExtDelegateCall { .. }
-                | InstKind::ExtStaticCall { .. }
-                | InstKind::InternalCall { .. } => return true,
+                | InstKind::ExtStaticCall { .. } => return true,
+                InstKind::InternalCall { function, args, .. } => {
+                    let callee_params = self.function_params.get(*function);
+                    let preserves_calldata = args.iter().enumerate().all(|(index, value)| {
+                        !tainted.contains(*value)
+                            || callee_params.and_then(|params| params.get(index))
+                                == Some(&MirType::Slice(SliceLocation::Calldata))
+                    });
+                    if !preserves_calldata {
+                        return true;
+                    }
+                    false
+                }
                 InstKind::SliceLen(_)
                 | InstKind::SlicePtr(_)
                 | InstKind::CalldataSliceLoadWord { .. }
