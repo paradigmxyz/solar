@@ -87,22 +87,48 @@ async function artifactPaths(directory) {
   throw new Error('Downloaded artifact has no results.json')
 }
 
+function runDocument(run, sourceSchema, rawResults) {
+  return {
+    workflow_run_id: Number(run.databaseId),
+    commit: run.headSha,
+    branch: run.headBranch || null,
+    pr: null,
+    title: run.displayTitle || null,
+    started_at: run.createdAt,
+    workflow_name: run.name || 'Benchmark',
+    source_schema: sourceSchema,
+    raw_results: rawResults,
+  }
+}
+
 async function ingest(repository, run, refresh, knownRuns) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
   if (!refresh && knownRuns.has(run.databaseId)) return false
   const directory = await mkdtemp(join(tmpdir(), 'solar-perf-'))
   try {
-    await exec('gh', [
-      'run',
-      'download',
-      String(run.databaseId),
-      '--repo',
-      repository,
-      '--name',
-      'codegen-runtime-results',
-      '--dir',
-      directory,
-    ])
+    try {
+      await exec('gh', [
+        'run',
+        'download',
+        String(run.databaseId),
+        '--repo',
+        repository,
+        '--name',
+        'codegen-runtime-results',
+        '--dir',
+        directory,
+      ])
+    } catch {
+      await exec('gh', [
+        'run',
+        'download',
+        String(run.databaseId),
+        '--repo',
+        repository,
+        '--dir',
+        directory,
+      ])
+    }
     const paths = await artifactPaths(directory)
     await exec('node', [
       resolve('scripts/ingest-run.mjs'),
@@ -126,6 +152,11 @@ async function ingest(repository, run, refresh, knownRuns) {
     knownRuns.add(run.databaseId)
     return true
   } catch (error) {
+    if (error.stderr?.includes('no valid artifacts found to download')) {
+      await insert('runs', [runDocument(run, 0, '')])
+      knownRuns.add(run.databaseId)
+      return true
+    }
     console.warn(`Skipped workflow run ${run.databaseId}: ${error.message.split('\n', 1)[0]}`)
     return false
   } finally {

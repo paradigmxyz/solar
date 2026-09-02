@@ -72,6 +72,7 @@ async function indexFromClickHouse(env: Env) {
        maxIf(b.peak_rss_bytes, b.compiler = 'solar' AND b.status = 'ok') AS peak_rss_bytes
      FROM runs AS r FINAL
      LEFT JOIN benchmark_results AS b FINAL USING workflow_run_id
+     WHERE r.source_schema > 0
      GROUP BY r.workflow_run_id, r.commit, r.started_at, r.branch, r.pr, r.title
      ORDER BY r.started_at DESC`,
   )
