@@ -7,6 +7,7 @@ pub(crate) mod coalesce_allocs;
 pub(crate) mod copy_elision;
 pub(crate) mod cse;
 pub(crate) mod dce;
+pub(crate) mod egraph;
 pub(crate) mod evm_inst_schedule;
 pub(crate) mod frame_promotion;
 pub(crate) mod function_compaction;

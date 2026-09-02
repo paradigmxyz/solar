@@ -497,7 +497,7 @@ macro_rules! define_mir_ops {
         ///
         /// Value operands keep their identity, attributes are carried by value,
         /// and variable-length payloads are elided.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub(crate) enum Op {
             $(
                 $variant
