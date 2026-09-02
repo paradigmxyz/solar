@@ -726,7 +726,9 @@ define_mir_ops! {
     Self::CalldataLoad(_) => { mnemonic: "calldataload", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
     Self::CalldataCopy(_, _, _) => { mnemonic: "calldatacopy", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
     Self::CalldataSize => { mnemonic: "calldatasize", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::MakeSlice { .. } => { mnemonic: "make_slice", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::MakeSlice { location: SliceLocation::Memory, .. } => { mnemonic: "make_memory_slice", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::MakeSlice { location: SliceLocation::Calldata, .. } => { mnemonic: "make_calldata_slice", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::MakeSlice { location: SliceLocation::Returndata, .. } => { mnemonic: "make_returndata_slice", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
     Self::SlicePtr(_) => { mnemonic: "slice_ptr", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
     Self::SliceLen(_) => { mnemonic: "slice_len", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
     Self::InternalFrameAddr(_) => { mnemonic: "internal_frame_addr", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
@@ -812,6 +814,13 @@ mod tests {
         let calldata_size = InstKind::CalldataSize;
         assert!(calldata_size.is_always_rematerializable());
         assert!(calldata_size.op_def().phases.contains(MirPhase::EvmShaped));
+
+        let slice = InstKind::MakeSlice {
+            ptr: ValueId::new(0),
+            len: ValueId::new(1),
+            location: SliceLocation::Calldata,
+        };
+        assert_eq!(slice.mnemonic(), "make_calldata_slice");
     }
 
     #[test]
