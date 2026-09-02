@@ -999,6 +999,10 @@ header.file-header {
   transform: translate(10px, -120%);
   white-space: nowrap;
 }
+.chart-tooltip-floating {
+  position: fixed;
+  z-index: 10;
+}
 .history-point:hover,
 .history-point:focus-visible,
 .history-point.active-point {

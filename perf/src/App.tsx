@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Moon, Sun } from 'lucide-react'
 import { changeClass, formatChange } from './change'
 import { loadIndex } from './data'
@@ -94,6 +95,7 @@ function HistoryGraph({
   unit: string
 }) {
   const [hovered, setHovered] = useState<number | null>(null)
+  const [tooltip, setTooltip] = useState<{ x: number; y: number } | null>(null)
   const points = runs
     .filter((run) => run.branch === 'main' && typeof run.metrics[metric] === 'number')
     .slice(0, 60)
@@ -155,8 +157,12 @@ function HistoryGraph({
                     ),
                   ),
                 )
+                setTooltip({ x: event.clientX, y: event.clientY })
               }}
-              onPointerLeave={() => setHovered(null)}
+              onPointerLeave={() => {
+                setHovered(null)
+                setTooltip(null)
+              }}
             >
               <svg
                 className="history"
@@ -185,13 +191,6 @@ function HistoryGraph({
                     className="chart-crosshair chart-crosshair-y"
                     style={{ top: `${activeY}%` }}
                   />
-                  <span
-                    className="chart-tooltip"
-                    style={{ left: `${activeX}%`, top: `${activeY}%` }}
-                  >
-                    {new Date(active.timestamp).toLocaleString()} · {short(active.commit)} ·{' '}
-                    {formatValue(active.metrics[metric]!, unit)}
-                  </span>
                 </>
               )}
               {points.map((run, index) => {
@@ -224,6 +223,18 @@ function HistoryGraph({
                 )
               })}
             </div>
+            {hovered !== null &&
+              tooltip &&
+              createPortal(
+                <span
+                  className="chart-tooltip chart-tooltip-floating"
+                  style={{ left: tooltip.x, top: tooltip.y }}
+                >
+                  {new Date(active.timestamp).toLocaleString()} · {short(active.commit)} ·{' '}
+                  {formatValue(active.metrics[metric]!, unit)}
+                </span>,
+                document.body,
+              )}
           </div>
           <div className="chart-dates">
             <span>{new Date(points[0].timestamp).toLocaleDateString()}</span>
