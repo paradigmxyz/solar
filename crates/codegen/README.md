@@ -21,10 +21,12 @@ HIR (from solar-sema) -> Lowering -> MIR -> Code Generation -> EVM Bytecode
 `src/mir/op_schema.rs` declares every MIR operation once: its typed payload,
 named operands, mnemonic, result kind, phase legality, effects, and traits.
 The declaration generates operand traversal, the `Op` view that rewrite rules
-match on, and `isle/prelude.isle`, the ISLE vocabulary for that view. Rule
-sets such as `isle/inst_simplify.isle` are compiled to Rust by `build.rs`
-with `cranelift-isle`; the extractors and constructors they call are
-implemented next to the pass that runs them.
+match on, and `isle/prelude.isle`, the ISLE vocabulary for that view. The EVM
+opcode table in `src/backend/evm/op.rs` generates `isle/evm_prelude.isle`
+the same way. Rule sets such as `isle/inst_simplify.isle` and
+`isle/peephole.isle` are compiled to Rust by `build.rs` with
+`cranelift-isle`; the extractors and constructors they call are implemented
+next to the pass that runs them.
 
 ### Key Types
 

@@ -129,9 +129,17 @@ under `crates/codegen/isle/`:
 - `prelude.isle` is generated from the schema. Never edit it by hand; run
   `SNAPSHOTS=overwrite cargo nextest run -p solar-codegen isle_prelude` after
   changing the schema, and keep the checked-in file current.
-- One rule file per pass (`inst_simplify.isle`), compiled by
+- `evm_prelude.isle` is generated from the EVM opcode table the same way
+  (`cargo nextest run -p solar-codegen evm_isle_prelude`) and declares one
+  `$OPCODE` constant per opcode byte for EVM IR rules.
+- One rule file per pass (`inst_simplify.isle`, `peephole.isle`), compiled by
   `crates/codegen/build.rs` and included from a sibling `isle.rs` module that
-  implements the extractors and constructors the rules call.
+  implements the extractors and constructors the rules call. Register new
+  rule sets in the build script's `RULE_SETS`.
+- MIR rules match the schema-generated `Op` view of one instruction. EVM IR
+  rules match a hand-written `Inst` view of each instruction in a window of
+  the block tail, so every window extractor overlaps and every rule carries a
+  priority.
 - Rules on one operation match structurally on `Op` variants, so different
   operations never overlap. Rules on the same operation must carry distinct
   priorities that encode the order the checks are tried; ISLE rejects
