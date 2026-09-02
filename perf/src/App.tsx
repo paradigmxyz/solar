@@ -35,14 +35,31 @@ function runTitle(run: RunSummary) {
   return run.title || runRef(run)
 }
 
+function runPr(run: RunSummary) {
+  return run.pr ?? (Number(run.title?.match(/\(#(\d+)\)/)?.[1]) || null)
+}
+
+function runSelectorValue(run: RunSummary) {
+  const pr = runPr(run)
+  if (pr) return `#${pr}`
+  if (run.branch?.startsWith('v')) return run.branch
+  return run.branch || short(run.commit)
+}
+
 function runLabel(run: RunSummary) {
-  return `${short(run.commit)} · ${runTitle(run)} · ${new Date(run.timestamp).toLocaleDateString()}`
+  return `${runSelectorValue(run)} · ${short(run.commit)} · ${runTitle(run)}`
 }
 
 function resolveCommit(value: string, runs: RunSummary[]) {
   const normalized = value.trim().toLowerCase()
+  const pr = normalized.match(/^#?(\d+)$/)?.[1]
   return (
-    runs.find((run) => run.commit === normalized)?.commit ??
+    runs.find(
+      (run) =>
+        run.commit === normalized ||
+        run.branch?.toLowerCase() === normalized ||
+        (pr !== undefined && String(runPr(run)) === pr),
+    )?.commit ??
     (normalized.length >= 7
       ? runs.find((run) => run.commit.startsWith(normalized))?.commit
       : undefined) ??
@@ -76,7 +93,7 @@ function CommitPicker({
       />
       <datalist id={list}>
         {runs.map((run) => (
-          <option key={run.commit} value={short(run.commit)} label={runLabel(run)} />
+          <option key={run.commit} value={runSelectorValue(run)} label={runLabel(run)} />
         ))}
       </datalist>
     </label>
@@ -348,8 +365,12 @@ function Home() {
   }, [])
   useEffect(() => {
     if (defaultsApplied.current || runs.length === 0) return
-    setHead(short(runs[0].commit))
-    if (runs.length > 1) setBase(short(runs[1].commit))
+    const head = runSelectorValue(runs[0])
+    setHead(head)
+    if (runs.length > 1) {
+      const base = runSelectorValue(runs[1])
+      setBase(resolveCommit(base, runs) === runs[0].commit ? short(runs[1].commit) : base)
+    }
     defaultsApplied.current = true
   }, [runs])
 
