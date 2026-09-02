@@ -4,7 +4,7 @@ permissions: {}
 
 on:
   push:
-    branches: [main]
+    branches: [main, dani/perf-site]
     paths:
       - web/**
       - .github/workflows/web-pages.yml
@@ -46,10 +46,11 @@ jobs:
 
   publish:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.head_branch == 'main'
+      (github.event_name == 'push' && github.ref == 'refs/heads/dani/perf-site') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_branch == 'main')
     concurrency:
       group: web-pages
       cancel-in-progress: false
@@ -66,7 +67,7 @@ jobs:
       - name: Checkout trusted site source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
           path: source
 
       - name: Checkout published history
@@ -79,6 +80,7 @@ jobs:
 
       - name: Download benchmark data
         id: data
+        if: github.event_name == 'workflow_run'
         continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -126,34 +128,36 @@ jobs:
           node scripts/import-run.mjs "${args[@]}"
 
       - uses: voidzero-dev/setup-vp@0cffb0a1ac50daa1541b57d1eb7c843f479522e1 # v1.18.0
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         with:
           cache: true
           node-version: '24'
           working-directory: source/web
 
       - name: Check website
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         working-directory: source/web
         run: vp check
 
       - name: Test website
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         working-directory: source/web
         run: vp test --run
 
       - name: Check website Worker
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         working-directory: source/web
         run: vp run worker:check
 
       - name: Build site
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         working-directory: source/web
         run: vp build
 
       - name: Prepare first publication
-        if: steps.data.outcome == 'success' && steps.history.outcome != 'success'
+        if: >-
+          (github.event_name == 'push' || steps.data.outcome == 'success') &&
+          steps.history.outcome != 'success'
         run: |
           mkdir -p published
           git -C published init
@@ -166,9 +170,9 @@ jobs:
           fi
 
       - name: Publish site
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           git -C published rm -r --ignore-unmatch assets index.html
           cp -R source/web/dist/. published/
@@ -182,16 +186,16 @@ jobs:
           git -C published push origin gh-pages
 
       - name: Configure GitHub Pages
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload GitHub Pages artifact
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: published
 
       - name: Deploy GitHub Pages
-        if: steps.data.outcome == 'success'
+        if: github.event_name == 'push' || steps.data.outcome == 'success'
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
