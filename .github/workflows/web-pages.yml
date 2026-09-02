@@ -39,7 +39,7 @@ jobs:
         run: vp test --run
       - name: Check website Worker
         working-directory: web
-        run: pnpm worker:check
+        run: vp run worker:check
       - name: Build website
         working-directory: web
         run: vp build
@@ -145,7 +145,7 @@ jobs:
       - name: Check website Worker
         if: steps.data.outcome == 'success'
         working-directory: source/web
-        run: pnpm worker:check
+        run: vp run worker:check
 
       - name: Build site
         if: steps.data.outcome == 'success'
