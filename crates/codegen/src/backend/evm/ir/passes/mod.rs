@@ -8,7 +8,7 @@ mod block_cse;
 mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
-pub(in crate::backend::evm) mod compact_pushes;
+pub(crate) mod compact_pushes;
 mod constant_data;
 pub(super) mod data;
 mod dce;

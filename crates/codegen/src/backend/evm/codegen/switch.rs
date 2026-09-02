@@ -25,7 +25,10 @@ use super::{
     },
     EvmCodegen,
 };
-use crate::mir::{BlockId, Function, Terminator, ValueId};
+use crate::{
+    mir::{BlockId, Function, Terminator, ValueId},
+    target::GasTier,
+};
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode, SwitchLowering};
 use solar_data_structures::map::FxHashSet;
@@ -37,15 +40,15 @@ const MIN_LABEL_PUSH_LEN: usize = 2;
 const JUMPDEST_LEN: usize = 1;
 const MIN_DEFAULT_JUMP_LEN: usize = MIN_LABEL_PUSH_LEN + 1;
 
-const VERY_LOW_GAS: usize = 3;
-const JUMP_GAS: usize = 8;
-const JUMPI_GAS: usize = 10;
+const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
+const JUMP_GAS: usize = GasTier::Mid.fixed_gas() as usize;
+const JUMPI_GAS: usize = GasTier::High.fixed_gas() as usize;
 const DEFAULT_JUMP_GAS: usize = VERY_LOW_GAS + JUMP_GAS;
-const BASE_GAS: usize = 2;
+const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
 const POP_GAS: usize = BASE_GAS;
-const MOD_GAS: usize = 5;
-const MUL_GAS: usize = 5;
-const JUMPDEST_GAS: usize = 1;
+const MOD_GAS: usize = GasTier::Low.fixed_gas() as usize;
+const MUL_GAS: usize = GasTier::Low.fixed_gas() as usize;
+const JUMPDEST_GAS: usize = GasTier::Jumpdest.fixed_gas() as usize;
 
 const PACKED_TERMINAL_TARGET_MAX_SIZE: usize = 2;
 const MIN_BUCKET_CASES: usize = 2;

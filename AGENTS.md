@@ -159,17 +159,38 @@ under `crates/codegen/isle/`:
 The `egraph` pass (`transform/egraph.rs`) is the MIR simplification and
 value-numbering pass: an acyclic e-graph with dominator-scoped hash-consing,
 `rewrite` results kept as alternative nodes, `simplify` results merged, and
-the cheapest node per class extracted under a static gas cost model, all at
-the original instruction positions. Its cost model is static gas plus stack
-traffic: an operand is charged only when the node is its sole user, and a
-rewrite pays a copy for every non-immediate value it newly reaches while a
-displaced operand stays live elsewhere. Without that term, rewrites after
-memory lowering extend live ranges the stack scheduler spills and measure
-as a loss. The pass also merges phis, deletes zero-byte copies, and rewrites
-branches on `iszero`, and runs once more after memory lowering. Extend it
-by adding rules to `egraph.isle`, bounds to `max_bits`, and costs to
-`base_cost` or `Costs::node`, never by matching instructions in the pass
+the cheapest node per class extracted under the target cost model, all at
+the original instruction positions. Its cost is target cost plus stack
+traffic: a node costs its opcode's gas and bytes ranked under the
+optimization objective, immediates are priced as the pushes that
+materialize them, an operand is charged only when the node is its sole
+user, and a rewrite pays a `DUP` for every non-immediate value it newly
+reaches while a displaced operand stays live elsewhere. Without that term,
+rewrites after memory lowering extend live ranges the stack scheduler
+spills and measure as a loss. The pass also merges phis, deletes zero-byte
+copies, and rewrites branches on `iszero`, and runs once more after memory
+lowering. Extend it by adding rules to `egraph.isle`, bounds to `max_bits`,
+and stack-traffic terms to `Costs::node`; opcode prices belong in the gas
+schedule, never in the pass, and never match instructions in the pass
 itself.
+
+### Target Cost Model
+
+Every choice between equivalent code shapes is priced by the target cost
+model in `crates/codegen/src/target.rs`. Each opcode row in
+`backend/evm/op.rs` carries a `gas(tier)` column; `GasTier::gas` resolves
+a tier to the static gas of the selected EVM version across the fork
+schedule (EIP-150, EIP-1884, EIP-2929, and later repricings) and
+`dynamic_gas` gives the per-word or per-byte component. `op_table.snap`
+snapshots the resolved schedule for every opcode. `Target::new(gcx)`
+builds the model from the session's EVM version, optimization mode, and
+optimizer runs; it answers opcode and MIR operation costs as
+`Cost { gas, bytes }`, push materialization cost, deposit economics
+(`CODE_DEPOSIT_GAS_PER_BYTE`, `lifetime_gas`), and objective ordering
+(`cmp`, `improves`). Version-independent tiers are usable in constants
+through `GasTier::fixed_gas`. Do not write gas or byte literals in passes,
+the stack scheduler, or the backend: add a tier or a query to the model
+and pin it with a unit test there.
 
 ### Visitor Pattern
 

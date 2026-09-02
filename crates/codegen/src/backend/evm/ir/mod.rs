@@ -24,6 +24,7 @@ pub(in crate::backend::evm) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(crate) use passes::compact_pushes;
 pub(in crate::backend::evm) mod verify;
 
 pub(in crate::backend::evm) mod assembly;

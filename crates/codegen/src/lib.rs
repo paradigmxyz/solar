@@ -32,6 +32,7 @@ pub mod lower;
 
 pub mod pass;
 mod pass_manager;
+pub(crate) mod target;
 mod timing;
 mod transform;
 pub(crate) mod utils;

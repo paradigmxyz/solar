@@ -8,10 +8,12 @@
 -     v2 = eq v0, 0
 +     v2 = iszero v0
       v3 = eq v0, 255
-      v4 = eq 256, v0
+-     v4 = eq 256, v0
 -     v5 = eq v0, 257
-      v6 = gt v0, 255
+-     v6 = gt v0, 255
 -     v7 = lt 255, v0
++     v4 = iszero arg0
++     v6 = iszero arg0
       v8 = lt v0, 256
 -     v9 = gt 256, v0
 -     v10 = lt v0, 257
@@ -25,19 +27,21 @@
   fn @simplify_clz_range_ops(arg0: u256) -> (u256, u256, u256, u256, i256, u256, u256, u256, u256, u256, u256) {
     bb0:
       v0 = clz arg0
-      v1 = shr 8, v0
+-     v1 = shr 8, v0
 -     v2 = shr 9, v0
 -     v3 = and v0, 511
 -     v4 = and 0x3ff, v0
 -     v5 = signextend 1, v0
 -     v6 = byte 0, v0
 -     v7 = byte 29, v0
-      v8 = byte 30, v0
+-     v8 = byte 30, v0
 -     v9 = div v0, 256
 -     v10 = div v0, 257
 -     v11 = mod v0, 257
 -     ret v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11
-+     v9 = shr 8, v0
++     v1 = iszero arg0
++     v8 = iszero arg0
++     v9 = iszero arg0
 +     ret v1, 0, v0, v0, v0, 0, 0, v8, v9, 0, v0
   }
   

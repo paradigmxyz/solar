@@ -10,13 +10,14 @@
 use super::{EvmPass, utils::instruction_size_lower_bound};
 use crate::{
     backend::evm::{
+        data_copy_cost, data_copy_gas, data_copy_is_profitable,
         ir::{
             BlockId, Data, DataId, DataRef, Instruction, Module, PushValue,
             default_instruction_stack_effect, immediate_materialization_cost,
         },
         op::{self, WORD_BYTES},
     },
-    lower::{data_copy_cost, data_copy_gas, data_copy_is_profitable},
+    target::GasTier,
 };
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
@@ -319,7 +320,7 @@ fn rewrite_improvement(
     let old_bytes = rewrites.iter().map(|rewrite| rewrite.old_size).sum::<usize>() as i128;
     let new_bytes = (data_copy_size(gcx, size) * rewrites.len()) as i128 + additional_bytes as i128;
     let old_gas = rewrites.iter().map(|rewrite| rewrite.old_gas).sum::<usize>() as i128;
-    let new_gas = (data_copy_gas(size) * rewrites.len()) as i128;
+    let new_gas = (data_copy_gas(gcx.sess.opts.evm_version, size) * rewrites.len()) as i128;
     let bytes = old_bytes - new_bytes;
     let runtime_gas = old_gas - new_gas;
     Improvement { runtime_gas, bytes }
@@ -640,6 +641,7 @@ fn data_copy_size(gcx: Gcx<'_>, size: usize) -> usize {
 }
 
 fn static_gas(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    inst.concrete_immediate()
-        .map_or(3, |value| immediate_materialization_cost(gcx.sess.opts.evm_version, value).1)
+    inst.concrete_immediate().map_or(GasTier::VeryLow.fixed_gas() as usize, |value| {
+        immediate_materialization_cost(gcx.sess.opts.evm_version, value).1
+    })
 }

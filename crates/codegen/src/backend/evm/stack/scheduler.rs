@@ -102,10 +102,11 @@ use super::{
 use crate::{
     analysis::Liveness,
     backend::evm::{
-        ir::{ImmediateMaterialization, immediate_materialization_cost},
+        ir::{ImmediateMaterialization, compact_pushes, immediate_materialization_cost},
         op::StackOp,
     },
     mir::{ArgIdx, BlockId, Function, InstKind, Value, ValueId},
+    target::{Cost, GasTier, Target},
 };
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -343,6 +344,13 @@ impl OperandCostModel {
     }
 }
 
+/// One very-low instruction without an immediate.
+const VERY_LOW: Cost = Cost::new(GasTier::VeryLow.fixed_gas(), 1);
+/// One `PUSH1`.
+const PUSH1: Cost = Cost::new(GasTier::VeryLow.fixed_gas(), 2);
+/// One `PUSH2`.
+const PUSH2: Cost = Cost::new(GasTier::VeryLow.fixed_gas(), 3);
+
 #[derive(Clone, Copy)]
 struct OperandPlanningContext<'a> {
     func: &'a Function,
@@ -376,24 +384,16 @@ impl ScheduleCost {
         self.key(optimization).cmp(&other.key(optimization))
     }
 
-    /// Compares lifetime cost using the EVM code-deposit price and the configured expected
-    /// executions per deployment. This matches the economic model used by the MIR inliner for
-    /// choices that trade emitted bytes against runtime gas.
-    pub(crate) fn cmp_lifetime_for(
-        self,
-        other: Self,
-        optimization: OptimizationMode,
-        expected_executions: u64,
-    ) -> Ordering {
-        if !optimization.is_gas() {
-            return self.cmp_for(other, optimization);
+    /// Compares lifetime cost under the target's economic model: expected
+    /// executions of the runtime gas plus the code-deposit price of the
+    /// bytes. This matches the model used by the MIR inliner for choices that
+    /// trade emitted bytes against runtime gas.
+    pub(crate) fn cmp_lifetime_for(self, other: Self, target: Target) -> Ordering {
+        if !target.optimization().is_gas() {
+            return self.cmp_for(other, target.optimization());
         }
-
-        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = 200;
-        let score = |cost: Self| {
-            u128::from(cost.static_gas) * u128::from(expected_executions)
-                + u128::from(cost.encoded_bytes) * CODE_DEPOSIT_GAS_PER_BYTE
-        };
+        let score =
+            |cost: Self| target.lifetime_gas(Cost::new(cost.static_gas, cost.encoded_bytes));
         score(self)
             .cmp(&score(other))
             .then_with(|| self.static_gas.cmp(&other.static_gas))
@@ -405,7 +405,11 @@ impl ScheduleCost {
     /// later reloads. This is a strict lower bound for the ordinary call path.
     pub(crate) fn stack_drain_lower_bound(words: usize) -> Self {
         let words = u32::try_from(words).unwrap_or(u32::MAX);
-        Self { static_gas: words.saturating_mul(2), encoded_bytes: words, actions: words }
+        Self::from_cost(Cost::new(GasTier::Base.fixed_gas(), 1).times(words), words)
+    }
+
+    const fn from_cost(cost: Cost, actions: u32) -> Self {
+        Self { static_gas: cost.gas, encoded_bytes: cost.bytes, actions }
     }
 
     /// Cost of one stack-only operation.
@@ -431,25 +435,30 @@ impl ScheduleCost {
 
     /// Cost of storing a word through the active frame-address convention.
     pub(crate) fn memory_store(cost_model: OperandCostModel) -> Self {
-        Self {
-            static_gas: cost_model.load_static_gas.saturating_add(3),
-            encoded_bytes: cost_model.load_encoded_bytes.saturating_add(1),
-            actions: 2,
-        }
+        Self::memory_load(cost_model).plus(Self::from_cost(VERY_LOW, 0))
     }
 
     /// Conservative cost of a deferred target push followed by `JUMP`.
+    // push3 label
+    // jump
     pub(crate) fn control_flow_jump() -> Self {
-        Self { static_gas: 11, encoded_bytes: 5, actions: 2 }
+        let push3 = Cost::new(GasTier::VeryLow.fixed_gas(), 4);
+        Self::from_cost(push3.plus(Cost::new(GasTier::Mid.fixed_gas(), 1)), 2)
     }
 
     /// Cost of the local `JUMPDEST` introduced by a cleanup trampoline.
     pub(crate) fn jumpdest() -> Self {
-        Self { static_gas: 1, encoded_bytes: 1, actions: 1 }
+        Self::from_cost(Cost::new(GasTier::Jumpdest.fixed_gas(), 1), 1)
     }
 
     fn of_op(op: &ScheduledOp, evm_version: EvmVersion, cost_model: OperandCostModel) -> Self {
         Self::default().with_op(op, evm_version, cost_model)
+    }
+
+    /// Estimated cost of duplicating a resident value and storing it through
+    /// the active spill-address convention.
+    pub(crate) fn spill_store(cost_model: OperandCostModel) -> Self {
+        Self::memory_store(cost_model)
     }
 
     fn with_op(
@@ -4630,8 +4639,10 @@ mod tests {
 
         assert!(gas_plan.cmp_for(size_plan, OptimizationMode::Gas).is_lt());
         assert!(size_plan.cmp_for(gas_plan, OptimizationMode::Size).is_lt());
-        assert!(size_plan.cmp_lifetime_for(gas_plan, OptimizationMode::Gas, 1).is_lt());
-        assert!(gas_plan.cmp_lifetime_for(size_plan, OptimizationMode::Gas, 200).is_lt());
+        let once = Target::with(EvmVersion::default(), OptimizationMode::Gas, 1);
+        let default_runs = Target::with(EvmVersion::default(), OptimizationMode::Gas, 200);
+        assert!(size_plan.cmp_lifetime_for(gas_plan, once).is_lt());
+        assert!(gas_plan.cmp_lifetime_for(size_plan, default_runs).is_lt());
     }
 
     #[test]

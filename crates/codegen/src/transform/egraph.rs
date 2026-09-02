@@ -36,11 +36,11 @@ use crate::{
         Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
+    target::{Cost, Target},
     utils::eval,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::rc::Rc;
 
@@ -63,7 +63,7 @@ impl MirPass for Egraph {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            Builder::new(func, gcx.sess.opts.evm_version, Rc::clone(&analyses.cfg)).run() != 0
+            Builder::new(func, Target::new(gcx), Rc::clone(&analyses.cfg)).run() != 0
         })
     }
 }
@@ -87,7 +87,7 @@ struct Class {
 
 struct Builder<'a> {
     func: &'a mut Function,
-    evm_version: EvmVersion,
+    target: Target,
     cfg: Rc<CfgInfo>,
     /// One identity for equal immediates, so nodes over them compare equal.
     immediates: FxHashMap<Immediate, ValueId>,
@@ -113,13 +113,13 @@ struct Builder<'a> {
 }
 
 impl<'a> Builder<'a> {
-    fn new(func: &'a mut Function, evm_version: EvmVersion, cfg: Rc<CfgInfo>) -> Self {
+    fn new(func: &'a mut Function, target: Target, cfg: Rc<CfgInfo>) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
         let (immediates, leaves) = canonical_leaves(func);
         let uses = use_counts(func);
         Self {
             func,
-            evm_version,
+            target,
             cfg,
             immediates,
             leaves,
@@ -226,7 +226,7 @@ impl<'a> Builder<'a> {
             let current = nodes[frontier];
             frontier += 1;
             alternatives.clear();
-            isle::RuleContext::new(self.func, self.evm_version)
+            isle::RuleContext::new(self.func, self.target.evm_version())
                 .rewrite(&current, &mut alternatives);
             for next in alternatives.drain(..) {
                 let next = next.map_values(|value| self.resolve(value));
@@ -237,8 +237,9 @@ impl<'a> Builder<'a> {
         }
         for node in &nodes {
             let kind = node.into_kind().expect("nodes are complete instructions");
-            let equal = const_fold(self.func, &kind)
-                .or_else(|| isle::RuleContext::new(self.func, self.evm_version).simplify(node));
+            let equal = const_fold(self.func, &kind).or_else(|| {
+                isle::RuleContext::new(self.func, self.target.evm_version()).simplify(node)
+            });
             if let Some(equal) = equal {
                 let equal = self.resolve(equal);
                 if equal != result {
@@ -288,7 +289,7 @@ impl<'a> Builder<'a> {
         let mut alternatives = Vec::new();
         for _ in 0..MAX_NODES {
             alternatives.clear();
-            isle::RuleContext::new(self.func, self.evm_version)
+            isle::RuleContext::new(self.func, self.target.evm_version())
                 .rewrite(&current, &mut alternatives);
             let Some(&next) = alternatives.first() else { break };
             current = next.map_values(|value| self.resolve(value));
@@ -356,6 +357,7 @@ impl<'a> Builder<'a> {
     fn materialize(&mut self) {
         let mut costs = Costs {
             func: self.func,
+            target: self.target,
             classes: &self.classes,
             uses: &self.uses,
             cache: FxHashMap::default(),
@@ -363,12 +365,13 @@ impl<'a> Builder<'a> {
         let mut cheapest = Vec::with_capacity(self.classes.len());
         for class in self.classes.values() {
             // Rules only produce canonical forms, so the latest node wins ties.
+            let target = self.target;
             let best = class
                 .nodes
                 .iter()
                 .rev()
                 .copied()
-                .min_by_key(|node| costs.node(class, node))
+                .min_by_key(|node| CostKey(target, costs.node(class, node)))
                 .expect("a class holds its own node");
             cheapest.push((class.home, best));
         }
@@ -630,33 +633,14 @@ fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
     }
 }
 
-/// Static gas of one node, before its operands.
-fn base_cost(op: &Op) -> u32 {
-    match op {
-        Op::Mul { .. }
-        | Op::Div { .. }
-        | Op::SDiv { .. }
-        | Op::Mod { .. }
-        | Op::SMod { .. }
-        | Op::SignExtend { .. }
-        | Op::Clz { .. } => 5,
-        Op::AddMod { .. } | Op::MulMod { .. } => 8,
-        Op::Exp { .. } => 60,
-        Op::BlockHash { .. } | Op::BlobHash { .. } => 20,
-        _ => 3,
-    }
-}
-
-/// Gas of one stack copy, charged for a value a node keeps alive.
-const COPY_COST: u32 = 3;
-
-/// Cost evaluation over the classes of one function.
+/// Cost evaluation over the classes of one function under the target model.
 struct Costs<'a> {
     func: &'a Function,
+    target: Target,
     classes: &'a FxHashMap<ValueId, Class>,
     uses: &'a FxHashMap<ValueId, u32>,
     /// Cheapest cost per class, memoized.
-    cache: FxHashMap<ValueId, u32>,
+    cache: FxHashMap<ValueId, Cost>,
 }
 
 impl Costs<'_> {
@@ -664,29 +648,39 @@ impl Costs<'_> {
         self.uses.get(&value).copied().unwrap_or(0)
     }
 
-    /// Cost of the cheapest node of a class; values outside the e-graph are free.
-    fn class(&mut self, value: ValueId) -> u32 {
+    /// Cost of the cheapest node of a class; values outside the e-graph are
+    /// free, except immediates, which are pushed at every use.
+    fn class(&mut self, value: ValueId) -> Cost {
         if let Some(&cost) = self.cache.get(&value) {
             return cost;
         }
-        let Some(class) = self.classes.get(&value) else { return 0 };
+        let Some(class) = self.classes.get(&value) else {
+            return match self.func.value(value) {
+                Value::Immediate(immediate) => {
+                    immediate.as_u256().map_or(Cost::ZERO, |value| self.target.push(value))
+                }
+                _ => Cost::ZERO,
+            };
+        };
+        let target = self.target;
         let cost = class
             .nodes
             .iter()
             .map(|node| self.node(class, node))
-            .min()
+            .min_by(|a, b| target.cmp(*a, *b))
             .expect("a class holds its own node");
         self.cache.insert(value, cost);
         cost
     }
 
     /// Cost of computing `node` in place of the instruction that roots `class`.
-    fn node(&mut self, class: &Class, node: &Op) -> u32 {
+    fn node(&mut self, class: &Class, node: &Op) -> Cost {
         let operands = operands_of(node);
-        // An operand shared with other users is computed regardless of this choice.
-        let mut cost = base_cost(node);
+        // An operand shared with other users is computed regardless of this
+        // choice; an immediate is pushed at every use.
+        let mut cost = self.target.op(node);
         for &operand in &operands {
-            if self.uses(operand) <= 1 {
+            if self.uses(operand) <= 1 || matches!(self.func.value(operand), Value::Immediate(_)) {
                 cost += self.class(operand);
             }
         }
@@ -705,10 +699,34 @@ impl Costs<'_> {
                             && !matches!(self.func.value(value), Value::Immediate(_))
                     })
                     .count();
-                cost += COPY_COST * reached as u32;
+                cost += self.target.dup().times(reached as u32);
             }
         }
         cost
+    }
+}
+
+/// A cost ordered under the target objective.
+#[derive(Clone, Copy)]
+struct CostKey(Target, Cost);
+
+impl PartialEq for CostKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
+}
+
+impl Eq for CostKey {}
+
+impl PartialOrd for CostKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CostKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(self.1, other.1)
     }
 }
 

@@ -13,6 +13,7 @@ use crate::{
         MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
+    target::Target,
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
@@ -145,7 +146,7 @@ impl Default for MirInliner {
             max_shared_callee_blocks: 10,
             inline_single_call: true,
             max_caller_inlined_instructions: 64,
-            expected_executions_per_deployment: 200,
+            expected_executions_per_deployment: Target::DEFAULT_EXPECTED_EXECUTIONS,
             max_module_code_size: usize::MAX,
             mode: InlineMode::Normal,
         }
@@ -232,7 +233,7 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
-        self.expected_executions_per_deployment = gcx.sess.opts.optimizer_runs.unwrap_or(200);
+        self.expected_executions_per_deployment = Target::new(gcx).expected_executions();
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
         // summarizing the module or building its call graph when no call site
@@ -556,7 +557,7 @@ impl MirInliner {
         site: CallSite,
         single_call: bool,
     ) -> bool {
-        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = 200;
+        const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
 
         let inlined_bytes = summary.estimated_code_size;
         let mut removed_bytes = estimated_internal_call_code_size(site);
