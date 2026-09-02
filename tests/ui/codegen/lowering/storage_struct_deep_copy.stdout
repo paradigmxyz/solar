@@ -77,7 +77,7 @@ fn @assign() [selector=0x4bd0273c] {
     stop
   bb6:
     v74 = add v14, 32
-    v75 = mul v35, 32
+    v75 = shl 5, v35
     v76 = add v74, v75
     v37 = mload v76
     mstore 0, 1 !metadata(memory=scratch)
@@ -207,7 +207,7 @@ fn @push() [selector=0xa60249a3] {
     stop
   bb8:
     v82 = add v20, 32
-    v83 = mul v41, 32
+    v83 = shl 5, v41
     v84 = add v82, v83
     v43 = mload v84
     mstore 0, v19 !metadata(memory=scratch)
@@ -371,7 +371,7 @@ fn @assignFixed() [selector=0xb7ffd825] {
     stop
   bb6:
     v78 = add v18, 32
-    v79 = mul v39, 32
+    v79 = shl 5, v39
     v80 = add v78, v79
     v41 = mload v80
     mstore 0, 4 !metadata(memory=scratch)

@@ -9,7 +9,7 @@ fn @pushStr() [selector=0xe6e6accc] {
   bb4:
     v7 = calldataload 4
     v8 = add v7, 4
-    v9 = add v7, 36
+    v9 = add v8, 32
     v10 = gt v7, 0xffffffffffffffff
     v11 = gt v9, v5
     v12 = or v10, v11
@@ -137,7 +137,7 @@ fn @blobAt() [selector=0x8f236983, view] {
     mstore v12, v17
     v19 = add v17, 31
     v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = add v11, 64
+    v21 = add v12, 32
     jumpi v20, bb5, bb6
   bb5:
     v23 = sub v20, 32

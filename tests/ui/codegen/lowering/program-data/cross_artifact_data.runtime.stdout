@@ -64,8 +64,6 @@ bb0:
   mstore
   dup 4
   mstore
-  swap 2
-  pop
   push 31
   push 128
   mload
@@ -76,12 +74,11 @@ bb0:
   dup 1
   push 192
   mstore
-  push 64
-  dup 4
+  swap 3
+  push 32
   add
   push 224
   mstore
-  swap 2
   pop
   pop
   iszero

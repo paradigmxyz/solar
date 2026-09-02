@@ -22,7 +22,7 @@ fn @use() [selector=0x01bd03f7, pure] {
   bb2:
     v4 = calldataload 4
     v5 = add v4, 4
-    v6 = add v4, 36
+    v6 = add v5, 32
     v7 = gt v4, 0xffffffffffffffff
     v8 = gt v6, v2
     v9 = or v7, v8
