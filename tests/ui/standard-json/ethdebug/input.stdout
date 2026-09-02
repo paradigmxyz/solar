@@ -65,7 +65,7 @@
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
-                      "0x48"
+                      "0x7f"
                     ]
                   }
                 },
