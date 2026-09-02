@@ -452,7 +452,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         offset: None,
                     });
                 }
-                let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+                // bounds_check(index, length)
+                let index = self.lower_expr(index)?;
                 let (element, dynamic, length) = match ty.kind {
                     TyKind::Array(element, len) => (element, false, self.builder.imm(len)),
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
