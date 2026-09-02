@@ -50,7 +50,9 @@ jobs:
 
       - name: Restore run index
         if: steps.data.outcome == 'success' && steps.history.outcome == 'success'
-        run: cp published/data/index.json source/perf/public/data/index.json
+        run: |
+          mkdir -p source/perf/public/data
+          cp published/data/index.json source/perf/public/data/index.json
 
       - name: Import benchmark run
         if: steps.data.outcome == 'success'
@@ -109,8 +111,6 @@ jobs:
       - name: Build site
         if: steps.data.outcome == 'success'
         working-directory: source/perf
-        env:
-          VITE_PERF_API_URL: ${{ vars.PERF_API_URL }}
         run: vp build
 
       - name: Prepare first publication

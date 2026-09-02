@@ -1,24 +1,33 @@
 # Solar performance site
 
-This standalone Vite+ app reads benchmark data through the performance Worker. Local development
-uses `https://raw.githubusercontent.com/paradigmxyz/solar/gh-pages/data/` and falls back to
-`public/data` until an API URL is configured. Set `VITE_PERF_API_URL` for the Worker or
-`VITE_PERF_DATA_URL` for a static archive. The homepage loads only `index.json`; commit results and
-compiler artifacts load when a comparison opens.
+This standalone Vite app publishes a benchmark viewer to GitHub Pages. PR benchmark comments link
+straight to a comparison. The static site loads the two run documents and artifact files from its
+own `data/` directory; it does not need ClickHouse or a Worker.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm dev
 ```
 
+To test the static path against local published data without the Worker, run:
+
+```bash
+VITE_PERF_DATA_URL=/solar/data pnpm dev
+```
+
+Open a comparison URL with full commit SHAs, for example:
+
+```text
+http://127.0.0.1:5173/solar/?base=<base-sha>&head=<head-sha>&benchmark=<benchmark>
+```
+
 Run `pnpm check`, `pnpm test`, and `pnpm build` before changing the site.
 
 ## API worker
 
-`src/worker.ts` is a Hono Cloudflare Worker. With ClickHouse configured, it serves normalized run
-history, benchmark rows, and artifact content directly from the database. Without ClickHouse it
-keeps the immutable `gh-pages` archive as a local-development fallback. Start it with
-`pnpm worker:dev`, then point the site at it with:
+`src/worker.ts` is an optional Hono Cloudflare Worker for the historical dashboard. It serves
+normalized run history, benchmark rows, and artifact content directly from ClickHouse. Start it
+with `pnpm worker:dev`, then point the site at it with:
 
 ```bash
 VITE_PERF_API_URL=http://127.0.0.1:8787 pnpm dev
@@ -75,8 +84,8 @@ GitHub Actions artifact that GitHub still retains. The importer is idempotent by
 records a raw input for later migrations, and skips expired or pre-artifact runs without stopping
 the rest of the backfill.
 
-Set the repository variable `PERF_API_URL` to the deployed Worker URL so the Pages build uses
-ClickHouse. The legacy `gh-pages` archive remains a fallback while the database is being filled.
+`perf-pages.yml` imports each completed Benchmark workflow into the Pages data directory, retains
+the latest 200 runs, and deploys the static viewer. It does not use `PERF_API_URL`.
 
 Import a local benchmark run before starting the site:
 
