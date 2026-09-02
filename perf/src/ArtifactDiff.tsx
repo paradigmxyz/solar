@@ -1,4 +1,4 @@
-import { MultiFileDiff } from '@pierre/diffs/react'
+import { File, MultiFileDiff } from '@pierre/diffs/react'
 import { useEffect, useState } from 'react'
 import { loadArtifact } from './data'
 import { artifactLanguage } from './highlight'
@@ -46,8 +46,8 @@ export default function ArtifactDiff({ before, after, path, storagePath, languag
   if (oldFile === null && newFile === null) {
     return <p className="empty">This artifact was not published by either side.</p>
   }
-  if (oldFile && newFile && oldFile.contents === newFile.contents) {
-    return <div className="artifact-diff"><div className="diff-tools"><span>No changes</span></div><pre className="unchanged-artifact">{oldFile.contents}</pre></div>
+  if (!oldFile || !newFile || oldFile.contents === newFile.contents) {
+    return <File className="solar-diff" file={oldFile ?? newFile!} options={{ overflow: 'scroll', themeType: theme }} disableWorkerPool />
   }
   return <div className="artifact-diff">
     <div className="diff-tools"><button className={style === 'split' ? 'active' : ''} onClick={() => setStyle('split')}>Split</button><button className={style === 'unified' ? 'active' : ''} onClick={() => setStyle('unified')}>Unified</button></div>
