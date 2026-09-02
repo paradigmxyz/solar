@@ -1,0 +1,41 @@
+name: Performance site CI
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - perf/**
+      - .github/workflows/perf-ci.yml
+  pull_request:
+    paths:
+      - perf/**
+      - .github/workflows/perf-ci.yml
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: voidzero-dev/setup-vp@0cffb0a1ac50daa1541b57d1eb7c843f479522e1 # v1.18.0
+        with:
+          cache: true
+          node-version: '24'
+          working-directory: perf
+      - name: Check performance site
+        working-directory: perf
+        run: vp check
+      - name: Test performance site
+        working-directory: perf
+        run: vp test --run
+      - name: Check performance Worker
+        working-directory: perf
+        run: pnpm worker:check
+      - name: Build performance site
+        working-directory: perf
+        run: vp build
