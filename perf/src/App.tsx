@@ -128,7 +128,7 @@ function HistoryGraph({
         {latest !== undefined && (
           <div>
             <strong>{formatValue(active.metrics[metric]!, unit)}</strong>
-            <span className={changeClass(change)}>{formatChange(change)}</span>
+            <span className={changeClass(change, false)}>{formatChange(change)}</span>
           </div>
         )}
       </div>
