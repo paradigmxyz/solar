@@ -15,7 +15,8 @@
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationKind, AllocationSemantics, BlockId,
     DataRef, EffectKind, FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata,
-    MemoryObjectKind, MemoryObjectLayout, MirPhase, SliceLocation, StorageLayoutRef, ValueId,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, SliceLocation, StorageLayoutRef,
+    ValueId,
 };
 use smallvec::{Array, SmallVec};
 
@@ -59,6 +60,49 @@ impl OpTraits {
     /// Returns whether this set contains `trait_`.
     pub(crate) const fn contains(self, trait_: Self) -> bool {
         self.0 & trait_.0 == trait_.0
+    }
+}
+
+/// The value an operation produces, when the operation alone determines it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ResultKind {
+    /// The operation produces no value.
+    None,
+    /// An unsigned 256-bit word.
+    Word,
+    /// A signed 256-bit word.
+    SignedWord,
+    /// A boolean.
+    Bool,
+    /// An address.
+    Address,
+    /// A 32-byte hash or slot.
+    Bytes32,
+    /// A memory pointer.
+    MemPtr,
+    /// A value whose type depends on the operation's attributes.
+    Custom,
+}
+
+impl ResultKind {
+    /// Returns the result type used when the textual form carries none.
+    #[must_use]
+    pub(crate) const fn default_type(self) -> Option<MirType> {
+        match self {
+            Self::None | Self::Custom => None,
+            Self::Word => Some(MirType::uint256()),
+            Self::SignedWord => Some(MirType::int256()),
+            Self::Bool => Some(MirType::Bool),
+            Self::Address => Some(MirType::Address),
+            Self::Bytes32 => Some(MirType::bytes32()),
+            Self::MemPtr => Some(MirType::MemPtr),
+        }
+    }
+
+    /// Returns whether operations of this kind always produce a value.
+    #[must_use]
+    pub(crate) const fn produces_value(self) -> bool {
+        !matches!(self, Self::None)
     }
 }
 
@@ -168,6 +212,7 @@ macro_rules! define_mir_ops {
             $(
                 $pattern:pat => {
                     mnemonic: $mnemonic:literal,
+                    result: $result:ident,
                     phases: $phases:expr,
                     effect: $effect:ident,
                     traits: $traits:expr,
@@ -193,6 +238,8 @@ macro_rules! define_mir_ops {
         pub(crate) struct OpDef {
             /// Canonical textual operation name.
             pub(crate) mnemonic: &'static str,
+            /// Value produced by the operation.
+            pub(crate) result: ResultKind,
             /// Phases in which this operation is valid.
             pub(crate) phases: PhaseSet,
             /// Conservative effect classification.
@@ -214,6 +261,7 @@ macro_rules! define_mir_ops {
                     $(
                         $pattern => &OpDef {
                             mnemonic: $mnemonic,
+                            result: ResultKind::$result,
                             phases: $phases,
                             effect: EffectKind::$effect,
                             traits: $traits,
@@ -799,141 +847,141 @@ define_mir_ops! {
     SignExtend(byte: ValueId, value: ValueId),
 }
     defs {
-    Self::Add(_, _) => { mnemonic: "add", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::Sub(_, _) => { mnemonic: "sub", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Mul(_, _) => { mnemonic: "mul", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::Div(_, _) => { mnemonic: "div", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::SDiv(_, _) => { mnemonic: "sdiv", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Mod(_, _) => { mnemonic: "mod", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::SMod(_, _) => { mnemonic: "smod", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Exp(_, _) => { mnemonic: "exp", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::AddMod(_, _, _) => { mnemonic: "addmod", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::MulMod(_, _, _) => { mnemonic: "mulmod", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::And(_, _) => { mnemonic: "and", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::Or(_, _) => { mnemonic: "or", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::Xor(_, _) => { mnemonic: "xor", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::Not(_) => { mnemonic: "not", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Clz(_) => { mnemonic: "clz", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Shl(_, _) => { mnemonic: "shl", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Shr(_, _) => { mnemonic: "shr", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Sar(_, _) => { mnemonic: "sar", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Byte(_, _) => { mnemonic: "byte", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Lt(_, _) => { mnemonic: "lt", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::Gt(_, _) => { mnemonic: "gt", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::SLt(_, _) => { mnemonic: "slt", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::SGt(_, _) => { mnemonic: "sgt", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::Eq(_, _) => { mnemonic: "eq", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
-    Self::IsZero(_) => { mnemonic: "iszero", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Add(_, _) => { mnemonic: "add", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::Sub(_, _) => { mnemonic: "sub", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Mul(_, _) => { mnemonic: "mul", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::Div(_, _) => { mnemonic: "div", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::SDiv(_, _) => { mnemonic: "sdiv", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Mod(_, _) => { mnemonic: "mod", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::SMod(_, _) => { mnemonic: "smod", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Exp(_, _) => { mnemonic: "exp", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::AddMod(_, _, _) => { mnemonic: "addmod", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::MulMod(_, _, _) => { mnemonic: "mulmod", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::And(_, _) => { mnemonic: "and", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::Or(_, _) => { mnemonic: "or", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::Xor(_, _) => { mnemonic: "xor", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::Not(_) => { mnemonic: "not", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Clz(_) => { mnemonic: "clz", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Shl(_, _) => { mnemonic: "shl", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Shr(_, _) => { mnemonic: "shr", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Sar(_, _) => { mnemonic: "sar", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Byte(_, _) => { mnemonic: "byte", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Lt(_, _) => { mnemonic: "lt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::Gt(_, _) => { mnemonic: "gt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::SLt(_, _) => { mnemonic: "slt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::SGt(_, _) => { mnemonic: "sgt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::Eq(_, _) => { mnemonic: "eq", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Self::IsZero(_) => { mnemonic: "iszero", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
 
-    Self::MLoad(_) => { mnemonic: "mload", phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::MStore(_, _) => { mnemonic: "mstore", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::MStore8(_, _) => { mnemonic: "mstore8", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::MemoryZero(_, _) => { mnemonic: "memory_zero", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("memory zero") },
-    Self::MSize => { mnemonic: "msize", phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Fmp => { mnemonic: "fmp", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("abstract allocation") },
-    Self::SetFmp(_) => { mnemonic: "set_fmp", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("abstract allocation") },
-    Self::Alloc { .. } => { mnemonic: "alloc", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("abstract allocation") },
-    Self::MemoryObjectLen(_, _) => { mnemonic: "memory_object_len", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::SetMemoryObjectLen(_, _, _) => { mnemonic: "set_memory_object_len", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::MemoryObjectData(_, _) => { mnemonic: "memory_object_data", phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MemoryObjectFieldAddr { .. } => { mnemonic: "memory_object_field_addr", phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MemoryObjectElementAddr { .. } => { mnemonic: "memory_object_element_addr", phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MemoryObjectLoadField { .. } => { mnemonic: "memory_object_load_field", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MemoryObjectStoreField { .. } => { mnemonic: "memory_object_store_field", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::MemoryObjectLoadElement { .. } => { mnemonic: "memory_object_load_element", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MemoryObjectLoadByte { .. } => { mnemonic: "memory_object_load_byte", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MemoryObjectStoreElement { .. } => { mnemonic: "memory_object_store_element", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::MemoryObjectStoreByte { .. } => { mnemonic: "memory_object_store_byte", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::MemoryObjectStoreWord { .. } => { mnemonic: "memory_object_store_word", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::MemorySliceLoadWord { .. } => { mnemonic: "memory_slice_load_word", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::CalldataSliceLoadWord { .. } => { mnemonic: "calldata_slice_load_word", phases: PhaseSet::THROUGH_DISPATCH, effect: EnvironmentRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MemoryObjectCopyFromSlice { .. } => { mnemonic: "memory_object_copy_from_slice", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::MemoryObjectCopyFromSliceAt { .. } => { mnemonic: "memory_object_copy_from_slice_at", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::MemoryObjectCopy { .. } => { mnemonic: "memory_object_copy", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
-    Self::AbiEncode { .. } => { mnemonic: "abi_encode", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("ABI encoding") },
-    Self::AbiDecode { .. } => { mnemonic: "abi_decode", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("ABI decoding") },
-    Self::StorageToMemory { .. } => { mnemonic: "storage_to_memory", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
-    Self::MemoryToStorage { .. } => { mnemonic: "memory_to_storage", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
-    Self::ClearStorage { .. } => { mnemonic: "clear_storage", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
-    Self::MCopy(_, _, _) => { mnemonic: "mcopy", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::MLoad(_) => { mnemonic: "mload", result: Word, phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::MStore(_, _) => { mnemonic: "mstore", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::MStore8(_, _) => { mnemonic: "mstore8", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::MemoryZero(_, _) => { mnemonic: "memory_zero", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("memory zero") },
+    Self::MSize => { mnemonic: "msize", result: Word, phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Fmp => { mnemonic: "fmp", result: MemPtr, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("abstract allocation") },
+    Self::SetFmp(_) => { mnemonic: "set_fmp", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("abstract allocation") },
+    Self::Alloc { .. } => { mnemonic: "alloc", result: Custom, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("abstract allocation") },
+    Self::MemoryObjectLen(_, _) => { mnemonic: "memory_object_len", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::SetMemoryObjectLen(_, _, _) => { mnemonic: "set_memory_object_len", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::MemoryObjectData(_, _) => { mnemonic: "memory_object_data", result: MemPtr, phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MemoryObjectFieldAddr { .. } => { mnemonic: "memory_object_field_addr", result: MemPtr, phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MemoryObjectElementAddr { .. } => { mnemonic: "memory_object_element_addr", result: MemPtr, phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MemoryObjectLoadField { .. } => { mnemonic: "memory_object_load_field", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MemoryObjectStoreField { .. } => { mnemonic: "memory_object_store_field", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::MemoryObjectLoadElement { .. } => { mnemonic: "memory_object_load_element", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MemoryObjectLoadByte { .. } => { mnemonic: "memory_object_load_byte", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MemoryObjectStoreElement { .. } => { mnemonic: "memory_object_store_element", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::MemoryObjectStoreByte { .. } => { mnemonic: "memory_object_store_byte", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::MemoryObjectStoreWord { .. } => { mnemonic: "memory_object_store_word", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::MemorySliceLoadWord { .. } => { mnemonic: "memory_slice_load_word", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::CalldataSliceLoadWord { .. } => { mnemonic: "calldata_slice_load_word", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: EnvironmentRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MemoryObjectCopyFromSlice { .. } => { mnemonic: "memory_object_copy_from_slice", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::MemoryObjectCopyFromSliceAt { .. } => { mnemonic: "memory_object_copy_from_slice_at", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::MemoryObjectCopy { .. } => { mnemonic: "memory_object_copy", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    Self::AbiEncode { .. } => { mnemonic: "abi_encode", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("ABI encoding") },
+    Self::AbiDecode { .. } => { mnemonic: "abi_decode", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("ABI decoding") },
+    Self::StorageToMemory { .. } => { mnemonic: "storage_to_memory", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
+    Self::MemoryToStorage { .. } => { mnemonic: "memory_to_storage", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
+    Self::ClearStorage { .. } => { mnemonic: "clear_storage", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
+    Self::MCopy(_, _, _) => { mnemonic: "mcopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
 
-    Self::SLoad(_) => { mnemonic: "sload", phases: PhaseSet::ALL, effect: StorageRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::SStore(_, _) => { mnemonic: "sstore", phases: PhaseSet::ALL, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::TLoad(_) => { mnemonic: "tload", phases: PhaseSet::ALL, effect: TransientRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::TStore(_, _) => { mnemonic: "tstore", phases: PhaseSet::ALL, effect: TransientWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::SLoad(_) => { mnemonic: "sload", result: Word, phases: PhaseSet::ALL, effect: StorageRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::SStore(_, _) => { mnemonic: "sstore", result: None, phases: PhaseSet::ALL, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::TLoad(_) => { mnemonic: "tload", result: Word, phases: PhaseSet::ALL, effect: TransientRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::TStore(_, _) => { mnemonic: "tstore", result: None, phases: PhaseSet::ALL, effect: TransientWrite, traits: OpTraits::NONE, side_effects: true, category: None },
 
-    Self::CalldataLoad(_) => { mnemonic: "calldataload", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::CalldataCopy(_, _, _) => { mnemonic: "calldatacopy", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::CalldataSize => { mnemonic: "calldatasize", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::MakeSlice { location: SliceLocation::Memory, .. } => { mnemonic: "make_memory_slice", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
-    Self::MakeSlice { location: SliceLocation::Calldata, .. } => { mnemonic: "make_calldata_slice", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
-    Self::MakeSlice { location: SliceLocation::Returndata, .. } => { mnemonic: "make_returndata_slice", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
-    Self::SlicePtr(_) => { mnemonic: "slice_ptr", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
-    Self::SliceLen(_) => { mnemonic: "slice_len", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
-    Self::InternalFrameAddr(_) => { mnemonic: "internal_frame_addr", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::FrameLoad { .. } => { mnemonic: "frame_load", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("frame slot") },
-    Self::FrameStore { .. } => { mnemonic: "frame_store", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("frame slot") },
-    Self::ConstructorArgsBase => { mnemonic: "constructor_args_base", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::ConstructorArgsEnd => { mnemonic: "constructor_args_end", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::CalldataLoad(_) => { mnemonic: "calldataload", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::CalldataCopy(_, _, _) => { mnemonic: "calldatacopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::CalldataSize => { mnemonic: "calldatasize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::MakeSlice { location: SliceLocation::Memory, .. } => { mnemonic: "make_memory_slice", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::MakeSlice { location: SliceLocation::Calldata, .. } => { mnemonic: "make_calldata_slice", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::MakeSlice { location: SliceLocation::Returndata, .. } => { mnemonic: "make_returndata_slice", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::SlicePtr(_) => { mnemonic: "slice_ptr", result: Word, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::SliceLen(_) => { mnemonic: "slice_len", result: Word, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    Self::InternalFrameAddr(_) => { mnemonic: "internal_frame_addr", result: MemPtr, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::FrameLoad { .. } => { mnemonic: "frame_load", result: Custom, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("frame slot") },
+    Self::FrameStore { .. } => { mnemonic: "frame_store", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("frame slot") },
+    Self::ConstructorArgsBase => { mnemonic: "constructor_args_base", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::ConstructorArgsEnd => { mnemonic: "constructor_args_end", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
 
-    Self::DataCopy(_, _, _) => { mnemonic: "data_copy", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::REORDERABLE, side_effects: true, category: None },
-    Self::CodeSize => { mnemonic: "codesize", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::CodeCopy(_, _, _) => { mnemonic: "codecopy", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::ExtCodeSize(_) => { mnemonic: "extcodesize", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::ExtCodeCopy(_, _, _, _) => { mnemonic: "extcodecopy", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::ExtCodeHash(_) => { mnemonic: "extcodehash", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::StoreImmutable(..) => { mnemonic: "storeimmutable", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: ImmutableWrite, traits: OpTraits::NONE, side_effects: true, category: Some("immutable assignment") },
-    Self::LoadImmutable(_) => { mnemonic: "loadimmutable", phases: PhaseSet::ALL, effect: ImmutableRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::ReturnDataSize => { mnemonic: "returndatasize", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::ReturnDataCopy(_, _, _) => { mnemonic: "returndatacopy", phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::DataCopy(_, _, _) => { mnemonic: "data_copy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::REORDERABLE, side_effects: true, category: None },
+    Self::CodeSize => { mnemonic: "codesize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::CodeCopy(_, _, _) => { mnemonic: "codecopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::ExtCodeSize(_) => { mnemonic: "extcodesize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::ExtCodeCopy(_, _, _, _) => { mnemonic: "extcodecopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::ExtCodeHash(_) => { mnemonic: "extcodehash", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::StoreImmutable(..) => { mnemonic: "storeimmutable", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: ImmutableWrite, traits: OpTraits::NONE, side_effects: true, category: Some("immutable assignment") },
+    Self::LoadImmutable(_) => { mnemonic: "loadimmutable", result: Custom, phases: PhaseSet::ALL, effect: ImmutableRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::ReturnDataSize => { mnemonic: "returndatasize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::ReturnDataCopy(_, _, _) => { mnemonic: "returndatacopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
 
-    Self::Caller => { mnemonic: "caller", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::CallValue => { mnemonic: "callvalue", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::Origin => { mnemonic: "origin", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::GasPrice => { mnemonic: "gasprice", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::BlockHash(_) => { mnemonic: "blockhash", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Coinbase => { mnemonic: "coinbase", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::Timestamp => { mnemonic: "timestamp", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::BlockNumber => { mnemonic: "number", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::PrevRandao => { mnemonic: "prevrandao", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::GasLimit => { mnemonic: "gaslimit", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::SlotNum => { mnemonic: "slotnum", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::ChainId => { mnemonic: "chainid", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::Address => { mnemonic: "address", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::Balance(_) => { mnemonic: "balance", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::SelfBalance => { mnemonic: "selfbalance", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Gas => { mnemonic: "gas", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::BaseFee => { mnemonic: "basefee", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::BlobBaseFee => { mnemonic: "blobbasefee", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
-    Self::BlobHash(_) => { mnemonic: "blobhash", phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Caller => { mnemonic: "caller", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::CallValue => { mnemonic: "callvalue", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::Origin => { mnemonic: "origin", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::GasPrice => { mnemonic: "gasprice", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::BlockHash(_) => { mnemonic: "blockhash", result: Bytes32, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Coinbase => { mnemonic: "coinbase", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::Timestamp => { mnemonic: "timestamp", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::BlockNumber => { mnemonic: "number", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::PrevRandao => { mnemonic: "prevrandao", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::GasLimit => { mnemonic: "gaslimit", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::SlotNum => { mnemonic: "slotnum", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::ChainId => { mnemonic: "chainid", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::Address => { mnemonic: "address", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::Balance(_) => { mnemonic: "balance", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::SelfBalance => { mnemonic: "selfbalance", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Gas => { mnemonic: "gas", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::BaseFee => { mnemonic: "basefee", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::BlobBaseFee => { mnemonic: "blobbasefee", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Self::BlobHash(_) => { mnemonic: "blobhash", result: Bytes32, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
 
-    Self::Keccak256(_, _) => { mnemonic: "keccak256", phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Keccak256Bytes(_) => { mnemonic: "keccak256_bytes", phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
-    Self::MappingSlot(_, _) => { mnemonic: "mapping_slot", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
-    Self::MappingSlotMemory(_, _) => { mnemonic: "mapping_slot_memory", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
-    Self::MappingSlotCalldata(_, _) => { mnemonic: "mapping_slot_calldata", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
-    Self::StorageArrayDataSlot(_) => { mnemonic: "storage_array_data_slot", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
-    Self::StorageArrayElementSlot { .. } => { mnemonic: "storage_array_element_slot", phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    Self::Keccak256(_, _) => { mnemonic: "keccak256", result: Bytes32, phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Keccak256Bytes(_) => { mnemonic: "keccak256_bytes", result: Bytes32, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    Self::MappingSlot(_, _) => { mnemonic: "mapping_slot", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    Self::MappingSlotMemory(_, _) => { mnemonic: "mapping_slot_memory", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    Self::MappingSlotCalldata(_, _) => { mnemonic: "mapping_slot_calldata", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    Self::StorageArrayDataSlot(_) => { mnemonic: "storage_array_data_slot", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    Self::StorageArrayElementSlot { .. } => { mnemonic: "storage_array_element_slot", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
 
-    Self::Call { .. } => { mnemonic: "call", phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::CallCode { .. } => { mnemonic: "callcode", phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::StaticCall { .. } => { mnemonic: "staticcall", phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::DelegateCall { .. } => { mnemonic: "delegatecall", phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::ExtCall { .. } => { mnemonic: "extcall", phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::ExtDelegateCall { .. } => { mnemonic: "extdelegatecall", phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::ExtStaticCall { .. } => { mnemonic: "extstaticcall", phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::InternalCall { .. } => { mnemonic: "internal_call", phases: PhaseSet::ALL, effect: InternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::Create(_, _, _) => { mnemonic: "create", phases: PhaseSet::ALL, effect: Create, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::Create2(_, _, _, _) => { mnemonic: "create2", phases: PhaseSet::ALL, effect: Create, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::Log0(_, _) => { mnemonic: "log0", phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::Log1(_, _, _) => { mnemonic: "log1", phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::Log2(_, _, _, _) => { mnemonic: "log2", phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::Log3(_, _, _, _, _) => { mnemonic: "log3", phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
-    Self::Log4(_, _, _, _, _, _) => { mnemonic: "log4", phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Call { .. } => { mnemonic: "call", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::CallCode { .. } => { mnemonic: "callcode", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::StaticCall { .. } => { mnemonic: "staticcall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::DelegateCall { .. } => { mnemonic: "delegatecall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::ExtCall { .. } => { mnemonic: "extcall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::ExtDelegateCall { .. } => { mnemonic: "extdelegatecall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::ExtStaticCall { .. } => { mnemonic: "extstaticcall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::InternalCall { .. } => { mnemonic: "internal_call", result: Custom, phases: PhaseSet::ALL, effect: InternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Create(_, _, _) => { mnemonic: "create", result: Address, phases: PhaseSet::ALL, effect: Create, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Create2(_, _, _, _) => { mnemonic: "create2", result: Address, phases: PhaseSet::ALL, effect: Create, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Log0(_, _) => { mnemonic: "log0", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Log1(_, _, _) => { mnemonic: "log1", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Log2(_, _, _, _) => { mnemonic: "log2", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Log3(_, _, _, _, _) => { mnemonic: "log3", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Self::Log4(_, _, _, _, _, _) => { mnemonic: "log4", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
 
-    Self::Phi(_) => { mnemonic: "phi", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::Select(_, _, _) => { mnemonic: "select", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
-    Self::SignExtend(_, _) => { mnemonic: "signextend", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Phi(_) => { mnemonic: "phi", result: Custom, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::Select(_, _, _) => { mnemonic: "select", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Self::SignExtend(_, _) => { mnemonic: "signextend", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
     }
 }
 
@@ -953,6 +1001,11 @@ mod tests {
         let calldata_size = InstKind::CalldataSize;
         assert!(calldata_size.is_always_rematerializable());
         assert!(calldata_size.op_def().phases.contains(MirPhase::EvmShaped));
+
+        assert_eq!(add.op_def().result.default_type(), Some(MirType::uint256()));
+        assert!(
+            !InstKind::MStore(ValueId::new(0), ValueId::new(1)).op_def().result.produces_value()
+        );
 
         let slice = InstKind::MakeSlice {
             ptr: ValueId::new(0),
