@@ -228,6 +228,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     in_inline_assembly: bool,
 }
 
+#[derive(Clone, Copy)]
 struct CallArgumentParams<'a> {
     count: usize,
     names: Option<&'a [Option<Symbol>]>,
@@ -465,10 +466,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         params: CallArgumentParams<'_>,
         span: Span,
         error: &'static str,
-        mut lower: impl FnMut(&mut Self, usize, &'a hir::Expr<'a>) -> Option<T>,
+        lower: impl FnMut(&mut Self, usize, &'a hir::Expr<'a>) -> Option<T>,
     ) -> Option<Vec<T>> {
-        let mut source_args = match args.kind {
-            hir::CallArgsKind::Unnamed(args) => args.iter().enumerate().collect::<Vec<_>>(),
+        match args.kind {
+            hir::CallArgsKind::Unnamed(args) => {
+                self.lower_argument_exprs(params, args.iter().enumerate(), lower)
+            }
             hir::CallArgsKind::Named(args) => {
                 let Some(parameter_names) = params.names else {
                     return self.cx.report_unsupported(span, error);
@@ -485,16 +488,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(arguments) = arguments else {
                     return self.cx.report_unsupported(span, error);
                 };
-                arguments
+                self.lower_argument_exprs(params, arguments.into_iter(), lower)
             }
-        };
-        if params.reverse {
-            source_args.reverse();
         }
+    }
+
+    fn lower_argument_exprs<'a, T, I>(
+        &mut self,
+        params: CallArgumentParams<'_>,
+        source_args: I,
+        mut lower: impl FnMut(&mut Self, usize, &'a hir::Expr<'a>) -> Option<T>,
+    ) -> Option<Vec<T>>
+    where
+        I: DoubleEndedIterator<Item = (usize, &'a hir::Expr<'a>)>,
+    {
         let mut values = Vec::with_capacity(params.count);
         values.resize_with(params.count, || None);
-        for (index, argument) in source_args {
-            values[index] = Some(lower(self, index, argument)?);
+        if params.reverse {
+            for (index, argument) in source_args.rev() {
+                values[index] = Some(lower(self, index, argument)?);
+            }
+        } else {
+            for (index, argument) in source_args {
+                values[index] = Some(lower(self, index, argument)?);
+            }
         }
         Some(values.into_iter().map(|value| value.expect("argument lowered")).collect())
     }

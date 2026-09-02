@@ -69,21 +69,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // values, types = prepare_abi_arguments(values)
         // layout = abi_layout(types)
         // return (layout, values)
-        let mut values = Vec::with_capacity(exprs.len());
-        let mut types = Vec::with_capacity(exprs.len());
-        for expr in exprs {
-            let ty = self.cx.gcx.type_of_expr(expr.id)?;
-            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-            let value = self.lower_typed_expr(expr, memory_ty)?;
-            let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
-                AbiType::Bytes(SliceLocation::Memory)
-            } else {
-                self.types.abi_type(ty)?
-            };
-            let (value, abi_type) = self.prepare_abi_encode_argument(expr, ty, value, abi_type)?;
-            values.push(value);
-            types.push(abi_type);
-        }
+        let values_and_types = self.lower_argument_exprs(
+            CallArgumentParams { count: exprs.len(), names: None, reverse: false },
+            exprs.iter().enumerate(),
+            |this, _, expr| {
+                let ty = this.cx.gcx.type_of_expr(expr.id)?;
+                let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
+                let value = this.lower_typed_expr(expr, memory_ty)?;
+                let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
+                    AbiType::Bytes(SliceLocation::Memory)
+                } else {
+                    this.types.abi_type(ty)?
+                };
+                this.prepare_abi_encode_argument(expr, ty, value, abi_type)
+            },
+        )?;
+        let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         Some((layout, values.into_boxed_slice()))
     }
@@ -206,17 +207,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if exprs.len() != parameter_types.len() {
             return self.cx.report_unsupported(tuple.span, "abi.encodeCall argument list");
         }
-        let mut values = Vec::with_capacity(exprs.len());
-        let mut types = Vec::with_capacity(exprs.len());
-        for (index, expr) in exprs.into_iter().enumerate() {
-            let ty = parameter_types[index];
-            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-            let value = self.lower_typed_expr(expr, memory_ty)?;
-            let abi_type = self.types.abi_type(ty)?;
-            let (value, abi_type) = self.prepare_abi_encode_argument(expr, ty, value, abi_type)?;
-            values.push(value);
-            types.push(abi_type);
-        }
+        let values_and_types = self.lower_argument_exprs(
+            CallArgumentParams { count: exprs.len(), names: None, reverse: false },
+            exprs.into_iter().enumerate(),
+            |this, index, expr| {
+                let ty = parameter_types[index];
+                let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
+                let value = this.lower_typed_expr(expr, memory_ty)?;
+                let abi_type = this.types.abi_type(ty)?;
+                this.prepare_abi_encode_argument(expr, ty, value, abi_type)
+            },
+        )?;
+        let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         Some(self.builder.abi_encode_bytes(layout, Some(selector), values.into_boxed_slice()))
     }

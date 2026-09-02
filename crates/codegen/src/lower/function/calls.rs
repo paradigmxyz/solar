@@ -325,13 +325,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
 
-        let mut values = Vec::with_capacity(arg_exprs.len());
-        let mut types = Vec::with_capacity(arg_exprs.len());
-        for (argument, &parameter) in arg_exprs.iter().zip(function.parameters) {
-            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter)?;
-            values.push(value);
-            types.push(abi_type);
-        }
+        let values_and_types = self.lower_argument_exprs(
+            CallArgumentParams { count: arg_exprs.len(), names: None, reverse: false },
+            arg_exprs.iter().enumerate(),
+            |this, index, argument| {
+                this.lower_abi_call_argument(argument, function.parameters[index])
+            },
+        )?;
+        let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
         // input = abi_encode(selector, args)
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());

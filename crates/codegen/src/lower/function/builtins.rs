@@ -1171,28 +1171,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: &hir::CallArgs<'_>,
     ) -> Option<[ValueId; N]> {
         let exprs = self.builtin_args::<N>(builtin, args)?;
-        let mut values = [None; N];
-        if builtin.is_yul() {
-            for index in (0..N).rev() {
-                values[index] = Some(self.lower_yul_word_expr(&exprs[index])?);
-            }
-        } else {
-            // Solidity builtins convert every argument to the declared parameter type, like
-            // solc's `expressionAsType`. A narrow local dirtied by inline assembly is cleaned
-            // here, before any semantic check such as the zero-modulus panic observes it.
-            let parameters = match builtin.ty(self.cx.gcx).kind {
-                TyKind::Fn(function) => function.parameters,
-                _ => &[],
-            };
-            for index in 0..N {
-                let expr = &exprs[index];
-                values[index] = Some(match parameters.get(index) {
-                    Some(&parameter) => self.lower_typed_expr(expr, parameter)?,
-                    None => self.lower_yul_word_expr(expr)?,
-                });
-            }
-        }
-        Some(values.map(|value| value.expect("all builtin arguments lowered")))
+        let parameters = match builtin.ty(self.cx.gcx).kind {
+            TyKind::Fn(function) => function.parameters,
+            _ => &[],
+        };
+        let values = self.lower_argument_exprs(
+            CallArgumentParams { count: N, names: None, reverse: builtin.is_yul() },
+            exprs.iter().enumerate(),
+            |this, index, expr| {
+                if builtin.is_yul() {
+                    return this.lower_yul_word_expr(expr);
+                }
+                // Solidity builtins convert every argument to the declared parameter type, like
+                // solc's `expressionAsType`. A narrow local dirtied by inline assembly is cleaned
+                // here, before any semantic check such as the zero-modulus panic observes it.
+                match parameters.get(index) {
+                    Some(&parameter) => this.lower_typed_expr(expr, parameter),
+                    None => this.lower_yul_word_expr(expr),
+                }
+            },
+        )?;
+        Some(values.try_into().expect("builtin argument count checked"))
     }
 
     fn unsupported_builtin<T>(&self, builtin: Builtin, span: Span) -> Option<T> {
