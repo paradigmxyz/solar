@@ -1,39 +1,51 @@
-//! Value numbering, rewrite rules, and cost-based extraction in one pass.
+//! Instruction simplification and value numbering in one e-graph pass.
 //!
 //! This is an acyclic e-graph in the style of Cranelift's mid-end. Pure
 //! instructions become nodes over the canonical values of their operands.
 //! Nodes are hash-consed within dominator scopes, so an expression that already
-//! has a dominating definition reuses it. The instruction simplification rules
-//! in `isle/inst_simplify.isle` run on every new node: `simplify` merges the
-//! node's class into an existing value and `rewrite` adds an equivalent node to
-//! the class. New nodes only reference classes that already exist, so no
-//! rebuild or fixpoint is needed.
+//! has a dominating definition reuses it. The rules in `isle/egraph.isle` run
+//! on every new node: `simplify` merges the node's class into an existing
+//! value and `rewrite` adds an equivalent node to the class. New nodes only
+//! reference classes that already exist, so no rebuild or fixpoint is needed.
 //!
 //! After the walk, every surviving class keeps its cheapest node under a static
 //! gas cost model. Instructions are rewritten in place at their original
 //! position; merged instructions are deleted and their uses redirected.
+//! Placement never changes, so the pass cannot hoist or sink and never grows
+//! code.
 //!
-//! Instructions with effects, phis, and terminators form the skeleton: they stay
-//! in place and only see their operands canonicalized. Placement never changes,
-//! so the pass cannot hoist or sink and never grows code. It subsumes one round
-//! of `inst-simplify` followed by scoped value numbering, with the rules
-//! applied to operands that are already numbered.
+//! Instructions with effects, phis, and terminators form the skeleton. They
+//! stay in place and see their operands canonicalized; `rewrite` rules still
+//! apply to them in place. Phis over one value merge into it, phis of one
+//! block with equal incoming values merge into one, copies of zero bytes are
+//! deleted, and branches on `iszero` or a nonzero test branch on the tested
+//! value directly.
+//!
+//! Safety contract:
+//! - do not remove or reorder side effects
+//! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
+//! - preserve boolean-only rewrites behind explicit MIR boolean type checks
 
 use crate::{
     analysis::CfgInfo,
     mir::{
         ArgIdx, BlockId, EffectKind, Function, Immediate, InstId, InstKind, MirType, Module, Op,
-        Value, ValueId, utils as mir_utils,
+        Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
-    transform::inst_simplify::{InstSimplifier, isle::RuleContext},
+    utils::eval,
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::rc::Rc;
 
-/// Function pass for e-graph based value numbering and simplification.
+mod isle;
+
+const TRACE_TARGET: &str = "solar::codegen::mir::egraph";
+
+/// Function pass for e-graph based simplification and value numbering.
 pub(crate) struct Egraph;
 
 impl MirPass for Egraph {
@@ -59,6 +71,9 @@ const MAX_REWRITES: usize = 8;
 /// A hash-consing key: a node over canonical operands and its result type.
 type NodeKey = (Op, Option<MirType>);
 
+/// A hash-consing key for phis: the block and the canonical incoming values.
+type PhiKey = (Vec<(BlockId, ValueId)>, Option<MirType>);
+
 /// A class of equal values rooted at one instruction.
 struct Class {
     /// Equivalent nodes; the first is the instruction as written.
@@ -71,9 +86,11 @@ struct Builder<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
     cfg: Rc<CfgInfo>,
-    /// One identity for equal immediates and for each function argument, so
-    /// nodes over them compare equal. Only instruction results are ever
-    /// rewritten, so these never reach the replacement map.
+    /// One identity for equal immediates, so nodes over them compare equal.
+    immediates: FxHashMap<Immediate, ValueId>,
+    /// One identity for equal immediates and for each function argument.
+    /// Only instruction results are ever rewritten, so these never reach the
+    /// replacement map.
     leaves: FxHashMap<ValueId, ValueId>,
     /// Representative for every value merged into another class.
     merged: FxHashMap<ValueId, ValueId>,
@@ -83,7 +100,9 @@ struct Builder<'a> {
     memo: FxHashMap<NodeKey, ValueId>,
     /// Undo log restoring `memo` when a dominator scope closes.
     undo: Vec<(NodeKey, Option<ValueId>)>,
-    /// Instructions merged into another class.
+    /// Hash-consing table for the phis of the current block.
+    phis: FxHashMap<PhiKey, ValueId>,
+    /// Instructions merged into another class or deleted as no-ops.
     dead: DenseBitSet<InstId>,
     changed: usize,
 }
@@ -91,16 +110,18 @@ struct Builder<'a> {
 impl<'a> Builder<'a> {
     fn new(func: &'a mut Function, evm_version: EvmVersion, cfg: Rc<CfgInfo>) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
-        let leaves = canonical_leaves(func);
+        let (immediates, leaves) = canonical_leaves(func);
         Self {
             func,
             evm_version,
             cfg,
+            immediates,
             leaves,
             merged: FxHashMap::default(),
             classes: FxHashMap::default(),
             memo: FxHashMap::default(),
             undo: Vec::new(),
+            phis: FxHashMap::default(),
             dead,
             changed: 0,
         }
@@ -109,14 +130,31 @@ impl<'a> Builder<'a> {
     fn run(mut self) -> usize {
         self.visit(BlockId::ENTRY);
         self.materialize();
+        self.rewrite_terminators();
         self.changed
     }
 
     /// Returns the class representative of `value`.
-    fn resolve(&self, value: ValueId) -> ValueId {
-        let mut value = self.leaves.get(&value).copied().unwrap_or(value);
+    fn resolve(&mut self, value: ValueId) -> ValueId {
+        let mut value = self.leaf(value);
         while let Some(&next) = self.merged.get(&value) {
             value = next;
+        }
+        value
+    }
+
+    /// Returns the canonical identity of an immediate or argument, or `value`.
+    fn leaf(&mut self, value: ValueId) -> ValueId {
+        if let Some(&leaf) = self.leaves.get(&value) {
+            return leaf;
+        }
+        // Immediates created by rules while the pass runs join the canonical set.
+        if let Value::Immediate(immediate) = self.func.value(value) {
+            let leaf = *self.immediates.entry(immediate.clone()).or_insert(value);
+            if leaf != value {
+                self.leaves.insert(value, leaf);
+            }
+            return leaf;
         }
         value
     }
@@ -124,6 +162,7 @@ impl<'a> Builder<'a> {
     /// Numbers a block, then its dominator-tree children, within one scope.
     fn visit(&mut self, block: BlockId) {
         let mark = self.undo.len();
+        self.phis.clear();
         for index in 0..self.func.blocks[block].instructions.len() {
             let inst_id = self.func.blocks[block].instructions[index];
             self.visit_inst(inst_id);
@@ -142,13 +181,25 @@ impl<'a> Builder<'a> {
     }
 
     fn visit_inst(&mut self, inst_id: InstId) {
-        let Some(result) = self.func.inst_result_value(inst_id) else { return };
-        let inst = self.func.inst(inst_id);
-        if !is_node(&inst.kind) {
+        if self.is_dead_noop(inst_id) {
+            self.dead.insert(inst_id);
+            self.changed += 1;
             return;
         }
+        let Some(result) = self.func.inst_result_value(inst_id) else { return };
+        let inst = self.func.inst(inst_id);
         let ty = inst.result_ty;
-        let op = inst.kind.op().map_values(|value| self.resolve(value));
+        if let InstKind::Phi(incoming) = &inst.kind {
+            let incoming = incoming.clone();
+            self.visit_phi(inst_id, result, incoming, ty);
+            return;
+        }
+        if !is_node(&inst.kind) {
+            self.rewrite_in_place(inst_id);
+            return;
+        }
+        let kind = inst.kind.op();
+        let op = kind.map_values(|value| self.resolve(value));
 
         // An equal expression with a dominating definition: reuse it.
         let key = (canonical(op), ty);
@@ -163,9 +214,11 @@ impl<'a> Builder<'a> {
         let mut nodes = vec![op];
         let mut current = op;
         for _ in 0..MAX_REWRITES {
-            let Some(next) = RuleContext::new(self.func, self.evm_version).rewrite(&current) else {
+            let Some(next) = isle::RuleContext::new(self.func, self.evm_version).rewrite(&current)
+            else {
                 break;
             };
+            let next = next.map_values(|value| self.resolve(value));
             if nodes.contains(&next) {
                 break;
             }
@@ -174,8 +227,8 @@ impl<'a> Builder<'a> {
         }
         for node in &nodes {
             let kind = node.into_kind().expect("nodes are complete instructions");
-            let equal = InstSimplifier::const_fold_inst(self.func, &kind, &FxHashMap::default())
-                .or_else(|| RuleContext::new(self.func, self.evm_version).simplify(node));
+            let equal = const_fold(self.func, &kind)
+                .or_else(|| isle::RuleContext::new(self.func, self.evm_version).simplify(node));
             if let Some(equal) = equal {
                 let equal = self.resolve(equal);
                 if equal != result {
@@ -189,7 +242,99 @@ impl<'a> Builder<'a> {
         self.classes.insert(result, Class { nodes, home: inst_id });
     }
 
+    /// Merges a phi over one value into that value, and phis of one block with
+    /// equal incoming values into one.
+    fn visit_phi(
+        &mut self,
+        inst_id: InstId,
+        result: ValueId,
+        incoming: Vec<(BlockId, ValueId)>,
+        ty: Option<MirType>,
+    ) {
+        let incoming: Vec<(BlockId, ValueId)> =
+            incoming.into_iter().map(|(block, value)| (block, self.resolve(value))).collect();
+        if let Some(&(_, first)) = incoming.first()
+            && incoming.iter().all(|&(_, value)| same_value(self.func, value, first))
+        {
+            self.merge(result, first, inst_id);
+            return;
+        }
+        let key = (incoming, ty);
+        if let Some(&leader) = self.phis.get(&key) {
+            self.merge(result, leader, inst_id);
+        } else {
+            self.phis.insert(key, result);
+        }
+    }
+
+    /// Applies the rewrite rules to an instruction outside the e-graph.
+    fn rewrite_in_place(&mut self, inst_id: InstId) {
+        let op = self.func.inst(inst_id).kind.op();
+        if op.into_kind().is_none() {
+            return;
+        }
+        let mut current = op.map_values(|value| self.resolve(value));
+        let mut rewritten = false;
+        for _ in 0..MAX_REWRITES {
+            let Some(next) = isle::RuleContext::new(self.func, self.evm_version).rewrite(&current)
+            else {
+                break;
+            };
+            current = next.map_values(|value| self.resolve(value));
+            rewritten = true;
+        }
+        if !rewritten {
+            return;
+        }
+        // %r = <rewritten instruction over canonical operands>
+        let kind = current.into_kind().expect("rewrite rules produce complete instructions");
+        let inst = self.func.inst_mut(inst_id);
+        tracing::trace!(
+            target: TRACE_TARGET,
+            action = "rewrite",
+            input = %inst.kind,
+            output = %kind,
+            "mir_egraph"
+        );
+        inst.kind = kind;
+        if mir_utils::is_memory_inst(&inst.kind) {
+            inst.metadata.set_memory_region(None);
+        }
+        self.changed += 1;
+    }
+
+    /// Returns whether an instruction copies zero bytes and can be deleted.
+    fn is_dead_noop(&mut self, inst_id: InstId) -> bool {
+        let (offset, size) = match self.func.inst(inst_id).kind {
+            InstKind::MCopy(_, _, size)
+            | InstKind::CalldataCopy(_, _, size)
+            | InstKind::DataCopy(_, _, size)
+            | InstKind::CodeCopy(_, _, size) => (None, size),
+            InstKind::ReturnDataCopy(_, offset, size) => (Some(offset), size),
+            _ => return false,
+        };
+        let size = self.resolve(size);
+        if !is_zero(self.func, size) {
+            return false;
+        }
+        match offset {
+            Some(offset) => {
+                let offset = self.resolve(offset);
+                is_zero(self.func, offset)
+            }
+            None => true,
+        }
+    }
+
     fn merge(&mut self, result: ValueId, into: ValueId, inst_id: InstId) {
+        tracing::trace!(
+            target: TRACE_TARGET,
+            function = %self.func.name,
+            action = "merge",
+            ?result,
+            ?into,
+            "mir_egraph"
+        );
         self.merged.insert(result, into);
         self.dead.insert(inst_id);
         self.changed += 1;
@@ -201,19 +346,30 @@ impl<'a> Builder<'a> {
         let mut costs = FxHashMap::default();
         let mut cheapest = Vec::with_capacity(self.classes.len());
         for class in self.classes.values() {
+            // Rules only produce canonical forms, so the latest node wins ties.
             let best = class
                 .nodes
                 .iter()
+                .rev()
                 .copied()
                 .min_by_key(|node| node_cost(&self.classes, &mut costs, node))
                 .expect("a class holds its own node");
             cheapest.push((class.home, best));
         }
         // %r = <cheapest node over canonical operands>
+        let name = self.func.name;
         for (home, best) in cheapest {
             let kind = best.into_kind().expect("nodes are complete instructions");
             let inst = self.func.inst_mut(home);
             if inst.kind != kind {
+                tracing::trace!(
+                    target: TRACE_TARGET,
+                    function = %name,
+                    action = "rewrite",
+                    input = %inst.kind,
+                    output = %kind,
+                    "mir_egraph"
+                );
                 inst.kind = kind;
                 self.changed += 1;
             }
@@ -251,11 +407,66 @@ impl<'a> Builder<'a> {
             }
         }
     }
+
+    /// Branches on `iszero(x)` swap their targets and branch on `x`, branches
+    /// on a nonzero test branch on the tested value, and an external return
+    /// of zero bytes stops.
+    fn rewrite_terminators(&mut self) {
+        let func = &mut *self.func;
+        let externally_terminating =
+            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
+        for block_id in func.blocks.indices() {
+            loop {
+                let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
+                else {
+                    break;
+                };
+                let (inner, swap) = if let Some(inner) = iszero_operand(func, condition) {
+                    (inner, true)
+                } else if let Some(inner) = nonzero_test_operand(func, condition) {
+                    // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
+                    // which is what `branch x` already does.
+                    (inner, false)
+                } else {
+                    break;
+                };
+                let inner = mir_utils::resolve_replacement(inner, &self.merged);
+                let Some(Terminator::Branch { condition, then_block, else_block }) =
+                    &mut func.blocks[block_id].terminator
+                else {
+                    unreachable!()
+                };
+                *condition = inner;
+                if swap {
+                    std::mem::swap(then_block, else_block);
+                }
+                self.changed += 1;
+                tracing::trace!(
+                    target: TRACE_TARGET,
+                    function = %func.name,
+                    action = "rewrite_terminator",
+                    ?block_id,
+                    swap,
+                    "mir_egraph"
+                );
+            }
+
+            if externally_terminating
+                && let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
+                && is_zero(func, mir_utils::resolve_replacement(size, &self.merged))
+            {
+                func.blocks[block_id].terminator = Some(Terminator::Stop);
+                self.changed += 1;
+            }
+        }
+    }
 }
 
 /// Maps every immediate to the first equal immediate and every argument value
 /// to the first value of that argument.
-fn canonical_leaves(func: &Function) -> FxHashMap<ValueId, ValueId> {
+fn canonical_leaves(
+    func: &Function,
+) -> (FxHashMap<Immediate, ValueId>, FxHashMap<ValueId, ValueId>) {
     let mut immediates = FxHashMap::<Immediate, ValueId>::default();
     let mut args = FxHashMap::<ArgIdx, ValueId>::default();
     let mut leaves = FxHashMap::default();
@@ -269,14 +480,14 @@ fn canonical_leaves(func: &Function) -> FxHashMap<ValueId, ValueId> {
             leaves.insert(value, canonical);
         }
     }
-    leaves
+    (immediates, leaves)
 }
 
 /// Returns whether an instruction is a pure expression the e-graph may number.
 ///
 /// `calldataload`, `blockhash`, and `blobhash` are stable within one execution
-/// and join the pure operations, as in value numbering. Reads that need
-/// clobber tracking stay with CSE.
+/// and join the pure operations. Reads that need clobber tracking stay with
+/// CSE.
 fn is_node(kind: &InstKind) -> bool {
     let definition = kind.op_def();
     let pure = definition.effect == EffectKind::Pure
@@ -328,6 +539,62 @@ fn canonical(op: Op) -> Op {
         Op::Gt { a, b } => Op::Lt { a: b, b: a },
         Op::SGt { a, b } => Op::SLt { a: b, b: a },
         other => other,
+    }
+}
+
+/// Folds an instruction over immediate operands to an immediate result.
+fn const_fold(func: &mut Function, kind: &InstKind) -> Option<ValueId> {
+    if let InstKind::Select(condition, then_value, else_value) = *kind {
+        let condition = func.value_u256(condition)?;
+        return Some(if condition.is_zero() { else_value } else { then_value });
+    }
+    let value = eval::eval_inst(kind, |value| func.value_u256(value).ok_or(())).ok().flatten()?;
+    let immediate = match kind {
+        InstKind::Lt(..)
+        | InstKind::Gt(..)
+        | InstKind::SLt(..)
+        | InstKind::SGt(..)
+        | InstKind::Eq(..)
+        | InstKind::IsZero(..) => Immediate::bool(!value.is_zero()),
+        _ => Immediate::uint256(value),
+    };
+    Some(func.alloc_value(Value::Immediate(immediate)))
+}
+
+fn is_zero(func: &Function, value: ValueId) -> bool {
+    func.value_u256(value) == Some(U256::ZERO)
+}
+
+/// Returns whether two values are the same value or equal immediates.
+fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
+    a == b
+        || match (func.value(a), func.value(b)) {
+            (Value::Immediate(a), Value::Immediate(b)) => a == b,
+            _ => false,
+        }
+}
+
+fn defining_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
+    match func.value(value) {
+        Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
+        _ => None,
+    }
+}
+
+/// Returns `x` when `value` computes `gt(x, 0)` or `lt(0, x)`, both of which
+/// are the unsigned nonzero test.
+fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+    match *defining_kind(func, value)? {
+        InstKind::Gt(a, b) if is_zero(func, b) => Some(a),
+        InstKind::Lt(a, b) if is_zero(func, a) => Some(b),
+        _ => None,
+    }
+}
+
+fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+    match *defining_kind(func, value)? {
+        InstKind::IsZero(inner) => Some(inner),
+        _ => None,
     }
 }
 

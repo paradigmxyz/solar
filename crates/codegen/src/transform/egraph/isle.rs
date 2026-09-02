@@ -1,11 +1,11 @@
-//! ISLE rewrite rules for local instruction simplification.
+//! ISLE rewrite rules for the e-graph pass.
 //!
-//! The rules live in `isle/inst_simplify.isle`. The instruction vocabulary
-//! they match on is generated from the MIR operation schema into
-//! `isle/prelude.isle`, and `build.rs` compiles both into Rust. This module
-//! implements the extractors and constructors the rules call.
+//! The rules live in `isle/egraph.isle`. The instruction vocabulary they match
+//! on is generated from the MIR operation schema into `isle/prelude.isle`, and
+//! `build.rs` compiles both into Rust. This module implements the extractors
+//! and constructors the rules call.
 
-use super::InstSimplifier;
+use super::same_value;
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
@@ -35,28 +35,28 @@ type Value = ValueId;
     unused_variables
 )]
 mod generated {
-    include!(concat!(env!("OUT_DIR"), "/inst_simplify.isle.rs"));
+    include!(concat!(env!("OUT_DIR"), "/egraph.isle.rs"));
 }
 
 /// Context the rewrite rules run against: one function plus its value table.
-pub(crate) struct RuleContext<'a> {
+pub(super) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
 }
 
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
-    pub(crate) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
+    pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
         Self { func, evm_version }
     }
 
-    /// Returns a cheaper instruction to compute in place of `op`, when a rule applies.
-    pub(crate) fn rewrite(&mut self, op: &Op) -> Option<Op> {
+    /// Returns an equivalent instruction for `op`, when a rule applies.
+    pub(super) fn rewrite(&mut self, op: &Op) -> Option<Op> {
         generated::constructor_rewrite(self, op)
     }
 
     /// Returns the value `op` is equal to, when a rule applies.
-    pub(crate) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
+    pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
         generated::constructor_simplify(self, op)
     }
 
@@ -267,7 +267,7 @@ impl generated::Context for RuleContext<'_> {
     }
 
     fn same_value(&mut self, a: Value, b: Value) -> bool {
-        InstSimplifier::same_value(self.func, a, b)
+        same_value(self.func, a, b)
     }
 
     fn has_known_sign_bit(&mut self, value: Value) -> bool {

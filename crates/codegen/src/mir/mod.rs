@@ -46,7 +46,7 @@ pub(crate) use module::LibraryLink;
 pub use module::{MirPhase, Module};
 
 mod builder;
-pub(crate) use builder::{FunctionBuilder, PanicCode, ToUint};
+pub(crate) use builder::{FunctionBuilder, PanicCode};
 
 mod display;
 

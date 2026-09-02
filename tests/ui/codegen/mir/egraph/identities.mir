@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=inst-simplify
+//@compile-flags: -Zmir-pipeline=egraph
 //@filecheck: --enable-var-scope
 @module InstSimplifyIdentities
 

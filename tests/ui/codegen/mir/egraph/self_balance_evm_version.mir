@@ -1,7 +1,7 @@
 //@ revisions: petersburg istanbul
-//@[petersburg] compile-flags: --evm-version petersburg -Zmir-pipeline=inst-simplify
+//@[petersburg] compile-flags: --evm-version petersburg -Zmir-pipeline=egraph
 //@[petersburg] filecheck: --check-prefix=PETERSBURG
-//@[istanbul] compile-flags: --evm-version istanbul -Zmir-pipeline=inst-simplify
+//@[istanbul] compile-flags: --evm-version istanbul -Zmir-pipeline=egraph
 //@[istanbul] filecheck: --check-prefix=ISTANBUL
 @module InstSimplifySelfBalance
 

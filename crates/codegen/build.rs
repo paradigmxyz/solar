@@ -4,7 +4,7 @@ use std::{env, fs, path::PathBuf};
 
 /// Rule sets and the ISLE files each one is compiled from, prelude first.
 const RULE_SETS: &[(&str, &[&str])] = &[
-    ("inst_simplify", &["prelude.isle", "inst_simplify.isle"]),
+    ("egraph", &["prelude.isle", "egraph.isle"]),
     ("peephole", &["evm_prelude.isle", "peephole.isle"]),
 ];
 

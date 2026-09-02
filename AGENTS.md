@@ -132,7 +132,7 @@ under `crates/codegen/isle/`:
 - `evm_prelude.isle` is generated from the EVM opcode table the same way
   (`cargo nextest run -p solar-codegen evm_isle_prelude`) and declares one
   `$OPCODE` constant per opcode byte for EVM IR rules.
-- One rule file per pass (`inst_simplify.isle`, `peephole.isle`), compiled by
+- One rule file per pass (`egraph.isle`, `peephole.isle`), compiled by
   `crates/codegen/build.rs` and included from a sibling `isle.rs` module that
   implements the extractors and constructors the rules call. Register new
   rule sets in the build script's `RULE_SETS`.
@@ -151,15 +151,14 @@ under `crates/codegen/isle/`:
   view. `simplify` rules return a value, `rewrite` rules return an `Op` that
   `Op::into_kind` turns back into an instruction.
 
-The `egraph` pass (`transform/egraph.rs`) applies the same rule file inside
-an acyclic e-graph: dominator-scoped value numbering, `rewrite` results kept
-as alternative nodes, `simplify` results merged, and the cheapest node per
-class extracted under a static gas cost model, all at the original
-instruction positions. It is registered but not in the default pipeline;
-adding it, or replacing `inst-simplify` and `gvn` with it, is a codegen
-change that must follow the benchmarking protocol below. Extend it by adding
-rules to `inst_simplify.isle` and costs to `base_cost`, never by matching
-instructions in the pass itself.
+The `egraph` pass (`transform/egraph.rs`) is the MIR simplification and
+value-numbering pass: an acyclic e-graph with dominator-scoped hash-consing,
+`rewrite` results kept as alternative nodes, `simplify` results merged, and
+the cheapest node per class extracted under a static gas cost model, all at
+the original instruction positions. It also merges phis, deletes zero-byte
+copies, and rewrites branches on `iszero`. Extend it by adding rules to
+`egraph.isle` and costs to `base_cost`, never by matching instructions in the
+pass itself.
 
 ### Visitor Pattern
 
