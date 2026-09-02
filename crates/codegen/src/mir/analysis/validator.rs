@@ -265,6 +265,20 @@ impl<'a> Validator<'a> {
                     );
                 }
 
+                if let Some(ty) = inst.result_ty
+                    && !result_kind_admits(result_kind, ty)
+                {
+                    self.emit_at_inst(
+                        format_args!(
+                            "`{}` produces {:?} but its result type is `{ty}`",
+                            inst.kind.mnemonic(),
+                            result_kind,
+                        ),
+                        block_id,
+                        inst_id,
+                    );
+                }
+
                 match (inst.result_ty, func.inst_result_value(inst_id)) {
                     (Some(_), Some(result)) if result.index() >= num_values => {
                         self.emit_at_inst(
@@ -1645,6 +1659,25 @@ fn return_abi_matches(
 // =============================================================================
 // Tests
 // =============================================================================
+
+/// Returns whether a result type is consistent with the operation's result kind.
+///
+/// Word-producing operations carry the precise Solidity type of the value they
+/// compute, so any word type is admitted there. Boolean operations produce
+/// `bool`, or the 256-bit word when lowered from inline assembly, where every
+/// value is a word.
+fn result_kind_admits(kind: ResultKind, ty: MirType) -> bool {
+    match kind {
+        ResultKind::None | ResultKind::Custom => true,
+        ResultKind::Word | ResultKind::SignedWord => {
+            !matches!(ty, MirType::Void | MirType::Function)
+        }
+        ResultKind::Bool => matches!(ty, MirType::Bool) || ty == MirType::uint256(),
+        ResultKind::Address => matches!(ty, MirType::Address),
+        ResultKind::Bytes32 => matches!(ty, MirType::FixedBytes(_)),
+        ResultKind::MemPtr => matches!(ty, MirType::MemPtr),
+    }
+}
 
 #[cfg(test)]
 mod tests {
