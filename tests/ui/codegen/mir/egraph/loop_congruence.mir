@@ -69,3 +69,24 @@ fn @distinct_steps(arg0: u256) -> u256 {
     v5 = add v0, v1
     ret v5
 }
+
+// A phi whose loop-carried operand recomputes a value defined before the loop
+// is that value: the phi and the recomputation both go.
+// CHECK-LABEL: {{^[ +].*}}fn @phi_of_recomputed_dominating_value{{[( ]}}
+// CHECK: - {{v[0-9]+}} = phi [bb0: [[X:v[0-9]+]]], [bb2: {{v[0-9]+}}]
+// CHECK: + ret [[X]]
+// CHECK: - {{v[0-9]+}} = add arg0, 1
+fn @phi_of_recomputed_dominating_value(arg0: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: v0], [bb2: v3]
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add arg0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
