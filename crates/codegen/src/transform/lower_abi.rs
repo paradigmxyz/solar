@@ -1434,7 +1434,7 @@ impl LowerAbiCx {
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm(*len);
-                    if Self::is_scalar_array(ty) {
+                    if validate_array_elements && Self::is_scalar_array(ty) {
                         Self::validate_scalar_array(
                             builder, base, element, length, current, options,
                         );
