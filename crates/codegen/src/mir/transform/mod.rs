@@ -11,10 +11,8 @@ pub(crate) mod egraph;
 pub(crate) mod evm_inst_schedule;
 pub(crate) mod frame_promotion;
 pub(crate) mod function_compaction;
-pub(crate) mod gvn;
 pub(crate) mod indvar_simplify;
 pub(crate) mod inline;
-pub(crate) mod inst_simplify;
 pub(crate) mod jump_threading;
 pub(crate) mod load_pre;
 pub(crate) mod loop_canonicalize;
@@ -50,3 +48,5 @@ pub(crate) mod storage_dse;
 pub(crate) mod storage_load_cse;
 pub(crate) mod storage_promotion;
 mod utils;
+
+pub(super) mod inst_simplify;

@@ -17,10 +17,6 @@
 //! - do not remove or reorder side effects
 //! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
 //! - preserve boolean-only rewrites behind explicit MIR boolean type checks
-//!
-//! Rules that replace an instruction with an existing or immediate value are
-//! written in ISLE in `isle/inst_simplify.isle`; constant folding, in-place
-//! instruction rewrites, and terminator rewrites stay here.
 
 use crate::mir::{
     Builtin, Callee, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, ToUint,
@@ -33,8 +29,6 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
-
-pub(crate) mod isle;
 
 /// Function pass for local instruction simplification.
 pub(crate) struct InstSimplify;
@@ -85,7 +79,7 @@ impl MirPass for ConstFold {
 
 /// Local MIR instruction simplification pass.
 #[derive(Debug)]
-pub(crate) struct InstSimplifier {
+struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     simplified_count: usize,
     evm_version: EvmVersion,
@@ -776,15 +770,9 @@ impl InstSimplifier {
             }
             _ => None,
         }
-
-        // The rules see the instruction with its operands resolved and inspect
-        // the operands of defining instructions as written.
-        let op = kind.op().map_values(resolve);
-        isle::RuleContext::new(func, self.evm_version).simplify(&op)
     }
 
-    /// Folds an instruction over immediate operands to an immediate result.
-    pub(crate) fn const_fold_inst(
+    fn const_fold_inst(
         func: &mut Function,
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
@@ -974,6 +962,29 @@ impl InstSimplifier {
         }
     }
 
+    fn fold_clz_range_comparison(
+        func: &Function,
+        kind: &InstKind,
+        a: ValueId,
+        b: ValueId,
+    ) -> Option<bool> {
+        match kind {
+            InstKind::Lt(_, _) if Self::clz_operand(func, a).is_some() => {
+                func.value_u256(b).and_then(|b| (b > U256::from(256)).then_some(true))
+            }
+            InstKind::Lt(_, _) if Self::clz_operand(func, b).is_some() => {
+                func.value_u256(a).and_then(|a| (a >= U256::from(256)).then_some(false))
+            }
+            InstKind::Gt(_, _) if Self::clz_operand(func, a).is_some() => {
+                func.value_u256(b).and_then(|b| (b >= U256::from(256)).then_some(false))
+            }
+            InstKind::Gt(_, _) if Self::clz_operand(func, b).is_some() => {
+                func.value_u256(a).and_then(|a| (a > U256::from(256)).then_some(true))
+            }
+            _ => None,
+        }
+    }
+
     fn offset_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
         match func.inst(*inst_id).kind {
@@ -1080,12 +1091,67 @@ impl InstSimplifier {
         Self::is_const(func, value, U256::ZERO)
     }
 
-    pub(crate) fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
+    fn is_one(func: &Function, value: ValueId) -> bool {
+        Self::is_const(func, value, U256::from(1))
+    }
+
+    fn is_bool_value(func: &Function, value: ValueId) -> bool {
+        match func.value(value) {
+            Value::Immediate(Immediate::Bool(_)) => true,
+            Value::Inst(inst_id) => matches!(
+                func.inst(*inst_id).kind,
+                InstKind::Lt(..)
+                    | InstKind::Gt(..)
+                    | InstKind::SLt(..)
+                    | InstKind::SGt(..)
+                    | InstKind::Eq(..)
+                    | InstKind::IsZero(..)
+            ),
+            // Solidity's `bool` type does not prove that the EVM word is
+            // canonical: inline assembly can assign dirty words to variables,
+            // arguments, and return values. Only values produced by an EVM
+            // comparison above are known to be exactly zero or one.
+            Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => false,
+        }
+    }
+
+    fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
         a == b
             || match (func.value(a), func.value(b)) {
                 (Value::Immediate(a), Value::Immediate(b)) => a == b,
                 _ => false,
             }
+    }
+
+    fn is_all_ones(func: &Function, value: ValueId) -> bool {
+        Self::is_const(func, value, U256::MAX)
+    }
+
+    fn is_uint160_mask(func: &Function, value: ValueId) -> bool {
+        let mask = (U256::from(1) << 160) - U256::from(1);
+        Self::is_const(func, value, mask)
+    }
+
+    fn is_clean_address(func: &Function, value: ValueId) -> bool {
+        match func.value(value) {
+            Value::Inst(inst_id) => matches!(
+                func.inst(*inst_id).kind,
+                InstKind::Address
+                    | InstKind::Caller
+                    | InstKind::Origin
+                    | InstKind::Coinbase
+                    | InstKind::Create(_, _, _)
+                    | InstKind::Create2(_, _, _, _)
+            ),
+            _ => false,
+        }
+    }
+
+    fn is_current_address(func: &Function, value: ValueId) -> bool {
+        match func.value(value) {
+            Value::Inst(inst_id) => matches!(func.inst(*inst_id).kind, InstKind::Address),
+            _ => false,
+        }
     }
 
     fn rewrite_terminators(
@@ -1166,5 +1232,19 @@ impl InstSimplifier {
             },
             _ => None,
         }
+    }
+
+    fn not_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+        match func.value(value) {
+            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
+                InstKind::Not(inner) => Some(inner),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn is_bitwise_complement_pair(func: &Function, a: ValueId, b: ValueId) -> bool {
+        Self::not_operand(func, a) == Some(b) || Self::not_operand(func, b) == Some(a)
     }
 }
