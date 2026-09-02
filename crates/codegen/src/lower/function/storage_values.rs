@@ -459,7 +459,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
                     _ => return None,
                 };
-                self.builder.bounds_check(index, length);
+                if self.is_getter {
+                    // if index >= length { revert(0, 0) }
+                    let valid = self.builder.lt(index, length);
+                    self.builder.revert_if_zero(valid);
+                } else {
+                    // bounds_check(index, length)
+                    self.builder.bounds_check(index, length);
+                }
                 self.storage_array_element_access(base.slot, index, element, dynamic, expr.span)
             }
             ExprKind::Assign(lhs, None, rhs) if self.is_storage_reference_binding(lhs) => {

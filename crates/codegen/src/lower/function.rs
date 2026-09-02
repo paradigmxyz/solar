@@ -167,6 +167,7 @@ pub(super) fn lower(
     }
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
+    lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
@@ -222,6 +223,7 @@ struct FunctionLowerer<'gcx, 'ctx> {
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
     return_targets: Vec<ReturnTarget>,
+    is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
 }
@@ -403,6 +405,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             loops: Vec::new(),
             modifiers: Vec::new(),
             return_targets: Vec::new(),
+            is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
         }
