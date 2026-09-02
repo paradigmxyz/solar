@@ -10,5 +10,17 @@ error[7708]: library functions cannot be payable
 LL │     function g() external payable {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error[7708]: library functions cannot be payable
+   ╭▸ ROOT/tests/ui/typeck/payable_library_function.sol:LL:CC
+   │
+LL │     function i() internal payable {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7708]: library functions cannot be payable
+   ╭▸ ROOT/tests/ui/typeck/payable_library_function.sol:LL:CC
+   │
+LL │     function j() private payable {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
 
