@@ -20,8 +20,8 @@ calldata against both runtimes. Reproduction files live in `symbolic-audit/`.
 
 ## Checklist
 
-All 19 items are fixed in code and re-verified against `e6db78e6b` on
-2026-09-02 with the repros below (symbolic where the executor can model the
+Items 1 to 20 are fixed in code; 1 to 19 were re-verified against `e6db78e6b`
+on 2026-09-02 and 20 against `e9ca037d5` on 2026-09-03, with the repros below (symbolic where the executor can model the
 input, concrete otherwise). Each item names the commit that fixed it.
 CODEGEN-003, 004, and 005 in `docs/SOLC_DIVERGENCE.md` predate those fixes
 and describe behavior that no longer differs.
@@ -64,6 +64,10 @@ and describe behavior that no longer differs.
       (`symbolic-audit/exp_zero_zero.sol`; fixed in `2ae8f6612`)
 - [x] 19. Memory-typed dynamic parameter with an oversized ABI length reverts empty instead of `Panic(0x41)`
       (`symbolic-audit/abi_decode_memory_oversized_length.sol`; fixed in `1bfb1c7ae`)
+- [x] 20. Library functions with storage parameters or non-view mutability appear in the ABI, and a mapping in that parameter type is an ICE
+      (`symbolic-audit/library_storage_param_abi.sol`; fixed in `89d91da6a, 190467599`)
+- [ ] 21. `payable` library functions are accepted; solc rejects them with error 7708
+      (`symbolic-audit/payable_library_function.sol`)
 
 ## Findings
 
@@ -681,6 +685,71 @@ from `bytes`, `try`/`catch` decoding of malformed revert and return data,
 modifier argument order, and internal and external function pointers.
 
 Severity: low, revert-data only.
+
+### 20. Library functions with storage parameters appear in the ABI, and a mapping in that parameter type is an ICE
+
+File: `symbolic-audit/library_storage_param_abi.sol`
+Found on `decbf7fcf` by the fourth-session library probe
+(`symbolic-audit/probes/libs_fnptr.sol`): the campaign compiles every file
+through Standard JSON with `abi` in the output selection, and solar crashed
+on the whole file.
+
+```solidity
+library L {
+    struct Set { mapping(uint256 => uint256) idx; }
+    struct Plain { uint256 a; }
+    function withMapping(Set storage s) external view returns (uint256) { return s.idx[0]; }
+    function plainStruct(Plain storage p) external view returns (uint256) { return p.a; }
+    function mappingParam(mapping(uint256 => uint256) storage m) external view returns (uint256) { return m[0]; }
+    function arrParam(uint256[] storage a) external view returns (uint256) { return a.length; }
+}
+```
+
+| Output | solc | solar |
+|------|------|-------|
+| `--abi` for the library above | `[]` | ICE: `printing unsupported type as ABI: Mapping(...)` at `crates/sema/src/ty/print.rs:152` |
+| `--abi` with only `plainStruct` and `arrParam` | `[]` | lists both, `plainStruct` as a `tuple` parameter |
+| `--hashes` | four signatures with `storage` | agree |
+| `--abi` for a library with `pure`, `view`, `nonpayable`, and `public` functions | only the `pure` and `view` ones | all four |
+
+solc leaves every library function with a storage-reference parameter or
+return, and every library function whose mutability is above `view`, out of
+the JSON ABI (`libsolidity/interface/ABI.cpp`, the `isLibrary()` check in
+`ABI::generate`), while keeping them all in the selector list. solar's ABI writer includes them and
+prints the parameter as if it were a memory value; when the storage type
+contains a mapping there is no ABI spelling and the printer asserts.
+Not a codegen divergence: the selectors and the generated code agree, only
+the emitted ABI JSON differs, and the crash aborts the whole compilation.
+
+Severity: ICE on valid code plus an ABI JSON divergence.
+
+Re-check on `e9ca037d5` (after `89d91da6a` and `190467599`): `--emit abi`
+prints `[]` for the repro and lists only the `pure` and `view` functions of
+the mixed-mutability library, matching solc; `--emit hashes` is unchanged.
+The review of the fix turned up item 21.
+
+### 21. `payable` library functions are accepted
+
+File: `symbolic-audit/payable_library_function.sol`
+Found while reviewing the fix for 20.
+
+```solidity
+library P {
+    function f() external payable {}
+    function g() public payable returns (uint256) { return msg.value; }
+}
+```
+
+| Input | solc | solar |
+|------|------|-------|
+| the library above | error 7708 `Library functions cannot be payable.` on each function | compiles |
+
+solc rejects the declaration in `TypeChecker::visit(FunctionDefinition)`.
+Libraries are only reached by `DELEGATECALL`, so `msg.value` refers to the
+caller's value and the modifier is meaningless. Not a codegen divergence:
+solar accepts a program solc refuses.
+
+Severity: missing diagnostic.
 
 ## solc-side observations
 
