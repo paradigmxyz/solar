@@ -72,6 +72,7 @@ mod frames;
 mod function;
 mod instructions;
 mod runtime;
+mod select;
 mod terminator;
 mod values;
 
