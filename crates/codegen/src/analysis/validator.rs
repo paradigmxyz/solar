@@ -723,74 +723,31 @@ impl<'a> Validator<'a> {
                     ));
                 }
             }
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                for &inst_id in &block.instructions {
-                    let inst = func.inst(inst_id);
-                    let semantic = inst.kind.is_memory_object_op()
-                        || matches!(
-                            inst.kind,
-                            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. }
-                        )
-                        || inst
-                            .result_ty
-                            .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
-                    if semantic {
-                        self.emit_at_inst(
-                            format_args!(
-                                "memory-object instruction `{}` survives the `{}` phase boundary",
-                                inst.kind.mnemonic(),
-                                module.phase.name()
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
-                }
-            }
         }
-        // EVM-shaped MIR is the semantic boundary consumed by the word-based
-        // backend. High-level memory operations must have been expanded by
-        // their named lowering passes before the module enters this phase.
-        if module.phase >= crate::mir::MirPhase::EvmShaped {
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                for &inst_id in &block.instructions {
-                    let kind = &func.inst(inst_id).kind;
-                    let semantic_op = match kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_) => Some("slice"),
-                        InstKind::Fmp | InstKind::SetFmp(_) => Some("abstract allocation"),
-                        InstKind::Alloc { .. } if !func.inst(inst_id).metadata.deferred_alloc() => {
-                            Some("abstract allocation")
-                        }
-                        InstKind::MemoryZero(_, _) => Some("memory zero"),
-                        InstKind::AbiEncode { .. } => Some("ABI encoding"),
-                        InstKind::AbiDecode { .. } => Some("ABI decoding"),
-                        InstKind::StorageToMemory { .. }
-                        | InstKind::MemoryToStorage { .. }
-                        | InstKind::ClearStorage { .. } => Some("aggregate"),
-                        InstKind::MappingSlot(_, _)
-                        | InstKind::MappingSlotMemory(_, _)
-                        | InstKind::MappingSlotCalldata(_, _)
-                        | InstKind::StorageArrayDataSlot(_)
-                        | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
-                        InstKind::StoreImmutable(..) => Some("immutable assignment"),
-                        InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => {
-                            Some("frame slot")
-                        }
-                        _ => None,
-                    };
-                    if let Some(semantic_op) = semantic_op {
-                        self.emit_at_inst(
-                            format_args!(
-                                "{semantic_op} instruction `{}` survives the `{}` phase boundary",
-                                kind.mnemonic(),
-                                module.phase.name()
-                            ),
-                            block_id,
-                            inst_id,
-                        );
-                    }
+        // Operation phase legality is declared alongside the operation's
+        // effect and traits. Dynamic exceptions, such as deferred allocation,
+        // are handled by the operation schema's legality hook.
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                let category =
+                    inst.kind.phase_violation(module.phase, &inst.metadata).or_else(|| {
+                        (module.phase >= crate::mir::MirPhase::MemoryLowered
+                            && inst.result_ty.is_some_and(|ty| {
+                                matches!(ty, crate::mir::MirType::MemoryObject(_))
+                            }))
+                        .then_some("memory-object")
+                    });
+                if let Some(category) = category {
+                    self.emit_at_inst(
+                        format_args!(
+                            "{category} instruction `{}` survives the `{}` phase boundary",
+                            inst.kind.mnemonic(),
+                            module.phase.name()
+                        ),
+                        block_id,
+                        inst_id,
+                    );
                 }
             }
         }

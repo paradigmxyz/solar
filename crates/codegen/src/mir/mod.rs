@@ -29,6 +29,9 @@ pub(crate) use inst::{
     MemoryRegion, StorageAlias,
 };
 
+mod op_schema;
+pub(crate) use op_schema::OpTraits;
+
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
 
