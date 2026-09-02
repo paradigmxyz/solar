@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
-//@ run-call-fail: addmodDirtyModulus 1, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
-//@ run-call-fail: mulmodDirtyModulus 1, 2 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call-fail: addmodDirtyModulus 1, 2 => Panic(0x12)
+//@ run-call-fail: mulmodDirtyModulus 1, 2 => Panic(0x12)
 //@ run-call: addmodCleanedModulus 13 => 0
 //@ run-call: mulmodCleanedOperand 100 => 15
 

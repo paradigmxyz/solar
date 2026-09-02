@@ -17,7 +17,7 @@
 //@ run-call-fail: dynamicNarrow []
 //@ run-call-fail: dynamicNested []
 //@ run-call-fail: dynamicEmptyPastEnd []
-//@ run-call-fail: dynamicOverflow [] => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: dynamicOverflow [] => Panic(0x41)
 
 contract AssemblyCalldataReferenceAssignment {
     struct One {

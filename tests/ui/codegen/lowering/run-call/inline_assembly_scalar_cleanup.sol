@@ -4,12 +4,12 @@
 //@ run-call: arithmetic => 1, 1, 1, 1, 1, 0
 //@ run-call: comparisons => true, false, true, false, true, false
 //@ run-call: increments => 1, 0
-//@ run-call-fail: decrements => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call-fail: negation => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: decrements => Panic(0x11)
+//@ run-call-fail: negation => Panic(0x11)
 //@ run-call: wideningConversions => 0x78, 0x78
 //@ run-call: explicitWideningReturn => 0x78
 //@ run-call: implicitReturn => 0x78
-//@ run-call-fail: invalidEnum => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: invalidEnum => Panic(0x21)
 //@ run-call: assemblyRead => 0x0101
 //@ run-call: internalArguments => 0x42, 0x42
 //@ run-call: storageAssignment => 1

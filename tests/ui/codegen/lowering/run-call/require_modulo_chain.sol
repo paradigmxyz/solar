@@ -2,7 +2,7 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: chain 12, 3 => 15
-//@ run-call-fail: chain 12, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call-fail: chain 12, 0 => Panic(0x12)
 //@ run-call-fail: chain 11, 3
 //@ run-call: chain 0, 1 => 1
 

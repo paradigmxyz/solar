@@ -1,6 +1,6 @@
 //@ codegen-matrix: standard
 //@ run-call: Modifiers::guarded 3 => 4
-//@ run-call-fail: Modifiers::guarded 11 => 0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000056775617264000000000000000000000000000000000000000000000000000000
+//@ run-call-fail: Modifiers::guarded 11 => Error("guard")
 //@ run-call: Modifiers::orderFull 0 => 1110221032919
 //@ run-call: Modifiers::double 5 => 10
 //@ run-call: Modifiers::maybe true => 0

@@ -1,7 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call-fail: MemoryEnumValidation::structField => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: MemoryEnumValidation::fixedArrayElement => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: MemoryEnumValidation::dynamicArrayElement => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: MemoryEnumValidation::structField => Panic(0x21)
+//@ run-call-fail: MemoryEnumValidation::fixedArrayElement => Panic(0x21)
+//@ run-call-fail: MemoryEnumValidation::dynamicArrayElement => Panic(0x21)
 
 contract MemoryEnumValidation {
     enum Mode {

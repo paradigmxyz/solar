@@ -2,13 +2,13 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: read [1, 2, 3], 1 => 2
-//@ run-call-fail: read [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: read [1, 2, 3], 3 => Panic(0x32)
 //@ run-call: readDynamic [1, 2, 3], 1 => 2
-//@ run-call-fail: readDynamic [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: readDynamic [1, 2, 3], 3 => Panic(0x32)
 //@ run-call: readBytes 0x010203 => 0x02
 //@ run-call: readPair (7, 9) => 7
 //@ run-call: readDynamicCalldata [1, 2, 3], 1 => 2
-//@ run-call-fail: readDynamicCalldata [1, 2, 3], 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: readDynamicCalldata [1, 2, 3], 3 => Panic(0x32)
 //@ run-call: readBytesCalldata 0x010203 => 0x02
 //@ run-call: readDynamicPair (7, 0x010203) => 10
 //@ run-call: readWordList ([1, 2, 3], 7) => 10

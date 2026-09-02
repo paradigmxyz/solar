@@ -1,6 +1,6 @@
 use alloy_consensus::{TxLegacy, transaction::Recovered};
 use alloy_dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt, Specifier};
-use alloy_json_abi::{Function, JsonAbi, Param};
+use alloy_json_abi::{Error, Function, JsonAbi, Param};
 use alloy_primitives::{Address, Bytes, TxKind, U256, hex};
 use evm2::{
     BaseEvmTypes, Evm, Precompiles, SpecId, TxResult,
@@ -327,7 +327,11 @@ fn resolve_call<'a>(
         let artifact = only_artifact(artifacts, test_path)?;
         let constructor_args = encode_constructor(artifact, settings.constructor.as_deref())?;
         let input = decode_hex(call, "calldata")?;
-        let expected = decode_hex(expected, "expected result")?;
+        let expected = if failure {
+            encode_revert_data(expected)?
+        } else {
+            decode_hex(expected, "expected result")?
+        };
         return Ok(ResolvedCall {
             artifact,
             function: None,
@@ -344,7 +348,7 @@ fn resolve_call<'a>(
     let constructor_args = encode_constructor(artifact, settings.constructor.as_deref())?;
     let input = encode_values(function, args, false)?;
     let expected = if failure {
-        decode_hex(expected, "expected revert data")?
+        encode_revert_data(expected)?
     } else {
         encode_values(function, expected, true)?
     };
@@ -468,6 +472,73 @@ fn encode_values(function: &Function, values: &str, output: bool) -> Result<Vec<
     let values = coerce_values(params, values)?;
     if output { function.abi_encode_output(&values) } else { function.abi_encode_input(&values) }
         .map_err(|err| format!("failed to encode values for `{}`: {err}", function.signature()))
+}
+
+fn encode_revert_data(value: &str) -> Result<Vec<u8>, String> {
+    let value = value.trim();
+    if value.is_empty() || value.starts_with("0x") {
+        return decode_hex(value, "expected revert data");
+    }
+
+    let Some(offset) = value.find('(') else {
+        return Err("expected revert data must be hex or an error invocation".to_owned());
+    };
+    let name = value[..offset].trim();
+    let (types_or_values, rest) = split_parenthesized(&value[offset..])?;
+    let (error, values) = match name {
+        "Panic" | "Error" => {
+            if !rest.trim().is_empty() {
+                return Err(format!("unexpected data after error invocation `{value}`"));
+            }
+            let signature = if name == "Panic" { "Panic(uint256)" } else { "Error(string)" };
+            let error = Error::parse(signature)
+                .map_err(|err| format!("invalid builtin error `{name}`: {err}"))?;
+            (error, types_or_values)
+        }
+        _ => {
+            let (values, rest) = split_parenthesized(rest.trim_start())?;
+            if !rest.trim().is_empty() {
+                return Err(format!("unexpected data after error invocation `{value}`"));
+            }
+            let error = Error::parse(&format!("{name}({types_or_values})"))
+                .map_err(|err| format!("invalid error `{name}`: {err}"))?;
+            (error, values)
+        }
+    };
+
+    let values = coerce_values(&error.inputs, values)?;
+    error
+        .abi_encode_input(&values)
+        .map_err(|err| format!("failed to encode error `{}`: {err}", error.signature()))
+}
+
+fn split_parenthesized(value: &str) -> Result<(&str, &str), String> {
+    let Some(value) = value.strip_prefix('(') else {
+        return Err("expected parenthesized error arguments".to_owned());
+    };
+
+    let mut depth = 1_u32;
+    let mut quote = None;
+    for (offset, ch) in value.char_indices() {
+        if let Some(active) = quote {
+            if ch == active && !is_escaped(value, offset) {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' => quote = Some(ch),
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok((&value[..offset], &value[offset + ch.len_utf8()..]));
+                }
+            }
+            _ => {}
+        }
+    }
+    Err("unterminated error arguments".to_owned())
 }
 
 fn encode_constructor(artifact: &Artifact, values: Option<&str>) -> Result<Vec<u8>, String> {
@@ -806,5 +877,32 @@ mod tests {
         );
         assert_eq!(parse_call("f; gas=1, gas=2"), Err("duplicate `gas` setting".to_owned()));
         assert_eq!(parse_call("f; value"), Err("setting `value` requires a value".to_owned()));
+    }
+
+    #[test]
+    fn encodes_error_invocations() {
+        let panic = encode_revert_data("Panic(0x11)").unwrap();
+        assert_eq!(&panic[..4], [0x4e, 0x48, 0x7b, 0x71]);
+        assert_eq!(panic.len(), 36);
+
+        let string = encode_revert_data("Error(\"x (y)\")").unwrap();
+        assert_eq!(&string[..4], [0x08, 0xc3, 0x79, 0xa0]);
+
+        let custom = encode_revert_data(
+            "Stuff(uint256,bytes32)(1, 0x1234000000000000000000000000000000000000000000000000000000000000)",
+        )
+        .unwrap();
+        assert_eq!(&custom[..4], Error::parse("Stuff(uint256,bytes32)").unwrap().selector());
+
+        assert_eq!(encode_revert_data("Empty()()").unwrap().len(), 4);
+    }
+
+    #[test]
+    fn rejects_invalid_error_invocations() {
+        assert!(encode_revert_data("Panic(1) extra").is_err());
+        assert!(encode_revert_data("Error()").is_err());
+        assert!(encode_revert_data("E(uint256)").is_err());
+        assert!(encode_revert_data("E(uint256)(1) extra").is_err());
+        assert!(encode_revert_data("E(uint256)(1").is_err());
     }
 }

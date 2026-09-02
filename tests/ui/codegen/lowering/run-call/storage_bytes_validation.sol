@@ -1,10 +1,10 @@
 //@ filecheck:
 // CHECK: @module
 //@ codegen-matrix: standard
-//@ run-call-fail: invalidShort => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
-//@ run-call-fail: invalidLong => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
-//@ run-call-fail: invalidShortDelete => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
-//@ run-call-fail: invalidLongDelete => 0x4e487b710000000000000000000000000000000000000000000000000000000000000022
+//@ run-call-fail: invalidShort => Panic(0x22)
+//@ run-call-fail: invalidLong => Panic(0x22)
+//@ run-call-fail: invalidShortDelete => Panic(0x22)
+//@ run-call-fail: invalidLongDelete => Panic(0x22)
 
 contract StorageBytesValidation {
     bytes private data;

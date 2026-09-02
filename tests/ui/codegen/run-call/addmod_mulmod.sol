@@ -1,8 +1,8 @@
 //@ run-call: am 1, 2, 3 => 0
 //@ run-call: am 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 3 => 2
-//@ run-call-fail: am 0, 0, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call-fail: am 0, 0, 0 => Panic(0x12)
 //@ run-call: mm 5, 5, 7 => 4
-//@ run-call-fail: mm 0, 0, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000012
+//@ run-call-fail: mm 0, 0, 0 => Panic(0x12)
 //@ run-call: yulAm 0, 0, 0 => 0
 //@ run-call: yulMm 0, 0, 0 => 0
 

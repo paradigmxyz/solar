@@ -2,7 +2,7 @@
 //@ run-call: callState => true
 //@ run-call: callPair 7 => 7, 8
 //@ run-call: callTwoArgs => 6
-//@ run-call-fail: callZero => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@ run-call-fail: callZero => Panic(0x51)
 
 contract FunctionPointerSignatures {
     bool flag;

@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call-fail: CheckedConstants::underflow => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: CheckedConstants::underflow => Panic(0x11)
 //@ run-call: CheckedConstants::uncheckedNarrow => true
 //@ run-call: CheckedConstants::narrowShift => true
 

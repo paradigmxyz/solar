@@ -15,20 +15,20 @@
 //@ run-call: ExternalReturnValidation::dirtyMemoryDynamicArray => true
 //@ run-call: ExternalReturnValidation::dirtyMemoryStruct => true
 //@ run-call: ExternalReturnValidation::dirtyMemoryLvalue => true
-//@ run-call-fail: ExternalReturnValidation::dirtyEnum => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumStorage => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumArrayExternalArg => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumPacked => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
-//@ run-call-fail: ExternalReturnValidation::dirtyEnumNested => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call-fail: ExternalReturnValidation::dirtyEnum => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumStorage => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumStorageRead => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumExternalArg => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumStructExternalArg => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumArrayExternalArg => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumPacked => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumPackedArray => Panic(0x21)
+//@ run-call-fail: ExternalReturnValidation::dirtyEnumNested => Panic(0x21)
 //@ run-call: ExternalReturnValidation::dirtyBoolPacked => 0x01
 //@ run-call-fail: ExternalReturnValidation::dynamicShort 0x60
 //@ run-call: ExternalReturnValidation::dynamicShort 0x61 => true
-//@ run-call-fail: ExternalReturnValidation::dynamicLengthOverflow => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: ExternalReturnValidation::dynamicArrayLengthOverflow => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: ExternalReturnValidation::dynamicLengthOverflow => Panic(0x41)
+//@ run-call-fail: ExternalReturnValidation::dynamicArrayLengthOverflow => Panic(0x41)
 //@ run-call: ExternalReturnValidation::dirtyInternalWiden => 0
 //@ run-call: ExternalReturnValidation::dirtyInternalAggregate => (1, true)
 // ported-from: test/libsolidity/semanticTests/viaYul/dirty_memory_static_array.sol

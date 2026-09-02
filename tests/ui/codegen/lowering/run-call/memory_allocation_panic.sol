@@ -9,11 +9,11 @@
 //@ run-call: makeNestedArray 2 => 2
 //@ run-call: makeStructArray 0 => 0
 //@ run-call: makeStructArray 1 => 1
-//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
-//@ run-call-fail: makeArrayTooLarge => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
+//@ run-call-fail: makeBytes 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)
+//@ run-call-fail: makeArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)
+//@ run-call-fail: makeNestedArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)
+//@ run-call-fail: makeStructArray 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x41)
+//@ run-call-fail: makeArrayTooLarge => Panic(0x41)
 
 contract MemoryAllocationPanicRuntime {
     struct Pair {

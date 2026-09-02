@@ -2,7 +2,7 @@
 // CHECK: @module
 //@ codegen-matrix: standard
 //@ run-call: callAfterSet => 7
-//@ run-call-fail: callAfterDelete => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@ run-call-fail: callAfterDelete => Panic(0x51)
 // ported-from: test/libsolidity/semanticTests/functionTypes/function_delete_storage.sol
 
 contract FunctionPointerDelete {

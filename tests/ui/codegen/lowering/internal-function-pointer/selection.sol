@@ -1,10 +1,10 @@
 //@ run-call: choose true, 7 => 8
 //@ run-call: choose false, 7 => 6
-//@ run-call-fail: choose true, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
-//@ run-call-fail: choose false, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: choose true, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x11)
+//@ run-call-fail: choose false, 0 => Panic(0x11)
 //@ run-call: callConstant 9 => 10
 //@ run-call: throughCast 9 => 10
-//@ run-call-fail: throughCast 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: throughCast 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x11)
 
 contract FunctionPointerSelection {
     function choose(bool add, uint256 value) public returns (uint256) {

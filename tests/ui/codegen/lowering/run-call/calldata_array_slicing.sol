@@ -10,7 +10,7 @@
 //@ run-call: startSliceIndex [1, 2, 3, 4, 5], 2, 1 => 4
 //@ run-call: endSliceIndex [1, 2, 3, 4, 5], 3, 2 => 3
 //@ run-call-fail: sliceLength [1, 2, 3, 4, 5], 2, 6
-//@ run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: sliceIndex [1, 2, 3, 4, 5], 2, 4, 3 => Panic(0x32)
 //@ run-call-fail: bytesSlice 0x010203, 0, 4
 //@ run-call-fail: bytesSlice 0x010203, 2, 1
 //@ run-call: chainedBytesIndex 0x01020304 => 0x03

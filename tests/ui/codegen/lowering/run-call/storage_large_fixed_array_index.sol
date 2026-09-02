@@ -4,7 +4,7 @@
 //@ run-call: test => 7, 8
 //@ run-call: hasExpectedLength => true
 //@ run-call: read 0xffffffffffffffffffffffffffffffffffffffffffffffffff => 0
-//@ run-call-fail: read 0x100000000000000000000000000000000000000000000000000 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: read 0x100000000000000000000000000000000000000000000000000 => Panic(0x32)
 
 contract StorageLargeFixedArrayIndex {
     mapping(uint256 => uint256[2][2 ** 200]) private arrays;
