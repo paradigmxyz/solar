@@ -688,12 +688,7 @@ impl StackOp {
     /// Returns the placeholder opcode used to represent this operation in EVM IR.
     #[must_use]
     pub(crate) const fn ir_opcode(self) -> u8 {
-        match self {
-            Self::Dup(_) => DUPN,
-            Self::Swap(_) => SWAPN,
-            Self::Exchange(_, _) => EXCHANGE,
-            Self::Pop => POP,
-        }
+        self.definition().ir_opcode
     }
 
     /// Returns whether the operands are valid independent of the target EVM version.
