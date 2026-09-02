@@ -488,6 +488,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        // value = const_eval(expr)
+        if matches!(expr.kind, ExprKind::Binary(..) | ExprKind::Unary(..))
+            && let Ok(value) = self.cx.gcx.try_eval_const(expr)
+            && value.bit_len() <= 256
+        {
+            return Some(self.builder.imm(value.as_evm_word()));
+        }
         match &expr.kind {
             ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
             ExprKind::Array(elements) => self.lower_array(expr, elements),
