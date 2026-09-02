@@ -19,7 +19,10 @@ const charts: { metric: keyof MetricSummary; title: string; unit: string }[] = [
 
 function formatValue(value: number, unit: string) {
   if (unit === 'seconds') return `${value.toFixed(2)} s`
-  if (unit === 'memory') return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MiB` : `${Math.round(value / 1024).toLocaleString()} KiB`
+  if (unit === 'memory')
+    return value >= 1024 * 1024
+      ? `${(value / 1024 / 1024).toFixed(1)} MiB`
+      : `${Math.round(value / 1024).toLocaleString()} KiB`
   return `${Math.round(value).toLocaleString()} ${unit}`
 }
 
@@ -31,7 +34,17 @@ function runLabel(run: RunSummary) {
   return `${short(run.commit)} · ${runRef(run)} · ${new Date(run.timestamp).toLocaleDateString()}`
 }
 
-function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metric: keyof MetricSummary; title: string; unit: string }) {
+function HistoryGraph({
+  runs,
+  metric,
+  title,
+  unit,
+}: {
+  runs: RunSummary[]
+  metric: keyof MetricSummary
+  title: string
+  unit: string
+}) {
   const [hovered, setHovered] = useState<number | null>(null)
   const points = runs
     .filter((run) => run.branch === 'main' && typeof run.metrics[metric] === 'number')
@@ -44,11 +57,13 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
   const padding = range === 0 ? Math.max(Math.abs(max) * 0.04, 1) : range * 0.1
   const chartMin = min - padding
   const chartMax = max + padding
-  const path = points.map((run, index) => {
-    const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
-    const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
-    return `${index ? 'L' : 'M'} ${x} ${y}`
-  }).join(' ')
+  const path = points
+    .map((run, index) => {
+      const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
+      const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
+      return `${index ? 'L' : 'M'} ${x} ${y}`
+    })
+    .join(' ')
   const first = values[0]
   const latest = values.at(-1)
   const active = points[hovered ?? points.length - 1]
@@ -57,29 +72,67 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
     <section className="graph-card">
       <div className="graph-heading">
         <h2>{title}</h2>
-        {latest !== undefined && <div><strong>{formatValue(active.metrics[metric]!, unit)}</strong><span className={changeClass(change)}>{formatChange(change)}</span></div>}
-      </div>
-      {points.length < 2 ? <div className="empty-graph">Waiting for two main-branch runs.</div> : <>
-        <div className="chart-body">
-          <div className="chart-scale"><span>{formatValue(max, unit)}</span><span>{formatValue(min, unit)}</span></div>
-          <div className="history-plot">
-            <svg className="history" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${title} over time`}><path className="grid" d="M0 12H100 M0 50H100 M0 88H100" /><path className="series" d={path} /></svg>
-            {points.map((run, index) => {
-              const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
-              const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
-              const label = `${formatValue(run.metrics[metric]!, unit)} · ${short(run.commit)} · ${new Date(run.timestamp).toLocaleDateString()}`
-              return <button key={run.commit} className={`history-point${index === (hovered ?? points.length - 1) ? ' active-point' : ''}`} style={{ left: `${x}%`, top: `${y}%` }} onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)} onFocus={() => setHovered(index)} onBlur={() => setHovered(null)} aria-label={label} title={label} />
-            })}
+        {latest !== undefined && (
+          <div>
+            <strong>{formatValue(active.metrics[metric]!, unit)}</strong>
+            <span className={changeClass(change)}>{formatChange(change)}</span>
           </div>
-        </div>
-        <div className="chart-dates"><span>{new Date(points[0].timestamp).toLocaleDateString()}</span><span>{new Date(points.at(-1)!.timestamp).toLocaleDateString()}</span></div>
-      </>}
+        )}
+      </div>
+      {points.length < 2 ? (
+        <div className="empty-graph">Waiting for two main-branch runs.</div>
+      ) : (
+        <>
+          <div className="chart-body">
+            <div className="chart-scale">
+              <span>{formatValue(max, unit)}</span>
+              <span>{formatValue(min, unit)}</span>
+            </div>
+            <div className="history-plot">
+              <svg
+                className="history"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label={`${title} over time`}
+              >
+                <path className="grid" d="M0 12H100 M0 50H100 M0 88H100" />
+                <path className="series" d={path} />
+              </svg>
+              {points.map((run, index) => {
+                const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
+                const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
+                const label = `${formatValue(run.metrics[metric]!, unit)} · ${short(run.commit)} · ${new Date(run.timestamp).toLocaleDateString()}`
+                return (
+                  <button
+                    key={run.commit}
+                    className={`history-point${index === (hovered ?? points.length - 1) ? ' active-point' : ''}`}
+                    style={{ left: `${x}%`, top: `${y}%` }}
+                    onPointerEnter={() => setHovered(index)}
+                    onPointerLeave={() => setHovered(null)}
+                    onFocus={() => setHovered(index)}
+                    onBlur={() => setHovered(null)}
+                    aria-label={label}
+                    title={label}
+                  />
+                )
+              })}
+            </div>
+          </div>
+          <div className="chart-dates">
+            <span>{new Date(points[0].timestamp).toLocaleDateString()}</span>
+            <span>{new Date(points.at(-1)!.timestamp).toLocaleDateString()}</span>
+          </div>
+        </>
+      )}
     </section>
   )
 }
 
 export function App() {
-  const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light')
+  const [theme, setTheme] = useState<Theme>(() =>
+    document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+  )
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
@@ -87,21 +140,78 @@ export function App() {
   const baseCommit = route.get('base')
   const headCommit = route.get('head')
   const fileViewer = route.get('view') === 'files' && route.get('benchmark')
-  const content = baseCommit && headCommit && baseCommit !== headCommit ? fileViewer ? <FileViewer base={baseCommit} head={headCommit} benchmark={route.get('benchmark')!} theme={theme} /> : <Compare base={baseCommit} head={headCommit} theme={theme} /> : <Home />
-  const toggleTheme = () => setTheme((value) => {
-    const next = value === 'light' ? 'dark' : 'light'
-    localStorage.setItem('solar-perf-theme', next)
-    return next
-  })
-  return <><SiteHeader compact={Boolean(fileViewer)} theme={theme} onToggleTheme={toggleTheme} />{content}{!fileViewer && <SiteFooter />}</>
+  const content =
+    baseCommit && headCommit && baseCommit !== headCommit ? (
+      fileViewer ? (
+        <FileViewer
+          base={baseCommit}
+          head={headCommit}
+          benchmark={route.get('benchmark')!}
+          theme={theme}
+        />
+      ) : (
+        <Compare base={baseCommit} head={headCommit} theme={theme} />
+      )
+    ) : (
+      <Home />
+    )
+  const toggleTheme = () =>
+    setTheme((value) => {
+      const next = value === 'light' ? 'dark' : 'light'
+      localStorage.setItem('solar-perf-theme', next)
+      return next
+    })
+  return (
+    <>
+      <SiteHeader compact={Boolean(fileViewer)} theme={theme} onToggleTheme={toggleTheme} />
+      {content}
+      {!fileViewer && <SiteFooter />}
+    </>
+  )
 }
 
-function SiteHeader({ compact, theme, onToggleTheme }: { compact: boolean; theme: Theme; onToggleTheme: () => void }) {
+function SiteHeader({
+  compact,
+  theme,
+  onToggleTheme,
+}: {
+  compact: boolean
+  theme: Theme
+  onToggleTheme: () => void
+}) {
   const nextTheme = theme === 'light' ? 'dark' : 'light'
-  return <header className={compact ? 'file-header' : ''}><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>Performance</span></a><nav>{compact ? <a href={import.meta.env.BASE_URL}>Overview</a> : <><a className="nav-active" href={import.meta.env.BASE_URL}>Dashboard</a><a href="https://github.com/paradigmxyz/solar">Repository</a></>}<button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>{theme === 'light' ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}</button></nav></header>
+  return (
+    <header className={compact ? 'file-header' : ''}>
+      <a className="wordmark" href={import.meta.env.BASE_URL}>
+        solar<span>Performance</span>
+      </a>
+      <nav>
+        {compact ? (
+          <a href={import.meta.env.BASE_URL}>Overview</a>
+        ) : (
+          <>
+            <a className="nav-active" href={import.meta.env.BASE_URL}>
+              Dashboard
+            </a>
+            <a href="https://github.com/paradigmxyz/solar">Repository</a>
+          </>
+        )}
+        <button
+          className="theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={`Switch to ${nextTheme} theme`}
+          title={`Switch to ${nextTheme} theme`}
+        >
+          {theme === 'light' ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
+        </button>
+      </nav>
+    </header>
+  )
 }
 
-function SiteFooter() { return <footer>Measured by the in-repository runtime corpus.</footer> }
+function SiteFooter() {
+  return <footer>Measured by the in-repository runtime corpus.</footer>
+}
 
 function Home() {
   const [index, setIndex] = useState<RunIndex | null>(null)
@@ -111,7 +221,11 @@ function Home() {
   const runs = useMemo(() => index?.runs ?? [], [index])
   const mainRuns = useMemo(() => runs.filter((run) => run.branch === 'main'), [runs])
 
-  useEffect(() => { loadIndex().then(setIndex).catch((value: Error) => setError(value.message)) }, [])
+  useEffect(() => {
+    loadIndex()
+      .then(setIndex)
+      .catch((value: Error) => setError(value.message))
+  }, [])
   useEffect(() => {
     if (runs.length && !head) setHead(runs[0].commit)
     if (runs.length > 1 && !base) setBase(runs[1].commit)
@@ -126,22 +240,96 @@ function Home() {
 
   return (
     <main className="dashboard">
-        <section className="dashboard-title">
-          <div><h1>Performance</h1><p>Main branch benchmark history</p></div>
-          <span>{mainRuns.length} runs</span>
+      <section className="dashboard-title">
+        <div>
+          <h1>Performance</h1>
+          <p>Main branch benchmark history</p>
+        </div>
+        <span>{mainRuns.length} runs</span>
+      </section>
+      <section className="compare-box" aria-label="Compare commits">
+        <label>
+          base
+          <select
+            value={base}
+            onChange={(event) => setBase(event.target.value)}
+            disabled={!runs.length}
+          >
+            <option value="">Select a run</option>
+            {runs.map((run) => (
+              <option key={run.commit} value={run.commit}>
+                {runLabel(run)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="arrow">→</span>
+        <label>
+          head
+          <select
+            value={head}
+            onChange={(event) => setHead(event.target.value)}
+            disabled={!runs.length}
+          >
+            <option value="">Select a run</option>
+            {runs.map((run) => (
+              <option key={run.commit} value={run.commit}>
+                {runLabel(run)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button onClick={compare} disabled={!base || !head || base === head}>
+          Compare
+        </button>
+      </section>
+      {error ? (
+        <p className="error">{error}</p>
+      ) : (
+        <section className="chart-grid">
+          {charts.map((chart) => (
+            <HistoryGraph key={chart.metric} runs={runs} {...chart} />
+          ))}
         </section>
-        <section className="compare-box" aria-label="Compare commits">
-          <label>base<select value={base} onChange={(event) => setBase(event.target.value)} disabled={!runs.length}><option value="">Select a run</option>{runs.map((run) => <option key={run.commit} value={run.commit}>{runLabel(run)}</option>)}</select></label>
-          <span className="arrow">→</span>
-          <label>head<select value={head} onChange={(event) => setHead(event.target.value)} disabled={!runs.length}><option value="">Select a run</option>{runs.map((run) => <option key={run.commit} value={run.commit}>{runLabel(run)}</option>)}</select></label>
-          <button onClick={compare} disabled={!base || !head || base === head}>Compare</button>
-        </section>
-        {error ? <p className="error">{error}</p> : <section className="chart-grid">{charts.map((chart) => <HistoryGraph key={chart.metric} runs={runs} {...chart} />)}</section>}
-        <section className="recent">
-          <div className="section-heading"><h2>Recent runs</h2><span>lower is better</span></div>
-          <div className="run run-head"><span>commit</span><span>ref</span><span>date</span><span>runtime gas</span><span>runtime bytes</span></div>
-          {runs.length === 0 ? <p className="empty">No published benchmark runs yet.</p> : runs.slice(0, 12).map((run) => { const comparison = runs.find((candidate) => candidate.commit !== run.commit)?.commit; const contents = <><code>{short(run.commit)}</code><span>{runRef(run)}</span><time>{new Date(run.timestamp).toLocaleDateString()}</time><strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'}</strong><strong>{run.metrics.runtimeSize?.toLocaleString() ?? 'n/a'}</strong></>; return comparison ? <a className="run" key={run.commit} href={`?base=${comparison}&head=${run.commit}`}>{contents}</a> : <div className="run" key={run.commit}>{contents}</div> })}
-        </section>
+      )}
+      <section className="recent">
+        <div className="section-heading">
+          <h2>Recent runs</h2>
+          <span>lower is better</span>
+        </div>
+        <div className="run run-head">
+          <span>commit</span>
+          <span>ref</span>
+          <span>date</span>
+          <span>runtime gas</span>
+          <span>runtime bytes</span>
+        </div>
+        {runs.length === 0 ? (
+          <p className="empty">No published benchmark runs yet.</p>
+        ) : (
+          runs.slice(0, 12).map((run) => {
+            const comparison = runs.find((candidate) => candidate.commit !== run.commit)?.commit
+            const contents = (
+              <>
+                <code>{short(run.commit)}</code>
+                <span>{runRef(run)}</span>
+                <time>{new Date(run.timestamp).toLocaleDateString()}</time>
+                <strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'}</strong>
+                <strong>{run.metrics.runtimeSize?.toLocaleString() ?? 'n/a'}</strong>
+              </>
+            )
+            return comparison ? (
+              <a className="run" key={run.commit} href={`?base=${comparison}&head=${run.commit}`}>
+                {contents}
+              </a>
+            ) : (
+              <div className="run" key={run.commit}>
+                {contents}
+              </div>
+            )
+          })
+        )}
+      </section>
     </main>
   )
 }

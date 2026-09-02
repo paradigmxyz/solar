@@ -19,7 +19,8 @@ function args() {
   for (let index = 2; index < process.argv.length; index += 2) {
     const option = process.argv[index]
     const value = process.argv[index + 1]
-    if (!option.startsWith('--') || value === undefined) throw new Error(`Invalid argument: ${option}`)
+    if (!option.startsWith('--') || value === undefined)
+      throw new Error(`Invalid argument: ${option}`)
     values[option.slice(2)] = value
   }
   for (const required of ['results', 'artifacts', 'output', 'commit']) {
@@ -49,27 +50,41 @@ async function artifactManifest(source, destination, results) {
   let totalSize = 0
   for (const result of results) {
     const benchmark = result.test_id
-    if (!/^[\w.-]+$/.test(benchmark) || benchmark === '.' || benchmark === '..') throw new Error(`Unsafe benchmark ID: ${benchmark}`)
+    if (!/^[\w.-]+$/.test(benchmark) || benchmark === '.' || benchmark === '..')
+      throw new Error(`Unsafe benchmark ID: ${benchmark}`)
     const files = new Map()
     for (const compiler of ['solar', 'solc']) {
       const directory = join(source, benchmark, compiler)
       let names = []
-      try { names = await readdir(directory) } catch { continue }
+      try {
+        names = await readdir(directory)
+      } catch {
+        continue
+      }
       for (const name of names) {
         const metadata = allowedFiles.get(name)
         if (!metadata) continue
         const sourceFile = join(directory, name)
         const file = await lstat(sourceFile)
-        if (!file.isFile()) throw new Error(`Artifact is not a regular file: ${benchmark}/${compiler}/${name}`)
+        if (!file.isFile())
+          throw new Error(`Artifact is not a regular file: ${benchmark}/${compiler}/${name}`)
         const size = file.size
-        if (size > 32 * 1024 * 1024) throw new Error(`${benchmark}/${compiler}/${name} exceeds 32 MiB`)
+        if (size > 32 * 1024 * 1024)
+          throw new Error(`${benchmark}/${compiler}/${name} exceeds 32 MiB`)
         totalSize += size
         if (totalSize > 256 * 1024 * 1024) throw new Error('Artifact run exceeds 256 MiB')
         const target = join(destination, benchmark, compiler, metadata[2])
         await mkdir(dirname(target), { recursive: true })
         const storagePath = metadata[2]
         await writeFile(target, `${JSON.stringify(await readFile(sourceFile, 'utf8'))}\n`)
-        const entry = files.get(name) ?? { path: name, storagePath, label: metadata[0], language: metadata[1], bytes: 0, compilers: [] }
+        const entry = files.get(name) ?? {
+          path: name,
+          storagePath,
+          label: metadata[0],
+          language: metadata[1],
+          bytes: 0,
+          compilers: [],
+        }
         entry.bytes = Math.max(entry.bytes, size)
         entry.compilers.push(compiler)
         files.set(name, entry)
@@ -105,7 +120,9 @@ await writeFile(join(runDirectory, 'run.json'), `${JSON.stringify(run)}\n`)
 
 const indexPath = join(output, 'index.json')
 let index = { schemaVersion: 1, updatedAt: null, runs: [] }
-try { index = JSON.parse(await readFile(indexPath, 'utf8')) } catch {}
+try {
+  index = JSON.parse(await readFile(indexPath, 'utf8'))
+} catch {}
 const summary = {
   commit: options.commit,
   timestamp,
@@ -121,7 +138,9 @@ const summary = {
     peakMemory: maxMetric(results, 'peak_rss_bytes'),
   },
 }
-index.runs = [summary, ...index.runs.filter((run) => run.commit !== options.commit)].sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 200)
+index.runs = [summary, ...index.runs.filter((run) => run.commit !== options.commit)]
+  .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+  .slice(0, 200)
 index.updatedAt = timestamp
 await mkdir(output, { recursive: true })
 await writeFile(indexPath, `${JSON.stringify(index)}\n`)

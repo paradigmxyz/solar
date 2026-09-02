@@ -1,15 +1,17 @@
 # Solar performance site
 
-This standalone Vite app reads static benchmark data from the `gh-pages` branch. Local development
+This standalone Vite+ app reads static benchmark data from the `gh-pages` branch. Local development
 uses `https://raw.githubusercontent.com/paradigmxyz/solar/gh-pages/data/` and falls back to
 `public/data` when the branch has not been published. Set `VITE_PERF_DATA_URL` to override the data
 root. The homepage loads only `index.json`; commit results and compiler artifacts load when a
 comparison opens.
 
 ```bash
-npm ci
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
+
+Run `pnpm check`, `pnpm test`, and `pnpm build` before changing the site.
 
 Import a local benchmark run before starting the site:
 
