@@ -41,7 +41,10 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, StdEntry},
+};
 use std::rc::Rc;
 
 mod isle;
@@ -103,6 +106,9 @@ struct Builder<'a> {
     memo: FxHashMap<NodeKey, ValueId>,
     /// Undo log restoring `memo` when a dominator scope closes.
     undo: Vec<(NodeKey, Option<ValueId>)>,
+    /// Phis congruent through loop-carried operands, mapped to the earliest
+    /// congruent phi of their block.
+    optimistic: FxHashMap<ValueId, ValueId>,
     /// Hash-consing table for the phis of the current block.
     phis: FxHashMap<PhiKey, ValueId>,
     /// Number of uses of every value before the pass.
@@ -117,12 +123,14 @@ impl<'a> Builder<'a> {
         let dead = DenseBitSet::new_empty(func.num_insts());
         let (immediates, leaves) = canonical_leaves(func);
         let uses = use_counts(func);
+        let optimistic = optimistic_phi_leaders(func, &cfg, &leaves);
         Self {
             func,
             target,
             cfg,
             immediates,
             leaves,
+            optimistic,
             merged: FxHashMap::default(),
             classes: FxHashMap::default(),
             memo: FxHashMap::default(),
@@ -273,9 +281,20 @@ impl<'a> Builder<'a> {
         let key = (incoming, ty);
         if let Some(&leader) = self.phis.get(&key) {
             self.merge(result, leader, inst_id);
-        } else {
-            self.phis.insert(key, result);
+            return;
         }
+        // A phi congruent to an earlier phi of this block through the loop:
+        // %leader = phi [..], [latch: %x]
+        // %result = phi [..], [latch: %y]   ; x ≡ y given leader ≡ result
+        if let Some(&leader) = self.optimistic.get(&result) {
+            let leader = self.resolve(leader);
+            if leader != result {
+                self.phis.insert(key, leader);
+                self.merge(result, leader, inst_id);
+                return;
+            }
+        }
+        self.phis.insert(key, result);
     }
 
     /// Applies the rewrite rules to an instruction outside the e-graph.
@@ -479,6 +498,157 @@ impl<'a> Builder<'a> {
             }
         }
     }
+}
+
+/// Bound on the refinement rounds of the optimistic numbering.
+const MAX_OPTIMISTIC_ROUNDS: usize = 16;
+
+/// The optimistic class every value starts in.
+const TOP: u32 = 0;
+
+/// A key of the optimistic numbering. Node operands are class numbers cast to
+/// value ids and never dereferenced.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum OptimisticKey {
+    /// A phi by block, incoming class numbers, and type.
+    Phi(BlockId, SmallVec<[(BlockId, u32); 4]>, Option<MirType>),
+    /// A pure node over class numbers.
+    Node(Op, Option<MirType>),
+    /// A value equal only to itself.
+    Unique(ValueId),
+}
+
+/// One round of optimistic numbering.
+struct OptimisticNumbering<'a> {
+    func: &'a Function,
+    leaves: &'a FxHashMap<ValueId, ValueId>,
+    /// Class number of every key numbered this round.
+    table: FxHashMap<OptimisticKey, u32>,
+    /// Class numbers assigned this round.
+    fresh: FxHashMap<ValueId, u32>,
+    /// Class numbers of the previous round, used across back edges.
+    numbers: FxHashMap<ValueId, u32>,
+    next: u32,
+}
+
+impl OptimisticNumbering<'_> {
+    /// Class number of an operand: this round's number, the previous round's
+    /// across a back edge, or `TOP` in the first round.
+    fn number(&mut self, value: ValueId) -> u32 {
+        let value = self.leaves.get(&value).copied().unwrap_or(value);
+        if let Some(&number) = self.fresh.get(&value) {
+            return number;
+        }
+        if matches!(self.func.value(value), Value::Inst(_)) {
+            return self.numbers.get(&value).copied().unwrap_or(TOP);
+        }
+        self.assign(value, OptimisticKey::Unique(value))
+    }
+
+    fn assign(&mut self, value: ValueId, key: OptimisticKey) -> u32 {
+        let next = &mut self.next;
+        let number = *self.table.entry(key).or_insert_with(|| {
+            *next += 1;
+            *next
+        });
+        self.fresh.insert(value, number);
+        number
+    }
+}
+
+/// Optimistic value numbering after Simpson: every value starts in one class
+/// and reverse-postorder numbering splits classes until a fixed point, so two
+/// phis of one block are congruent through loop-carried operands the
+/// dominator walk cannot see through. Returns each such phi mapped to the
+/// earliest congruent phi of its block, or nothing when the numbering does
+/// not converge.
+fn optimistic_phi_leaders(
+    func: &Function,
+    cfg: &CfgInfo,
+    leaves: &FxHashMap<ValueId, ValueId>,
+) -> FxHashMap<ValueId, ValueId> {
+    let mut leaders = FxHashMap::default();
+    // Only a cycle carries a value back into its own phi, and only a block
+    // with two phis has a pair to merge; elsewhere the dominator walk numbers
+    // every phi over already numbered operands.
+    let has_phi_pair = cfg.cyclic_blocks().iter().any(|block| {
+        func.blocks[block]
+            .instructions
+            .iter()
+            .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
+            .nth(1)
+            .is_some()
+    });
+    if !has_phi_pair {
+        return leaders;
+    }
+    let mut numbering = OptimisticNumbering {
+        func,
+        leaves,
+        table: FxHashMap::default(),
+        fresh: FxHashMap::default(),
+        numbers: FxHashMap::default(),
+        next: TOP,
+    };
+    let mut converged = false;
+    for _ in 0..MAX_OPTIMISTIC_ROUNDS {
+        numbering.table.clear();
+        numbering.fresh.clear();
+        numbering.next = TOP;
+        for &block in cfg.rpo() {
+            for &inst_id in &func.blocks[block].instructions {
+                let Some(result) = func.inst_result_value(inst_id) else { continue };
+                let inst = func.inst(inst_id);
+                let key = match &inst.kind {
+                    InstKind::Phi(incoming) => OptimisticKey::Phi(
+                        block,
+                        incoming
+                            .iter()
+                            .map(|&(pred, value)| (pred, numbering.number(value)))
+                            .collect(),
+                        inst.result_ty,
+                    ),
+                    kind if is_node(kind) => {
+                        let op = kind.op().map_values(|value| {
+                            ValueId::from_usize(numbering.number(value) as usize)
+                        });
+                        OptimisticKey::Node(canonical(op), inst.result_ty)
+                    }
+                    _ => OptimisticKey::Unique(result),
+                };
+                numbering.assign(result, key);
+            }
+        }
+        if numbering.fresh == numbering.numbers {
+            converged = true;
+            break;
+        }
+        std::mem::swap(&mut numbering.numbers, &mut numbering.fresh);
+    }
+    if !converged {
+        return leaders;
+    }
+    let mut first = FxHashMap::<u32, ValueId>::default();
+    for block in cfg.rpo() {
+        first.clear();
+        for &inst_id in &func.blocks[*block].instructions {
+            let inst = func.inst(inst_id);
+            if !matches!(inst.kind, InstKind::Phi(_)) {
+                continue;
+            }
+            let Some(result) = func.inst_result_value(inst_id) else { continue };
+            let number = numbering.numbers[&result];
+            match first.entry(number) {
+                StdEntry::Occupied(entry) => {
+                    leaders.insert(result, *entry.get());
+                }
+                StdEntry::Vacant(entry) => {
+                    entry.insert(result);
+                }
+            }
+        }
+    }
+    leaders
 }
 
 /// Maps every immediate to the first equal immediate and every argument value
