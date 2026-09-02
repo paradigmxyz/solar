@@ -6,7 +6,7 @@ import { isPublishedDataPath, publishedDataUrl } from './server/githubData'
 interface Env {
   CLICKHOUSE_DATABASE?: string
   CLICKHOUSE_PASSWORD?: string
-  CLICKHOUSE_URL?: string
+  CLICKHOUSE_HOST?: string
   CLICKHOUSE_USER?: string
   GITHUB_REPOSITORY?: string
   GITHUB_TOKEN?: string
@@ -19,11 +19,14 @@ const commit = /^[0-9a-f]{40}$/
 const component = /^[\w.-]+$/
 
 function clickhouseConfigured(env: Env) {
-  return Boolean(env.CLICKHOUSE_URL)
+  return Boolean(env.CLICKHOUSE_HOST)
 }
 
 async function clickhouse(env: Env, query: string) {
-  const url = new URL(env.CLICKHOUSE_URL!)
+  const host = env.CLICKHOUSE_HOST!
+  const url = new URL(
+    host.startsWith('http://') || host.startsWith('https://') ? host : `https://${host}`,
+  )
   url.searchParams.set('database', env.CLICKHOUSE_DATABASE || 'solar_perf')
   const credentials = btoa(`${env.CLICKHOUSE_USER || 'default'}:${env.CLICKHOUSE_PASSWORD || ''}`)
   const response = await fetch(url, {

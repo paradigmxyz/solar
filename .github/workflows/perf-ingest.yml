@@ -43,7 +43,7 @@ jobs:
       - name: Create ClickHouse schema
         working-directory: perf
         env:
-          CLICKHOUSE_URL: ${{ secrets.CLICKHOUSE_URL }}
+          CLICKHOUSE_HOST: ${{ secrets.CLICKHOUSE_HOST }}
           CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
           CLICKHOUSE_DATABASE: ${{ vars.CLICKHOUSE_DATABASE || 'solar_perf' }}
@@ -53,7 +53,7 @@ jobs:
         working-directory: perf
         env:
           GH_TOKEN: ${{ github.token }}
-          CLICKHOUSE_URL: ${{ secrets.CLICKHOUSE_URL }}
+          CLICKHOUSE_HOST: ${{ secrets.CLICKHOUSE_HOST }}
           CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
           CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
           CLICKHOUSE_DATABASE: ${{ vars.CLICKHOUSE_DATABASE || 'solar_perf' }}

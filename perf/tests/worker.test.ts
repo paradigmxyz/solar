@@ -19,7 +19,7 @@ describe('performance Worker', () => {
 
   it('reports ClickHouse when configured', async () => {
     const response = await app.request('http://perf.test/api/health', undefined, {
-      CLICKHOUSE_URL: 'https://clickhouse.example',
+      CLICKHOUSE_HOST: 'clickhouse.example',
     })
 
     await expect(response.json()).resolves.toMatchObject({ source: 'clickhouse' })

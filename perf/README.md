@@ -24,7 +24,7 @@ keeps the immutable `gh-pages` archive as a local-development fallback. Start it
 VITE_PERF_API_URL=http://127.0.0.1:8787 pnpm dev
 ```
 
-Set the following Worker secrets with Wrangler: `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, and
+Set the following Worker secrets with Wrangler: `CLICKHOUSE_HOST`, `CLICKHOUSE_USER`, and
 `CLICKHOUSE_PASSWORD`. `CLICKHOUSE_DATABASE` defaults to `solar_perf`. `GITHUB_TOKEN`,
 `GITHUB_REPOSITORY`, and `PERF_DATA_REF` only configure the static fallback.
 
@@ -35,7 +35,8 @@ normalized compiler metrics and compressed artifact contents. The normalizer acc
 result schema and older aliases (`id`/`name`, top-level compiler objects, camelCase metrics), so old
 runs remain queryable even when benchmark sets change.
 
-Set `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, and `CLICKHOUSE_PASSWORD`, then create the schema:
+Set `CLICKHOUSE_HOST`, `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USER`, and `CLICKHOUSE_PASSWORD`, then
+create the schema. `CLICKHOUSE_HOST` accepts a bare HTTPS host or a full URL for local ClickHouse:
 
 ```bash
 pnpm db:schema

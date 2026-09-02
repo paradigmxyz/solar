@@ -1,8 +1,8 @@
 function config() {
-  const url = process.env.CLICKHOUSE_URL
-  if (!url) throw new Error('Missing CLICKHOUSE_URL')
+  const host = process.env.CLICKHOUSE_HOST
+  if (!host) throw new Error('Missing CLICKHOUSE_HOST')
   return {
-    url,
+    url: host.startsWith('http://') || host.startsWith('https://') ? host : `https://${host}`,
     database: process.env.CLICKHOUSE_DATABASE || 'solar_perf',
     user: process.env.CLICKHOUSE_USER || 'default',
     password: process.env.CLICKHOUSE_PASSWORD || '',
