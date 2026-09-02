@@ -156,3 +156,16 @@ No intentional divergences documented yet.
   and EIP-170 parity for the rest of the corpus.
 - Coverage: `cargo tq foundry-external seaport`; the exact exemptions live in
   `SEAPORT_CODE_SIZE_SKIPS` in `tools/tester/src/foundry/external.rs`.
+
+### CODEGEN-005: Narrow storage array indexes are cleaned
+
+- ID: CODEGEN-005
+- Status: intentional
+- Difference: When assembly assigns dirty upper bits to a narrow integer used
+  as a storage-array index, `solar` cleans the value before the bounds check.
+  `solc` uses the raw word, so `uint8(0x101)` indexes out of bounds instead of
+  selecting index `1`. Memory-array indexes are cleaned by both compilers.
+- Rationale: typed storage indexing converts its index to the array's word
+  index type before checking bounds. This preserves the normal implicit
+  conversion rule for narrow values.
+- Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`.
