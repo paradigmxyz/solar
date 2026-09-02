@@ -47,8 +47,8 @@ fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] 
     v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v35 = address
     v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<2>, v34, 0, v36
     v37 = internal_call @load_storage_packed_array_4_2, 1, 0
+    memory_object_store_field memorystruct<2>, v34, 0, v36
     memory_object_store_field memorystruct<2>, v34, 1, v37
     v38 = memory_object_load_field memorystruct<2>, v34, 1
     v39 = memory_object_len memoryarray, v38
@@ -117,7 +117,6 @@ fn @structField() -> u256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v11 = or v8, v10
     sstore 4, v11 !metadata(storage=slot(4))
     v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v12, 0, 1
     v13 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v14 = sload 4 !metadata(storage=slot(4))
     v15 = and v14, 0xffffffffffffffff
@@ -128,6 +127,7 @@ fn @structField() -> u256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     v19 = and v18, 0xffffffffffffffff
     v20 = and v19, 0xffffffffffffffff
     memory_object_store_field memorystruct<2>, v13, 1, v20
+    memory_object_store_field memorystruct<2>, v12, 0, 1
     memory_object_store_field memorystruct<2>, v12, 1, v13
     v21 = memory_object_load_field memorystruct<2>, v12, 1
     v22 = memory_object_load_field memorystruct<2>, v21, 0
@@ -190,7 +190,6 @@ fn @fixedField() -> u256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
     v8 = add 1, 2
     sstore v8, 33 !metadata(storage=slot(3))
     v9 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v9, 0, 2
     v10 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
     jump bb5
   bb5:
@@ -198,6 +197,7 @@ fn @fixedField() -> u256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
     v12 = lt v11, 3
     jumpi v12, bb6, bb7
   bb7:
+    memory_object_store_field memorystruct<2>, v9, 0, 2
     memory_object_store_field memorystruct<2>, v9, 1, v10
     v16 = memory_object_load_field memorystruct<2>, v9, 1
     v17 = lt 0, 3

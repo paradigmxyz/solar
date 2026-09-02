@@ -244,8 +244,8 @@ fn @replace(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0xcde693
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and arg0, 255
-    memory_object_store_field memorystruct<3>, v0, 0, v1
     v2 = and arg1, 255
+    memory_object_store_field memorystruct<3>, v0, 0, v1
     memory_object_store_field memorystruct<3>, v0, 1, v2
     memory_object_store_field memorystruct<3>, v0, 2, arg2
     v3 = memory_object_load_field memorystruct<3>, v0, 0

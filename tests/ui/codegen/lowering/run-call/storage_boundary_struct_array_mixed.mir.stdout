@@ -353,7 +353,6 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v16 = lt v15, 1
     jumpi v16, bb7, bb9
   bb9:
-    memory_object_store_field memorystruct<5>, v8, 0, v15
     v17 = mul v4, 5
     v18 = iszero 5
     v19 = div v17, 5
@@ -368,7 +367,6 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb11:
     v25 = and v23, 0xffffffffffffffffffffffffffffffff
     v26 = and v25, 0xffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v8, 1, v26
     v27 = mul v4, 5
     v28 = iszero 5
     v29 = div v27, 5
@@ -383,7 +381,6 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb13:
     v35 = and v33, 0xffffffffffffffff
     v36 = and v35, 0xffffffffffffffff
-    memory_object_store_field memorystruct<5>, v8, 2, v36
     v37 = mul v4, 5
     v38 = iszero 5
     v39 = div v37, 5
@@ -397,9 +394,12 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     jumpi v44, bb7, bb15
   bb15:
     v45 = shl 0, v43
-    memory_object_store_field memorystruct<5>, v8, 3, v45
     v46 = eq 1, 0
     v47 = iszero v46
+    memory_object_store_field memorystruct<5>, v8, 0, v15
+    memory_object_store_field memorystruct<5>, v8, 1, v26
+    memory_object_store_field memorystruct<5>, v8, 2, v36
+    memory_object_store_field memorystruct<5>, v8, 3, v45
     memory_object_store_field memorystruct<5>, v8, 4, v47
     v48 = lt 0, 1
     v49 = iszero v48

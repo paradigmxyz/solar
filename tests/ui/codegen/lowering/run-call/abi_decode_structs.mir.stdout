@@ -229,11 +229,11 @@ fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, a
     memory_object_store_field memorystruct<3>, v0, 1, v2
     memory_object_store_field memorystruct<3>, v0, 2, 96
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v3, 0, 7
     v4 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v3, 1, v4
     v5 = eq 1, 0
     v6 = iszero v5
+    memory_object_store_field memorystruct<3>, v3, 0, 7
+    memory_object_store_field memorystruct<3>, v3, 1, v4
     memory_object_store_field memorystruct<3>, v3, 2, v6
     memory_object_store_field memorystruct<3>, v0, 0, v3
     v7 = memory_object_load_field memorystruct<3>, v0, 1

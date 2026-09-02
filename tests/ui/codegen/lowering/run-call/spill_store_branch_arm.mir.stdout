@@ -456,21 +456,21 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v1 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v0, 0, v1
     v2 = and 2, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v0, 1, v2
     v3 = and 0xbb8, 0xffffff
-    memory_object_store_field memorystruct<5>, v0, 2, v3
     v4 = signextend 2, 60
-    memory_object_store_field memorystruct<5>, v0, 3, v4
     v5 = and 3, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<5>, v0, 0, v1
+    memory_object_store_field memorystruct<5>, v0, 1, v2
+    memory_object_store_field memorystruct<5>, v0, 2, v3
+    memory_object_store_field memorystruct<5>, v0, 3, v4
     memory_object_store_field memorystruct<5>, v0, 4, v5
     v6 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v7 = eq 1, 0
     v8 = iszero v7
+    v9 = and 99, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<3>, v6, 0, v8
     memory_object_store_field memorystruct<3>, v6, 1, 101
-    v9 = and 99, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<3>, v6, 2, v9
     v10 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v10, 4

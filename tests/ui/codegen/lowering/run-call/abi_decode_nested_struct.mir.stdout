@@ -4,37 +4,37 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
   bb0:
     v0 = alloc memorystruct<6>, exact, uninitialized, infallible, 192
     v1 = and 0x7fa9385be102ac3eac297483dd6233d62b3e1496, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<6>, v0, 0, v1
     v2 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v3 = and 0x15cf58144ef33af1e14b5208015d11f9143e27b9, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v2, 0, v3
     v4 = and 0x212224d2f2d262cd093ee13240ca4873fccbba3c, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v2, 1, v4
     v5 = and 0xbb8, 0xffffff
-    memory_object_store_field memorystruct<5>, v2, 2, v5
     v6 = signextend 2, 60
-    memory_object_store_field memorystruct<5>, v2, 3, v6
     v7 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<5>, v2, 0, v3
+    memory_object_store_field memorystruct<5>, v2, 1, v4
+    memory_object_store_field memorystruct<5>, v2, 2, v5
+    memory_object_store_field memorystruct<5>, v2, 3, v6
     memory_object_store_field memorystruct<5>, v2, 4, v7
-    memory_object_store_field memorystruct<6>, v0, 1, v2
     v8 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v9 = sub 0, 120
     v10 = signextend 2, v9
-    memory_object_store_field memorystruct<4>, v8, 0, v10
     v11 = signextend 2, 120
+    memory_object_store_field memorystruct<4>, v8, 0, v10
     memory_object_store_field memorystruct<4>, v8, 1, v11
     memory_object_store_field memorystruct<4>, v8, 2, 0xde0b6b3a7640000
     memory_object_store_field memorystruct<4>, v8, 3, 0
-    memory_object_store_field memorystruct<6>, v0, 2, v8
     v12 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v12, 0
     v13 = memory_object_data memorybytes, v12
-    memory_object_store_field memorystruct<6>, v0, 3, v12
     v14 = eq 0, 0
     v15 = iszero v14
-    memory_object_store_field memorystruct<6>, v0, 4, v15
     v16 = eq 0, 0
     v17 = iszero v16
+    memory_object_store_field memorystruct<6>, v0, 0, v1
+    memory_object_store_field memorystruct<6>, v0, 1, v2
+    memory_object_store_field memorystruct<6>, v0, 2, v8
+    memory_object_store_field memorystruct<6>, v0, 3, v12
+    memory_object_store_field memorystruct<6>, v0, 4, v15
     memory_object_store_field memorystruct<6>, v0, 5, v17
     v18 = abi_encode [tuple<word<u160>, tuple<word<u160>, word<u160>, word<u24>, word<i24>, word<u160>>, tuple<word<i24>, word<i24>, word, word>, memory_bytes, word<bool>, word<bool>>], object, args v0
     v19 = abi_decode [tuple<address, tuple<address, address, u24, i24, address>, tuple<i24, i24, i256, bytes32>, bytes, bool, bool>], v18
@@ -203,24 +203,24 @@ fn @outer() -> u256 [selector=0x87c3dbb6, view, abi_params=[], abi_returns=[word
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v1 = and 0x7fa9385be102ac3eac297483dd6233d62b3e1496, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<4>, v0, 0, v1
     v2 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v3 = and 0x15cf58144ef33af1e14b5208015d11f9143e27b9, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v2, 0, v3
     v4 = and 0x212224d2f2d262cd093ee13240ca4873fccbba3c, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v2, 1, v4
     v5 = and 0xbb8, 0xffffff
-    memory_object_store_field memorystruct<5>, v2, 2, v5
     v6 = signextend 2, 60
-    memory_object_store_field memorystruct<5>, v2, 3, v6
     v7 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<5>, v2, 0, v3
+    memory_object_store_field memorystruct<5>, v2, 1, v4
+    memory_object_store_field memorystruct<5>, v2, 2, v5
+    memory_object_store_field memorystruct<5>, v2, 3, v6
     memory_object_store_field memorystruct<5>, v2, 4, v7
-    memory_object_store_field memorystruct<4>, v0, 1, v2
     v8 = sub 0, 120
-    memory_object_store_field memorystruct<4>, v0, 2, v8
     v9 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v9, 0
     v10 = memory_object_data memorybytes, v9
+    memory_object_store_field memorystruct<4>, v0, 0, v1
+    memory_object_store_field memorystruct<4>, v0, 1, v2
+    memory_object_store_field memorystruct<4>, v0, 2, v8
     memory_object_store_field memorystruct<4>, v0, 3, v9
     v11 = memory_object_load_field memorystruct<4>, v0, 1
     v12 = keccak256 v11, 160
@@ -316,20 +316,20 @@ fn @run() -> u256 [selector=0xc0406226, view, abi_params=[], abi_returns=[word]]
   bb0:
     v0 = alloc memorystruct<5>, exact, uninitialized, infallible, 160
     v1 = and 0x15cf58144ef33af1e14b5208015d11f9143e27b9, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v0, 0, v1
     v2 = and 0x212224d2f2d262cd093ee13240ca4873fccbba3c, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<5>, v0, 1, v2
     v3 = and 0xbb8, 0xffffff
-    memory_object_store_field memorystruct<5>, v0, 2, v3
     v4 = signextend 2, 60
-    memory_object_store_field memorystruct<5>, v0, 3, v4
     v5 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<5>, v0, 0, v1
+    memory_object_store_field memorystruct<5>, v0, 1, v2
+    memory_object_store_field memorystruct<5>, v0, 2, v3
+    memory_object_store_field memorystruct<5>, v0, 3, v4
     memory_object_store_field memorystruct<5>, v0, 4, v5
     v6 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     v7 = sub 0, 120
     v8 = signextend 2, v7
-    memory_object_store_field memorystruct<4>, v6, 0, v8
     v9 = signextend 2, 120
+    memory_object_store_field memorystruct<4>, v6, 0, v8
     memory_object_store_field memorystruct<4>, v6, 1, v9
     memory_object_store_field memorystruct<4>, v6, 2, 0xde0b6b3a7640000
     memory_object_store_field memorystruct<4>, v6, 3, 0

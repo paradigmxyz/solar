@@ -16,31 +16,47 @@ fn @pushStr() [selector=0xe6e6accc] {
     jumpi v12, bb3, bb5
   bb5:
     v13 = calldataload v8
-    v15 = sub v5, v9
-    v16 = gt v13, v15
-    jumpi v16, bb3, bb6
-  bb6:
-    v17 = add v13, 63
-    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v20 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v26 = add v20, v19
-    mstore 64, v26 !metadata(memory=scratch)
-    mstore v20, v13
-    v23 = add v20, 32
-    calldatacopy v23, v9, v13
+    v15 = add v13, 63
+    v16 = lt v15, v13
+    jumpi v16, bb6, bb7
+  bb7:
+    v18 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v27 = add v19, v18
+    v28 = lt v27, v19
+    v29 = gt v27, 0xffffffffffffffff
+    v30 = or v28, v29
+    jumpi v30, bb10, bb9
+  bb9:
+    mstore 64, v27 !metadata(memory=scratch)
+    mstore v19, v13
+    v20 = sub v5, v9
+    v21 = gt v13, v20
+    jumpi v21, bb3, bb8
+  bb8:
+    v24 = add v19, 32
+    calldatacopy v24, v9, v13
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = add v0, 1
     v2 = lt v1, v0
     jumpi v2, bb1, bb2
   bb2:
     mstore 0, 0 !metadata(memory=scratch)
-    v22 = keccak256 0, 32 !metadata(memory=scratch)
-    v4 = add v22, v0
-    internal_call @store_storage_bytes, 0, v4, v20
+    v23 = keccak256 0, 32 !metadata(memory=scratch)
+    v4 = add v23, v0
+    internal_call @store_storage_bytes, 0, v4, v19
     sstore 0, v1 !metadata(storage=slot(0))
     stop
   bb1:
     tail_call @revert_stub.7
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
   bb3:
     revert 0, 0
 }

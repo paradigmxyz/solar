@@ -6,7 +6,6 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memoryarray, v0, 3
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v2 = and 0, 0xffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v1, 0, v2
     v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v4 = and 1, 0xffffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<3, 1>, v3, 0, v4
@@ -14,9 +13,10 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     memory_object_store_element memoryfixedarray<3, 1>, v3, 1, v5
     v6 = and 3, 0xffffffffffffffffffffffffffffffff
     memory_object_store_element memoryfixedarray<3, 1>, v3, 2, v6
-    memory_object_store_field memorystruct<3>, v1, 1, v3
     v7 = alloc memoryarray<1>, exact, zeroed, panic, 128
     set_memory_object_len memoryarray, v7, 3
+    memory_object_store_field memorystruct<3>, v1, 0, v2
+    memory_object_store_field memorystruct<3>, v1, 1, v3
     memory_object_store_field memorystruct<3>, v1, 2, v7
     v8 = memory_object_len memoryarray, v0
     v9 = lt 1, v8

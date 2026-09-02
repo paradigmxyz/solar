@@ -144,12 +144,12 @@ fn @structMember() -> (u256, bool) [selector=0x9f2d7231, view, abi_params=[], ab
     set_memory_object_len memoryarray, v0, 1
     v1 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v2 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<3>, v1, 0, v2
-    memory_object_store_field memorystruct<3>, v1, 1, 2
     v3 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v3, 3
     v4 = memory_object_data memorybytes, v3
     mstore v4, 0xabcdef0000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<3>, v1, 0, v2
+    memory_object_store_field memorystruct<3>, v1, 1, 2
     memory_object_store_field memorystruct<3>, v1, 2, v3
     v5 = memory_object_len memoryarray, v0
     v6 = lt 0, v5

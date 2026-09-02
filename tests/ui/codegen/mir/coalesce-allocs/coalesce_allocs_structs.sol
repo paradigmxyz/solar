@@ -22,8 +22,8 @@ contract CoalesceAllocsFixture {
     // CHECK-LABEL: fn @combine
     // CHECK: [[OUTER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 96
     // CHECK: [[FIRST:v[0-9]+]] = mload 64
+    // CHECK: [[SECOND:v[0-9]+]] = add [[FIRST]], 64
     // CHECK: mstore [[OUTER]], [[FIRST]]
-    // CHECK: [[SECOND:v[0-9]+]] = mload 64
     // CHECK: mstore {{v[0-9]+}}, [[SECOND]]
     // CHECK: returndata
     function combine(uint256 x) public pure returns (uint256) {

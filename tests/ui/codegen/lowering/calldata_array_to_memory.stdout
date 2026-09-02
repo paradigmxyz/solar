@@ -360,7 +360,7 @@ bb24:
   mload
   jump bb52
 bb33:
-  push 512
+  push 544
   push 64
   mstore
   push 100
@@ -373,7 +373,7 @@ bb33:
   push 4
   dup 2
   add
-  push 160
+  push 192
   mstore
   push 36
   dup 2
@@ -395,7 +395,7 @@ bb33:
   pop
   push bb6
   jumpi
-  push 160
+  push 192
   mload
   calldataload
   dup 1
@@ -449,42 +449,34 @@ bb33:
   pop
   push bb6
   jumpi
-  push 416
-  dup 1
-  push 192
-  mstore
-  push 4
-  calldataload
-  dup 2
+  push 448
+  push 160
   mstore
   push 320
   mload
   push 5
   shl
   dup 1
-  push 160
+  push 192
   mstore
   push 5
   shr
   push 320
   mload
-  eq
-  swap 1
-  pop
-  iszero
+  sub
   push bb50
   jumpi
   push 288
   mload
   calldatasize
   sub
-  push 160
+  push 192
   mload
   sgt
   push bb6
   jumpi
   push 32
-  push 160
+  push 192
   mload
   add
   dup 1
@@ -512,27 +504,12 @@ bb33:
   push 32
   dup 2
   add
-  push 160
+  push 192
   mload
   push 288
   mload
   dup 3
   calldatacopy
-  pop
-  push 32
-  push 192
-  mload
-  add
-  dup 1
-  push 160
-  mstore
-  dup 2
-  dup 1
-  push 384
-  mstore
-  dup 2
-  mstore
-  swap 1
   pop
   push 0
   not
@@ -564,7 +541,7 @@ bb33:
   push 64
   mload
   dup 1
-  push 384
+  push 416
   mstore
   swap 1
   dup 2
@@ -585,35 +562,46 @@ bb33:
   dup 3
   calldatacopy
   pop
-  push 64
-  push 192
+  push 4
+  calldataload
+  push 160
+  mload
+  mstore
+  push 32
+  push 160
   mload
   add
-  dup 1
-  push 256
-  mstore
-  dup 2
-  dup 1
   push 384
+  mload
+  dup 2
+  mstore
+  push 64
+  push 160
+  mload
+  add
+  dup 1
+  push 256
+  mstore
+  dup 3
+  dup 1
+  push 416
   mstore
   dup 2
   mstore
-  swap 1
+  swap 2
   pop
-  push 192
-  mload
-  mload
-  push 192
-  mstore
   push 160
   mload
+  mload
+  push 160
+  mstore
   mload
   mload
   push 10
   dup 2
   mul
   dup 1
-  push 160
+  push 192
   mstore
   push 10
   dup 2
@@ -627,15 +615,15 @@ bb33:
   iszero
   push bb51
   jumpi
-  push 160
-  mload
   push 192
+  mload
+  push 160
   mload
   add
   dup 1
-  push 160
-  mstore
   push 192
+  mstore
+  push 160
   mload
   gt
   push bb51
@@ -648,7 +636,7 @@ bb33:
   dup 2
   mul
   dup 1
-  push 192
+  push 160
   mstore
   push 100
   dup 2
@@ -661,20 +649,20 @@ bb33:
   iszero
   push bb51
   jumpi
-  push 192
-  mload
   push 160
+  mload
+  push 192
   mload
   add
   dup 1
-  push 192
-  mstore
   push 160
+  mstore
+  push 192
   mload
   gt
   push bb51
   jumpi
-  push 192
+  push 160
   mload
   jump bb52
 bb22 [cold]:

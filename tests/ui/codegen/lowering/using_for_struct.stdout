@@ -6,8 +6,8 @@
 fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [selector=0x36245213, pure, abi_params=[bytes32, bytes32], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
-    memory_object_store_field memorystruct<4>, v0, 0, arg0
     v1 = and 0, 0xffffffff
+    memory_object_store_field memorystruct<4>, v0, 0, arg0
     memory_object_store_field memorystruct<4>, v0, 1, v1
     memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, arg1

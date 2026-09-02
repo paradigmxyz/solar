@@ -5,11 +5,11 @@ fn @structArray(arg0: u256) -> memoryarray [selector=0x0f634b74, pure, abi_param
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
     v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v1, 0, arg0
     v2 = add arg0, 1
     v3 = lt v2, arg0
     jumpi v3, bb1, bb2
   bb2:
+    memory_object_store_field memorystruct<2>, v1, 0, arg0
     memory_object_store_field memorystruct<2>, v1, 1, v2
     v4 = memory_object_len memoryarray, v0
     v5 = lt 0, v4

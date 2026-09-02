@@ -21,12 +21,12 @@ fn @build(arg0: u256) -> memorystruct [selector=0x77fc2b19, pure, abi_params=[u2
     v9 = lt v8, v7
     jumpi v9, bb4, bb6
   bb6:
-    memory_object_store_field memorystruct<2>, v6, 0, v8
     v10 = memory_object_load_field memorystruct<2>, v5, 1
     v11 = add v10, 1
     v12 = lt v11, v10
     jumpi v12, bb4, bb7
   bb7:
+    memory_object_store_field memorystruct<2>, v6, 0, v8
     memory_object_store_field memorystruct<2>, v6, 1, v11
     ret v6
   bb4:

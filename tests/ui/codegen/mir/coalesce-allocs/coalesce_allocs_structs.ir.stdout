@@ -9,18 +9,16 @@ fn @combine() [selector=0xd9171e32, pure] {
   bb5:
     v0 = alloc raw, exact, uninitialized, infallible, 96 !metadata(deferred_alloc)
     v1 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v23 = add v1, 64
+    v23 = add v1, 128
     mstore 64, v23 !metadata(memory=scratch)
     mstore v1, arg0
     v17 = add v1, 32
     mstore v17, 1
-    mstore v0, v1
-    v2 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v24 = add v2, 64
-    mstore 64, v24 !metadata(memory=scratch)
+    v2 = add v1, 64
     mstore v2, 2
     v18 = add v2, 32
     mstore v18, arg0
+    mstore v0, v1
     v19 = add v0, 32
     mstore v19, v2
     v20 = add v0, 64

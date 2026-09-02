@@ -189,7 +189,6 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v15 = lt v14, v8
     jumpi v15, bb7, bb9
   bb9:
-    memory_object_store_field memorystruct<3>, v7, 0, v14
     v16 = mul v3, 3
     v17 = iszero 3
     v18 = div v16, 3
@@ -202,7 +201,6 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v23 = lt v22, v16
     jumpi v23, bb7, bb11
   bb11:
-    memory_object_store_field memorystruct<3>, v7, 1, v22
     v24 = mul v3, 3
     v25 = iszero 3
     v26 = div v24, 3
@@ -215,6 +213,8 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v31 = lt v30, v24
     jumpi v31, bb7, bb13
   bb13:
+    memory_object_store_field memorystruct<3>, v7, 0, v14
+    memory_object_store_field memorystruct<3>, v7, 1, v22
     memory_object_store_field memorystruct<3>, v7, 2, v30
     v32 = lt 0, 1
     v33 = iszero v32

@@ -12,10 +12,10 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=
     sstore 0, v1 !metadata(storage=slot(0))
     v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v6 = and 1, 255
-    memory_object_store_field memorystruct<3>, v5, 0, v6
     v7 = and 2, 0xffff
-    memory_object_store_field memorystruct<3>, v5, 1, v7
     v8 = and 3, 255
+    memory_object_store_field memorystruct<3>, v5, 0, v6
+    memory_object_store_field memorystruct<3>, v5, 1, v7
     memory_object_store_field memorystruct<3>, v5, 2, v8
     v9 = sload 0 !metadata(storage=slot(0))
     v10 = lt 0, v9
@@ -59,10 +59,10 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=
     sstore 0, v37 !metadata(storage=slot(0))
     v41 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v42 = and 4, 255
-    memory_object_store_field memorystruct<3>, v41, 0, v42
     v43 = and 5, 0xffff
-    memory_object_store_field memorystruct<3>, v41, 1, v43
     v44 = and 6, 255
+    memory_object_store_field memorystruct<3>, v41, 0, v42
+    memory_object_store_field memorystruct<3>, v41, 1, v43
     memory_object_store_field memorystruct<3>, v41, 2, v44
     v45 = sload 0 !metadata(storage=slot(0))
     v46 = lt 1, v45
@@ -185,10 +185,10 @@ fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_par
     sstore 0, v1 !metadata(storage=slot(0))
     v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v6 = and 1, 255
-    memory_object_store_field memorystruct<3>, v5, 0, v6
     v7 = and 2, 0xffff
-    memory_object_store_field memorystruct<3>, v5, 1, v7
     v8 = and 3, 255
+    memory_object_store_field memorystruct<3>, v5, 0, v6
+    memory_object_store_field memorystruct<3>, v5, 1, v7
     memory_object_store_field memorystruct<3>, v5, 2, v8
     v9 = sload 0 !metadata(storage=slot(0))
     v10 = lt 0, v9
@@ -232,10 +232,10 @@ fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_par
     sstore 0, v37 !metadata(storage=slot(0))
     v41 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v42 = and 4, 255
-    memory_object_store_field memorystruct<3>, v41, 0, v42
     v43 = and 5, 0xffff
-    memory_object_store_field memorystruct<3>, v41, 1, v43
     v44 = and 6, 255
+    memory_object_store_field memorystruct<3>, v41, 0, v42
+    memory_object_store_field memorystruct<3>, v41, 1, v43
     memory_object_store_field memorystruct<3>, v41, 2, v44
     v45 = sload 0 !metadata(storage=slot(0))
     v46 = lt 1, v45
@@ -350,10 +350,10 @@ fn @clearMapping() -> (u8, u16, u8) [selector=0xf644c4b0, abi_params=[], abi_ret
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and 4, 255
-    memory_object_store_field memorystruct<3>, v0, 0, v1
     v2 = and 5, 0xffff
-    memory_object_store_field memorystruct<3>, v0, 1, v2
     v3 = and 6, 255
+    memory_object_store_field memorystruct<3>, v0, 0, v1
+    memory_object_store_field memorystruct<3>, v0, 1, v2
     memory_object_store_field memorystruct<3>, v0, 2, v3
     v4 = mapping_slot 1, 1
     v5 = memory_object_load_field memorystruct<3>, v0, 0
@@ -401,10 +401,10 @@ fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v1 = and 4, 255
-    memory_object_store_field memorystruct<3>, v0, 0, v1
     v2 = and 0x5566, 0xffff
-    memory_object_store_field memorystruct<3>, v0, 1, v2
     v3 = and 7, 255
+    memory_object_store_field memorystruct<3>, v0, 0, v1
+    memory_object_store_field memorystruct<3>, v0, 1, v2
     memory_object_store_field memorystruct<3>, v0, 2, v3
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = add v4, 1
