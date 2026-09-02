@@ -12,7 +12,8 @@ contract ConstructorAbiValidation {
     bool public second;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: and arg0, 255
+    // CHECK: eq arg0, 0
+    // CHECK: iszero
     // CHECK: memory_object_load_element memoryfixedarray<2, 1>, arg1, 1
     // CHECK: sstore 0,
     constructor(bool flag_, bool[2] memory flags) {

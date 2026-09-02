@@ -37,7 +37,8 @@ contract StorageCheckedArithmetic {
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot [[KEY]], 1
     // CHECK: [[WORD:v[0-9]+]] = sload [[SLOT]]
     // CHECK: [[OLD:v[0-9]+]] = and [[WORD]], 0xffffffffffffffffffffffffffffffff
-    // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], arg1
+    // CHECK: [[AMOUNT:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffff
+    // CHECK: [[NEW:v[0-9]+]] = add [[OLD]], [[AMOUNT]]
     // CHECK: gt [[NEW]], 0xffffffffffffffffffffffffffffffff
     // CHECK: sload {{v[0-9]+}}
     // CHECK: not 0xffffffffffffffffffffffffffffffff
@@ -56,7 +57,8 @@ contract StorageCheckedArithmetic {
     // CHECK: [[SHIFTED:v[0-9]+]] = shr 128, [[WORD]]
     // CHECK: [[RAW:v[0-9]+]] = and [[SHIFTED]], 255
     // CHECK: [[OLD:v[0-9]+]] = signextend 0, [[RAW]]
-    // CHECK: [[NEW:v[0-9]+]] = sub [[OLD]], arg1
+    // CHECK: [[AMOUNT:v[0-9]+]] = signextend 0, arg1
+    // CHECK: [[NEW:v[0-9]+]] = sub [[OLD]], [[AMOUNT]]
     // CHECK: slt [[NEW]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
     // CHECK: sgt [[NEW]], 127
     // CHECK: sload {{v[0-9]+}}

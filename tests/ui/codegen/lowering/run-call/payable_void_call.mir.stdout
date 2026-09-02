@@ -9,7 +9,8 @@ fn @stored() -> u256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[wor
 fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params=[address, u256], abi_returns=[]] {
   bb0:
     v0 = caller
-    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v0, arg0, arg1
+    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v0, v1, arg1
     sstore 0, arg1 !metadata(storage=slot(0))
     stop
 }
@@ -17,19 +18,19 @@ fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===
 @module Caller
 data:
-  Callee_initcode_0: hex"34600d5760938060115f395ff35b5f5ffd5f3560e01c8063095ea7b314601c578063e582dd31146020576024565b6042565b6028565b5f5ffd5b34603e575f546080526020608001608090036080f35b5f5ffd5b60443610156084576080565b602435600435337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f5fa46024355f55005b5f5ffd5b60043560a01c1515608057604e56"
+  Callee_initcode_0: hex"34600d5760ab8060115f395ff35b5f5ffd5f3560e01c8063095ea7b314601c578063e582dd31146020576024565b6042565b6028565b5f5ffd5b34603e575f546080526020608001608090036080f35b5f5ffd5b6044361015609c576098565b73ffffffffffffffffffffffffffffffffffffffff6004351660243581337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f5fa4506024355f55005b5f5ffd5b60043560a01c1515609857604e56"
 
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 195, v1
+    v2 = and 219, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 164
+    data_copy Callee_initcode_0, v3, 188
     v4 = slice_ptr v0
-    v5 = add v3, 164
+    v5 = add v3, 188
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 164
+    v6 = create 0, v3, 188
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

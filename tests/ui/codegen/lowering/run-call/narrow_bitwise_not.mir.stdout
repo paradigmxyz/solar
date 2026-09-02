@@ -2,16 +2,18 @@
 @module NarrowBitwiseNot
 fn @notUint8(arg0: u8) -> u8 [selector=0x129f3ff5, pure, abi_params=[u8], abi_returns=[word<u8>]] {
   bb0:
-    v0 = not arg0
-    v1 = and v0, 255
-    ret v1
+    v0 = and arg0, 255
+    v1 = not v0
+    v2 = and v1, 255
+    ret v2
 }
 
 fn @notUint16(arg0: u16) -> u16 [selector=0xfec0a8c2, pure, abi_params=[u16], abi_returns=[word<u16>]] {
   bb0:
-    v0 = not arg0
-    v1 = and v0, 0xffff
-    ret v1
+    v0 = and arg0, 0xffff
+    v1 = not v0
+    v2 = and v1, 0xffff
+    ret v2
 }
 
 fn @notUint256(arg0: u256) -> u256 [selector=0x245aff7f, pure, abi_params=[u256], abi_returns=[word]] {
@@ -22,36 +24,41 @@ fn @notUint256(arg0: u256) -> u256 [selector=0x245aff7f, pure, abi_params=[u256]
 
 fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, pure, abi_params=[i8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = not arg0
-    ret v0
+    v0 = signextend 0, arg0
+    v1 = not v0
+    ret v1
 }
 
 fn @notInt16(arg0: i16) -> i16 [selector=0x5465f970, pure, abi_params=[i16], abi_returns=[word<i16>]] {
   bb0:
-    v0 = not arg0
-    ret v0
+    v0 = signextend 1, arg0
+    v1 = not v0
+    ret v1
 }
 
 fn @notBytes1(arg0: bytes1) -> bytes1 [selector=0x67681bff, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
   bb0:
-    v0 = not arg0
-    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    ret v1
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = not v0
+    v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v2
 }
 
 fn @notBytes2(arg0: bytes2) -> bytes2 [selector=0x42cc764f, pure, abi_params=[bytes2], abi_returns=[word<bytes2>]] {
   bb0:
-    v0 = not arg0
-    v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    ret v1
+    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v1 = not v0
+    v2 = and v1, 0xffff000000000000000000000000000000000000000000000000000000000000
+    ret v2
 }
 
 fn @compareBytes1(arg0: bytes1) -> bool [selector=0x2488ff80, pure, abi_params=[bytes1], abi_returns=[word<bool>]] {
   bb0:
-    v0 = shr 4, arg0
-    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v2 = eq v1, 0xf00000000000000000000000000000000000000000000000000000000000000
-    ret v2
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = shr 4, v0
+    v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v3 = eq v2, 0xf00000000000000000000000000000000000000000000000000000000000000
+    ret v3
 }
 
 fn @notBytes32(arg0: bytes32) -> bytes32 [selector=0xb683cb30, pure, abi_params=[bytes32], abi_returns=[word]] {

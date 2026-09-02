@@ -2,23 +2,26 @@
 @module NarrowSignedNegation
 fn @uncheckedI8(arg0: i8) -> i8 [selector=0x044c8cd4, pure, abi_params=[i8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = sub 0, arg0
-    v1 = signextend 0, v0
-    ret v1
+    v0 = signextend 0, arg0
+    v1 = sub 0, v0
+    v2 = signextend 0, v1
+    ret v2
 }
 
 fn @uncheckedI24(arg0: i24) -> i24 [selector=0x4882557d, pure, abi_params=[i24], abi_returns=[word<i24>]] {
   bb0:
-    v0 = sub 0, arg0
-    v1 = signextend 2, v0
-    ret v1
+    v0 = signextend 2, arg0
+    v1 = sub 0, v0
+    v2 = signextend 2, v1
+    ret v2
 }
 
 fn @uncheckedI128(arg0: i128) -> i128 [selector=0x26acb17c, pure, abi_params=[i128], abi_returns=[word<i128>]] {
   bb0:
-    v0 = sub 0, arg0
-    v1 = signextend 15, v0
-    ret v1
+    v0 = signextend 15, arg0
+    v1 = sub 0, v0
+    v2 = signextend 15, v1
+    ret v2
 }
 
 fn @uncheckedI256(arg0: i256) -> i256 [selector=0xed955fd9, pure, abi_params=[i256], abi_returns=[word]] {
@@ -29,11 +32,12 @@ fn @uncheckedI256(arg0: i256) -> i256 [selector=0xed955fd9, pure, abi_params=[i2
 
 fn @checkedI8(arg0: i8) -> i8 [selector=0x0a504be5, pure, abi_params=[i8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    jumpi v0, bb1, bb2
+    v0 = signextend 0, arg0
+    v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    jumpi v1, bb1, bb2
   bb2:
-    v1 = sub 0, arg0
-    ret v1
+    v2 = sub 0, v0
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -42,9 +46,10 @@ fn @checkedI8(arg0: i8) -> i8 [selector=0x0a504be5, pure, abi_params=[i8], abi_r
 
 fn @upcastI8(arg0: i8) -> i256 [selector=0xaf286510, pure, abi_params=[i8], abi_returns=[word]] {
   bb0:
-    v0 = sub 0, arg0
-    v1 = signextend 0, v0
-    ret v1
+    v0 = signextend 0, arg0
+    v1 = sub 0, v0
+    v2 = signextend 0, v1
+    ret v2
 }
 
 fn @internalI8(arg0: i8) -> i8 [selector=0x836b8250, pure, abi_params=[i8], abi_returns=[word<i8>]] {
@@ -55,7 +60,8 @@ fn @internalI8(arg0: i8) -> i8 [selector=0x836b8250, pure, abi_params=[i8], abi_
 
 fn @negateI8(arg0: i8) -> i8 [pure] {
   bb0:
-    v0 = sub 0, arg0
-    v1 = signextend 0, v0
-    ret v1
+    v0 = signextend 0, arg0
+    v1 = sub 0, v0
+    v2 = signextend 0, v1
+    ret v2
 }

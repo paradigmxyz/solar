@@ -64,33 +64,34 @@ fn @target() -> address [selector=0xd4b83992, view, abi_params=[], abi_returns=[
 
 fn @prepare(arg0: address, arg1: calldataslice) [selector=0xaacd9878, abi_params=[address, bytes], abi_returns=[]] {
   bb0:
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v2 = and v0, v1
-    v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v4 = or v2, v3
-    sstore 1, v4 !metadata(storage=slot(1))
-    v5 = slice_ptr arg1
-    v6 = slice_len arg1
-    v7 = gt v6, 0xffffffffffffffff
-    jumpi v7, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v3 = and v1, v2
+    v4 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = or v3, v4
+    sstore 1, v5 !metadata(storage=slot(1))
+    v6 = slice_ptr arg1
+    v7 = slice_len arg1
+    v8 = gt v7, 0xffffffffffffffff
+    jumpi v8, bb1, bb2
   bb2:
-    v8 = calldatasize
-    v9 = sub v8, v6
-    v10 = sgt v5, v9
-    jumpi v10, bb1, bb3
+    v9 = calldatasize
+    v10 = sub v9, v7
+    v11 = sgt v6, v10
+    jumpi v11, bb1, bb3
   bb3:
-    v11 = slice_len arg1
-    v12 = add v11, 63
-    v13 = lt v12, v11
-    jumpi v13, bb4, bb5
+    v12 = slice_len arg1
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    jumpi v14, bb4, bb5
   bb5:
-    v14 = not 31
-    v15 = and v12, v14
-    v16 = alloc memorybytes, exact, uninitialized, infallible, v15
-    set_memory_object_len memorybytes, v16, v11
-    memory_object_copy_from_slice memorybytes, v16, arg1
-    internal_call @store_storage_bytes, 0, 0, v16
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    memory_object_copy_from_slice memorybytes, v17, arg1
+    internal_call @store_storage_bytes, 0, 0, v17
     stop
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

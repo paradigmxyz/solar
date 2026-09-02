@@ -136,11 +136,13 @@ fn @dec(arg0: u256) -> u256 [selector=0xc20efb90, pure, abi_params=[u256], abi_r
 
 fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, pure, abi_params=[u128, u128], abi_returns=[word<u128>]] {
   bb0:
-    v0 = add arg0, arg1
-    v1 = gt v0, 0xffffffffffffffffffffffffffffffff
-    jumpi v1, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v2 = add v0, v1
+    v3 = gt v2, 0xffffffffffffffffffffffffffffffff
+    jumpi v3, bb1, bb2
   bb2:
-    ret v0
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -149,17 +151,19 @@ fn @uadd128(arg0: u128, arg1: u128) -> u128 [selector=0xb6edec74, pure, abi_para
 
 fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, pure, abi_params=[u128, u128], abi_returns=[word<u128>]] {
   bb0:
-    v0 = mul arg0, arg1
-    v1 = iszero arg1
-    v2 = div v0, arg1
-    v3 = eq v2, arg0
-    v4 = or v1, v3
-    v5 = iszero v4
-    v6 = gt v0, 0xffffffffffffffffffffffffffffffff
-    v7 = or v5, v6
-    jumpi v7, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v2 = mul v0, v1
+    v3 = iszero v1
+    v4 = div v2, v1
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = iszero v6
+    v8 = gt v2, 0xffffffffffffffffffffffffffffffff
+    v9 = or v7, v8
+    jumpi v9, bb1, bb2
   bb2:
-    ret v0
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -168,23 +172,25 @@ fn @umul128(arg0: u128, arg1: u128) -> u128 [selector=0x664cefee, pure, abi_para
 
 fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_params=[i128, i128], abi_returns=[word<i128>]] {
   bb0:
-    v0 = mul arg0, arg1
-    v1 = iszero arg1
-    v2 = sdiv v0, arg1
-    v3 = eq v2, arg0
-    v4 = or v1, v3
-    v5 = iszero v4
-    v6 = slt v0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
-    v7 = sgt v0, 0x7fffffffffffffffffffffffffffffff
-    v8 = or v6, v7
-    v9 = or v5, v8
-    v10 = eq arg0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
-    v11 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v12 = and v10, v11
-    v13 = or v9, v12
-    jumpi v13, bb1, bb2
+    v0 = signextend 15, arg0
+    v1 = signextend 15, arg1
+    v2 = mul v0, v1
+    v3 = iszero v1
+    v4 = sdiv v2, v1
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = iszero v6
+    v8 = slt v2, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+    v9 = sgt v2, 0x7fffffffffffffffffffffffffffffff
+    v10 = or v8, v9
+    v11 = or v7, v10
+    v12 = eq v0, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+    v13 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = or v11, v14
+    jumpi v15, bb1, bb2
   bb2:
-    ret v0
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -193,17 +199,19 @@ fn @smul128(arg0: i128, arg1: i128) -> i128 [selector=0xaf26a496, pure, abi_para
 
 fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, pure, abi_params=[u192, u192], abi_returns=[word<u192>]] {
   bb0:
-    v0 = mul arg0, arg1
-    v1 = iszero arg1
-    v2 = div v0, arg1
-    v3 = eq v2, arg0
-    v4 = or v1, v3
-    v5 = iszero v4
-    v6 = gt v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v7 = or v5, v6
-    jumpi v7, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = mul v0, v1
+    v3 = iszero v1
+    v4 = div v2, v1
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = iszero v6
+    v8 = gt v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v9 = or v7, v8
+    jumpi v9, bb1, bb2
   bb2:
-    ret v0
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -212,30 +220,38 @@ fn @umul192(arg0: u192, arg1: u192) -> u192 [selector=0xcf392d15, pure, abi_para
 
 fn @leftU8(arg0: u8, arg1: u8) -> u8 [selector=0xb0f599fc, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
   bb0:
-    v0 = shl arg1, arg0
-    v1 = and v0, 255
-    ret v1
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = shl v1, v0
+    v3 = and v2, 255
+    ret v3
 }
 
 fn @leftU16(arg0: u16, arg1: u8) -> u16 [selector=0x091a4010, pure, abi_params=[u16, u8], abi_returns=[word<u16>]] {
   bb0:
-    v0 = shl arg1, arg0
-    v1 = and v0, 0xffff
-    ret v1
+    v0 = and arg0, 0xffff
+    v1 = and arg1, 255
+    v2 = shl v1, v0
+    v3 = and v2, 0xffff
+    ret v3
 }
 
 fn @leftI8(arg0: i8, arg1: u8) -> i8 [selector=0xf8edc0fc, pure, abi_params=[i8, u8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = shl arg1, arg0
-    v1 = signextend 0, v0
-    ret v1
+    v0 = signextend 0, arg0
+    v1 = and arg1, 255
+    v2 = shl v1, v0
+    v3 = signextend 0, v2
+    ret v3
 }
 
 fn @leftI16(arg0: i16, arg1: u8) -> i16 [selector=0xde5140b9, pure, abi_params=[i16, u8], abi_returns=[word<i16>]] {
   bb0:
-    v0 = shl arg1, arg0
-    v1 = signextend 1, v0
-    ret v1
+    v0 = signextend 1, arg0
+    v1 = and arg1, 255
+    v2 = shl v1, v0
+    v3 = signextend 1, v2
+    ret v3
 }
 
 fn @leftU256(arg0: u256, arg1: u256) -> u256 [selector=0xb89f4ea2, pure, abi_params=[u256, u256], abi_returns=[word]] {
@@ -246,12 +262,16 @@ fn @leftU256(arg0: u256, arg1: u256) -> u256 [selector=0xb89f4ea2, pure, abi_par
 
 fn @rightU8(arg0: u8, arg1: u8) -> u8 [selector=0xf8942fcd, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
   bb0:
-    v0 = shr arg1, arg0
-    ret v0
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = shr v1, v0
+    ret v2
 }
 
 fn @rightI8(arg0: i8, arg1: u8) -> i8 [selector=0x06a33d87, pure, abi_params=[i8, u8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = sar arg1, arg0
-    ret v0
+    v0 = signextend 0, arg0
+    v1 = and arg1, 255
+    v2 = sar v1, v0
+    ret v2
 }

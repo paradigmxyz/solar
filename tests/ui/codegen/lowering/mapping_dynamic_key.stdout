@@ -11,12 +11,13 @@ fn @lookup(arg0: calldataslice) -> address [selector=0xf67187ac, view, abi_param
 fn @set(arg0: memorybytes, arg1: address) [selector=0xa815ff15, abi_params=[bytes, address], abi_returns=[]] {
   bb0:
     v0 = mapping_slot_memory arg0, 0
-    v1 = sload v0 !metadata(storage=symbolic(v0))
-    v2 = not 0xffffffffffffffffffffffffffffffffffffffff
-    v3 = and v1, v2
-    v4 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = or v3, v4
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v1 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = sload v0 !metadata(storage=symbolic(v0))
+    v3 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = and v2, v3
+    v5 = and v1, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = or v4, v5
+    sstore v0, v6 !metadata(storage=symbolic(v0))
     stop
 }
 

@@ -2,37 +2,42 @@
 @module FixedBytesLiterals
 fn @equal(arg0: bytes1) -> bool [selector=0x232bc84c, pure, abi_params=[bytes1], abi_returns=[word<bool>]] {
   bb0:
-    v0 = shl 248, 1
-    v1 = eq arg0, v0
-    ret v1
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = shl 248, 1
+    v2 = eq v0, v1
+    ret v2
 }
 
 fn @notEqual(arg0: bytes1) -> bool [selector=0x1b5e1804, pure, abi_params=[bytes1], abi_returns=[word<bool>]] {
   bb0:
-    v0 = shl 248, 1
-    v1 = eq arg0, v0
-    v2 = iszero v1
-    ret v2
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = shl 248, 1
+    v2 = eq v0, v1
+    v3 = iszero v2
+    ret v3
 }
 
 fn @lessThan(arg0: bytes1) -> bool [selector=0xbdcc11a7, pure, abi_params=[bytes1], abi_returns=[word<bool>]] {
   bb0:
-    v0 = shl 248, 128
-    v1 = lt arg0, v0
-    ret v1
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = shl 248, 128
+    v2 = lt v0, v1
+    ret v2
 }
 
 fn @bitwiseOr(arg0: bytes1) -> bytes1 [selector=0xdd057f29, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
   bb0:
-    v0 = shl 248, 1
-    v1 = or arg0, v0
-    v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    ret v2
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = shl 248, 1
+    v2 = or v0, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
 }
 
 fn @wide(arg0: bytes10) -> bool [selector=0x353c5c3d, pure, abi_params=[bytes10], abi_returns=[word<bool>]] {
   bb0:
-    v0 = shl 176, 0x102030405060708090a
-    v1 = eq arg0, v0
-    ret v1
+    v0 = and arg0, 0xffffffffffffffffffff00000000000000000000000000000000000000000000
+    v1 = shl 176, 0x102030405060708090a
+    v2 = eq v0, v1
+    ret v2
 }

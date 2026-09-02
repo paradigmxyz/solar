@@ -17,27 +17,29 @@ fn @second() -> bool [selector=0x5a8ac02d, view, abi_params=[], abi_returns=[wor
 
 fn @constructor(arg0: bool, arg1: memoryfixedarray) [constructor, abi_params=[bool, array<2, bool>]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 255
-    v2 = and v0, v1
-    v3 = and arg0, 255
-    v4 = or v2, v3
-    sstore 0, v4 !metadata(storage=slot(0))
-    v5 = lt 1, 2
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = not 255
+    v4 = and v2, v3
+    v5 = and v1, 255
+    v6 = or v4, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = lt 1, 2
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
   bb2:
-    v7 = memory_object_load_element memoryfixedarray<2, 1>, arg1, 1
-    v8 = eq v7, 0
-    v9 = iszero v8
-    v10 = shl 8, 255
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = not v10
-    v13 = and v11, v12
-    v14 = and v9, 255
-    v15 = shl 8, v14
-    v16 = or v13, v15
-    sstore 0, v16 !metadata(storage=slot(0))
+    v9 = memory_object_load_element memoryfixedarray<2, 1>, arg1, 1
+    v10 = eq v9, 0
+    v11 = iszero v10
+    v12 = shl 8, 255
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = not v12
+    v15 = and v13, v14
+    v16 = and v11, 255
+    v17 = shl 8, v16
+    v18 = or v15, v17
+    sstore 0, v18 !metadata(storage=slot(0))
     stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

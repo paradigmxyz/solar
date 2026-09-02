@@ -19,5 +19,6 @@ fn @encodeStruct() -> memorybytes [selector=0x01e941a3, pure, abi_params=[], abi
 
 fn @makeStruct() -> calldataslice [pure] {
   bb0:
-    ret 4
+    v0 = make_calldata_slice 4, 0
+    ret v0
 }

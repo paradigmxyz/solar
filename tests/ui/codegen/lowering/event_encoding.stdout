@@ -11,8 +11,9 @@ fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_params=[array<2,
 
 fn @emitAnonymous(arg0: address, arg1: u256) [selector=0xb834ce50, abi_params=[address, u256], abi_returns=[]] {
   bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, arg1 !metadata(memory=scratch)
-    log1 0, 32, arg0
+    log1 0, 32, v0
     stop
 }
 

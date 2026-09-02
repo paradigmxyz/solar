@@ -22,8 +22,10 @@ fn @add(arg0: u256) -> u256 [selector=0x1003e2d2, view, abi_params=[u256], abi_r
 
 fn @negate(arg0: bool) -> bool [selector=0xb9225c15, pure, abi_params=[bool], abi_returns=[word<bool>]] {
   bb0:
-    v0 = iszero arg0
-    ret v0
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    ret v2
 }
 
 fn @pair(arg0: u256, arg1: bool) -> (u256, bool) [selector=0xedaceefe, pure, abi_params=[u256, bool], abi_returns=[word, word<bool>]] {
@@ -32,8 +34,10 @@ fn @pair(arg0: u256, arg1: bool) -> (u256, bool) [selector=0xedaceefe, pure, abi
     v1 = lt v0, arg0
     jumpi v1, bb1, bb2
   bb2:
-    v2 = iszero arg1
-    ret v0, v2
+    v2 = eq arg1, 0
+    v3 = iszero v2
+    v4 = iszero v3
+    ret v0, v4
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

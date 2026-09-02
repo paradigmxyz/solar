@@ -13,10 +13,8 @@ fn @calc() -> u256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word]
 
 fn @avgEdge() -> u256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = exp 2, 256
-    v1 = sub v0, 1
-    v2 = internal_call @average, 1, v1, 1
-    ret v2
+    v0 = internal_call @average, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    ret v0
 }
 
 fn @negativeConstant() -> bool [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>]] {
@@ -64,6 +62,7 @@ fn @mulDivDown(arg0: u256, arg1: u256, arg2: u256) -> u256 [pure] {
 
 fn @isMinTick(arg0: i24) -> bool [pure] {
   bb0:
-    v0 = eq arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618
-    ret v0
+    v0 = signextend 2, arg0
+    v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffff27618
+    ret v1
 }

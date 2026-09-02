@@ -3,7 +3,8 @@
 
 contract FixedBytesCanonical {
     // CHECK-LABEL: fn @fromUint{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl 248, arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 255
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl 248, [[VALUE]]
     function fromUint(uint8 value) external pure returns (bytes1) {
         return bytes1(value);
     }
@@ -23,7 +24,8 @@ contract FixedBytesCanonical {
     }
 
     // CHECK-LABEL: fn @narrow{{[( ]}}
-    // CHECK: [[MASKED:v[0-9]+]] = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    // CHECK: [[MASKED:v[0-9]+]] = and [[VALUE]], 0xffff000000000000000000000000000000000000000000000000000000000000
     // CHECK: ret [[MASKED]]
     function narrow(bytes4 value) external pure returns (bytes2) {
         return bytes2(value);

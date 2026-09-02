@@ -127,52 +127,56 @@ fn @vEnum() [selector=0x5aa5e60a, pure] {
 
 fn @vWidened() [selector=0x3d71ddd7, pure] {
   bb0:
-    v0 = calldatasize
-    v1 = lt v0, 36
-    jumpi v1, bb2, bb3
+    v1 = calldatasize
+    v2 = lt v1, 36
+    jumpi v2, bb2, bb3
   bb3:
-    v2 = calldataload 4
-    v3 = shr 8, v2
-    v4 = iszero v3
-    jumpi v4, bb4, bb2
+    v3 = calldataload 4
+    v4 = shr 8, v3
+    v5 = iszero v4
+    jumpi v5, bb4, bb2
   bb4:
     jump bb1
   bb1:
-    mstore 128, arg0
-    v5 = add 128, 32
-    v6 = sub v5, 128
-    returndata 128, v6
+    v0 = and arg0, 255
+    v6 = and v0, 0xffff
+    mstore 128, v6
+    v7 = add 128, 32
+    v8 = sub v7, 128
+    returndata 128, v8
   bb2:
     revert 0, 0
 }
 
 fn @vMulti() [selector=0x403ecab4, pure] {
   bb0:
-    v3 = calldatasize
-    v4 = lt v3, 68
-    jumpi v4, bb4, bb5
+    v5 = calldatasize
+    v6 = lt v5, 68
+    jumpi v6, bb4, bb5
   bb5:
-    v5 = calldataload 4
-    v6 = shr 32, v5
-    v7 = iszero v6
-    jumpi v7, bb6, bb4
+    v7 = calldataload 4
+    v8 = shr 32, v7
+    v9 = iszero v8
+    jumpi v9, bb6, bb4
   bb6:
-    v8 = calldataload 36
-    v9 = signextend 0, v8
-    v10 = eq v8, v9
-    jumpi v10, bb7, bb4
+    v10 = calldataload 36
+    v11 = signextend 0, v10
+    v12 = eq v10, v11
+    jumpi v12, bb7, bb4
   bb7:
     jump bb1
   bb1:
-    v0 = and arg1, 255
-    v1 = add arg0, v0
-    v2 = lt v1, arg0
-    jumpi v2, bb2, bb3
+    v0 = and arg0, 0xffffffff
+    v1 = signextend 0, arg1
+    v2 = and v1, 255
+    v3 = add v0, v2
+    v4 = lt v3, v0
+    jumpi v4, bb2, bb3
   bb3:
-    mstore 128, v1
-    v11 = add 128, 32
-    v12 = sub v11, 128
-    returndata 128, v12
+    mstore 128, v3
+    v13 = add 128, 32
+    v14 = sub v13, 128
+    returndata 128, v14
   bb2:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

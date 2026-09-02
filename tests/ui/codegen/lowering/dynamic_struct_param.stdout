@@ -10,11 +10,12 @@ fn @init(arg0: calldataslice, arg1: address) -> u256 [selector=0x5c58abd8, pure,
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
-    v6 = add v2, arg1
-    v7 = gt v6, 0xffffffffffffffffffffffffffffffffffffffff
-    jumpi v7, bb3, bb4
+    v6 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = add v2, v6
+    v8 = gt v7, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v8, bb3, bb4
   bb4:
-    ret v6
+    ret v7
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

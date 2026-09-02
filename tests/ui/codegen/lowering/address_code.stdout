@@ -34,6 +34,7 @@ fn @code(arg0: address) -> memorybytes [selector=0x5b90b752, view, abi_params=[a
 
 fn @addressFromBytes20(arg0: bytes20) -> address [selector=0x247e14fa, pure, abi_params=[bytes20], abi_returns=[word<u160>]] {
   bb0:
-    v0 = shr 96, arg0
-    ret v0
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
+    v1 = shr 96, v0
+    ret v1
 }

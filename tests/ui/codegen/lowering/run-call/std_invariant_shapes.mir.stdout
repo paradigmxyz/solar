@@ -12,15 +12,16 @@ fn @targetContract(arg0: address) {
     v5 = add v3, v4
     v6 = mod v0, 1
     v7 = mul v6, 20
-    v8 = mul v7, 8
-    v9 = shl v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v10 = sload v5 !metadata(storage=symbolic(v5))
-    v11 = not v9
-    v12 = and v10, v11
-    v13 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = shl v8, v13
-    v15 = or v12, v14
-    sstore v5, v15 !metadata(storage=symbolic(v5))
+    v8 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = mul v7, 8
+    v10 = shl v9, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = sload v5 !metadata(storage=symbolic(v5))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v15 = shl v9, v14
+    v16 = or v13, v15
+    sstore v5, v16 !metadata(storage=symbolic(v5))
     sstore 0, v1 !metadata(storage=slot(0))
     stop
   bb1:

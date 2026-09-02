@@ -64,7 +64,9 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @narrow_add{{[( ]}}
-    // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
+    // CHECK: [[LHS:v[0-9]+]] = and arg0, 255
+    // CHECK: [[RHS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[SUM:v[0-9]+]] = add [[LHS]], [[RHS]]
     // CHECK: gt [[SUM]], 255
     // CHECK: mstore 4, 17
     function narrow_add(uint8 a, uint8 b) public pure returns (uint8) {

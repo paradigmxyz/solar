@@ -434,5 +434,6 @@ fn @scalarCall() -> u256 [selector=0x6c091940, view, abi_params=[], abi_returns=
 
 fn @echoScalar(arg0: u8) -> u256 [selector=0x1f3c3a7b, pure, abi_params=[u8], abi_returns=[word]] {
   bb0:
-    ret arg0
+    v0 = and arg0, 255
+    ret v0
 }

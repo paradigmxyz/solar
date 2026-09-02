@@ -100,41 +100,43 @@ fn @spow(arg0: i256, arg1: u256) -> i256 [selector=0x8c0da14f, pure, abi_params=
 
 fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
   bb0:
+    v0 = and arg0, 255
+    v1 = and arg1, 255
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb6: v14]
-    v1 = phi [bb0: arg0], [bb6: v16]
-    v2 = phi [bb0: arg1], [bb6: v15]
-    v3 = gt v2, 0
-    jumpi v3, bb2, bb3
+    v2 = phi [bb0: 1], [bb6: v16]
+    v3 = phi [bb0: v0], [bb6: v18]
+    v4 = phi [bb0: v1], [bb6: v17]
+    v5 = gt v4, 0
+    jumpi v5, bb2, bb3
   bb3:
-    ret v0
+    ret v2
   bb2:
-    v4 = and v2, 1
-    v5 = mul v0, v1
-    v6 = iszero v1
-    v7 = div v5, v1
-    v8 = eq v7, v0
-    v9 = or v6, v8
-    v10 = iszero v9
-    v11 = gt v5, 255
-    v12 = or v10, v11
-    v13 = and v4, v12
-    jumpi v13, bb4, bb5
+    v6 = and v4, 1
+    v7 = mul v2, v3
+    v8 = iszero v3
+    v9 = div v7, v3
+    v10 = eq v9, v2
+    v11 = or v8, v10
+    v12 = iszero v11
+    v13 = gt v7, 255
+    v14 = or v12, v13
+    v15 = and v6, v14
+    jumpi v15, bb4, bb5
   bb5:
-    v14 = select v4, v5, v0
-    v15 = shr 1, v2
-    v16 = mul v1, v1
-    v17 = iszero v1
-    v18 = div v16, v1
-    v19 = eq v18, v1
-    v20 = or v17, v19
-    v21 = iszero v20
-    v22 = gt v16, 255
-    v23 = or v21, v22
-    v24 = gt v15, 0
-    v25 = and v24, v23
-    jumpi v25, bb4, bb6
+    v16 = select v6, v7, v2
+    v17 = shr 1, v4
+    v18 = mul v3, v3
+    v19 = iszero v3
+    v20 = div v18, v3
+    v21 = eq v20, v3
+    v22 = or v19, v21
+    v23 = iszero v22
+    v24 = gt v18, 255
+    v25 = or v23, v24
+    v26 = gt v17, 0
+    v27 = and v26, v25
+    jumpi v27, bb4, bb6
   bb6:
     jump bb1
   bb4:
@@ -145,53 +147,55 @@ fn @upow8(arg0: u8, arg1: u8) -> u8 [selector=0x3f7ced5f, pure, abi_params=[u8, 
 
 fn @spow8(arg0: i8, arg1: u8) -> i8 [selector=0xd44642ed, pure, abi_params=[i8, u8], abi_returns=[word<i8>]] {
   bb0:
+    v0 = signextend 0, arg0
+    v1 = and arg1, 255
     jump bb1
   bb1:
-    v0 = phi [bb0: 1], [bb6: v20]
-    v1 = phi [bb0: arg0], [bb6: v22]
-    v2 = phi [bb0: arg1], [bb6: v21]
-    v3 = gt v2, 0
-    jumpi v3, bb2, bb3
+    v2 = phi [bb0: 1], [bb6: v22]
+    v3 = phi [bb0: v0], [bb6: v24]
+    v4 = phi [bb0: v1], [bb6: v23]
+    v5 = gt v4, 0
+    jumpi v5, bb2, bb3
   bb3:
-    ret v0
+    ret v2
   bb2:
-    v4 = and v2, 1
-    v5 = mul v0, v1
-    v6 = iszero v1
-    v7 = sdiv v5, v1
-    v8 = eq v7, v0
-    v9 = or v6, v8
-    v10 = iszero v9
-    v11 = slt v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v12 = sgt v5, 127
-    v13 = or v11, v12
-    v14 = or v10, v13
-    v15 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v16 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v17 = and v15, v16
-    v18 = or v14, v17
-    v19 = and v4, v18
-    jumpi v19, bb4, bb5
+    v6 = and v4, 1
+    v7 = mul v2, v3
+    v8 = iszero v3
+    v9 = sdiv v7, v3
+    v10 = eq v9, v2
+    v11 = or v8, v10
+    v12 = iszero v11
+    v13 = slt v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v14 = sgt v7, 127
+    v15 = or v13, v14
+    v16 = or v12, v15
+    v17 = eq v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v18 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v19 = and v17, v18
+    v20 = or v16, v19
+    v21 = and v6, v20
+    jumpi v21, bb4, bb5
   bb5:
-    v20 = select v4, v5, v0
-    v21 = shr 1, v2
-    v22 = mul v1, v1
-    v23 = iszero v1
-    v24 = sdiv v22, v1
-    v25 = eq v24, v1
-    v26 = or v23, v25
-    v27 = iszero v26
-    v28 = slt v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v29 = sgt v22, 127
-    v30 = or v28, v29
-    v31 = or v27, v30
-    v32 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v33 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v34 = and v32, v33
-    v35 = or v31, v34
-    v36 = gt v21, 0
-    v37 = and v36, v35
-    jumpi v37, bb4, bb6
+    v22 = select v6, v7, v2
+    v23 = shr 1, v4
+    v24 = mul v3, v3
+    v25 = iszero v3
+    v26 = sdiv v24, v3
+    v27 = eq v26, v3
+    v28 = or v25, v27
+    v29 = iszero v28
+    v30 = slt v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v31 = sgt v24, 127
+    v32 = or v30, v31
+    v33 = or v29, v32
+    v34 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v35 = eq v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v36 = and v34, v35
+    v37 = or v33, v36
+    v38 = gt v23, 0
+    v39 = and v38, v37
+    jumpi v39, bb4, bb6
   bb6:
     jump bb1
   bb4:
@@ -342,7 +346,9 @@ fn @const_neg2(arg0: u256) -> i256 [selector=0xf3adabf1, pure, abi_params=[u256]
 
 fn @unchecked_pow8(arg0: u8, arg1: u8) -> u8 [selector=0xa376b2ef, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
   bb0:
-    v0 = exp arg0, arg1
-    v1 = and v0, 255
-    ret v1
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = exp v0, v1
+    v3 = and v2, 255
+    ret v3
 }

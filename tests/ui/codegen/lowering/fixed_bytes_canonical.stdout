@@ -2,8 +2,9 @@
 @module FixedBytesCanonical
 fn @fromUint(arg0: u8) -> bytes1 [selector=0x0b5b6892, pure, abi_params=[u8], abi_returns=[word<bytes1>]] {
   bb0:
-    v0 = shl 248, arg0
-    ret v0
+    v0 = and arg0, 255
+    v1 = shl 248, v0
+    ret v1
 }
 
 fn @fromHex() -> bytes1 [selector=0x7b05e034, pure, abi_params=[], abi_returns=[word<bytes1>]] {
@@ -31,6 +32,7 @@ fn @compareElement(arg0: memorybytes) -> bool [selector=0x6c07068b, pure, abi_pa
 
 fn @narrow(arg0: bytes4) -> bytes2 [selector=0xb6234141, pure, abi_params=[bytes4], abi_returns=[word<bytes2>]] {
   bb0:
-    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    ret v0
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    ret v1
 }

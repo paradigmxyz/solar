@@ -130,11 +130,13 @@ fn @signed_neg(arg0: i256) -> i256 [selector=0x85cce915, pure, abi_params=[i256]
 
 fn @narrow_add(arg0: u8, arg1: u8) -> u8 [selector=0xeb8645e0, pure, abi_params=[u8, u8], abi_returns=[word<u8>]] {
   bb0:
-    v0 = add arg0, arg1
-    v1 = gt v0, 255
-    jumpi v1, bb1, bb2
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = add v0, v1
+    v3 = gt v2, 255
+    jumpi v3, bb1, bb2
   bb2:
-    ret v0
+    ret v2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

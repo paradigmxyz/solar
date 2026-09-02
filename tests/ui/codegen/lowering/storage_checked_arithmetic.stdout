@@ -42,16 +42,17 @@ fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_para
     v1 = mapping_slot v0, 1
     v2 = sload v1 !metadata(storage=symbolic(v1))
     v3 = and v2, 0xffffffffffffffffffffffffffffffff
-    v4 = add v3, arg1
-    v5 = gt v4, 0xffffffffffffffffffffffffffffffff
-    jumpi v5, bb1, bb2
+    v4 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v5 = add v3, v4
+    v6 = gt v5, 0xffffffffffffffffffffffffffffffff
+    jumpi v6, bb1, bb2
   bb2:
-    v6 = sload v1 !metadata(storage=symbolic(v1))
-    v7 = not 0xffffffffffffffffffffffffffffffff
-    v8 = and v6, v7
-    v9 = and v4, 0xffffffffffffffffffffffffffffffff
-    v10 = or v8, v9
-    sstore v1, v10 !metadata(storage=symbolic(v1))
+    v7 = sload v1 !metadata(storage=symbolic(v1))
+    v8 = not 0xffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v5, 0xffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore v1, v11 !metadata(storage=symbolic(v1))
     stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -67,27 +68,28 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, abi
     v3 = shr 128, v2
     v4 = and v3, 255
     v5 = signextend 0, v4
-    v6 = sub v5, arg1
-    v7 = slt v5, 0
-    v8 = slt arg1, 0
+    v6 = signextend 0, arg1
+    v7 = sub v5, v6
+    v8 = slt v5, 0
     v9 = slt v6, 0
-    v10 = xor v7, v8
-    v11 = xor v9, v7
-    v12 = and v10, v11
-    v13 = slt v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v14 = sgt v6, 127
-    v15 = or v13, v14
-    v16 = or v12, v15
-    jumpi v16, bb1, bb2
+    v10 = slt v7, 0
+    v11 = xor v8, v9
+    v12 = xor v10, v8
+    v13 = and v11, v12
+    v14 = slt v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v15 = sgt v7, 127
+    v16 = or v14, v15
+    v17 = or v13, v16
+    jumpi v17, bb1, bb2
   bb2:
-    v17 = shl 128, 255
-    v18 = sload v1 !metadata(storage=symbolic(v1))
-    v19 = not v17
-    v20 = and v18, v19
-    v21 = and v6, 255
-    v22 = shl 128, v21
-    v23 = or v20, v22
-    sstore v1, v23 !metadata(storage=symbolic(v1))
+    v18 = shl 128, 255
+    v19 = sload v1 !metadata(storage=symbolic(v1))
+    v20 = not v18
+    v21 = and v19, v20
+    v22 = and v7, 255
+    v23 = shl 128, v22
+    v24 = or v21, v23
+    sstore v1, v24 !metadata(storage=symbolic(v1))
     stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

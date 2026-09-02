@@ -3,52 +3,53 @@
 @phase evm-shaped
 fn @asValue() [selector=0x440a9300, pure] {
   bb0:
-    v1 = calldatasize
-    v2 = lt v1, 68
-    jumpi v2, bb1, bb2
+    v2 = calldatasize
+    v3 = lt v2, 68
+    jumpi v3, bb1, bb2
   bb2:
-    v3 = calldataload 4
-    v4 = shr 160, v3
-    jumpi v4, bb1, bb3
+    v4 = calldataload 4
+    v5 = shr 160, v4
+    jumpi v5, bb1, bb3
   bb3:
-    v9 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v36 = add v9, 128
-    mstore 64, v36 !metadata(memory=scratch)
-    mstore v9, 68
-    v10 = add v9, 32
-    mstore v10, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
-    v11 = add v10, 4
-    mstore v11, arg0
-    v12 = add v10, 36
-    mstore v12, arg1
-    v13 = mload 64 !metadata(memory=scratch)
-    v14 = add v13, 32
-    v15 = sub v14, v13
-    mstore v13, v15
-    v17 = iszero v9
-    v18 = iszero v17
-    v16 = mload v9
-    v19 = mul v16, v18
-    mstore v14, v19
-    v21 = add v19, 31
-    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v23 = add v13, 64
-    jumpi v22, bb4, bb5
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v37 = add v10, 128
+    mstore 64, v37 !metadata(memory=scratch)
+    mstore v10, 68
+    v11 = add v10, 32
+    mstore v11, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v12 = add v11, 4
+    mstore v12, v0
+    v13 = add v11, 36
+    mstore v13, arg1
+    v14 = mload 64 !metadata(memory=scratch)
+    v15 = add v14, 32
+    v16 = sub v15, v14
+    mstore v14, v16
+    v18 = iszero v10
+    v19 = iszero v18
+    v17 = mload v10
+    v20 = mul v17, v19
+    mstore v15, v20
+    v22 = add v20, 31
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = add v14, 64
+    jumpi v23, bb4, bb5
   bb4:
-    v25 = sub v22, 32
-    v26 = add v23, v25
-    mstore v26, 0
+    v26 = sub v23, 32
+    v27 = add v24, v26
+    mstore v27, 0
     jump bb5
   bb5:
-    v28 = add v23, v22
-    mcopy v23, v10, v19
-    v29 = sub v28, v13
-    v31 = add v29, 31
-    v33 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v34 = mload 64 !metadata(memory=scratch, effect=memory_write)
-    v37 = add v34, v33
-    mstore 64, v37 !metadata(memory=scratch)
-    returndata v34, v29
+    v29 = add v24, v23
+    mcopy v24, v11, v20
+    v30 = sub v29, v14
+    v32 = add v30, 31
+    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v38 = add v35, v34
+    mstore 64, v38 !metadata(memory=scratch)
+    returndata v35, v30
   bb1:
     revert 0, 0
 }

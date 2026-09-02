@@ -269,7 +269,15 @@ fn @readEnumArray(arg0: memoryfixedarray) -> u256 [selector=0xf8507bf5, pure, ab
 
 fn @readMode(arg0: u8) -> u256 [selector=0x1bcfbcf9, pure, abi_params=[enum<2, u8>], abi_returns=[word]] {
   bb0:
+    v0 = lt arg0, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
     ret arg0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @readNestedArray(arg0: memorystruct) -> u256 [selector=0x8a855eb4, pure, abi_params=[tuple<array<2, u256>, u8>], abi_returns=[word]] {
@@ -348,15 +356,23 @@ fn @readNestedBytes(arg0: memorystruct) -> u256 [selector=0x8516eaf9, pure, abi_
 
 fn @readMixed(arg0: u8, arg1: memorybytes) -> u256 [selector=0xa114c21b, pure, abi_params=[enum<2, u8>, bytes], abi_returns=[word]] {
   bb0:
-    v0 = memory_object_len memorybytes, arg1
-    v1 = add arg0, v0
-    v2 = lt v1, arg0
-    jumpi v2, bb1, bb2
+    v0 = lt arg0, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
   bb2:
-    ret v1
-  bb1:
+    v2 = memory_object_len memorybytes, arg1
+    v3 = add arg0, v2
+    v4 = lt v3, arg0
+    jumpi v4, bb3, bb4
+  bb4:
+    ret v3
+  bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
     revert 0, 36
 }
 

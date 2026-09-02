@@ -5,13 +5,14 @@
 @module FixedBytesLiteralBase
 fn @constructor(arg0: bytes2) [constructor, abi_params=[bytes2]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = not 0xffff
-    v2 = and v0, v1
-    v3 = shr 240, arg0
-    v4 = and v3, 0xffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 0xffff
+    v3 = and v1, v2
+    v4 = shr 240, v0
+    v5 = and v4, 0xffff
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     stop
 }
 

@@ -2,8 +2,9 @@
 @module Probe
 fn @probe(arg0: bytes4) -> u256 [selector=0x14beb1ca, pure, abi_params=[bytes4], abi_returns=[word]] {
   bb0:
-    v0 = shr 224, arg0
-    ret v0
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = shr 224, v0
+    ret v1
 }
 
 fn @constructor() [constructor] {
@@ -17,7 +18,7 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
 data:
-  Probe_initcode_0: hex"60c060405234600c576010565b5f5ffd5b605380601a5f395ff334601a575f3560e01c806314beb1ca14601657601a565b601e565b5f5ffd5b60243610156044576040565b60043560e01c6080526020608001608090036080f35b5f5ffd5b60043560201b1515604057602a56"
+  Probe_initcode_0: hex"60c060405234600c576010565b5f5ffd5b607580601a5f395ff334601a575f3560e01c806314beb1ca14601657601a565b601e565b5f5ffd5b60243610156066576062565b7fffffffff000000000000000000000000000000000000000000000000000000006004351660e01c6080526020608001608090036080f35b5f5ffd5b60043560201b1515606257602a56"
 
 immutables:
   immutableLiteral: bytes4
@@ -26,13 +27,13 @@ fn @viaExternal() -> u256 [selector=0x09338c08, abi_params=[], abi_returns=[word
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 140, v1
+    v2 = and 174, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Probe_initcode_0, v3, 109
+    data_copy Probe_initcode_0, v3, 143
     v4 = slice_ptr v0
-    v5 = add v3, 109
+    v5 = add v3, 143
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 109
+    v6 = create 0, v3, 143
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

@@ -91,5 +91,6 @@ fn @roundTrip() -> (bool, u256, u256, u256, u256, u256, u256) [selector=0x6643a6
 fn @decode.3(arg0: calldataslice) -> (bool, calldataslice) [pure] {
   bb0:
     v0 = slice_ptr arg0
-    ret 1, v0
+    v1 = make_calldata_slice v0, 0
+    ret 1, v1
 }

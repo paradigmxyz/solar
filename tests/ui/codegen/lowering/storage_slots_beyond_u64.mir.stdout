@@ -11,39 +11,40 @@ fn @roundTrip(arg0: u256, arg1: u8, arg2: u256) -> u256 [selector=0xfaa172f5, ab
     v3 = add 1, v2
     v4 = mod arg0, 32
     v5 = mul v4, 1
-    v6 = mul v5, 8
-    v7 = shl v6, 255
-    v8 = sload v3 !metadata(storage=offset(v2, 1))
-    v9 = not v7
-    v10 = and v8, v9
-    v11 = and arg1, 255
-    v12 = shl v6, v11
-    v13 = or v10, v12
-    sstore v3, v13 !metadata(storage=offset(v2, 1))
+    v6 = and arg1, 255
+    v7 = mul v5, 8
+    v8 = shl v7, 255
+    v9 = sload v3 !metadata(storage=offset(v2, 1))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = and v6, 255
+    v13 = shl v7, v12
+    v14 = or v11, v13
+    sstore v3, v14 !metadata(storage=offset(v2, 1))
     sstore 0x10800000000000000, arg2 !metadata(storage=slot(0x10800000000000000))
-    v14 = sload 0 !metadata(storage=slot(0))
-    v15 = lt arg0, 0xffffffffffffffff
-    v16 = iszero v15
-    jumpi v16, bb1, bb3
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = lt arg0, 0xffffffffffffffff
+    v17 = iszero v16
+    jumpi v17, bb1, bb3
   bb3:
-    v17 = div arg0, 32
-    v18 = add 1, v17
-    v19 = mod arg0, 32
-    v20 = mul v19, 1
-    v21 = sload v18 !metadata(storage=offset(v17, 1))
-    v22 = mul v20, 8
-    v23 = shr v22, v21
-    v24 = and v23, 255
-    v25 = add v14, v24
-    v26 = lt v25, v14
-    jumpi v26, bb4, bb5
+    v18 = div arg0, 32
+    v19 = add 1, v18
+    v20 = mod arg0, 32
+    v21 = mul v20, 1
+    v22 = sload v19 !metadata(storage=offset(v18, 1))
+    v23 = mul v21, 8
+    v24 = shr v23, v22
+    v25 = and v24, 255
+    v26 = add v15, v25
+    v27 = lt v26, v15
+    jumpi v27, bb4, bb5
   bb5:
-    v27 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
-    v28 = add v25, v27
-    v29 = lt v28, v25
-    jumpi v29, bb4, bb6
+    v28 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
+    v29 = add v26, v28
+    v30 = lt v29, v26
+    jumpi v30, bb4, bb6
   bb6:
-    ret v28
+    ret v29
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

@@ -39,7 +39,8 @@ fn @widen() -> bytes2 [selector=0x89b397d7, pure, abi_params=[], abi_returns=[wo
 
 fn @roundTrip(arg0: bytes1) -> bytes1 [selector=0xe2d2fb76, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
   bb0:
-    ret arg0
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v0
 }
 
 fn @encodeSelector(arg0: bytes4) -> bytes4 [selector=0xe234433f, pure, abi_params=[bytes4], abi_returns=[word<bytes4>]] {

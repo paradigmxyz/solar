@@ -3,7 +3,8 @@
 
 contract TypeConversion {
     // CHECK-LABEL: fn @narrowAddress{{[( ]}}
-    // CHECK: [[NARROW:v[0-9]+]] = and arg0, 0xffff
+    // CHECK: [[ADDRESS:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[NARROW:v[0-9]+]] = and [[ADDRESS]], 0xffff
     // CHECK: ret [[NARROW]]
     function narrowAddress(address asset) public pure returns (uint16) {
         return uint16(uint160(asset));
@@ -24,26 +25,30 @@ contract TypeConversion {
     }
 
     // CHECK-LABEL: fn @widenUnsigned{{[( ]}}
-    // CHECK: ret arg0
+    // CHECK: [[WIDENED:v[0-9]+]] = and arg0, 255
+    // CHECK: ret [[WIDENED]]
     function widenUnsigned(uint8 value) public pure returns (uint256) {
         return uint256(value);
     }
 
     // CHECK-LABEL: fn @widenSigned{{[( ]}}
-    // CHECK: ret arg0
+    // CHECK: [[WIDENED:v[0-9]+]] = signextend 0, arg0
+    // CHECK: ret [[WIDENED]]
     function widenSigned(int8 value) public pure returns (int256) {
         return int256(value);
     }
 
     // CHECK-LABEL: fn @reinterpretUnsigned{{[( ]}}
-    // CHECK: [[CLEAN:v[0-9]+]] = and arg0, 255
+    // CHECK: [[SIGNED:v[0-9]+]] = signextend 0, arg0
+    // CHECK: [[CLEAN:v[0-9]+]] = and [[SIGNED]], 255
     // CHECK: ret [[CLEAN]]
     function reinterpretUnsigned(int8 value) public pure returns (uint8) {
         return uint8(value);
     }
 
     // CHECK-LABEL: fn @reinterpretSigned{{[( ]}}
-    // CHECK: [[CLEAN:v[0-9]+]] = signextend 0, arg0
+    // CHECK: [[UNSIGNED:v[0-9]+]] = and arg0, 255
+    // CHECK: [[CLEAN:v[0-9]+]] = signextend 0, [[UNSIGNED]]
     // CHECK: ret [[CLEAN]]
     function reinterpretSigned(uint8 value) public pure returns (int8) {
         return int8(value);
