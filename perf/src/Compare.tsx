@@ -11,7 +11,7 @@ const metrics: Record<string, { label: string; key: string; unit: 'bytes' | 'gas
   runtimeSize: { label: 'Runtime bytes', key: 'runtime_size', unit: 'bytes' },
   creationSize: { label: 'Creation bytes', key: 'bytecode_size', unit: 'bytes' },
   compileTime: { label: 'Compile time', key: 'compile_time_seconds', unit: 'seconds' },
-  peakMemory: { label: 'Peak memory', key: 'peak_rss_bytes', unit: 'bytes' },
+  peakMemory: { label: 'Peak memory (RSS)', key: 'peak_rss_bytes', unit: 'bytes' },
 }
 
 const short = (commit: string) => commit.slice(0, 8)

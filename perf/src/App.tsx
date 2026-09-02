@@ -14,7 +14,7 @@ const charts: { metric: keyof MetricSummary; title: string; unit: string }[] = [
   { metric: 'runtimeSize', title: 'Runtime bytecode', unit: 'bytes' },
   { metric: 'creationSize', title: 'Creation bytecode', unit: 'bytes' },
   { metric: 'compileTime', title: 'Compile time', unit: 'seconds' },
-  { metric: 'peakMemory', title: 'Peak memory', unit: 'memory' },
+  { metric: 'peakMemory', title: 'Peak memory (RSS)', unit: 'memory' },
 ]
 
 function formatValue(value: number, unit: string) {
