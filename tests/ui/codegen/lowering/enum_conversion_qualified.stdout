@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:DataTypes (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:E (runtime) ===
-@module runtime
+@module E_runtime
 bb0:
   callvalue
   push bb4
@@ -45,7 +45,7 @@ bb16:
   return
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb10:
   push 4

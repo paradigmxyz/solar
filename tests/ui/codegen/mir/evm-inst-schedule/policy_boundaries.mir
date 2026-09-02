@@ -71,6 +71,25 @@ fn @shared_result_schedules_islands(arg0: u256, arg1: u256, arg2: u256, arg3: u2
     ret v9
 }
 
+// Repeated operands in one consumer need a DUP, not shared-producer pinning.
+// CHECK-LABEL: {{^[ +].*}}fn @repeated_operand_is_single_user{{[( ]}}
+// CHECK: - [[REPEATED:v[0-9]+]] = add arg0, arg1
+// CHECK-NEXT: [[UNRELATED:v[0-9]+]] = mul arg2, arg3
+// CHECK-NEXT: + [[REPEATED]] = add arg0, arg1
+// CHECK-NEXT: {{v[0-9]+}} = add [[REPEATED]], [[REPEATED]]
+fn @repeated_operand_is_single_user(
+  arg0: u256,
+  arg1: u256,
+  arg2: u256,
+  arg3: u256
+) -> u256 {
+  bb0:
+    v4 = add arg0, arg1
+    v5 = mul arg2, arg3
+    v6 = add v4, v4
+    ret v6
+}
+
 // Keep producer order when the backend can lower either comparison orientation.
 // CHECK-LABEL: {{^[ +].*}}fn @comparison_producer_order{{[( ]}}
 // CHECK-NOT: {{^[+-]}}
@@ -254,6 +273,19 @@ fn @metadata_effect_is_a_barrier(
     v9 = mul arg1, arg3
     v10 = div v8, v9
     ret v10
+}
+
+// Metadata cannot make an intrinsically effectful instruction movable.
+// CHECK-LABEL: {{^[ +].*}}fn @metadata_cannot_downgrade_effect{{[( ]}}
+// CHECK-NOT: {{^[+-]}}
+// CHECK: [[CALL:v[0-9]+]] = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
+// CHECK-NEXT: [[SIZE:v[0-9]+]] = returndatasize
+// CHECK-NEXT: ret [[CALL]], [[CALL]], [[SIZE]]
+fn @metadata_cannot_downgrade_effect() -> (bool, bool, u256) {
+  bb0:
+    v0 = staticcall 1000, 0xbeef, 0, 0, 0, 0 !metadata(effect=environment_read)
+    v1 = returndatasize
+    ret v0, v0, v1
 }
 
 // Each block starts with empty scheduling scratch state.

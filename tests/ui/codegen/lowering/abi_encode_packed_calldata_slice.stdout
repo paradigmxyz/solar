@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_calldata_slice.sol:AbiEncodePackedCalldataSlice (runtime) ===
-@module runtime
+@module AbiEncodePackedCalldataSlice_runtime
 bb0:
   callvalue
   push bb4
@@ -21,7 +21,7 @@ bb0:
   jump bb4
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb26 [cold]:
   push 0x4e487b71
@@ -46,7 +46,7 @@ bb5:
   sgt
   push bb4
   jumpi
-  push bb33
+  push bb31
   jump bb28
 bb28:
   push 36
@@ -61,7 +61,7 @@ bb28:
   calldataload
   add
   calldataload
-  push 256
+  push 224
   mstore
   push 32
   dup 2
@@ -70,7 +70,7 @@ bb28:
   dup 3
   sub
   dup 1
-  push 224
+  push 192
   mstore
   push 4
   dup 2
@@ -94,9 +94,9 @@ bb16:
   sgt
   push bb4
   jumpi
-  push bb36
+  push bb33
   jump bb28
-bb31:
+bb30:
   push bb26
   jumpi
   push 64
@@ -104,13 +104,13 @@ bb31:
   dup 1
   push 352
   mstore
-  push 256
+  push 224
   mload
   dup 2
   add
   push 64
   mstore
-  push 192
+  push 256
   mload
   dup 2
   mstore
@@ -126,9 +126,9 @@ bb31:
   push 0
   swap 1
   mstore
-  push 192
+  push 256
   mload
-  push 224
+  push 192
   mload
   dup 3
   calldatacopy
@@ -162,20 +162,32 @@ bb27:
   push 32
   push 128
   return
-bb32:
+bb31:
+  push bb4
+  jumpi
+  calldatasize
+  push 192
+  mload
+  gt
+  push 192
+  mload
+  calldatasize
+  sub
+  push 32
+  gt
+  or
   push bb4
   jumpi
   push 160
   mload
-  push 192
-  mload
+  calldatasize
   sub
-  push 256
+  push 224
   mload
   gt
   push bb4
   jumpi
-  push 256
+  push 224
   mload
   push 68
   calldataload
@@ -195,14 +207,14 @@ bb32:
   calldataload
   sub
   dup 1
-  push 192
+  push 256
   mstore
   push 36
   calldataload
   push 160
   mload
   add
-  push 224
+  push 192
   mstore
   push 31
   dup 2
@@ -213,7 +225,7 @@ bb32:
   lt
   push bb26
   jumpi
-  push bb31
+  push bb30
   jump bb29
 bb29:
   push 31
@@ -221,10 +233,9 @@ bb29:
   push 160
   mload
   and
-  dup 1
-  iszero
   push 32
-  swap 1
+  dup 2
+  iszero
   dup 3
   dup 3
   sub
@@ -239,35 +250,12 @@ bb29:
   dup 2
   add
   dup 1
-  push 256
+  push 224
   mstore
   lt
   swap 1
   jump
-bb33:
-  push bb4
-  jumpi
-  push bb32
-  jump bb30
-bb30:
-  calldatasize
-  dup 1
-  push 192
-  mstore
-  push 224
-  mload
-  gt
-  push 224
-  mload
-  push 192
-  mload
-  sub
-  push 32
-  gt
-  or
-  swap 1
-  jump
-bb34:
+bb32:
   push bb26
   jumpi
   push 64
@@ -275,13 +263,13 @@ bb34:
   dup 1
   push 320
   mstore
-  push 256
+  push 224
   mload
   dup 2
   add
   push 64
   mstore
-  push 192
+  push 256
   mload
   dup 2
   mstore
@@ -297,9 +285,9 @@ bb34:
   push 0
   swap 1
   mstore
-  push 192
+  push 256
   mload
-  push 224
+  push 192
   mload
   dup 3
   calldatacopy
@@ -335,40 +323,52 @@ bb34:
   mstore
   push 32
   jump bb27
-bb35:
+bb33:
+  push bb4
+  jumpi
+  calldatasize
+  push 192
+  mload
+  gt
+  push 192
+  mload
+  calldatasize
+  sub
+  push 32
+  gt
+  or
   push bb4
   jumpi
   push 160
   mload
-  push 192
-  mload
+  calldatasize
   sub
-  push 256
+  push 224
   mload
   gt
   push bb4
   jumpi
   push 36
   calldataload
-  push 256
+  push 224
   mload
   lt
   push bb4
   jumpi
   push 36
   calldataload
-  push 256
+  push 224
   mload
   sub
   dup 1
-  push 192
+  push 256
   mstore
   push 36
   calldataload
   push 160
   mload
   add
-  push 224
+  push 192
   mstore
   push 31
   dup 2
@@ -379,10 +379,5 @@ bb35:
   lt
   push bb26
   jumpi
-  push bb34
+  push bb32
   jump bb29
-bb36:
-  push bb4
-  jumpi
-  push bb35
-  jump bb30

@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_byte_patches.sol:ImmutableBytePatches (creation) ===
-// === deployment ===
-@module deployment
+// === ImmutableBytePatches_deployment ===
+@module ImmutableBytePatches_deployment
 bb0:
-  push 189
+  push 169
   codesize
   sub
   dup 1
-  push 189
+  push 169
   push 320
   codecopy
   push 320
@@ -53,25 +53,13 @@ bb0:
   sub
   push bb4
   jumpi
+  push 96
   push 320
-  mload
   push 192
-  mstore
-  push 320
-  push 32
-  add
-  mload
-  push 224
-  mstore
-  push 320
-  push 64
-  add
-  mload
-  push 256
-  mstore
+  mcopy
   push 51
   dup 1
-  push 138
+  push 118
   push 0
   codecopy
   push 192
@@ -92,11 +80,11 @@ bb0:
   return
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 
-// === runtime ===
-@module runtime
+// === ImmutableBytePatches_runtime ===
+@module ImmutableBytePatches_runtime
 bb0:
   callvalue
   push bb3
@@ -131,5 +119,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert

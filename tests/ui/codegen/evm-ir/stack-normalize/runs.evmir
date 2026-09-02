@@ -1,0 +1,273 @@
+//@compile-flags: -Zevm-ir-pipeline=stack-normalize
+//@filecheck:
+@module module
+
+// A long generated cleanup can be resynthesized as the one required pop.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 3
+// CHECK-NEXT: -   dup 3
+// CHECK-NEXT: -   dup 3
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop
+bb0:
+  push 1
+  push 2
+  push 3
+  dup 3
+  dup 3
+  swap 1
+  swap 2
+  pop
+  swap 2
+  pop
+  swap 2
+  pop
+  stop
+
+// Normalize a nonidentity permutation without matching its opcode sequence.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 6
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK: {{^[ +].*}}stop
+bb1:
+  push 4
+  push 5
+  push 6
+  swap 1
+  swap 2
+  swap 1
+  swap 2
+  stop
+
+// Canonical stack metadata carries the same semantics as the opcode default.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-NOT: {{^[ +].*}}swap 1
+// CHECK: {{^[ +].*}}stop
+bb2:
+  push 7
+  push 8
+  swap 1 !meta(stack=0->0)
+  swap 1
+  stop
+
+// Resynthesize multiple cycles in a larger unique permutation with minimal star swaps.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}push 15
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 4
+// CHECK-NEXT: {{^[ +].*}}swap 5
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK: {{^[ +].*}}stop
+bb3:
+  push 9
+  push 10
+  push 11
+  push 12
+  push 13
+  push 14
+  push 15
+  swap 1
+  swap 2
+  swap 1
+  swap 3
+  swap 4
+  swap 5
+  swap 3
+  swap 1
+  swap 2
+  swap 1
+  swap 2
+  swap 1
+  swap 2
+  stop
+
+// Resynthesize the cheaper equivalent stack run.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: +   dup 2
+// CHECK-NEXT: +   swap 3
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop
+bb4:
+  push 16
+  push 17
+  push 18
+  swap 2
+  pop
+  dup 1
+  swap 2
+  stop
+
+// Keep the following instruction when a cheaper lowering uses more logical stack operations.
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}push 21
+// CHECK-NEXT: {{^[ +].*}}dup 2
+// CHECK-NEXT: -   exchange 2, 3
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}add
+// CHECK-NEXT: {{^[ +].*}}stop
+bb5:
+  push 19
+  push 20
+  push 21
+  dup 2
+  exchange 2, 3
+  add
+  stop
+
+// Split a run above the search bound instead of skipping the whole run.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}push 23
+// CHECK-COUNT-24: -   swap 1
+// CHECK: {{^[ +].*}}stop
+bb6:
+  push 22
+  push 23
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  swap 1
+  stop
+
+// Normalize even when an opaque dynamic edge may carry too few words.
+bb7:
+  push 24
+  push 25
+  push 26
+  push bb8
+  push 0
+  add
+  jump
+// CHECK-LABEL: {{^[ +].*}}bb8:
+// CHECK-NEXT: -   swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}swap 1
+// CHECK-NEXT: -   swap 3
+bb8:
+  swap 3
+  swap 1
+  swap 2
+  swap 1
+  swap 3
+  stop
+
+// Shorten the SWAP/POP cleanup sequences found after generated multi-value returns.
+// CHECK-LABEL: {{^[ +].*}}bb9:
+// CHECK: {{^[ +].*}}push 32
+// CHECK-NEXT: -   swap 3
+// CHECK-NEXT: +   swap 5
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb9:
+  push 27
+  push 28
+  push 29
+  push 30
+  push 31
+  push 32
+  swap 3
+  pop
+  pop
+  pop
+  swap 2
+  pop
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb10:
+// CHECK: {{^[ +].*}}push 37
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: +   swap 4
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb10:
+  push 33
+  push 34
+  push 35
+  push 36
+  push 37
+  swap 2
+  pop
+  pop
+  swap 2
+  pop
+  stop
+
+// Normalize a seven-word cleanup without widening graph search for ordinary scheduling.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK: {{^[ +].*}}push 44
+// CHECK-NEXT: -   swap 4
+// CHECK-NEXT: +   swap 6
+// CHECK-COUNT-5: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb11:
+  push 38
+  push 39
+  push 40
+  push 41
+  push 42
+  push 43
+  push 44
+  swap 4
+  pop
+  pop
+  pop
+  pop
+  swap 2
+  pop
+  stop
+
+// Normalize the former dedicated peephole through the generic stack run path.
+// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK: {{^[ +].*}}push 48
+// CHECK-NEXT: -   swap 1
+// CHECK-NEXT: +   swap 3
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: -   swap 2
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK-NEXT: {{^[ +].*}}stop
+bb12:
+  push 45
+  push 46
+  push 47
+  push 48
+  swap 1
+  pop
+  swap 2
+  pop
+  stop

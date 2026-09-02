@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
-@module runtime
+@module Lib_runtime
 bb0:
   callvalue
   push bb3
@@ -16,7 +16,7 @@ bb0:
   jump bb3
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb10 [cold]:
   push 0x4e487b71
@@ -101,7 +101,7 @@ bb4:
   push 128
   return
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:C (runtime) ===
-@module runtime
+@module C_runtime
 bb0:
   callvalue
   push bb3
@@ -192,12 +192,12 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb9 [cold]:
   returndatasize
   push 0
-  dup 1
+  push 0
   returndatacopy
   returndatasize
   push 0

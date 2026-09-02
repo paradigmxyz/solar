@@ -20,7 +20,7 @@ contract ImmutableWidths {
         f = f_;
     }
 
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module ImmutableWidths_runtime
     // CHECK: push_immutable 0, 1
     // CHECK-NEXT: push_immutable 1, 32
     // CHECK-NEXT: push_immutable 2, 32

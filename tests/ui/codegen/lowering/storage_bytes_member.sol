@@ -84,8 +84,12 @@ contract StorageBytesMember {
     }
 
     // CHECK: [[AT]]:
-    // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
+    // CHECK: caller
+    // CHECK: push 32
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push [[AT_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump
+    // CHECK: [[AT_CONT]]:
     // CHECK: mload
     // CHECK: mload
     // CHECK: jump [[RETURN]]
@@ -107,8 +111,12 @@ contract StorageBytesMember {
     }
 
     // CHECK: [[WHOLE]]:
-    // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
+    // CHECK: caller
+    // CHECK: push 32
+    // CHECK-NEXT: mstore
+    // CHECK-NEXT: push [[WHOLE_CONT:bb[0-9]+]]
+    // CHECK-NEXT: jump
+    // CHECK: [[WHOLE_CONT]]:
     // CHECK: mcopy
     // CHECK: return
     function whole() external view returns (bytes memory) {

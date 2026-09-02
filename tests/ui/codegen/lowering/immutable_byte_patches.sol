@@ -12,7 +12,7 @@ contract ImmutableBytePatches {
         fixedBytesValue = fixedBytesValue_;
     }
 
-    // CHECK-LABEL: @module deployment
+    // CHECK-LABEL: @module ImmutableBytePatches_deployment
     // CHECK: codecopy
     // CHECK: codecopy
     // CHECK: mload

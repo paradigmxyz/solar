@@ -19,6 +19,9 @@ impl CallGraphInfo {
         let function_count = module.functions.len();
         let mut callees = FxHashMap::default();
         let mut entry_functions = DenseBitSet::new_empty(function_count);
+        if let Some(entry) = module.dispatch_entry() {
+            entry_functions.insert(entry);
+        }
 
         for (func_id, func) in module.functions.iter_enumerated() {
             if Self::is_entry_function(func) {

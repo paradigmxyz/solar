@@ -1,12 +1,12 @@
 // === ROOT/tests/ui/codegen/lowering/immutable_widths.sol:ImmutableWidths (creation) ===
-// === deployment ===
-@module deployment
+// === ImmutableWidths_deployment ===
+@module ImmutableWidths_deployment
 bb0:
-  push 440
+  push 384
   codesize
   sub
   dup 1
-  push 440
+  push 384
   push 416
   codecopy
   push 416
@@ -45,9 +45,11 @@ bb0:
   mload
   add
   mload
-  push 0xffffff
-  push 232
-  shl
+  push 0
+  not
+  push 24
+  shr
+  not
   dup 2
   and
   sub
@@ -78,43 +80,13 @@ bb0:
   sub
   push bb6
   jumpi
-  push 416
-  mload
   push 192
-  mstore
   push 416
-  push 32
-  add
-  mload
-  push 224
-  mstore
-  push 416
-  push 64
-  add
-  mload
-  push 256
-  mstore
-  push 416
-  push 96
-  add
-  mload
-  push 288
-  mstore
-  push 416
-  push 128
-  add
-  mload
-  push 320
-  mstore
-  push 416
-  push 160
-  add
-  mload
-  push 352
-  mstore
+  dup 2
+  mcopy
   push 182
   dup 1
-  push 258
+  push 202
   push 0
   codecopy
   push 192
@@ -165,11 +137,11 @@ bb0:
   return
 bb6 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 
-// === runtime ===
-@module runtime
+// === ImmutableWidths_runtime ===
+@module ImmutableWidths_runtime
 bb0:
   callvalue
   push bb3
@@ -215,5 +187,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert

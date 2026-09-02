@@ -2,14 +2,37 @@
 
 use super::Lowerer;
 use crate::{
-    backend::evm::{data_copy_cost, data_copy_is_profitable, ir::immediate_materialization_cost},
+    backend::evm::{
+        ir::immediate_materialization_cost,
+        op::{WORD_BYTES, push_len},
+    },
     memory::EvmMemoryLayout,
     mir::{FunctionBuilder, ValueId},
 };
 use alloy_primitives::{Bytes, U256};
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_interface::Symbol;
 use solar_sema::hir::ContractId;
 use std::borrow::Cow;
+
+/// Returns the encoded size and runtime gas of one program-data copy site.
+pub(crate) fn data_copy_cost(evm_version: EvmVersion, size: usize) -> (usize, usize) {
+    (push_len(evm_version, U256::from(size)) + 6, data_copy_gas(size))
+}
+
+/// Returns the runtime gas of one program-data copy site.
+pub(crate) fn data_copy_gas(size: usize) -> usize {
+    12 + 3 * size.div_ceil(WORD_BYTES)
+}
+
+/// Returns whether a program-data copy improves the selected objective.
+pub(crate) fn data_copy_is_profitable(
+    optimization: OptimizationMode,
+    runtime_gas_saving: i128,
+    byte_saving: i128,
+) -> bool {
+    if optimization.is_gas() { runtime_gas_saving > 0 && byte_saving >= 0 } else { byte_saving > 0 }
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct ContractBytecodes {

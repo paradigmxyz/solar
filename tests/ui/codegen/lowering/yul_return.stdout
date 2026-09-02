@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/yul_return.sol:R (runtime) ===
-@module runtime
+@module R_runtime
 bb0:
   callvalue
   push bb3
@@ -29,5 +29,5 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert

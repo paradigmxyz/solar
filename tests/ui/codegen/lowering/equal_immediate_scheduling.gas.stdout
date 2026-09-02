@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
-@module runtime
+@module EqualImmediateScheduling_runtime
 bb0:
   callvalue
   push bb3
@@ -37,7 +37,7 @@ bb0:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb8 [cold]:
   push 0x4e487b71
@@ -51,3 +51,56 @@ bb8 [cold]:
   push 36
   push 0
   revert
+// === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
+CALLVALUE
+PUSH1 0x39 ; bb0
+JUMPI
+PUSH0
+CALLDATALOAD
+PUSH1 0xe0
+SHR
+DUP1
+PUSH4 0xd9171e32
+SUB
+PUSH1 0x39 ; bb0
+JUMPI
+PUSH1 0x04
+CALLDATASIZE
+SUB
+PUSH1 0x20
+SGT
+PUSH1 0x39 ; bb0
+JUMPI
+PUSH1 0x04
+CALLDATALOAD
+ISZERO
+PUSH1 0x3d ; bb1
+JUMPI
+PUSH1 0x04
+CALLDATALOAD
+PUSH7 0x123456789abcde
+DUP1
+ADDMOD
+PUSH1 0x80
+MSTORE
+PUSH1 0x20
+PUSH1 0x80
+RETURN
+; bb0
+JUMPDEST
+PUSH0
+PUSH0
+REVERT
+; bb1
+JUMPDEST
+PUSH4 0x4e487b71
+PUSH1 0xe0
+SHL
+PUSH0
+MSTORE
+PUSH1 0x12
+PUSH1 0x04
+MSTORE
+PUSH1 0x24
+PUSH0
+REVERT

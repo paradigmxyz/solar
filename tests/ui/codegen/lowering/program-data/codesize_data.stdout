@@ -103,7 +103,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 // === ROOT/tests/ui/codegen/lowering/program-data/codesize_data.sol:CodeSizeData (runtime) ===
-@module runtime
+@module CodeSizeData_runtime
 bb0:
   callvalue
   push bb5
@@ -130,7 +130,7 @@ bb0:
   jump bb5
 bb5 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb6:
   push 416
@@ -158,9 +158,8 @@ bb6:
   swap 1
   mstore
   push 241
-  dup 2
   push_data literal_0
-  swap 1
+  dup 3
   codecopy
   pop
   push 64
@@ -217,6 +216,7 @@ bb11:
   iszero
   push bb13
   jumpi
+  push 0
   push 32
   push 352
   mload
@@ -224,8 +224,6 @@ bb11:
   push 384
   mload
   add
-  push 0
-  swap 1
   mstore
   jump bb13
 bb13:
@@ -272,9 +270,8 @@ bb8:
   swap 1
   mstore
   push 161
-  dup 2
   push_data literal_1
-  swap 1
+  dup 3
   codecopy
   pop
   push 64

@@ -9,7 +9,7 @@
 // Both forms preserve the caller's storage and `msg` context.
 
 library Lib {
-    // COMMON-LABEL: @module runtime
+    // COMMON-LABEL: @module Lib_runtime
     // COMMON: push 0xed2f0bb8
     // COMMON: keccak256
     // COMMON: sload
@@ -28,7 +28,7 @@ library Lib {
 contract C {
     mapping(address => uint256) bal;
 
-    // UNLINKED-LABEL: @module runtime
+    // UNLINKED-LABEL: @module C_runtime
     // UNLINKED: push 0x3dd41ca6
     // UNLINKED: keccak256
     // UNLINKED: sload
@@ -36,7 +36,7 @@ contract C {
     // UNLINKED: caller
     // UNLINKED: return
 
-    // LINKED-LABEL: @module runtime
+    // LINKED-LABEL: @module C_runtime
     // LINKED: push 0x3dd41ca6
     // LINKED: push 0xed2f0bb8
     // LINKED: mstore

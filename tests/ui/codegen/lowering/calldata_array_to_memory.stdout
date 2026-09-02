@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_array_to_memory.sol:C (runtime) ===
-@module runtime
+@module C_runtime
 bb0:
   callvalue
   push bb6
@@ -31,7 +31,7 @@ bb0:
   jump bb6
 bb6 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb49 [cold]:
   push 0x4e487b71
@@ -88,7 +88,7 @@ bb8:
   calldataload
   add
   calldataload
-  push 256
+  push 224
   mstore
   push 32
   dup 2
@@ -97,7 +97,7 @@ bb8:
   dup 3
   sub
   dup 1
-  push 224
+  push 192
   mstore
   push 4
   dup 2
@@ -111,16 +111,12 @@ bb8:
   push bb6
   jumpi
   calldatasize
-  dup 1
   push 192
-  mstore
-  push 224
   mload
   gt
-  push 224
-  mload
   push 192
   mload
+  calldatasize
   sub
   push 32
   gt
@@ -129,23 +125,22 @@ bb8:
   jumpi
   push 288
   mload
-  push 192
-  mload
+  calldatasize
   sub
   push 5
   shr
-  push 256
+  push 224
   mload
   gt
   push bb6
   jumpi
-  push 256
+  push 224
   mload
   push 251
   shr
   push bb49
   jumpi
-  push 256
+  push 224
   mload
   push 5
   shl
@@ -155,14 +150,14 @@ bb8:
   push 64
   mload
   dup 1
-  push 192
+  push 256
   mstore
   swap 1
   dup 2
   add
   push 64
   mstore
-  push 256
+  push 224
   mload
   dup 2
   mstore
@@ -184,7 +179,7 @@ bb8:
   push 0
   jump bb16
 bb16:
-  push 192
+  push 256
   mload
   mload
   dup 2
@@ -207,7 +202,7 @@ bb16:
   mload
   jump bb52
 bb18:
-  push 192
+  push 256
   mload
   mload
   dup 2
@@ -219,7 +214,7 @@ bb18:
   push bb21
   jumpi
   push 32
-  push 192
+  push 256
   mload
   add
   push 32
@@ -233,7 +228,7 @@ bb18:
   dup 2
   add
   dup 1
-  push 224
+  push 192
   mstore
   swap 1
   dup 2
@@ -291,16 +286,12 @@ bb23:
   push bb6
   jumpi
   calldatasize
-  dup 1
-  push 256
-  mstore
   push 224
   mload
   gt
   push 224
   mload
-  push 256
-  mload
+  calldatasize
   sub
   push 32
   gt
@@ -309,8 +300,7 @@ bb23:
   jumpi
   push 192
   mload
-  push 256
-  mload
+  calldatasize
   sub
   push 5
   shr
@@ -338,7 +328,7 @@ bb23:
   push 64
   mload
   dup 1
-  push 288
+  push 256
   mstore
   swap 1
   dup 2
@@ -361,11 +351,11 @@ bb23:
   swap 1
   pop
   dup 1
-  push 288
+  push 256
   mstore
   push 128
   mstore
-  push 288
+  push 256
   mload
   mload
   jump bb52
@@ -401,7 +391,7 @@ bb31:
   dup 3
   sub
   dup 1
-  push 192
+  push 160
   mstore
   push 4
   dup 2
@@ -415,16 +405,12 @@ bb31:
   push bb6
   jumpi
   calldatasize
-  dup 1
   push 160
-  mstore
-  push 192
   mload
   gt
-  push 192
-  mload
   push 160
   mload
+  calldatasize
   sub
   push 32
   gt
@@ -433,8 +419,7 @@ bb31:
   jumpi
   push 224
   mload
-  push 160
-  mload
+  calldatasize
   sub
   push 5
   shr
@@ -464,7 +449,7 @@ bb31:
   dup 3
   sub
   dup 1
-  push 192
+  push 160
   mstore
   push 4
   dup 2
@@ -477,15 +462,13 @@ bb31:
   pop
   push bb6
   jumpi
+  calldatasize
   push 160
-  mload
-  push 192
   mload
   gt
-  push 192
-  mload
   push 160
   mload
+  calldatasize
   sub
   push 32
   gt
@@ -494,8 +477,7 @@ bb31:
   jumpi
   push 320
   mload
-  push 160
-  mload
+  calldatasize
   sub
   push 288
   mload
@@ -505,7 +487,7 @@ bb31:
   push 64
   mload
   dup 1
-  push 160
+  push 192
   mstore
   push 96
   dup 2
@@ -557,11 +539,11 @@ bb31:
   swap 1
   pop
   push 32
-  push 160
+  push 192
   mload
   add
   dup 1
-  push 192
+  push 160
   mstore
   dup 2
   dup 1
@@ -590,10 +572,9 @@ bb31:
   push 224
   mload
   and
-  dup 1
-  iszero
   push 32
-  swap 1
+  dup 2
+  iszero
   dup 3
   dup 3
   sub
@@ -648,7 +629,7 @@ bb31:
   calldatacopy
   pop
   push 64
-  push 160
+  push 192
   mload
   add
   dup 1
@@ -662,12 +643,12 @@ bb31:
   mstore
   swap 1
   pop
-  push 160
-  mload
-  mload
-  push 160
-  mstore
   push 192
+  mload
+  mload
+  push 192
+  mstore
+  push 160
   mload
   mload
   mload
@@ -675,7 +656,7 @@ bb31:
   dup 2
   mul
   dup 1
-  push 192
+  push 160
   mstore
   push 10
   dup 2
@@ -689,15 +670,15 @@ bb31:
   iszero
   push bb50
   jumpi
-  push 192
-  mload
   push 160
+  mload
+  push 192
   mload
   add
   dup 1
-  push 192
-  mstore
   push 160
+  mstore
+  push 192
   mload
   gt
   push bb50
@@ -710,7 +691,7 @@ bb31:
   dup 2
   mul
   dup 1
-  push 160
+  push 192
   mstore
   push 100
   dup 2
@@ -723,20 +704,20 @@ bb31:
   iszero
   push bb50
   jumpi
-  push 160
-  mload
   push 192
+  mload
+  push 160
   mload
   add
   dup 1
-  push 160
-  mstore
   push 192
+  mstore
+  push 160
   mload
   gt
   push bb50
   jumpi
-  push 160
+  push 192
   mload
   jump bb52
 bb21 [cold]:

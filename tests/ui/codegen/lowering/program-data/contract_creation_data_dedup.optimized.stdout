@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Child (runtime) ===
-@module runtime
+@module Child_runtime
 bb0:
   callvalue
   push bb4
@@ -21,7 +21,7 @@ bb0:
   jump bb4
 bb4 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb5:
   push 7
@@ -53,9 +53,8 @@ bb6:
   push 192
   mstore
   push 128
-  dup 2
   push_data literal_0
-  swap 1
+  dup 3
   codecopy
   push 64
   mload
@@ -100,6 +99,7 @@ bb6:
   iszero
   push bb8
   jumpi
+  push 0
   push 32
   push 224
   mload
@@ -107,8 +107,6 @@ bb6:
   push 160
   mload
   add
-  push 0
-  swap 1
   mstore
   jump bb8
 bb8:
@@ -150,7 +148,7 @@ bb8:
 
 @data literal_0 hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 // === ROOT/tests/ui/codegen/lowering/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
-@module runtime
+@module Factory_runtime
 bb0:
   callvalue
   push bb5
@@ -177,18 +175,14 @@ bb0:
   jump bb5
 bb5 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb26 [cold]:
   returndatasize
   push 0
-  dup 1
+  push 0
   returndatacopy
   returndatasize
-  push 0
-  revert
-bb27 [cold]:
-  push 0
   push 0
   revert
 bb18:
@@ -199,17 +193,16 @@ bb18:
   dup 1
   push 224
   mstore
-  push 338
-  dup 2
+  push 336
   push_data Child_initcode_0
-  swap 1
+  dup 3
   codecopy
   push 352
   dup 2
   add
   push 64
   mstore
-  push 338
+  push 336
   swap 1
   push 0
   create
@@ -224,17 +217,16 @@ bb18:
   dup 1
   push 224
   mstore
-  push 338
-  dup 2
+  push 336
   push_data Child_initcode_0
-  swap 1
+  dup 3
   codecopy
   push 352
   dup 2
   add
   push 64
   mstore
-  push 338
+  push 336
   swap 1
   push 0
   create
@@ -287,17 +279,16 @@ bb30:
   dup 1
   push 224
   mstore
-  push 338
-  dup 2
+  push 336
   push_data Child_initcode_0
-  swap 1
+  dup 3
   codecopy
   push 352
   dup 2
   add
   push 64
   mstore
-  push 338
+  push 336
   swap 1
   push 0
   create
@@ -330,7 +321,7 @@ bb30:
   returndatasize
   push 32
   gt
-  push bb27
+  push bb5
   jumpi
   push 0
   mload
@@ -363,7 +354,7 @@ bb32:
   returndatasize
   push 32
   gt
-  push bb27
+  push bb5
   jumpi
   push 0
   mload
@@ -402,7 +393,7 @@ bb33:
   returndatasize
   push 32
   gt
-  push bb27
+  push bb5
   jumpi
   push 0
   mload
@@ -426,4 +417,4 @@ bb28 [cold]:
   push 0
   revert
 
-@data Child_initcode_0 hex"61014880600a5f395ff334601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f80fd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060c05260808160c89039604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a05291505015609757602060e0510360a051015f90525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data Child_initcode_0 hex"61014680600a5f395ff334601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060c68239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a052915050156095575f602060e0510360a05101525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

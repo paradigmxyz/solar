@@ -97,22 +97,139 @@
 //! for CFG policy or stable cross-block spill placement.
 
 use super::{
-    model::{MAX_STACK_ACCESS, StackModel},
+    model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel},
     shuffler::{ShuffleResult, StackShuffler, TargetSlot},
     spill::{SpillManager, SpillSlot},
 };
 use crate::{
     analysis::Liveness,
-    backend::evm::op::StackOp,
-    mir::{ArgIdx, BlockId, Function, ValueId},
+    backend::evm::{
+        ir::{ImmediateMaterialization, immediate_materialization_cost},
+        op::StackOp,
+    },
+    mir::{ArgIdx, BlockId, Function, InstKind, Value, ValueId},
 };
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
     bit_set::DenseBitSet,
+    index::index_vec,
     map::{FxHashMap, StdEntry},
 };
 use std::{cell::Cell, cmp::Ordering, collections::BinaryHeap, mem::size_of};
+
+/// Returns whether a MIR value is a calling-convention-backed rematerializable leaf.
+pub(crate) const fn is_rematerializable_leaf(value: &Value) -> bool {
+    matches!(value, Value::Immediate(_) | Value::Arg(_))
+}
+
+/// Returns the opcode for a stable nullary read that is cheaper to re-emit than preserve.
+pub(crate) const fn rematerializable_nullary_opcode(kind: &InstKind) -> Option<u8> {
+    if matches!(
+        kind,
+        InstKind::CalldataSize
+            | InstKind::CodeSize
+            | InstKind::Caller
+            | InstKind::CallValue
+            | InstKind::Address
+            | InstKind::Origin
+            | InstKind::GasPrice
+            | InstKind::Coinbase
+            | InstKind::Timestamp
+            | InstKind::BlockNumber
+            | InstKind::PrevRandao
+            | InstKind::GasLimit
+            | InstKind::SlotNum
+            | InstKind::ChainId
+            | InstKind::BaseFee
+            | InstKind::BlobBaseFee
+    ) {
+        kind.evm_opcode()
+    } else {
+        None
+    }
+}
+
+/// Returns the opcode for a stable nullary MIR value that is cheaper to re-emit than preserve.
+pub(crate) fn rematerializable_nullary_value(func: &Function, value: ValueId) -> Option<u8> {
+    let Value::Inst(inst_id) = func.value(value) else { return None };
+    rematerializable_nullary_opcode(&func.inst(*inst_id).kind)
+}
+
+/// Returns whether an instruction result can be cheaply rebuilt from stable operands.
+const fn is_cheap_recomputable_kind(kind: &InstKind) -> bool {
+    matches!(
+        kind,
+        InstKind::Add(_, _)
+            | InstKind::Sub(_, _)
+            | InstKind::Mul(_, _)
+            | InstKind::And(_, _)
+            | InstKind::Or(_, _)
+            | InstKind::Xor(_, _)
+            | InstKind::Shl(_, _)
+            | InstKind::Shr(_, _)
+            | InstKind::Sar(_, _)
+            | InstKind::ConstructorArgsBase
+    )
+}
+
+/// Returns whether an instruction result is cheap enough to rebuild from its operands.
+pub(crate) fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
+    let Value::Inst(inst_id) = func.value(value) else { return false };
+    is_cheap_recomputable_kind(&func.inst(*inst_id).kind)
+}
+
+/// Returns whether an instruction result can be rebuilt across basic blocks.
+pub(crate) const fn is_cross_block_recomputable_kind(kind: &InstKind) -> bool {
+    is_cheap_recomputable_kind(kind)
+        || rematerializable_nullary_opcode(kind).is_some()
+        || matches!(kind, InstKind::CalldataLoad(_) | InstKind::InternalFrameAddr(_))
+}
+
+/// Computes values that can be rebuilt across blocks from leaves available under the active
+/// calling convention.
+pub(crate) fn cross_block_values(
+    func: &Function,
+    leaf_is_available: impl Fn(ValueId) -> bool,
+) -> DenseBitSet<ValueId> {
+    let mut users = index_vec![SmallVec::<[ValueId; 2]>::new(); func.num_values()];
+    let mut remaining = index_vec![usize::MAX; func.num_values()];
+
+    let mut recomputable = DenseBitSet::new_empty(func.num_values());
+    let mut worklist = Vec::new();
+    for value in func.live_values() {
+        if is_rematerializable_leaf(func.value(value))
+            && leaf_is_available(value)
+            && recomputable.insert(value)
+        {
+            worklist.push(value);
+        }
+    }
+    for inst_id in func.instructions() {
+        let Some(result) = func.inst_result_value(inst_id) else { continue };
+        if !is_cross_block_recomputable_kind(&func.inst(inst_id).kind) {
+            continue;
+        }
+        let operands = func.inst(inst_id).kind.operands();
+        remaining[result] = operands.len();
+        if operands.is_empty() && recomputable.insert(result) {
+            worklist.push(result);
+        }
+        for operand in operands {
+            users[operand].push(result);
+        }
+    }
+
+    while let Some(value) = worklist.pop() {
+        for &user in &users[value] {
+            remaining[user] -= 1;
+            if remaining[user] == 0 && recomputable.insert(user) {
+                worklist.push(user);
+            }
+        }
+    }
+    recomputable
+}
 
 const MAX_OPERAND_SEARCH_EXPANSIONS: usize = 1024;
 const MAX_OPERAND_SEARCH_FUNCTION_EXPANSIONS: usize = 8 * MAX_OPERAND_SEARCH_EXPANSIONS;
@@ -152,12 +269,14 @@ pub(crate) struct StackScheduler {
 }
 
 /// A scheduled operation to emit.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ScheduledOp {
     /// Stack manipulation (DUP, SWAP, POP).
     Stack(StackOp),
     /// Push an immediate value.
     PushImmediate(alloy_primitives::U256),
+    /// Re-emit a stable nullary read.
+    RematerializeNullary(u8),
     /// Load a spilled value from memory.
     LoadSpill(SpillSlot),
     /// Load a function argument through the active calling convention.
@@ -166,21 +285,70 @@ pub(crate) enum ScheduledOp {
     LoadArg(ArgIdx),
 }
 
+impl ScheduledOp {
+    fn stack_peak_growth(&self, cost_model: OperandCostModel, evm_version: EvmVersion) -> usize {
+        match self {
+            Self::PushImmediate(value) => {
+                ImmediateMaterialization::new(evm_version, *value).stack_peak()
+            }
+            Self::Stack(StackOp::Dup(_)) | Self::RematerializeNullary(_) => 1,
+            Self::LoadSpill(_) => usize::from(cost_model.spill_load_stack_growth),
+            Self::LoadArg(_) => usize::from(cost_model.arg_load_stack_growth),
+            Self::Stack(_) => 0,
+        }
+    }
+
+    fn net_stack_growth(&self) -> isize {
+        match self {
+            Self::Stack(op) => op.net_growth(),
+            Self::PushImmediate(_)
+            | Self::RematerializeNullary(_)
+            | Self::LoadSpill(_)
+            | Self::LoadArg(_) => 1,
+        }
+    }
+}
+
 /// Cost of materializing a spill or argument under the active frame convention.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OperandCostModel {
     load_static_gas: u32,
     load_encoded_bytes: u32,
+    spill_load_stack_growth: u8,
+    arg_load_stack_growth: u8,
 }
 
 impl OperandCostModel {
     /// A context-independent estimate for a direct address push followed by `MLOAD` or
     /// `CALLDATALOAD`.
-    pub(crate) const DIRECT: Self = Self { load_static_gas: 6, load_encoded_bytes: 4 };
+    pub(crate) const DIRECT: Self = Self {
+        load_static_gas: 6,
+        load_encoded_bytes: 4,
+        spill_load_stack_growth: 1,
+        arg_load_stack_growth: 1,
+    };
 
     /// A context-independent estimate for a frame-pointer load, offset addition, and final value
     /// load.
-    pub(crate) const DYNAMIC_FRAME: Self = Self { load_static_gas: 15, load_encoded_bytes: 7 };
+    pub(crate) const DYNAMIC_FRAME: Self = Self {
+        load_static_gas: 15,
+        load_encoded_bytes: 7,
+        spill_load_stack_growth: 2,
+        arg_load_stack_growth: 2,
+    };
+
+    /// Direct spill addressing with constructor arguments based on a deferred code offset.
+    pub(crate) const CONSTRUCTOR: Self = Self {
+        load_static_gas: 6,
+        load_encoded_bytes: 4,
+        spill_load_stack_growth: 1,
+        arg_load_stack_growth: 2,
+    };
+
+    fn needs_headroom(self, stack_depth: usize) -> bool {
+        let growth = self.spill_load_stack_growth.max(self.arg_load_stack_growth).max(1);
+        stack_depth.saturating_add(usize::from(growth)) > MAX_STACK_DEPTH
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -288,14 +456,8 @@ impl ScheduleCost {
         Self { static_gas: 1, encoded_bytes: 1, actions: 1 }
     }
 
-    /// Estimated cost of duplicating a resident value and storing it through
-    /// the active spill-address convention.
-    pub(crate) fn spill_store(cost_model: OperandCostModel) -> Self {
-        Self {
-            static_gas: cost_model.load_static_gas.saturating_add(3),
-            encoded_bytes: cost_model.load_encoded_bytes.saturating_add(1),
-            actions: 2,
-        }
+    fn of_op(op: &ScheduledOp, evm_version: EvmVersion, cost_model: OperandCostModel) -> Self {
+        Self::default().with_op(op, evm_version, cost_model)
     }
 
     fn with_op(
@@ -309,15 +471,10 @@ impl ScheduleCost {
         }
         let (static_gas, encoded_bytes) = match op {
             ScheduledOp::PushImmediate(value) => {
-                if value.is_zero() && evm_version.has_push0() {
-                    (2, 1)
-                } else {
-                    let bytes = value.to_be_bytes::<32>();
-                    let immediate_bytes =
-                        bytes.iter().position(|&byte| byte != 0).map_or(1, |i| 32 - i);
-                    (3, (immediate_bytes + 1) as u32)
-                }
+                let (bytes, gas) = immediate_materialization_cost(evm_version, *value);
+                (gas as u32, bytes as u32)
             }
+            ScheduledOp::RematerializeNullary(_) => (2, 1),
             ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
                 (cost_model.load_static_gas, cost_model.load_encoded_bytes)
             }
@@ -348,7 +505,7 @@ impl ScheduleCost {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct PlannedAction {
     op: ScheduledOp,
     pushed: Option<ValueId>,
@@ -541,6 +698,23 @@ impl Ord for QueueEntry {
 }
 
 impl StackScheduler {
+    /// Records the physical high-water mark of scheduled macro operations.
+    pub(crate) fn observe_scheduled_ops_peak(
+        &mut self,
+        mut depth: usize,
+        ops: &[ScheduledOp],
+        cost_model: OperandCostModel,
+    ) -> usize {
+        let mut peak = depth;
+        for op in ops {
+            peak =
+                peak.max(depth.saturating_add(op.stack_peak_growth(cost_model, self.evm_version)));
+            depth = depth.saturating_add_signed(op.net_stack_growth());
+        }
+        self.stack.observe_peak(peak);
+        peak
+    }
+
     /// Creates a new stack scheduler.
     #[cfg(test)]
     #[must_use]
@@ -562,6 +736,17 @@ impl StackScheduler {
         }
     }
 
+    /// Clears per-function state while retaining its backing allocations.
+    pub(crate) fn reset(&mut self) {
+        self.stack.reset();
+        self.spills.clear();
+        self.stack_only_values.clear_to(0);
+        self.ops.clear();
+        self.operand_search_budget.set(OperandSearchBudget::default());
+        #[cfg(test)]
+        self.operand_search_stats.set(OperandSearchStats::default());
+    }
+
     fn max_stack_access(&self) -> usize {
         self.evm_version.reachable_stack_depth()
     }
@@ -575,10 +760,10 @@ impl StackScheduler {
     ) {
         let mut values = values.into_iter();
         let Some(first) = values.next() else {
-            self.stack_only_values = DenseBitSet::new_empty(0);
+            self.stack_only_values.clear_to(0);
             return;
         };
-        self.stack_only_values = DenseBitSet::new_empty(domain_size);
+        self.stack_only_values.clear_to(domain_size);
         self.stack_only_values.insert(first);
         for value in values {
             self.stack_only_values.insert(value);
@@ -624,83 +809,88 @@ impl StackScheduler {
         let evm_version = self.evm_version;
 
         let goal = operands.iter().rev().copied().collect::<SmallVec<[_; 8]>>();
+        let validate = |plan: Option<OperandPlan>| {
+            plan.and_then(|plan| {
+                self.validate_operand_plan(plan, &goal, preserved, func, cost_model)
+            })
+        };
         if Self::operand_goal_reached_direct(self.stack.as_slice(), &goal, preserved) {
             let plan =
                 OperandPlan { actions: PlannedActions::new(), cost: ScheduleCost::default() };
-            return self.validate_operand_plan(plan, &goal, preserved, func);
+            return validate(Some(plan));
         }
-        if let Some(plan) = self.try_single_resident_operand_plan(
+        if let Some(plan) = validate(self.try_single_resident_operand_plan(
             operands,
             preserved,
             func,
             evm_version,
             cost_model,
-        ) {
-            return self.validate_operand_plan(plan, &goal, preserved, func);
+        )) {
+            return Some(plan);
         }
-        if let Some(plan) = self.try_direct_materialization_operand_plan(
+        if let Some(plan) = validate(self.try_direct_materialization_operand_plan(
             operands,
             preserved,
             func,
             evm_version,
             cost_model,
-        ) {
-            return self.validate_operand_plan(plan, &goal, preserved, func);
+        )) {
+            return Some(plan);
         }
-        if let Some(plan) = self.try_preserved_operand_copy_plan(
+        if let Some(plan) = validate(self.try_preserved_operand_copy_plan(
             operands,
             preserved,
             func,
             optimization,
             evm_version,
             cost_model,
-        ) {
-            return self.validate_operand_plan(plan, &goal, preserved, func);
+        )) {
+            return Some(plan);
         }
-        if let Some(plan) = self.try_resident_nary_plan(
+        if let Some(plan) = validate(self.try_resident_nary_plan(
             &goal,
             preserved,
             func,
             optimization,
             evm_version,
             cost_model,
-        ) {
-            return self.validate_operand_plan(plan, &goal, preserved, func);
+        )) {
+            return Some(plan);
         }
-        if let Some(plan) = self.try_preserved_resident_binary_plan(
+        if let Some(plan) = validate(self.try_preserved_resident_binary_plan(
             operands,
             preserved,
             func,
             optimization,
             evm_version,
             cost_model,
-        ) {
-            return self.validate_operand_plan(plan, &goal, preserved, func);
+        )) {
+            return Some(plan);
         }
         // Size mode keeps the established search tie-breaking because equal local costs can leave
         // residual stacks with different cleanup costs after the instruction.
         if matches!(optimization, OptimizationMode::Gas) {
-            if let Some(plan) = self.try_single_action_operand_plan(
+            if let Some(plan) = validate(self.try_single_action_operand_plan(
                 &goal,
                 preserved,
                 func,
                 optimization,
                 evm_version,
                 cost_model,
-            ) {
-                return self.validate_operand_plan(plan, &goal, preserved, func);
+            )) {
+                return Some(plan);
             }
             if let [value] = operands
-                && let Some(plan) = self.try_unary_operand_plan(
+                && let Some(plan) = validate(self.try_unary_operand_plan(
                     *value,
                     preserved.contains(value),
                     func,
                     optimization,
                     evm_version,
                     cost_model,
-                )
+                ))
             {
-                return self.validate_operand_plan(plan, &goal, preserved, func);
+                return Some(plan);
             }
         }
 
@@ -713,28 +903,29 @@ impl StackScheduler {
             *required_counts.entry(value).or_default() += 1;
         }
         let stack = self.stack.as_slice();
+        let max_stack_access = self.max_stack_access();
+        let mut stack_counts = FxHashMap::<_, (usize, usize)>::default();
+        for (depth, &slot) in stack.iter().enumerate() {
+            if let Some(value) = slot {
+                let (total, reachable) = stack_counts.entry(value).or_default();
+                *total += 1;
+                *reachable += usize::from(depth <= max_stack_access);
+            }
+        }
         let inaccessible_required = required_counts.keys().any(|&value| {
             self.materialize_operand(value, func).is_none()
-                && !stack.iter().take(MAX_STACK_ACCESS + 1).any(|&slot| slot == Some(value))
+                && stack_counts.get(&value).is_none_or(|&(_, reachable)| reachable == 0)
         });
         let inaccessible_dead_copy = goal.iter().any(|&value| {
             !preserve_counts.contains_key(&value)
-                && stack.iter().skip(MAX_STACK_ACCESS + 1).any(|&slot| slot == Some(value))
+                && stack_counts.get(&value).is_some_and(|&(total, reachable)| total > reachable)
         });
-        let removable_accessible_surplus =
-            stack.iter().take(MAX_STACK_ACCESS + 1).filter_map(|&slot| slot).any(|value| {
-                let required = required_counts.get(&value).copied().unwrap_or_default();
-                let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-                current > required
-                    && stack
-                        .iter()
-                        .take(MAX_STACK_ACCESS + 1)
-                        .filter(|&&slot| slot == Some(value))
-                        .count()
-                        > 1
+        let inaccessible_dead_copy_is_removable = inaccessible_dead_copy
+            && matches!(optimization, OptimizationMode::Gas)
+            && stack_counts.iter().any(|(value, &(current, reachable))| {
+                let required = required_counts.get(value).copied().unwrap_or_default();
+                current > required && reachable > 1
             });
-        let inaccessible_dead_copy_is_removable =
-            matches!(optimization, OptimizationMode::Gas) && removable_accessible_surplus;
         if inaccessible_required || (inaccessible_dead_copy && !inaccessible_dead_copy_is_removable)
         {
             #[cfg(test)]
@@ -758,10 +949,13 @@ impl StackScheduler {
             evm_version,
             cost_model,
         };
-        if let Some(plan) =
-            self.try_goal_directed_operand_plan(start.clone(), &goal, &preserve_counts, context)
-        {
-            return self.validate_operand_plan(plan, &goal, preserved, func);
+        if let Some(plan) = validate(self.try_goal_directed_operand_plan(
+            start.clone(),
+            &goal,
+            &preserve_counts,
+            context,
+        )) {
+            return Some(plan);
         }
 
         let budget = self.operand_search_budget.get();
@@ -824,8 +1018,10 @@ impl StackScheduler {
                     limit_hit,
                     skipped_by_function_budget: false,
                 });
-                self.finish_operand_search(expansions, false);
-                return self.validate_operand_plan(plan, &goal, preserved, func);
+                if let Some(plan) = validate(Some(plan)) {
+                    self.finish_operand_search(expansions, false);
+                    return Some(plan);
+                }
             }
             if expansions >= expansion_limit {
                 limit_hit = true;
@@ -935,10 +1131,18 @@ impl StackScheduler {
         goal: &[ValueId],
         preserved: &[ValueId],
         func: &Function,
+        cost_model: OperandCostModel,
     ) -> Option<OperandPlan> {
         let plan = plan.fold_exchanges(self.evm_version);
         let mut stack = self.stack.clone();
         for action in &plan.actions {
+            if stack
+                .depth()
+                .checked_add(action.op.stack_peak_growth(cost_model, self.evm_version))?
+                > MAX_STACK_DEPTH
+            {
+                return None;
+            }
             match action.op {
                 ScheduledOp::Stack(StackOp::Swap(depth)) => {
                     if !(1..=self.max_stack_access()).contains(&usize::from(depth))
@@ -974,6 +1178,7 @@ impl StackScheduler {
                     stack.pop();
                 }
                 ScheduledOp::PushImmediate(_)
+                | ScheduledOp::RematerializeNullary(_)
                 | ScheduledOp::LoadSpill(_)
                 | ScheduledOp::LoadArg(_) => {
                     let pushed = action.pushed?;
@@ -1031,7 +1236,14 @@ impl StackScheduler {
         let max_stack_access = self.max_stack_access();
         let mut best = None;
         let mut consider = |op: ScheduledOp, pushed| {
-            let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
+            if stack
+                .len()
+                .checked_add(op.stack_peak_growth(cost_model, evm_version))
+                .is_none_or(|depth| depth > MAX_STACK_DEPTH)
+            {
+                return;
+            }
+            let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
             let plan =
                 OperandPlan { actions: smallvec::smallvec![PlannedAction { op, pushed }], cost };
             if best
@@ -1094,13 +1306,19 @@ impl StackScheduler {
                 if i == 0 { Some(expected_top) } else { stack[i - 1] }
             });
         if prepend_reaches_goal && let Some(depth) = duplicate {
-            consider(ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)), Some(expected_top));
+            consider(
+                self.copy_or_duplicate(expected_top, func, (depth + 1) as u8),
+                Some(expected_top),
+            );
         }
 
-        if prepend_reaches_goal && let Some(op @ ScheduledOp::PushImmediate(_)) = materialized {
+        if prepend_reaches_goal && let Some(op) = materialized {
             let accessible =
                 stack.iter().take(max_stack_access).any(|&slot| slot == Some(expected_top));
-            if matches!(optimization, OptimizationMode::Gas) || !accessible {
+            if matches!(optimization, OptimizationMode::Gas)
+                || !accessible
+                || matches!(op, ScheduledOp::RematerializeNullary(_))
+            {
                 consider(op, Some(expected_top));
             }
         }
@@ -1229,17 +1447,14 @@ impl StackScheduler {
             if depth >= self.max_stack_access() {
                 return None;
             }
-            let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-            let op = self
-                .materialize_operand(value, func)
-                .filter(|materialize| {
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
-                    let materialize_cost =
-                        ScheduleCost::default().with_op(materialize, evm_version, cost_model);
-                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                })
-                .unwrap_or(duplicate);
+            let op = self.copy_or_materialize(
+                value,
+                func,
+                (depth + 1) as u8,
+                optimization,
+                evm_version,
+                cost_model,
+            );
             cost = cost.with_op(&op, evm_version, cost_model);
             actions.push(PlannedAction { op, pushed: Some(value) });
             stack.insert(0, Some(value));
@@ -1283,15 +1498,14 @@ impl StackScheduler {
         if preserved.is_some() && !retain_first {
             return None;
         }
-        let first_op = ScheduledOp::Stack(if top == first {
-            StackOp::Dup(1)
+        let first_op = if top == first {
+            self.copy_or_duplicate(first, func, 1)
         } else {
-            StackOp::Swap((goal.len() - 1) as u8)
-        });
+            ScheduledOp::Stack(StackOp::Swap((goal.len() - 1) as u8))
+        };
         if self.materialize_operand(first, func).is_some_and(|materialize| {
-            let resident_cost = ScheduleCost::default().with_op(&first_op, evm_version, cost_model);
-            let materialize_cost =
-                ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+            let resident_cost = ScheduleCost::of_op(&first_op, evm_version, cost_model);
+            let materialize_cost = ScheduleCost::of_op(&materialize, evm_version, cost_model);
             materialize_cost.cmp_for(resident_cost, optimization).is_lt()
         }) {
             return None;
@@ -1305,7 +1519,7 @@ impl StackScheduler {
         };
 
         if top == first && second == penultimate && retain_first {
-            push(ScheduledOp::Stack(StackOp::Dup(1)), Some(first));
+            push(self.copy_or_duplicate(first, func, 1), Some(first));
             push(ScheduledOp::Stack(StackOp::Swap(2)), None);
             for &value in goal[1..goal.len() - 2].iter().rev() {
                 push(self.materialize_operand(value, func)?, Some(value));
@@ -1320,7 +1534,7 @@ impl StackScheduler {
             for &value in goal[1..goal.len() - 2].iter().rev() {
                 push(self.materialize_operand(value, func)?, Some(value));
             }
-            push(ScheduledOp::Stack(StackOp::Dup(goal.len() as u8)), Some(first));
+            push(self.copy_or_duplicate(first, func, goal.len() as u8), Some(first));
         } else if top == penultimate && second == first && preserved.is_none() {
             for &value in goal[1..goal.len() - 2].iter().rev() {
                 push(self.materialize_operand(value, func)?, Some(value));
@@ -1365,16 +1579,14 @@ impl StackScheduler {
         }
 
         let copy_resident = |depth: usize| {
-            let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-            self.materialize_operand(resident, func)
-                .filter(|materialize| {
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
-                    let materialize_cost =
-                        ScheduleCost::default().with_op(materialize, evm_version, cost_model);
-                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                })
-                .unwrap_or(duplicate)
+            self.copy_or_materialize(
+                resident,
+                func,
+                (depth + 1) as u8,
+                optimization,
+                evm_version,
+                cost_model,
+            )
         };
 
         let mut ops = SmallVec::<[(ScheduledOp, Option<ValueId>); 3]>::new();
@@ -1445,7 +1657,7 @@ impl StackScheduler {
                 add_candidate(
                     1,
                     smallvec::smallvec![PlannedAction {
-                        op: ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8)),
+                        op: self.copy_or_duplicate(value, func, (depth + 1) as u8),
                         pushed: Some(value),
                     }],
                 );
@@ -1476,7 +1688,7 @@ impl StackScheduler {
                             pushed: None,
                         },
                         PlannedAction {
-                            op: ScheduledOp::Stack(StackOp::Dup(1)),
+                            op: self.copy_or_duplicate(value, func, 1),
                             pushed: Some(value),
                         }
                     ],
@@ -1488,18 +1700,18 @@ impl StackScheduler {
             && let Some(materialize) = self.materialize_operand(value, func)
         {
             let mut actions =
-                smallvec::smallvec![PlannedAction { op: materialize.clone(), pushed: Some(value) }];
+                smallvec::smallvec![PlannedAction { op: materialize, pushed: Some(value) }];
             if preserve && copies == 0 {
                 let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
-                let duplicate_cost =
-                    ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
-                let materialize_cost =
-                    ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
-                let op = if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
-                    materialize
-                } else {
-                    duplicate
-                };
+                let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
+                let materialize_cost = ScheduleCost::of_op(&materialize, evm_version, cost_model);
+                let op = self.preferred_copy_materialization(value, func).unwrap_or_else(|| {
+                    if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
+                        materialize
+                    } else {
+                        duplicate
+                    }
+                });
                 actions.push(PlannedAction { op, pushed: Some(value) });
             }
             add_candidate(3, actions);
@@ -1567,15 +1779,24 @@ impl StackScheduler {
     ) -> SmallVec<[PlannedAction; 24]> {
         let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
             context;
+        let max_stack_access = evm_version.reachable_stack_depth();
         let mut actions = SmallVec::<[PlannedAction; 24]>::new();
-        if matches!(optimization, OptimizationMode::Gas)
-            && Self::operand_pop_can_help(stack, goal, preserve_counts)
+        if (matches!(optimization, OptimizationMode::Gas) || cost_model.needs_headroom(stack.len()))
+            && Self::operand_pop_can_help(stack, goal, preserve_counts, max_stack_access)
         {
             actions.push(PlannedAction { op: ScheduledOp::Stack(StackOp::Pop), pushed: None });
         }
 
-        let max_swap = stack.len().saturating_sub(1).min(MAX_STACK_ACCESS);
+        let max_swap = stack.len().saturating_sub(1).min(max_stack_access);
+        let mut deep_values = SmallVec::<[ValueId; 8]>::new();
         for depth in 1..=max_swap {
+            if depth > MAX_STACK_ACCESS {
+                let Some(value) = stack[depth] else { continue };
+                if !required_counts.contains_key(&value) || deep_values.contains(&value) {
+                    continue;
+                }
+                deep_values.push(value);
+            }
             if stack[0] != stack[depth] {
                 actions.push(PlannedAction {
                     op: ScheduledOp::Stack(StackOp::Swap(depth as u8)),
@@ -1584,52 +1805,59 @@ impl StackScheduler {
             }
         }
 
-        for (&value, &required) in required_counts {
-            let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-            let materialize = self.materialize_operand(value, func);
-            let cheap_surplus_materialization = materialize.as_ref().is_some_and(|op| {
-                let materialize_cost = ScheduleCost::default().with_op(op, evm_version, cost_model);
-                let duplicate_cost = ScheduleCost::default().with_op(
-                    &ScheduledOp::Stack(StackOp::Dup(1)),
-                    evm_version,
-                    cost_model,
-                );
-                materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-            });
-            let cheap_surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
-                && preserve_counts.contains_key(&value)
-                && cheap_surplus_materialization;
-            if (current < required || cheap_surplus_copy_can_help)
-                && let Some(depth) =
-                    stack.iter().take(MAX_STACK_ACCESS).position(|&slot| slot == Some(value))
-            {
-                let duplicate = ScheduledOp::Stack(StackOp::Dup((depth + 1) as u8));
-                let op = materialize
-                    .filter(|materialize| {
-                        let duplicate_cost =
-                            ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
-                        let materialize_cost =
-                            ScheduleCost::default().with_op(materialize, evm_version, cost_model);
-                        materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
-                    })
-                    .unwrap_or(duplicate);
-                actions.push(PlannedAction { op, pushed: Some(value) });
+        if stack.len() < MAX_STACK_DEPTH {
+            for (&value, &required) in required_counts {
+                let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
+                let materialize = self.materialize_operand(value, func);
+                let cheap_surplus_materialization = materialize.as_ref().is_some_and(|op| {
+                    let materialize_cost = ScheduleCost::of_op(op, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(
+                        &ScheduledOp::Stack(StackOp::Dup(1)),
+                        evm_version,
+                        cost_model,
+                    );
+                    materialize_cost.cmp_for(duplicate_cost, optimization).is_lt()
+                });
+                let cheap_surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
+                    && preserve_counts.contains_key(&value)
+                    && cheap_surplus_materialization;
+                if (current < required || cheap_surplus_copy_can_help)
+                    && let Some(depth) =
+                        stack.iter().take(max_stack_access).position(|&slot| slot == Some(value))
+                {
+                    let op = self.copy_or_materialize(
+                        value,
+                        func,
+                        (depth + 1) as u8,
+                        optimization,
+                        evm_version,
+                        cost_model,
+                    );
+                    actions.push(PlannedAction { op, pushed: Some(value) });
+                }
             }
-        }
 
-        for &value in goal.iter().rev() {
-            if actions.iter().any(|action| action.pushed == Some(value)) {
-                continue;
-            }
-            let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
-            let required = required_counts.get(&value).copied().unwrap_or_default();
-            let accessible = stack.iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(value));
-            if (current < required || !accessible)
-                && let Some(op) = self.materialize_operand(value, func)
-            {
-                actions.push(PlannedAction { op, pushed: Some(value) });
+            for &value in goal.iter().rev() {
+                if actions.iter().any(|action| action.pushed == Some(value)) {
+                    continue;
+                }
+                let current = stack.iter().filter(|&&slot| slot == Some(value)).count();
+                let required = required_counts.get(&value).copied().unwrap_or_default();
+                let accessible =
+                    stack.iter().take(max_stack_access).any(|&slot| slot == Some(value));
+                if (current < required || !accessible)
+                    && let Some(op) = self.materialize_operand(value, func)
+                {
+                    actions.push(PlannedAction { op, pushed: Some(value) });
+                }
             }
         }
+        actions.retain(|action| {
+            stack
+                .len()
+                .checked_add(action.op.stack_peak_growth(cost_model, context.evm_version))
+                .is_some_and(|depth| depth <= MAX_STACK_DEPTH)
+        });
         actions
     }
 
@@ -1637,13 +1865,14 @@ impl StackScheduler {
         stack: &[Option<ValueId>],
         goal: &[ValueId],
         preserve_counts: &FxHashMap<ValueId, usize>,
+        max_stack_access: usize,
     ) -> bool {
         let Some(&Some(top)) = stack.first() else { return false };
         let required = goal.iter().filter(|&&value| value == top).count()
             + preserve_counts.get(&top).copied().unwrap_or_default();
         let current = stack.iter().filter(|&&slot| slot == Some(top)).count();
         current > required
-            && stack[1..].iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(top))
+            && stack[1..].iter().take(max_stack_access).any(|&slot| slot == Some(top))
     }
 
     #[cfg(test)]
@@ -1679,7 +1908,10 @@ impl StackScheduler {
                 None
             }
             ScheduledOp::Stack(StackOp::Pop) => stack.remove(0),
-            ScheduledOp::PushImmediate(_) | ScheduledOp::LoadSpill(_) | ScheduledOp::LoadArg(_) => {
+            ScheduledOp::PushImmediate(_)
+            | ScheduledOp::RematerializeNullary(_)
+            | ScheduledOp::LoadSpill(_)
+            | ScheduledOp::LoadArg(_) => {
                 stack.insert(0, action.pushed);
                 None
             }
@@ -1700,6 +1932,7 @@ impl StackScheduler {
             }
             ScheduledOp::Stack(StackOp::Dup(_))
             | ScheduledOp::PushImmediate(_)
+            | ScheduledOp::RematerializeNullary(_)
             | ScheduledOp::LoadSpill(_)
             | ScheduledOp::LoadArg(_) => {
                 stack.remove(0);
@@ -1728,7 +1961,7 @@ impl StackScheduler {
         let cost = states[state].cost;
         let mut actions = PlannedActions::new();
         while let Some((parent, action)) = &states[state].parent {
-            actions.push(action.clone());
+            actions.push(*action);
             state = *parent;
         }
         actions.reverse();
@@ -1756,9 +1989,9 @@ impl StackScheduler {
     ) -> ScheduleCost {
         let OperandPlanningContext { func, required_counts, optimization, evm_version, cost_model } =
             context;
+        let max_stack_access = evm_version.reachable_stack_depth();
 
         let mut remaining = ScheduleCost::default();
-        let mut has_missing_copies = false;
         let mut missing_counts = SmallVec::<[(ValueId, usize); 8]>::new();
         let mut total_missing = 0usize;
         for (&value, &required) in required_counts {
@@ -1767,19 +2000,17 @@ impl StackScheduler {
             if missing == 0 {
                 continue;
             }
-            has_missing_copies = true;
             missing_counts.push((value, missing));
             total_missing += missing;
 
             let duplicate =
                 stack.contains(&Some(value)).then_some(ScheduledOp::Stack(StackOp::Dup(1)));
             let materialize = self.materialize_operand(value, func);
-            let first = match (duplicate, materialize.clone()) {
+            let first = match (duplicate, materialize) {
                 (Some(duplicate), Some(materialize)) => {
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+                        ScheduleCost::of_op(&materialize, evm_version, cost_model);
                     if duplicate_cost.cmp_for(materialize_cost, optimization).is_le() {
                         duplicate
                     } else {
@@ -1793,10 +2024,9 @@ impl StackScheduler {
             let subsequent = match materialize {
                 Some(materialize) => {
                     let duplicate = ScheduledOp::Stack(StackOp::Dup(1));
-                    let duplicate_cost =
-                        ScheduleCost::default().with_op(&duplicate, evm_version, cost_model);
+                    let duplicate_cost = ScheduleCost::of_op(&duplicate, evm_version, cost_model);
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&materialize, evm_version, cost_model);
+                        ScheduleCost::of_op(&materialize, evm_version, cost_model);
                     if materialize_cost.cmp_for(duplicate_cost, optimization).is_lt() {
                         materialize
                     } else {
@@ -1810,7 +2040,7 @@ impl StackScheduler {
             }
         }
 
-        if has_missing_copies
+        if total_missing != 0
             && !Self::operand_goal_reachable_by_missing_pushes(
                 stack,
                 goal,
@@ -1819,19 +2049,14 @@ impl StackScheduler {
                 total_missing,
             )
         {
-            let mut rearrange = ScheduleCost::default().with_op(
-                &ScheduledOp::Stack(StackOp::Swap(1)),
-                evm_version,
-                cost_model,
-            );
-            if matches!(optimization, OptimizationMode::Gas)
-                && Self::operand_pop_can_help(stack, goal, preserve_counts)
+            let mut rearrange =
+                ScheduleCost::of_op(&ScheduledOp::Stack(StackOp::Swap(1)), evm_version, cost_model);
+            if (matches!(optimization, OptimizationMode::Gas)
+                || cost_model.needs_headroom(stack.len()))
+                && Self::operand_pop_can_help(stack, goal, preserve_counts, max_stack_access)
             {
-                let pop = ScheduleCost::default().with_op(
-                    &ScheduledOp::Stack(StackOp::Pop),
-                    evm_version,
-                    cost_model,
-                );
+                let pop =
+                    ScheduleCost::of_op(&ScheduledOp::Stack(StackOp::Pop), evm_version, cost_model);
                 if pop.cmp_for(rearrange, optimization).is_lt() {
                     rearrange = pop;
                 }
@@ -1839,24 +2064,24 @@ impl StackScheduler {
             for &value in goal {
                 let missing = missing_counts.iter().any(|&(missing, _)| missing == value);
                 let accessible =
-                    stack.iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(value));
+                    stack.iter().take(max_stack_access).any(|&slot| slot == Some(value));
                 let surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
                     && preserve_counts.contains_key(&value);
                 if (missing || accessible) && !surplus_copy_can_help {
                     continue;
                 }
                 if let Some(op) = self.materialize_operand(value, func) {
-                    let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
+                    let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
                     if cost.cmp_for(rearrange, optimization).is_lt() {
                         rearrange = cost;
                     }
                 }
             }
             remaining = remaining.plus(rearrange);
-        } else if !has_missing_copies && !Self::operand_goal_reached(stack, goal, preserve_counts) {
+        } else if total_missing == 0 && !Self::operand_goal_reached(stack, goal, preserve_counts) {
             let mut cheapest = None;
             let mut consider = |op: ScheduledOp| {
-                let cost = ScheduleCost::default().with_op(&op, evm_version, cost_model);
+                let cost = ScheduleCost::of_op(&op, evm_version, cost_model);
                 if cheapest.is_none_or(|old: ScheduleCost| cost.cmp_for(old, optimization).is_lt())
                 {
                     cheapest = Some(cost);
@@ -1864,18 +2089,19 @@ impl StackScheduler {
             };
 
             if let Some(&top) = stack.first()
-                && stack.iter().take(MAX_STACK_ACCESS + 1).skip(1).any(|&slot| slot != top)
+                && stack.iter().take(max_stack_access + 1).skip(1).any(|&slot| slot != top)
             {
                 consider(ScheduledOp::Stack(StackOp::Swap(1)));
             }
-            if matches!(optimization, OptimizationMode::Gas)
-                && Self::operand_pop_can_help(stack, goal, preserve_counts)
+            if (matches!(optimization, OptimizationMode::Gas)
+                || cost_model.needs_headroom(stack.len()))
+                && Self::operand_pop_can_help(stack, goal, preserve_counts, max_stack_access)
             {
                 consider(ScheduledOp::Stack(StackOp::Pop));
             }
             for &value in goal {
                 let accessible =
-                    stack.iter().take(MAX_STACK_ACCESS).any(|&slot| slot == Some(value));
+                    stack.iter().take(max_stack_access).any(|&slot| slot == Some(value));
                 let surplus_copy_can_help = matches!(optimization, OptimizationMode::Gas)
                     && preserve_counts.contains_key(&value);
                 if (!accessible || surplus_copy_can_help)
@@ -1947,6 +2173,7 @@ impl StackScheduler {
             match &action.op {
                 ScheduledOp::Stack(stack_op) => self.stack.apply(*stack_op),
                 ScheduledOp::PushImmediate(_)
+                | ScheduledOp::RematerializeNullary(_)
                 | ScheduledOp::LoadSpill(_)
                 | ScheduledOp::LoadArg(_) => {
                     self.stack.push(action.pushed.expect("materialization pushes a known value"));
@@ -1975,26 +2202,6 @@ impl StackScheduler {
         })
     }
 
-    /// Returns whether an instruction result is cheap enough to recompute from its operands.
-    pub(crate) fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
-        let crate::mir::Value::Inst(inst_id) = func.value(value) else {
-            return false;
-        };
-        matches!(
-            func.inst(*inst_id).kind,
-            crate::mir::InstKind::Add(_, _)
-                | crate::mir::InstKind::Sub(_, _)
-                | crate::mir::InstKind::Mul(_, _)
-                | crate::mir::InstKind::And(_, _)
-                | crate::mir::InstKind::Or(_, _)
-                | crate::mir::InstKind::Xor(_, _)
-                | crate::mir::InstKind::Shl(_, _)
-                | crate::mir::InstKind::Shr(_, _)
-                | crate::mir::InstKind::Sar(_, _)
-                | crate::mir::InstKind::ConstructorArgsBase
-        )
-    }
-
     /// Returns whether an unstored reserved slot must be recomputed instead of loaded.
     pub(crate) fn should_recompute_unstored_spill(&self, value: ValueId) -> bool {
         self.spills.get(value).is_some() && self.unstored_spill_requires_recompute(value)
@@ -2015,6 +2222,9 @@ impl StackScheduler {
         if self.is_stack_only_value(value) {
             return None;
         }
+        if let Some(op) = Self::rematerialize_nullary(value, func) {
+            return Some(op);
+        }
         if let Some(slot) = self.reloadable_spill(value) {
             return Some(ScheduledOp::LoadSpill(slot));
         }
@@ -2022,8 +2232,62 @@ impl StackScheduler {
         match func.value(value) {
             crate::mir::Value::Immediate(imm) => imm.as_u256().map(ScheduledOp::PushImmediate),
             crate::mir::Value::Arg(index) => Some(ScheduledOp::LoadArg(*index)),
+            crate::mir::Value::Inst(_) => None,
             _ => None,
         }
+    }
+
+    fn rematerialize_nullary(value: ValueId, func: &Function) -> Option<ScheduledOp> {
+        rematerializable_nullary_value(func, value).map(ScheduledOp::RematerializeNullary)
+    }
+
+    /// Returns a fresh materialization that dominates `DUP1` for an extra copy.
+    fn preferred_copy_materialization(
+        &self,
+        value: ValueId,
+        func: &Function,
+    ) -> Option<ScheduledOp> {
+        let op = Self::rematerialize_nullary(value, func).or_else(|| {
+            let Value::Immediate(imm) = func.value(value) else { return None };
+            (imm.as_u256()? == alloy_primitives::U256::ZERO && self.evm_version.has_push0())
+                .then_some(ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO))
+        })?;
+        let materialize = ScheduleCost::of_op(&op, self.evm_version, OperandCostModel::DIRECT);
+        let duplicate = ScheduleCost::stack_op(StackOp::Dup(1), self.evm_version);
+        (materialize.static_gas < duplicate.static_gas
+            && materialize.encoded_bytes <= duplicate.encoded_bytes)
+            .then_some(op)
+    }
+
+    /// Returns the cheapest one-word way to create another copy of `value`.
+    fn copy_or_duplicate(&self, value: ValueId, func: &Function, depth: u8) -> ScheduledOp {
+        self.preferred_copy_materialization(value, func)
+            .unwrap_or(ScheduledOp::Stack(StackOp::Dup(depth)))
+    }
+
+    /// Chooses a fresh materialization when it beats copying the resident value.
+    fn copy_or_materialize(
+        &self,
+        value: ValueId,
+        func: &Function,
+        depth: u8,
+        optimization: OptimizationMode,
+        evm_version: EvmVersion,
+        cost_model: OperandCostModel,
+    ) -> ScheduledOp {
+        let duplicate = ScheduledOp::Stack(StackOp::Dup(depth));
+        self.preferred_copy_materialization(value, func)
+            .or_else(|| {
+                self.materialize_operand(value, func).filter(|materialize| {
+                    ScheduleCost::of_op(materialize, evm_version, cost_model)
+                        .cmp_for(
+                            ScheduleCost::of_op(&duplicate, evm_version, cost_model),
+                            optimization,
+                        )
+                        .is_lt()
+                })
+            })
+            .unwrap_or(duplicate)
     }
 
     /// Ensures a value is on top of the stack.
@@ -2056,29 +2320,31 @@ impl StackScheduler {
 
         if self.stack.is_on_top(value) {
             if !claim_top {
-                self.ops.push(ScheduledOp::Stack(StackOp::Dup(1)));
-                self.stack.dup(1);
+                let op = self.copy_or_duplicate(value, func, 1);
+                self.ops.push(op);
+                self.stack.push(value);
             }
             return &self.ops;
         }
 
-        if let Some(depth) = self.stack.find(value) {
-            if depth < self.max_stack_access() {
-                // The value is accessible via DUP.
-                let dup_n = (depth + 1) as u8;
-                self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
-                self.stack.dup(dup_n);
-                return &self.ops;
-            }
-            // Value is too deep for DUP. It must either be reloadable from a spill slot or
-            // re-emittable below.
-            if let Some(slot) = self.reloadable_spill(value) {
-                self.ops.push(ScheduledOp::LoadSpill(slot));
-                self.stack.push(value);
-                return &self.ops;
-            }
-        } else if let Some(slot) = self.reloadable_spill(value) {
-            // The value is spilled, so load it.
+        let resident_depth = self.stack.find(value);
+        if let Some(depth) = resident_depth
+            && depth < self.max_stack_access()
+        {
+            let op = self.copy_or_duplicate(value, func, (depth + 1) as u8);
+            self.ops.push(op);
+            self.stack.push(value);
+            return &self.ops;
+        }
+
+        if let Some(op) = Self::rematerialize_nullary(value, func) {
+            self.ops.push(op);
+            self.stack.push(value);
+            return &self.ops;
+        }
+
+        if let Some(slot) = self.reloadable_spill(value) {
+            // The value is absent or too deep for DUP, so reload it from its spill slot.
             self.ops.push(ScheduledOp::LoadSpill(slot));
             self.stack.push(value);
             return &self.ops;
@@ -2129,6 +2395,9 @@ impl StackScheduler {
         if self.is_stack_only_value(value) {
             return false;
         }
+        if Self::rematerialize_nullary(value, func).is_some() {
+            return true;
+        }
         if self.should_recompute_unstored_spill(value) {
             return true;
         }
@@ -2137,7 +2406,7 @@ impl StackScheduler {
             return true;
         }
         // Check the value type.
-        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg(_))
+        is_rematerializable_leaf(func.value(value))
     }
 
     /// Records that an instruction consumed its operands and produced a result.
@@ -2189,6 +2458,7 @@ impl StackScheduler {
         inst_idx: usize,
     ) -> Vec<StackOp> {
         let mut ops = Vec::new();
+        let max_stack_access = self.max_stack_access();
 
         // First, pop dead values from the top.
         while let Some(top_val) = self.stack.top() {
@@ -2204,12 +2474,12 @@ impl StackScheduler {
         // contiguous run immediately below a live top needs only one SWAP followed by one POP per
         // dead value; removing the same values independently would need one SWAP per value.
         let mut depth = 1usize;
-        while depth <= self.stack.depth().saturating_sub(1).min(MAX_STACK_ACCESS) {
+        while depth <= self.stack.depth().saturating_sub(1).min(max_stack_access) {
             if let Some(val) = self.stack.peek(depth)
                 && liveness.is_dead_after(val, block, inst_idx)
             {
                 if depth == 1 {
-                    let dead_run = (1..=self.stack.depth().saturating_sub(1).min(MAX_STACK_ACCESS))
+                    let dead_run = (1..=self.stack.depth().saturating_sub(1).min(max_stack_access))
                         .take_while(|&depth| {
                             self.stack
                                 .peek(depth)
@@ -2285,10 +2555,89 @@ impl StackScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{
-        BlockId, Function, FunctionBuilder, Immediate, InstKind, Instruction, MirType, Value,
+    use crate::{
+        backend::evm::op,
+        mir::{
+            BlockId, Function, FunctionBuilder, Immediate, ImmutableId, InstKind, Instruction,
+            MirType, Value,
+        },
     };
+    use alloy_primitives::U256;
     use solar_interface::Ident;
+
+    #[test]
+    fn rematerializes_only_stable_nullary_reads() {
+        assert_eq!(
+            rematerializable_nullary_opcode(&InstKind::CalldataSize),
+            Some(op::CALLDATASIZE)
+        );
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::SlotNum), Some(op::SLOTNUM));
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::BlockNumber), Some(op::NUMBER));
+        assert_eq!(rematerializable_nullary_opcode(&InstKind::ReturnDataSize), None);
+    }
+
+    #[test]
+    fn cross_block_recomputation_requires_stable_leaves() {
+        let mut function = Function::new(Ident::DUMMY);
+        let argument = function.alloc_param(MirType::uint256());
+        let immediate = function.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let (safe_inst, safe) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(argument, immediate),
+            Some(MirType::uint256()),
+        ));
+        let (nested_safe_inst, nested_safe) = function.alloc_value_inst(Instruction::new(
+            InstKind::Mul(safe, argument),
+            Some(MirType::uint256()),
+        ));
+        let (calldata_inst, calldata) = function.alloc_value_inst(Instruction::new(
+            InstKind::CalldataLoad(safe),
+            Some(MirType::uint256()),
+        ));
+        let (calldata_safe_inst, calldata_safe) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(calldata, immediate),
+            Some(MirType::uint256()),
+        ));
+        let (context_inst, context) = function
+            .alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::uint256())));
+        let (immutable_inst, immutable) = function.alloc_value_inst(Instruction::new(
+            InstKind::LoadImmutable(ImmutableId::from_usize(0)),
+            Some(MirType::uint256()),
+        ));
+        let (mutable_inst, mutable) = function.alloc_value_inst(Instruction::new(
+            InstKind::SLoad(immediate),
+            Some(MirType::uint256()),
+        ));
+        let (unsafe_inst, unsafe_value) = function.alloc_value_inst(Instruction::new(
+            InstKind::Add(mutable, immediate),
+            Some(MirType::uint256()),
+        ));
+        function.blocks[BlockId::ENTRY].instructions.extend([
+            safe_inst,
+            nested_safe_inst,
+            calldata_inst,
+            calldata_safe_inst,
+            context_inst,
+            immutable_inst,
+            mutable_inst,
+            unsafe_inst,
+        ]);
+        let recomputable = cross_block_values(&function, |_| true);
+        let without_argument = cross_block_values(&function, |value| value != argument);
+
+        assert!(recomputable.contains(safe));
+        assert!(recomputable.contains(nested_safe));
+        assert!(recomputable.contains(calldata));
+        assert!(recomputable.contains(calldata_safe));
+        assert!(recomputable.contains(context));
+        assert!(!recomputable.contains(immutable));
+        assert!(!recomputable.contains(mutable));
+        assert!(!recomputable.contains(unsafe_value));
+        assert!(!without_argument.contains(safe));
+        assert!(!without_argument.contains(nested_safe));
+        assert!(!without_argument.contains(calldata));
+        assert!(!without_argument.contains(calldata_safe));
+        assert!(without_argument.contains(context));
+    }
 
     #[test]
     fn folds_exchange_for_legacy_and_extended_targets() {
@@ -2380,8 +2729,8 @@ mod tests {
                 for &value in &goal {
                     let Some(op) = scheduler.materialize_operand(value, func) else { continue };
                     let materialize_cost =
-                        ScheduleCost::default().with_op(&op, evm_version, OperandCostModel::DIRECT);
-                    let duplicate_cost = ScheduleCost::default().with_op(
+                        ScheduleCost::of_op(&op, evm_version, OperandCostModel::DIRECT);
+                    let duplicate_cost = ScheduleCost::of_op(
                         &ScheduledOp::Stack(StackOp::Dup(1)),
                         evm_version,
                         OperandCostModel::DIRECT,
@@ -2490,6 +2839,57 @@ mod tests {
             assert_eq!(*n, 2);
         } else {
             panic!("Expected DUP operation");
+        }
+    }
+
+    #[test]
+    fn ensure_operand_on_top_prefers_push0() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+
+        for (evm_version, expected) in [
+            (EvmVersion::London, ScheduledOp::Stack(StackOp::Dup(1))),
+            (EvmVersion::Shanghai, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)),
+        ] {
+            let mut scheduler = StackScheduler::for_evm_version(evm_version);
+            scheduler.stack.push(zero);
+            assert_eq!(scheduler.ensure_operand_on_top(zero, &func), &[expected]);
+        }
+    }
+
+    #[test]
+    fn ensure_operand_on_top_rematerializes_stable_nullaries() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (_, caller) =
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+        let mut scheduler = StackScheduler::new();
+        scheduler.stack.push(caller);
+
+        assert_eq!(
+            scheduler.ensure_operand_on_top(caller, &func),
+            &[ScheduledOp::RematerializeNullary(op::CALLER)]
+        );
+    }
+
+    #[test]
+    fn ensure_operand_on_top_rematerializes_deep_cheap_values() {
+        let mut func = Function::new(Ident::DUMMY);
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+        let (_, caller) =
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+
+        for (value, expected) in [
+            (zero, ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)),
+            (caller, ScheduledOp::RematerializeNullary(op::CALLER)),
+        ] {
+            let mut scheduler = StackScheduler::new();
+            scheduler.stack.push(value);
+            scheduler.stack.push(filler);
+            assert_eq!(scheduler.ensure_operand_on_top(value, &func), &[expected]);
         }
     }
 
@@ -2692,6 +3092,254 @@ mod tests {
         assert!(plan.actions.iter().all(|action| {
             action.op == ScheduledOp::PushImmediate(alloy_primitives::U256::ZERO)
         }));
+    }
+
+    #[test]
+    fn operand_plan_prefers_rematerialized_nullary() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (_, caller) =
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let mut scheduler = StackScheduler::new();
+            scheduler.stack.push(caller);
+
+            let plan = scheduler
+                .plan_operands(
+                    &[caller, caller],
+                    &[],
+                    &func,
+                    optimization,
+                    OperandCostModel::DIRECT,
+                )
+                .unwrap();
+
+            assert_eq!(plan.actions.len(), 1);
+            assert_eq!(
+                plan.actions[0].op,
+                ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLER)
+            );
+            assert_eq!(plan.actions[0].pushed, Some(caller));
+            assert_eq!(plan.cost.static_gas, 2);
+        }
+    }
+
+    #[test]
+    fn operand_plan_does_not_rematerialize_at_stack_limit() {
+        let mut func = Function::new(Ident::DUMMY);
+        let (_, caller) =
+            func.alloc_value_inst(Instruction::new(InstKind::Caller, Some(MirType::uint256())));
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+        let top =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+        let mut scheduler = StackScheduler::new();
+        for _ in 0..MAX_STACK_DEPTH - 3 {
+            scheduler.stack.push(filler);
+        }
+        scheduler.stack.push(caller);
+        scheduler.stack.push(caller);
+        scheduler.stack.push(top);
+        assert_eq!(scheduler.stack.depth(), MAX_STACK_DEPTH);
+
+        let overflow = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLER),
+                pushed: Some(caller),
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(
+            scheduler
+                .validate_operand_plan(
+                    overflow,
+                    &[caller],
+                    &[caller],
+                    &func,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
+
+        let plan = scheduler
+            .plan_operands(
+                &[caller],
+                &[caller],
+                &func,
+                OptimizationMode::Gas,
+                OperandCostModel::DIRECT,
+            )
+            .unwrap();
+
+        assert_eq!(plan.actions.len(), 1);
+        assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Swap(1)));
+        assert_eq!(plan.actions[0].pushed, None);
+        scheduler.apply_operand_plan(plan);
+        assert_eq!(scheduler.stack.depth(), MAX_STACK_DEPTH);
+    }
+
+    #[test]
+    fn operand_plan_creates_headroom_before_copying() {
+        let mut func = make_test_func();
+        let a = ValueId::from_usize(0);
+        let b = ValueId::from_usize(1);
+        let (_, value) =
+            func.alloc_value_inst(Instruction::new(InstKind::Add(a, b), Some(MirType::uint256())));
+        let dead =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let mut scheduler = StackScheduler::new();
+            for _ in 0..MAX_STACK_DEPTH - 2 {
+                scheduler.stack.push(dead);
+            }
+            scheduler.stack.push(value);
+            scheduler.stack.push(dead);
+
+            let plan = scheduler
+                .plan_operands(&[value], &[value], &func, optimization, OperandCostModel::DIRECT)
+                .unwrap();
+
+            assert_eq!(plan.actions.len(), 2);
+            assert_eq!(plan.actions[0].op, ScheduledOp::Stack(StackOp::Pop));
+            assert_eq!(plan.actions[1].op, ScheduledOp::Stack(StackOp::Dup(1)));
+            scheduler.apply_operand_plan(plan);
+            assert_eq!(scheduler.stack.depth(), MAX_STACK_DEPTH);
+        }
+    }
+
+    #[test]
+    fn operand_plan_accounts_for_load_peak() {
+        let mut func = Function::new(Ident::DUMMY);
+        func.alloc_param(MirType::uint256());
+        let argument = func.alloc_param(MirType::uint256());
+        let spilled = func.alloc_param(MirType::uint256());
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(1))));
+        let mut scheduler = StackScheduler::new();
+        let spill = scheduler.spills.allocate(spilled);
+        scheduler.spills.mark_reloadable(spilled);
+        for _ in 0..MAX_STACK_DEPTH - 1 {
+            scheduler.stack.push(filler);
+        }
+        let load = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::LoadArg(ArgIdx::from_usize(1)),
+                pushed: Some(argument),
+            }],
+            cost: ScheduleCost::default(),
+        };
+
+        assert!(
+            scheduler
+                .validate_operand_plan(
+                    load.clone(),
+                    &[argument],
+                    &[],
+                    &func,
+                    OperandCostModel::DYNAMIC_FRAME,
+                )
+                .is_none()
+        );
+        assert!(
+            scheduler
+                .validate_operand_plan(
+                    load.clone(),
+                    &[argument],
+                    &[],
+                    &func,
+                    OperandCostModel::CONSTRUCTOR,
+                )
+                .is_none()
+        );
+        assert!(
+            scheduler
+                .validate_operand_plan(load, &[argument], &[], &func, OperandCostModel::DIRECT)
+                .is_some()
+        );
+
+        let spill_load = OperandPlan {
+            actions: smallvec::smallvec![PlannedAction {
+                op: ScheduledOp::LoadSpill(spill),
+                pushed: Some(spilled),
+            }],
+            cost: ScheduleCost::default(),
+        };
+        assert!(
+            scheduler
+                .validate_operand_plan(
+                    spill_load,
+                    &[spilled],
+                    &[],
+                    &func,
+                    OperandCostModel::CONSTRUCTOR,
+                )
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn fallback_materialization_accounts_for_load_peak() {
+        let mut func = Function::new(Ident::DUMMY);
+        let argument = func.alloc_param(MirType::uint256());
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+        let mut scheduler = StackScheduler::new();
+        for _ in 0..MAX_STACK_DEPTH - 1 {
+            scheduler.stack.push(filler);
+        }
+
+        let start_depth = scheduler.depth();
+        let ops = scheduler.ensure_on_top(argument, &func).to_vec();
+        let peak = scheduler.observe_scheduled_ops_peak(
+            start_depth,
+            &ops,
+            OperandCostModel::DYNAMIC_FRAME,
+        );
+        assert_eq!(peak, MAX_STACK_DEPTH + 1);
+        assert_eq!(scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
+
+        scheduler.stack.pop();
+        scheduler.spills.allocate(argument);
+        scheduler.spills.mark_stored(argument);
+        let start_depth = scheduler.depth();
+        let ops = scheduler.ensure_on_top(argument, &func).to_vec();
+        let peak = scheduler.observe_scheduled_ops_peak(
+            start_depth,
+            &ops,
+            OperandCostModel::DYNAMIC_FRAME,
+        );
+        assert_eq!(peak, MAX_STACK_DEPTH + 1);
+
+        let immediate =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+        let start_depth = scheduler.depth();
+        let ops = scheduler.ensure_on_top(immediate, &func).to_vec();
+        let peak =
+            scheduler.observe_scheduled_ops_peak(start_depth, &ops, OperandCostModel::DIRECT);
+        assert_eq!(peak, MAX_STACK_DEPTH + 1);
+    }
+
+    #[test]
+    fn compact_immediate_accounts_for_transient_peak() {
+        let mut func = Function::new(Ident::DUMMY);
+        let filler =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE)));
+        let shifted = func
+            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ONE << 128)));
+        let mut scheduler = StackScheduler::new();
+        for _ in 0..MAX_STACK_DEPTH - 1 {
+            scheduler.stack.push(filler);
+        }
+
+        let ops = scheduler.ensure_on_top(shifted, &func).to_vec();
+        assert_eq!(
+            scheduler.observe_scheduled_ops_peak(
+                MAX_STACK_DEPTH - 1,
+                &ops,
+                OperandCostModel::DIRECT,
+            ),
+            MAX_STACK_DEPTH + 1
+        );
     }
 
     #[test]
@@ -3271,6 +3919,45 @@ mod tests {
     }
 
     #[test]
+    fn amsterdam_operand_search_considers_deep_ops() {
+        let mut func = make_test_func();
+        let first = ValueId::from_usize(0);
+        let second = ValueId::from_usize(1);
+        let mut scheduler = StackScheduler::for_evm_version(EvmVersion::Amsterdam);
+        scheduler.stack.push(first);
+        scheduler.stack.push(second);
+        for i in 0..17 {
+            let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
+                alloy_primitives::U256::from(100 + i),
+            )));
+            scheduler.stack.push(filler);
+        }
+
+        let goal = [second, first];
+        let required_counts = FxHashMap::from_iter([(first, 1), (second, 1)]);
+        let context = OperandPlanningContext {
+            func: &func,
+            required_counts: &required_counts,
+            optimization: OptimizationMode::Gas,
+            evm_version: EvmVersion::Amsterdam,
+            cost_model: OperandCostModel::DIRECT,
+        };
+        let actions = scheduler.operand_search_actions(
+            scheduler.stack.as_slice(),
+            &goal,
+            &FxHashMap::default(),
+            context,
+        );
+
+        assert!(actions.iter().any(|action| {
+            action.op == ScheduledOp::Stack(StackOp::Swap(MAX_STACK_ACCESS as u8 + 1))
+        }));
+        assert!(actions.iter().any(|action| {
+            action.op == ScheduledOp::Stack(StackOp::Swap(MAX_STACK_ACCESS as u8 + 2))
+        }));
+    }
+
+    #[test]
     fn amsterdam_preserved_binary_operand_uses_dupn() {
         let mut func = make_test_func();
         let target = ValueId::from_usize(0);
@@ -3429,7 +4116,11 @@ mod tests {
             }],
             cost: ScheduleCost::default(),
         };
-        assert!(scheduler.validate_operand_plan(swap0, &[target], &[], &func).is_none());
+        assert!(
+            scheduler
+                .validate_operand_plan(swap0, &[target], &[], &func, OperandCostModel::DIRECT)
+                .is_none()
+        );
 
         for value in 0..=MAX_STACK_ACCESS {
             let filler = func.alloc_value(Value::Immediate(Immediate::uint256(
@@ -3444,7 +4135,11 @@ mod tests {
             }],
             cost: ScheduleCost::default(),
         };
-        assert!(scheduler.validate_operand_plan(swap17, &[target], &[], &func).is_none());
+        assert!(
+            scheduler
+                .validate_operand_plan(swap17, &[target], &[], &func, OperandCostModel::DIRECT)
+                .is_none()
+        );
 
         let scheduler = StackScheduler::new();
         let dup0 = OperandPlan {
@@ -3454,7 +4149,11 @@ mod tests {
             }],
             cost: ScheduleCost::default(),
         };
-        assert!(scheduler.validate_operand_plan(dup0, &[target], &[], &func).is_none());
+        assert!(
+            scheduler
+                .validate_operand_plan(dup0, &[target], &[], &func, OperandCostModel::DIRECT)
+                .is_none()
+        );
 
         let mut scheduler = StackScheduler::new();
         scheduler.stack.push(target);
@@ -3471,7 +4170,17 @@ mod tests {
             }],
             cost: ScheduleCost::default(),
         };
-        assert!(scheduler.validate_operand_plan(dup17, &[target], &[target], &func).is_none());
+        assert!(
+            scheduler
+                .validate_operand_plan(
+                    dup17,
+                    &[target],
+                    &[target],
+                    &func,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -3493,7 +4202,15 @@ mod tests {
             cost: ScheduleCost::default(),
         };
         assert!(
-            scheduler.validate_operand_plan(forged_immediate, &[immediate], &[], &func).is_none()
+            scheduler
+                .validate_operand_plan(
+                    forged_immediate,
+                    &[immediate],
+                    &[],
+                    &func,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
         );
 
         let forged_argument = OperandPlan {
@@ -3504,7 +4221,15 @@ mod tests {
             cost: ScheduleCost::default(),
         };
         assert!(
-            scheduler.validate_operand_plan(forged_argument, &[argument], &[], &func).is_none()
+            scheduler
+                .validate_operand_plan(
+                    forged_argument,
+                    &[argument],
+                    &[],
+                    &func,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
         );
 
         let forged_spill = OperandPlan {
@@ -3514,7 +4239,17 @@ mod tests {
             }],
             cost: ScheduleCost::default(),
         };
-        assert!(scheduler.validate_operand_plan(forged_spill, &[spilled], &[], &func).is_none());
+        assert!(
+            scheduler
+                .validate_operand_plan(
+                    forged_spill,
+                    &[spilled],
+                    &[],
+                    &func,
+                    OperandCostModel::DIRECT,
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -3535,7 +4270,11 @@ mod tests {
             }],
             cost: ScheduleCost::default(),
         };
-        assert!(scheduler.validate_operand_plan(forged_pop, &[target], &[], &func).is_none());
+        assert!(
+            scheduler
+                .validate_operand_plan(forged_pop, &[target], &[], &func, OperandCostModel::DIRECT,)
+                .is_none()
+        );
     }
 
     #[test]
@@ -3557,7 +4296,11 @@ mod tests {
             ],
             cost: ScheduleCost::default(),
         };
-        assert!(scheduler.validate_operand_plan(plan, &[target], &[], &func).is_some());
+        assert!(
+            scheduler
+                .validate_operand_plan(plan, &[target], &[], &func, OperandCostModel::DIRECT)
+                .is_some()
+        );
     }
 
     #[test]
@@ -3638,6 +4381,37 @@ mod tests {
             .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
             .unwrap();
         assert_eq!(plan.actions[0].op, ScheduledOp::LoadSpill(slot));
+    }
+
+    #[test]
+    fn operand_plan_prefers_stable_nullary_rematerialization() {
+        let mut func = make_test_func();
+        let (_, value) =
+            func.alloc_value_inst(Instruction::new(InstKind::CallValue, Some(MirType::uint256())));
+        let mut scheduler = StackScheduler::new();
+        scheduler.spills.allocate(value);
+        scheduler.spills.mark_stored(value);
+
+        assert!(scheduler.can_emit_value(value, &func));
+
+        let plan = scheduler
+            .plan_operands(&[value], &[], &func, OptimizationMode::Gas, OperandCostModel::DIRECT)
+            .unwrap();
+
+        assert_eq!(
+            plan.actions[0].op,
+            ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLVALUE)
+        );
+
+        scheduler.stack.push(value);
+        for index in 0..MAX_STACK_ACCESS {
+            scheduler.stack.push(ValueId::from_usize(100 + index));
+        }
+        assert_eq!(scheduler.stack.find(value), Some(MAX_STACK_ACCESS));
+        assert_eq!(
+            scheduler.ensure_on_top(value, &func),
+            [ScheduledOp::RematerializeNullary(crate::backend::evm::op::CALLVALUE)]
+        );
     }
 
     #[test]
@@ -3837,7 +4611,7 @@ mod tests {
     }
 
     #[test]
-    fn leaves_deep_dead_values_for_later_cleanup() {
+    fn amsterdam_drops_deep_dead_values() {
         let mut func = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut func);
         let a = builder.add_param(MirType::uint256());
@@ -3853,8 +4627,8 @@ mod tests {
         }
 
         let ops = scheduler.drop_dead_values(&liveness, BlockId::ENTRY, 0);
-        assert!(ops.is_empty());
-        assert_eq!(scheduler.stack.find(a), Some(MAX_STACK_ACCESS + 1));
+        assert_eq!(ops, [StackOp::Swap((MAX_STACK_ACCESS + 1) as u8), StackOp::Pop]);
+        assert!(scheduler.stack.find(a).is_none());
     }
 
     #[test]

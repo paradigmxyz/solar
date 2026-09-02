@@ -1,7 +1,11 @@
 //@ compile-flags: -Zdump=evm-ir-runtime -Zswitch-lowering=buckets
 //@ filecheck: --check-prefix=TABLE
 
-// TABLE: indexed_jump
+// TABLE-LABEL: @module SwitchBucketDispatch_runtime
+// TABLE: push 40
+// TABLE-NEXT: dup 2
+// TABLE-NEXT: mod
+// TABLE-NEXT: indexed_jump
 contract SwitchBucketDispatch {
     function f00() external {}
     function f01() external {}

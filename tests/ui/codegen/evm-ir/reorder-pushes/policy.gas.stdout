@@ -1,0 +1,11 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/policy.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/policy.evmir (after reorder-pushes) ===
+  @module policy
+  bb0:
++   push 1
+    push 0
+    not
+-   push 1
+-   swap 1
+    stop
+  

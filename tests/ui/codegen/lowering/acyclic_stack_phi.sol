@@ -2,14 +2,13 @@
 //@ filecheck:
 
 contract AcyclicStackPhi {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module AcyclicStackPhi_runtime
     // CHECK: push 0x341fda35
-    // CHECK: jump [[MERGE:bb[0-9]+]]
-    // CHECK-NEXT: [[MERGE]]:
-    // CHECK-NEXT: dup 1
-    // CHECK: {{bb[0-9]+}} [cold]:
-    // CHECK: [[TRIM:bb[0-9]+]]:
-    // CHECK-NEXT: push 4
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: push [[MERGE:bb[0-9]+]]
+    // CHECK-NEXT: jumpi
+    // CHECK: [[MERGE]]{{.*}}
+    // CHECK: dup 1
     function trimLen(bytes calldata data) external pure returns (uint256) {
         return trim(data).length;
     }

@@ -3,10 +3,10 @@
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: {{^[ +].*}}jumpi bb1, bb2
+// CHECK: {{^[ +].*}}indexed_jump bb1, bb2
 bb0:
   push 1
-  jumpi bb1, bb2
+  indexed_jump bb1, bb2
 
 // CHECK-LABEL: + bb1:
 // CHECK: {{^[ +].*}}revert
@@ -22,5 +22,3 @@ bb2:
   push 32
   push 0
   revert
-bb3:
-  stop

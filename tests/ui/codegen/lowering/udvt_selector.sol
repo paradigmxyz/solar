@@ -5,7 +5,7 @@ type Wad is uint256;
 
 contract UdvtSelector {
     // CHECK: "unwrapAndAdd(uint256,uint256)": "8d2f9995"
-    // CHECK: @module runtime
+    // CHECK: @module UdvtSelector_runtime
     // CHECK: push 0x8d2f9995
     // CHECK: push 36
     // CHECK-NEXT: calldataload

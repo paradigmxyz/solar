@@ -1,15 +1,17 @@
-//! Legacy EVM opcode legalization.
+//! Legalize opcodes that older EVM targets lack.
+//!
+//! Before Constantinople, this pass expands `SHL`, `SHR`, and `SAR` into arithmetic and physical
+//! stack operations with the same signedness and operand order. Before Byzantium, it replaces
+//! `REVERT` with `INVALID`, the closest available terminating behavior. Newer targets skip the
+//! pass entirely.
 
-use super::{EvmPass, utils::StackDepths};
+use super::EvmPass;
 use crate::backend::evm::{
     ir::{Instruction, Module, TerminatorKind},
     op,
 };
 use alloy_primitives::U256;
 use solar_sema::Gcx;
-
-/// Maximum transient stack growth of a legacy shift replacement.
-pub(in crate::backend::evm) const LEGACY_SHIFT_STACK_HEADROOM: usize = 7;
 
 pub(super) struct LegalizeShifts;
 
@@ -33,28 +35,6 @@ pub(in crate::backend::evm) fn legalize_shifts(gcx: Gcx<'_>, module: &mut Module
     let legalize_revert = !evm_version.supports_returndata();
     if !legalize_shifts && !legalize_revert {
         return false;
-    }
-
-    if legalize_shifts {
-        let Some(depths) = StackDepths::new(module) else {
-            gcx.dcx().err("cannot analyze stack depth for legacy shift legalization").emit();
-            return false;
-        };
-        for (block_id, block) in module.blocks.iter_enumerated() {
-            for (index, inst) in block.instructions.iter().enumerate() {
-                let growth = match inst.opcode {
-                    op::SHL | op::SHR => 1,
-                    op::SAR => LEGACY_SHIFT_STACK_HEADROOM,
-                    _ => continue,
-                };
-                if !depths.has_headroom(block_id, index, growth) {
-                    gcx.dcx()
-                        .err("legacy shift legalization would exceed the EVM stack limit")
-                        .emit();
-                    return false;
-                }
-            }
-        }
     }
 
     let mut changed = false;

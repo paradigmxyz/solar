@@ -161,3 +161,42 @@ bb15:
   push 1
   exp
   stop
+
+// Fold adjacent constants through the shared EVM word evaluator.
+// CHECK-LABEL: {{^[ +].*}}bb16:
+// CHECK: -   add
+// CHECK: +   push 67
+bb16:
+  push 31 !meta(stack=0->1)
+  push 36 !meta(stack=0->1)
+  add !meta(stack=2->1)
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb17:
+// CHECK: -   mul
+// CHECK: +   push 128
+bb17:
+  push 32 !meta(stack=0->1)
+  push 4 !meta(stack=0->1)
+  mul !meta(stack=2->1)
+  stop
+
+// Emit the compact materialization priced by the fold.
+// CHECK-LABEL: {{^[ +].*}}bb18:
+// CHECK: -   add
+// CHECK: +   push 0
+// CHECK-NEXT: +   not
+bb18:
+  push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+  push 1
+  add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb19:
+// CHECK: -   sub
+// CHECK: +   push 26
+bb19:
+  push 5
+  push 31
+  sub
+  stop

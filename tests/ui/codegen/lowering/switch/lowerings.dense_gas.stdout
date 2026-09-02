@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
-@module runtime
+@module SwitchLowerings_runtime
 bb0:
   callvalue
-  push bb2
+  push bb13
   jumpi
   push 0
   calldataload
@@ -15,16 +15,14 @@ bb0:
   dup 1
   push 57
   gt
-  push bb4
+  iszero
+  push bb13
   jumpi
-  pop
-  jump bb13
+  indexed_jump bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33, bb34, bb35, bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48, bb49, bb50, bb51, bb52, bb53, bb54, bb55, bb56, bb57, bb58, bb59, bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71
 bb13 [cold]:
   push 0
   push 0
   revert
-bb4:
-  indexed_jump bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32, bb33, bb34, bb35, bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48, bb49, bb50, bb51, bb52, bb53, bb54, bb55, bb56, bb57, bb58, bb59, bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71
 bb5:
   push 100
   jump bb14
@@ -55,10 +53,6 @@ bb11:
 bb12:
   push 107
   jump bb14
-bb2 [cold]:
-  push 0
-  dup 1
-  revert
 bb15:
   jump bb5
 bb16:
@@ -175,7 +169,7 @@ bb71:
   jump bb12
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x56 ; bb11
+PUSH1 0x1d ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -188,9 +182,14 @@ SUB
 DUP1
 PUSH1 0x39
 GT
-PUSH1 0x1a ; bb1
+ISZERO
+PUSH1 0x1d ; bb0
 JUMPI
-POP
+PUSH1 0x04
+MUL
+PUSH1 0x55
+ADD
+JUMP ; unknown
 ; bb0
 JUMPDEST
 PUSH0
@@ -198,286 +197,274 @@ PUSH0
 REVERT
 ; bb1
 JUMPDEST
-PUSH1 0x04
-MUL
-PUSH1 0x5a
-ADD
-JUMP ; unknown
-; bb2
-JUMPDEST
 PUSH1 0x64
-; bb3
+; bb2
 JUMPDEST
 PUSH0
 MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb4
+; bb3
 JUMPDEST
 PUSH1 0x65
-PUSH1 0x25 ; bb3
+PUSH1 0x24 ; bb2
+JUMP
+; bb4
+JUMPDEST
+PUSH1 0x66
+PUSH1 0x24 ; bb2
 JUMP
 ; bb5
 JUMPDEST
-PUSH1 0x66
-PUSH1 0x25 ; bb3
+PUSH1 0x67
+PUSH1 0x24 ; bb2
 JUMP
 ; bb6
 JUMPDEST
-PUSH1 0x67
-PUSH1 0x25 ; bb3
+PUSH1 0x68
+PUSH1 0x24 ; bb2
 JUMP
 ; bb7
 JUMPDEST
-PUSH1 0x68
-PUSH1 0x25 ; bb3
+PUSH1 0x69
+PUSH1 0x24 ; bb2
 JUMP
 ; bb8
 JUMPDEST
-PUSH1 0x69
-PUSH1 0x25 ; bb3
+PUSH1 0x6a
+PUSH1 0x24 ; bb2
 JUMP
 ; bb9
 JUMPDEST
-PUSH1 0x6a
-PUSH1 0x25 ; bb3
+PUSH1 0x6b
+PUSH1 0x24 ; bb2
 JUMP
 ; bb10
 JUMPDEST
-PUSH1 0x6b
-PUSH1 0x25 ; bb3
+PUSH1 0x21 ; bb1
 JUMP
 ; bb11
 JUMPDEST
-PUSH0
-DUP1
-REVERT
+PUSH1 0x1d ; bb0
+JUMP
 ; bb12
 JUMPDEST
-PUSH1 0x22 ; bb2
+PUSH1 0x1d ; bb0
 JUMP
 ; bb13
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb14
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb15
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb16
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb17
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb18
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x2b ; bb3
 JUMP
 ; bb19
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb20
 JUMPDEST
-PUSH1 0x2c ; bb4
+PUSH1 0x1d ; bb0
 JUMP
 ; bb21
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb22
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb23
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb24
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb25
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb26
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x31 ; bb4
 JUMP
 ; bb27
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb28
 JUMPDEST
-PUSH1 0x32 ; bb5
+PUSH1 0x1d ; bb0
 JUMP
 ; bb29
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb30
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb31
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb32
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb33
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb34
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x37 ; bb5
 JUMP
 ; bb35
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb36
 JUMPDEST
-PUSH1 0x38 ; bb6
+PUSH1 0x1d ; bb0
 JUMP
 ; bb37
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb38
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb39
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb40
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb41
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb42
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x3d ; bb6
 JUMP
 ; bb43
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb44
 JUMPDEST
-PUSH1 0x3e ; bb7
+PUSH1 0x1d ; bb0
 JUMP
 ; bb45
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb46
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb47
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb48
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb49
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb50
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x43 ; bb7
 JUMP
 ; bb51
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb52
 JUMPDEST
-PUSH1 0x44 ; bb8
+PUSH1 0x1d ; bb0
 JUMP
 ; bb53
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb54
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb55
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb56
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb57
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb58
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x49 ; bb8
 JUMP
 ; bb59
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb60
 JUMPDEST
-PUSH1 0x4a ; bb9
+PUSH1 0x1d ; bb0
 JUMP
 ; bb61
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb62
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb63
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb64
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb65
 JUMPDEST
-PUSH1 0x16 ; bb0
+PUSH1 0x1d ; bb0
 JUMP
 ; bb66
 JUMPDEST
-PUSH1 0x16 ; bb0
-JUMP
-; bb67
-JUMPDEST
-PUSH1 0x16 ; bb0
-JUMP
-; bb68
-JUMPDEST
-PUSH1 0x50 ; bb10
+PUSH1 0x4f ; bb9
 JUMP

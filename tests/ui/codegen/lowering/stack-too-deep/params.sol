@@ -4,7 +4,7 @@
 pragma solidity ^0.8.0;
 
 contract StackTooDeepParams {
-    // CHECK-LABEL: @module runtime
+    // CHECK-LABEL: @module StackTooDeepParams_runtime
     // CHECK: push 0x8c4ee692
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]

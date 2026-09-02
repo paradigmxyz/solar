@@ -1,0 +1,68 @@
+//@compile-flags: -Ogas -Zevm-ir-pipeline=outline
+//@filecheck:
+@module GasHotOutline
+
+// Gas mode outlines repeated hot computations when the smaller deployment code outweighs the
+// added control flow.
+// CHECK-LABEL: bb0:
+// CHECK: push [[RET0:bb[0-9]+]]
+// CHECK-NEXT: jump [[OUTLINE:bb[0-9]+]]
+bb0:
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  jump bb1
+
+// CHECK-LABEL: bb1:
+// CHECK: push [[RET1:bb[0-9]+]]
+// CHECK-NEXT: jump [[OUTLINE]]
+// CHECK: [[OUTLINE]]:
+// CHECK-COUNT-12: push 1
+// CHECK: jump
+bb1:
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  push 1
+  pop
+  stop

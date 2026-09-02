@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/program-data/cross_artifact_data.sol:C (runtime) ===
-@module runtime
+@module C_runtime
 bb0:
   callvalue
   push bb3
@@ -35,9 +35,8 @@ bb0:
   push 192
   mstore
   push 160
-  dup 2
   push_data literal_0
-  swap 1
+  dup 3
   codecopy
   push 64
   mload
@@ -82,6 +81,7 @@ bb0:
   iszero
   push bb6
   jumpi
+  push 0
   push 32
   push 224
   mload
@@ -89,8 +89,6 @@ bb0:
   push 160
   mload
   add
-  push 0
-  swap 1
   mstore
   jump bb6
 bb6:
@@ -131,7 +129,7 @@ bb6:
   return
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 
 @data literal_0 hex"11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"

@@ -1,6 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:DataTypes (runtime) ===
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
-@module runtime
+@module L_runtime
 bb0:
   callvalue
   push bb3
@@ -17,7 +17,7 @@ bb0:
   jump bb3
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb10 [cold]:
   push 0x4e487b71

@@ -19,8 +19,8 @@ bb0:
 // CHECK: + sub
 // CHECK: {{^[ +].*}}jumpi
 bb1:
-  push 1
-  push 2
+  calldatasize
+  returndatasize
   eq
   iszero
   push bb2

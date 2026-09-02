@@ -14,25 +14,30 @@ contract InternalCallFrameDealloc {
     // CHECK-NEXT: jump [[SUM:bb[0-9]+]]
     // CHECK: [[SUM]]:
     // CHECK: [[FIRST_RET]]:
-    // CHECK: push 64
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK: push [[EPILOGUE_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[EPILOGUE:bb[0-9]+]]
+    // CHECK: [[EPILOGUE]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
+    // CHECK: push 1
     // CHECK: push 192
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[SECOND_RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[SUM]]
-    // CHECK: [[SECOND_RET]]:
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: return
-    // CHECK: push 1
     // CHECK: push [[RECURSE_RET:bb[0-9]+]]
     // CHECK-NEXT: jump [[SUM]]
     // CHECK: [[RECURSE_RET]]:
-    // CHECK: push 64
-    // CHECK-NEXT: mstore
-    // CHECK: jump
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
+    // CHECK: push [[SECOND_RET:bb[0-9]+]]
+    // CHECK-NEXT: jump [[EPILOGUE]]
+    // CHECK: [[SECOND_RET]]:
+    // CHECK: push 160
+    // CHECK-NEXT: mload
     function f(uint256 x) public pure returns (uint256) {
         return sum(x) + sum(x + 1);
     }

@@ -108,6 +108,8 @@ pub struct Module {
     pub(crate) name: Ident,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
+    /// The synthesized runtime dispatch entry, if this module has one.
+    dispatch_entry: Option<FunctionId>,
     /// Most recently added function for each name before disambiguation.
     pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
@@ -143,6 +145,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            dispatch_entry: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
             aggregate_layouts: Vec::new(),
@@ -185,6 +188,25 @@ impl Module {
             }
         }
         function
+    }
+
+    /// Returns the synthesized runtime dispatch entry, if present.
+    #[must_use]
+    pub(crate) const fn dispatch_entry(&self) -> Option<FunctionId> {
+        self.dispatch_entry
+    }
+
+    /// Records the synthesized runtime dispatch entry.
+    pub(crate) fn set_dispatch_entry(&mut self, entry: FunctionId) {
+        assert!(
+            self.dispatch_entry.replace(entry).is_none(),
+            "module already has a dispatch entry"
+        );
+    }
+
+    /// Updates the dispatch entry after remapping function IDs.
+    pub(crate) fn remap_dispatch_entry(&mut self, entry: Option<FunctionId>) {
+        self.dispatch_entry = entry;
     }
 
     /// Returns the function for the given ID.
@@ -364,8 +386,14 @@ impl Module {
                 f,
                 "{}",
                 self.functions
-                    .iter()
-                    .map(|func| super::display::display_function_text(func, Some(self)))
+                    .iter_enumerated()
+                    .map(|(id, func)| {
+                        super::display::display_function_text(
+                            func,
+                            Some(self),
+                            self.dispatch_entry == Some(id),
+                        )
+                    })
                     .format("\n")
             )
         })

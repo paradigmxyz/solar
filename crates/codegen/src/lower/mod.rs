@@ -9,6 +9,7 @@ mod call;
 mod checked_arith;
 mod data;
 pub use data::ContractBytecodes;
+pub(crate) use data::{data_copy_cost, data_copy_gas, data_copy_is_profitable};
 
 mod expr;
 mod index;
@@ -776,7 +777,6 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: true,
             is_fallback: false,
             is_receive: false,
-            is_dispatch_entry: false,
             is_yul: false,
             may_return_memory: false,
             no_inline: false,
@@ -1329,7 +1329,6 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: hir_func.kind == hir::FunctionKind::Constructor,
             is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
-            is_dispatch_entry: false,
             is_yul: hir_func.is_yul,
             may_return_memory: false,
             no_inline: false,

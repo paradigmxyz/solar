@@ -1,0 +1,81 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (after reorder-pushes) ===
+  @module MixedStack
+  bb0:
+    push 1
+-   dup 1
+    push 10
+-   swap 1
++   dup 2
+    sub
+    stop
+  bb1:
+    callf !meta(stack=0->15)
+-   dup 15
+    push_deferred 0
+-   swap 1
++   dup 16
+    sub
+    stop
+  bb2:
+    callf !meta(stack=0->16)
+-   dup 16
+    push_immutable 0, 32
+-   swap 1
++   dup 17
+    sub
+    stop
+  bb3:
+    push 1
+-   dup 1
+    push 10
+-   swap 1
++   dup 2
+    pop
+    stop
+  bb4:
+    push 1
+-   dup 1
+-   iszero
+    push 32
+-   swap 1
++   dup 2
++   iszero
+    sub
+    stop
+  
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/mixed_stack.evmir (after peephole) ===
+  @module MixedStack
+  bb0:
+    push 1
+    push 10
+    dup 2
+    sub
+    stop
+  bb1:
+    callf !meta(stack=0->15)
+    push_deferred 0
+    dup 16
+    sub
+    stop
+  bb2:
+    callf !meta(stack=0->16)
+    push_immutable 0, 32
+    dup 17
+    sub
+    stop
+  bb3:
+    push 1
+    push 10
+-   dup 2
+-   pop
+    stop
+  bb4:
+    push 1
+    push 32
+    dup 2
+    iszero
+    sub
+    stop
+  

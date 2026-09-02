@@ -21,13 +21,15 @@
   bb4:
     stop
   bb5:
++   push 64
     push 128
-    mload
+-   mload
     push 256
-    mstore
-    push 160
-    mload
-    push 288
-    mstore
+-   mstore
+-   push 160
+-   mload
+-   push 288
+-   mstore
++   mcopy
     stop
   

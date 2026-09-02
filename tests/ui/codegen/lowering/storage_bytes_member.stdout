@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/storage_bytes_member.sol:StorageBytesMember (runtime) ===
-@module runtime
+@module StorageBytesMember_runtime
 bb0:
   callvalue
   push bb19
@@ -35,7 +35,7 @@ bb2:
   jump bb19
 bb19 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb3:
   dup 1
@@ -271,10 +271,9 @@ bb24:
   push 31
   not
   and
-  dup 1
-  iszero
   push 32
-  swap 1
+  dup 2
+  iszero
   dup 3
   dup 3
   sub
@@ -396,7 +395,7 @@ bb24:
   shr
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul
@@ -420,7 +419,7 @@ bb24:
   swap 2
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul
@@ -462,13 +461,12 @@ bb24:
   push 192
   mload
   mload
+  push 0
+  not
   push 288
   mload
   push 3
   shl
-  push 0
-  not
-  swap 1
   shr
   not
   and
@@ -611,10 +609,9 @@ bb37:
   push 31
   not
   and
-  dup 1
-  iszero
   push 32
-  swap 1
+  dup 2
+  iszero
   dup 3
   dup 3
   sub
@@ -705,7 +702,7 @@ bb37:
   shr
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul
@@ -729,7 +726,7 @@ bb37:
   swap 2
   push 0
   swap 2
-  dup 3
+  push 0
   dup 3
   sub
   mul
@@ -763,13 +760,12 @@ bb37:
   push 128
   mload
   mload
+  push 0
+  not
   push 192
   mload
   push 3
   shl
-  push 0
-  not
-  swap 1
   shr
   not
   and
@@ -878,13 +874,14 @@ bb48:
   push 0
   push 32
   mstore
+  push bb49
+  jump bb78
+bb78:
   push 64
   push 0
   keccak256
   push 1
   add
-  push bb49
-  swap 1
   jump bb69
 bb49:
   dup 1
@@ -915,14 +912,8 @@ bb50:
   push 0
   push 32
   mstore
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
   push bb52
-  swap 1
-  jump bb69
+  jump bb78
 bb52:
   dup 1
   push 160
@@ -1098,14 +1089,8 @@ bb65:
   push 0
   push 32
   mstore
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
   push bb66
-  swap 1
-  jump bb69
+  jump bb78
 bb66:
   dup 1
   push 224
@@ -1151,6 +1136,7 @@ bb66:
   iszero
   push bb68
   jumpi
+  push 0
   push 32
   push 192
   mload
@@ -1158,8 +1144,6 @@ bb66:
   push 160
   mload
   add
-  push 0
-  swap 1
   mstore
   jump bb68
 bb68:

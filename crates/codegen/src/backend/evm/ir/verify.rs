@@ -5,21 +5,35 @@ use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
 use solar_config::EvmVersion;
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use solar_sema::Gcx;
 use std::fmt;
 
 /// EVM IR verifier.
-struct Verifier<'a> {
+pub(super) struct Verifier<'a> {
     dcx: &'a DiagCtxt,
-    evm_version: Option<EvmVersion>,
+    evm_version: EvmVersion,
 }
 
 impl<'a> Verifier<'a> {
-    const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, evm_version: None }
+    pub(super) fn new(gcx: Gcx<'a>) -> Self {
+        Self { dcx: gcx.dcx(), evm_version: gcx.sess.opts.evm_version }
     }
 
-    const fn for_evm_version(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
-        Self { dcx, evm_version: Some(evm_version) }
+    pub(super) const fn for_evm_version(dcx: &'a DiagCtxt, evm_version: EvmVersion) -> Self {
+        Self { dcx, evm_version }
+    }
+
+    /// Checks the target requirements EVM IR passes rely on.
+    pub(super) fn verify_before_pipeline(&self, module: &Module) {
+        self.verify_stack_ops_for_evm_version(module);
+    }
+
+    /// Checks output target support after target legalization.
+    pub(super) fn verify_after_legalization(&self, module: &Module) {
+        if !self.evm_version.has_bitwise_shifting() {
+            self.verify_module(module);
+        }
+        self.verify_target_support(module);
     }
 
     #[track_caller]
@@ -34,11 +48,17 @@ impl<'a> Verifier<'a> {
         self.error(format_args!("block {}: {msg}", block.index()))
     }
 
-    fn verify_module(&self, module: &Module) {
+    pub(super) fn verify_module(&self, module: &Module) {
+        if self.verify_module_shape(module) {
+            self.verify_stack_ops(module);
+        }
+    }
+
+    pub(super) fn verify_module_shape(&self, module: &Module) -> bool {
         let errors_before = self.dcx.err_count();
         if module.blocks.is_empty() {
             self.error("program has no blocks");
-            return;
+            return false;
         }
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
@@ -66,9 +86,7 @@ impl<'a> Verifier<'a> {
             });
         }
 
-        if self.dcx.err_count() == errors_before {
-            self.verify_stack_ops(module);
-        }
+        self.dcx.err_count() == errors_before
     }
 
     fn verify_instruction_shape(&self, block_id: BlockId, module: &Module, inst: &Instruction) {
@@ -141,15 +159,8 @@ impl<'a> Verifier<'a> {
                 }
                 if !stack_op.is_valid() {
                     self.error_in_block(block_id, "logical stack operation has invalid depths");
-                } else if let Some(evm_version) = self.evm_version
-                    && stack_op.assembled_len(evm_version).is_none()
-                {
-                    self.error_in_block(
-                        block_id,
-                        format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
-                    );
                 }
-            } else if op::StackOp::from_legacy_opcode(inst.opcode).is_some()
+            } else if op::StackOp::from_single_byte_evm_opcode(inst.opcode).is_some()
                 || matches!(inst.opcode, op::DUPN | op::SWAPN | op::EXCHANGE)
             {
                 self.error_in_block(
@@ -158,11 +169,6 @@ impl<'a> Verifier<'a> {
                 );
             } else if inst.opcode == op::PUSH0 {
                 self.error_in_block(block_id, "`push0` must use the logical push form");
-            } else if let Some(evm_version) = self.evm_version
-                && inst.opcode == op::SLOTNUM
-                && !evm_version.has_slot_num()
-            {
-                self.error_in_block(block_id, "`slotnum` requires Amsterdam-compatible EVM");
             }
             if (op::PUSH1..=op::PUSH32).contains(&inst.opcode) {
                 self.error_in_block(
@@ -249,11 +255,7 @@ impl<'a> Verifier<'a> {
                     block_id,
                     format_args!(
                         "`{}` has stack effect {}->{}, expected {}->{}",
-                        terminator_name(&term.kind),
-                        effect.inputs,
-                        effect.outputs,
-                        expected.inputs,
-                        expected.outputs
+                        term.kind, effect.inputs, effect.outputs, expected.inputs, expected.outputs
                     ),
                 );
             }
@@ -262,7 +264,7 @@ impl<'a> Verifier<'a> {
                     block_id,
                     format_args!(
                         "terminator `{}` must declare an explicit stack effect",
-                        terminator_name(&term.kind)
+                        term.kind
                     ),
                 );
             }
@@ -290,9 +292,7 @@ impl<'a> Verifier<'a> {
                     }
                 } else {
                     let effect = inst
-                        .metadata
-                        .stack
-                        .or_else(|| default_instruction_stack_effect(inst))
+                        .effective_stack_effect()
                         .expect("instruction stack effect must be known after shape validation");
                     if self.apply_effect(block_id, inst.mnemonic(), effect, &mut stack).is_err() {
                         valid = false;
@@ -308,20 +308,10 @@ impl<'a> Verifier<'a> {
                 }
             }
             if valid {
-                let next = Self::next_block(module, block_id);
-                let lowering_growth = match &term.kind {
-                    TerminatorKind::IndexedJump(_) => 3,
-                    TerminatorKind::Jump(target) => usize::from(Some(*target) != next),
-                    TerminatorKind::JumpI { .. } => 1,
-                    TerminatorKind::Op(_) => 0,
-                };
+                let lowering_growth = term.kind.lowering_stack_growth(module.next_block(block_id));
                 if lowering_growth != 0
                     && self
-                        .ensure_stack_limit(
-                            block_id,
-                            terminator_name(&term.kind),
-                            stack + lowering_growth,
-                        )
+                        .ensure_stack_limit(block_id, &term.kind, stack + lowering_growth)
                         .is_err()
                 {
                     valid = false;
@@ -329,9 +319,7 @@ impl<'a> Verifier<'a> {
                     let effect = default_terminator_stack_effect(&term.kind)
                         .or(term.metadata.stack)
                         .expect("terminator stack effect must be known after shape validation");
-                    valid = self
-                        .apply_effect(block_id, terminator_name(&term.kind), effect, &mut stack)
-                        .is_ok();
+                    valid = self.apply_effect(block_id, &term.kind, effect, &mut stack).is_ok();
                 }
             }
             if !valid {
@@ -439,105 +427,60 @@ impl<'a> Verifier<'a> {
         }
     }
 
+    fn verify_target_support(&self, module: &Module) {
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            for inst in &block.instructions {
+                if let Some(stack_op) = inst.as_stack_op() {
+                    if stack_op.lowering(self.evm_version).is_none() {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
+                        );
+                    }
+                } else {
+                    self.verify_opcode(block_id, inst.opcode);
+                }
+            }
+            if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator {
+                self.verify_opcode(block_id, *opcode);
+            }
+        }
+    }
+
+    fn verify_stack_ops_for_evm_version(&self, module: &Module) {
+        for (block_id, block) in module.blocks.iter_enumerated() {
+            for inst in &block.instructions {
+                if let Some(stack_op) = inst.as_stack_op()
+                    && stack_op.lowering(self.evm_version).is_none()
+                {
+                    self.error_in_block(
+                        block_id,
+                        format_args!("`{}` requires Amsterdam-compatible EVM", inst.mnemonic()),
+                    );
+                }
+            }
+        }
+    }
+
+    fn verify_opcode(&self, block: BlockId, opcode: u8) {
+        if !op::is_available(opcode, self.evm_version) {
+            let name = op::mnemonic(opcode).unwrap_or("unknown");
+            self.error_in_block(
+                block,
+                format_args!("opcode `{name}` is unavailable for `{}` EVM", self.evm_version),
+            );
+        }
+    }
+
     fn block_exists(&self, module: &Module, block: BlockId) -> bool {
         block.index() < module.blocks.len()
     }
 
-    fn next_block(module: &Module, block: BlockId) -> Option<BlockId> {
-        let next = block.index() + 1;
-        (next < module.blocks.len()).then(|| BlockId::from_usize(next))
+    pub(super) fn is_valid(module: &Module) -> bool {
+        let dcx = DiagCtxt::with_silent_emitter(None);
+        Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module(module);
+        dcx.has_errors().is_ok()
     }
-}
-
-fn terminator_name(kind: &TerminatorKind) -> &'static str {
-    match kind {
-        TerminatorKind::Jump(_) => "jump",
-        TerminatorKind::JumpI { .. } => "jumpi",
-        TerminatorKind::IndexedJump(_) => "indexed_jump",
-        TerminatorKind::Op(opcode) => op::mnemonic(*opcode).unwrap_or("terminal"),
-    }
-}
-
-pub(super) fn validate(dcx: &DiagCtxt, module: &Module) {
-    Verifier::new(dcx).verify_module(module);
-}
-
-pub(super) fn validate_evm_version(
-    dcx: &DiagCtxt,
-    module: &Module,
-    evm_version: EvmVersion,
-    allow_legacy_opcodes: bool,
-) {
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        for inst in &block.instructions {
-            if let Some(stack_op) = inst.as_stack_op() {
-                validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
-            } else {
-                validate_opcode(dcx, block_id, inst.opcode, evm_version, allow_legacy_opcodes);
-            }
-        }
-        if let Some(Terminator { kind: TerminatorKind::Op(opcode), .. }) = &block.terminator {
-            validate_opcode(dcx, block_id, *opcode, evm_version, allow_legacy_opcodes);
-        }
-    }
-}
-
-pub(super) fn validate_stack_ops_for_evm_version(
-    dcx: &DiagCtxt,
-    module: &Module,
-    evm_version: EvmVersion,
-) {
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        for inst in &block.instructions {
-            if let Some(stack_op) = inst.as_stack_op() {
-                validate_stack_op(dcx, block_id, inst, stack_op, evm_version);
-            }
-        }
-    }
-}
-
-fn validate_stack_op(
-    dcx: &DiagCtxt,
-    block: BlockId,
-    inst: &Instruction,
-    stack_op: op::StackOp,
-    evm_version: EvmVersion,
-) {
-    if stack_op.lowering(evm_version).is_none() {
-        dcx.err(format!(
-            "EVM IR verification failed: block {}: `{}` requires Amsterdam-compatible EVM",
-            block.index(),
-            inst.mnemonic()
-        ))
-        .emit();
-    }
-}
-
-fn validate_opcode(
-    dcx: &DiagCtxt,
-    block: BlockId,
-    opcode: u8,
-    evm_version: EvmVersion,
-    allow_legacy_opcodes: bool,
-) {
-    if allow_legacy_opcodes
-        && ((!evm_version.has_bitwise_shifting() && matches!(opcode, op::SHL | op::SHR | op::SAR))
-            || (!evm_version.supports_returndata() && opcode == op::REVERT))
-    {
-        return;
-    }
-    if !op::is_available(opcode, evm_version) {
-        let name = op::mnemonic(opcode).unwrap_or("unknown");
-        dcx.err(format!(
-            "EVM IR verification failed: block {}: opcode `{name}` is unavailable for `{evm_version}` EVM",
-            block.index()
-        ))
-        .emit();
-    }
-}
-
-pub(super) fn validate_for_evm_version(dcx: &DiagCtxt, module: &Module, evm_version: EvmVersion) {
-    Verifier::for_evm_version(dcx, evm_version).verify_module(module);
 }
 
 #[cfg(test)]
@@ -559,7 +502,7 @@ mod tests {
             module.blocks[target].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
             let dcx = DiagCtxt::with_silent_emitter(None);
-            validate(&dcx, &module);
+            Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module(&module);
             assert_eq!(dcx.err_count(), expected_errors);
         }
     }
@@ -576,11 +519,21 @@ mod tests {
         module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
 
         let osaka = DiagCtxt::with_silent_emitter(None);
-        validate_for_evm_version(&osaka, &module, EvmVersion::Osaka);
+        Verifier::for_evm_version(&osaka, EvmVersion::Osaka).verify_before_pipeline(&module);
+        assert_eq!(osaka.err_count(), 1);
+
+        let amsterdam = DiagCtxt::with_silent_emitter(None);
+        Verifier::for_evm_version(&amsterdam, EvmVersion::Amsterdam)
+            .verify_before_pipeline(&module);
+        assert_eq!(amsterdam.err_count(), 0);
+
+        let osaka = DiagCtxt::with_silent_emitter(None);
+        Verifier::for_evm_version(&osaka, EvmVersion::Osaka).verify_after_legalization(&module);
         assert_eq!(osaka.err_count(), 2);
 
         let amsterdam = DiagCtxt::with_silent_emitter(None);
-        validate_for_evm_version(&amsterdam, &module, EvmVersion::Amsterdam);
+        Verifier::for_evm_version(&amsterdam, EvmVersion::Amsterdam)
+            .verify_after_legalization(&module);
         assert_eq!(amsterdam.err_count(), 0);
     }
 }

@@ -7,6 +7,10 @@
 // CHECK: - dup 1
 // CHECK: - push 32
 // CHECK: - mstore
+// CHECK: {{^[ +].*}}push 7
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK-NEXT: {{^[ +].*}}push 96
+// CHECK-NEXT: {{^[ +].*}}mstore
 bb0:
   push 1
   dup 1
@@ -15,13 +19,21 @@ bb0:
   dup 1
   push 32
   mstore
+  push 7
+  push 96
+  mstore
+  push 96
+  mload
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
-// CHECK: {{^[ +].*}}mstore
-// CHECK: - pop
-// CHECK: - push 32
-// CHECK: - mload
+// CHECK: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}dup 1
+// CHECK-NEXT: {{^[ +].*}}push 32
+// CHECK-NEXT: {{^[ +].*}}mstore
+// CHECK-NEXT: - pop
+// CHECK-NEXT: - push 32
+// CHECK-NEXT: - mload
 bb1:
   push 1
   dup 1
@@ -81,4 +93,26 @@ bb5:
   dup 1
   push 32
   mstore
+  stop
+
+// Reuse the stored value instead of loading it again.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}push 7
+// CHECK-NEXT: +   dup 1
+// CHECK-NEXT: {{^[ +].*}}push 32
+// CHECK-NEXT: {{^[ +].*}}mstore
+// CHECK-NEXT: -   push 32
+// CHECK-NEXT: -   mload
+bb6:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push 7
+  push 32
+  mstore
+  push 32
+  mload
   stop

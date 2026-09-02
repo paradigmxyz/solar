@@ -21,50 +21,22 @@ pub(in crate::backend::evm) mod builder;
 mod display;
 mod parse;
 mod passes;
-mod verify;
+pub(in crate::backend::evm) mod verify;
 
 pub(in crate::backend::evm) mod assembly;
 
 pub(crate) use passes::compact_pushes::immediate_materialization_cost;
-pub use passes::{ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_pipeline};
-pub(in crate::backend::evm) use passes::{LEGACY_SHIFT_STACK_HEADROOM, legalize_shifts};
+pub use passes::{
+    ALL_PASSES, EvmPass, lookup_pass, pipeline_label, run_passes, run_passes_no_validate,
+    run_pipeline,
+};
+pub(in crate::backend::evm) use passes::{
+    compact_pushes::ImmediateMaterialization, legalize_shifts,
+};
 
-/// Maximum stack reserve used by parameterized machine-run outlining.
-pub(in crate::backend::evm) const MAX_OUTLINE_STACK_HEADROOM: usize = 10;
-
-/// Peak stack growth when replacing memory stores with a program-data copy.
-pub(in crate::backend::evm) const DATA_COPY_STACK_HEADROOM: usize = 3;
-
-/// Validates the invariants of an EVM IR module.
-pub fn validate(dcx: &solar_interface::diagnostics::DiagCtxt, module: &Module) {
-    verify::validate(dcx, module);
-}
-
-/// Validates EVM IR invariants for a target EVM version.
-pub(crate) fn validate_for_evm_version(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    verify::validate_for_evm_version(dcx, module, evm_version);
-}
-
-/// Validates that every opcode is available for the selected EVM version.
-pub(in crate::backend::evm) fn validate_evm_version(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    verify::validate_evm_version(dcx, module, evm_version, false);
-}
-
-/// Validates opcode availability before pre-Constantinople shifts are legalized.
-pub(in crate::backend::evm) fn validate_evm_version_before_legalization(
-    dcx: &solar_interface::diagnostics::DiagCtxt,
-    module: &Module,
-    evm_version: solar_config::EvmVersion,
-) {
-    verify::validate_evm_version(dcx, module, evm_version, true);
+/// Validates the target-independent invariants of an EVM IR module.
+pub fn validate(gcx: solar_sema::Gcx<'_>, module: &Module) {
+    verify::Verifier::new(gcx).verify_module(module);
 }
 
 newtype_index! {
@@ -110,15 +82,19 @@ pub struct Module {
     pub(crate) blocks: IndexVec<BlockId, Block>,
     /// Constant byte strings addressable by `push_data`.
     pub(crate) data: IndexVec<DataId, Data>,
-    /// Backend-proven growth available even across opaque physical jumps.
-    pub(crate) unknown_target_stack_headroom: usize,
-    /// Whether the backend reserved stack growth for program-data copies.
-    pub(crate) data_copy_has_headroom: bool,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
 }
 
 impl Module {
+    /// Lowers this EVM IR module to bytecode.
+    pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
+        let mut assembler = super::assembler::Assembler::from_evm_ir(gcx, self)?;
+        let result = assembler.assemble_with_evm_ir(true);
+        gcx.dcx().has_errors()?;
+        Ok(result.bytecode)
+    }
+
     /// Parses textual EVM IR.
     pub fn parse(
         sess: &solar_interface::Session,
@@ -130,18 +106,18 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self {
-            name,
-            blocks: IndexVec::new(),
-            data: IndexVec::new(),
-            unknown_target_stack_headroom: 0,
-            data_copy_has_headroom: false,
-            enable_size_outlining: false,
-        }
+        Self { name, blocks: IndexVec::new(), data: IndexVec::new(), enable_size_outlining: false }
     }
 
-    /// Changes the program name.
-    pub(crate) fn set_name(&mut self, name: Symbol) {
+    /// Clears the module while retaining its outer allocations.
+    pub(in crate::backend::evm) fn clear(&mut self) {
+        self.blocks.clear();
+        self.data.clear();
+        self.enable_size_outlining = false;
+    }
+
+    /// Changes the program name without clearing emitted IR.
+    pub(in crate::backend::evm) fn set_name(&mut self, name: Symbol) {
         self.name = name;
     }
 
@@ -159,6 +135,13 @@ impl Module {
     /// Adds a block to the program.
     pub(crate) fn add_block(&mut self, block: Block) -> BlockId {
         self.blocks.push(block)
+    }
+
+    /// Returns the block after `block` in layout order.
+    #[must_use]
+    pub(crate) fn next_block(&self, block: BlockId) -> Option<BlockId> {
+        let next = block.index() + 1;
+        (next < self.blocks.len()).then(|| BlockId::from_usize(next))
     }
 }
 
@@ -238,7 +221,7 @@ impl Instruction {
     /// Creates an instruction for an EVM opcode.
     #[must_use]
     pub(crate) fn opcode(opcode: u8) -> Self {
-        if let Some(stack_op) = StackOp::from_legacy_opcode(opcode) {
+        if let Some(stack_op) = StackOp::from_single_byte_evm_opcode(opcode) {
             return Self::stack_op(stack_op);
         }
         Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::EMPTY }
@@ -256,24 +239,16 @@ impl Instruction {
         }
     }
 
-    /// Returns the equivalent one-byte opcode for a non-push instruction.
+    /// Returns the equivalent one-byte EVM opcode for a non-push instruction.
     #[must_use]
-    pub(crate) fn as_legacy_opcode(&self) -> Option<u8> {
+    pub(crate) fn as_evm_opcode(&self) -> Option<u8> {
         if self.is_encoded_push() {
             None
         } else if let Some(stack_op) = self.stack_op {
-            stack_op.legacy_opcode()
+            stack_op.single_byte_evm_opcode()
         } else {
             Some(self.opcode)
         }
-    }
-
-    /// Returns whether stack metadata agrees with the opcode's fixed effect.
-    #[must_use]
-    pub(crate) fn has_canonical_stack_effect(&self) -> bool {
-        self.metadata
-            .stack
-            .is_none_or(|effect| Some(effect) == default_instruction_stack_effect(self))
     }
 
     /// Returns whether this instruction has a raw branch target outside its block.
@@ -428,6 +403,20 @@ impl Instruction {
         self.stack_op
     }
 
+    /// Returns metadata's stack effect override or the opcode's default effect.
+    #[must_use]
+    pub(crate) fn effective_stack_effect(&self) -> Option<StackEffect> {
+        self.metadata.stack.or_else(|| default_instruction_stack_effect(self))
+    }
+
+    /// Returns whether metadata preserves the opcode's default stack effect.
+    #[must_use]
+    pub(crate) fn has_canonical_stack_effect(&self) -> bool {
+        self.metadata
+            .stack
+            .is_none_or(|effect| Some(effect) == default_instruction_stack_effect(self))
+    }
+
     /// Returns the deferred constant referenced by this push instruction, if any.
     #[must_use]
     pub(in crate::backend::evm) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
@@ -476,13 +465,21 @@ pub(crate) struct Terminator {
     pub(crate) kind: TerminatorKind,
     /// Terminator metadata.
     pub(crate) metadata: Metadata,
+    /// Whether the builder inserted `STOP` for a raw assembler fragment that ran out of blocks.
+    pub(crate) implicit_stop: bool,
 }
 
 impl Terminator {
     /// Creates a terminator without metadata.
     #[must_use]
     pub(crate) const fn new(kind: TerminatorKind) -> Self {
-        Self { kind, metadata: Metadata::EMPTY }
+        Self { kind, metadata: Metadata::EMPTY, implicit_stop: false }
+    }
+
+    /// Creates the artificial `STOP` that closes a raw assembler fragment.
+    #[must_use]
+    pub(in crate::backend::evm) const fn implicit_stop() -> Self {
+        Self { kind: TerminatorKind::Op(op::STOP), metadata: Metadata::EMPTY, implicit_stop: true }
     }
 }
 
@@ -507,6 +504,17 @@ pub(crate) enum TerminatorKind {
 }
 
 impl TerminatorKind {
+    /// Returns the temporary stack growth introduced when lowering this terminator.
+    #[must_use]
+    pub(crate) fn lowering_stack_growth(&self, next: Option<BlockId>) -> usize {
+        match self {
+            Self::IndexedJump(_) => 3,
+            Self::Jump(target) => usize::from(Some(*target) != next),
+            Self::JumpI { .. } => 1,
+            Self::Op(_) => 0,
+        }
+    }
+
     /// Visits every basic block target.
     pub(crate) fn visit_targets(&self, mut visit: impl FnMut(BlockId)) {
         match self {
@@ -557,6 +565,17 @@ impl TerminatorKind {
             }
             Self::IndexedJump(targets) => targets.iter_mut().for_each(visit),
             Self::Op(_) => {}
+        }
+    }
+}
+
+impl fmt::Display for TerminatorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Jump(_) => f.write_str("jump"),
+            Self::JumpI { .. } => f.write_str("jumpi"),
+            Self::IndexedJump(_) => f.write_str("indexed_jump"),
+            Self::Op(opcode) => f.write_str(op::mnemonic(*opcode).unwrap_or("terminal")),
         }
     }
 }

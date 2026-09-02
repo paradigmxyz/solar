@@ -182,6 +182,14 @@ impl<T: BitSetIndex> DenseBitSet<T> {
         self.words.fill(0);
     }
 
+    /// Resizes the domain and clears all elements without discarding the allocation.
+    #[inline]
+    pub fn clear_to(&mut self, domain_size: usize) {
+        self.domain_size = domain_size;
+        self.words.resize(num_words(domain_size), 0);
+        self.words.fill(0);
+    }
+
     /// Clear excess bits in the final word.
     fn clear_excess_bits(&mut self) {
         clear_excess_bits_in_final_word(self.domain_size, &mut self.words);

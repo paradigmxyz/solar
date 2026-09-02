@@ -24,9 +24,9 @@
 //!   value or an anonymous word produced by low-level code.
 //! - [`scheduler`] prepares the ordered operands for one instruction. It can consume dead values in
 //!   place, preserve live values, duplicate or swap accessible values, and rematerialize
-//!   immediates, arguments, or stored spills. Under size optimization, equal immediate operands
-//!   share one backend value identity. Plans are replayable and are applied to the model only when
-//!   chosen.
+//!   immediates, stable nullary reads, arguments, or stored spills. Under size optimization, equal
+//!   immediate operands share one backend value identity. Plans are replayable and are applied to
+//!   the model only when chosen.
 //! - [`shuffler`] canonicalizes complete layouts on selected CFG edges. Layouts of up to four words
 //!   compare nontrivial greedy sequences with bounded shortest-action search and accept only Pareto
 //!   improvements in action count and static gas; larger layouts use the verified greedy result and
@@ -222,7 +222,9 @@ mod spill;
 pub(crate) use super::op::StackOp;
 pub(crate) use model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel};
 pub(crate) use scheduler::{
-    OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler,
+    OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler, cross_block_values,
+    is_cheap_recomputable_value, is_cross_block_recomputable_kind, is_rematerializable_leaf,
+    rematerializable_nullary_opcode, rematerializable_nullary_value,
 };
-pub(crate) use shuffler::TargetSlot;
+pub(crate) use shuffler::{TargetSlot, lowered_stack_cost, resynthesize_physical_ops};
 pub(crate) use spill::SpillSlot;

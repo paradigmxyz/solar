@@ -1,14 +1,31 @@
 //! Indexed jump table planning and assembly lowering.
 
-use super::{AsmInst, Program, lower};
+use super::{Program, lower};
 use crate::backend::evm::{
     assembler::{Assembler, Label},
-    ir::{self, BlockId},
-    op, push_len,
+    ir::{
+        self, BlockId,
+        passes::compact_pushes::{
+            ImmediateMaterialization, ImmediateMaterializationOp, immediate_materialization_len,
+        },
+    },
+    op::{self, WORD_BYTES, push_len},
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::index::{IndexVec, index_vec};
+
+fn push_immediate(
+    assembler: &mut Assembler<'_>,
+    program: &mut Program,
+    evm_version: EvmVersion,
+    value: U256,
+) {
+    ImmediateMaterialization::new(evm_version, value).for_each(|op| match op {
+        ImmediateMaterializationOp::Push(value) => program.push(assembler.push_inst(value)),
+        ImmediateMaterializationOp::Opcode(opcode) => program.push_op(opcode),
+    });
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct IndexedJumpEncoding {
@@ -612,10 +629,10 @@ fn indexed_jump_packed_chunks(
         return PackedTableChunks::None;
     }
     let bytes = table_len.saturating_mul(usize::from(target_width));
-    if bytes <= 32 {
+    if bytes <= WORD_BYTES {
         PackedTableChunks::One
     } else {
-        let entries_per_chunk = 32 / usize::from(target_width);
+        let entries_per_chunk = WORD_BYTES / usize::from(target_width);
         let table = PackedTableEstimate {
             len: table_len,
             width: target_width,
@@ -641,7 +658,7 @@ pub(in crate::backend::evm) fn packs_indexed_jump(
     evm_version: EvmVersion,
 ) -> bool {
     supports_indexed_jump_packing(table_len, evm_version)
-        && table_len.saturating_mul(target_width) <= 32
+        && table_len.saturating_mul(target_width) <= WORD_BYTES
 }
 
 fn supports_indexed_jump_packing(table_len: usize, evm_version: EvmVersion) -> bool {
@@ -789,7 +806,7 @@ fn estimated_block_size(
     if let Some(term) = &block.terminator {
         size = size.saturating_add(estimated_terminator_size(
             &term.kind,
-            lower::next_block(module, block_id),
+            module.next_block(block_id),
             block_target_width,
             packed_table,
             evm_version,
@@ -827,12 +844,19 @@ fn estimated_terminator_size(
 
 fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) -> usize {
     let table_len = if table.chunks == PackedTableChunks::One {
-        9 + table.len * usize::from(table.width) + usize::from(table.width)
+        if table.width == 1 {
+            let byte_offset = WORD_BYTES - table.len;
+            4 + table.len
+                + usize::from(byte_offset != 0)
+                    * (immediate_materialization_len(evm_version, U256::from(byte_offset)) + 1)
+        } else {
+            9 + table.len * usize::from(table.width) + usize::from(table.width)
+        }
     } else {
         debug_assert_eq!(table.chunks, PackedTableChunks::Two);
 
         let width = usize::from(table.width);
-        let entries_per_chunk = 32 / width;
+        let entries_per_chunk = WORD_BYTES / width;
         let second_chunk_bytes = (table.len - entries_per_chunk) * width;
         let chunk_shift = entries_per_chunk.ilog2();
         let entry_mask = entries_per_chunk - 1;
@@ -842,12 +866,12 @@ fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) 
         let second_chunk_push = second_chunk_bytes + 1;
         let first_chunk_push = 33;
         opcode_bytes
-            + push_len(evm_version, U256::from(chunk_shift))
+            + immediate_materialization_len(evm_version, U256::from(chunk_shift))
             + second_chunk_push
             + first_chunk_push
-            + push_len(evm_version, U256::from(entry_mask))
-            + push_len(evm_version, U256::from(scale_shift))
-            + push_len(evm_version, target_mask)
+            + immediate_materialization_len(evm_version, U256::from(entry_mask))
+            + immediate_materialization_len(evm_version, U256::from(scale_shift))
+            + immediate_materialization_len(evm_version, target_mask)
     };
     table_len + usize::from(table.base_width) + usize::from(table.base_width != 0) * 2
 }
@@ -860,6 +884,7 @@ pub(super) fn lower(
     labels: &mut Vec<Option<Label>>,
     indexed_jump: IndexedJumpLowering,
 ) {
+    let evm_version = assembler.gcx.sess.opts.evm_version;
     let table_encoding = indexed_jump.table.expect("indexed jump table encoding");
     if table_encoding.packed_chunks != PackedTableChunks::None {
         let target_width = table_encoding.width;
@@ -872,14 +897,11 @@ pub(super) fn lower(
             .map(|&target| lower::label_for_block(assembler, module, target, labels))
             .collect::<Vec<_>>();
         if table_encoding.packed_chunks == PackedTableChunks::Two {
-            let entries_per_chunk = 32 / usize::from(target_width);
+            let entries_per_chunk = WORD_BYTES / usize::from(target_width);
             let (first, second) = labels.split_at(entries_per_chunk);
             // Select one of the two words without branching.
             program.push_op(op::DUP1);
-            program.push(
-                AsmInst::push_inline(entries_per_chunk.ilog2())
-                    .expect("indexed jump chunk shift must fit inline"),
-            );
+            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk.ilog2()));
             program.push_op(op::SHR);
             program.push_op(op::DUP1);
             program.push_packed_labels(second.into(), base, target_width);
@@ -890,29 +912,37 @@ pub(super) fn lower(
             program.push_op(op::MUL);
             program.push_op(op::ADD);
             program.push_op(op::SWAP1);
-            program.push(
-                AsmInst::push_inline((entries_per_chunk - 1) as u32)
-                    .expect("indexed jump chunk mask must fit inline"),
-            );
+            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk - 1));
             program.push_op(op::AND);
         }
-        if scale.is_power_of_two() {
-            program.push(
-                AsmInst::push_inline(scale.ilog2()).expect("indexed jump scale must fit inline"),
-            );
-            program.push_op(op::SHL);
-        } else {
-            program.push(AsmInst::push_inline(scale).expect("indexed jump scale must fit inline"));
-            program.push_op(op::MUL);
-        }
-        if table_encoding.packed_chunks == PackedTableChunks::One {
-            program.push_packed_labels(labels.into_boxed_slice(), base, target_width);
+        if table_encoding.packed_chunks == PackedTableChunks::One && target_width == 1 {
+            let byte_offset = WORD_BYTES - labels.len();
+            if byte_offset != 0 {
+                push_immediate(assembler, program, evm_version, U256::from(byte_offset));
+                program.push_op(op::ADD);
+            }
+            let mut labels = labels.into_boxed_slice();
+            labels.reverse();
+            program.push_packed_labels(labels, base, target_width);
             program.push_op(op::SWAP1);
+            program.push_op(op::BYTE);
+        } else {
+            if scale.is_power_of_two() {
+                push_immediate(assembler, program, evm_version, U256::from(scale.ilog2()));
+                program.push_op(op::SHL);
+            } else {
+                push_immediate(assembler, program, evm_version, U256::from(scale));
+                program.push_op(op::MUL);
+            }
+            if table_encoding.packed_chunks == PackedTableChunks::One {
+                program.push_packed_labels(labels.into_boxed_slice(), base, target_width);
+                program.push_op(op::SWAP1);
+            }
+            program.push_op(op::SHR);
+            let mask = (U256::ONE << scale) - U256::ONE;
+            push_immediate(assembler, program, evm_version, mask);
+            program.push_op(op::AND);
         }
-        program.push_op(op::SHR);
-        let mask = (U256::ONE << scale) - U256::ONE;
-        program.push(assembler.push_inst(mask));
-        program.push_op(op::AND);
         if let Some(base) = base {
             program.push_label(base);
             program.push_op(op::ADD);
@@ -929,7 +959,7 @@ pub(super) fn lower(
     );
     let entry_width = indexed_jump.outlined_entry_width.expect("outlined indexed jump entry width");
     let stub_len = u32::from(entry_width) + 3;
-    program.push(AsmInst::push_inline(stub_len).expect("indexed jump stub length must fit inline"));
+    push_immediate(assembler, program, evm_version, U256::from(stub_len));
     program.push_op(op::MUL);
     program.push_label(lower::label_for_block(assembler, module, table, labels));
     program.push_op(op::ADD);
@@ -1286,14 +1316,17 @@ mod tests {
             ),
             PackedTableChunks::Two
         );
+        let packed_len = packed_indexed_jump_len(
+            PackedTableEstimate {
+                len: 3,
+                width: 16,
+                chunks: PackedTableChunks::Two,
+                base_width: 0,
+            },
+            EvmVersion::Osaka,
+        );
         assert_eq!(
-            indexed_jump_packed_chunks(
-                3,
-                16,
-                EvmVersion::Osaka,
-                true,
-                outlined_indexed_jump_len(3, 16),
-            ),
+            indexed_jump_packed_chunks(3, 16, EvmVersion::Osaka, true, packed_len),
             PackedTableChunks::None
         );
     }

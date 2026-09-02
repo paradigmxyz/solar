@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/lowering/stack-too-deep/call_args.sol:StackTooDeepCall (creation) ===
-// === deployment ===
-@module deployment
+// === StackTooDeepCall_deployment ===
+@module StackTooDeepCall_deployment
 bb0:
-  push 971
+  push 941
   dup 1
   push 10
   push 0
@@ -10,8 +10,8 @@ bb0:
   push 0
   return
 
-// === runtime ===
-@module runtime
+// === StackTooDeepCall_runtime ===
+@module StackTooDeepCall_runtime
 bb0:
   callvalue
   push bb3
@@ -292,24 +292,16 @@ bb0:
   lt
   swap 7
   pop
+  swap 2
+  swap 4
   swap 6
-  exchange 1, 5
-  exchange 2, 6
-  exchange 3, 5
-  exchange 4, 6
+  swap 1
+  swap 3
+  swap 5
+  swap 1
   iszero
   push bb29
   jumpi
-  pop
-  jump bb51
-bb51:
-  pop
-  jump bb50
-bb50:
-  pop
-  pop
-  pop
-  pop
   jump bb49
 bb49 [cold]:
   push 0x4e487b71
@@ -343,14 +335,16 @@ bb29:
   push 0x5a0
   mload
   gt
-  exchange 1, 5
-  exchange 2, 5
-  exchange 3, 5
-  exchange 4, 5
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 1
   iszero
   push bb30
   jumpi
-  jump bb51
+  jump bb49
 bb30:
   swap 4
   push 0x5c0
@@ -362,13 +356,15 @@ bb30:
   push 0x5c0
   mload
   gt
-  exchange 1, 4
-  exchange 2, 4
-  exchange 3, 4
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 1
   iszero
   push bb31
   jumpi
-  jump bb50
+  jump bb49
 bb31:
   swap 3
   push 0x5a0
@@ -387,9 +383,6 @@ bb31:
   iszero
   push bb32
   jumpi
-  pop
-  pop
-  pop
   jump bb49
 bb32:
   swap 2
@@ -406,8 +399,6 @@ bb32:
   iszero
   push bb33
   jumpi
-  pop
-  pop
   jump bb49
 bb33:
   swap 1
@@ -423,7 +414,6 @@ bb33:
   iszero
   push bb34
   jumpi
-  pop
   jump bb49
 bb34:
   push 0x5c0
@@ -599,5 +589,5 @@ bb34:
   jump
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert

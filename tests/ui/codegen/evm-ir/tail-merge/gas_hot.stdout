@@ -1,0 +1,19 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/gas_hot.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/gas_hot.evmir (after tail-merge) ===
+  @module GasHotTailMerge
+  bb0:
+    push 1
+-   push 22
+-   push 33
+-   push 44
+-   stop
++   jump bb2
+  bb1:
+    push 2
++   jump bb2
++ bb2:
+    push 22
+    push 33
+    push 44
+    stop
+  

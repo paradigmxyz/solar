@@ -5,14 +5,13 @@ use crate::{
     backend::evm::{
         assembler::{ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label},
         ir::assembly::DeferredAlloc,
-        op, push_len,
+        op::{self, push_len},
     },
     memory::EvmMemoryLayout,
     mir::{DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize},
 };
 use alloy_primitives::U256;
 use solar_data_structures::index::index_vec;
-use solar_interface::{diagnostics::DiagCtxt, sym};
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -32,7 +31,7 @@ impl<'gcx> Assembler<'gcx> {
                 .emit());
         }
 
-        debug_assert!(is_valid(&module));
+        debug_assert!(ir::verify::Verifier::is_valid(&module));
 
         // Parsed block labels may be sparse, but assembly indexes labels with a vector.
         for (index, block) in module.blocks.iter_mut().enumerate() {
@@ -333,10 +332,6 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    pub(in crate::backend::evm) fn new_ir_module() -> ir::Module {
-        ir::Module::new(sym::asm)
-    }
-
     fn current_block(&mut self) -> ir::BlockId {
         if let Some(block) = self.current_block {
             return block;
@@ -357,9 +352,11 @@ impl<'gcx> Assembler<'gcx> {
     pub(in crate::backend::evm) fn finish_evm_ir(
         &mut self,
     ) -> Option<(ir::Module, Vec<Option<Label>>)> {
-        let mut module = std::mem::replace(&mut self.program, Self::new_ir_module());
+        let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
         if module.blocks.is_empty() {
+            module.clear();
+            self.program = module;
             return None;
         }
 
@@ -381,7 +378,7 @@ impl<'gcx> Assembler<'gcx> {
         alloc_relocations.sort_unstable_by_key(|&(block, instruction, _)| {
             std::cmp::Reverse((block, instruction))
         });
-        for (block, instruction, id) in alloc_relocations {
+        for (block, instruction, id) in alloc_relocations.drain(..) {
             let resolution = self
                 .deferred_allocations
                 .get(&id)
@@ -403,6 +400,7 @@ impl<'gcx> Assembler<'gcx> {
             module.blocks[block].instructions.splice(instruction..=instruction, replacement);
         }
         self.deferred_allocations.clear();
+        self.alloc_relocations = alloc_relocations;
 
         if self.program_is_finalized {
             self.program_is_finalized = false;
@@ -422,28 +420,33 @@ impl<'gcx> Assembler<'gcx> {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
             let block = &mut module.blocks[block_id];
-            let (kind, remove) = if let [.., push, jump] = block.instructions.as_slice()
+            let (terminator, remove) = if let [.., push, jump] = block.instructions.as_slice()
                 && !jump.is_encoded_push()
                 && jump.opcode == op::JUMP
                 && let Some(target) = push.pushed_block()
                 && push.is_encoded_push()
             {
-                (ir::TerminatorKind::Jump(target), 2)
+                (ir::Terminator::new(ir::TerminatorKind::Jump(target)), 2)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && last.opcode == op::STOP
             {
-                (ir::TerminatorKind::Op(op::STOP), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)), 1)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
             {
-                (ir::TerminatorKind::Op(last.opcode), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1)
             } else {
-                (next.map_or(ir::TerminatorKind::Op(op::STOP), ir::TerminatorKind::Jump), 0)
+                (
+                    next.map_or_else(ir::Terminator::implicit_stop, |target| {
+                        ir::Terminator::new(ir::TerminatorKind::Jump(target))
+                    }),
+                    0,
+                )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            block.terminator = Some(ir::Terminator::new(kind));
+            block.terminator = Some(terminator);
         }
 
         for (block, targets) in self.indexed_jump_relocations.drain(..) {
@@ -475,10 +478,4 @@ pub(in crate::backend::evm) fn resolve_known_deferred_constants(
             }
         }
     }
-}
-
-pub(in crate::backend::evm) fn is_valid(module: &ir::Module) -> bool {
-    let dcx = DiagCtxt::with_silent_emitter(None);
-    ir::validate(&dcx, module);
-    dcx.has_errors().is_ok()
 }

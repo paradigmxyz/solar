@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/lowering/switch/dense_table.sol:SwitchDenseTable (runtime) ===
-@module runtime
+@module SwitchDenseTable_runtime
 bb0:
   callvalue
   push bb3
@@ -20,10 +20,9 @@ bb0:
   sgt
   push bb3
   jumpi
+  push 10
   push 4
   calldataload
-  push 10
-  swap 1
   sub
   dup 1
   push 24
@@ -39,7 +38,7 @@ bb8:
   stop
 bb3 [cold]:
   push 0
-  dup 1
+  push 0
   revert
 bb6:
   indexed_jump bb9, bb10, bb11, bb12, bb13, bb14, bb15, bb16, bb17, bb18, bb19, bb20, bb21, bb22, bb23, bb24, bb25, bb26, bb27, bb28, bb29, bb30, bb31, bb32

@@ -3,7 +3,8 @@
 //! Terminal blocks with identical machine instruction bodies can share one
 //! implementation because execution never returns to their callers. This pass
 //! keeps the first body and redirects later copies to it. CFG simplification
-//! then redirects references and removes the temporary jump thunks.
+//! then redirects references and removes the temporary jump thunks. Block hotness does not affect
+//! equivalence; a hot redirect promotes the shared body so later layout keeps it on the hot path.
 
 use super::{EvmPass, utils::is_terminal_boundary};
 use crate::backend::evm::ir::{
@@ -32,7 +33,6 @@ struct RunState {
 
 fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
     let mut state = RunState::default();
-
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
         let Some(key) = terminal_block_key(block) else { continue };

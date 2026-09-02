@@ -17,10 +17,6 @@ contract C {
     // CHECK: eq
     // CHECK-NEXT: push [[CALL:bb[0-9]+]]
     // CHECK: [[CALL]]:
-    // CHECK: jump [[DECODE:bb[0-9]+]]
-    // CHECK: [[DECODE]]:
-    // CHECK: [[DELEGATE]]:
-    // CHECK: jump [[DECODE]]
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: jump [[RETURN:bb[0-9]+]]

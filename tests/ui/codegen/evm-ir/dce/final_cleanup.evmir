@@ -1,0 +1,44 @@
+//@ compile-flags: -Zevm-ir-pipeline=default
+//@ filecheck:
+@module FinalDceCleanup
+
+// CHECK-LABEL: bb0:
+// CHECK: sub
+// CHECK-NEXT: push bb3
+// CHECK-NEXT: jumpi
+// The first block CSE makes bb1 and bb2 identical. The second structural sweep
+// then joins them, so only the final DCE exposes the checked peephole.
+bb0:
+  push 320
+  dup 1
+  push 256
+  mstore
+  dup 1
+  mload
+  push 1
+  dup 2
+  and
+  eq
+  swap 1
+  jumpi bb1, bb2
+bb1:
+  iszero
+  push bb3
+  jumpi
+  push 32
+  mload
+  dup 1
+  add
+  stop
+bb2:
+  iszero
+  push bb3
+  jumpi
+  push 32
+  mload
+  push 32
+  mload
+  add
+  stop
+bb3:
+  stop

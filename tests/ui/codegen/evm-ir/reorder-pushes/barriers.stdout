@@ -1,0 +1,115 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/barriers.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/barriers.evmir (after reorder-pushes) ===
+  @module ReorderBarriers
+  bb0:
+    gas
+    push 10
+    swap 1
+    sub
+    stop
+  bb1:
+    pc
+    push 10
+    swap 1
+    sub
+    stop
+  bb2:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    call
+    push 10
+    swap 1
+    sub
+    stop
+  bb3:
+-   returndatasize
+    push 3
+-   swap 1
++   returndatasize
+    mod
+    stop
+  bb4:
+    gas
+    push 1
+    add
+    push 10
+    swap 1
+    sub
+    stop
+  bb5:
+    pc
+    push 1
+    add
+    push 10
+    swap 1
+    sub
+    stop
+  bb6:
+    msize
+    push 0x1000
+    mload
+    swap 1
+    sub
+    stop
+  bb7:
+    push 0
+    push 0
+    push 0
+    create
+    push 10
+    swap 1
+    sub
+    stop
+  bb8:
+    push 0
+    push 0
+    push 0
+    push 0
+    create2
+    push 10
+    swap 1
+    sub
+    stop
+  bb9:
+    push 0
+    push 0
+    push 0
+    log0
+    push 10
+    swap 1
+    sub
+    stop
+  bb10:
+    push 0
+    push 0
+    push 0
+    mstore
+    push 10
+    swap 1
+    sub
+    stop
+  bb11:
+    push 0
+    push 0
+    push 0
+    sstore
+    push 10
+    swap 1
+    sub
+    stop
+  bb12:
+    push 0
+    push 0
+    push 0
+    push 0
+    calldatacopy
+    push 10
+    swap 1
+    sub
+    stop
+  

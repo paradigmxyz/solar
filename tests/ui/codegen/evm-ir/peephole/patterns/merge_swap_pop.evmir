@@ -80,3 +80,61 @@ bb2:
   push 0
   mstore
   stop
+
+// A permutation is dead when all values it touches are discarded.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: - swap 1
+// CHECK-COUNT-2: {{^[ +].*}}pop
+bb4:
+  calldatasize
+  calldatasize
+  swap 1
+  pop
+  pop
+  push 0
+  mstore
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: - swap 3
+// CHECK-COUNT-4: {{^[ +].*}}pop
+bb5:
+  calldatasize
+  calldatasize
+  calldatasize
+  calldatasize
+  swap 3
+  pop
+  pop
+  pop
+  pop
+  push 0
+  mstore
+  stop
+
+// The merged `SWAP17` has no Osaka lowering, so leave the legacy boundary intact.
+// CHECK-LABEL: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}swap 16
+// CHECK: {{^[ +].*}}swap 1
+bb6:
+  callf !meta(stack=0->18)
+  swap 16
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  swap 1
+  pop
+  stop

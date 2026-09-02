@@ -38,6 +38,13 @@ impl StackModel {
         Self { stack: SmallVec::new(), max_depth: 0 }
     }
 
+    /// Creates a stack model from values ordered top to bottom.
+    pub(crate) fn from_top_to_bottom(values: impl IntoIterator<Item = Option<ValueId>>) -> Self {
+        let stack = values.into_iter().collect::<SmallVec<_>>();
+        let max_depth = stack.len();
+        Self { stack, max_depth }
+    }
+
     /// Returns the current stack depth.
     #[must_use]
     pub(crate) fn depth(&self) -> usize {
@@ -53,6 +60,11 @@ impl StackModel {
     /// Retains a high-water mark observed on another control-flow path.
     pub(crate) fn inherit_max_depth(&mut self, max_depth: usize) {
         self.max_depth = self.max_depth.max(max_depth);
+    }
+
+    /// Records a transient physical stack peak that is not represented by logical values.
+    pub(crate) fn observe_peak(&mut self, depth: usize) {
+        self.max_depth = self.max_depth.max(depth);
     }
 
     /// Pushes a value onto the stack.
@@ -179,6 +191,12 @@ impl StackModel {
     /// Clears the stack.
     pub(crate) fn clear(&mut self) {
         self.stack.clear();
+    }
+
+    /// Clears the stack and its per-function high-water mark.
+    pub(crate) fn reset(&mut self) {
+        self.stack.clear();
+        self.max_depth = 0;
     }
 
     /// Returns an iterator over all values on the stack (top to bottom).
