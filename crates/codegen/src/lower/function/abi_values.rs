@@ -226,9 +226,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let dirty = self.dirty_values.contains(&value);
         let external_only = external_argument
             && self.builder.func().attributes.visibility == solar_ast::Visibility::External;
-        if !external_argument || dirty {
-            self.validate_enum(ty, value);
-        }
         match ty.peel_refs().kind {
             // Aggregates are cleaned and validated word by word while encoding, like solc's
             // per-type encoders; copying them into a canonical object first would duplicate
@@ -696,7 +693,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
             let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            self.validate_enum(ty, value);
             if let Some(abi_type) = self.types.abi_type(ty) {
                 self.validate_calldata_bytes_argument(value, &abi_type);
                 self.validate_calldata_array_head(value, ty, &abi_type);
@@ -1247,7 +1243,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         SliceLocation::Returndata => unreachable!("returndata packed array"),
                     },
                 };
-                self.validate_enum(element.ty, element_value);
                 let element_value = self.normalize_abi_scalar(element_value, element.ty);
                 let element_value = if matches!(&element.abi, AbiType::Function)
                     && matches!(source, PackedArraySource::Memory { .. })

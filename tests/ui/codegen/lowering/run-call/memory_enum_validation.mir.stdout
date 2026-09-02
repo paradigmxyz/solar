@@ -3,14 +3,18 @@
 fn @structField() -> u8 [selector=0x3442156e, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = lt 0, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
     memory_object_store_field memorystruct<1>, v0, 0, 0
     mstore v0, 2
-    v1 = memory_object_load_field memorystruct<1>, v0, 0
-    v2 = lt v1, 2
-    v3 = iszero v2
-    jumpi v3, bb1, bb2
-  bb2:
-    ret v1
+    v3 = memory_object_load_field memorystruct<1>, v0, 0
+    v4 = lt v3, 2
+    v5 = iszero v4
+    jumpi v5, bb1, bb3
+  bb3:
+    ret v3
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 33 !metadata(memory=scratch)

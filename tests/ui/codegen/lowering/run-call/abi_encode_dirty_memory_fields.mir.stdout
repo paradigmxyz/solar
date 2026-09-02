@@ -9,25 +9,33 @@ fn @dirty() -> memorystruct [pure] {
     v2 = eq 1, 0
     v3 = iszero v2
     memory_object_store_field memorystruct<6>, v0, 1, v3
+    v4 = lt 1, 2
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
     memory_object_store_field memorystruct<6>, v0, 2, 1
-    v4 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    memory_object_store_field memorystruct<6>, v0, 3, v4
-    v5 = sub 0, 1
-    v6 = signextend 0, v5
-    memory_object_store_field memorystruct<6>, v0, 4, v6
-    v7 = shl 240, 0x1234
-    v8 = and v7, 0xffff000000000000000000000000000000000000000000000000000000000000
-    memory_object_store_field memorystruct<6>, v0, 5, v8
+    v6 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<6>, v0, 3, v6
+    v7 = sub 0, 1
+    v8 = signextend 0, v7
+    memory_object_store_field memorystruct<6>, v0, 4, v8
+    v9 = shl 240, 0x1234
+    v10 = and v9, 0xffff000000000000000000000000000000000000000000000000000000000000
+    memory_object_store_field memorystruct<6>, v0, 5, v10
     mstore v0, 511
-    v9 = add v0, 32
-    mstore v9, 258
-    v10 = add v0, 96
-    mstore v10, 0x1000000000000000000000000000000000000000000000000000000000000002
-    v11 = add v0, 128
-    mstore v11, 254
-    v12 = add v0, 160
-    mstore v12, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v11 = add v0, 32
+    mstore v11, 258
+    v12 = add v0, 96
+    mstore v12, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v13 = add v0, 128
+    mstore v13, 254
+    v14 = add v0, 160
+    mstore v14, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @encodeStruct() -> bytes32 [selector=0x01e941a3, pure, abi_params=[], abi_returns=[word]] {
