@@ -109,7 +109,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // This ensures cross-block values are preserved in memory.
         self.spill_live_out_operands(func, liveness, block, &operands);
 
-        if let Some(lowering) = select::opcode_lowering(kind) {
+        if let Some(lowering) = select::opcode_lowering(&kind.op()) {
             self.emit_opcode_lowering(
                 func,
                 lowering,

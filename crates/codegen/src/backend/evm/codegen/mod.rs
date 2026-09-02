@@ -72,7 +72,7 @@ mod frames;
 mod function;
 mod instructions;
 mod runtime;
-mod select;
+pub(crate) mod select;
 mod terminator;
 mod values;
 

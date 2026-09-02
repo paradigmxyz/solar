@@ -1,6 +1,6 @@
 //! EVM opcode definitions and metadata.
 
-use crate::mir::InstKind;
+use crate::{mir::InstKind, target::GasTier};
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_interface::Symbol;
@@ -101,11 +101,94 @@ macro_rules! opcode_availability {
     };
 }
 
+/// Maps a row's gas class name to its [`GasTier`]; a literal is a fixed price.
+macro_rules! opcode_gas {
+    (zero) => {
+        GasTier::Zero
+    };
+    (jumpdest) => {
+        GasTier::Jumpdest
+    };
+    (base) => {
+        GasTier::Base
+    };
+    (verylow) => {
+        GasTier::VeryLow
+    };
+    (low) => {
+        GasTier::Low
+    };
+    (mid) => {
+        GasTier::Mid
+    };
+    (high) => {
+        GasTier::High
+    };
+    (exp) => {
+        GasTier::Exp
+    };
+    (keccak) => {
+        GasTier::Keccak
+    };
+    (copy) => {
+        GasTier::Copy
+    };
+    (blockhash) => {
+        GasTier::BlockHash
+    };
+    (balance) => {
+        GasTier::Balance
+    };
+    (extcode) => {
+        GasTier::ExtCode
+    };
+    (extcodehash) => {
+        GasTier::ExtCodeHash
+    };
+    (sload) => {
+        GasTier::SLoad
+    };
+    (sstore) => {
+        GasTier::SStore
+    };
+    (transient) => {
+        GasTier::Transient
+    };
+    (log0) => {
+        GasTier::Log(0)
+    };
+    (log1) => {
+        GasTier::Log(1)
+    };
+    (log2) => {
+        GasTier::Log(2)
+    };
+    (log3) => {
+        GasTier::Log(3)
+    };
+    (log4) => {
+        GasTier::Log(4)
+    };
+    (create) => {
+        GasTier::Create
+    };
+    (call) => {
+        GasTier::Call
+    };
+    (selfdestruct) => {
+        GasTier::SelfDestruct
+    };
+    ($gas:literal) => {
+        GasTier::Fixed($gas)
+    };
+}
+
 macro_rules! opcodes {
     ($(
         $opcode:literal => $constant:ident => $mnemonic:ident
             => stack_io($inputs:tt, $outputs:tt)
             => traits($($trait:ident)|*)
+            => gas($gas:tt)
             => available($($availability:tt)+);
     )*) => {
         $(
@@ -125,6 +208,8 @@ macro_rules! opcodes {
             pub(crate) stack_io: Option<(u8, u8)>,
             /// Declarative operation properties.
             pub(crate) traits: OpcodeTraits,
+            /// Gas class in the fork schedule.
+            pub(crate) gas: GasTier,
             /// Legacy-bytecode availability.
             pub(crate) availability: Availability,
         }
@@ -142,6 +227,7 @@ macro_rules! opcodes {
                     mnemonic: opcode_mnemonic!($mnemonic),
                     stack_io: opcode_stack_io!($inputs, $outputs),
                     traits: opcode_traits!($($trait)|*),
+                    gas: opcode_gas!($gas),
                     availability: opcode_availability!($($availability)+),
                 });
             )*
@@ -212,176 +298,176 @@ macro_rules! opcodes {
 }
 
 opcodes! {
-    0x00 => STOP => stop => stack_io(0, 0) => traits(TERMINAL) => available(legacy);
-    0x01 => ADD => add => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => available(legacy);
-    0x02 => MUL => mul => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => available(legacy);
-    0x03 => SUB => sub => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x04 => DIV => div => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x05 => SDIV => sdiv => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x06 => MOD => mod => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x07 => SMOD => smod => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE) => available(legacy);
-    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE) => available(legacy);
-    0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x11 => GT => gt => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x12 => SLT => slt => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x13 => SGT => sgt => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x14 => EQ => eq => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => available(legacy);
-    0x15 => ISZERO => iszero => stack_io(1, 1) => traits(PURE) => available(legacy);
-    0x16 => AND => and => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => available(legacy);
-    0x17 => OR => or => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => available(legacy);
-    0x18 => XOR => xor => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => available(legacy);
-    0x19 => NOT => not => stack_io(1, 1) => traits(PURE) => available(legacy);
-    0x1a => BYTE => byte => stack_io(2, 1) => traits(PURE) => available(legacy);
-    0x1b => SHL => shl => stack_io(2, 1) => traits(PURE) => available(since Constantinople);
-    0x1c => SHR => shr => stack_io(2, 1) => traits(PURE) => available(since Constantinople);
-    0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => available(since Constantinople);
-    0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => available(since Osaka);
-    0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => available(legacy);
-    0x30 => ADDRESS => address => stack_io(0, 1) => traits() => available(legacy);
-    0x31 => BALANCE => balance => stack_io(1, 1) => traits() => available(legacy);
-    0x32 => ORIGIN => origin => stack_io(0, 1) => traits() => available(legacy);
-    0x33 => CALLER => caller => stack_io(0, 1) => traits() => available(legacy);
-    0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits() => available(legacy);
-    0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits() => available(legacy);
-    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits() => available(legacy);
-    0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => available(legacy);
-    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits() => available(legacy);
-    0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => available(legacy);
-    0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits() => available(legacy);
-    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => available(legacy);
-    0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => available(legacy);
-    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => available(since Byzantium);
-    0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => available(since Byzantium);
-    0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => available(since Constantinople);
-    0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => available(legacy);
-    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits() => available(legacy);
-    0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits() => available(legacy);
-    0x43 => NUMBER => number => stack_io(0, 1) => traits() => available(legacy);
-    0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits() => available(legacy);
-    0x45 => GASLIMIT => gaslimit => stack_io(0, 1) => traits() => available(legacy);
-    0x46 => CHAINID => chainid => stack_io(0, 1) => traits() => available(since Istanbul);
-    0x47 => SELFBALANCE => selfbalance => stack_io(0, 1) => traits() => available(since Istanbul);
-    0x48 => BASEFEE => basefee => stack_io(0, 1) => traits() => available(since London);
-    0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits() => available(since Cancun);
-    0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits() => available(since Cancun);
-    0x4b => SLOTNUM => slotnum => stack_io(0, 1) => traits() => available(slot_num);
-    0x50 => POP => pop => stack_io(1, 0) => traits() => available(legacy);
-    0x51 => MLOAD => mload => stack_io(1, 1) => traits() => available(legacy);
-    0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => available(legacy);
-    0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => available(legacy);
-    0x54 => SLOAD => sload => stack_io(1, 1) => traits() => available(legacy);
-    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE) => available(legacy);
-    0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => available(legacy);
-    0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => available(legacy);
-    0x58 => PC => pc => stack_io(0, 1) => traits() => available(legacy);
-    0x59 => MSIZE => msize => stack_io(0, 1) => traits() => available(legacy);
-    0x5a => GAS => gas => stack_io(0, 1) => traits() => available(legacy);
-    0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => available(legacy);
-    0x5c => TLOAD => tload => stack_io(1, 1) => traits() => available(since Cancun);
-    0x5d => TSTORE => tstore => stack_io(2, 0) => traits(WRITES_STORAGE) => available(since Cancun);
-    0x5e => MCOPY => mcopy => stack_io(3, 0) => traits(WRITES_MEMORY) => available(since Cancun);
-    0x5f => PUSH0 => push0 => stack_io(0, 1) => traits() => available(since Shanghai);
-    0x60 => PUSH1 => push1 => stack_io(0, 1) => traits() => available(legacy);
-    0x61 => PUSH2 => push2 => stack_io(0, 1) => traits() => available(legacy);
-    0x62 => PUSH3 => push3 => stack_io(0, 1) => traits() => available(legacy);
-    0x63 => PUSH4 => push4 => stack_io(0, 1) => traits() => available(legacy);
-    0x64 => PUSH5 => push5 => stack_io(0, 1) => traits() => available(legacy);
-    0x65 => PUSH6 => push6 => stack_io(0, 1) => traits() => available(legacy);
-    0x66 => PUSH7 => push7 => stack_io(0, 1) => traits() => available(legacy);
-    0x67 => PUSH8 => push8 => stack_io(0, 1) => traits() => available(legacy);
-    0x68 => PUSH9 => push9 => stack_io(0, 1) => traits() => available(legacy);
-    0x69 => PUSH10 => push10 => stack_io(0, 1) => traits() => available(legacy);
-    0x6a => PUSH11 => push11 => stack_io(0, 1) => traits() => available(legacy);
-    0x6b => PUSH12 => push12 => stack_io(0, 1) => traits() => available(legacy);
-    0x6c => PUSH13 => push13 => stack_io(0, 1) => traits() => available(legacy);
-    0x6d => PUSH14 => push14 => stack_io(0, 1) => traits() => available(legacy);
-    0x6e => PUSH15 => push15 => stack_io(0, 1) => traits() => available(legacy);
-    0x6f => PUSH16 => push16 => stack_io(0, 1) => traits() => available(legacy);
-    0x70 => PUSH17 => push17 => stack_io(0, 1) => traits() => available(legacy);
-    0x71 => PUSH18 => push18 => stack_io(0, 1) => traits() => available(legacy);
-    0x72 => PUSH19 => push19 => stack_io(0, 1) => traits() => available(legacy);
-    0x73 => PUSH20 => push20 => stack_io(0, 1) => traits() => available(legacy);
-    0x74 => PUSH21 => push21 => stack_io(0, 1) => traits() => available(legacy);
-    0x75 => PUSH22 => push22 => stack_io(0, 1) => traits() => available(legacy);
-    0x76 => PUSH23 => push23 => stack_io(0, 1) => traits() => available(legacy);
-    0x77 => PUSH24 => push24 => stack_io(0, 1) => traits() => available(legacy);
-    0x78 => PUSH25 => push25 => stack_io(0, 1) => traits() => available(legacy);
-    0x79 => PUSH26 => push26 => stack_io(0, 1) => traits() => available(legacy);
-    0x7a => PUSH27 => push27 => stack_io(0, 1) => traits() => available(legacy);
-    0x7b => PUSH28 => push28 => stack_io(0, 1) => traits() => available(legacy);
-    0x7c => PUSH29 => push29 => stack_io(0, 1) => traits() => available(legacy);
-    0x7d => PUSH30 => push30 => stack_io(0, 1) => traits() => available(legacy);
-    0x7e => PUSH31 => push31 => stack_io(0, 1) => traits() => available(legacy);
-    0x7f => PUSH32 => push32 => stack_io(0, 1) => traits() => available(legacy);
-    0x80 => DUP1 => dup1 => stack_io(1, 2) => traits() => available(legacy);
-    0x81 => DUP2 => dup2 => stack_io(2, 3) => traits() => available(legacy);
-    0x82 => DUP3 => dup3 => stack_io(3, 4) => traits() => available(legacy);
-    0x83 => DUP4 => dup4 => stack_io(4, 5) => traits() => available(legacy);
-    0x84 => DUP5 => dup5 => stack_io(5, 6) => traits() => available(legacy);
-    0x85 => DUP6 => dup6 => stack_io(6, 7) => traits() => available(legacy);
-    0x86 => DUP7 => dup7 => stack_io(7, 8) => traits() => available(legacy);
-    0x87 => DUP8 => dup8 => stack_io(8, 9) => traits() => available(legacy);
-    0x88 => DUP9 => dup9 => stack_io(9, 10) => traits() => available(legacy);
-    0x89 => DUP10 => dup10 => stack_io(10, 11) => traits() => available(legacy);
-    0x8a => DUP11 => dup11 => stack_io(11, 12) => traits() => available(legacy);
-    0x8b => DUP12 => dup12 => stack_io(12, 13) => traits() => available(legacy);
-    0x8c => DUP13 => dup13 => stack_io(13, 14) => traits() => available(legacy);
-    0x8d => DUP14 => dup14 => stack_io(14, 15) => traits() => available(legacy);
-    0x8e => DUP15 => dup15 => stack_io(15, 16) => traits() => available(legacy);
-    0x8f => DUP16 => dup16 => stack_io(16, 17) => traits() => available(legacy);
-    0x90 => SWAP1 => swap1 => stack_io(2, 2) => traits() => available(legacy);
-    0x91 => SWAP2 => swap2 => stack_io(3, 3) => traits() => available(legacy);
-    0x92 => SWAP3 => swap3 => stack_io(4, 4) => traits() => available(legacy);
-    0x93 => SWAP4 => swap4 => stack_io(5, 5) => traits() => available(legacy);
-    0x94 => SWAP5 => swap5 => stack_io(6, 6) => traits() => available(legacy);
-    0x95 => SWAP6 => swap6 => stack_io(7, 7) => traits() => available(legacy);
-    0x96 => SWAP7 => swap7 => stack_io(8, 8) => traits() => available(legacy);
-    0x97 => SWAP8 => swap8 => stack_io(9, 9) => traits() => available(legacy);
-    0x98 => SWAP9 => swap9 => stack_io(10, 10) => traits() => available(legacy);
-    0x99 => SWAP10 => swap10 => stack_io(11, 11) => traits() => available(legacy);
-    0x9a => SWAP11 => swap11 => stack_io(12, 12) => traits() => available(legacy);
-    0x9b => SWAP12 => swap12 => stack_io(13, 13) => traits() => available(legacy);
-    0x9c => SWAP13 => swap13 => stack_io(14, 14) => traits() => available(legacy);
-    0x9d => SWAP14 => swap14 => stack_io(15, 15) => traits() => available(legacy);
-    0x9e => SWAP15 => swap15 => stack_io(16, 16) => traits() => available(legacy);
-    0x9f => SWAP16 => swap16 => stack_io(17, 17) => traits() => available(legacy);
-    0xa0 => LOG0 => log0 => stack_io(2, 0) => traits() => available(legacy);
-    0xa1 => LOG1 => log1 => stack_io(3, 0) => traits() => available(legacy);
-    0xa2 => LOG2 => log2 => stack_io(4, 0) => traits() => available(legacy);
-    0xa3 => LOG3 => log3 => stack_io(5, 0) => traits() => available(legacy);
-    0xa4 => LOG4 => log4 => stack_io(6, 0) => traits() => available(legacy);
-    0xd0 => DATALOAD => dataload => stack_io(1, 1) => traits() => available(eof);
-    0xd1 => DATALOADN => dataloadn => stack_io(0, 1) => traits() => available(eof);
-    0xd2 => DATASIZE => datasize => stack_io(0, 1) => traits() => available(eof);
-    0xd3 => DATACOPY => datacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => available(eof);
-    0xe0 => RJUMP => rjump => stack_io(0, 0) => traits() => available(eof);
-    0xe1 => RJUMPI => rjumpi => stack_io(1, 0) => traits() => available(eof);
-    0xe2 => RJUMPV => rjumpv => stack_io(1, 0) => traits() => available(eof);
-    0xe3 => CALLF => callf => stack_io(_, _) => traits(WRITES_MEMORY | WRITES_STORAGE) => available(eof);
-    0xe4 => RETF => retf => stack_io(_, _) => traits() => available(eof);
-    0xe5 => JUMPF => jumpf => stack_io(_, _) => traits() => available(eof);
-    0xe6 => DUPN => dupn => stack_io(0, 1) => traits() => available(extended_stack_ops);
-    0xe7 => SWAPN => swapn => stack_io(0, 0) => traits() => available(extended_stack_ops);
-    0xe8 => EXCHANGE => exchange => stack_io(0, 0) => traits() => available(extended_stack_ops);
-    0xec => EOFCREATE => eofcreate => stack_io(4, 1) => traits(WRITES_STORAGE) => available(eof);
-    0xee => RETURNCONTRACT => returncontract => stack_io(2, 0) => traits() => available(eof);
-    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => available(legacy);
-    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => available(legacy);
-    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => available(legacy);
-    0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => available(legacy);
-    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => available(legacy);
-    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => available(since Constantinople);
-    0xf7 => RETURNDATALOAD => returndataload => stack_io(1, 1) => traits() => available(eof);
-    0xf8 => EXTCALL => extcall => stack_io(4, 1) => traits(WRITES_STORAGE) => available(eof);
-    0xf9 => EXTDELEGATECALL => extdelegatecall => stack_io(3, 1) => traits(WRITES_STORAGE) => available(eof);
-    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => available(since Byzantium);
-    0xfb => EXTSTATICCALL => extstaticcall => stack_io(3, 1) => traits() => available(eof);
-    0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => available(since Byzantium);
-    0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => available(legacy);
-    0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => available(legacy);
+    0x00 => STOP => stop => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
+    0x01 => ADD => add => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
+    0x02 => MUL => mul => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(low) => available(legacy);
+    0x03 => SUB => sub => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x04 => DIV => div => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
+    0x05 => SDIV => sdiv => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
+    0x06 => MOD => mod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
+    0x07 => SMOD => smod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
+    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
+    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
+    0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => gas(exp) => available(legacy);
+    0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
+    0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x11 => GT => gt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x12 => SLT => slt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x13 => SGT => sgt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x14 => EQ => eq => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
+    0x15 => ISZERO => iszero => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x16 => AND => and => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
+    0x17 => OR => or => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
+    0x18 => XOR => xor => stack_io(2, 1) => traits(PURE | COMMUTATIVE) => gas(verylow) => available(legacy);
+    0x19 => NOT => not => stack_io(1, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x1a => BYTE => byte => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy);
+    0x1b => SHL => shl => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
+    0x1c => SHR => shr => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
+    0x1d => SAR => sar => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(since Constantinople);
+    0x1e => CLZ => clz => stack_io(1, 1) => traits(PURE) => gas(low) => available(since Osaka);
+    0x20 => KECCAK256 => keccak256 => stack_io(2, 1) => traits() => gas(keccak) => available(legacy);
+    0x30 => ADDRESS => address => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x31 => BALANCE => balance => stack_io(1, 1) => traits() => gas(balance) => available(legacy);
+    0x32 => ORIGIN => origin => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x33 => CALLER => caller => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x34 => CALLVALUE => callvalue => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x35 => CALLDATALOAD => calldataload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
+    0x36 => CALLDATASIZE => calldatasize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x37 => CALLDATACOPY => calldatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
+    0x38 => CODESIZE => codesize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x39 => CODECOPY => codecopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(legacy);
+    0x3a => GASPRICE => gasprice => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x3b => EXTCODESIZE => extcodesize => stack_io(1, 1) => traits() => gas(extcode) => available(legacy);
+    0x3c => EXTCODECOPY => extcodecopy => stack_io(4, 0) => traits(WRITES_MEMORY) => gas(extcode) => available(legacy);
+    0x3d => RETURNDATASIZE => returndatasize => stack_io(0, 1) => traits() => gas(base) => available(since Byzantium);
+    0x3e => RETURNDATACOPY => returndatacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Byzantium);
+    0x3f => EXTCODEHASH => extcodehash => stack_io(1, 1) => traits() => gas(extcodehash) => available(since Constantinople);
+    0x40 => BLOCKHASH => blockhash => stack_io(1, 1) => traits() => gas(blockhash) => available(legacy);
+    0x41 => COINBASE => coinbase => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x42 => TIMESTAMP => timestamp => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x43 => NUMBER => number => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x44 => PREVRANDAO => prevrandao => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x45 => GASLIMIT => gaslimit => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x46 => CHAINID => chainid => stack_io(0, 1) => traits() => gas(base) => available(since Istanbul);
+    0x47 => SELFBALANCE => selfbalance => stack_io(0, 1) => traits() => gas(low) => available(since Istanbul);
+    0x48 => BASEFEE => basefee => stack_io(0, 1) => traits() => gas(base) => available(since London);
+    0x49 => BLOBHASH => blobhash => stack_io(1, 1) => traits() => gas(verylow) => available(since Cancun);
+    0x4a => BLOBBASEFEE => blobbasefee => stack_io(0, 1) => traits() => gas(base) => available(since Cancun);
+    0x4b => SLOTNUM => slotnum => stack_io(0, 1) => traits() => gas(base) => available(slot_num);
+    0x50 => POP => pop => stack_io(1, 0) => traits() => gas(base) => available(legacy);
+    0x51 => MLOAD => mload => stack_io(1, 1) => traits() => gas(verylow) => available(legacy);
+    0x52 => MSTORE => mstore => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
+    0x53 => MSTORE8 => mstore8 => stack_io(2, 0) => traits(WRITES_MEMORY) => gas(verylow) => available(legacy);
+    0x54 => SLOAD => sload => stack_io(1, 1) => traits() => gas(sload) => available(legacy);
+    0x55 => SSTORE => sstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(sstore) => available(legacy);
+    0x56 => JUMP => jump => stack_io(1, 0) => traits(TERMINAL) => gas(mid) => available(legacy);
+    0x57 => JUMPI => jumpi => stack_io(2, 0) => traits() => gas(high) => available(legacy);
+    0x58 => PC => pc => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x59 => MSIZE => msize => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x5a => GAS => gas => stack_io(0, 1) => traits() => gas(base) => available(legacy);
+    0x5b => JUMPDEST => jumpdest => stack_io(0, 0) => traits() => gas(jumpdest) => available(legacy);
+    0x5c => TLOAD => tload => stack_io(1, 1) => traits() => gas(transient) => available(since Cancun);
+    0x5d => TSTORE => tstore => stack_io(2, 0) => traits(WRITES_STORAGE) => gas(transient) => available(since Cancun);
+    0x5e => MCOPY => mcopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(since Cancun);
+    0x5f => PUSH0 => push0 => stack_io(0, 1) => traits() => gas(base) => available(since Shanghai);
+    0x60 => PUSH1 => push1 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x61 => PUSH2 => push2 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x62 => PUSH3 => push3 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x63 => PUSH4 => push4 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x64 => PUSH5 => push5 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x65 => PUSH6 => push6 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x66 => PUSH7 => push7 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x67 => PUSH8 => push8 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x68 => PUSH9 => push9 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x69 => PUSH10 => push10 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x6a => PUSH11 => push11 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x6b => PUSH12 => push12 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x6c => PUSH13 => push13 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x6d => PUSH14 => push14 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x6e => PUSH15 => push15 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x6f => PUSH16 => push16 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x70 => PUSH17 => push17 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x71 => PUSH18 => push18 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x72 => PUSH19 => push19 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x73 => PUSH20 => push20 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x74 => PUSH21 => push21 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x75 => PUSH22 => push22 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x76 => PUSH23 => push23 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x77 => PUSH24 => push24 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x78 => PUSH25 => push25 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x79 => PUSH26 => push26 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x7a => PUSH27 => push27 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x7b => PUSH28 => push28 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x7c => PUSH29 => push29 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x7d => PUSH30 => push30 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x7e => PUSH31 => push31 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x7f => PUSH32 => push32 => stack_io(0, 1) => traits() => gas(verylow) => available(legacy);
+    0x80 => DUP1 => dup1 => stack_io(1, 2) => traits() => gas(verylow) => available(legacy);
+    0x81 => DUP2 => dup2 => stack_io(2, 3) => traits() => gas(verylow) => available(legacy);
+    0x82 => DUP3 => dup3 => stack_io(3, 4) => traits() => gas(verylow) => available(legacy);
+    0x83 => DUP4 => dup4 => stack_io(4, 5) => traits() => gas(verylow) => available(legacy);
+    0x84 => DUP5 => dup5 => stack_io(5, 6) => traits() => gas(verylow) => available(legacy);
+    0x85 => DUP6 => dup6 => stack_io(6, 7) => traits() => gas(verylow) => available(legacy);
+    0x86 => DUP7 => dup7 => stack_io(7, 8) => traits() => gas(verylow) => available(legacy);
+    0x87 => DUP8 => dup8 => stack_io(8, 9) => traits() => gas(verylow) => available(legacy);
+    0x88 => DUP9 => dup9 => stack_io(9, 10) => traits() => gas(verylow) => available(legacy);
+    0x89 => DUP10 => dup10 => stack_io(10, 11) => traits() => gas(verylow) => available(legacy);
+    0x8a => DUP11 => dup11 => stack_io(11, 12) => traits() => gas(verylow) => available(legacy);
+    0x8b => DUP12 => dup12 => stack_io(12, 13) => traits() => gas(verylow) => available(legacy);
+    0x8c => DUP13 => dup13 => stack_io(13, 14) => traits() => gas(verylow) => available(legacy);
+    0x8d => DUP14 => dup14 => stack_io(14, 15) => traits() => gas(verylow) => available(legacy);
+    0x8e => DUP15 => dup15 => stack_io(15, 16) => traits() => gas(verylow) => available(legacy);
+    0x8f => DUP16 => dup16 => stack_io(16, 17) => traits() => gas(verylow) => available(legacy);
+    0x90 => SWAP1 => swap1 => stack_io(2, 2) => traits() => gas(verylow) => available(legacy);
+    0x91 => SWAP2 => swap2 => stack_io(3, 3) => traits() => gas(verylow) => available(legacy);
+    0x92 => SWAP3 => swap3 => stack_io(4, 4) => traits() => gas(verylow) => available(legacy);
+    0x93 => SWAP4 => swap4 => stack_io(5, 5) => traits() => gas(verylow) => available(legacy);
+    0x94 => SWAP5 => swap5 => stack_io(6, 6) => traits() => gas(verylow) => available(legacy);
+    0x95 => SWAP6 => swap6 => stack_io(7, 7) => traits() => gas(verylow) => available(legacy);
+    0x96 => SWAP7 => swap7 => stack_io(8, 8) => traits() => gas(verylow) => available(legacy);
+    0x97 => SWAP8 => swap8 => stack_io(9, 9) => traits() => gas(verylow) => available(legacy);
+    0x98 => SWAP9 => swap9 => stack_io(10, 10) => traits() => gas(verylow) => available(legacy);
+    0x99 => SWAP10 => swap10 => stack_io(11, 11) => traits() => gas(verylow) => available(legacy);
+    0x9a => SWAP11 => swap11 => stack_io(12, 12) => traits() => gas(verylow) => available(legacy);
+    0x9b => SWAP12 => swap12 => stack_io(13, 13) => traits() => gas(verylow) => available(legacy);
+    0x9c => SWAP13 => swap13 => stack_io(14, 14) => traits() => gas(verylow) => available(legacy);
+    0x9d => SWAP14 => swap14 => stack_io(15, 15) => traits() => gas(verylow) => available(legacy);
+    0x9e => SWAP15 => swap15 => stack_io(16, 16) => traits() => gas(verylow) => available(legacy);
+    0x9f => SWAP16 => swap16 => stack_io(17, 17) => traits() => gas(verylow) => available(legacy);
+    0xa0 => LOG0 => log0 => stack_io(2, 0) => traits() => gas(log0) => available(legacy);
+    0xa1 => LOG1 => log1 => stack_io(3, 0) => traits() => gas(log1) => available(legacy);
+    0xa2 => LOG2 => log2 => stack_io(4, 0) => traits() => gas(log2) => available(legacy);
+    0xa3 => LOG3 => log3 => stack_io(5, 0) => traits() => gas(log3) => available(legacy);
+    0xa4 => LOG4 => log4 => stack_io(6, 0) => traits() => gas(log4) => available(legacy);
+    0xd0 => DATALOAD => dataload => stack_io(1, 1) => traits() => gas(4) => available(eof);
+    0xd1 => DATALOADN => dataloadn => stack_io(0, 1) => traits() => gas(verylow) => available(eof);
+    0xd2 => DATASIZE => datasize => stack_io(0, 1) => traits() => gas(base) => available(eof);
+    0xd3 => DATACOPY => datacopy => stack_io(3, 0) => traits(WRITES_MEMORY) => gas(copy) => available(eof);
+    0xe0 => RJUMP => rjump => stack_io(0, 0) => traits() => gas(base) => available(eof);
+    0xe1 => RJUMPI => rjumpi => stack_io(1, 0) => traits() => gas(4) => available(eof);
+    0xe2 => RJUMPV => rjumpv => stack_io(1, 0) => traits() => gas(4) => available(eof);
+    0xe3 => CALLF => callf => stack_io(_, _) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(low) => available(eof);
+    0xe4 => RETF => retf => stack_io(_, _) => traits() => gas(verylow) => available(eof);
+    0xe5 => JUMPF => jumpf => stack_io(_, _) => traits() => gas(low) => available(eof);
+    0xe6 => DUPN => dupn => stack_io(0, 1) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xe7 => SWAPN => swapn => stack_io(0, 0) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xe8 => EXCHANGE => exchange => stack_io(0, 0) => traits() => gas(verylow) => available(extended_stack_ops);
+    0xec => EOFCREATE => eofcreate => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(eof);
+    0xee => RETURNCONTRACT => returncontract => stack_io(2, 0) => traits() => gas(zero) => available(eof);
+    0xf0 => CREATE => create => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(create) => available(legacy);
+    0xf1 => CALL => call => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy);
+    0xf2 => CALLCODE => callcode => stack_io(7, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy);
+    0xf3 => RETURN => r#return => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
+    0xf4 => DELEGATECALL => delegatecall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(legacy);
+    0xf5 => CREATE2 => create2 => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(create) => available(since Constantinople);
+    0xf7 => RETURNDATALOAD => returndataload => stack_io(1, 1) => traits() => gas(verylow) => available(eof);
+    0xf8 => EXTCALL => extcall => stack_io(4, 1) => traits(WRITES_STORAGE) => gas(call) => available(eof);
+    0xf9 => EXTDELEGATECALL => extdelegatecall => stack_io(3, 1) => traits(WRITES_STORAGE) => gas(call) => available(eof);
+    0xfa => STATICCALL => staticcall => stack_io(6, 1) => traits(WRITES_MEMORY | WRITES_STORAGE) => gas(call) => available(since Byzantium);
+    0xfb => EXTSTATICCALL => extstaticcall => stack_io(3, 1) => traits() => gas(call) => available(eof);
+    0xfd => REVERT => revert => stack_io(2, 0) => traits(TERMINAL) => gas(zero) => available(since Byzantium);
+    0xfe => INVALID => invalid => stack_io(0, 0) => traits(TERMINAL) => gas(zero) => available(legacy);
+    0xff => SELFDESTRUCT => selfdestruct => stack_io(1, 0) => traits(TERMINAL) => gas(selfdestruct) => available(legacy);
 }
 
 /// Returns the encoded length of a minimally sized PUSH for an EVM version.
@@ -569,7 +655,7 @@ macro_rules! define_stack_op_schema {
             $pattern:pat
             => $mnemonic:literal
             => $opcode:ident
-            => $static_gas:literal;
+            => $gas:ident;
         )+
     ) => {
         /// Declarative metadata for a logical EVM stack operation.
@@ -579,8 +665,8 @@ macro_rules! define_stack_op_schema {
             pub(crate) mnemonic: &'static str,
             /// Placeholder opcode used in EVM IR.
             pub(crate) ir_opcode: u8,
-            /// Static gas cost of one lowered operation.
-            pub(crate) static_gas: usize,
+            /// Gas class of one lowered instruction.
+            pub(crate) gas: GasTier,
         }
 
         impl StackOp {
@@ -592,7 +678,7 @@ macro_rules! define_stack_op_schema {
                         $pattern => StackOpDef {
                             mnemonic: $mnemonic,
                             ir_opcode: $opcode,
-                            static_gas: $static_gas,
+                            gas: opcode_gas!($gas),
                         },
                     )+
                 }
@@ -602,10 +688,10 @@ macro_rules! define_stack_op_schema {
 }
 
 define_stack_op_schema! {
-    Self::Dup(_) => "dup" => DUPN => 3;
-    Self::Swap(_) => "swap" => SWAPN => 3;
-    Self::Exchange(_, _) => "exchange" => EXCHANGE => 3;
-    Self::Pop => "pop" => POP => 2;
+    Self::Dup(_) => "dup" => DUPN => verylow;
+    Self::Swap(_) => "swap" => SWAPN => verylow;
+    Self::Exchange(_, _) => "exchange" => EXCHANGE => verylow;
+    Self::Pop => "pop" => POP => base;
 }
 
 /// Target-specific lowering of one logical stack operation.
@@ -726,7 +812,7 @@ impl StackOp {
             StackOpLowering::Direct(_, immediate) => (1 + usize::from(immediate.is_some()), 1),
             StackOpLowering::SwapSequence(opcodes) => (opcodes.len(), opcodes.len()),
         };
-        let gas_per_instruction = self.definition().static_gas;
+        let gas_per_instruction = self.definition().gas.gas(evm_version) as usize;
         Some(StackOpMetrics {
             static_gas: instruction_count * gas_per_instruction,
             assembled_len,
@@ -927,7 +1013,7 @@ mod tests {
         let exchange = StackOp::Exchange(2, 3).definition();
         assert_eq!(exchange.mnemonic, "exchange");
         assert_eq!(exchange.ir_opcode, EXCHANGE);
-        assert_eq!(exchange.static_gas, 3);
+        assert_eq!(exchange.gas, GasTier::VeryLow);
     }
 
     #[test]
@@ -975,6 +1061,19 @@ mod tests {
                     write!(table, " since={first}").unwrap();
                 }
                 None => table.push_str(" since=never"),
+            }
+            write!(table, " gas={}", def.gas.gas(EvmVersion::Homestead)).unwrap();
+            let mut previous = def.gas.gas(EvmVersion::Homestead);
+            for version in VERSIONS {
+                let gas = def.gas.gas(version);
+                if gas != previous {
+                    write!(table, " {version}={gas}").unwrap();
+                    previous = gas;
+                }
+            }
+            let dynamic = def.gas.dynamic_gas(EvmVersion::Amsterdam);
+            if dynamic != 0 {
+                write!(table, " +{dynamic}").unwrap();
             }
             let traits = [
                 ("pure", def.is_pure()),

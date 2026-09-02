@@ -4,11 +4,11 @@
 //! follows the operation's operand list. This table records that mapping so
 //! the emitter only hand-writes operations with non-trivial lowering.
 
-use crate::{backend::evm::op, mir::InstKind};
+use crate::{backend::evm::op, mir::Op};
 
 /// Stack shape of a MIR operation that lowers to one EVM opcode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum OpcodeLowering {
+pub(crate) enum OpcodeLowering {
     /// No operands; the opcode pushes the result.
     Nullary(u8),
     /// One operand; the opcode pushes the result.
@@ -25,81 +25,96 @@ pub(super) enum OpcodeLowering {
     Log(u8),
 }
 
-/// Returns the single-opcode lowering of `kind`, when it has one.
-pub(super) fn opcode_lowering(kind: &InstKind) -> Option<OpcodeLowering> {
-    Some(match kind {
-        InstKind::Add { .. } => OpcodeLowering::Binary(op::ADD),
-        InstKind::Sub { .. } => OpcodeLowering::Binary(op::SUB),
-        InstKind::Mul { .. } => OpcodeLowering::Binary(op::MUL),
-        InstKind::Div { .. } => OpcodeLowering::Binary(op::DIV),
-        InstKind::SDiv { .. } => OpcodeLowering::Binary(op::SDIV),
-        InstKind::Mod { .. } => OpcodeLowering::Binary(op::MOD),
-        InstKind::SMod { .. } => OpcodeLowering::Binary(op::SMOD),
-        InstKind::Exp { .. } => OpcodeLowering::Binary(op::EXP),
-        InstKind::AddMod { .. } => OpcodeLowering::Nary(op::ADDMOD),
-        InstKind::MulMod { .. } => OpcodeLowering::Nary(op::MULMOD),
-        InstKind::And { .. } => OpcodeLowering::Binary(op::AND),
-        InstKind::Or { .. } => OpcodeLowering::Binary(op::OR),
-        InstKind::Xor { .. } => OpcodeLowering::Binary(op::XOR),
-        InstKind::Not { .. } => OpcodeLowering::Unary(op::NOT),
-        InstKind::Clz { .. } => OpcodeLowering::Unary(op::CLZ),
-        InstKind::Shl { .. } => OpcodeLowering::Binary(op::SHL),
-        InstKind::Shr { .. } => OpcodeLowering::Binary(op::SHR),
-        InstKind::Sar { .. } => OpcodeLowering::Binary(op::SAR),
-        InstKind::Byte { .. } => OpcodeLowering::Binary(op::BYTE),
-        InstKind::Lt { .. } => OpcodeLowering::Binary(op::LT),
-        InstKind::Gt { .. } => OpcodeLowering::Binary(op::GT),
-        InstKind::SLt { .. } => OpcodeLowering::Binary(op::SLT),
-        InstKind::SGt { .. } => OpcodeLowering::Binary(op::SGT),
-        InstKind::Eq { .. } => OpcodeLowering::Binary(op::EQ),
-        InstKind::IsZero { .. } => OpcodeLowering::Unary(op::ISZERO),
-        InstKind::MLoad { .. } => OpcodeLowering::Unary(op::MLOAD),
-        InstKind::MStore { .. } => OpcodeLowering::Store(op::MSTORE),
-        InstKind::MStore8 { .. } => OpcodeLowering::Store(op::MSTORE8),
-        InstKind::MSize => OpcodeLowering::Nullary(op::MSIZE),
-        InstKind::SLoad { .. } => OpcodeLowering::Unary(op::SLOAD),
-        InstKind::SStore { .. } => OpcodeLowering::Store(op::SSTORE),
-        InstKind::TLoad { .. } => OpcodeLowering::Unary(op::TLOAD),
-        InstKind::TStore { .. } => OpcodeLowering::Store(op::TSTORE),
-        InstKind::CalldataLoad { .. } => OpcodeLowering::Unary(op::CALLDATALOAD),
-        InstKind::CalldataSize => OpcodeLowering::Nullary(op::CALLDATASIZE),
-        InstKind::Keccak256 { .. } => OpcodeLowering::Binary(op::KECCAK256),
-        InstKind::Caller => OpcodeLowering::Nullary(op::CALLER),
-        InstKind::CallValue => OpcodeLowering::Nullary(op::CALLVALUE),
-        InstKind::Address => OpcodeLowering::Nullary(op::ADDRESS),
-        InstKind::Origin => OpcodeLowering::Nullary(op::ORIGIN),
-        InstKind::GasPrice => OpcodeLowering::Nullary(op::GASPRICE),
-        InstKind::Gas => OpcodeLowering::Nullary(op::GAS),
-        InstKind::Timestamp => OpcodeLowering::Nullary(op::TIMESTAMP),
-        InstKind::BlockNumber => OpcodeLowering::Nullary(op::NUMBER),
-        InstKind::Coinbase => OpcodeLowering::Nullary(op::COINBASE),
-        InstKind::ChainId => OpcodeLowering::Nullary(op::CHAINID),
-        InstKind::SelfBalance => OpcodeLowering::Nullary(op::SELFBALANCE),
-        InstKind::BaseFee => OpcodeLowering::Nullary(op::BASEFEE),
-        InstKind::BlobBaseFee => OpcodeLowering::Nullary(op::BLOBBASEFEE),
-        InstKind::GasLimit => OpcodeLowering::Nullary(op::GASLIMIT),
-        InstKind::SlotNum => OpcodeLowering::Nullary(op::SLOTNUM),
-        InstKind::PrevRandao => OpcodeLowering::Nullary(op::PREVRANDAO),
-        InstKind::Balance { .. } => OpcodeLowering::Unary(op::BALANCE),
-        InstKind::BlockHash { .. } => OpcodeLowering::Unary(op::BLOCKHASH),
-        InstKind::BlobHash { .. } => OpcodeLowering::Unary(op::BLOBHASH),
-        InstKind::ExtCodeSize { .. } => OpcodeLowering::Unary(op::EXTCODESIZE),
-        InstKind::ExtCodeHash { .. } => OpcodeLowering::Unary(op::EXTCODEHASH),
-        InstKind::CodeSize => OpcodeLowering::Nullary(op::CODESIZE),
-        InstKind::ReturnDataSize => OpcodeLowering::Nullary(op::RETURNDATASIZE),
-        InstKind::SignExtend { .. } => OpcodeLowering::Binary(op::SIGNEXTEND),
-        InstKind::Create { .. } => OpcodeLowering::Nary(op::CREATE),
-        InstKind::Create2 { .. } => OpcodeLowering::Nary(op::CREATE2),
-        InstKind::Log0 { .. } => OpcodeLowering::Log(op::LOG0),
-        InstKind::Log1 { .. } => OpcodeLowering::Log(op::LOG1),
-        InstKind::Log2 { .. } => OpcodeLowering::Log(op::LOG2),
-        InstKind::Log3 { .. } => OpcodeLowering::Log(op::LOG3),
-        InstKind::Log4 { .. } => OpcodeLowering::Log(op::LOG4),
-        InstKind::CalldataCopy { .. } => OpcodeLowering::MemoryCopy(op::CALLDATACOPY),
-        InstKind::CodeCopy { .. } => OpcodeLowering::MemoryCopy(op::CODECOPY),
-        InstKind::ReturnDataCopy { .. } => OpcodeLowering::MemoryCopy(op::RETURNDATACOPY),
-        InstKind::MCopy { .. } => OpcodeLowering::MemoryCopy(op::MCOPY),
-        InstKind::ExtCodeCopy { .. } => OpcodeLowering::MemoryCopy(op::EXTCODECOPY),
+impl OpcodeLowering {
+    /// The selected opcode.
+    pub(crate) fn opcode(self) -> u8 {
+        match self {
+            Self::Nullary(opcode)
+            | Self::Unary(opcode)
+            | Self::Binary(opcode)
+            | Self::Store(opcode)
+            | Self::Nary(opcode)
+            | Self::MemoryCopy(opcode)
+            | Self::Log(opcode) => opcode,
+        }
+    }
+}
+
+/// Returns the single-opcode lowering of `op`, when it has one.
+pub(crate) fn opcode_lowering(op: &Op) -> Option<OpcodeLowering> {
+    Some(match op {
+        Op::Add { .. } => OpcodeLowering::Binary(op::ADD),
+        Op::Sub { .. } => OpcodeLowering::Binary(op::SUB),
+        Op::Mul { .. } => OpcodeLowering::Binary(op::MUL),
+        Op::Div { .. } => OpcodeLowering::Binary(op::DIV),
+        Op::SDiv { .. } => OpcodeLowering::Binary(op::SDIV),
+        Op::Mod { .. } => OpcodeLowering::Binary(op::MOD),
+        Op::SMod { .. } => OpcodeLowering::Binary(op::SMOD),
+        Op::Exp { .. } => OpcodeLowering::Binary(op::EXP),
+        Op::AddMod { .. } => OpcodeLowering::Nary(op::ADDMOD),
+        Op::MulMod { .. } => OpcodeLowering::Nary(op::MULMOD),
+        Op::And { .. } => OpcodeLowering::Binary(op::AND),
+        Op::Or { .. } => OpcodeLowering::Binary(op::OR),
+        Op::Xor { .. } => OpcodeLowering::Binary(op::XOR),
+        Op::Not { .. } => OpcodeLowering::Unary(op::NOT),
+        Op::Clz { .. } => OpcodeLowering::Unary(op::CLZ),
+        Op::Shl { .. } => OpcodeLowering::Binary(op::SHL),
+        Op::Shr { .. } => OpcodeLowering::Binary(op::SHR),
+        Op::Sar { .. } => OpcodeLowering::Binary(op::SAR),
+        Op::Byte { .. } => OpcodeLowering::Binary(op::BYTE),
+        Op::Lt { .. } => OpcodeLowering::Binary(op::LT),
+        Op::Gt { .. } => OpcodeLowering::Binary(op::GT),
+        Op::SLt { .. } => OpcodeLowering::Binary(op::SLT),
+        Op::SGt { .. } => OpcodeLowering::Binary(op::SGT),
+        Op::Eq { .. } => OpcodeLowering::Binary(op::EQ),
+        Op::IsZero { .. } => OpcodeLowering::Unary(op::ISZERO),
+        Op::MLoad { .. } => OpcodeLowering::Unary(op::MLOAD),
+        Op::MStore { .. } => OpcodeLowering::Store(op::MSTORE),
+        Op::MStore8 { .. } => OpcodeLowering::Store(op::MSTORE8),
+        Op::MSize => OpcodeLowering::Nullary(op::MSIZE),
+        Op::SLoad { .. } => OpcodeLowering::Unary(op::SLOAD),
+        Op::SStore { .. } => OpcodeLowering::Store(op::SSTORE),
+        Op::TLoad { .. } => OpcodeLowering::Unary(op::TLOAD),
+        Op::TStore { .. } => OpcodeLowering::Store(op::TSTORE),
+        Op::CalldataLoad { .. } => OpcodeLowering::Unary(op::CALLDATALOAD),
+        Op::CalldataSize => OpcodeLowering::Nullary(op::CALLDATASIZE),
+        Op::Keccak256 { .. } => OpcodeLowering::Binary(op::KECCAK256),
+        Op::Caller => OpcodeLowering::Nullary(op::CALLER),
+        Op::CallValue => OpcodeLowering::Nullary(op::CALLVALUE),
+        Op::Address => OpcodeLowering::Nullary(op::ADDRESS),
+        Op::Origin => OpcodeLowering::Nullary(op::ORIGIN),
+        Op::GasPrice => OpcodeLowering::Nullary(op::GASPRICE),
+        Op::Gas => OpcodeLowering::Nullary(op::GAS),
+        Op::Timestamp => OpcodeLowering::Nullary(op::TIMESTAMP),
+        Op::BlockNumber => OpcodeLowering::Nullary(op::NUMBER),
+        Op::Coinbase => OpcodeLowering::Nullary(op::COINBASE),
+        Op::ChainId => OpcodeLowering::Nullary(op::CHAINID),
+        Op::SelfBalance => OpcodeLowering::Nullary(op::SELFBALANCE),
+        Op::BaseFee => OpcodeLowering::Nullary(op::BASEFEE),
+        Op::BlobBaseFee => OpcodeLowering::Nullary(op::BLOBBASEFEE),
+        Op::GasLimit => OpcodeLowering::Nullary(op::GASLIMIT),
+        Op::SlotNum => OpcodeLowering::Nullary(op::SLOTNUM),
+        Op::PrevRandao => OpcodeLowering::Nullary(op::PREVRANDAO),
+        Op::Balance { .. } => OpcodeLowering::Unary(op::BALANCE),
+        Op::BlockHash { .. } => OpcodeLowering::Unary(op::BLOCKHASH),
+        Op::BlobHash { .. } => OpcodeLowering::Unary(op::BLOBHASH),
+        Op::ExtCodeSize { .. } => OpcodeLowering::Unary(op::EXTCODESIZE),
+        Op::ExtCodeHash { .. } => OpcodeLowering::Unary(op::EXTCODEHASH),
+        Op::CodeSize => OpcodeLowering::Nullary(op::CODESIZE),
+        Op::ReturnDataSize => OpcodeLowering::Nullary(op::RETURNDATASIZE),
+        Op::SignExtend { .. } => OpcodeLowering::Binary(op::SIGNEXTEND),
+        Op::Create { .. } => OpcodeLowering::Nary(op::CREATE),
+        Op::Create2 { .. } => OpcodeLowering::Nary(op::CREATE2),
+        Op::Log0 { .. } => OpcodeLowering::Log(op::LOG0),
+        Op::Log1 { .. } => OpcodeLowering::Log(op::LOG1),
+        Op::Log2 { .. } => OpcodeLowering::Log(op::LOG2),
+        Op::Log3 { .. } => OpcodeLowering::Log(op::LOG3),
+        Op::Log4 { .. } => OpcodeLowering::Log(op::LOG4),
+        Op::CalldataCopy { .. } => OpcodeLowering::MemoryCopy(op::CALLDATACOPY),
+        Op::CodeCopy { .. } => OpcodeLowering::MemoryCopy(op::CODECOPY),
+        Op::ReturnDataCopy { .. } => OpcodeLowering::MemoryCopy(op::RETURNDATACOPY),
+        Op::MCopy { .. } => OpcodeLowering::MemoryCopy(op::MCOPY),
+        Op::ExtCodeCopy { .. } => OpcodeLowering::MemoryCopy(op::EXTCODECOPY),
         _ => return None,
     })
 }
