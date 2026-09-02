@@ -40,8 +40,8 @@ use crate::{
         AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType, AbiType,
         AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol,
-        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, SliceLocation, Terminator,
-        Value, ValueId,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, SliceLocation,
+        Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
@@ -504,27 +504,18 @@ impl LowerAbiCx {
         {
             let mut builder = FunctionBuilder::new(&mut function);
             let head = builder.add_param(MirType::uint256());
-            let value = if matches!(ty, AbiParamType::Bytes)
-                && let Some(helper) = self.calldata_slice_helper
-            {
-                let base = builder.internal_call(helper, vec![head], MirType::uint256(), 1);
-                let len = builder.calldataload(base);
-                let data = builder.add_u64_offset(base, 32);
-                Self::materialize_calldata_bytes(&mut builder, data, len)
-            } else {
-                let tuple_base = builder.imm(4);
-                let input_end = builder.calldatasize();
-                let mut current = builder.current_block();
-                Self::decode_aggregate_argument(
-                    &mut builder,
-                    &ty,
-                    ty.mir_type(),
-                    head,
-                    tuple_base,
-                    &mut current,
-                    DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
-                )
-            };
+            let tuple_base = builder.imm(4);
+            let input_end = builder.calldatasize();
+            let mut current = builder.current_block();
+            let value = Self::decode_aggregate_argument(
+                &mut builder,
+                &ty,
+                ty.mir_type(),
+                head,
+                tuple_base,
+                &mut current,
+                DecodeOptions::new(false, input_end, self.has_bitwise_shifting).checked(),
+            );
             builder.add_return(ty.mir_type());
             builder.ret([value]);
         }
@@ -1057,11 +1048,9 @@ impl LowerAbiCx {
                         .copied()
                         // Text MIR does not carry HIR data locations; default to calldata.
                         .unwrap_or(AbiParamLocation::Calldata);
-                    let can_alias_memory =
-                        location == AbiParamLocation::Memory && Self::can_encode_calldata_slice(ty);
                     let decode_type = if !force_memory_aggregates
                         && !constructor
-                        && (location == AbiParamLocation::Calldata || can_alias_memory)
+                        && location == AbiParamLocation::Calldata
                         && self.can_use_calldata_slice(builder.func(), uses, ty, arg_type)
                     {
                         MirType::Slice(SliceLocation::Calldata)
@@ -1513,7 +1502,6 @@ impl LowerAbiCx {
                 } else {
                     None
                 };
-                Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
                 if constructor && allow_alias {
                     // ABI word arrays have the same `[length][words...]`
                     // representation as a memory array. The source remains
@@ -1521,20 +1509,21 @@ impl LowerAbiCx {
                     // allocating and copying an equivalent object.
                     return base;
                 }
-                let bytes = builder.mul(len, word);
+                let bytes = Self::checked_mul(builder, len, word, current);
                 let (ptr, layout) = if let Some(object) = checked_object {
                     object
                 } else {
-                    let total = builder.add(bytes, word);
+                    let total = Self::checked_add(builder, bytes, word, current);
                     let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
                     let ptr = builder.alloc_object(
                         total,
                         layout,
-                        crate::mir::AllocationSemantics::INTERNAL,
+                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
                     );
                     builder.set_memory_object_len(ptr, len, layout.kind());
                     (ptr, layout)
                 };
+                Self::guard_input_dynamic_array(builder, len, data, input_end, current, 32);
                 let source = builder.make_slice(data, bytes, location);
                 builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                 ptr
@@ -1569,6 +1558,24 @@ impl LowerAbiCx {
                 } else {
                     None
                 };
+                let word = builder.imm(32);
+                let bytes = Self::checked_mul(builder, len, word, current);
+
+                let copy_validated =
+                    !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
+                let (ptr, layout) = if let Some(object) = checked_object {
+                    object
+                } else {
+                    let total = Self::checked_add(builder, bytes, word, current);
+                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
+                    let ptr = builder.alloc_object(
+                        total,
+                        layout,
+                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                    );
+                    builder.set_memory_object_len(ptr, len, layout.kind());
+                    (ptr, layout)
+                };
                 Self::guard_input_dynamic_array(
                     builder,
                     len,
@@ -1577,28 +1584,8 @@ impl LowerAbiCx {
                     current,
                     element.checked_head_size().expect("ABI head size exceeds u64 range"),
                 );
-                let word = builder.imm(32);
-                let bytes = builder.mul(len, word);
-
-                let copy_validated =
-                    !constructor && validate_array_elements && Self::is_scalar_or_enum(element);
                 if copy_validated {
                     Self::validate_scalar_array(builder, data_base, element, len, current, options);
-                }
-                let (ptr, layout) = if let Some(object) = checked_object {
-                    object
-                } else {
-                    let total = builder.add(bytes, word);
-                    let layout = crate::mir::MemoryObjectLayout::WORD_ARRAY;
-                    let ptr = builder.alloc_object(
-                        total,
-                        layout,
-                        crate::mir::AllocationSemantics::INTERNAL,
-                    );
-                    builder.set_memory_object_len(ptr, len, layout.kind());
-                    (ptr, layout)
-                };
-                if copy_validated {
                     let source = builder.make_slice(data_base, bytes, SliceLocation::Calldata);
                     builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                     return ptr;
@@ -1668,6 +1655,19 @@ impl LowerAbiCx {
                 let word = builder.imm(32);
                 let data = builder.add(base, word);
                 let layout = crate::mir::MemoryObjectLayout::Bytes;
+                if !constructor {
+                    let total = Self::checked_padded_size(builder, len, current);
+                    let ptr = builder.alloc_object(
+                        total,
+                        layout,
+                        crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
+                    );
+                    builder.set_memory_object_len(ptr, len, layout.kind());
+                    Self::guard_input_range_value(builder, data, len, input_end, current);
+                    let source = builder.make_slice(data, len, location);
+                    builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
+                    return ptr;
+                }
                 let checked_object = if constructor && !allow_alias {
                     let object = builder.alloc_bytes_object(
                         len,
@@ -1679,9 +1679,6 @@ impl LowerAbiCx {
                     None
                 };
                 Self::guard_input_range_value(builder, data, len, input_end, current);
-                if !constructor {
-                    return Self::materialize_calldata_bytes(builder, data, len);
-                }
                 let ptr = if let Some(object) = checked_object {
                     object
                 } else {
@@ -1759,20 +1756,6 @@ impl LowerAbiCx {
             }
             _ => builder.undef(arg_type),
         }
-    }
-
-    fn materialize_calldata_bytes(
-        builder: &mut FunctionBuilder<'_>,
-        data: ValueId,
-        len: ValueId,
-    ) -> ValueId {
-        let total = builder.padded_size(len);
-        let layout = crate::mir::MemoryObjectLayout::Bytes;
-        let ptr = builder.alloc_object(total, layout, crate::mir::AllocationSemantics::INTERNAL);
-        builder.set_memory_object_len(ptr, len, layout.kind());
-        let source = builder.make_slice(data, len, SliceLocation::Calldata);
-        builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
-        ptr
     }
 
     fn validate_scalar_array(
@@ -2115,7 +2098,8 @@ impl LowerAbiCx {
         builder.switch_to_block(*current);
         let result = builder.add(lhs, rhs);
         let overflow = builder.lt(result, lhs);
-        *current = builder.revert_if(overflow);
+        builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        *current = builder.current_block();
         result
     }
 
@@ -2127,7 +2111,8 @@ impl LowerAbiCx {
         builder.switch_to_block(*current);
         let rounded = builder.add_u64_offset(length, 63);
         let overflow = builder.lt(rounded, length);
-        *current = builder.revert_if(overflow);
+        builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        *current = builder.current_block();
         let mask = builder.imm(31);
         let mask = builder.not(mask);
         builder.and(rounded, mask)
@@ -2146,7 +2131,8 @@ impl LowerAbiCx {
         let exact = builder.eq(quotient, lhs);
         let valid = builder.or(rhs_zero, exact);
         let overflow = builder.iszero(valid);
-        *current = builder.revert_if(overflow);
+        builder.panic_if(overflow, PanicCode::MemoryAllocationOverflow);
+        *current = builder.current_block();
         result
     }
 
