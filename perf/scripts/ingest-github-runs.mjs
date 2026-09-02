@@ -10,7 +10,8 @@ const exec = promisify(execFile)
 
 function args() {
   const values = Object.create(null)
-  for (let index = 2; index < process.argv.length; index += 2) {
+  const start = process.argv[2] === '--' ? 3 : 2
+  for (let index = start; index < process.argv.length; index += 2) {
     const option = process.argv[index]
     const value = process.argv[index + 1]
     if (!option?.startsWith('--') || value === undefined)

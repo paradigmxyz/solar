@@ -66,8 +66,8 @@ async function indexFromClickHouse(env: Env) {
        sumIf(b.deploy_gas, b.compiler = 'solar' AND b.status = 'ok') AS deploy_gas,
        sumIf(b.total_gas, b.compiler = 'solar' AND b.status = 'ok') AS total_gas,
        maxIf(b.peak_rss_bytes, b.compiler = 'solar' AND b.status = 'ok') AS peak_rss_bytes
-     FROM runs FINAL AS r
-     LEFT JOIN benchmark_results FINAL AS b USING workflow_run_id
+     FROM runs AS r FINAL
+     LEFT JOIN benchmark_results AS b FINAL USING workflow_run_id
      GROUP BY r.workflow_run_id, r.commit, r.started_at, r.branch, r.pr
      ORDER BY r.started_at DESC`,
   )
