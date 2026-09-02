@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/gvn/gvn_loadimmutable.mir (before gvn) ===
-+ // === ROOT/tests/ui/codegen/mir/gvn/gvn_loadimmutable.mir (after gvn) ===
+- // === ROOT/tests/ui/codegen/mir/egraph/gvn_loadimmutable.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/gvn_loadimmutable.mir (after egraph) ===
   @module GvnLoadImmutable
   immutables:
     first: u256

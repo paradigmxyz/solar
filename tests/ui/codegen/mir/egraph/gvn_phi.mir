@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=gvn
+//@compile-flags: -Zmir-pipeline=egraph
 //@filecheck:
 @module GvnPhi
 
@@ -20,10 +20,11 @@ fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
     ret v5
 }
 
-// Phi-of-same folds onto the operand because its def dominates the join.
+// Phi-of-same folds onto the operand because its def dominates the join, and
+// the doubling of the operand becomes a shift.
 // CHECK-LABEL: {{^[ +].*}}fn @phi_of_same_folds_to_dominating_operand{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb1: {{v[0-9]+}}], [bb2: {{v[0-9]+}}]
-// CHECK: + {{v[0-9]+}} = mul {{v[0-9]+}}, 2
+// CHECK: + {{v[0-9]+}} = shl 1, {{v[0-9]+}}
 fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
   bb0:
     v2 = add arg0, 1

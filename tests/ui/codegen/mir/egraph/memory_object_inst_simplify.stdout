@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (before inst-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (after inst-simplify) ===
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (after egraph) ===
   @module MemoryObjectInstSimplify
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
     bb0:
@@ -14,8 +14,8 @@
       ret v5
   }
   
-- // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (before dce) ===
-+ // === ROOT/tests/ui/codegen/mir/inst-simplify/memory_object_inst_simplify.mir (after dce) ===
+- // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (before dce) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/memory_object_inst_simplify.mir (after dce) ===
   @module MemoryObjectInstSimplify
   fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
     bb0:

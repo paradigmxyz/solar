@@ -1,4 +1,4 @@
-//@compile-flags: -Zmir-pipeline=gvn
+//@compile-flags: -Zmir-pipeline=egraph
 //@filecheck:
 @module GvnLoadImmutable
 immutables:

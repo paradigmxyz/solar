@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inst-simplify/identities.mir (before inst-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inst-simplify/identities.mir (after inst-simplify) ===
+- // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/identities.mir (after egraph) ===
   @module InstSimplifyIdentities
   fn @add_zero(arg0: u256) -> u256 {
     bb0:
