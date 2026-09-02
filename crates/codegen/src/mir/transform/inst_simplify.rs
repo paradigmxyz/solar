@@ -17,6 +17,10 @@
 //! - do not remove or reorder side effects
 //! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
 //! - preserve boolean-only rewrites behind explicit MIR boolean type checks
+//!
+//! Rules that replace an instruction with an existing or immediate value are
+//! written in ISLE in `isle/inst_simplify.isle`; constant folding, in-place
+//! instruction rewrites, and terminator rewrites stay here.
 
 use crate::mir::{
     Builtin, Callee, Function, Immediate, InstId, InstKind, MirType, Module, Terminator, ToUint,
@@ -29,6 +33,8 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+
+mod isle;
 
 /// Function pass for local instruction simplification.
 pub(crate) struct InstSimplify;
@@ -770,6 +776,11 @@ impl InstSimplifier {
             }
             _ => None,
         }
+
+        // The rules see the instruction with its operands resolved and inspect
+        // the operands of defining instructions as written.
+        let op = kind.op().map_values(resolve);
+        isle::RuleContext::new(func).simplify(&op)
     }
 
     fn const_fold_inst(
@@ -959,29 +970,6 @@ impl InstSimplifier {
             }
             InstKind::Sar(_, value) => Self::has_known_sign_bit(func, value),
             _ => false,
-        }
-    }
-
-    fn fold_clz_range_comparison(
-        func: &Function,
-        kind: &InstKind,
-        a: ValueId,
-        b: ValueId,
-    ) -> Option<bool> {
-        match kind {
-            InstKind::Lt(_, _) if Self::clz_operand(func, a).is_some() => {
-                func.value_u256(b).and_then(|b| (b > U256::from(256)).then_some(true))
-            }
-            InstKind::Lt(_, _) if Self::clz_operand(func, b).is_some() => {
-                func.value_u256(a).and_then(|a| (a >= U256::from(256)).then_some(false))
-            }
-            InstKind::Gt(_, _) if Self::clz_operand(func, a).is_some() => {
-                func.value_u256(b).and_then(|b| (b >= U256::from(256)).then_some(false))
-            }
-            InstKind::Gt(_, _) if Self::clz_operand(func, b).is_some() => {
-                func.value_u256(a).and_then(|a| (a > U256::from(256)).then_some(true))
-            }
-            _ => None,
         }
     }
 
@@ -1232,19 +1220,5 @@ impl InstSimplifier {
             },
             _ => None,
         }
-    }
-
-    fn not_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-        match func.value(value) {
-            Value::Inst(inst_id) => match func.inst(*inst_id).kind {
-                InstKind::Not(inner) => Some(inner),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    fn is_bitwise_complement_pair(func: &Function, a: ValueId, b: ValueId) -> bool {
-        Self::not_operand(func, a) == Some(b) || Self::not_operand(func, b) == Some(a)
     }
 }

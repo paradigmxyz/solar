@@ -164,6 +164,9 @@ toml_edit = "0.25"
 # compression
 flate2 = "1.1"
 
+# codegen
+cranelift-isle = "=0.122.0"
+
 # macros
 proc-macro2 = "1.0"
 quote = "1.0"
