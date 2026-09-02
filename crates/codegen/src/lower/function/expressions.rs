@@ -310,6 +310,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(span, "constant initializer");
         };
         let ty = self.cx.gcx.type_of_item(id.into());
+        if let Some(value) = self.lower_fixed_bytes_literal(ty, initializer) {
+            return Some(value);
+        }
         if let Ok(value) = self.cx.gcx.try_eval_const_value(initializer) {
             return match value {
                 ConstValue::Bool(value) => Some(self.builder.imm_bool(*value)),
