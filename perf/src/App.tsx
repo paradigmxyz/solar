@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Moon, Sun } from 'lucide-react'
 import { changeClass, formatChange } from './change'
@@ -76,7 +76,7 @@ function CommitPicker({
       />
       <datalist id={list}>
         {runs.map((run) => (
-          <option key={run.commit} value={run.commit} label={runLabel(run)} />
+          <option key={run.commit} value={short(run.commit)} label={runLabel(run)} />
         ))}
       </datalist>
     </label>
@@ -335,6 +335,7 @@ function Home() {
   const [error, setError] = useState('')
   const [base, setBase] = useState('')
   const [head, setHead] = useState('')
+  const defaultsApplied = useRef(false)
   const runs = useMemo(() => index?.runs ?? [], [index])
   const mainRuns = useMemo(() => runs.filter((run) => run.branch === 'main'), [runs])
   const selectedBase = resolveCommit(base, runs)
@@ -346,9 +347,11 @@ function Home() {
       .catch((value: Error) => setError(value.message))
   }, [])
   useEffect(() => {
-    if (runs.length && !head) setHead(runs[0].commit)
-    if (runs.length > 1 && !base) setBase(runs[1].commit)
-  }, [base, head, runs])
+    if (defaultsApplied.current || runs.length === 0) return
+    setHead(short(runs[0].commit))
+    if (runs.length > 1) setBase(short(runs[1].commit))
+    defaultsApplied.current = true
+  }, [runs])
 
   const compare = () => {
     if (!selectedBase || !selectedHead || selectedBase === selectedHead) return
