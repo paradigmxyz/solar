@@ -1,14 +1,16 @@
 ;; MIR instruction simplification rules for the e-graph pass.
 ;;
-;; `rewrite` returns an equivalent instruction that the e-graph adds to the
-;; class as an alternative node, and `simplify` returns the value an
-;; instruction is equal to, which merges the class into that value. The pass in
+;; `rewrite` returns every equivalent instruction its rules can build, which
+;; the e-graph adds to the class as alternative nodes, and `simplify` returns
+;; the value an instruction is equal to, which merges the class into that
+;; value. The pass in
 ;; `transform/egraph.rs` hands each instruction over with its operands
 ;; canonicalized and inspects operands of defining instructions as written.
 ;; Every rule must be exact for all 256-bit EVM words.
 ;;
-;; Rules on one operation are tried from the highest priority down, so the
-;; priorities encode the order of the checks they replaced.
+;; `simplify` rules on one operation are tried from the highest priority down,
+;; so their priorities encode the order of the checks they replaced. `rewrite`
+;; rules all fire; the e-graph chooses among their results by cost.
 
 ;; Predicates and projections implemented in `transform/egraph/isle.rs`.
 (decl iconst (U256) Value)
@@ -109,38 +111,38 @@
 
 ;;;; In-place rewrites.
 
-(decl partial rewrite (Op) Op)
+(decl multi rewrite (Op) Op)
 
 ;; Fold a constant into an existing offset of the other operand, or move the
 ;; constant to the right.
-(rule 7 (rewrite (Op.Add (add base (iconst existing)) (nonzero_const offset)))
+(rule (rewrite (Op.Add (add base (iconst existing)) (nonzero_const offset)))
         (Op.Add base (imm (u256_add existing offset))))
-(rule 6 (rewrite (Op.Add (add (iconst existing) base) (nonzero_const offset)))
+(rule (rewrite (Op.Add (add (iconst existing) base) (nonzero_const offset)))
         (Op.Add base (imm (u256_add existing offset))))
-(rule 5 (rewrite (Op.Add (sub base (iconst existing)) (nonzero_const offset)))
+(rule (rewrite (Op.Add (sub base (iconst existing)) (nonzero_const offset)))
         (Op.Add base (imm (u256_add (u256_neg existing) offset))))
-(rule 4 (rewrite (Op.Add (nonzero_const offset) (add base (iconst existing))))
+(rule (rewrite (Op.Add (nonzero_const offset) (add base (iconst existing))))
         (Op.Add base (imm (u256_add existing offset))))
-(rule 3 (rewrite (Op.Add (nonzero_const offset) (add (iconst existing) base)))
+(rule (rewrite (Op.Add (nonzero_const offset) (add (iconst existing) base)))
         (Op.Add base (imm (u256_add existing offset))))
-(rule 2 (rewrite (Op.Add (nonzero_const offset) (sub base (iconst existing))))
+(rule (rewrite (Op.Add (nonzero_const offset) (sub base (iconst existing))))
         (Op.Add base (imm (u256_add (u256_neg existing) offset))))
-(rule 1 (rewrite (Op.Add (and a (nonzero_const _)) b)) (if-let false (is_const b)) (Op.Add b a))
+(rule (rewrite (Op.Add (and a (nonzero_const _)) b)) (if-let false (is_const b)) (Op.Add b a))
 
-(rule 3 (rewrite (Op.Sub (add base (iconst existing)) (iconst offset)))
+(rule (rewrite (Op.Sub (add base (iconst existing)) (iconst offset)))
         (Op.Add base (imm (u256_sub existing offset))))
-(rule 2 (rewrite (Op.Sub (add (iconst existing) base) (iconst offset)))
+(rule (rewrite (Op.Sub (add (iconst existing) base) (iconst offset)))
         (Op.Add base (imm (u256_sub existing offset))))
-(rule 1 (rewrite (Op.Sub (sub base (iconst existing)) (iconst offset)))
+(rule (rewrite (Op.Sub (sub base (iconst existing)) (iconst offset)))
         (Op.Add base (imm (u256_sub (u256_neg existing) offset))))
 
 ;; Move a constant factor to the right, then turn a power of two into a shift.
-(rule 2 (rewrite (Op.Mul (and a (iconst c)) b))
+(rule (rewrite (Op.Mul (and a (iconst c)) b))
         (if-let false (is_const b))
         (if-let false (u256_is_zero c))
         (if-let false (u256_is_one c))
         (Op.Mul b a))
-(rule 1 (rewrite (Op.Mul value (iconst c)))
+(rule (rewrite (Op.Mul value (iconst c)))
         (if-let false (is_zero_or_one value))
         (if-let false (u256_is_zero c))
         (if-let false (u256_is_one c))
@@ -160,43 +162,43 @@
 (rule (rewrite (Op.Exp a (iconst c))) (if-let true (u256_eq c 2)) (Op.Mul a a))
 
 ;; Move a constant mask to the right, then merge it into an existing mask.
-(rule 3 (rewrite (Op.And (and a (iconst c)) b))
+(rule (rewrite (Op.And (and a (iconst c)) b))
         (if-let false (is_const b))
         (if-let false (u256_is_zero c))
         (if-let false (u256_is_all_ones c))
         (if-let false (masks_clean_address c b))
         (Op.And b a))
-(rule 2 (rewrite (Op.And (band base (iconst existing)) (iconst mask)))
+(rule (rewrite (Op.And (band base (iconst existing)) (iconst mask)))
         (if-let false (u256_is_zero mask))
         (if-let false (u256_is_all_ones mask))
         (Op.And base (imm (u256_and mask existing))))
-(rule 1 (rewrite (Op.And (band (iconst existing) base) (iconst mask)))
+(rule (rewrite (Op.And (band (iconst existing) base) (iconst mask)))
         (if-let false (u256_is_zero mask))
         (if-let false (u256_is_all_ones mask))
         (Op.And base (imm (u256_and mask existing))))
 
-(rule 2 (rewrite (Op.Xor (all_ones) b)) (Op.Not b))
-(rule 1 (rewrite (Op.Xor a (all_ones))) (Op.Not a))
+(rule (rewrite (Op.Xor (all_ones) b)) (Op.Not b))
+(rule (rewrite (Op.Xor a (all_ones))) (Op.Not a))
 
 ;; Comparisons against zero and against the range of `clz`.
-(rule 6 (rewrite (Op.Eq (and a (zero)) b)) (if-let true (differ a b)) (Op.IsZero b))
-(rule 5 (rewrite (Op.Eq a (and b (zero)))) (if-let true (differ a b)) (Op.IsZero a))
-(rule 4 (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
-(rule 3 (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.IsZero input))
-(rule 2 (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
-(rule 1 (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.IsZero input))
+(rule (rewrite (Op.Eq (and a (zero)) b)) (if-let true (differ a b)) (Op.IsZero b))
+(rule (rewrite (Op.Eq a (and b (zero)))) (if-let true (differ a b)) (Op.IsZero a))
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
+(rule (rewrite (Op.Eq (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.IsZero input))
+(rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.Eq input (imm (u256 1))))
+(rule (rewrite (Op.Eq (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.IsZero input))
 
 (rule (rewrite (Op.IsZero (clz input))) (Op.SLt input (imm (u256 0))))
 
 ;; `a < 1` is `a == 0` for unsigned comparisons.
-(rule 3 (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
-(rule 2 (rewrite (Op.Lt (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.IsZero input))
-(rule 1 (rewrite (Op.Lt a (one))) (Op.IsZero a))
+(rule (rewrite (Op.Lt (clz input) (iconst c))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
+(rule (rewrite (Op.Lt (iconst c) (clz input))) (if-let true (u256_eq c 255)) (Op.IsZero input))
+(rule (rewrite (Op.Lt a (one))) (Op.IsZero a))
 
 ;; `1 > b` is `b == 0` for unsigned comparisons.
-(rule 3 (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.IsZero input))
-(rule 2 (rewrite (Op.Gt (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
-(rule 1 (rewrite (Op.Gt (one) b)) (Op.IsZero b))
+(rule (rewrite (Op.Gt (clz input) (iconst c))) (if-let true (u256_eq c 255)) (Op.IsZero input))
+(rule (rewrite (Op.Gt (iconst c) (clz input))) (if-let true (u256_eq c 256)) (Op.Gt input (imm (u256 0))))
+(rule (rewrite (Op.Gt (one) b)) (Op.IsZero b))
 
 (rule (rewrite (Op.Shr (iconst c) (clz input))) (if-let true (u256_eq c 8)) (Op.IsZero input))
 (rule (rewrite (Op.Byte (iconst c) (clz input))) (if-let true (u256_eq c 30)) (Op.IsZero input))
