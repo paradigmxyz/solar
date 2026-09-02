@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 
 import { insert, select } from './lib/clickhouse.mjs'
@@ -73,6 +73,20 @@ async function refreshMetadata(run) {
   return true
 }
 
+async function artifactPaths(directory) {
+  const directories = [directory]
+  while (directories.length) {
+    const path = directories.pop()
+    for (const entry of await readdir(path, { withFileTypes: true })) {
+      const file = join(path, entry.name)
+      if (entry.isFile() && entry.name === 'results.json')
+        return { artifacts: join(dirname(file), 'artifacts'), results: file }
+      if (entry.isDirectory()) directories.push(file)
+    }
+  }
+  throw new Error('Downloaded artifact has no results.json')
+}
+
 async function ingest(repository, run, refresh, knownRuns) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
   if (!refresh && knownRuns.has(run.databaseId)) return false
@@ -89,12 +103,13 @@ async function ingest(repository, run, refresh, knownRuns) {
       '--dir',
       directory,
     ])
+    const paths = await artifactPaths(directory)
     await exec('node', [
       resolve('scripts/ingest-run.mjs'),
       '--results',
-      join(directory, 'results.json'),
+      paths.results,
       '--artifacts',
-      join(directory, 'artifacts'),
+      paths.artifacts,
       '--commit',
       run.headSha,
       '--workflow-run',
@@ -111,7 +126,7 @@ async function ingest(repository, run, refresh, knownRuns) {
     knownRuns.add(run.databaseId)
     return true
   } catch (error) {
-    console.warn(`Skipped workflow run ${run.databaseId}: ${error.message}`)
+    console.warn(`Skipped workflow run ${run.databaseId}: ${error.message.split('\n', 1)[0]}`)
     return false
   } finally {
     await rm(directory, { recursive: true, force: true })
