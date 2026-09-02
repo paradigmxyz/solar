@@ -64,13 +64,34 @@ async function importedRuns() {
 
 async function refreshMetadata(run) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
+  const pull = await pullRequest(repository, run.headSha)
   const [stored] = await select(
     `SELECT workflow_run_id, commit, branch, pr, started_at, workflow_name, source_schema, raw_results
      FROM runs FINAL WHERE workflow_run_id = ${run.databaseId} LIMIT 1`,
   )
   if (!stored) return false
-  await insert('runs', [{ ...stored, title: run.displayTitle || null }])
+  await insert('runs', [
+    { ...stored, pr: pull?.number || null, title: pull?.title || run.displayTitle || null },
+  ])
   return true
+}
+
+async function pullRequest(repository, sha) {
+  try {
+    const { stdout } = await exec('gh', [
+      'api',
+      '-H',
+      'Accept: application/vnd.github+json',
+      `repos/${repository}/commits/${sha}/pulls`,
+    ])
+    const pulls = JSON.parse(stdout)
+    return pulls.find((pull) => pull.merged_at) || pulls[0] || null
+  } catch (error) {
+    console.warn(
+      `Could not find a pull request for ${sha.slice(0, 8)}: ${error.message.split('\n', 1)[0]}`,
+    )
+    return null
+  }
 }
 
 async function artifactPaths(directory) {
@@ -87,13 +108,13 @@ async function artifactPaths(directory) {
   throw new Error('Downloaded artifact has no results.json')
 }
 
-function runDocument(run, sourceSchema, rawResults) {
+function runDocument(run, pull, sourceSchema, rawResults) {
   return {
     workflow_run_id: Number(run.databaseId),
     commit: run.headSha,
     branch: run.headBranch || null,
-    pr: null,
-    title: run.displayTitle || null,
+    pr: pull?.number || null,
+    title: pull?.title || run.displayTitle || null,
     started_at: run.createdAt,
     workflow_name: run.name || 'Benchmark',
     source_schema: sourceSchema,
@@ -104,6 +125,7 @@ function runDocument(run, sourceSchema, rawResults) {
 async function ingest(repository, run, refresh, knownRuns) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
   if (!refresh && knownRuns.has(run.databaseId)) return false
+  const pull = await pullRequest(repository, run.headSha)
   const directory = await mkdtemp(join(tmpdir(), 'solar-perf-'))
   try {
     try {
@@ -144,8 +166,10 @@ async function ingest(repository, run, refresh, knownRuns) {
       run.name || 'Benchmark',
       '--branch',
       run.headBranch || '',
+      '--pr',
+      String(pull?.number || ''),
       '--title',
-      run.displayTitle || '',
+      pull?.title || run.displayTitle || '',
       '--timestamp',
       run.createdAt,
     ])
@@ -156,7 +180,7 @@ async function ingest(repository, run, refresh, knownRuns) {
       error.stderr?.includes('no valid artifacts found to download') ||
       error.message.includes('Downloaded artifact has no results.json')
     ) {
-      await insert('runs', [runDocument(run, 0, '')])
+      await insert('runs', [runDocument(run, pull, 0, '')])
       knownRuns.add(run.databaseId)
       return true
     }
