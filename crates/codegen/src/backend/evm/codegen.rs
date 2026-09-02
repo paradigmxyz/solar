@@ -6328,6 +6328,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.scheduler.is_stack_only_value(val) || !Self::can_own_spill_slot(func, val) {
             return;
         }
+        if self.scheduler.should_recompute_unstored_spill(val)
+            && Self::is_reloadable_argument_address(func, val)
+        {
+            return;
+        }
 
         // `stored` is a global emission flag; a store emitted by a sibling
         // branch arm sets it without covering this path. Trust it only when
@@ -6348,6 +6353,27 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             self.spill_accessible_stack_value(func, val, slot, depth);
         }
+    }
+
+    /// Returns whether a reloadable address derives from a scalar argument.
+    fn is_reloadable_argument_address(func: &Function, value: ValueId) -> bool {
+        let Value::Inst(inst_id) = func.value(value) else { return false };
+        let InstKind::Add(left, right) = func.inst(*inst_id).kind else { return false };
+        if !matches!(func.value(left), Value::Arg(_)) && !matches!(func.value(right), Value::Arg(_))
+        {
+            return false;
+        }
+
+        let mut store = false;
+        let mut load = false;
+        for inst_id in func.instructions() {
+            match func.inst(inst_id).kind {
+                InstKind::MStore(address, _) if address == value => store = true,
+                InstKind::MLoad(address) if address == value => load = true,
+                _ => {}
+            }
+        }
+        store && load
     }
 
     fn spill_value_to_reserved_slot(&mut self, func: &Function, val: ValueId) -> bool {

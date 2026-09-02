@@ -1,4 +1,4 @@
-//@ compile-flags: -Ogas
+//@ codegen-matrix: standard
 //@ run-call: first true => 7
 //@ run-call: first false => 8
 //@ run-call: second true => 7
