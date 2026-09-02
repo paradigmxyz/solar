@@ -4333,7 +4333,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.scheduler.is_stack_only_value(val) || !Self::can_own_spill_slot(func, val) {
             return;
         }
-        if Self::is_reloadable_argument_address(func, val) {
+        if self.scheduler.should_recompute_unstored_spill(val)
+            && Self::is_reloadable_argument_address(func, val)
+        {
             return;
         }
 
