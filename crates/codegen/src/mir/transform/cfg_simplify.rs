@@ -4,7 +4,7 @@
 //!
 //! ## Block Merging
 //! If block A unconditionally jumps to B, and B has only A as predecessor,
-//! merge A and B into a single block. This reduces jump instructions (8 gas each).
+//! merge A and B into a single block. This reduces jump instructions (one `JUMP` each).
 //!
 //! ## Empty Block Elimination
 //! Remove blocks that contain no instructions and only an unconditional jump,
@@ -17,6 +17,7 @@
 //! Terminal-block equivalence ignores source context. Shared instructions and
 //! terminators retain the bounded union of their original locations instead.
 
+use crate::target::GasTier;
 use crate::mir::{
     BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
     Terminator, Value, ValueId,
@@ -124,7 +125,7 @@ struct CfgSimplifyStats {
     dead_functions_eliminated: usize,
     /// Whether CFG backlinks or phi inputs were repaired.
     reachability_repaired: bool,
-    /// Estimated gas saved (8 gas per eliminated jump).
+    /// Estimated gas saved (one `JUMP` per eliminated jump).
     gas_saved: usize,
 }
 
@@ -495,7 +496,7 @@ impl CfgSimplifier {
                     self.do_merge(func, block_id, target);
                     merged = true;
                     self.stats.blocks_merged += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                     break;
                 }
             }
@@ -616,7 +617,7 @@ impl CfgSimplifier {
                     self.eliminate_forwarder(func, block_id);
                     eliminated = true;
                     self.stats.empty_blocks_eliminated += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                     break;
                 }
             }
