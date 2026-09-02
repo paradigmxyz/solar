@@ -30,7 +30,7 @@ pub(crate) use inst::{
 };
 
 mod op_schema;
-pub(crate) use op_schema::{InstKind, OpTraits, ResultKind};
+pub(crate) use op_schema::{InstKind, Op, OpTraits, ResultKind};
 
 mod block;
 pub(crate) use block::{BasicBlock, Terminator};
