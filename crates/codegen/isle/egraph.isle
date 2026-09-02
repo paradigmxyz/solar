@@ -38,6 +38,17 @@
 ;; `mask` keeps every bit the definition of `value` can set.
 (decl pure mask_covers (U256 Value) bool)
 (extern constructor mask_covers mask_covers)
+;; The definition of `value` bounds it below, or at most, the constant.
+(decl pure below_const (Value U256) bool)
+(extern constructor below_const below_const)
+(decl pure at_most_const (Value U256) bool)
+(extern constructor at_most_const at_most_const)
+;; The shift moves every bit `value` can have out of the word.
+(decl pure shifted_out (U256 Value) bool)
+(extern constructor shifted_out shifted_out)
+;; The sign bit `signextend` would copy is known to be clear.
+(decl pure sign_clear (U256 Value) bool)
+(extern constructor sign_clear sign_clear)
 (decl pure differ (Value Value) bool)
 (extern constructor differ differ)
 (decl pure has_bitwise_shifting () bool)
@@ -211,6 +222,7 @@
 (rule 1 (simplify (Op.Mul (one) b)) b)
 
 ;; Division by zero yields zero on the EVM.
+(rule 5 (simplify (Op.Div a (iconst d))) (if-let true (below_const a d)) (imm (u256 0)))
 (rule 4 (simplify (Op.Div (and a (zero)) _)) a)
 (rule 3 (simplify (Op.Div a (one))) a)
 (rule 2 (simplify (Op.Div _ (zero))) (imm (u256 0)))
@@ -220,6 +232,7 @@
 (rule 2 (simplify (Op.SDiv a (one))) a)
 (rule 1 (simplify (Op.SDiv _ (zero))) (imm (u256 0)))
 
+(rule 6 (simplify (Op.Mod a (iconst m))) (if-let true (below_const a m)) a)
 (rule 5 (simplify (Op.Mod (and a (zero)) _)) a)
 (rule 4 (simplify (Op.Mod _ (zero))) (imm (u256 0)))
 (rule 3 (simplify (Op.Mod _ (one))) (imm (u256 0)))
@@ -244,6 +257,7 @@
 (rule 1 (simplify (Op.MulMod _ (zero) _)) (imm (u256 0)))
 
 ;; `signextend(byte, value)` keeps `value` when it already fits.
+(rule 4 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (sign_clear byte value)) value)
 (rule 3 (simplify (Op.SignExtend _ (and value (zero)))) value)
 (rule 2 (simplify (Op.SignExtend (iconst byte) value)) (if-let true (u256_ge byte 31)) value)
 (rule 1 (simplify (Op.SignExtend (iconst byte) (and value (clz _))))
@@ -288,6 +302,7 @@
 (rule 2 (simplify (Op.Shl _ (and value (zero)))) value)
 (rule 1 (simplify (Op.Shl (iconst shift) _)) (if-let true (u256_ge shift 256)) (imm (u256 0)))
 
+(rule 5 (simplify (Op.Shr (iconst shift) value)) (if-let true (shifted_out shift value)) (imm (u256 0)))
 (rule 4 (simplify (Op.Shr (zero) value)) value)
 (rule 3 (simplify (Op.Shr _ (and value (zero)))) value)
 (rule 2 (simplify (Op.Shr (iconst shift) (clz _))) (if-let true (u256_ge shift 9)) (imm (u256 0)))
@@ -304,12 +319,18 @@
 (rule 2 (simplify (Op.IsZero (iconst c))) (imm_bool (u256_is_zero c)))
 (rule 1 (simplify (Op.IsZero (iszero (and inner (bool_value))))) inner)
 
+;; A bounded value never equals a constant beyond its bound.
+(rule 7 (simplify (Op.Eq a (iconst c))) (if-let true (below_const a c)) (imm_bool false))
+(rule 6 (simplify (Op.Eq (iconst c) b)) (if-let true (below_const b c)) (imm_bool false))
 (rule 5 (simplify (Op.Eq a a)) (imm_bool true))
 (rule 4 (simplify (Op.Eq (clz _) (iconst c))) (if-let true (u256_gt c 256)) (imm_bool false))
 (rule 3 (simplify (Op.Eq (iconst c) (clz _))) (if-let true (u256_gt c 256)) (imm_bool false))
 (rule 2 (simplify (Op.Eq (and a (bool_value)) (one))) a)
 (rule 1 (simplify (Op.Eq (one) (and b (bool_value)))) b)
 
+;; Comparisons decided by the bound of the other operand.
+(rule 10 (simplify (Op.Lt a (iconst c))) (if-let true (below_const a c)) (imm_bool true))
+(rule 9 (simplify (Op.Lt (iconst c) b)) (if-let true (at_most_const b c)) (imm_bool false))
 (rule 8 (simplify (Op.Lt (clz _) (iconst b))) (if-let true (u256_gt b 256)) (imm_bool true))
 (rule 7 (simplify (Op.Lt (iconst a) (clz _))) (if-let true (u256_ge a 256)) (imm_bool false))
 (rule 6 (simplify (Op.Lt a a)) (imm_bool false))
@@ -318,6 +339,8 @@
 (rule 3 (simplify (Op.Lt (bool_value) (iconst c))) (if-let true (u256_gt c 1)) (imm_bool true))
 (rule 2 (simplify (Op.Lt (iconst c) (bool_value))) (if-let true (u256_ge c 1)) (imm_bool false))
 
+(rule 10 (simplify (Op.Gt a (iconst c))) (if-let true (at_most_const a c)) (imm_bool false))
+(rule 9 (simplify (Op.Gt (iconst c) b)) (if-let true (below_const b c)) (imm_bool true))
 (rule 8 (simplify (Op.Gt (clz _) (iconst b))) (if-let true (u256_ge b 256)) (imm_bool false))
 (rule 7 (simplify (Op.Gt (iconst a) (clz _))) (if-let true (u256_gt a 256)) (imm_bool true))
 (rule 6 (simplify (Op.Gt a a)) (imm_bool false))

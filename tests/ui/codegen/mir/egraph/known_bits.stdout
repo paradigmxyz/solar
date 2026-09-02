@@ -33,3 +33,32 @@
 +     ret v0, v0
   }
   
+  fn @bounded_operands(arg0: u256) -> (bool, bool, bool, u256, u256, u256, u256) {
+    bb0:
+      v0 = byte 31, arg0
+-     v1 = eq v0, 300
+-     v2 = lt v0, 256
+-     v3 = gt v0, 255
+-     v4 = mod v0, 256
+-     v5 = div v0, 256
+-     v6 = shr 8, v0
+-     v7 = signextend 1, v0
+-     ret v1, v2, v3, v4, v5, v6, v7
++     ret 0, 1, 0, v0, 0, 0, v0
+  }
+  
+  fn @phi_bound(arg0: u256, arg1: bool) -> u256 {
+    bb0:
+      v0 = byte 31, arg0
+      jumpi arg1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v1 = phi [bb1: v0], [bb2: 7]
+-     v2 = and v1, 255
+-     ret v2
++     ret v1
+  }
+  

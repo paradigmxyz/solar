@@ -129,8 +129,23 @@ fn max_bits(func: &Function, value: ValueId, depth: u32) -> u32 {
             Some(modulus) => bits(value).min(modulus.bit_len() as u32),
             None => bits(value),
         },
+        InstKind::Phi(ref incoming) => {
+            incoming.iter().map(|&(_, value)| bits(value)).max().unwrap_or(256)
+        }
         _ => 256,
     }
+}
+
+/// Returns whether `value` is always below `bound`.
+fn below(func: &Function, value: ValueId, bound: U256) -> bool {
+    let bits = max_bits(func, value, MAX_BITS_DEPTH);
+    bits < 256 && bound >= U256::ONE << bits
+}
+
+/// Returns whether `value` never exceeds `bound`.
+fn at_most(func: &Function, value: ValueId, bound: U256) -> bool {
+    let bits = max_bits(func, value, MAX_BITS_DEPTH);
+    bits < 256 && bound >= (U256::ONE << bits) - U256::ONE
 }
 
 /// Returns whether `value` is known to be exactly zero or one.
@@ -213,6 +228,24 @@ impl generated::Context for RuleContext<'_> {
 
     fn masks_clean_address(&mut self, mask: U256, value: Value) -> bool {
         mask == UINT160_MASK && is_clean_address(self.func, value)
+    }
+
+    fn below_const(&mut self, value: Value, bound: U256) -> bool {
+        below(self.func, value, bound)
+    }
+
+    fn at_most_const(&mut self, value: Value, bound: U256) -> bool {
+        at_most(self.func, value, bound)
+    }
+
+    fn shifted_out(&mut self, shift: U256, value: Value) -> bool {
+        shift >= U256::from(max_bits(self.func, value, MAX_BITS_DEPTH))
+    }
+
+    fn sign_clear(&mut self, byte: U256, value: Value) -> bool {
+        // `signextend(b, x)` reads bit `8 * (b + 1) - 1` as the sign.
+        byte < U256::from(31)
+            && max_bits(self.func, value, MAX_BITS_DEPTH) < 8 * (byte.to::<u32>() + 1)
     }
 
     fn mask_covers(&mut self, mask: U256, value: Value) -> bool {
