@@ -550,9 +550,9 @@ fn capture_sources(
 
 /// Tracks which parameters a value is derived from.
 ///
-/// Capture summaries must follow every data dependency: a helper can return
-/// an arithmetic or bitwise identity of a pointer parameter. Direct argument
-/// sources are handled lazily while propagating or capturing.
+/// Capture summaries follow pointer-preserving computations: a helper can
+/// return an arithmetic or bitwise identity of a pointer parameter. Direct
+/// argument sources are handled lazily while propagating or capturing.
 fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> {
     let params = func.params.len();
     let mut sources = IndexVec::from_vec(vec![DenseBitSet::new_empty(params); func.num_values()]);
@@ -576,7 +576,7 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
             }
         };
         let kind = &func.inst(inst_id).kind;
-        if instruction_loads_data(kind) {
+        if instruction_loads_data(kind) || instruction_compares_values(kind) {
             continue;
         }
         for operand in kind.operands() {
@@ -594,6 +594,18 @@ fn parameter_sources(func: &Function) -> IndexVec<ValueId, DenseBitSet<ArgIdx>> 
         }
     }
     sources
+}
+
+fn instruction_compares_values(kind: &InstKind) -> bool {
+    matches!(
+        kind,
+        InstKind::Lt(_, _)
+            | InstKind::Gt(_, _)
+            | InstKind::SLt(_, _)
+            | InstKind::SGt(_, _)
+            | InstKind::Eq(_, _)
+            | InstKind::IsZero(_)
+    )
 }
 
 fn instruction_loads_data(kind: &InstKind) -> bool {
