@@ -6,12 +6,18 @@
 //! Rust enum while the declaration stays in one place. The descriptors can
 //! drive verification, textual serialization, and later machine serialization
 //! without making the optimizer reason about untyped operands.
+//!
+//! Every field of an operation is either a value operand or an attribute, and
+//! the [`Operands`] trait says which. Operand traversal is generated from the
+//! declaration, so fields are listed in canonical operand order and tuple
+//! operands carry names that document their meaning.
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationKind, AllocationSemantics, BlockId,
     DataRef, EffectKind, FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, SliceLocation, StorageLayoutRef, ValueId,
 };
+use smallvec::{Array, SmallVec};
 
 /// A compact set of MIR phases in which an operation is structurally valid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -56,9 +62,108 @@ impl OpTraits {
     }
 }
 
+/// Instruction field types, classified as value operands or attributes.
+trait Operands {
+    /// Appends every value operand held by this field in canonical order.
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>);
+    /// Visits every value operand held by this field mutably.
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId));
+}
+
+impl Operands for ValueId {
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.push(*self);
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        f(self);
+    }
+}
+
+impl Operands for Option<ValueId> {
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.extend(*self);
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        if let Some(value) = self {
+            f(value);
+        }
+    }
+}
+
+impl Operands for Box<[ValueId]> {
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.extend(self.iter().copied());
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        self.iter_mut().for_each(f);
+    }
+}
+
+impl Operands for Vec<(BlockId, ValueId)> {
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.extend(self.iter().map(|(_, value)| *value));
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        self.iter_mut().for_each(|(_, value)| f(value));
+    }
+}
+
+/// Declares field types that never hold value operands.
+macro_rules! attributes {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl Operands for $ty {
+                #[inline]
+                fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
+            }
+        )+
+    };
+}
+
+attributes! {
+    u32,
+    u64,
+    AbiEncodeMode,
+    AbiLayoutRef,
+    AbiParamLayoutRef,
+    AllocationKind,
+    AllocationSemantics,
+    DataRef,
+    FrameMode,
+    FrameSlotKind,
+    FunctionId,
+    ImmutableId,
+    MemoryObjectKind,
+    MemoryObjectLayout,
+    SliceLocation,
+    StorageLayoutRef,
+}
+
 macro_rules! define_mir_ops {
     (
-        enum $inst_name:ident { $($variants:tt)* }
+        enum $inst_name:ident {
+            $(
+                $(#[$meta:meta])*
+                $variant:ident
+                $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
+                $( { $( $(#[$field_meta:meta])* $field:ident : $field_ty:ty ),+ $(,)? } )?
+            ),+ $(,)?
+        }
         defs {
             $(
                 $pattern:pat => {
@@ -75,7 +180,12 @@ macro_rules! define_mir_ops {
         /// The kind of a MIR instruction.
         #[derive(Clone, Debug, PartialEq)]
         pub(crate) enum $inst_name {
-            $($variants)*
+            $(
+                $(#[$meta])*
+                $variant
+                $( ( $( $operand_ty ),+ ) )?
+                $( { $( $(#[$field_meta])* $field: $field_ty ),+ } )?,
+            )+
         }
 
         /// Generated metadata for one MIR operation.
@@ -114,6 +224,35 @@ macro_rules! define_mir_ops {
                 }
             }
 
+            /// Collects every value operand in canonical order.
+            ///
+            /// This is the canonical operand list for liveness and scheduling.
+            pub(crate) fn collect_operands<A: Array<Item = ValueId>>(
+                &self,
+                out: &mut SmallVec<A>,
+            ) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( Operands::collect($operand, out); )+ )?
+                            $( $( Operands::collect($field, out); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits every value operand mutably, in canonical order.
+            pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( Operands::visit_mut($operand, &mut f); )+ )?
+                            $( $( Operands::visit_mut($field, &mut f); )+ )?
+                        }
+                    )+
+                }
+            }
+
             /// Returns the operation's phase-boundary diagnostic category.
             #[inline]
             #[must_use]
@@ -147,75 +286,75 @@ define_mir_ops! {
     enum InstKind {
     // Arithmetic operations
     /// Addition: `a + b`
-    Add(ValueId, ValueId),
+    Add(a: ValueId, b: ValueId),
     /// Subtraction: `a - b`
-    Sub(ValueId, ValueId),
+    Sub(a: ValueId, b: ValueId),
     /// Multiplication: `a * b`
-    Mul(ValueId, ValueId),
+    Mul(a: ValueId, b: ValueId),
     /// Unsigned division: `a / b`
-    Div(ValueId, ValueId),
+    Div(a: ValueId, b: ValueId),
     /// Signed division: `a / b`
-    SDiv(ValueId, ValueId),
+    SDiv(a: ValueId, b: ValueId),
     /// Unsigned modulo: `a % b`
-    Mod(ValueId, ValueId),
+    Mod(a: ValueId, b: ValueId),
     /// Signed modulo: `a % b`
-    SMod(ValueId, ValueId),
+    SMod(a: ValueId, b: ValueId),
     /// Exponentiation: `a ** b`
-    Exp(ValueId, ValueId),
+    Exp(a: ValueId, b: ValueId),
     /// Add modulo: `(a + b) % n`
-    AddMod(ValueId, ValueId, ValueId),
+    AddMod(a: ValueId, b: ValueId, n: ValueId),
     /// Multiply modulo: `(a * b) % n`
-    MulMod(ValueId, ValueId, ValueId),
+    MulMod(a: ValueId, b: ValueId, n: ValueId),
 
     // Bitwise operations
     /// Bitwise AND: `a & b`
-    And(ValueId, ValueId),
+    And(a: ValueId, b: ValueId),
     /// Bitwise OR: `a | b`
-    Or(ValueId, ValueId),
+    Or(a: ValueId, b: ValueId),
     /// Bitwise XOR: `a ^ b`
-    Xor(ValueId, ValueId),
+    Xor(a: ValueId, b: ValueId),
     /// Bitwise NOT: `~a`
-    Not(ValueId),
+    Not(a: ValueId),
     /// Count leading zero bits.
-    Clz(ValueId),
+    Clz(a: ValueId),
     /// Left shift: `a << b`
-    Shl(ValueId, ValueId),
+    Shl(shift: ValueId, value: ValueId),
     /// Logical right shift: `a >> b`
-    Shr(ValueId, ValueId),
+    Shr(shift: ValueId, value: ValueId),
     /// Arithmetic right shift: `a >> b` (signed)
-    Sar(ValueId, ValueId),
+    Sar(shift: ValueId, value: ValueId),
     /// Extract a byte: `byte(i, x)`
-    Byte(ValueId, ValueId),
+    Byte(index: ValueId, value: ValueId),
 
     // Comparison operations
     /// Less than (unsigned): `a < b`
-    Lt(ValueId, ValueId),
+    Lt(a: ValueId, b: ValueId),
     /// Greater than (unsigned): `a > b`
-    Gt(ValueId, ValueId),
+    Gt(a: ValueId, b: ValueId),
     /// Less than (signed): `a < b`
-    SLt(ValueId, ValueId),
+    SLt(a: ValueId, b: ValueId),
     /// Greater than (signed): `a > b`
-    SGt(ValueId, ValueId),
+    SGt(a: ValueId, b: ValueId),
     /// Equality: `a == b`
-    Eq(ValueId, ValueId),
+    Eq(a: ValueId, b: ValueId),
     /// Check if zero: `a == 0`
-    IsZero(ValueId),
+    IsZero(a: ValueId),
 
     // Memory operations
     /// Load from memory: `mload(offset)`
-    MLoad(ValueId),
+    MLoad(offset: ValueId),
     /// Store to memory: `mstore(offset, value)`
-    MStore(ValueId, ValueId),
+    MStore(offset: ValueId, value: ValueId),
     /// Store a single byte: `mstore8(offset, value)`
-    MStore8(ValueId, ValueId),
+    MStore8(offset: ValueId, value: ValueId),
     /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
-    MemoryZero(ValueId, ValueId),
+    MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
     MSize,
     /// Read the free-memory pointer.
     Fmp,
     /// Set the free-memory pointer.
-    SetFmp(ValueId),
+    SetFmp(value: ValueId),
     /// Reserve memory and return the previous free-memory pointer.
     Alloc {
         /// Requested byte count.
@@ -226,11 +365,11 @@ define_mir_ops! {
         semantics: AllocationSemantics,
     },
     /// Read the logical length of a dynamic memory object.
-    MemoryObjectLen(ValueId, MemoryObjectKind),
+    MemoryObjectLen(object: ValueId, kind: MemoryObjectKind),
     /// Set the logical length of a dynamic memory object.
-    SetMemoryObjectLen(ValueId, ValueId, MemoryObjectKind),
+    SetMemoryObjectLen(object: ValueId, len: ValueId, kind: MemoryObjectKind),
     /// Project the address of the first payload byte from an object.
-    MemoryObjectData(ValueId, MemoryObjectKind),
+    MemoryObjectData(object: ValueId, kind: MemoryObjectKind),
     /// Address a direct field of a struct object.
     MemoryObjectFieldAddr {
         /// Struct object reference.
@@ -396,10 +535,10 @@ define_mir_ops! {
     },
     /// Copy a statically shaped aggregate from memory into storage.
     MemoryToStorage {
-        /// Source memory pointer.
-        memory: ValueId,
         /// Base storage slot.
         storage: ValueId,
+        /// Source memory pointer.
+        memory: ValueId,
         /// Aggregate layout.
         layout: StorageLayoutRef,
     },
@@ -411,23 +550,23 @@ define_mir_ops! {
         layout: StorageLayoutRef,
     },
     /// Copy memory: `mcopy(dest, src, len)`
-    MCopy(ValueId, ValueId, ValueId),
+    MCopy(dest: ValueId, src: ValueId, len: ValueId),
 
     // Storage operations
     /// Load from storage: `sload(slot)`
-    SLoad(ValueId),
+    SLoad(slot: ValueId),
     /// Store to storage: `sstore(slot, value)`
-    SStore(ValueId, ValueId),
+    SStore(slot: ValueId, value: ValueId),
     /// Transient load: `tload(slot)`
-    TLoad(ValueId),
+    TLoad(slot: ValueId),
     /// Transient store: `tstore(slot, value)`
-    TStore(ValueId, ValueId),
+    TStore(slot: ValueId, value: ValueId),
 
     // Calldata operations
     /// Load from calldata: `calldataload(offset)`
-    CalldataLoad(ValueId),
+    CalldataLoad(offset: ValueId),
     /// Copy calldata to memory: `calldatacopy(destOffset, offset, size)`
-    CalldataCopy(ValueId, ValueId, ValueId),
+    CalldataCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get calldata size: `calldatasize()`
     CalldataSize,
     /// Construct a logical `(pointer, length, location)` slice.
@@ -440,11 +579,11 @@ define_mir_ops! {
         location: SliceLocation,
     },
     /// Project the data pointer from a slice.
-    SlicePtr(ValueId),
+    SlicePtr(slice: ValueId),
     /// Project the logical length from a slice.
-    SliceLen(ValueId),
+    SliceLen(slice: ValueId),
     /// Address inside the current internal-call frame.
-    InternalFrameAddr(u64),
+    InternalFrameAddr(offset: u64),
     /// Load a mutable local through its logical frame slot.
     ///
     /// A plain memory read: deletable when its result is dead. Ordering
@@ -476,26 +615,26 @@ define_mir_ops! {
 
     // Code operations
     /// Copy constant module data to memory.
-    DataCopy(DataRef, ValueId, ValueId),
+    DataCopy(data: DataRef, dest: ValueId, size: ValueId),
     /// Get code size: `codesize()`
     CodeSize,
     /// Copy code to memory: `codecopy(destOffset, offset, size)`
-    CodeCopy(ValueId, ValueId, ValueId),
+    CodeCopy(dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code size: `extcodesize(addr)`
-    ExtCodeSize(ValueId),
+    ExtCodeSize(addr: ValueId),
     /// Copy external code to memory: `extcodecopy(addr, destOffset, offset, size)`
-    ExtCodeCopy(ValueId, ValueId, ValueId, ValueId),
+    ExtCodeCopy(addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId),
     /// Get external code hash: `extcodehash(addr)`
-    ExtCodeHash(ValueId),
+    ExtCodeHash(addr: ValueId),
     /// Assign an immutable during construction: `storeimmutable <name>, value`.
     /// Lowered to constructor staging memory after MIR optimization.
-    StoreImmutable(ImmutableId, ValueId),
+    StoreImmutable(id: ImmutableId, value: ValueId),
     /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///
     /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
     /// constructor patches with the staged value before returning the runtime
     /// code. In constructor code it reads the staging word instead.
-    LoadImmutable(ImmutableId),
+    LoadImmutable(id: ImmutableId),
 
     // Return data operations
     /// Get the current call's return data size: `returndatasize()`.
@@ -503,7 +642,7 @@ define_mir_ops! {
     /// Raw volatile query used by Yul and high-level call lowering.
     ReturnDataSize,
     /// Copy return data to memory: `returndatacopy(destOffset, offset, size)`
-    ReturnDataCopy(ValueId, ValueId, ValueId),
+    ReturnDataCopy(dest: ValueId, offset: ValueId, size: ValueId),
 
     // Environment operations
     /// Get caller address: `caller()`
@@ -515,7 +654,7 @@ define_mir_ops! {
     /// Get gas price: `gasprice()`
     GasPrice,
     /// Get block hash: `blockhash(blockNum)`
-    BlockHash(ValueId),
+    BlockHash(number: ValueId),
     /// Get coinbase address: `coinbase()`
     Coinbase,
     /// Get block timestamp: `timestamp()`
@@ -533,7 +672,7 @@ define_mir_ops! {
     /// Get this contract's address: `address()`
     Address,
     /// Get balance: `balance(addr)`
-    Balance(ValueId),
+    Balance(addr: ValueId),
     /// Get self balance: `selfbalance()`
     SelfBalance,
     /// Get remaining gas: `gas()`
@@ -543,11 +682,11 @@ define_mir_ops! {
     /// Get blob base fee: `blobbasefee()`
     BlobBaseFee,
     /// Get blob hash: `blobhash(index)`
-    BlobHash(ValueId),
+    BlobHash(index: ValueId),
 
     // Hashing
     /// Keccak256 hash: `keccak256(offset, size)`
-    Keccak256(ValueId, ValueId),
+    Keccak256(offset: ValueId, size: ValueId),
     /// Keccak256 hash of a `memorybytes` object's contents:
     /// `keccak256_bytes(object)`.
     ///
@@ -555,24 +694,24 @@ define_mir_ops! {
     /// whole-object read instead of separate length and data-pointer
     /// projections. `lower-memory-objects` expands it into those projections
     /// and a physical `keccak256`.
-    Keccak256Bytes(ValueId),
+    Keccak256Bytes(object: ValueId),
     /// Hash a fixed-width mapping key and its parent slot.
     ///
     /// The temporary scratch memory used by its late lowering is not an
     /// observable part of this instruction's MIR semantics.
-    MappingSlot(ValueId, ValueId),
+    MappingSlot(key: ValueId, slot: ValueId),
     /// Hash a `[length][data...]` memory value and its parent mapping slot.
-    MappingSlotMemory(ValueId, ValueId),
+    MappingSlotMemory(key: ValueId, slot: ValueId),
     /// Hash a dynamically-sized calldata value and its parent mapping slot.
     ///
     /// The temporary scratch memory used by its late lowering is not an
     /// observable part of this instruction's MIR semantics.
-    MappingSlotCalldata(ValueId, ValueId),
+    MappingSlotCalldata(key: ValueId, slot: ValueId),
     /// Hash the slot of a dynamically-sized storage array to find its data.
     ///
     /// The temporary scratch memory used by its late lowering is not an
     /// observable part of this instruction's MIR semantics.
-    StorageArrayDataSlot(ValueId),
+    StorageArrayDataSlot(slot: ValueId),
     /// Resolve one element slot in a dynamic storage array.
     ///
     /// The array's base slot, element index, and logical slot stride stay
@@ -632,32 +771,32 @@ define_mir_ops! {
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
-    Create(ValueId, ValueId, ValueId),
+    Create(value: ValueId, offset: ValueId, size: ValueId),
     /// Create2 contract: `create2(value, offset, size, salt)`
-    Create2(ValueId, ValueId, ValueId, ValueId),
+    Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
 
     // Log operations
     // TODO(codegen): Consider unifying log0..log4 as one instruction with a topic list.
     /// Log with no topics: `log0(offset, size)`
-    Log0(ValueId, ValueId),
+    Log0(offset: ValueId, size: ValueId),
     /// Log with 1 topic: `log1(offset, size, topic1)`
-    Log1(ValueId, ValueId, ValueId),
+    Log1(offset: ValueId, size: ValueId, topic1: ValueId),
     /// Log with 2 topics: `log2(offset, size, topic1, topic2)`
-    Log2(ValueId, ValueId, ValueId, ValueId),
+    Log2(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId),
     /// Log with 3 topics: `log3(offset, size, topic1, topic2, topic3)`
-    Log3(ValueId, ValueId, ValueId, ValueId, ValueId),
+    Log3(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId),
     /// Log with 4 topics: `log4(offset, size, topic1, topic2, topic3, topic4)`
-    Log4(ValueId, ValueId, ValueId, ValueId, ValueId, ValueId),
+    Log4(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId, topic4: ValueId),
 
     // SSA operations
     /// Phi node: merge values from different predecessors.
-    Phi(Vec<(BlockId, ValueId)>),
+    Phi(incoming: Vec<(BlockId, ValueId)>),
     /// Select: `select(cond, true_val, false_val)`
-    Select(ValueId, ValueId, ValueId),
+    Select(cond: ValueId, true_val: ValueId, false_val: ValueId),
 
     // Sign extension
     /// Sign extend: `signextend(b, x)` - extends the sign bit from byte position b
-    SignExtend(ValueId, ValueId),
+    SignExtend(byte: ValueId, value: ValueId),
 }
     defs {
     Self::Add(_, _) => { mnemonic: "add", phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
