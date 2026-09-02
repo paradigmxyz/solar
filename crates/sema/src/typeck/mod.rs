@@ -42,6 +42,9 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_external_type_clashes(gcx, id);
     check_receive_function(gcx, id);
     check_library_functions(gcx, id);
+    for f_id in gcx.hir.contract(id).functions() {
+        check_payable_function(gcx, gcx.hir.function(f_id));
+    }
     for using in gcx.hir.contract(id).usings {
         check_using_directive(gcx, using);
     }
@@ -52,6 +55,9 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
 fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
     check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
     check_break_continue(gcx, id);
+    for f_id in gcx.hir.source(id).items.iter().filter_map(ItemId::as_function) {
+        check_payable_function(gcx, gcx.hir.function(f_id));
+    }
     for using in gcx.hir.source(id).usings {
         check_using_directive(gcx, using);
     }
@@ -412,7 +418,10 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
 /// Checks restrictions that only apply to functions declared in a library.
 ///
-/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L325-L333>
+/// References:
+/// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
+/// - constructor: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L444-L446>
+/// - `fallback`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L2016-L2017>
 fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
     if !contract.kind.is_library() {
@@ -421,14 +430,52 @@ fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
     for f_id in contract.functions() {
         let f = gcx.hir.function(f_id);
-        if f.state_mutability == StateMutability::Payable {
+
+        // A `private virtual` function is reported by `check_unimplemented_functions` instead.
+        if f.marked_virtual && f.visibility != Visibility::Private {
             gcx.dcx()
-                .err("library functions cannot be payable")
-                .code(error_code!(7708))
+                .err("library functions cannot be `virtual`")
+                .code(error_code!(7801))
+                .span(f.span)
+                .emit();
+        }
+
+        // A library `receive` gets its own error in `check_receive_function`.
+        if f.is_constructor() {
+            gcx.dcx()
+                .err("constructor cannot be defined in libraries")
+                .code(error_code!(7634))
+                .span(f.span)
+                .emit();
+        } else if f.kind.is_fallback() {
+            gcx.dcx()
+                .err("libraries cannot have fallback functions")
+                .code(error_code!(5982))
                 .span(f.span)
                 .emit();
         }
     }
+}
+
+/// Checks which functions are allowed to be `payable`.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L325-L333>
+fn check_payable_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if f.state_mutability != StateMutability::Payable {
+        return;
+    }
+
+    let (msg, code) =
+        if f.contract.is_some_and(|contract| gcx.hir.contract(contract).kind.is_library()) {
+            ("library functions cannot be payable", error_code!(7708))
+        } else if f.is_free() {
+            ("free functions cannot be payable", error_code!(9559))
+        } else if f.is_ordinary() && !f.is_part_of_external_interface() {
+            ("`internal` and `private` functions cannot be payable", error_code!(5587))
+        } else {
+            return;
+        };
+    gcx.dcx().err(msg).code(code).span(f.span).emit();
 }
 
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.
