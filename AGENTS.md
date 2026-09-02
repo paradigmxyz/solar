@@ -20,6 +20,7 @@ cargo nextest run --workspace          # Run tests (faster than cargo test)
 cargo llvm-cov nextest --workspace     # Test coverage
 cargo uitest                           # Run UI tests
 cargo uibless                          # Update UI test expectations
+cargo t                                # Run all tests with nextest (preferred)
 cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
