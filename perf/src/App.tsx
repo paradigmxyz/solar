@@ -119,13 +119,13 @@ function HistoryGraph({
   const active = points[hovered ?? points.length - 1]
   const activeIndex = hovered ?? points.length - 1
   const activeX = 3 + (activeIndex / Math.max(points.length - 1, 1)) * 94
-  const activeY = position(active.metrics[metric]!)
+  const activeY = active ? position(active.metrics[metric]!) : 0
   const change = first && latest !== undefined ? ((latest - first) / first) * 100 : null
   return (
     <section className="graph-card">
       <div className="graph-heading">
         <h2>{title}</h2>
-        {latest !== undefined && (
+        {active && latest !== undefined && (
           <div>
             <strong>{formatValue(active.metrics[metric]!, unit)}</strong>
             <span className={changeClass(change, false)}>{formatChange(change)}</span>
