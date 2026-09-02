@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir (before inst-simplify) ===
-+ // === ROOT/tests/ui/codegen/mir/inst-simplify/clz.mir (after inst-simplify) ===
+- // === ROOT/tests/ui/codegen/mir/egraph/clz.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/clz.mir (after egraph) ===
   @module ClzInstSimplify
   fn @simplify_clz_predicates(arg0: u256) -> (bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool) {
     bb0:
@@ -23,10 +23,8 @@
 +     v3 = eq arg0, 1
 +     v4 = iszero arg0
 +     v6 = iszero arg0
-+     v7 = iszero arg0
 +     v8 = gt arg0, 0
-+     v9 = gt arg0, 0
-+     ret v1, v2, v3, v4, 0, v6, v7, v8, v9, 1, 0, 0, 1
++     ret v1, v2, v3, v4, 0, v6, v6, v8, v8, 1, 0, 0, 1
   }
   
   fn @simplify_clz_range_ops(arg0: u256) -> (u256, u256, u256, u256, i256, u256, u256, u256, u256, u256, u256) {

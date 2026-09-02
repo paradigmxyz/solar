@@ -1,13 +1,14 @@
-- // === ROOT/tests/ui/codegen/mir/gvn/gvn.mir (before gvn) ===
-+ // === ROOT/tests/ui/codegen/mir/gvn/gvn.mir (after gvn) ===
+- // === ROOT/tests/ui/codegen/mir/egraph/gvn.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/gvn.mir (after egraph) ===
   @module Gvn
   fn @transitive_congruence(arg0: u256, arg1: u256) -> u256 {
     bb0:
       v0 = add arg0, arg1
 -     v1 = add arg0, arg1
-      v2 = mul v0, 2
+-     v2 = mul v0, 2
 -     v3 = mul v1, 2
 -     v4 = add v2, v3
++     v2 = shl 1, v0
 +     v4 = add v2, v2
       ret v4
   }

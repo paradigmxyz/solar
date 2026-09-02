@@ -1,17 +1,16 @@
-;; Local MIR instruction simplification.
+;; MIR instruction simplification rules for the e-graph pass.
 ;;
-;; `rewrite` returns a cheaper instruction to compute in place of the given
-;; one, and `simplify` returns the value an instruction is equal to. The
-;; driver in `transform/inst_simplify.rs` tries `rewrite` first, then
-;; constant-folds, then `simplify`. It hands the instruction over with its
-;; operands resolved through the current replacement map and inspects operands
-;; of defining instructions as written. Every rule must be exact for all
-;; 256-bit EVM words.
+;; `rewrite` returns an equivalent instruction that the e-graph adds to the
+;; class as an alternative node, and `simplify` returns the value an
+;; instruction is equal to, which merges the class into that value. The pass in
+;; `transform/egraph.rs` hands each instruction over with its operands
+;; canonicalized and inspects operands of defining instructions as written.
+;; Every rule must be exact for all 256-bit EVM words.
 ;;
 ;; Rules on one operation are tried from the highest priority down, so the
 ;; priorities encode the order of the checks they replaced.
 
-;; Predicates and projections implemented in `transform/inst_simplify/isle.rs`.
+;; Predicates and projections implemented in `transform/egraph/isle.rs`.
 (decl iconst (U256) Value)
 (extern extractor iconst iconst)
 (decl zero () Value)
