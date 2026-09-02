@@ -607,11 +607,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
         match ty.peel_refs().kind {
-            TyKind::Enum(id) => {
-                AbiWordValidator::EnumRange(self.cx.gcx.hir.enumm(id).variants.len() as u64)
-                    .cleanup(&mut self.builder, value)
-            }
-            TyKind::Fn(_) => value,
+            TyKind::Enum(..) | TyKind::Fn(_) => value,
             TyKind::Elementary(ElementaryType::Bool) => {
                 let zero = self.builder.imm(U256::ZERO);
                 let is_zero = self.builder.eq(value, zero);
@@ -626,6 +622,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.in_inline_assembly || !self.dirty_values.contains(&value) {
             return value;
         }
+        self.validate_enum(ty, value);
         self.normalize_abi_scalar(value, ty)
     }
 
@@ -643,6 +640,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             let shift = self.builder.imm(64);
             return self.builder.shr(shift, value);
+        }
+        if matches!(ty.peel_refs().kind, TyKind::Enum(..)) {
+            self.validate_enum(ty, value);
+            return value;
         }
         self.normalize_abi_scalar(value, ty)
     }

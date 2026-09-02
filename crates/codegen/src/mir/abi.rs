@@ -473,7 +473,7 @@ impl AbiWordValidator {
         }
     }
 
-    /// Canonicalizes `word`, validating enum ranges.
+    /// Builds the canonical form of `word`.
     pub(crate) fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
             Self::Unsigned(_) | Self::LeftAligned(_) => {
@@ -489,10 +489,7 @@ impl AbiWordValidator {
                 let zero = builder.iszero(word);
                 builder.iszero(zero)
             }
-            Self::EnumRange(variants) => {
-                builder.validate_enum_value(variants, word);
-                word
-            }
+            Self::EnumRange(_) => word,
         }
     }
 }
