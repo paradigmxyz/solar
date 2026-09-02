@@ -32,7 +32,9 @@ function runRef(run: RunSummary) {
 }
 
 function runTitle(run: RunSummary) {
-  return run.title || runRef(run)
+  const title = run.title || runRef(run)
+  const pr = runPr(run)
+  return pr && !title.includes(`#${pr}`) ? `${title} (#${pr})` : title
 }
 
 function runPr(run: RunSummary) {
