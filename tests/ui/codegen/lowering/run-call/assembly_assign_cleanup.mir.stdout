@@ -63,14 +63,15 @@ fn @boolNorm() -> u256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[w
 fn @signedExtend() -> u256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = signextend 2, 0x800000
-    v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff800000
-    v2 = iszero v1
-    jumpi v2, bb1, bb2
+    v1 = sub 0, 0x800000
+    v2 = eq v0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
   bb2:
-    v3 = signextend 2, 0x800000
-    v4 = slt v3, 0
-    v5 = iszero v4
-    jumpi v5, bb3, bb4
+    v4 = signextend 2, 0x800000
+    v5 = slt v4, 0
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
   bb4:
     ret 1
   bb3:

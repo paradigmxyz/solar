@@ -489,7 +489,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         // value = const_eval(expr)
-        if matches!(expr.kind, ExprKind::Binary(..) | ExprKind::Unary(..))
+        if int_literal_expr_contains_wide(self.cx.gcx, expr).is_some_and(|wide| wide)
             && let Ok(value) = self.cx.gcx.try_eval_const(expr)
             && value.bit_len() <= 256
         {
@@ -740,6 +740,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .help("unwrap the user-defined value type before using this operator")
             .emit();
         None
+    }
+}
+
+fn int_literal_expr_contains_wide(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> Option<bool> {
+    let is_wide = |expr| gcx.try_eval_const(expr).is_ok_and(|value| value.bit_len() > 256);
+    match &expr.kind {
+        ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Number(_)) => Some(false),
+        ExprKind::Unary(op, inner) if matches!(op.kind, UnOpKind::Neg | UnOpKind::BitNot) => {
+            Some(is_wide(expr) || int_literal_expr_contains_wide(gcx, inner)?)
+        }
+        ExprKind::Binary(lhs, op, rhs)
+            if !op.kind.is_cmp() && !matches!(op.kind, BinOpKind::Or | BinOpKind::And) =>
+        {
+            Some(
+                is_wide(expr)
+                    || int_literal_expr_contains_wide(gcx, lhs)?
+                    || int_literal_expr_contains_wide(gcx, rhs)?,
+            )
+        }
+        ExprKind::Tuple([Some(inner)]) => int_literal_expr_contains_wide(gcx, inner),
+        _ => None,
     }
 }
 
