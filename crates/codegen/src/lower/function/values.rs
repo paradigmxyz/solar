@@ -568,9 +568,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let base = self.multi_return_buffer_base();
         let mut index = Self::internal_return_words(return_types[0]);
         let mut values = Vec::with_capacity(return_types.len());
+        let dirty = self.dirty_values.contains(&first);
         values.push(first);
         for &ty in &return_types[1..] {
-            let value = match types::TypeLowerer::mir_return_type(ty) {
+            let return_ty = types::TypeLowerer::mir_return_type(ty);
+            let value = match return_ty {
                 MirType::Slice(location) => {
                     let pointer = self.load_multi_return_value(base, index, returns);
                     let length = self.load_multi_return_value(base, index + 1, returns);
@@ -578,10 +580,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 _ => self.load_multi_return_value_as(base, index, returns, ty),
             };
-            if matches!(
-                types::TypeLowerer::mir_return_type(ty),
-                MirType::Slice(SliceLocation::Calldata)
-            ) {
+            if dirty || return_ty == MirType::Slice(SliceLocation::Calldata) {
                 self.dirty_values.insert(value);
             }
             values.push(value);

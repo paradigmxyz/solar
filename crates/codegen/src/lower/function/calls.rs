@@ -38,7 +38,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = types::TypeLowerer::mir_return_type(
             self.cx.gcx.type_of_item(function.returns[0].into()),
         );
-        Some(self.builder.internal_call(mir_id, values.to_vec(), result_ty, 1))
+        let result = self.builder.internal_call(mir_id, values.to_vec(), result_ty, 1);
+        self.dirty_values.insert(result);
+        Some(result)
     }
 
     pub(super) fn lower_call(
@@ -424,7 +426,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let first_ty = function.returns[0];
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
         // result = internal_call(dispatcher, function, args)
-        Some(self.builder.internal_call(dispatcher, values, result_ty, function.returns.len()))
+        let result =
+            self.builder.internal_call(dispatcher, values, result_ty, function.returns.len());
+        self.dirty_values.insert(result);
+        Some(result)
     }
 
     pub(super) fn lower_internal_function_value(
@@ -601,27 +606,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
-        let peeled = ty.peel_refs();
-        if matches!(peeled.kind, TyKind::Elementary(ElementaryType::Bool)) {
-            let zero = self.builder.imm(U256::ZERO);
-            let is_zero = self.builder.eq(value, zero);
-            return self.builder.iszero(is_zero);
-        }
-        let validator = match peeled.kind {
+        match ty.peel_refs().kind {
             TyKind::Enum(id) => {
-                Some(AbiWordValidator::EnumRange(self.cx.gcx.hir.enumm(id).variants.len() as u64))
+                AbiWordValidator::EnumRange(self.cx.gcx.hir.enumm(id).variants.len() as u64)
+                    .cleanup(&mut self.builder, value)
             }
-            TyKind::Fn(_) => None,
-            _ => AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty)),
-        };
-        validator.map_or(value, |validator| validator.cleanup(&mut self.builder, value))
+            TyKind::Fn(_) => value,
+            TyKind::Elementary(ElementaryType::Bool) => {
+                let zero = self.builder.imm(U256::ZERO);
+                let is_zero = self.builder.eq(value, zero);
+                self.builder.iszero(is_zero)
+            }
+            _ => AbiWordValidator::from_mir_type(types::TypeLowerer::mir_type(ty))
+                .map_or(value, |validator| validator.cleanup(&mut self.builder, value)),
+        }
     }
 
     pub(super) fn normalize_dirty_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
         if self.in_inline_assembly || !self.dirty_values.contains(&value) {
             return value;
         }
-        self.validate_enum(ty, value);
         self.normalize_abi_scalar(value, ty)
     }
 
@@ -639,10 +643,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if matches!(ty.peel_refs().kind, TyKind::Fn(function) if function.is_external()) {
             let shift = self.builder.imm(64);
             return self.builder.shr(shift, value);
-        }
-        if matches!(ty.peel_refs().kind, TyKind::Enum(..)) {
-            self.validate_enum(ty, value);
-            return value;
         }
         self.normalize_abi_scalar(value, ty)
     }
@@ -664,7 +664,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let shift = self.builder.imm(64);
             return self.builder.shl(shift, value);
         }
-        self.normalize_abi_scalar(value, ty)
+        if matches!(ty.peel_refs().kind, TyKind::Enum(..)) {
+            self.normalize_dirty_scalar(value, ty)
+        } else {
+            self.normalize_abi_scalar(value, ty)
+        }
     }
 
     pub(super) fn lower_function_call(

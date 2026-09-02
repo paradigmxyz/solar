@@ -372,13 +372,12 @@ fn @dirtyEnumStorage() -> u256 [selector=0x7f3d1a0c, abi_params=[], abi_returns=
     v1 = iszero v0
     jumpi v1, bb1, bb2
   bb2:
-    v2 = and 2, 1
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = not 255
-    v5 = and v3, v4
-    v6 = and v2, 255
-    v7 = or v5, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = not 255
+    v4 = and v2, v3
+    v5 = and 2, 255
+    v6 = or v4, v5
+    sstore 0, v6 !metadata(storage=slot(0))
     ret 1
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -410,24 +409,23 @@ fn @dirtyEnumExternalArg() -> u256 [selector=0x0ca35a15, view, abi_params=[], ab
     v3 = iszero v2
     jumpi v3, bb1, bb2
   bb2:
-    v4 = and 2, 1
-    v5 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args v4
-    v6 = slice_ptr v5
-    v7 = slice_len v5
-    v8 = staticcall v1, v0, v6, v7, 0, 32
-    jumpi v8, bb4, bb3
+    v4 = abi_encode [word<enum 2>], selector 0x5688f44300000000000000000000000000000000000000000000000000000000, args 2
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = staticcall v1, v0, v5, v6, 0, 32
+    jumpi v7, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v9 = returndatasize
-    v10 = lt v9, 32
-    jumpi v10, bb5, bb6
+    v8 = returndatasize
+    v9 = lt v8, 32
+    jumpi v9, bb5, bb6
   bb6:
-    v11 = add 0, 0
-    v12 = mload v11
-    v13 = add 0, 0
-    v14 = mload v13
-    ret v14
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    ret v13
   bb5:
     revert 0, 0
   bb1:
@@ -514,14 +512,13 @@ fn @dirtyEnumPacked() -> memorybytes [selector=0x1193687a, pure, abi_params=[], 
     v1 = iszero v0
     jumpi v1, bb1, bb2
   bb2:
-    v2 = and 2, 1
-    v3 = not 31
-    v4 = and 64, v3
-    v5 = alloc memorybytes, exact, uninitialized, infallible, v4
-    set_memory_object_len memorybytes, v5, 1
-    v6 = shl 248, v2
-    memory_object_store_word memorybytes, v5, 0, v6
-    ret v5
+    v2 = not 31
+    v3 = and 64, v2
+    v4 = alloc memorybytes, exact, uninitialized, infallible, v3
+    set_memory_object_len memorybytes, v4, 1
+    v5 = shl 248, 2
+    memory_object_store_word memorybytes, v4, 0, v5
+    ret v4
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 33 !metadata(memory=scratch)
@@ -539,7 +536,7 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params
     set_memory_object_len memorybytes, v3, 32
     jump bb1
   bb1:
-    v4 = phi [bb0: 0], [bb8: v18]
+    v4 = phi [bb0: 0], [bb8: v17]
     v5 = lt v4, 1
     jumpi v5, bb2, bb3
   bb3:
@@ -562,9 +559,8 @@ fn @dirtyEnumPackedArray() -> memorybytes [selector=0x4cd1ded8, pure, abi_params
     v16 = iszero v15
     jumpi v16, bb7, bb8
   bb8:
-    v17 = and v14, 1
-    memory_object_store_word memorybytes, v3, v12, v17
-    v18 = add v4, 1
+    memory_object_store_word memorybytes, v3, v12, v14
+    v17 = add v4, 1
     jump bb1
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

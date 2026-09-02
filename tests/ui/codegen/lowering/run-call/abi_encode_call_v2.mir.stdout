@@ -353,19 +353,18 @@ fn @callExternal() -> bool [selector=0x5f431992, abi_params=[], abi_returns=[wor
     v17 = memory_object_data memorybytes, v16
     mstore v17, 0x3132333400000000000000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<5>, v0, 3, v16
-    v18 = and 1, 3
-    memory_object_store_field memorystruct<5>, v0, 4, v18
-    v19 = address
-    v20 = gas
-    v21 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v21, 8
-    v22 = memory_object_data memorybytes, v21
-    mstore v22, 0x546573744e616d65000000000000000000000000000000000000000000000000
-    v23 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v21
-    v24 = memory_object_data memorybytes, v23
-    v25 = memory_object_len memorybytes, v23
-    v26 = call v20, v19, 0, v24, v25, 0, 0
-    ret v26
+    memory_object_store_field memorystruct<5>, v0, 4, 1
+    v18 = address
+    v19 = gas
+    v20 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v20, 8
+    v21 = memory_object_data memorybytes, v20
+    mstore v21, 0x546573744e616d65000000000000000000000000000000000000000000000000
+    v22 = abi_encode [tuple<memory_array<word>, word, memory_bytes, memory_bytes, word<enum 3>>, word, memory_bytes], object, selector 0x291c5a6100000000000000000000000000000000000000000000000000000000, args v0, 5, v20
+    v23 = memory_object_data memorybytes, v22
+    v24 = memory_object_len memorybytes, v22
+    v25 = call v19, v18, 0, v23, v24, 0, 0
+    ret v25
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

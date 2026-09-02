@@ -473,7 +473,7 @@ impl AbiWordValidator {
         }
     }
 
-    /// Builds the canonical form of `word`.
+    /// Canonicalizes `word`, validating enum ranges.
     pub(crate) fn cleanup(self, builder: &mut FunctionBuilder<'_>, word: ValueId) -> ValueId {
         match self {
             Self::Unsigned(_) | Self::LeftAligned(_) => {
@@ -490,32 +490,9 @@ impl AbiWordValidator {
                 builder.iszero(zero)
             }
             Self::EnumRange(variants) => {
-                let mask = enum_cleanup_mask(variants);
-                let mask = builder.imm(mask);
-                builder.and(word, mask)
+                builder.validate_enum_value(variants, word);
+                word
             }
         }
-    }
-}
-
-/// Returns the mask keeping the low `bits` bits needed to represent `variants`
-/// distinct enum values, where `bits = ceil(log2(variants))` and at least 1.
-#[must_use]
-pub(crate) fn enum_cleanup_mask(variants: u64) -> U256 {
-    let bits = (u64::BITS - (variants.max(1) - 1).leading_zeros()).max(1);
-    U256::MAX >> (256 - bits as usize)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::enum_cleanup_mask;
-    use alloy_primitives::U256;
-
-    #[test]
-    fn enum_cleanup_mask_masks_low_bits() {
-        assert_eq!(enum_cleanup_mask(1), U256::from(0b1));
-        assert_eq!(enum_cleanup_mask(2), U256::from(0b1));
-        assert_eq!(enum_cleanup_mask(3), U256::from(0b11));
-        assert_eq!(enum_cleanup_mask(256), U256::from(0xff));
     }
 }
