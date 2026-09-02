@@ -1,4 +1,4 @@
-name: Publish performance site
+name: Publish website
 
 permissions: {}
 
@@ -8,7 +8,7 @@ on:
     types: [completed]
 
 concurrency:
-  group: perf-pages
+  group: web-pages
   cancel-in-progress: false
 
 jobs:
@@ -51,12 +51,12 @@ jobs:
       - name: Restore run index
         if: steps.data.outcome == 'success' && steps.history.outcome == 'success'
         run: |
-          mkdir -p source/perf/public/data
-          cp published/data/index.json source/perf/public/data/index.json
+          mkdir -p source/web/public/data
+          cp published/data/index.json source/web/public/data/index.json
 
       - name: Import benchmark run
         if: steps.data.outcome == 'success'
-        working-directory: source/perf
+        working-directory: source/web
         env:
           BASE_COMMIT: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
           BASE_BRANCH: ${{ github.event.workflow_run.pull_requests[0].base.ref }}
@@ -91,26 +91,26 @@ jobs:
         with:
           cache: true
           node-version: '24'
-          working-directory: source/perf
+          working-directory: source/web
 
-      - name: Check performance site
+      - name: Check website
         if: steps.data.outcome == 'success'
-        working-directory: source/perf
+        working-directory: source/web
         run: vp check
 
-      - name: Test performance site
+      - name: Test website
         if: steps.data.outcome == 'success'
-        working-directory: source/perf
+        working-directory: source/web
         run: vp test --run
 
-      - name: Check performance Worker
+      - name: Check website Worker
         if: steps.data.outcome == 'success'
-        working-directory: source/perf
+        working-directory: source/web
         run: pnpm worker:check
 
       - name: Build site
         if: steps.data.outcome == 'success'
-        working-directory: source/perf
+        working-directory: source/web
         run: vp build
 
       - name: Prepare first publication
@@ -132,8 +132,8 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           git -C published rm -r --ignore-unmatch assets index.html
-          cp -R source/perf/dist/. published/
-          node source/perf/scripts/prune-runs.mjs published/data
+          cp -R source/web/dist/. published/
+          node source/web/scripts/prune-runs.mjs published/data
           touch published/.nojekyll
           git -C published config user.name github-actions[bot]
           git -C published config user.email 41898282+github-actions[bot]@users.noreply.github.com

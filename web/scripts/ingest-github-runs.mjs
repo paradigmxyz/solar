@@ -126,7 +126,7 @@ async function ingest(repository, run, refresh, knownRuns) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
   if (!refresh && knownRuns.has(run.databaseId)) return false
   const pull = await pullRequest(repository, run.headSha)
-  const directory = await mkdtemp(join(tmpdir(), 'solar-perf-'))
+  const directory = await mkdtemp(join(tmpdir(), 'solar-web-'))
   try {
     try {
       await exec('gh', [

@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vite-plus/test'
 
 import app from '../src/worker'
 
-describe('performance Worker', () => {
+describe('website Worker', () => {
   it('reports its published-data source', async () => {
-    const response = await app.request('http://perf.test/api/health', undefined, {
+    const response = await app.request('http://web.test/api/health', undefined, {
       GITHUB_REPOSITORY: 'example/solar',
-      PERF_DATA_REF: 'runs',
+      WEB_DATA_REF: 'runs',
     })
 
     expect(response.status).toBe(200)
@@ -18,7 +18,7 @@ describe('performance Worker', () => {
   })
 
   it('reports ClickHouse when configured', async () => {
-    const response = await app.request('http://perf.test/api/health', undefined, {
+    const response = await app.request('http://web.test/api/health', undefined, {
       CLICKHOUSE_HOST: 'clickhouse.example',
     })
 
@@ -26,7 +26,7 @@ describe('performance Worker', () => {
   })
 
   it('does not proxy arbitrary paths', async () => {
-    const response = await app.request('http://perf.test/api/data/../secrets')
+    const response = await app.request('http://web.test/api/data/../secrets')
 
     expect(response.status).toBe(404)
     expect(response.headers.get('access-control-allow-origin')).toBe('*')

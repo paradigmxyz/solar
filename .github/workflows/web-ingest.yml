@@ -1,4 +1,4 @@
-name: Ingest performance data
+name: Ingest website data
 
 permissions: {}
 
@@ -17,7 +17,7 @@ on:
         type: boolean
 
 concurrency:
-  group: perf-ingest
+  group: web-ingest
   cancel-in-progress: false
 
 jobs:
@@ -38,10 +38,10 @@ jobs:
         with:
           cache: true
           node-version: '24'
-          working-directory: perf
+          working-directory: web
 
       - name: Create ClickHouse schema
-        working-directory: perf
+        working-directory: web
         env:
           CLICKHOUSE_HOST: ${{ secrets.CLICKHOUSE_HOST }}
           CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
@@ -50,7 +50,7 @@ jobs:
         run: pnpm db:schema
 
       - name: Ingest benchmark data
-        working-directory: perf
+        working-directory: web
         env:
           GH_TOKEN: ${{ github.token }}
           CLICKHOUSE_HOST: ${{ secrets.CLICKHOUSE_HOST }}

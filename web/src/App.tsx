@@ -38,7 +38,7 @@ export function App() {
   const toggleTheme = () =>
     setTheme((value) => {
       const next = value === 'light' ? 'dark' : 'light'
-      localStorage.setItem('solar-perf-theme', next)
+      localStorage.setItem('solar-web-theme', next)
       return next
     })
 
@@ -70,7 +70,7 @@ function SiteHeader({
   return (
     <header className={compact ? 'file-header' : ''}>
       <a className="wordmark" href={comparison}>
-        solar<span>Performance</span>
+        solar<span>Web</span>
       </a>
       <nav>
         {compact && <a href={comparison}>Benchmark</a>}

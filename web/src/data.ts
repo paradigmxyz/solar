@@ -2,9 +2,9 @@ import type { RunDocument, RunIndex } from './types'
 
 const localRoot = `${import.meta.env.BASE_URL}data/`
 const githubRoot = 'https://raw.githubusercontent.com/paradigmxyz/solar/gh-pages/data/'
-const configuredDataRoot = import.meta.env.VITE_PERF_DATA_URL
+const configuredDataRoot = import.meta.env.VITE_WEB_DATA_URL
 const configuredApi =
-  import.meta.env.VITE_PERF_API_URL ||
+  import.meta.env.VITE_WEB_API_URL ||
   (!configuredDataRoot && ['127.0.0.1', 'localhost'].includes(window.location.hostname)
     ? 'http://127.0.0.1:8788'
     : undefined)

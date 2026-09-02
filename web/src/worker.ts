@@ -10,7 +10,7 @@ interface Env {
   CLICKHOUSE_USER?: string
   GITHUB_REPOSITORY?: string
   GITHUB_TOKEN?: string
-  PERF_DATA_REF?: string
+  WEB_DATA_REF?: string
 }
 
 const app = new Hono<{ Bindings: Env }>()
@@ -161,7 +161,7 @@ app.get('/api/health', (context) =>
   context.json({
     source: clickhouseConfigured(context.env) ? 'clickhouse' : 'github',
     repository: context.env.GITHUB_REPOSITORY || 'paradigmxyz/solar',
-    ref: context.env.PERF_DATA_REF || 'gh-pages',
+    ref: context.env.WEB_DATA_REF || 'gh-pages',
   }),
 )
 
@@ -203,12 +203,12 @@ app.get('/api/data/*', async (context) => {
         : context.json({ error: 'Artifact not found' }, 404)
     } catch (error) {
       console.error(error)
-      return context.json({ error: 'Performance data is unavailable' }, 503)
+      return context.json({ error: 'Benchmark data is unavailable' }, 503)
     }
   }
 
   const repository = context.env.GITHUB_REPOSITORY || 'paradigmxyz/solar'
-  const ref = context.env.PERF_DATA_REF || 'gh-pages'
+  const ref = context.env.WEB_DATA_REF || 'gh-pages'
   const headers = new Headers({ accept: 'application/json' })
   if (context.env.GITHUB_TOKEN) headers.set('authorization', `Bearer ${context.env.GITHUB_TOKEN}`)
 

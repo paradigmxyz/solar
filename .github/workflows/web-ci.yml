@@ -1,4 +1,4 @@
-name: Performance site CI
+name: Website CI
 
 permissions: {}
 
@@ -6,12 +6,12 @@ on:
   push:
     branches: [main]
     paths:
-      - perf/**
-      - .github/workflows/perf-ci.yml
+      - web/**
+      - .github/workflows/web-ci.yml
   pull_request:
     paths:
-      - perf/**
-      - .github/workflows/perf-ci.yml
+      - web/**
+      - .github/workflows/web-ci.yml
   workflow_dispatch:
 
 jobs:
@@ -26,16 +26,16 @@ jobs:
         with:
           cache: true
           node-version: '24'
-          working-directory: perf
-      - name: Check performance site
-        working-directory: perf
+          working-directory: web
+      - name: Check website
+        working-directory: web
         run: vp check
-      - name: Test performance site
-        working-directory: perf
+      - name: Test website
+        working-directory: web
         run: vp test --run
-      - name: Check performance Worker
-        working-directory: perf
+      - name: Check website Worker
+        working-directory: web
         run: pnpm worker:check
-      - name: Build performance site
-        working-directory: perf
+      - name: Build website
+        working-directory: web
         run: vp build

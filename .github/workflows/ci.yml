@@ -291,7 +291,6 @@ jobs:
       - clippy
       - docs
       - fmt
-      - perf
       - deny
     steps:
       - name: Decide whether the needed jobs succeeded or failed

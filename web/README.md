@@ -1,4 +1,4 @@
-# Solar performance site
+# Solar web
 
 This standalone Vite app publishes a benchmark viewer to GitHub Pages. PR benchmark comments link
 straight to a comparison. The static site loads the two run documents and artifact files from its
@@ -12,7 +12,7 @@ pnpm dev
 To test the static path against local published data without the Worker, run:
 
 ```bash
-VITE_PERF_DATA_URL=/solar/data pnpm dev
+VITE_WEB_DATA_URL=/solar/data pnpm dev
 ```
 
 Open a comparison URL with full commit SHAs, for example:
@@ -30,12 +30,12 @@ normalized run history, benchmark rows, and artifact content directly from Click
 with `pnpm worker:dev`, then point the site at it with:
 
 ```bash
-VITE_PERF_API_URL=http://127.0.0.1:8787 pnpm dev
+VITE_WEB_API_URL=http://127.0.0.1:8787 pnpm dev
 ```
 
 Set the following Worker secrets with Wrangler: `CLICKHOUSE_HOST`, `CLICKHOUSE_USER`, and
 `CLICKHOUSE_PASSWORD`. `CLICKHOUSE_DATABASE` defaults to `solar_perf`. `GITHUB_TOKEN`,
-`GITHUB_REPOSITORY`, and `PERF_DATA_REF` only configure the static fallback.
+`GITHUB_REPOSITORY`, and `WEB_DATA_REF` only configure the static fallback.
 
 ## ClickHouse ingestion
 
@@ -73,19 +73,19 @@ pnpm worker:dev --local
 In a second terminal, start the site against the local Worker:
 
 ```bash
-VITE_PERF_API_URL=http://127.0.0.1:8787 pnpm dev
+VITE_WEB_API_URL=http://127.0.0.1:8787 pnpm dev
 ```
 
 Stop the database with `docker compose down`. Add `-v` only when you want to discard local data.
 
-`.github/workflows/perf-ingest.yml` imports a completed Benchmark workflow immediately and scans
+`.github/workflows/web-ingest.yml` imports a completed Benchmark workflow immediately and scans
 the retained workflow history every 15 minutes. Run its manual dispatch once to backfill every
 GitHub Actions artifact that GitHub still retains. The importer is idempotent by workflow run ID,
 records a raw input for later migrations, and skips expired or pre-artifact runs without stopping
 the rest of the backfill.
 
-`perf-pages.yml` imports each completed Benchmark workflow into the Pages data directory, retains
-the latest 200 runs, and deploys the static viewer. It does not use `PERF_API_URL`.
+`web-pages.yml` imports each completed Benchmark workflow into the Pages data directory, retains
+the latest 200 runs, and deploys the static viewer. It does not use `WEB_API_URL`.
 
 Import a local benchmark run before starting the site:
 
