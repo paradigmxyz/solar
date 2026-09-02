@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/spill_store_sibling_arms_fetch.sol:SpillStoreSiblingArmsFetch ===
+@module SpillStoreSiblingArmsFetch
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 10
+    v1 = eq 1, 0
+    v2 = iszero v1
+    memory_object_store_field memorystruct<2>, v0, 1, v2
+    v3 = mapping_slot 1, 0
+    v4 = memory_object_load_field memorystruct<2>, v0, 0
+    sstore v3, v4 !metadata(storage=symbolic(v3))
+    v5 = add v3, 1
+    v6 = memory_object_load_field memorystruct<2>, v0, 1
+    v7 = sload v5 !metadata(storage=offset(v3, 1))
+    v8 = not 255
+    v9 = and v7, v8
+    v10 = and v6, 255
+    v11 = or v9, v10
+    sstore v5, v11 !metadata(storage=offset(v3, 1))
+    v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v12, 0, 20
+    v13 = eq 0, 0
+    v14 = iszero v13
+    memory_object_store_field memorystruct<2>, v12, 1, v14
+    v15 = mapping_slot 2, 0
+    v16 = memory_object_load_field memorystruct<2>, v12, 0
+    sstore v15, v16 !metadata(storage=symbolic(v15))
+    v17 = add v15, 1
+    v18 = memory_object_load_field memorystruct<2>, v12, 1
+    v19 = sload v17 !metadata(storage=offset(v15, 1))
+    v20 = not 255
+    v21 = and v19, v20
+    v22 = and v18, 255
+    v23 = or v21, v22
+    sstore v17, v23 !metadata(storage=offset(v15, 1))
+    v24 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v24, 0, 30
+    v25 = eq 1, 0
+    v26 = iszero v25
+    memory_object_store_field memorystruct<2>, v24, 1, v26
+    v27 = mapping_slot 3, 0
+    v28 = memory_object_load_field memorystruct<2>, v24, 0
+    sstore v27, v28 !metadata(storage=symbolic(v27))
+    v29 = add v27, 1
+    v30 = memory_object_load_field memorystruct<2>, v24, 1
+    v31 = sload v29 !metadata(storage=offset(v27, 1))
+    v32 = not 255
+    v33 = and v31, v32
+    v34 = and v30, 255
+    v35 = or v33, v34
+    sstore v29, v35 !metadata(storage=offset(v27, 1))
+    stop
+}
+
+fn @fetch(arg0: u256) -> u256 [view] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    ret v1
+}
+
+fn @bump() {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = add v0, 7
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 1, v1 !metadata(storage=slot(1))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @run(arg0: u256, arg1: bool) -> u256 [selector=0x0a3395f5, abi_params=[u256, bool], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @fetch, 1, arg0
+    internal_call @bump, 0
+    v1 = add arg0, 1
+    v2 = lt v1, arg0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = internal_call @fetch, 1, v1
+    v4 = mapping_slot arg0, 0
+    v5 = add v4, 1
+    v6 = sload v5 !metadata(storage=offset(v4, 1))
+    v7 = and v6, 255
+    jumpi v7, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v8 = phi [bb3: arg1], [bb4: 0]
+    jumpi v8, bb6, bb7
+  bb7:
+    v11 = mul v0, 2
+    v12 = iszero 2
+    v13 = div v11, 2
+    v14 = eq v13, v0
+    v15 = or v12, v14
+    v16 = iszero v15
+    jumpi v16, bb1, bb10
+  bb10:
+    v17 = add v11, v3
+    v18 = lt v17, v11
+    jumpi v18, bb1, bb11
+  bb11:
+    v19 = add v17, 5
+    v20 = lt v19, v17
+    jumpi v20, bb1, bb12
+  bb12:
+    jump bb8
+  bb6:
+    v9 = add v0, v3
+    v10 = lt v9, v0
+    jumpi v10, bb1, bb9
+  bb9:
+    jump bb8
+  bb8:
+    v21 = phi [bb9: v9], [bb12: v19]
+    v22 = sload 1 !metadata(storage=slot(1))
+    v23 = add v21, v22
+    v24 = lt v23, v21
+    jumpi v24, bb1, bb13
+  bb13:
+    ret v23
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
