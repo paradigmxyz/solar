@@ -36,24 +36,65 @@ macro_rules! opcodes {
             pub(crate) const $constant: u8 = $opcode;
         )*
 
-        /// Maps each opcode byte to its canonical mnemonic.
-        static OPCODE_MNEMONICS: [Option<&str>; 256] = {
+        /// Compact tag for an opcode in the EVM operation schema.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub(crate) struct OpTag(u8);
+
+        impl OpTag {
+            $(
+                /// Schema tag for the corresponding opcode.
+                pub(crate) const $constant: Self = Self($opcode);
+            )*
+        }
+
+        /// Declarative metadata for one EVM operation.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(crate) struct OpDef {
+            /// Compact operation tag.
+            pub(crate) tag: OpTag,
+            /// Opcode byte.
+            pub(crate) opcode: u8,
+            /// Canonical textual mnemonic.
+            pub(crate) mnemonic: &'static str,
+            /// Number of stack items consumed and produced, when fixed.
+            pub(crate) stack_io: Option<(u8, u8)>,
+        }
+
+        /// Maps each opcode byte to its generated schema definition.
+        static OPCODE_DEFS: [Option<OpDef>; 256] = {
             let mut map = [None; 256];
             let mut prev = 0;
             $(
                 let opcode: u8 = $opcode;
                 assert!(opcode == 0 || opcode > prev, "opcodes must be sorted in ascending order");
                 prev = opcode;
-                map[opcode as usize] = Some(opcode_mnemonic!($mnemonic));
+                map[opcode as usize] = Some(OpDef {
+                    tag: OpTag::$constant,
+                    opcode,
+                    mnemonic: opcode_mnemonic!($mnemonic),
+                    stack_io: opcode_stack_io!($inputs, $outputs),
+                });
             )*
             let _ = prev;
             map
         };
 
+        /// Returns the generated schema definition for an opcode.
+        #[must_use]
+        pub(crate) const fn definition(opcode: u8) -> Option<&'static OpDef> {
+            match &OPCODE_DEFS[opcode as usize] {
+                Some(definition) => Some(definition),
+                None => None,
+            }
+        }
+
         /// Returns the canonical mnemonic for an opcode.
         #[must_use]
         pub(crate) const fn mnemonic(opcode: u8) -> Option<&'static str> {
-            OPCODE_MNEMONICS[opcode as usize]
+            match definition(opcode) {
+                Some(definition) => Some(definition.mnemonic),
+                None => None,
+            }
         }
 
         /// Returns the opcode for a canonical mnemonic.
@@ -92,9 +133,9 @@ macro_rules! opcodes {
         /// Returns the number of stack items consumed and produced by an opcode.
         #[must_use]
         pub(crate) const fn stack_io(opcode: u8) -> Option<(u8, u8)> {
-            match opcode {
-                $($opcode => opcode_stack_io!($inputs, $outputs),)*
-                _ => None,
+            match definition(opcode) {
+                Some(definition) => definition.stack_io,
+                None => None,
             }
         }
     };
@@ -356,6 +397,145 @@ pub(crate) const fn push(width: u8) -> u8 {
     PUSH1 + width - 1
 }
 
+impl OpDef {
+    /// Returns whether this operation halts or unconditionally transfers control.
+    #[must_use]
+    pub(crate) const fn is_terminal(self) -> bool {
+        matches!(
+            self.tag,
+            OpTag::STOP
+                | OpTag::JUMP
+                | OpTag::RETURN
+                | OpTag::REVERT
+                | OpTag::INVALID
+                | OpTag::SELFDESTRUCT
+        )
+    }
+
+    /// Returns whether this operation is available in legacy bytecode for `evm_version`.
+    #[must_use]
+    pub(crate) fn is_available(self, evm_version: EvmVersion) -> bool {
+        match self.tag {
+            OpTag::RETURNDATASIZE | OpTag::RETURNDATACOPY | OpTag::STATICCALL | OpTag::REVERT => {
+                evm_version >= EvmVersion::Byzantium
+            }
+            OpTag::SHL | OpTag::SHR | OpTag::SAR | OpTag::EXTCODEHASH | OpTag::CREATE2 => {
+                evm_version >= EvmVersion::Constantinople
+            }
+            OpTag::CHAINID | OpTag::SELFBALANCE => evm_version >= EvmVersion::Istanbul,
+            OpTag::BASEFEE => evm_version >= EvmVersion::London,
+            OpTag::PUSH0 => evm_version >= EvmVersion::Shanghai,
+            OpTag::BLOBHASH | OpTag::BLOBBASEFEE | OpTag::TLOAD | OpTag::TSTORE | OpTag::MCOPY => {
+                evm_version >= EvmVersion::Cancun
+            }
+            OpTag::CLZ => evm_version >= EvmVersion::Osaka,
+            OpTag::SLOTNUM => evm_version.has_slot_num(),
+            OpTag::DUPN | OpTag::SWAPN | OpTag::EXCHANGE => evm_version.has_extended_stack_ops(),
+            OpTag::DATALOAD
+            | OpTag::DATALOADN
+            | OpTag::DATASIZE
+            | OpTag::DATACOPY
+            | OpTag::RJUMP
+            | OpTag::RJUMPI
+            | OpTag::RJUMPV
+            | OpTag::CALLF
+            | OpTag::RETF
+            | OpTag::JUMPF
+            | OpTag::EOFCREATE
+            | OpTag::RETURNCONTRACT
+            | OpTag::RETURNDATALOAD
+            | OpTag::EXTCALL
+            | OpTag::EXTDELEGATECALL
+            | OpTag::EXTSTATICCALL => false,
+            _ => true,
+        }
+    }
+
+    /// Returns whether this operation's operands may be swapped without changing its result.
+    #[must_use]
+    pub(crate) const fn is_commutative(self) -> bool {
+        matches!(
+            self.tag,
+            OpTag::ADD | OpTag::MUL | OpTag::EQ | OpTag::AND | OpTag::OR | OpTag::XOR
+        )
+    }
+
+    /// Returns whether this operation is a pure function of its stack operands.
+    #[must_use]
+    pub(crate) const fn is_pure(self) -> bool {
+        matches!(
+            self.tag,
+            OpTag::ADD
+                | OpTag::MUL
+                | OpTag::SUB
+                | OpTag::DIV
+                | OpTag::SDIV
+                | OpTag::MOD
+                | OpTag::SMOD
+                | OpTag::ADDMOD
+                | OpTag::MULMOD
+                | OpTag::EXP
+                | OpTag::SIGNEXTEND
+                | OpTag::LT
+                | OpTag::GT
+                | OpTag::SLT
+                | OpTag::SGT
+                | OpTag::EQ
+                | OpTag::ISZERO
+                | OpTag::AND
+                | OpTag::OR
+                | OpTag::XOR
+                | OpTag::NOT
+                | OpTag::BYTE
+                | OpTag::SHL
+                | OpTag::SHR
+                | OpTag::SAR
+                | OpTag::CLZ
+        )
+    }
+
+    /// Returns whether this operation may write to memory.
+    #[must_use]
+    pub(crate) const fn writes_memory(self) -> bool {
+        matches!(
+            self.tag,
+            OpTag::MSTORE
+                | OpTag::MSTORE8
+                | OpTag::MCOPY
+                | OpTag::CALLDATACOPY
+                | OpTag::CODECOPY
+                | OpTag::DATACOPY
+                | OpTag::EXTCODECOPY
+                | OpTag::RETURNDATACOPY
+                | OpTag::CALL
+                | OpTag::CALLCODE
+                | OpTag::DELEGATECALL
+                | OpTag::STATICCALL
+                | OpTag::CALLF
+        )
+    }
+
+    /// Returns whether this operation may write to storage or transient storage.
+    #[must_use]
+    pub(crate) const fn writes_storage(self) -> bool {
+        matches!(
+            self.tag,
+            OpTag::SSTORE
+                | OpTag::TSTORE
+                | OpTag::CALL
+                | OpTag::CALLCODE
+                | OpTag::DELEGATECALL
+                | OpTag::STATICCALL
+                | OpTag::CREATE
+                | OpTag::CREATE2
+                | OpTag::EOFCREATE
+                | OpTag::EXTCALL
+                | OpTag::EXTDELEGATECALL
+                | OpTag::CALLF
+        )
+    }
+}
+
 /// Returns the DUP opcode for the given depth (1-16).
 #[must_use]
 pub(crate) const fn dup(n: u8) -> u8 {
@@ -381,6 +561,61 @@ pub(crate) enum StackOp {
     Exchange(u8, u8),
     /// Remove the top stack element.
     Pop,
+}
+
+macro_rules! define_stack_op_schema {
+    (
+        $(
+            $pattern:pat
+            => $tag:ident
+            => $mnemonic:literal
+            => $opcode:ident
+            => $static_gas:literal;
+        )+
+    ) => {
+        /// Compact tag for a logical EVM stack operation.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub(crate) enum StackOpTag {
+            $($tag),+
+        }
+
+        /// Declarative metadata for a logical EVM stack operation.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(crate) struct StackOpDef {
+            /// Compact stack-operation tag.
+            pub(crate) tag: StackOpTag,
+            /// Canonical textual mnemonic.
+            pub(crate) mnemonic: &'static str,
+            /// Placeholder opcode used in EVM IR.
+            pub(crate) ir_opcode: u8,
+            /// Static gas cost of one lowered operation.
+            pub(crate) static_gas: usize,
+        }
+
+        impl StackOp {
+            /// Returns the generated definition for this logical operation.
+            #[must_use]
+            pub(crate) const fn definition(self) -> StackOpDef {
+                match self {
+                    $(
+                        $pattern => StackOpDef {
+                            tag: StackOpTag::$tag,
+                            mnemonic: $mnemonic,
+                            ir_opcode: $opcode,
+                            static_gas: $static_gas,
+                        },
+                    )+
+                }
+            }
+        }
+    };
+}
+
+define_stack_op_schema! {
+    Self::Dup(_) => Dup => "dup" => DUPN => 3;
+    Self::Swap(_) => Swap => "swap" => SWAPN => 3;
+    Self::Exchange(_, _) => Exchange => "exchange" => EXCHANGE => 3;
+    Self::Pop => Pop => "pop" => POP => 2;
 }
 
 /// Target-specific lowering of one logical stack operation.
@@ -506,7 +741,7 @@ impl StackOp {
             StackOpLowering::Direct(_, immediate) => (1 + usize::from(immediate.is_some()), 1),
             StackOpLowering::SwapSequence(opcodes) => (opcodes.len(), opcodes.len()),
         };
-        let gas_per_instruction = if matches!(self, Self::Pop) { 2 } else { 3 };
+        let gas_per_instruction = self.definition().static_gas;
         Some(StackOpMetrics {
             static_gas: instruction_count * gas_per_instruction,
             assembled_len,
@@ -567,35 +802,28 @@ pub(crate) const fn decode_exchange(immediate: u8) -> Option<(u8, u8)> {
 /// Returns whether an opcode halts or unconditionally transfers control.
 #[must_use]
 pub(crate) const fn is_terminal(op: u8) -> bool {
-    matches!(op, STOP | JUMP | RETURN | REVERT | INVALID | SELFDESTRUCT)
+    match definition(op) {
+        Some(definition) => definition.is_terminal(),
+        None => false,
+    }
 }
 
 /// Returns whether an opcode is available in legacy bytecode for `evm_version`.
 #[must_use]
 pub(crate) fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
-    match opcode {
-        RETURNDATASIZE | RETURNDATACOPY | STATICCALL | REVERT => {
-            evm_version >= EvmVersion::Byzantium
-        }
-        SHL | SHR | SAR | EXTCODEHASH | CREATE2 => evm_version >= EvmVersion::Constantinople,
-        CHAINID | SELFBALANCE => evm_version >= EvmVersion::Istanbul,
-        BASEFEE => evm_version >= EvmVersion::London,
-        PUSH0 => evm_version >= EvmVersion::Shanghai,
-        BLOBHASH | BLOBBASEFEE | TLOAD | TSTORE | MCOPY => evm_version >= EvmVersion::Cancun,
-        CLZ => evm_version >= EvmVersion::Osaka,
-        SLOTNUM => evm_version.has_slot_num(),
-        DUPN | SWAPN | EXCHANGE => evm_version.has_extended_stack_ops(),
-        DATALOAD | DATALOADN | DATASIZE | DATACOPY | RJUMP | RJUMPI | RJUMPV | CALLF | RETF
-        | JUMPF | EOFCREATE | RETURNCONTRACT | RETURNDATALOAD | EXTCALL | EXTDELEGATECALL
-        | EXTSTATICCALL => false,
-        _ => mnemonic(opcode).is_some(),
+    match definition(opcode) {
+        Some(definition) => definition.is_available(evm_version),
+        None => false,
     }
 }
 
 /// Returns whether an opcode's operands may be swapped without changing its result.
 #[must_use]
 pub(crate) const fn is_commutative(op: u8) -> bool {
-    matches!(op, ADD | MUL | EQ | AND | OR | XOR)
+    match definition(op) {
+        Some(definition) => definition.is_commutative(),
+        None => false,
+    }
 }
 
 /// Returns the equivalent binary opcode after swapping its stack operands.
@@ -618,34 +846,10 @@ pub(crate) const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
 /// occurrences with equal operands always produce the same value.
 #[must_use]
 pub(crate) const fn is_pure(op: u8) -> bool {
-    matches!(
-        op,
-        ADD | MUL
-            | SUB
-            | DIV
-            | SDIV
-            | MOD
-            | SMOD
-            | ADDMOD
-            | MULMOD
-            | EXP
-            | SIGNEXTEND
-            | LT
-            | GT
-            | SLT
-            | SGT
-            | EQ
-            | ISZERO
-            | AND
-            | OR
-            | XOR
-            | NOT
-            | BYTE
-            | SHL
-            | SHR
-            | SAR
-            | CLZ
-    )
+    match definition(op) {
+        Some(definition) => definition.is_pure(),
+        None => false,
+    }
 }
 
 /// Returns whether inserting a push immediately before this opcode preserves its behavior.
@@ -696,48 +900,51 @@ pub(crate) const fn is_unaffected_by_preceding_push(op: u8) -> bool {
 /// Returns whether an opcode may write to memory, invalidating cached memory reads.
 #[must_use]
 pub(crate) const fn writes_memory(op: u8) -> bool {
-    matches!(
-        op,
-        MSTORE
-            | MSTORE8
-            | MCOPY
-            | CALLDATACOPY
-            | CODECOPY
-            | DATACOPY
-            | EXTCODECOPY
-            | RETURNDATACOPY
-            | CALL
-            | CALLCODE
-            | DELEGATECALL
-            | STATICCALL
-            | CALLF
-    )
+    match definition(op) {
+        Some(definition) => definition.writes_memory(),
+        None => false,
+    }
 }
 
 /// Returns whether an opcode may write to storage or transient storage, invalidating cached
 /// storage reads.
 #[must_use]
 pub(crate) const fn writes_storage(op: u8) -> bool {
-    matches!(
-        op,
-        SSTORE
-            | TSTORE
-            | CALL
-            | CALLCODE
-            | DELEGATECALL
-            | STATICCALL
-            | CREATE
-            | CREATE2
-            | EOFCREATE
-            | EXTCALL
-            | EXTDELEGATECALL
-            | CALLF
-    )
+    match definition(op) {
+        Some(definition) => definition.writes_storage(),
+        None => false,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn opcode_schema_drives_metadata() {
+        let add = definition(ADD).expect("declared opcode");
+        assert_eq!(add.tag, OpTag::ADD);
+        assert_eq!(add.opcode, ADD);
+        assert_eq!(add.mnemonic, "add");
+        assert_eq!(add.stack_io, Some((2, 1)));
+        assert!(add.is_pure());
+        assert!(add.is_commutative());
+        assert_eq!(definition(0x0c), None);
+        assert!(is_terminal(STOP));
+        assert!(!is_terminal(ADD));
+
+        for opcode in u8::MIN..=u8::MAX {
+            if let Some(definition) = definition(opcode) {
+                assert_eq!(definition.opcode, opcode);
+                assert_eq!(mnemonic(opcode), Some(definition.mnemonic));
+            }
+        }
+
+        let exchange = StackOp::Exchange(2, 3).definition();
+        assert_eq!(exchange.tag, StackOpTag::Exchange);
+        assert_eq!(exchange.ir_opcode, EXCHANGE);
+        assert_eq!(exchange.static_gas, 3);
+    }
 
     #[test]
     fn eip_8024_immediates() {
