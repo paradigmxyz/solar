@@ -145,8 +145,6 @@ bb21:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
@@ -344,8 +342,6 @@ bb121:
   push 1
   dup 2
   and
-  push 1
-  eq
   swap 1
   push 1
   shr
@@ -547,8 +543,6 @@ bb39:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
@@ -782,8 +776,6 @@ bb57:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
@@ -956,8 +948,6 @@ bb69:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
@@ -1151,8 +1141,6 @@ bb85:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr
@@ -1344,8 +1332,6 @@ bb103:
   push 1
   dup 2
   and
-  push 1
-  eq
   dup 2
   push 1
   shr

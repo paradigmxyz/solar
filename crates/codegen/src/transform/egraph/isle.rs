@@ -72,28 +72,74 @@ fn defining_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
     }
 }
 
+/// How many defining instructions [`max_bits`] follows before giving up.
+const MAX_BITS_DEPTH: u32 = 8;
+
+/// Returns an upper bound on the number of significant bits of `value`.
+///
+/// Immediates and a few instructions bound their result exactly: comparisons
+/// are one bit, `byte` is eight, addresses produced by an opcode are 160, and
+/// the arithmetic and bitwise operations bound their result from their
+/// operands. Anything else, including arguments and phis, may hold any word.
+fn max_bits(func: &Function, value: ValueId, depth: u32) -> u32 {
+    if let Some(constant) = func.value_u256(value) {
+        return constant.bit_len() as u32;
+    }
+    if depth == 0 {
+        return 256;
+    }
+    let Some(kind) = defining_kind(func, value) else { return 256 };
+    let bits = |value| max_bits(func, value, depth - 1);
+    let shift = |shift| func.value_u256(shift).map(|shift| shift.min(U256::from(256)).to::<u32>());
+    match *kind {
+        InstKind::IsZero(_)
+        | InstKind::Lt(..)
+        | InstKind::Gt(..)
+        | InstKind::SLt(..)
+        | InstKind::SGt(..)
+        | InstKind::Eq(..) => 1,
+        InstKind::Byte(..) => 8,
+        InstKind::Address
+        | InstKind::Caller
+        | InstKind::Origin
+        | InstKind::Coinbase
+        | InstKind::Create(..)
+        | InstKind::Create2(..) => 160,
+        InstKind::And(a, b) => bits(a).min(bits(b)),
+        InstKind::Or(a, b) | InstKind::Xor(a, b) | InstKind::Select(_, a, b) => {
+            bits(a).max(bits(b))
+        }
+        InstKind::Add(a, b) => (bits(a).max(bits(b)) + 1).min(256),
+        InstKind::Mul(a, b) => (bits(a) + bits(b)).min(256),
+        InstKind::Shl(amount, value) => match shift(amount) {
+            Some(256) => 0,
+            Some(amount) => (bits(value) + amount).min(256),
+            None => 256,
+        },
+        InstKind::Shr(amount, value) => match shift(amount) {
+            Some(amount) => bits(value).saturating_sub(amount),
+            None => 256,
+        },
+        InstKind::Div(value, divisor) => match func.value_u256(divisor) {
+            Some(divisor) if divisor.is_zero() => 0,
+            Some(divisor) => bits(value).saturating_sub(divisor.bit_len() as u32 - 1),
+            None => bits(value),
+        },
+        InstKind::Mod(value, modulus) => match func.value_u256(modulus) {
+            Some(modulus) => bits(value).min(modulus.bit_len() as u32),
+            None => bits(value),
+        },
+        _ => 256,
+    }
+}
+
 /// Returns whether `value` is known to be exactly zero or one.
 ///
 /// Solidity's `bool` type does not prove that the EVM word is canonical:
 /// inline assembly can assign dirty words to variables, arguments, and return
-/// values. Only boolean immediates and values produced by an EVM comparison
-/// are known to be exactly zero or one.
+/// values. Only values whose definition bounds them to one bit qualify.
 fn is_bool_value(func: &Function, value: ValueId) -> bool {
-    match func.value(value) {
-        MirValue::Immediate(Immediate::Bool(_)) => true,
-        MirValue::Inst(inst_id) => matches!(
-            func.inst(*inst_id).kind,
-            InstKind::Lt(..)
-                | InstKind::Gt(..)
-                | InstKind::SLt(..)
-                | InstKind::SGt(..)
-                | InstKind::Eq(..)
-                | InstKind::IsZero(..)
-        ),
-        MirValue::Arg(_) | MirValue::Immediate(_) | MirValue::Undef(_) | MirValue::Error(_) => {
-            false
-        }
-    }
+    max_bits(func, value, MAX_BITS_DEPTH) <= 1
 }
 
 /// Returns whether `value` is an address produced by an EVM opcode.
@@ -149,16 +195,8 @@ impl generated::Context for RuleContext<'_> {
         self.has_const(value, U256::MAX).then_some(())
     }
 
-    fn uint160_mask(&mut self, value: Value) -> Option<()> {
-        self.has_const(value, UINT160_MASK).then_some(())
-    }
-
     fn bool_value(&mut self, value: Value) -> Option<()> {
         is_bool_value(self.func, value).then_some(())
-    }
-
-    fn clean_address(&mut self, value: Value) -> Option<()> {
-        is_clean_address(self.func, value).then_some(())
     }
 
     fn current_address(&mut self, value: Value) -> Option<()> {
@@ -175,6 +213,12 @@ impl generated::Context for RuleContext<'_> {
 
     fn masks_clean_address(&mut self, mask: U256, value: Value) -> bool {
         mask == UINT160_MASK && is_clean_address(self.func, value)
+    }
+
+    fn mask_covers(&mut self, mask: U256, value: Value) -> bool {
+        // A mask of the form `2^n - 1` keeps `n` low bits.
+        let contiguous = mask.wrapping_add(U256::ONE) & mask == U256::ZERO;
+        contiguous && max_bits(self.func, value, MAX_BITS_DEPTH) <= mask.bit_len() as u32
     }
 
     fn differ(&mut self, a: Value, b: Value) -> bool {
