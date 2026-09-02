@@ -83,7 +83,7 @@ export function App() {
 
 function SiteHeader({ theme, onToggleTheme }: { theme: Theme; onToggleTheme: () => void }) {
   const nextTheme = theme === 'light' ? 'dark' : 'light'
-  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>/perf</span></a><nav><button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>{theme === 'light' ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}</button><a href="https://github.com/paradigmxyz/solar">repository ↗</a></nav></header>
+  return <header><a className="wordmark" href={import.meta.env.BASE_URL}>solar<span>Performance</span></a><nav><a className="nav-active" href={import.meta.env.BASE_URL}>Dashboard</a><a href="https://github.com/paradigmxyz/solar">Repository</a><button className="theme-toggle" onClick={onToggleTheme} aria-label={`Switch to ${nextTheme} theme`} title={`Switch to ${nextTheme} theme`}>{theme === 'light' ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}</button></nav></header>
 }
 
 function SiteFooter() { return <footer>Measured by the in-repository runtime corpus.</footer> }
