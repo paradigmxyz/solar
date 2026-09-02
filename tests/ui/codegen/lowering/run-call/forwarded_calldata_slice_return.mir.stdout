@@ -30,33 +30,21 @@ fn @delegate(arg0: calldataslice) -> (address, memorybytes) [selector=0x0ccfac9e
     v4 = add v1, 64
     v5 = mload v4
     v6 = make_calldata_slice v3, v5
-    v7 = slice_ptr v6
-    v8 = slice_len v6
-    v9 = gt v8, 0xffffffffffffffff
+    v7 = slice_len v6
+    v8 = add v7, 63
+    v9 = lt v8, v7
     jumpi v9, bb1, bb2
   bb2:
-    v10 = calldatasize
-    v11 = sub v10, v8
-    v12 = sgt v7, v11
-    jumpi v12, bb1, bb3
-  bb3:
-    v13 = slice_len v6
-    v14 = add v13, 63
-    v15 = lt v14, v13
-    jumpi v15, bb4, bb5
-  bb5:
-    v16 = not 31
-    v17 = and v14, v16
-    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    set_memory_object_len memorybytes, v18, v13
-    memory_object_copy_from_slice memorybytes, v18, v6
-    ret v0, v18
-  bb4:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    memory_object_copy_from_slice memorybytes, v12, v6
+    ret v0, v12
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
 fn @single(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xd61d3fe8, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes]] {
@@ -70,33 +58,21 @@ fn @single(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xd61d
     v6 = add v1, 96
     v7 = mload v6
     v8 = make_calldata_slice v5, v7
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
+    v9 = slice_len v8
+    v10 = add v9, 63
+    v11 = lt v10, v9
     jumpi v11, bb1, bb2
   bb2:
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    jumpi v14, bb1, bb3
-  bb3:
-    v15 = slice_len v8
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb4, bb5
-  bb5:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
-    ret v0, v3, v20
-  bb4:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    memory_object_copy_from_slice memorybytes, v14, v8
+    ret v0, v3, v14
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
 fn @nested(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xb26b18a9, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes]] {
@@ -110,33 +86,21 @@ fn @nested(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xb26b
     v6 = add v1, 96
     v7 = mload v6
     v8 = make_calldata_slice v5, v7
-    v9 = slice_ptr v8
-    v10 = slice_len v8
-    v11 = gt v10, 0xffffffffffffffff
+    v9 = slice_len v8
+    v10 = add v9, 63
+    v11 = lt v10, v9
     jumpi v11, bb1, bb2
   bb2:
-    v12 = calldatasize
-    v13 = sub v12, v10
-    v14 = sgt v9, v13
-    jumpi v14, bb1, bb3
-  bb3:
-    v15 = slice_len v8
-    v16 = add v15, 63
-    v17 = lt v16, v15
-    jumpi v17, bb4, bb5
-  bb5:
-    v18 = not 31
-    v19 = and v16, v18
-    v20 = alloc memorybytes, exact, uninitialized, infallible, v19
-    set_memory_object_len memorybytes, v20, v15
-    memory_object_copy_from_slice memorybytes, v20, v8
-    ret v0, v3, v20
-  bb4:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    memory_object_copy_from_slice memorybytes, v14, v8
+    ret v0, v3, v14
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
 fn @_nested(arg0: calldataslice) -> (address, u256, calldataslice) [pure] {

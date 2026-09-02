@@ -578,6 +578,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 _ => self.load_multi_return_value_as(base, index, returns, ty),
             };
+            if matches!(
+                types::TypeLowerer::mir_return_type(ty),
+                MirType::Slice(SliceLocation::Calldata)
+            ) {
+                self.dirty_values.insert(value);
+            }
             values.push(value);
             index += Self::internal_return_words(ty);
         }

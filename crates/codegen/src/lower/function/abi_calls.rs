@@ -395,8 +395,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
             _ if self.is_dynamic_bytes_type(ty.peel_refs()) => {
+                // if data is clean { validate_calldata_bytes(data) }
                 // object = materialize_calldata_bytes(data)
-                self.validate_calldata_bytes_slice(value);
+                if !self.dirty_values.contains(&value) {
+                    self.validate_calldata_bytes_slice(value);
+                }
                 Some(self.materialize_memory_slice(value))
             }
             TyKind::DynArray(_) | TyKind::Slice(_) => {

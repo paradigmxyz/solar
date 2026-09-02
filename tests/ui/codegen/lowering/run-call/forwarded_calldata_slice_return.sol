@@ -6,6 +6,7 @@
 //@ run-call: ForwardedCalldataSliceReturn::singleSliceLength 0x1122 => 2
 //@ run-call: ForwardedCalldataSliceReturn::pointerSliceLength 0x1122 => 2
 //@ run-call: ForwardedCalldataSliceReturn::arraySliceLength [7, 8] => 2
+//@ run-call-fail: ForwardedCalldataSliceReturn::delegate 0x => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041
 
 contract ForwardedCalldataSliceReturn {
     function singleSliceLength(bytes calldata executionData) external pure returns (uint256) {
