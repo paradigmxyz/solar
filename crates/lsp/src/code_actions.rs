@@ -180,7 +180,7 @@ pub(crate) fn plans(
 }
 
 fn exact_byte_range(
-    index: &proto::LspPositionIndex<'_>,
+    index: &proto::LspPositionIndex<&Rope>,
     range: lsp_types::Range,
 ) -> Option<std::ops::Range<usize>> {
     let bytes = index.checked_text_range(range)?;

@@ -535,6 +535,86 @@ impl BenchmarkDocumentUpdate {
     }
 }
 
+/// A prepared VFS snapshot containing several open documents.
+#[doc(hidden)]
+pub struct BenchmarkOpenDocuments {
+    snapshot: super::GlobalStateSnapshot,
+    source_bytes: usize,
+}
+
+/// A prepared open-document selection-range request workload.
+#[doc(hidden)]
+pub struct BenchmarkSelectionRangeRequests {
+    state: super::GlobalState,
+    path: VfsPath,
+    positions: Vec<Position>,
+}
+
+impl BenchmarkSelectionRangeRequests {
+    /// Prepare one immutable open document and the positions queried on every request.
+    pub fn new(source: String, positions: impl IntoIterator<Item = Position>) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let path = VfsPath::from(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-selection-range.sol"),
+        );
+        state.vfs.write().set_file_contents_with_version(
+            path.clone(),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        let positions = positions.into_iter().collect();
+        Self { state, path, positions }
+    }
+
+    /// Run one selection-range request through the open-document source path.
+    #[inline(never)]
+    pub fn run(&self) -> Option<Vec<lsp_types::SelectionRange>> {
+        let source = { self.state.vfs.read().get_file_selection_range_source(&self.path)? };
+        source.selection_ranges(&self.positions)
+    }
+}
+
+impl BenchmarkOpenDocuments {
+    /// Prepare `document_count` equally sized open-document overlays.
+    pub fn new(document_count: usize, bytes_per_document: usize) -> Self {
+        assert!(document_count > 0);
+        assert!(bytes_per_document > 0);
+
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let mut vfs = state.vfs.write();
+        for index in 0..document_count {
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("benches/open-documents")
+                .join(format!("Document-{index}.sol"));
+            let source = "x".repeat(bytes_per_document);
+            vfs.set_file_contents_with_version(
+                VfsPath::from(path),
+                Some(Rope::from(source.as_str())),
+                Some(1),
+            );
+        }
+        drop(vfs);
+
+        Self { snapshot: state.snapshot(), source_bytes: document_count * bytes_per_document }
+    }
+
+    /// The total source bytes represented by the open documents.
+    pub fn source_bytes(&self) -> usize {
+        self.source_bytes
+    }
+
+    /// Build production analysis batches from the prepared open documents.
+    #[inline(never)]
+    pub fn build_analysis_batches(&self) -> usize {
+        self.snapshot
+            .analysis_batches(Vec::new())
+            .into_iter()
+            .flat_map(|batch| batch.files)
+            .map(|(path, source)| path.as_os_str().len() + source.len())
+            .sum()
+    }
+}
+
 /// A diagnostic store prepared with overlapping current, reported, and previous document sets.
 #[doc(hidden)]
 pub struct BenchmarkWorkspaceReports {

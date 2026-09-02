@@ -528,10 +528,18 @@ impl RequestFixture {
 
     pub(super) fn check_selection_ranges(&self, markers: &[&str], expected: impl IntoData) {
         let mut state = self.state();
-        let (params, positions) = self.selection_range_request(markers);
-        let response =
-            block_on(crate::handlers::selection_range(&mut state, params)).unwrap().unwrap();
+        let (_, positions) = self.selection_range_request(markers);
+        let response = self.selection_range_response_in_state(&mut state, markers);
         check_selection_range_response(response, &positions, expected);
+    }
+
+    pub(super) fn selection_range_response_in_state(
+        &self,
+        state: &mut GlobalState,
+        markers: &[&str],
+    ) -> Vec<SelectionRange> {
+        let (params, _) = self.selection_range_request(markers);
+        block_on(crate::handlers::selection_range(state, params)).unwrap().unwrap()
     }
 
     pub(super) fn check_selection_ranges_at(
