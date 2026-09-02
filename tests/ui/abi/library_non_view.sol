@@ -3,8 +3,9 @@
 // A library function that can modify state is only reachable through
 // `delegatecall`, so solc leaves every library function whose state
 // mutability is above `view` out of the JSON ABI. It still lists them in the
-// method identifiers. `payable` is rejected for library functions, so
-// `nonpayable` is the only mutability this drops in practice.
+// method identifiers. Only `nonpayable` appears below, because solc rejects a
+// `payable` library function outright; we do not yet, so the ABI filter covers
+// `payable` too.
 
 library L {
     function pureFn(uint256 x) external pure returns (uint256) {
