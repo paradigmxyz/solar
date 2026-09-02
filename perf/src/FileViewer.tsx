@@ -18,7 +18,18 @@ interface Counts {
   deletions: number
 }
 
+function formatContents(contents: string | null, language: string) {
+  if (contents === null || language !== 'json') return contents
+  try {
+    return `${JSON.stringify(JSON.parse(contents), null, 2)}\n`
+  } catch {
+    return contents
+  }
+}
+
 function fileCounts(oldContents: string | null, newContents: string | null, file: ArtifactFile): Counts {
+  oldContents = formatContents(oldContents, file.language)
+  newContents = formatContents(newContents, file.language)
   if (oldContents === null && newContents === null) return { additions: 0, deletions: 0 }
   const lang = artifactLanguage(file.path, file.language)
   const diff = parseDiffFromFile(
@@ -42,14 +53,31 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
   const selectedFile = files.find((file) => file.path === selected) ?? files[0]
 
   useEffect(() => {
-    if (!files.length) return
-    if (!selectedFile) setSelected(files[0].path)
-    Promise.all(files.map(async (file) => [file.path, fileCounts(
-      await loadArtifact(comparisonCommit, benchmark, comparisonCompiler, file.storagePath),
-      await loadArtifact(head, benchmark, 'solar', file.storagePath),
-      file,
-    )] as const)).then((entries) => setCounts(Object.fromEntries(entries)))
-  }, [benchmark, comparisonCommit, comparisonCompiler, files, head, selectedFile])
+    if (files.length && !selected) setSelected(files[0].path)
+  }, [files, selected])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!files.length) {
+      setCounts({})
+      return
+    }
+    setCounts({})
+    Promise.all(files.map(async (file) => {
+      try {
+        return [file.path, fileCounts(
+          await loadArtifact(comparisonCommit, benchmark, comparisonCompiler, file.storagePath),
+          await loadArtifact(head, benchmark, 'solar', file.storagePath),
+          file,
+        )] as const
+      } catch {
+        return [file.path, { additions: 0, deletions: 0 }] as const
+      }
+    })).then((entries) => {
+      if (!cancelled) setCounts(Object.fromEntries(entries))
+    })
+    return () => { cancelled = true }
+  }, [benchmark, comparisonCommit, comparisonCompiler, files, head])
 
   const selectFile = (path: string) => {
     setSelected(path)
