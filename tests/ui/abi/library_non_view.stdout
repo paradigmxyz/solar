@@ -1,0 +1,127 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/library_non_view.sol:C": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "nonpayFn",
+          "inputs": [
+            {
+              "name": "y",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "payFn",
+          "inputs": [
+            {
+              "name": "y",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "payable"
+        },
+        {
+          "type": "function",
+          "name": "pureFn",
+          "inputs": [
+            {
+              "name": "y",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "viewFn",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        }
+      ],
+      "hashes": {
+        "nonpayFn(uint256)": "780192ca",
+        "payFn(uint256)": "2bc2cb11",
+        "pureFn(uint256)": "a828eec5",
+        "viewFn()": "671ebb98"
+      }
+    },
+    "ROOT/tests/ui/abi/library_non_view.sol:L": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "pureFn",
+          "inputs": [
+            {
+              "name": "x",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "viewFn",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        }
+      ],
+      "hashes": {
+        "nonpayFn(uint256)": "780192ca",
+        "pubFn(uint256)": "11e04517",
+        "pureFn(uint256)": "a828eec5",
+        "viewFn()": "671ebb98"
+      }
+    }
+  },
+  "version": "VERSION"
+}

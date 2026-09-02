@@ -31,7 +31,7 @@ impl<'gcx> Gcx<'gcx> {
         }
         let is_library = c.kind.is_library();
         for f in self.interface_functions(id) {
-            if is_library && stores_data_in_storage(f.ty) {
+            if is_library && omitted_from_library_abi(f.ty) {
                 continue;
             }
             items.push(self.function_abi(f.id).into());
@@ -124,15 +124,18 @@ impl<'gcx> Gcx<'gcx> {
     }
 }
 
-/// Returns `true` if any parameter or return of the given function type is stored in storage.
+/// Returns `true` if solc leaves the given library interface function out of the JSON ABI.
 ///
-/// Storage references have no ABI encoding, so solc drops the library functions that use them from
-/// the JSON ABI, while still listing them in the method identifiers.
+/// solc drops two kinds of library function. One is a function whose state mutability is above
+/// `view`: it can only run through `delegatecall`, so it is not callable through the ABI. The
+/// other is a function that holds a parameter or a return in storage, because a storage reference
+/// has no ABI encoding. Both kinds stay in the method identifiers.
 ///
 /// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/interface/ABI.cpp#L52-L56>
-fn stores_data_in_storage(ty: Ty<'_>) -> bool {
+fn omitted_from_library_abi(ty: Ty<'_>) -> bool {
     let TyKind::Fn(f) = ty.kind else { return false };
-    f.tys().any(|ty| ty.data_stored_in(hir::DataLocation::Storage))
+    !matches!(f.state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
+        || f.tys().any(|ty| ty.data_stored_in(hir::DataLocation::Storage))
 }
 
 fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
