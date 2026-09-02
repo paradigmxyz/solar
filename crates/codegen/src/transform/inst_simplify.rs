@@ -26,7 +26,7 @@ use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
-mod isle;
+pub(crate) mod isle;
 
 /// Function pass for local instruction simplification.
 pub(crate) struct InstSimplify;
@@ -50,7 +50,7 @@ impl MirPass for InstSimplify {
 
 /// Local MIR instruction simplification pass.
 #[derive(Debug)]
-struct InstSimplifier {
+pub(crate) struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     simplified_count: usize,
     evm_version: EvmVersion,
@@ -216,7 +216,8 @@ impl InstSimplifier {
         isle::RuleContext::new(func, self.evm_version).simplify(&op)
     }
 
-    fn const_fold_inst(
+    /// Folds an instruction over immediate operands to an immediate result.
+    pub(crate) fn const_fold_inst(
         func: &mut Function,
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
@@ -280,7 +281,7 @@ impl InstSimplifier {
         Self::is_const(func, value, U256::ZERO)
     }
 
-    fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
+    pub(crate) fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
         a == b
             || match (func.value(a), func.value(b)) {
                 (Value::Immediate(a), Value::Immediate(b)) => a == b,

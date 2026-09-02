@@ -146,9 +146,20 @@ under `crates/codegen/isle/`:
   ambiguous overlaps at build time.
 - Test a boolean predicate with `(if-let true (pred ...))`. A bare `(if ...)`
   only checks that the call succeeded.
-- Keep constant folding, in-place instruction rewrites, and anything that
-  needs variable-length payloads in Rust; rules return values, and elided
-  payloads appear as `Unit` in the view.
+- Keep constant folding, phi merging, and anything that needs
+  variable-length payloads in Rust; elided payloads appear as `Unit` in the
+  view. `simplify` rules return a value, `rewrite` rules return an `Op` that
+  `Op::into_kind` turns back into an instruction.
+
+The `egraph` pass (`transform/egraph.rs`) applies the same rule file inside
+an acyclic e-graph: dominator-scoped value numbering, `rewrite` results kept
+as alternative nodes, `simplify` results merged, and the cheapest node per
+class extracted under a static gas cost model, all at the original
+instruction positions. It is registered but not in the default pipeline;
+adding it, or replacing `inst-simplify` and `gvn` with it, is a codegen
+change that must follow the benchmarking protocol below. Extend it by adding
+rules to `inst_simplify.isle` and costs to `base_cost`, never by matching
+instructions in the pass itself.
 
 ### Visitor Pattern
 

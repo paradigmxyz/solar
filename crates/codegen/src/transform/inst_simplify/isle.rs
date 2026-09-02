@@ -39,24 +39,24 @@ mod generated {
 }
 
 /// Context the rewrite rules run against: one function plus its value table.
-pub(super) struct RuleContext<'a> {
+pub(crate) struct RuleContext<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
 }
 
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
-    pub(super) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
+    pub(crate) fn new(func: &'a mut Function, evm_version: EvmVersion) -> Self {
         Self { func, evm_version }
     }
 
     /// Returns a cheaper instruction to compute in place of `op`, when a rule applies.
-    pub(super) fn rewrite(&mut self, op: &Op) -> Option<Op> {
+    pub(crate) fn rewrite(&mut self, op: &Op) -> Option<Op> {
         generated::constructor_rewrite(self, op)
     }
 
     /// Returns the value `op` is equal to, when a rule applies.
-    pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
+    pub(crate) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
         generated::constructor_simplify(self, op)
     }
 
