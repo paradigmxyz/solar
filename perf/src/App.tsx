@@ -14,10 +14,12 @@ const charts: { metric: keyof MetricSummary; title: string; unit: string }[] = [
   { metric: 'runtimeSize', title: 'Runtime bytecode', unit: 'bytes' },
   { metric: 'creationSize', title: 'Creation bytecode', unit: 'bytes' },
   { metric: 'compileTime', title: 'Compile time', unit: 'seconds' },
+  { metric: 'peakMemory', title: 'Peak memory', unit: 'memory' },
 ]
 
 function formatValue(value: number, unit: string) {
   if (unit === 'seconds') return `${value.toFixed(2)} s`
+  if (unit === 'memory') return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MiB` : `${Math.round(value / 1024).toLocaleString()} KiB`
   return `${Math.round(value).toLocaleString()} ${unit}`
 }
 
@@ -30,8 +32,9 @@ function runLabel(run: RunSummary) {
 }
 
 function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metric: keyof MetricSummary; title: string; unit: string }) {
+  const [hovered, setHovered] = useState<number | null>(null)
   const points = runs
-    .filter((run) => run.branch === 'main' && run.metrics[metric] !== null)
+    .filter((run) => run.branch === 'main' && typeof run.metrics[metric] === 'number')
     .slice(0, 60)
     .reverse()
   const values = points.map((run) => run.metrics[metric]!)
@@ -45,12 +48,13 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
   }).join(' ')
   const first = values[0]
   const latest = values.at(-1)
+  const active = points[hovered ?? points.length - 1]
   const change = first && latest !== undefined ? ((latest - first) / first) * 100 : null
   return (
     <section className="graph-card">
       <div className="graph-heading">
         <h2>{title}</h2>
-        {latest !== undefined && <div><strong>{formatValue(latest, unit)}</strong><span className={changeClass(change)}>{formatChange(change)}</span></div>}
+        {latest !== undefined && <div><strong>{formatValue(active.metrics[metric]!, unit)}</strong><span className={changeClass(change)}>{formatChange(change)}</span></div>}
       </div>
       {points.length < 2 ? <div className="empty-graph">Waiting for two main-branch runs.</div> : <>
         <div className="chart-body">
@@ -58,6 +62,7 @@ function HistoryGraph({ runs, metric, title, unit }: { runs: RunSummary[]; metri
           <svg className="history" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={`${title} over time`}>
             <path className="grid" d="M0 12H100 M0 50H100 M0 88H100" />
             <path className="series" d={path} />
+            {points.map((run, index) => { const x = (index / Math.max(points.length - 1, 1)) * 100; const y = range === 0 ? 50 : 88 - ((run.metrics[metric]! - min) / range) * 76; return <circle key={run.commit} className={index === (hovered ?? points.length - 1) ? 'active-point' : ''} cx={x} cy={y} r="2" onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)}><title>{`${formatValue(run.metrics[metric]!, unit)} · ${short(run.commit)} · ${new Date(run.timestamp).toLocaleDateString()}`}</title></circle> })}
           </svg>
         </div>
         <div className="chart-dates"><span>{new Date(points[0].timestamp).toLocaleDateString()}</span><span>{new Date(points.at(-1)!.timestamp).toLocaleDateString()}</span></div>

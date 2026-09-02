@@ -6,6 +6,7 @@ export interface MetricSummary {
   runtimeSize: number | null
   deployGas: number | null
   runtimeGas: number | null
+  peakMemory: number | null
 }
 
 export interface RunSummary {

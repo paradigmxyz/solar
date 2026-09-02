@@ -36,6 +36,14 @@ function metric(results, key) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) : null
 }
 
+function maxMetric(results, key) {
+  const values = results
+    .map((result) => result.compilers?.solar)
+    .filter((compiler) => compiler?.status === 'ok' && typeof compiler[key] === 'number')
+    .map((compiler) => compiler[key])
+  return values.length ? Math.max(...values) : null
+}
+
 async function artifactManifest(source, destination, results) {
   const manifest = Object.create(null)
   let totalSize = 0
@@ -110,6 +118,7 @@ const summary = {
     runtimeSize: metric(results, 'runtime_size'),
     deployGas: metric(results, 'deploy_gas'),
     runtimeGas: metric(results, 'total_gas'),
+    peakMemory: maxMetric(results, 'peak_rss_bytes'),
   },
 }
 index.runs = [summary, ...index.runs.filter((run) => run.commit !== options.commit)].sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 200)

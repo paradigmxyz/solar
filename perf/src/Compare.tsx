@@ -5,12 +5,13 @@ import { loadRun } from './data'
 import { benchmarkSource } from './sources'
 import type { BenchmarkResult, RunDocument, Theme } from './types'
 
-const metrics: Record<string, [string, string]> = {
-  runtimeGas: ['Runtime gas', 'total_gas'],
-  deployGas: ['Deployment gas', 'deploy_gas'],
-  runtimeSize: ['Runtime bytes', 'runtime_size'],
-  creationSize: ['Creation bytes', 'bytecode_size'],
-  compileTime: ['Compile time', 'compile_time_seconds'],
+const metrics: Record<string, { label: string; key: string; unit: 'bytes' | 'gas' | 'seconds' }> = {
+  runtimeGas: { label: 'Runtime gas', key: 'total_gas', unit: 'gas' },
+  deployGas: { label: 'Deployment gas', key: 'deploy_gas', unit: 'gas' },
+  runtimeSize: { label: 'Runtime bytes', key: 'runtime_size', unit: 'bytes' },
+  creationSize: { label: 'Creation bytes', key: 'bytecode_size', unit: 'bytes' },
+  compileTime: { label: 'Compile time', key: 'compile_time_seconds', unit: 'seconds' },
+  peakMemory: { label: 'Peak memory', key: 'peak_rss_bytes', unit: 'bytes' },
 }
 
 const short = (commit: string) => commit.slice(0, 8)
@@ -59,7 +60,7 @@ export function Compare({ base, head }: Props) {
     return runs[1].results
       .map((after) => ({ before: before.get(after.test_id), after }))
       .filter(({ after }) => after.test_id.toLowerCase().includes(query.toLowerCase()))
-      .filter(({ before, after }) => value(before, metrics[metric][1]) !== null && value(after, metrics[metric][1]) !== null)
+      .filter(({ before, after }) => value(before, metrics[metric].key) !== null && value(after, metrics[metric].key) !== null)
   }, [metric, query, runs])
 
   const selectBenchmark = (benchmark: string) => {
@@ -82,14 +83,14 @@ export function Compare({ base, head }: Props) {
     </section>
     <section className="filters">
       <input aria-label="Filter benchmarks" placeholder="Filter benchmarks" value={query} onChange={(event) => setQuery(event.target.value)} />
-      <select aria-label="Metric" value={metric} onChange={(event) => setMetric(event.target.value)}>{Object.entries(metrics).map(([key, [label]]) => <option key={key} value={key}>{label}</option>)}</select>
+      <select aria-label="Metric" value={metric} onChange={(event) => setMetric(event.target.value)}>{Object.entries(metrics).map(([key, config]) => <option key={key} value={key}>{config.label}</option>)}</select>
     </section>
     <section className="results" id="benchmarks">
       <div className="result header-row"><span>Benchmark</span><span>{short(base)}</span><span>{short(head)}</span><span>Change</span></div>
       {rows.map(({ before, after }) => {
         const selected = expanded === after.test_id
-        const beforeValue = value(before, metrics[metric][1])
-        const afterValue = value(after, metrics[metric][1])
+        const beforeValue = value(before, metrics[metric].key)
+        const afterValue = value(after, metrics[metric].key)
         const delta = change(beforeValue, afterValue)
         const source = benchmarkSource(after.test_id)
         return <div key={after.test_id} className="benchmark-row">
@@ -98,13 +99,13 @@ export function Compare({ base, head }: Props) {
           </button>
           {selected && <section className="benchmark-detail" id={after.test_id}>
             <div className="detail-copy">
-              <p className="eyebrow">Benchmark</p>
+              <p className="eyebrow">Benchmark details</p>
               <h2>{after.test_id}</h2>
               {after.description && <p className="benchmark-description">{after.description}</p>}
-              <div className="detail-links"><a href={source.url}>{source.label} source ↗</a><a href={fileViewerHref(base, head, after.test_id)}>Open file viewer →</a></div>
               <code className="local-command">{localCommand(after.test_id)}</code>
+              <div className="detail-chart"><p className="eyebrow">History</p><BenchmarkHistory benchmark={after.test_id} metric={metrics[metric].key} unit={metrics[metric].unit} /></div>
             </div>
-            <div className="detail-chart"><p className="eyebrow">History</p><BenchmarkHistory benchmark={after.test_id} metric={metrics[metric][1]} /></div>
+            <aside className="benchmark-links"><p className="eyebrow">Links</p><a href={fileViewerHref(base, head, after.test_id)}>Artifacts diff viewer →</a><a href={source.url}>Source: {source.label} ↗</a></aside>
           </section>}
         </div>
       })}

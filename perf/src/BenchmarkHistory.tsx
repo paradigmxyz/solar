@@ -5,6 +5,7 @@ import type { BenchmarkResult } from './types'
 interface Props {
   benchmark: string
   metric: string
+  unit: 'bytes' | 'gas' | 'seconds'
 }
 
 function metricValue(result: BenchmarkResult | undefined, metric: string) {
@@ -12,25 +13,46 @@ function metricValue(result: BenchmarkResult | undefined, metric: string) {
   return typeof value === 'number' ? value : null
 }
 
-export function BenchmarkHistory({ benchmark, metric }: Props) {
-  const [values, setValues] = useState<number[] | null>(null)
+function formatValue(value: number, unit: Props['unit']) {
+  if (unit === 'seconds') return `${value.toFixed(2)} s`
+  if (unit === 'bytes') return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MiB` : `${Math.round(value / 1024).toLocaleString()} KiB`
+  return Math.round(value).toLocaleString()
+}
+
+export function BenchmarkHistory({ benchmark, metric, unit }: Props) {
+  const [points, setPoints] = useState<{ commit: string; timestamp: string; value: number }[] | null>(null)
+  const [hovered, setHovered] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
     loadIndex()
       .then((index) => Promise.all(index.runs.slice(0, 24).reverse().map((run) => loadRun(run.commit))))
       .then((runs) => {
-        if (!cancelled) setValues(runs.map((run) => metricValue(run.results.find((result) => result.test_id === benchmark), metric)).filter((value): value is number => value !== null))
+        if (!cancelled) setPoints(runs.flatMap((run) => {
+          const value = metricValue(run.results.find((result) => result.test_id === benchmark), metric)
+          return value === null ? [] : [{ commit: run.commit, timestamp: run.timestamp, value }]
+        }))
       })
-      .catch(() => { if (!cancelled) setValues([]) })
+      .catch(() => { if (!cancelled) setPoints([]) })
     return () => { cancelled = true }
   }, [benchmark, metric])
 
-  if (values === null) return <p className="detail-muted">Loading history…</p>
-  if (values.length < 2) return <p className="detail-muted">No benchmark history is available yet.</p>
+  if (points === null) return <p className="detail-muted">Loading history…</p>
+  if (points.length < 2) return <p className="detail-muted">No benchmark history is available yet.</p>
+  const values = points.map((point) => point.value)
   const min = Math.min(...values)
   const max = Math.max(...values)
   const range = max - min
-  const path = values.map((value, index) => `${index ? 'L' : 'M'} ${(index / (values.length - 1)) * 100} ${range === 0 ? 50 : 90 - ((value - min) / range) * 80}`).join(' ')
-  return <svg className="detail-history" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Benchmark history"><path className="grid" d="M0 10H100 M0 50H100 M0 90H100" /><path className="series" d={path} /></svg>
+  const y = (value: number) => range === 0 ? 50 : 90 - ((value - min) / range) * 80
+  const x = (index: number) => (index / (points.length - 1)) * 100
+  const path = points.map((point, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(point.value)}`).join(' ')
+  const active = points[hovered ?? points.length - 1]
+  return <div className="detail-history">
+    <div className="history-value"><strong>{formatValue(active.value, unit)}</strong><span>{active.commit.slice(0, 8)} · {new Date(active.timestamp).toLocaleDateString()}</span></div>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Benchmark history">
+      <path className="grid" d="M0 10H100 M0 50H100 M0 90H100" /><path className="series" d={path} />
+      {points.map((point, index) => <circle key={point.commit} className={index === (hovered ?? points.length - 1) ? 'active-point' : ''} cx={x(index)} cy={y(point.value)} r="2" onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)}><title>{`${formatValue(point.value, unit)} · ${point.commit.slice(0, 8)} · ${new Date(point.timestamp).toLocaleDateString()}`}</title></circle>)}
+    </svg>
+    <div className="history-range"><span>{formatValue(min, unit)}</span><span>{formatValue(max, unit)}</span></div>
+  </div>
 }
