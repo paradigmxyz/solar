@@ -165,8 +165,15 @@ function HistoryGraph({
                 role="img"
                 aria-label={`${title} over time`}
               >
-                <path className="grid" d="M0 12H100 M0 50H100 M0 88H100" />
-                <path className="series" d={path} />
+                <defs>
+                  <clipPath id={`chart-clip-${metric}`}>
+                    <rect width="100" height="100" />
+                  </clipPath>
+                </defs>
+                <g clipPath={`url(#chart-clip-${metric})`}>
+                  <path className="grid" d="M0 12H100 M0 50H100 M0 88H100" />
+                  <path className="series" d={path} />
+                </g>
               </svg>
               {hovered !== null && (
                 <>
