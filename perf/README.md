@@ -1,10 +1,10 @@
 # Solar performance site
 
-This standalone Vite+ app reads static benchmark data from the `gh-pages` branch. Local development
+This standalone Vite+ app reads benchmark data through the performance Worker. Local development
 uses `https://raw.githubusercontent.com/paradigmxyz/solar/gh-pages/data/` and falls back to
-`public/data` when the branch has not been published. Set `VITE_PERF_DATA_URL` to override the data
-root. The homepage loads only `index.json`; commit results and compiler artifacts load when a
-comparison opens.
+`public/data` until an API URL is configured. Set `VITE_PERF_API_URL` for the Worker or
+`VITE_PERF_DATA_URL` for a static archive. The homepage loads only `index.json`; commit results and
+compiler artifacts load when a comparison opens.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -15,20 +15,40 @@ Run `pnpm check`, `pnpm test`, and `pnpm build` before changing the site.
 
 ## API worker
 
-`src/worker.ts` is a Hono Cloudflare Worker that proxies the same immutable `gh-pages` run archive.
-It only permits the published index, run documents, and numbered artifact files. This keeps the
-static GitHub Pages deployment working while allowing a Worker deployment to add caching and keep a
-GitHub token off the client. Start it with `pnpm worker:dev`, then point the site at it with:
+`src/worker.ts` is a Hono Cloudflare Worker. With ClickHouse configured, it serves normalized run
+history, benchmark rows, and artifact content directly from the database. Without ClickHouse it
+keeps the immutable `gh-pages` archive as a local-development fallback. Start it with
+`pnpm worker:dev`, then point the site at it with:
 
 ```bash
 VITE_PERF_API_URL=http://127.0.0.1:8787 pnpm dev
 ```
 
-Set `GITHUB_TOKEN` in an untracked `.dev.vars` file when GitHub's unauthenticated rate limit is too
-low. `GITHUB_REPOSITORY` and `PERF_DATA_REF` default to `paradigmxyz/solar` and `gh-pages`.
+Set the following Worker secrets with Wrangler: `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, and
+`CLICKHOUSE_PASSWORD`. `CLICKHOUSE_DATABASE` defaults to `solar_perf`. `GITHUB_TOKEN`,
+`GITHUB_REPOSITORY`, and `PERF_DATA_REF` only configure the static fallback.
 
-The Worker does not query ClickHouse yet. Add that source after we choose a run and artifact schema;
-the current benchmark publisher has no ClickHouse table to query.
+## ClickHouse ingestion
+
+[`schema/clickhouse.sql`](schema/clickhouse.sql) stores an immutable raw result document alongside
+normalized compiler metrics and compressed artifact contents. The normalizer accepts the current
+result schema and older aliases (`id`/`name`, top-level compiler objects, camelCase metrics), so old
+runs remain queryable even when benchmark sets change.
+
+Set `CLICKHOUSE_URL`, `CLICKHOUSE_USER`, and `CLICKHOUSE_PASSWORD`, then create the schema:
+
+```bash
+pnpm db:schema
+```
+
+`.github/workflows/perf-ingest.yml` imports a completed Benchmark workflow immediately and scans
+the retained workflow history every 15 minutes. Run its manual dispatch once to backfill every
+GitHub Actions artifact that GitHub still retains. The importer is idempotent by workflow run ID,
+records a raw input for later migrations, and skips expired or pre-artifact runs without stopping
+the rest of the backfill.
+
+Set the repository variable `PERF_API_URL` to the deployed Worker URL so the Pages build uses
+ClickHouse. The legacy `gh-pages` archive remains a fallback while the database is being filled.
 
 Import a local benchmark run before starting the site:
 

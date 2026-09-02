@@ -17,6 +17,14 @@ describe('performance Worker', () => {
     })
   })
 
+  it('reports ClickHouse when configured', async () => {
+    const response = await app.request('http://perf.test/api/health', undefined, {
+      CLICKHOUSE_URL: 'https://clickhouse.example',
+    })
+
+    await expect(response.json()).resolves.toMatchObject({ source: 'clickhouse' })
+  })
+
   it('does not proxy arbitrary paths', async () => {
     const response = await app.request('http://perf.test/api/data/../secrets')
 

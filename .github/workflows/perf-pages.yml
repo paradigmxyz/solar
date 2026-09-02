@@ -109,6 +109,8 @@ jobs:
       - name: Build site
         if: steps.data.outcome == 'success'
         working-directory: source/perf
+        env:
+          VITE_PERF_API_URL: ${{ vars.PERF_API_URL }}
         run: vp build
 
       - name: Prepare first publication

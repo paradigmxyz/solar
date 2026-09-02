@@ -7,6 +7,8 @@
     "build": "vp build",
     "check": "vp check",
     "dev": "vp dev",
+    "db:backfill": "node scripts/ingest-github-runs.mjs",
+    "db:schema": "node scripts/apply-schema.mjs",
     "format": "vp fmt",
     "lint": "vp lint",
     "test": "vp test --run",
