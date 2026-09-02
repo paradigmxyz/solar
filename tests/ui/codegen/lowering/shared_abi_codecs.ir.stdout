@@ -132,7 +132,9 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v179 = gt v175, v178
     jumpi v179, bb3, bb46
   bb46:
-    v0 = alloc raw, exact, uninitialized, infallible, 64 !metadata(deferred_alloc)
+    v0 = mload 64 !metadata(memory=scratch, effect=memory_write)
+    v217 = add v0, 64
+    mstore 64, v217 !metadata(memory=scratch)
     v3 = shl 5, v175
     v5 = shr 5, v3
     v6 = eq v5, v175

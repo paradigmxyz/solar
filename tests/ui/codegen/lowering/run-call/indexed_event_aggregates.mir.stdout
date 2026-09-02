@@ -93,20 +93,20 @@ fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_params=[], ab
     v62 = memory_object_len memoryarray, v0
     jump bb23
   bb23:
-    v63 = phi [bb22: 0], [bb28: v79]
+    v63 = phi [bb22: 0], [bb28: v80]
     v64 = phi [bb22: 0], [bb28: v72]
     v65 = lt v63, v62
     jumpi v65, bb24, bb25
   bb25:
-    v80 = keccak256_bytes v61
-    v81 = keccak256_bytes v31
-    log3 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v80, v81
-    v82 = memory_object_len memoryarray, v0
-    v83 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v83, 5
-    v84 = memory_object_data memorybytes, v83
-    mstore v84, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    ret v82, v83
+    v81 = keccak256_bytes v61
+    v82 = keccak256_bytes v31
+    log3 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v81, v82
+    v83 = memory_object_len memoryarray, v0
+    v84 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v84, 5
+    v85 = memory_object_data memorybytes, v84
+    mstore v85, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    ret v83, v84
   bb24:
     v66 = memory_object_load_element memoryarray<1>, v0, v63
     v67 = iszero v66
@@ -115,22 +115,23 @@ fn @test_nested() -> (u256, memorybytes) [selector=0x9160d787, abi_params=[], ab
     v70 = mul v69, v68
     jump bb26
   bb26:
-    v71 = phi [bb24: 0], [bb29: v78]
-    v72 = phi [bb24: v64], [bb29: v76]
+    v71 = phi [bb24: 0], [bb29: v79]
+    v72 = phi [bb24: v64], [bb29: v77]
     v73 = lt v71, v70
     jumpi v73, bb27, bb28
   bb28:
-    v79 = add v63, 1
+    v80 = add v63, 1
     jump bb23
   bb27:
     v74 = memory_object_load_element memoryarray<1>, v66, v71
     v75 = mul v74, v68
-    memory_object_store_word memorybytes, v61, v72, v75
-    v76 = add v72, 32
-    v77 = lt v76, v72
-    jumpi v77, bb18, bb29
+    v76 = and v75, 255
+    memory_object_store_word memorybytes, v61, v72, v76
+    v77 = add v72, 32
+    v78 = lt v77, v72
+    jumpi v78, bb18, bb29
   bb29:
-    v78 = add v71, 1
+    v79 = add v71, 1
     jump bb26
   bb13:
     v37 = memory_object_load_element memoryarray<1>, v0, v34
