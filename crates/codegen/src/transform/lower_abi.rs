@@ -2453,10 +2453,7 @@ impl LowerAbiCx {
                             || callee_params.and_then(|params| params.get(index))
                                 == Some(&MirType::Slice(SliceLocation::Calldata))
                     });
-                    if !preserves_calldata {
-                        return true;
-                    }
-                    false
+                    !preserves_calldata
                 }
                 InstKind::SliceLen(_)
                 | InstKind::SlicePtr(_)
