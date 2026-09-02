@@ -41,6 +41,7 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_payable_fallback_without_receive(gcx, id);
     check_external_type_clashes(gcx, id);
     check_receive_function(gcx, id);
+    check_library_functions(gcx, id);
     for using in gcx.hir.contract(id).usings {
         check_using_directive(gcx, using);
     }
@@ -405,6 +406,27 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         if !f.returns.is_empty() {
             gcx.dcx()
                 .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
+        }
+    }
+}
+
+/// Checks restrictions that only apply to functions declared in a library.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L325-L333>
+fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    if !contract.kind.is_library() {
+        return;
+    }
+
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
+        if f.state_mutability == StateMutability::Payable {
+            gcx.dcx()
+                .err("library functions cannot be payable")
+                .code(error_code!(7708))
+                .span(f.span)
+                .emit();
         }
     }
 }
