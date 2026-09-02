@@ -412,7 +412,11 @@ impl<'a> FunctionBuilder<'a> {
         inst_id
     }
 
-    fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+    pub(in crate::mir) fn emit_inst(
+        &mut self,
+        kind: InstKind,
+        result_ty: Option<MirType>,
+    ) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
         let inst = self.make_inst(kind, result_ty);
         self.append_instruction(inst).1.expect("value-producing instruction must have a result")
@@ -422,7 +426,7 @@ impl<'a> FunctionBuilder<'a> {
     ///
     /// No result [`Value`] is allocated: only value-producing instructions get
     /// an entry in the function's value table.
-    fn emit_void_inst(&mut self, kind: InstKind) {
+    pub(in crate::mir) fn emit_void_inst(&mut self, kind: InstKind) {
         let inst = self.make_inst(kind, None);
         self.append_instruction(inst);
     }
@@ -512,156 +516,6 @@ impl<'a> FunctionBuilder<'a> {
         StorageAlias::for_value(self.func, slot)
     }
 
-    /// Emits an add instruction.
-    pub(crate) fn add(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Add(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits a sub instruction.
-    pub(crate) fn sub(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Sub(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits a mul instruction.
-    pub(crate) fn mul(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Mul(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits a div instruction.
-    pub(crate) fn div(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Div(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits a sdiv instruction.
-    pub(crate) fn sdiv(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SDiv(a, b), Some(MirType::int256()))
-    }
-
-    /// Emits a mod instruction.
-    pub(crate) fn mod_(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Mod(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits an addmod instruction.
-    pub(crate) fn addmod(&mut self, a: ValueId, b: ValueId, n: ValueId) -> ValueId {
-        self.emit_inst(InstKind::AddMod(a, b, n), Some(MirType::uint256()))
-    }
-
-    /// Emits a mulmod instruction.
-    pub(crate) fn mulmod(&mut self, a: ValueId, b: ValueId, n: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MulMod(a, b, n), Some(MirType::uint256()))
-    }
-
-    /// Emits a smod instruction.
-    pub(crate) fn smod(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SMod(a, b), Some(MirType::int256()))
-    }
-
-    /// Emits an exp instruction.
-    pub(crate) fn exp(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Exp(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits an and instruction.
-    pub(crate) fn and(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::And(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits an or instruction.
-    pub(crate) fn or(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Or(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits a xor instruction.
-    pub(crate) fn xor(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Xor(a, b), Some(MirType::uint256()))
-    }
-
-    /// Emits a not instruction.
-    pub(crate) fn not(&mut self, a: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Not(a), Some(MirType::uint256()))
-    }
-
-    /// Emits a clz instruction.
-    pub(crate) fn clz(&mut self, a: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Clz(a), Some(MirType::uint256()))
-    }
-
-    /// Emits a shl instruction.
-    pub(crate) fn shl(&mut self, shift: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Shl(shift, value), Some(MirType::uint256()))
-    }
-
-    /// Emits a shr instruction.
-    pub(crate) fn shr(&mut self, shift: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Shr(shift, value), Some(MirType::uint256()))
-    }
-
-    /// Emits a sar instruction.
-    pub(crate) fn sar(&mut self, shift: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Sar(shift, value), Some(MirType::int256()))
-    }
-
-    /// Emits a lt instruction.
-    pub(crate) fn lt(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Lt(a, b), Some(MirType::Bool))
-    }
-
-    /// Emits a gt instruction.
-    pub(crate) fn gt(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Gt(a, b), Some(MirType::Bool))
-    }
-
-    /// Emits a slt instruction.
-    pub(crate) fn slt(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SLt(a, b), Some(MirType::Bool))
-    }
-
-    /// Emits a sgt instruction.
-    pub(crate) fn sgt(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SGt(a, b), Some(MirType::Bool))
-    }
-
-    /// Emits an eq instruction.
-    pub(crate) fn eq(&mut self, a: ValueId, b: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Eq(a, b), Some(MirType::Bool))
-    }
-
-    /// Emits an iszero instruction.
-    pub(crate) fn iszero(&mut self, a: ValueId) -> ValueId {
-        self.emit_inst(InstKind::IsZero(a), Some(MirType::Bool))
-    }
-
-    /// Emits a byte instruction.
-    pub(crate) fn byte(&mut self, index: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Byte(index, value), Some(MirType::uint256()))
-    }
-
-    /// Emits a signextend instruction.
-    pub(crate) fn signextend(&mut self, size: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SignExtend(size, value), Some(MirType::int256()))
-    }
-
-    /// Emits an mload instruction.
-    pub(crate) fn mload(&mut self, offset: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MLoad(offset), Some(MirType::uint256()))
-    }
-
-    /// Emits an mstore instruction.
-    pub(crate) fn mstore(&mut self, offset: ValueId, value: ValueId) {
-        self.emit_void_inst(InstKind::MStore(offset, value))
-    }
-
-    /// Emits an mstore8 instruction.
-    pub(crate) fn mstore8(&mut self, offset: ValueId, value: ValueId) {
-        self.emit_void_inst(InstKind::MStore8(offset, value))
-    }
-
-    /// Emits a memory-zero instruction.
-    pub(crate) fn memory_zero(&mut self, offset: ValueId, size: ValueId) {
-        self.emit_void_inst(InstKind::MemoryZero(offset, size))
-    }
-
     /// Emits an msize instruction.
     pub(crate) fn msize(&mut self) -> ValueId {
         self.emit_inst(InstKind::MSize, Some(MirType::uint256()))
@@ -674,8 +528,8 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Sets the free-memory pointer.
     #[cfg(test)]
-    pub(crate) fn set_fmp(&mut self, ptr: ValueId) {
-        self.emit_void_inst(InstKind::SetFmp(ptr))
+    pub(crate) fn set_fmp(&mut self, value: ValueId) {
+        self.emit_void_inst(InstKind::SetFmp(value))
     }
 
     /// Reserves untyped memory under an explicit semantic policy.
@@ -990,39 +844,9 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::AbiDecode { data, layout }, Some(result_ty))
     }
 
-    /// Emits an mcopy instruction.
-    pub(crate) fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
-        self.emit_void_inst(InstKind::MCopy(dest, src, len))
-    }
-
     /// Emits an mcopy whose destination is proven to be in the heap.
     pub(crate) fn mcopy_heap(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
         self.emit_void_inst_in_region(InstKind::MCopy(dest, src, len), MemoryRegion::Heap)
-    }
-
-    /// Emits an sload instruction.
-    pub(crate) fn sload(&mut self, slot: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SLoad(slot), Some(MirType::uint256()))
-    }
-
-    /// Emits an sstore instruction.
-    pub(crate) fn sstore(&mut self, slot: ValueId, value: ValueId) {
-        self.emit_void_inst(InstKind::SStore(slot, value))
-    }
-
-    /// Emits a tload instruction.
-    pub(crate) fn tload(&mut self, slot: ValueId) -> ValueId {
-        self.emit_inst(InstKind::TLoad(slot), Some(MirType::uint256()))
-    }
-
-    /// Emits a tstore instruction.
-    pub(crate) fn tstore(&mut self, slot: ValueId, value: ValueId) {
-        self.emit_void_inst(InstKind::TStore(slot, value))
-    }
-
-    /// Emits a calldataload instruction.
-    pub(crate) fn calldataload(&mut self, offset: ValueId) -> ValueId {
-        self.emit_inst(InstKind::CalldataLoad(offset), Some(MirType::uint256()))
     }
 
     /// Emits a calldatasize instruction.
@@ -1040,16 +864,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
     }
 
-    /// Projects the data pointer from a slice.
-    pub(crate) fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SlicePtr(slice), Some(MirType::uint256()))
-    }
-
-    /// Projects the logical length from a slice.
-    pub(crate) fn slice_len(&mut self, slice: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SliceLen(slice), Some(MirType::uint256()))
-    }
-
     /// Emits the base address of the constructor ABI argument blob.
     pub(crate) fn constructor_args_base(&mut self) -> ValueId {
         self.emit_inst(InstKind::ConstructorArgsBase, Some(MirType::uint256()))
@@ -1058,11 +872,6 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits the end address of the constructor ABI argument blob.
     pub(crate) fn constructor_args_end(&mut self) -> ValueId {
         self.emit_inst(InstKind::ConstructorArgsEnd, Some(MirType::uint256()))
-    }
-
-    /// Emits a calldatacopy instruction.
-    pub(crate) fn calldatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
-        self.emit_void_inst(InstKind::CalldataCopy(dest, offset, size))
     }
 
     /// Emits a constant-data copy.
@@ -1080,11 +889,6 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a codesize instruction.
     pub(crate) fn codesize(&mut self) -> ValueId {
         self.emit_inst(InstKind::CodeSize, Some(MirType::uint256()))
-    }
-
-    /// Emits an extcodesize instruction.
-    pub(crate) fn extcodesize(&mut self, addr: ValueId) -> ValueId {
-        self.emit_inst(InstKind::ExtCodeSize(addr), Some(MirType::uint256()))
     }
 
     /// Emits a loadimmutable instruction.
@@ -1122,21 +926,11 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
-    /// Emits an extcodehash instruction.
-    pub(crate) fn extcodehash(&mut self, addr: ValueId) -> ValueId {
-        self.emit_inst(InstKind::ExtCodeHash(addr), Some(MirType::uint256()))
-    }
-
     /// Emits a returndatasize instruction.
     ///
     /// Emits the raw volatile `returndatasize()` query.
     pub(crate) fn returndatasize(&mut self) -> ValueId {
         self.emit_inst(InstKind::ReturnDataSize, Some(MirType::uint256()))
-    }
-
-    /// Emits a returndatacopy instruction.
-    pub(crate) fn returndatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
-        self.emit_void_inst(InstKind::ReturnDataCopy(dest, offset, size))
     }
 
     /// Copies bytes from a logical slice's address space into memory.
@@ -1247,11 +1041,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::GasPrice, Some(MirType::uint256()))
     }
 
-    /// Emits a blockhash instruction.
-    pub(crate) fn blockhash(&mut self, block_num: ValueId) -> ValueId {
-        self.emit_inst(InstKind::BlockHash(block_num), Some(MirType::bytes32()))
-    }
-
     /// Emits a coinbase instruction.
     pub(crate) fn coinbase(&mut self) -> ValueId {
         self.emit_inst(InstKind::Coinbase, Some(MirType::Address))
@@ -1291,11 +1080,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Address, Some(MirType::Address))
     }
 
-    /// Emits a balance instruction.
-    pub(crate) fn balance(&mut self, addr: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Balance(addr), Some(MirType::uint256()))
-    }
-
     /// Emits a selfbalance instruction.
     pub(crate) fn selfbalance(&mut self) -> ValueId {
         self.emit_inst(InstKind::SelfBalance, Some(MirType::uint256()))
@@ -1306,38 +1090,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Gas, Some(MirType::uint256()))
     }
 
-    /// Emits a keccak256 instruction.
-    pub(crate) fn keccak256(&mut self, offset: ValueId, size: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Keccak256(offset, size), Some(MirType::bytes32()))
-    }
-
-    /// Hashes a `memorybytes` object's contents. Expanded by
-    /// `lower-memory-objects` into the physical length load, data pointer, and
-    /// `keccak256`.
-    pub(crate) fn keccak256_bytes(&mut self, object: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Keccak256Bytes(object), Some(MirType::bytes32()))
-    }
-
-    /// Emits a fixed-width mapping-slot hash builtin.
-    pub(crate) fn mapping_slot(&mut self, key: ValueId, slot: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MappingSlot(key, slot), Some(MirType::bytes32()))
-    }
-
-    /// Emits a memory-backed dynamic mapping-slot hash builtin.
-    pub(crate) fn mapping_slot_memory(&mut self, key: ValueId, slot: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MappingSlotMemory(key, slot), Some(MirType::bytes32()))
-    }
-
-    /// Emits a calldata-backed dynamic mapping-slot hash builtin.
-    pub(crate) fn mapping_slot_calldata(&mut self, key: ValueId, slot: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
-    }
-
-    /// Resolves the first data slot of a dynamic storage array.
-    pub(crate) fn storage_array_data_slot(&mut self, slot: ValueId) -> ValueId {
-        self.emit_inst(InstKind::StorageArrayDataSlot(slot), Some(MirType::bytes32()))
-    }
-
     /// Emits a basefee instruction.
     pub(crate) fn basefee(&mut self) -> ValueId {
         self.emit_inst(InstKind::BaseFee, Some(MirType::uint256()))
@@ -1346,11 +1098,6 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a blobbasefee instruction.
     pub(crate) fn blobbasefee(&mut self) -> ValueId {
         self.emit_inst(InstKind::BlobBaseFee, Some(MirType::uint256()))
-    }
-
-    /// Emits a blobhash instruction.
-    pub(crate) fn blobhash(&mut self, index: ValueId) -> ValueId {
-        self.emit_inst(InstKind::BlobHash(index), Some(MirType::bytes32()))
     }
 
     /// Emits a call instruction (external call).
@@ -1421,11 +1168,6 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
-    /// Emits a create instruction (deploy a contract).
-    pub(crate) fn create(&mut self, value: ValueId, offset: ValueId, size: ValueId) -> ValueId {
-        self.emit_inst(InstKind::Create(value, offset, size), Some(MirType::Address))
-    }
-
     /// Emits a create2 instruction (deploy a contract with salt).
     pub(crate) fn create2(
         &mut self,
@@ -1435,11 +1177,6 @@ impl<'a> FunctionBuilder<'a> {
         salt: ValueId,
     ) -> ValueId {
         self.emit_inst(InstKind::Create2(value, offset, size, salt), Some(MirType::Address))
-    }
-
-    /// Emits a codecopy instruction.
-    pub(crate) fn codecopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
-        self.emit_void_inst(InstKind::CodeCopy(dest, offset, size))
     }
 
     /// Emits a log0 instruction (event with no topics).

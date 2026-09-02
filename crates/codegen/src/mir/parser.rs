@@ -184,8 +184,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(MangledSymbol::disambiguated(symbol, disambiguator))
     }
 
-    // ----- module / function parsing -----
-
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
         self.parser.expect(TokenKind::At)?;
@@ -629,7 +627,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(builder.imm_bool(false));
         }
         if ident == sym::err {
-            // Reconstructing an already-reported error state from text: there
             // is no live diagnostic to propagate here.
             let guar = solar_interface::diagnostics::ErrorGuaranteed::new_unchecked();
             return Ok(builder.error_value(guar));
@@ -637,9 +634,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(rest) = ident.as_str().strip_prefix("arg") {
             let idx: usize =
                 rest.parse().map_err(|_| self.parser.error(format!("invalid arg `{ident}`")))?;
-            // ABI wrappers reference `argN` with an empty parameter list:
-            // those denote calldata head words. Allocate them on demand so
-            // printed `abi`-phase modules round-trip. A function that does
             // declare parameters keeps strict bounds checking.
             if idx >= self.arg_values.len() && builder.func().params.is_empty() {
                 for _ in self.arg_values.len()..=idx {
@@ -1404,81 +1398,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         mnemonic_span: Span,
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, (InstKind, Option<MirType>)> {
-        macro_rules! operands {
-            () => {};
-            ($first:ident $(, $rest:ident)*) => {
-                let $first = self.parse_value(builder)?;
-                $(
-                    self.parser.expect(TokenKind::Comma)?;
-                    let $rest = self.parse_value(builder)?;
-                )*
-            };
-        }
-        // Operations built from value operands alone take their result type from the schema.
-        macro_rules! inst {
-            ($kind:ident($($operand:ident),*)) => {{
-                operands!($($operand),*);
-                schema_typed(InstKind::$kind($($operand),*))
-            }};
-        }
-        macro_rules! unit {
-            ($kind:ident) => {
-                schema_typed(InstKind::$kind)
-            };
-        }
-        macro_rules! struct_inst {
-            ($kind:ident { $($operand:ident),* }) => {{
-                operands!($($operand),*);
-                schema_typed(InstKind::$kind { $($operand),* })
-            }};
-        }
-
         let parsed = match mnemonic {
-            // Arithmetic and bitwise operations.
-            kw::Add => inst!(Add(a, b)),
-            kw::Sub => inst!(Sub(a, b)),
-            kw::Mul => inst!(Mul(a, b)),
-            kw::Div => inst!(Div(a, b)),
-            kw::Sdiv => inst!(SDiv(a, b)),
-            kw::Mod => inst!(Mod(a, b)),
-            kw::Smod => inst!(SMod(a, b)),
-            kw::Exp => inst!(Exp(a, b)),
-            kw::Addmod => inst!(AddMod(a, b, c)),
-            kw::Mulmod => inst!(MulMod(a, b, c)),
-            kw::And => inst!(And(a, b)),
-            kw::Or => inst!(Or(a, b)),
-            kw::Xor => inst!(Xor(a, b)),
-            kw::Not => inst!(Not(a)),
-            kw::Clz => inst!(Clz(a)),
-            kw::Shl => inst!(Shl(a, b)),
-            kw::Shr => inst!(Shr(a, b)),
-            kw::Sar => inst!(Sar(a, b)),
-            kw::Byte => inst!(Byte(a, b)),
-            kw::Signextend => inst!(SignExtend(a, b)),
-
-            // Comparisons.
-            kw::Lt => inst!(Lt(a, b)),
-            kw::Gt => inst!(Gt(a, b)),
-            kw::Slt => inst!(SLt(a, b)),
-            kw::Sgt => inst!(SGt(a, b)),
-            kw::Eq => inst!(Eq(a, b)),
-            kw::Iszero => inst!(IsZero(a)),
-
-            // Memory and storage.
-            kw::Mload => inst!(MLoad(a)),
-            kw::Mstore => inst!(MStore(a, b)),
-            kw::Mstore8 => inst!(MStore8(a, b)),
-            sym::memory_zero => inst!(MemoryZero(a, b)),
-            kw::Msize => unit!(MSize),
-            kw::Mcopy => inst!(MCopy(a, b, c)),
-            kw::Sload => inst!(SLoad(a)),
-            kw::Sstore => inst!(SStore(a, b)),
-            kw::Tload => inst!(TLoad(a)),
-            kw::Tstore => inst!(TStore(a, b)),
-
             // Free-memory pointer and allocation.
-            sym::fmp => unit!(Fmp),
-            sym::set_fmp => inst!(SetFmp(a)),
             sym::alloc => {
                 let name = self.parser.parse_ident()?;
                 let kind = match name {
@@ -1819,11 +1740,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ClearStorage { storage, layout }, None)
             }
 
-            // Calldata, code, and return data.
-            kw::Calldataload => inst!(CalldataLoad(a)),
-            kw::Calldatasize => unit!(CalldataSize),
-            kw::Calldatacopy => inst!(CalldataCopy(a, b, c)),
-
             // Slices.
             sym::make_memory_slice | sym::make_calldata_slice | sym::make_returndata_slice => {
                 let ptr = self.parse_value(builder)?;
@@ -1838,10 +1754,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 };
                 (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
             }
-            sym::slice_ptr => inst!(SlicePtr(a)),
-            sym::slice_len => inst!(SliceLen(a)),
-            sym::constructor_args_base => unit!(ConstructorArgsBase),
-            sym::constructor_args_end => unit!(ConstructorArgsEnd),
 
             sym::data_copy => {
                 let data = self.parse_data_ref()?;
@@ -1851,8 +1763,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let size = self.parse_value(builder)?;
                 (InstKind::DataCopy(data, dest, size), None)
             }
-            kw::Codesize => unit!(CodeSize),
-            kw::Codecopy => inst!(CodeCopy(a, b, c)),
             sym::storeimmutable => {
                 let (id, _) = self.parse_immutable_ref()?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1863,46 +1773,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let (id, ty) = self.parse_immutable_ref()?;
                 (InstKind::LoadImmutable(id), Some(ty))
             }
-            kw::Extcodesize => inst!(ExtCodeSize(a)),
-            kw::Extcodecopy => inst!(ExtCodeCopy(a, b, c, d)),
-            kw::Extcodehash => inst!(ExtCodeHash(a)),
-            kw::Returndatasize => unit!(ReturnDataSize),
-            kw::Returndatacopy => inst!(ReturnDataCopy(a, b, c)),
-
-            // Environment.
-            kw::Caller => unit!(Caller),
-            kw::Callvalue => unit!(CallValue),
-            kw::Origin => unit!(Origin),
-            kw::Gasprice => unit!(GasPrice),
-            kw::Coinbase => unit!(Coinbase),
-            kw::Timestamp => unit!(Timestamp),
-            kw::Number => unit!(BlockNumber),
-            kw::Prevrandao => unit!(PrevRandao),
-            kw::Gaslimit => unit!(GasLimit),
-            kw::Slotnum => unit!(SlotNum),
-            kw::Chainid => unit!(ChainId),
-            kw::Address => unit!(Address),
-            kw::Selfbalance => unit!(SelfBalance),
-            kw::Gas => unit!(Gas),
-            kw::Basefee => unit!(BaseFee),
-            kw::Blobbasefee => unit!(BlobBaseFee),
-            kw::Blockhash => inst!(BlockHash(a)),
-            kw::Balance => inst!(Balance(a)),
-            kw::Blobhash => inst!(BlobHash(a)),
 
             // Hashing.
-            kw::Keccak256 => inst!(Keccak256(a, b)),
-            sym::keccak256_bytes => inst!(Keccak256Bytes(a)),
-            sym::mapping_slot => inst!(MappingSlot(key, slot)),
-            sym::mapping_slot_memory => {
-                inst!(MappingSlotMemory(key, slot))
-            }
-            sym::mapping_slot_calldata => {
-                inst!(MappingSlotCalldata(key, slot))
-            }
-            sym::storage_array_data_slot => {
-                inst!(StorageArrayDataSlot(slot))
-            }
             sym::storage_array_element_slot => {
                 let slot = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1918,38 +1790,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
 
             // Calls and creation.
-            kw::Call => struct_inst!(Call {
-                gas,
-                addr,
-                value,
-                args_offset,
-                args_size,
-                ret_offset,
-                ret_size
-            }),
-            kw::Callcode => struct_inst!(CallCode {
-                gas,
-                addr,
-                value,
-                args_offset,
-                args_size,
-                ret_offset,
-                ret_size
-            }),
-            kw::Staticcall => {
-                struct_inst!(StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size })
-            }
-            kw::Delegatecall => struct_inst!(DelegateCall {
-                gas,
-                addr,
-                args_offset,
-                args_size,
-                ret_offset,
-                ret_size
-            }),
-            kw::Extcall => struct_inst!(ExtCall { addr, args_offset, args_size, value }),
-            kw::Extdelegatecall => struct_inst!(ExtDelegateCall { addr, args_offset, args_size }),
-            kw::Extstaticcall => struct_inst!(ExtStaticCall { addr, args_offset, args_size }),
             sym::internal_call => {
                 let function = self.parse_function_id()?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1983,16 +1823,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let value = self.parse_value(builder)?;
                 (InstKind::FrameStore { offset, mode, kind, value }, None)
             }
-            kw::Create => inst!(Create(a, b, c)),
-            kw::Create2 => inst!(Create2(a, b, c, d)),
 
             // Logs and SSA operations.
-            kw::Log0 => inst!(Log0(a, b)),
-            kw::Log1 => inst!(Log1(a, b, c)),
-            kw::Log2 => inst!(Log2(a, b, c, d)),
-            kw::Log3 => inst!(Log3(a, b, c, d, e)),
-            kw::Log4 => inst!(Log4(a, b, c, d, e, f)),
-            sym::select => inst!(Select(condition, then_value, else_value)),
             sym::phi => {
                 let mut incoming = Vec::new();
                 loop {
@@ -2014,11 +1846,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::Phi(incoming), Some(ty))
             }
 
-            _ => {
-                return Err(self
-                    .parser
-                    .error_at(mnemonic_span, format!("unknown instruction `{mnemonic}`")));
-            }
+            // Operations built from value operands alone come from the schema.
+            _ => match InstKind::operand_only(mnemonic.as_str()) {
+                Some((arity, build)) => {
+                    let mut operands = SmallVec::<[ValueId; 8]>::new();
+                    for index in 0..arity {
+                        if index > 0 {
+                            self.parser.expect(TokenKind::Comma)?;
+                        }
+                        operands.push(self.parse_value(builder)?);
+                    }
+                    schema_typed(build(&operands))
+                }
+                None => {
+                    return Err(self
+                        .parser
+                        .error_at(mnemonic_span, format!("unknown instruction `{mnemonic}`")));
+                }
+            },
         };
         Ok(parsed)
     }
