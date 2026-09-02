@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import { insert, select } from './lib/clickhouse.mjs'
 
 const exec = promisify(execFile)
+const maxBuffer = 16 * 1024 * 1024
 
 function args() {
   const values = Object.create(null)
@@ -34,18 +35,22 @@ async function runs(repository, runId, limit) {
     ])
     return [JSON.parse(stdout)]
   }
-  const { stdout } = await exec('gh', [
-    'run',
-    'list',
-    '--repo',
-    repository,
-    '--workflow',
-    'Benchmark',
-    '--limit',
-    limit,
-    '--json',
-    'databaseId,headSha,headBranch,createdAt,conclusion,name,displayTitle',
-  ])
+  const { stdout } = await exec(
+    'gh',
+    [
+      'run',
+      'list',
+      '--repo',
+      repository,
+      '--workflow',
+      'Benchmark',
+      '--limit',
+      limit,
+      '--json',
+      'databaseId,headSha,headBranch,createdAt,conclusion,name,displayTitle',
+    ],
+    { maxBuffer },
+  )
   return JSON.parse(stdout)
 }
 
