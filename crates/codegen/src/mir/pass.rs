@@ -53,6 +53,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &cse::FmpCse,
     &pre::Pre,
     &gvn::Gvn,
+    &egraph::Egraph,
     &storage_load_cse::StorageLoadCse,
     &storage_dse::StorageDse,
     &load_pre::LoadPre::All,

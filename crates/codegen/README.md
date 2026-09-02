@@ -26,7 +26,9 @@ opcode table in `src/backend/evm/op.rs` generates `isle/evm_prelude.isle`
 the same way. Rule sets such as `isle/inst_simplify.isle` and
 `isle/peephole.isle` are compiled to Rust by `build.rs` with
 `cranelift-isle`; the extractors and constructors they call are implemented
-next to the pass that runs them.
+next to the pass that runs them. The `egraph` pass runs the MIR rules inside
+an acyclic e-graph with dominator-scoped value numbering and cost-based
+extraction.
 
 ### Key Types
 
