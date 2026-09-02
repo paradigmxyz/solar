@@ -115,7 +115,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 return Some(vec![access.slot]);
             }
-            return Some(vec![self.lower_typed_expr(expr, ty)?]);
+            let value = self.lower_typed_expr(expr, ty)?;
+            let value = if ty.is_ref_at(DataLocation::Memory) {
+                self.materialize_memory_argument(ty, value, expr.span)?
+            } else {
+                value
+            };
+            return Some(vec![value]);
         }
         if self.returns.len() > 1
             && let ExprKind::Tuple(values) = &expr.peel_parens().kind
@@ -134,7 +140,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         Some(access.slot)
                     } else {
-                        self.lower_typed_expr(value, ty)
+                        let span = value.span;
+                        let value = self.lower_typed_expr(value, ty)?;
+                        if ty.is_ref_at(DataLocation::Memory) {
+                            self.materialize_memory_argument(ty, value, span)
+                        } else {
+                            Some(value)
+                        }
                     }
                 })
                 .collect();

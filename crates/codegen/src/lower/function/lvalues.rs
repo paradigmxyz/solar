@@ -251,12 +251,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
     ) -> Option<()> {
         if self.in_inline_assembly {
+            let ty = self.cx.gcx.type_of_item(id.into());
             if self.builder.func().value_slice_location(value) != Some(SliceLocation::Calldata)
-                && let Some(previous) = self.values.get(&id).copied()
-                && self.builder.func().value_slice_location(previous)
-                    == Some(SliceLocation::Calldata)
+                && ty.is_ref_at(DataLocation::Calldata)
             {
-                let length = self.builder.slice_len(previous);
+                // slice = calldata(value, previous.length | static.length | 0)
+                let length = match self.values.get(&id).copied() {
+                    Some(previous)
+                        if self.builder.func().value_slice_location(previous)
+                            == Some(SliceLocation::Calldata) =>
+                    {
+                        self.builder.slice_len(previous)
+                    }
+                    _ => match ty.peel_refs().kind {
+                        TyKind::Array(_, length) => {
+                            self.builder.imm(u64::try_from(length).unwrap_or(0))
+                        }
+                        _ => self.builder.imm(U256::ZERO),
+                    },
+                };
                 value = self.builder.make_slice(value, length, SliceLocation::Calldata);
             }
             self.dirty_values.insert(value);

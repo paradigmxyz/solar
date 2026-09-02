@@ -395,12 +395,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         match ty.peel_refs().kind {
             _ if self.is_dynamic_bytes_type(ty.peel_refs()) => {
-                // if data is clean { validate_calldata_bytes(data) }
-                // object = materialize_calldata_bytes(data)
-                if !self.dirty_values.contains(&value) {
+                // if data is dirty {
+                //     object = bytes(data.len)
+                //     validate_calldata_bytes(data)
+                //     copy(data, object.data)
+                // } else {
+                //     validate_calldata_bytes(data)
+                //     object = materialize_calldata_bytes(data)
+                // }
+                if self.dirty_values.contains(&value) {
+                    let length = self.builder.slice_len(value);
+                    let object =
+                        self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
                     self.validate_calldata_bytes_slice(value);
+                    self.builder.memory_object_copy_from_slice(
+                        object,
+                        MemoryObjectKind::Bytes,
+                        value,
+                    );
+                    Some(object)
+                } else {
+                    self.validate_calldata_bytes_slice(value);
+                    Some(self.materialize_memory_slice(value))
                 }
-                Some(self.materialize_memory_slice(value))
             }
             TyKind::DynArray(_) | TyKind::Slice(_) => {
                 // object = materialize_calldata_array(data)
