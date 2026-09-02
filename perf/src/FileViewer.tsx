@@ -34,19 +34,27 @@ function fileCounts(oldContents: string | null, newContents: string | null, file
 export function FileViewer({ base, head, benchmark, theme }: Props) {
   const params = new URLSearchParams(window.location.search)
   const [runs, setRuns] = useState<[RunDocument, RunDocument] | null>(null)
+  const [activeBenchmark, setActiveBenchmark] = useState(benchmark)
   const [against, setAgainst] = useState<'base' | 'solc'>(params.get('against') === 'solc' ? 'solc' : 'base')
   const [selected, setSelected] = useState(params.get('file') ?? '')
   const [counts, setCounts] = useState<Record<string, Counts>>({})
 
   useEffect(() => { Promise.all([loadRun(base), loadRun(head)]).then(setRuns).catch(() => setRuns(null)) }, [base, head])
-  const files = useMemo(() => runs ? runs[1].artifacts[benchmark] ?? runs[0].artifacts[benchmark] ?? [] : [], [benchmark, runs])
+  useEffect(() => { setActiveBenchmark(benchmark) }, [benchmark])
+  const benchmarks = useMemo(() => {
+    if (!runs) return []
+    const available = new Set([...Object.keys(runs[1].artifacts), ...Object.keys(runs[0].artifacts)])
+    const ordered = [...runs[1].results, ...runs[0].results].map((result) => result.test_id)
+    return [...new Set([...ordered, ...available].filter((name) => available.has(name)))]
+  }, [runs])
+  const files = useMemo(() => runs ? runs[1].artifacts[activeBenchmark] ?? runs[0].artifacts[activeBenchmark] ?? [] : [], [activeBenchmark, runs])
   const comparisonCommit = against === 'base' ? base : head
   const comparisonCompiler = against === 'base' ? 'solar' : 'solc'
   const selectedFile = files.find((file) => file.path === selected) ?? files[0]
   const leftCompiler = comparisonCompiler === 'solc' ? 'solc' : 'solar'
 
   useEffect(() => {
-    if (files.length && !selected) setSelected(files[0].path)
+    if (files.length && !files.some((file) => file.path === selected)) setSelected(files[0].path)
   }, [files, selected])
 
   useEffect(() => {
@@ -59,8 +67,8 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
     Promise.all(files.map(async (file) => {
       try {
         return [file.path, fileCounts(
-          await loadArtifact(comparisonCommit, benchmark, comparisonCompiler, file.storagePath),
-          await loadArtifact(head, benchmark, 'solar', file.storagePath),
+          await loadArtifact(comparisonCommit, activeBenchmark, comparisonCompiler, file.storagePath),
+          await loadArtifact(head, activeBenchmark, 'solar', file.storagePath),
           file,
         )] as const
       } catch {
@@ -70,12 +78,20 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
       if (!cancelled) setCounts(Object.fromEntries(entries))
     })
     return () => { cancelled = true }
-  }, [benchmark, comparisonCommit, comparisonCompiler, files, head])
+  }, [activeBenchmark, comparisonCommit, comparisonCompiler, files, head])
 
   const selectFile = (path: string) => {
     setSelected(path)
     const url = new URL(window.location.href)
     url.searchParams.set('file', path)
+    history.replaceState(null, '', url)
+  }
+  const selectBenchmark = (value: string) => {
+    setActiveBenchmark(value)
+    setSelected('')
+    const url = new URL(window.location.href)
+    url.searchParams.set('benchmark', value)
+    url.searchParams.delete('file')
     history.replaceState(null, '', url)
   }
   const setComparison = (value: 'base' | 'solc') => {
@@ -84,5 +100,5 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
     url.searchParams.set('against', value)
     history.replaceState(null, '', url)
   }
-  return <main className="file-viewer">{!runs ? <p className="empty">Loading files…</p> : !files.length ? <p className="empty">No files were published for this benchmark run.</p> : <div className="file-viewer-body"><aside><div className="file-selector-head"><span>{benchmark}</span><div className="toggle"><button className={against === 'base' ? 'active' : ''} onClick={() => setComparison('base')}>vs base</button><button className={against === 'solc' ? 'active' : ''} onClick={() => setComparison('solc')}>vs solc</button></div></div>{files.map((file) => { const count = counts[file.path]; return <button key={file.path} className={selectedFile?.path === file.path ? 'active' : ''} onClick={() => selectFile(file.path)}><span>{file.path}</span><small><i className="removed">−{count?.deletions ?? 0}</i><i className="added">+{count?.additions ?? 0}</i></small></button> })}</aside><div className="file-diff">{selectedFile && <><div className="diff-sides"><span>Left: {leftCompiler} · {comparisonCommit.slice(0, 8)}</span><span>Right: solar · {head.slice(0, 8)}</span></div><Suspense fallback={<p className="empty">Loading renderer…</p>}><ArtifactDiff before={{ commit: comparisonCommit, benchmark, compiler: comparisonCompiler }} after={{ commit: head, benchmark, compiler: 'solar' }} path={selectedFile.path} storagePath={selectedFile.storagePath} language={selectedFile.language} theme={theme} /></Suspense></>}</div></div>}</main>
+  return <main className="file-viewer">{!runs ? <p className="empty">Loading files…</p> : !files.length ? <p className="empty">No files were published for this benchmark run.</p> : <div className="file-viewer-body"><aside><div className="file-selector-head"><select aria-label="Benchmark" value={activeBenchmark} onChange={(event) => selectBenchmark(event.target.value)}>{benchmarks.map((name) => <option key={name} value={name}>{name}</option>)}</select><div className="toggle"><button className={against === 'base' ? 'active' : ''} onClick={() => setComparison('base')}>vs base</button><button className={against === 'solc' ? 'active' : ''} onClick={() => setComparison('solc')}>vs solc</button></div></div>{files.map((file) => { const count = counts[file.path]; return <button key={file.path} className={selectedFile?.path === file.path ? 'active' : ''} onClick={() => selectFile(file.path)}><span>{file.path}</span><small><i className="removed">−{count?.deletions ?? 0}</i><i className="added">+{count?.additions ?? 0}</i></small></button> })}</aside><div className="file-diff">{selectedFile && <><div className="diff-sides"><span>Left: {leftCompiler} · {comparisonCommit.slice(0, 8)}</span><span>Right: solar · {head.slice(0, 8)}</span></div><Suspense fallback={<p className="empty">Loading renderer…</p>}><ArtifactDiff before={{ commit: comparisonCommit, benchmark: activeBenchmark, compiler: comparisonCompiler }} after={{ commit: head, benchmark: activeBenchmark, compiler: 'solar' }} path={selectedFile.path} storagePath={selectedFile.storagePath} language={selectedFile.language} theme={theme} /></Suspense></>}</div></div>}</main>
 }
