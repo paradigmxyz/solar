@@ -64,6 +64,71 @@ ARTIFACT_DUMP_KINDS = (
     "disasm-runtime",
 )
 
+EVM_OPCODES = {
+    0x00: "STOP", 0x01: "ADD", 0x02: "MUL", 0x03: "SUB", 0x04: "DIV", 0x05: "SDIV",
+    0x06: "MOD", 0x07: "SMOD", 0x08: "ADDMOD", 0x09: "MULMOD", 0x0A: "EXP", 0x0B: "SIGNEXTEND",
+    0x10: "LT", 0x11: "GT", 0x12: "SLT", 0x13: "SGT", 0x14: "EQ", 0x15: "ISZERO",
+    0x16: "AND", 0x17: "OR", 0x18: "XOR", 0x19: "NOT", 0x1A: "BYTE", 0x1B: "SHL", 0x1C: "SHR", 0x1D: "SAR",
+    0x20: "KECCAK256",
+    0x30: "ADDRESS", 0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE", 0x35: "CALLDATALOAD",
+    0x36: "CALLDATASIZE", 0x37: "CALLDATACOPY", 0x38: "CODESIZE", 0x39: "CODECOPY", 0x3A: "GASPRICE",
+    0x3B: "EXTCODESIZE", 0x3C: "EXTCODECOPY", 0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY", 0x3F: "EXTCODEHASH",
+    0x40: "BLOCKHASH", 0x41: "COINBASE", 0x42: "TIMESTAMP", 0x43: "NUMBER", 0x44: "PREVRANDAO", 0x45: "GASLIMIT",
+    0x46: "CHAINID", 0x47: "SELFBALANCE", 0x48: "BASEFEE", 0x49: "BLOBHASH", 0x4A: "BLOBBASEFEE",
+    0x50: "POP", 0x51: "MLOAD", 0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
+    0x56: "JUMP", 0x57: "JUMPI", 0x58: "PC", 0x59: "MSIZE", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5C: "TLOAD", 0x5D: "TSTORE", 0x5E: "MCOPY", 0x5F: "PUSH0",
+    0xF0: "CREATE", 0xF1: "CALL", 0xF2: "CALLCODE", 0xF3: "RETURN", 0xF4: "DELEGATECALL", 0xF5: "CREATE2", 0xFA: "STATICCALL", 0xFD: "REVERT", 0xFE: "INVALID", 0xFF: "SELFDESTRUCT",
+}
+
+
+def disassemble_evm(bytecode: bytes) -> str:
+    """Format EVM bytecode like Solar's disassembly dump."""
+    instructions: list[tuple[int, str, bytes]] = []
+    offset = 0
+    while offset < len(bytecode):
+        opcode = bytecode[offset]
+        width = opcode - 0x5F if 0x60 <= opcode <= 0x7F else 0
+        data = bytecode[offset + 1 : offset + 1 + width]
+        if width:
+            name = f"PUSH{width}"
+        elif 0x80 <= opcode <= 0x8F:
+            name = f"DUP{opcode - 0x7F}"
+        elif 0x90 <= opcode <= 0x9F:
+            name = f"SWAP{opcode - 0x8F}"
+        elif 0xA0 <= opcode <= 0xA4:
+            name = f"LOG{opcode - 0xA0}"
+        else:
+            name = EVM_OPCODES.get(opcode, f"UNKNOWN 0x{opcode:02x}")
+        instructions.append((offset, name, data))
+        offset += 1 + width
+
+    jumpdests = {offset for offset, name, _ in instructions if name == "JUMPDEST"}
+    targets = set()
+    for index, (_, name, _) in enumerate(instructions):
+        if name in {"JUMP", "JUMPI"} and index:
+            _, previous, data = instructions[index - 1]
+            if previous.startswith("PUSH") and data:
+                target = int.from_bytes(data, "big")
+                if target in jumpdests:
+                    targets.add(target)
+    labels = {offset: index for index, offset in enumerate(sorted(targets))}
+
+    output = []
+    for index, (offset, name, data) in enumerate(instructions):
+        if name == "JUMPDEST" and offset in labels:
+            output.append(f"; bb{labels[offset]}")
+        line = name
+        if data:
+            line += f" 0x{data.hex()}"
+        if name.startswith("PUSH") and index + 1 < len(instructions):
+            if instructions[index + 1][1] in {"JUMP", "JUMPI"}:
+                target = int.from_bytes(data, "big") if data else 0
+                line += f" ; bb{labels[target]}" if target in labels else " ; unknown"
+        elif name in {"JUMP", "JUMPI"} and (not index or not instructions[index - 1][1].startswith("PUSH")):
+            line += " ; unknown"
+        output.append(line)
+    return "\n".join(output) + "\n"
+
 RESET = "\033[0m"
 YELLOW = "\033[33m"
 RED = "\033[31m"
@@ -257,9 +322,7 @@ def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> 
     outputs = [
         "abi",
         "evm.bytecode.object",
-        "evm.bytecode.opcodes",
         "evm.deployedBytecode.object",
-        "evm.deployedBytecode.opcodes",
     ]
     if kind == "solc":
         outputs.append("irOptimized")
@@ -358,12 +421,24 @@ def write_artifacts(
     except json.JSONDecodeError as error:
         return f"invalid artifact compiler output: {error}"
     evm = contract.get("evm") or {}
+    bytecodes: dict[str, bytes] = {}
     for prefix, key in (("creation", "bytecode"), ("runtime", "deployedBytecode")):
         bytecode = evm.get(key) or {}
         if object_hex := bytecode.get("object"):
+            try:
+                bytes_ = bytes.fromhex(str(object_hex).removeprefix("0x"))
+            except ValueError as error:
+                return f"invalid {prefix} bytecode: {error}"
+            bytecodes[prefix] = bytes_
             (output_dir / f"{prefix}.hex").write_text(str(object_hex) + "\n")
-        if spec.kind == "solc" and (opcodes := bytecode.get("opcodes")):
-            (output_dir / f"{prefix}.disasm").write_text(str(opcodes) + "\n")
+    if spec.kind == "solc":
+        runtime = bytecodes.get("runtime", b"")
+        creation = bytecodes.get("creation", b"")
+        if creation:
+            deployment = creation.removesuffix(runtime) if runtime else creation
+            (output_dir / "creation.disasm").write_text(disassemble_evm(deployment))
+        if runtime:
+            (output_dir / "runtime.disasm").write_text(disassemble_evm(runtime))
     if spec.kind == "solc" and (ir := contract.get("irOptimized")):
         (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
     return ""

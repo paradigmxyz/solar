@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { parseDiffFromFile } from '@pierre/diffs'
+import { formatArtifactContents } from './artifactFormat'
 import { loadArtifact, loadRun } from './data'
 import { artifactLanguage } from './highlight'
 import type { ArtifactFile, RunDocument, Theme } from './types'
@@ -18,18 +19,9 @@ interface Counts {
   deletions: number
 }
 
-function formatContents(contents: string | null, language: string) {
-  if (contents === null || language !== 'json') return contents
-  try {
-    return `${JSON.stringify(JSON.parse(contents), null, 2)}\n`
-  } catch {
-    return contents
-  }
-}
-
 function fileCounts(oldContents: string | null, newContents: string | null, file: ArtifactFile): Counts {
-  oldContents = formatContents(oldContents, file.language)
-  newContents = formatContents(newContents, file.language)
+  oldContents = formatArtifactContents(oldContents, file.path, file.language)
+  newContents = formatArtifactContents(newContents, file.path, file.language)
   if (oldContents === null && newContents === null) return { additions: 0, deletions: 0 }
   const lang = artifactLanguage(file.path, file.language)
   const diff = parseDiffFromFile(
@@ -51,6 +43,7 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
   const comparisonCommit = against === 'base' ? base : head
   const comparisonCompiler = against === 'base' ? 'solar' : 'solc'
   const selectedFile = files.find((file) => file.path === selected) ?? files[0]
+  const leftCompiler = comparisonCompiler === 'solc' ? 'solc' : 'solar'
 
   useEffect(() => {
     if (files.length && !selected) setSelected(files[0].path)
@@ -91,5 +84,5 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
     url.searchParams.set('against', value)
     history.replaceState(null, '', url)
   }
-  return <main className="file-viewer">{!runs ? <p className="empty">Loading files…</p> : !files.length ? <p className="empty">No files were published for this benchmark run.</p> : <div className="file-viewer-body"><aside><div className="file-selector-head"><span>{benchmark}</span><div className="toggle"><button className={against === 'base' ? 'active' : ''} onClick={() => setComparison('base')}>vs base</button><button className={against === 'solc' ? 'active' : ''} onClick={() => setComparison('solc')}>vs solc</button></div></div>{files.map((file) => { const count = counts[file.path]; return <button key={file.path} className={selectedFile?.path === file.path ? 'active' : ''} onClick={() => selectFile(file.path)}><span>{file.path}</span><small><i className="removed">−{count?.deletions ?? 0}</i><i className="added">+{count?.additions ?? 0}</i></small></button> })}</aside><div className="file-diff">{selectedFile && <Suspense fallback={<p className="empty">Loading renderer…</p>}><ArtifactDiff before={{ commit: comparisonCommit, benchmark, compiler: comparisonCompiler }} after={{ commit: head, benchmark, compiler: 'solar' }} path={selectedFile.path} storagePath={selectedFile.storagePath} language={selectedFile.language} theme={theme} /></Suspense>}</div></div>}</main>
+  return <main className="file-viewer">{!runs ? <p className="empty">Loading files…</p> : !files.length ? <p className="empty">No files were published for this benchmark run.</p> : <div className="file-viewer-body"><aside><div className="file-selector-head"><span>{benchmark}</span><div className="toggle"><button className={against === 'base' ? 'active' : ''} onClick={() => setComparison('base')}>vs base</button><button className={against === 'solc' ? 'active' : ''} onClick={() => setComparison('solc')}>vs solc</button></div></div>{files.map((file) => { const count = counts[file.path]; return <button key={file.path} className={selectedFile?.path === file.path ? 'active' : ''} onClick={() => selectFile(file.path)}><span>{file.path}</span><small><i className="removed">−{count?.deletions ?? 0}</i><i className="added">+{count?.additions ?? 0}</i></small></button> })}</aside><div className="file-diff">{selectedFile && <><div className="diff-sides"><span>Left: {leftCompiler} · {comparisonCommit.slice(0, 8)}</span><span>Right: solar · {head.slice(0, 8)}</span></div><Suspense fallback={<p className="empty">Loading renderer…</p>}><ArtifactDiff before={{ commit: comparisonCommit, benchmark, compiler: comparisonCompiler }} after={{ commit: head, benchmark, compiler: 'solar' }} path={selectedFile.path} storagePath={selectedFile.storagePath} language={selectedFile.language} theme={theme} /></Suspense></>}</div></div>}</main>
 }

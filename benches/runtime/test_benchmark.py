@@ -357,9 +357,16 @@ class ArtifactTests(unittest.TestCase):
             test_case.contract_name
         ]
 
-        self.assertIn("evm.deployedBytecode.opcodes", solar_outputs)
+        self.assertNotIn("evm.deployedBytecode.opcodes", solar_outputs)
+        self.assertNotIn("evm.deployedBytecode.opcodes", solc_outputs)
         self.assertNotIn("irOptimized", solar_outputs)
         self.assertIn("irOptimized", solc_outputs)
+
+    def test_disassemble_evm_matches_solar_dump_style(self) -> None:
+        self.assertEqual(
+            benchmark.disassemble_evm(bytes.fromhex("6003565b00")),
+            "PUSH1 0x03 ; bb0\nJUMP\n; bb0\nJUMPDEST\nSTOP\n",
+        )
 
     def test_solar_dump_is_split_from_standard_json(self) -> None:
         contract = "A.sol:A"

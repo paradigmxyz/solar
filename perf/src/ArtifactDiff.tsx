@@ -1,5 +1,6 @@
 import { File, MultiFileDiff } from '@pierre/diffs/react'
 import { useEffect, useState } from 'react'
+import { formatArtifactContents } from './artifactFormat'
 import { loadArtifact } from './data'
 import { artifactLanguage } from './highlight'
 import type { Theme } from './types'
@@ -13,16 +14,6 @@ interface Props {
   theme: Theme
 }
 
-function formatContents(contents: string | null, language: string) {
-  if (contents === null) return null
-  if (language !== 'json') return contents
-  try {
-    return `${JSON.stringify(JSON.parse(contents), null, 2)}\n`
-  } catch {
-    return contents
-  }
-}
-
 export default function ArtifactDiff({ before, after, path, storagePath, language, theme }: Props) {
   const [contents, setContents] = useState<[string | null, string | null] | null>(null)
   const [error, setError] = useState('')
@@ -34,10 +25,10 @@ export default function ArtifactDiff({ before, after, path, storagePath, languag
       loadArtifact(before.commit, before.benchmark, before.compiler, storagePath),
       loadArtifact(after.commit, after.benchmark, after.compiler, storagePath),
     ]).then(([beforeContents, afterContents]) => setContents([
-      formatContents(beforeContents, language),
-      formatContents(afterContents, language),
+      formatArtifactContents(beforeContents, path, language),
+      formatArtifactContents(afterContents, path, language),
     ])).catch((value: Error) => setError(value.message))
-  }, [after.benchmark, after.commit, after.compiler, before.benchmark, before.commit, before.compiler, language, storagePath])
+  }, [after.benchmark, after.commit, after.compiler, before.benchmark, before.commit, before.compiler, language, path, storagePath])
   if (error) return <p className="error">Could not load artifact: {error}</p>
   if (!contents) return <p className="empty">Loading diff…</p>
   const lang = artifactLanguage(path, language)
