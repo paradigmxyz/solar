@@ -117,7 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(arg) = args.exprs().next() else {
                 return self.cx.report_unsupported(expr.span, "dynamic allocation");
             };
-            let len = self.lower_expr(arg)?;
+            let len = self.lower_typed_expr(arg, self.cx.gcx.types.uint(256))?;
             let ty = self.cx.gcx.type_of_expr(expr.id)?;
             let layout = self.types.memory_layout(ty)?;
             let size = match layout {

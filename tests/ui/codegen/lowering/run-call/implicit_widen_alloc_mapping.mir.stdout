@@ -1,0 +1,88 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/implicit_widen_alloc_mapping.sol:ImplicitWidenAllocMapping ===
+@module ImplicitWidenAllocMapping
+fn @inject(arg0: u256) -> u8 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @injectSigned(arg0: u256) -> i8 [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @newLength(arg0: u256) -> u256 [selector=0x09661d83, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @inject, 1, arg0
+    v1 = and v0, 255
+    v2 = mul v1, 1
+    v3 = iszero 1
+    v4 = div v2, 1
+    v5 = eq v4, v1
+    v6 = or v3, v5
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = add v2, 1
+    v9 = lt v8, v2
+    jumpi v9, bb1, bb3
+  bb3:
+    v10 = mul v8, 32
+    v11 = iszero 32
+    v12 = div v10, 32
+    v13 = eq v12, v8
+    v14 = or v11, v13
+    v15 = iszero v14
+    jumpi v15, bb1, bb4
+  bb4:
+    v16 = alloc memoryarray<1>, exact, zeroed, panic, v10
+    set_memory_object_len memoryarray, v16, v1
+    v17 = memory_object_len memoryarray, v16
+    ret v17
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @newBytesLength(arg0: u256) -> u256 [selector=0x4f901bea, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @inject, 1, arg0
+    v1 = and v0, 255
+    v2 = add v1, 63
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = not 31
+    v5 = and v2, v4
+    v6 = alloc memorybytes, exact, zeroed, panic, v5
+    set_memory_object_len memorybytes, v6, v1
+    v7 = memory_object_len memorybytes, v6
+    ret v7
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @mappingKey(arg0: u256) -> u256 [selector=0xaf28bd9d, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mapping_slot 1, 0
+    sstore v0, 7 !metadata(storage=symbolic(v0))
+    v1 = internal_call @inject, 1, arg0
+    v2 = and v1, 255
+    v3 = mapping_slot v2, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @signedMappingKey(arg0: u256) -> u256 [selector=0x6962ed4e, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = sub 0, 1
+    v1 = mapping_slot v0, 1
+    sstore v1, 7 !metadata(storage=symbolic(v1))
+    v2 = internal_call @injectSigned, 1, arg0
+    v3 = signextend 0, v2
+    v4 = mapping_slot v3, 1
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    ret v5
+}

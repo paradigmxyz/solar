@@ -439,7 +439,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let TyKind::Mapping(key, value) = ty.kind {
                     let index = self
                         .lower_fixed_bytes_literal(key, index)
-                        .or_else(|| self.lower_expr(index))?;
+                        .or_else(|| self.lower_typed_expr(index, key))?;
                     let index = self.normalize_abi_scalar(index, key);
                     let slot = self.mapping_slot(index, key, base.slot);
                     if let Some((size, encoding)) = self.cx.storage.packed_encoding(value) {
