@@ -185,12 +185,15 @@ schedule (EIP-150, EIP-1884, EIP-2929, and later repricings) and
 snapshots the resolved schedule for every opcode. `Target::new(gcx)`
 builds the model from the session's EVM version, optimization mode, and
 optimizer runs; it answers opcode and MIR operation costs as
-`Cost { gas, bytes }`, push materialization cost, deposit economics
+`Cost { gas, bytes }` (dynamic work sized from immediate operands when
+they are known), push materialization cost, deposit economics
 (`CODE_DEPOSIT_GAS_PER_BYTE`, `lifetime_gas`), and objective ordering
-(`cmp`, `improves`). Version-independent tiers are usable in constants
-through `GasTier::fixed_gas`. Do not write gas or byte literals in passes,
-the stack scheduler, or the backend: add a tier or a query to the model
-and pin it with a unit test there.
+(`objective_key`, `cmp`, `improves`). The stack scheduler plans against a
+`Target` and derives its plan ordering from `objective_key`.
+Version-independent tiers are usable in constants through
+`GasTier::fixed_gas`. Do not write gas or byte literals in passes, the
+stack scheduler, or the backend: add a tier or a query to the model and
+pin it with a unit test there.
 
 ### Visitor Pattern
 
