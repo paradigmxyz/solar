@@ -414,14 +414,17 @@ impl Instruction {
         }
     }
 
+    /// Returns the generated opcode definition for this instruction.
+    #[must_use]
+    pub(crate) const fn definition(&self) -> Option<&'static op::OpDef> {
+        op::definition(self.opcode)
+    }
+
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| match self.stack_op {
-            Some(StackOp::Dup(_)) => f.write_str("dup"),
-            Some(StackOp::Swap(_)) => f.write_str("swap"),
-            Some(StackOp::Exchange(_, _)) => f.write_str("exchange"),
-            Some(StackOp::Pop) => f.write_str("pop"),
+            Some(stack_op) => f.write_str(stack_op.definition().mnemonic),
             None => match self.encoding {
                 Self::ENCODED_PUSH => f.write_str("push"),
                 encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
@@ -547,24 +550,77 @@ impl Terminator {
     }
 }
 
-/// Control-flow terminators in EVM IR.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum TerminatorKind {
+macro_rules! define_terminators {
+    (
+        $(
+            $(#[$meta:meta])*
+            $variant:ident $( $fields:tt )?
+            => $pattern:pat
+            => $tag:ident
+            => $mnemonic:literal
+            => $stack_io:expr;
+        )+
+    ) => {
+        /// Control-flow terminators in EVM IR.
+        #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+        pub(crate) enum TerminatorKind {
+            $(
+                $(#[$meta])*
+                $variant $( $fields )?,
+            )+
+        }
+
+        /// Compact tag for an EVM IR control-flow terminator.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub(crate) enum TerminatorTag {
+            $($tag),+
+        }
+
+        /// Declarative metadata for one EVM IR control-flow terminator.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(crate) struct TerminatorDef {
+            /// Compact terminator tag.
+            pub(crate) tag: TerminatorTag,
+            /// Canonical textual terminator name.
+            pub(crate) mnemonic: &'static str,
+            /// Fixed stack effect, when the terminator has one independent of payload.
+            pub(crate) stack_io: Option<(u8, u8)>,
+        }
+
+        impl TerminatorKind {
+            /// Returns the generated structural definition for this terminator.
+            #[must_use]
+            pub(crate) const fn definition(&self) -> &'static TerminatorDef {
+                match self {
+                    $(
+                        $pattern => &TerminatorDef {
+                            tag: TerminatorTag::$tag,
+                            mnemonic: $mnemonic,
+                            stack_io: $stack_io,
+                        },
+                    )+
+                }
+            }
+        }
+    };
+}
+
+define_terminators! {
     /// Unconditional jump.
-    Jump(BlockId),
+    Jump(BlockId) => Self::Jump(_) => Jump => "jump" => Some((0, 0));
     /// Conditional branch.
     JumpI {
         /// Target when condition is non-zero.
         then_block: BlockId,
         /// Target when condition is zero.
         else_block: BlockId,
-    },
+    } => Self::JumpI { .. } => JumpI => "jumpi" => Some((1, 0));
     /// Jump through a dense zero-based table using an index from the stack.
     ///
     /// The index must be in range; lowering intentionally emits no bounds check.
-    IndexedJump(Box<[BlockId]>),
+    IndexedJump(Box<[BlockId]>) => Self::IndexedJump(_) => IndexedJump => "indexed_jump" => Some((1, 0));
     /// Terminal EVM opcode.
-    Op(u8),
+    Op(u8) => Self::Op(_) => Op => "op" => None;
 }
 
 impl TerminatorKind {
@@ -629,6 +685,15 @@ impl TerminatorKind {
             }
             Self::IndexedJump(targets) => targets.iter_mut().for_each(visit),
             Self::Op(_) => {}
+        }
+    }
+
+    /// Returns the canonical name, including the opcode name for an `op` terminator.
+    #[must_use]
+    pub(crate) fn mnemonic(&self) -> &'static str {
+        match self {
+            Self::Op(opcode) => op::mnemonic(*opcode).unwrap_or("terminal"),
+            _ => self.definition().mnemonic,
         }
     }
 }
@@ -838,7 +903,7 @@ impl StackEffect {
 pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
     if inst.is_encoded_push() {
         Some(StackEffect::new(0, 1))
-    } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
+    } else if let Some((inputs, outputs)) = inst.definition().and_then(|def| def.stack_io) {
         Some(StackEffect::new(inputs, outputs))
     } else {
         None
@@ -846,12 +911,36 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
 }
 
 pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
-    match kind {
-        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
-        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
-        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
-        TerminatorKind::Op(opcode) => {
-            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
-        }
+    let stack_io = match kind {
+        TerminatorKind::Op(opcode) => op::definition(*opcode).and_then(|def| def.stack_io),
+        _ => kind.definition().stack_io,
+    }?;
+    Some(StackEffect::new(stack_io.0, stack_io.1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminator_schema_describes_control_flow() {
+        let add = Instruction::opcode(op::ADD);
+        assert_eq!(add.definition().map(|def| def.tag), Some(op::OpTag::ADD));
+        assert_eq!(default_instruction_stack_effect(&add), Some(StackEffect::new(2, 1)));
+
+        let jump = TerminatorKind::Jump(BlockId::ENTRY);
+        assert_eq!(jump.definition().tag, TerminatorTag::Jump);
+        assert_eq!(jump.definition().stack_io, Some((0, 0)));
+        assert_eq!(jump.mnemonic(), "jump");
+
+        let branch =
+            TerminatorKind::JumpI { then_block: BlockId::ENTRY, else_block: BlockId::ENTRY };
+        assert_eq!(branch.definition().tag, TerminatorTag::JumpI);
+        assert_eq!(default_terminator_stack_effect(&branch), Some(StackEffect::new(1, 0)));
+
+        let terminal = TerminatorKind::Op(op::RETURN);
+        assert_eq!(terminal.definition().tag, TerminatorTag::Op);
+        assert_eq!(terminal.mnemonic(), "return");
+        assert_eq!(default_terminator_stack_effect(&terminal), Some(StackEffect::new(2, 0)));
     }
 }
