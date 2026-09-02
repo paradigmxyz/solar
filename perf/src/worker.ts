@@ -62,6 +62,7 @@ async function indexFromClickHouse(env: Env) {
        toString(r.started_at) AS timestamp,
        r.branch,
        r.pr,
+       r.title,
        countDistinct(b.test_id) AS benchmarkCount,
        sumIf(b.compile_time_seconds, b.compiler = 'solar' AND b.status = 'ok') AS compile_time,
        sumIf(b.bytecode_size, b.compiler = 'solar' AND b.status = 'ok') AS bytecode_size,
@@ -71,7 +72,7 @@ async function indexFromClickHouse(env: Env) {
        maxIf(b.peak_rss_bytes, b.compiler = 'solar' AND b.status = 'ok') AS peak_rss_bytes
      FROM runs AS r FINAL
      LEFT JOIN benchmark_results AS b FINAL USING workflow_run_id
-     GROUP BY r.workflow_run_id, r.commit, r.started_at, r.branch, r.pr
+     GROUP BY r.workflow_run_id, r.commit, r.started_at, r.branch, r.pr, r.title
      ORDER BY r.started_at DESC`,
   )
   return {
@@ -82,6 +83,7 @@ async function indexFromClickHouse(env: Env) {
       timestamp: row.timestamp,
       branch: row.branch,
       pr: row.pr,
+      title: row.title,
       benchmarkCount: row.benchmarkCount,
       metrics: metrics(row),
     })),
@@ -91,7 +93,7 @@ async function indexFromClickHouse(env: Env) {
 async function runFromClickHouse(env: Env, sha: string) {
   const [run] = await clickhouse(
     env,
-    `SELECT workflow_run_id, commit, branch, pr, toString(started_at) AS timestamp
+    `SELECT workflow_run_id, commit, branch, pr, title, toString(started_at) AS timestamp
      FROM runs FINAL WHERE commit = '${sha}' ORDER BY imported_at DESC LIMIT 1`,
   )
   if (!run) return null

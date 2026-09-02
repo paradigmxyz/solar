@@ -14,6 +14,7 @@ export interface RunSummary {
   timestamp: string
   branch: string | null
   pr: number | null
+  title: string | null
   benchmarkCount: number
   metrics: MetricSummary
 }
@@ -57,6 +58,7 @@ export interface RunDocument {
   commit: string
   branch: string | null
   pr: number | null
+  title: string | null
   timestamp: string
   results: BenchmarkResult[]
   artifacts: Record<string, ArtifactFile[]>

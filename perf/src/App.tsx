@@ -30,8 +30,56 @@ function runRef(run: RunSummary) {
   return run.branch ?? (run.pr ? `PR #${run.pr}` : 'detached')
 }
 
+function runTitle(run: RunSummary) {
+  return run.title || runRef(run)
+}
+
 function runLabel(run: RunSummary) {
-  return `${short(run.commit)} · ${runRef(run)} · ${new Date(run.timestamp).toLocaleDateString()}`
+  return `${short(run.commit)} · ${runTitle(run)} · ${new Date(run.timestamp).toLocaleDateString()}`
+}
+
+function resolveCommit(value: string, runs: RunSummary[]) {
+  const normalized = value.trim().toLowerCase()
+  return (
+    runs.find((run) => run.commit === normalized)?.commit ??
+    (normalized.length >= 7
+      ? runs.find((run) => run.commit.startsWith(normalized))?.commit
+      : undefined) ??
+    ''
+  )
+}
+
+function CommitPicker({
+  label,
+  value,
+  runs,
+  onChange,
+}: {
+  label: string
+  value: string
+  runs: RunSummary[]
+  onChange: (value: string) => void
+}) {
+  const list = `${label}-runs`
+  return (
+    <label>
+      {label}
+      <input
+        list={list}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Commit SHA"
+        disabled={!runs.length}
+        spellCheck={false}
+        aria-label={`${label} commit`}
+      />
+      <datalist id={list}>
+        {runs.map((run) => (
+          <option key={run.commit} value={run.commit} label={runLabel(run)} />
+        ))}
+      </datalist>
+    </label>
+  )
 }
 
 function HistoryGraph({
@@ -220,6 +268,8 @@ function Home() {
   const [head, setHead] = useState('')
   const runs = useMemo(() => index?.runs ?? [], [index])
   const mainRuns = useMemo(() => runs.filter((run) => run.branch === 'main'), [runs])
+  const selectedBase = resolveCommit(base, runs)
+  const selectedHead = resolveCommit(head, runs)
 
   useEffect(() => {
     loadIndex()
@@ -232,9 +282,9 @@ function Home() {
   }, [base, head, runs])
 
   const compare = () => {
-    if (!base || !head || base === head) return
+    if (!selectedBase || !selectedHead || selectedBase === selectedHead) return
     const url = new URL(window.location.href)
-    url.search = new URLSearchParams({ base, head }).toString()
+    url.search = new URLSearchParams({ base: selectedBase, head: selectedHead }).toString()
     window.location.href = url.toString()
   }
 
@@ -248,38 +298,13 @@ function Home() {
         <span>{mainRuns.length} runs</span>
       </section>
       <section className="compare-box" aria-label="Compare commits">
-        <label>
-          base
-          <select
-            value={base}
-            onChange={(event) => setBase(event.target.value)}
-            disabled={!runs.length}
-          >
-            <option value="">Select a run</option>
-            {runs.map((run) => (
-              <option key={run.commit} value={run.commit}>
-                {runLabel(run)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <CommitPicker label="base" value={base} runs={runs} onChange={setBase} />
         <span className="arrow">→</span>
-        <label>
-          head
-          <select
-            value={head}
-            onChange={(event) => setHead(event.target.value)}
-            disabled={!runs.length}
-          >
-            <option value="">Select a run</option>
-            {runs.map((run) => (
-              <option key={run.commit} value={run.commit}>
-                {runLabel(run)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button onClick={compare} disabled={!base || !head || base === head}>
+        <CommitPicker label="head" value={head} runs={runs} onChange={setHead} />
+        <button
+          onClick={compare}
+          disabled={!selectedBase || !selectedHead || selectedBase === selectedHead}
+        >
           Compare
         </button>
       </section>
@@ -299,7 +324,7 @@ function Home() {
         </div>
         <div className="run run-head">
           <span>commit</span>
-          <span>ref</span>
+          <span>change</span>
           <span>date</span>
           <span>runtime gas</span>
           <span>runtime bytes</span>
@@ -312,7 +337,7 @@ function Home() {
             const contents = (
               <>
                 <code>{short(run.commit)}</code>
-                <span>{runRef(run)}</span>
+                <span title={runTitle(run)}>{runTitle(run)}</span>
                 <time>{new Date(run.timestamp).toLocaleDateString()}</time>
                 <strong>{run.metrics.runtimeGas?.toLocaleString() ?? 'n/a'}</strong>
                 <strong>{run.metrics.runtimeSize?.toLocaleString() ?? 'n/a'}</strong>

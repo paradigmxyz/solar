@@ -191,6 +191,7 @@ button:disabled {
   opacity: 0.4;
   cursor: default;
 }
+.compare-box input,
 .compare-box select {
   width: 100%;
 }

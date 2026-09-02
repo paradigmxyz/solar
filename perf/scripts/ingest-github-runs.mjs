@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 
-import { select } from './lib/clickhouse.mjs'
+import { insert, select } from './lib/clickhouse.mjs'
 
 const exec = promisify(execFile)
 
@@ -30,7 +30,7 @@ async function runs(repository, runId, limit) {
       '--repo',
       repository,
       '--json',
-      'databaseId,headSha,headBranch,createdAt,conclusion,name',
+      'databaseId,headSha,headBranch,createdAt,conclusion,name,displayTitle',
     ])
     return [JSON.parse(stdout)]
   }
@@ -44,7 +44,7 @@ async function runs(repository, runId, limit) {
     '--limit',
     limit,
     '--json',
-    'databaseId,headSha,headBranch,createdAt,conclusion,name',
+    'databaseId,headSha,headBranch,createdAt,conclusion,name,displayTitle',
   ])
   return JSON.parse(stdout)
 }
@@ -55,9 +55,20 @@ async function imported(runId) {
   )
 }
 
-async function ingest(repository, run) {
+async function refreshMetadata(run) {
   if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
-  if (await imported(run.databaseId)) return false
+  const [stored] = await select(
+    `SELECT workflow_run_id, commit, branch, pr, started_at, workflow_name, source_schema, raw_results
+     FROM runs FINAL WHERE workflow_run_id = ${run.databaseId} LIMIT 1`,
+  )
+  if (!stored) return false
+  await insert('runs', [{ ...stored, title: run.displayTitle || null }])
+  return true
+}
+
+async function ingest(repository, run, refresh) {
+  if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
+  if (!refresh && (await imported(run.databaseId))) return false
   const directory = await mkdtemp(join(tmpdir(), 'solar-perf-'))
   try {
     await exec('gh', [
@@ -85,6 +96,8 @@ async function ingest(repository, run) {
       run.name || 'Benchmark',
       '--branch',
       run.headBranch || '',
+      '--title',
+      run.displayTitle || '',
       '--timestamp',
       run.createdAt,
     ])
@@ -102,5 +115,13 @@ const repository = options.repo || process.env.GITHUB_REPOSITORY || 'paradigmxyz
 const limit = options.limit || '10000'
 const available = await runs(repository, options['workflow-run'], limit)
 let count = 0
-for (const run of available) count += Number(await ingest(repository, run))
-console.log(`Ingested ${count} GitHub Actions run${count === 1 ? '' : 's'}`)
+for (const run of available) {
+  count += Number(
+    options['metadata-only'] === 'true'
+      ? await refreshMetadata(run)
+      : await ingest(repository, run, options.refresh === 'true'),
+  )
+}
+console.log(
+  `${options['metadata-only'] === 'true' ? 'Updated' : 'Ingested'} ${count} GitHub Actions run${count === 1 ? '' : 's'}`,
+)

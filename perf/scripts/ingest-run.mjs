@@ -120,6 +120,7 @@ const run = {
   commit: options.commit,
   branch: options.branch || null,
   pr: options.pr ? Number(options.pr) : null,
+  title: options.title || null,
   started_at: options.timestamp || new Date().toISOString(),
   workflow_name: options.workflow || 'Benchmark',
   source_schema: 1,
