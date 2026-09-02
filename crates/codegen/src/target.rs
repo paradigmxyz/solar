@@ -72,6 +72,8 @@ pub(crate) enum GasTier {
 impl GasTier {
     /// Gas charged by one copy opcode per copied word.
     pub(crate) const COPY_WORD_GAS: u32 = 3;
+    /// Gas of a warm account or storage access under EIP-2929.
+    pub(crate) const WARM_ACCESS_GAS: u32 = 100;
 
     /// Gas charged on `evm_version` before dynamic components.
     pub(crate) const fn gas(self, evm_version: EvmVersion) -> u32 {
@@ -164,6 +166,15 @@ impl GasTier {
             Self::Copy => Self::COPY_WORD_GAS,
             Self::Log(_) => 8,
             _ => 0,
+        }
+    }
+
+    /// Dynamic gas of a tier priced the same on every EVM version, usable in
+    /// constants.
+    pub(crate) const fn fixed_dynamic_gas(self) -> u32 {
+        match self {
+            Self::Exp => panic!("tier is priced per EVM version"),
+            _ => self.dynamic_gas(EvmVersion::Homestead),
         }
     }
 
@@ -337,13 +348,19 @@ impl Target {
             + u128::from(cost.bytes) * u128::from(Self::CODE_DEPOSIT_GAS_PER_BYTE)
     }
 
-    /// Ranks two costs under the objective: gas before bytes when optimizing
-    /// for gas, bytes before gas when optimizing for size.
-    pub(crate) fn cmp(self, a: Cost, b: Cost) -> Ordering {
+    /// The objective order of a cost: the dimension optimized first, then
+    /// the other one. Gas leads when optimizing for gas, bytes when
+    /// optimizing for size.
+    pub(crate) fn objective_key(self, cost: Cost) -> [u32; 2] {
         match self.optimization {
-            OptimizationMode::Size => (a.bytes, a.gas).cmp(&(b.bytes, b.gas)),
-            _ => (a.gas, a.bytes).cmp(&(b.gas, b.bytes)),
+            OptimizationMode::Size => [cost.bytes, cost.gas],
+            _ => [cost.gas, cost.bytes],
         }
+    }
+
+    /// Ranks two costs under the objective.
+    pub(crate) fn cmp(self, a: Cost, b: Cost) -> Ordering {
+        self.objective_key(a).cmp(&self.objective_key(b))
     }
 
     /// Whether a change that saves `gas_saving` gas and `byte_saving` bytes
