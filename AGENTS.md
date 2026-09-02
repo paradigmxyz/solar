@@ -112,6 +112,36 @@ the transition a named pass that advances the phase via
 `lower-abi` skips dynamic types), and pin it with `.mir` UI tests under
 `tests/ui/codegen/mir/`.
 
+### Operation Schema and ISLE Rules
+
+MIR operations are declared once in `crates/codegen/src/mir/op_schema.rs`.
+Each row carries the typed payload with named tuple operands, the mnemonic,
+result kind, phase set, effect, traits, and side-effect flag. The macro
+generates operand traversal, the `Op` rewrite view, and the ISLE prelude.
+EVM opcodes are declared the same way in `backend/evm/op.rs`, with traits and
+availability per row and a snapshot of the whole table in `op_table.snap`.
+Add new operations to those tables only; never add a parallel `match` that
+classifies operations elsewhere.
+
+Rewrite rules are written in [ISLE](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle)
+under `crates/codegen/isle/`:
+
+- `prelude.isle` is generated from the schema. Never edit it by hand; run
+  `SNAPSHOTS=overwrite cargo nextest run -p solar-codegen isle_prelude` after
+  changing the schema, and keep the checked-in file current.
+- One rule file per pass (`inst_simplify.isle`), compiled by
+  `crates/codegen/build.rs` and included from a sibling `isle.rs` module that
+  implements the extractors and constructors the rules call.
+- Rules on one operation match structurally on `Op` variants, so different
+  operations never overlap. Rules on the same operation must carry distinct
+  priorities that encode the order the checks are tried; ISLE rejects
+  ambiguous overlaps at build time.
+- Test a boolean predicate with `(if-let true (pred ...))`. A bare `(if ...)`
+  only checks that the call succeeded.
+- Keep constant folding, in-place instruction rewrites, and anything that
+  needs variable-length payloads in Rust; rules return values, and elided
+  payloads appear as `Unit` in the view.
+
 ### Visitor Pattern
 
 Use `type BreakValue = Never` if visitor never breaks. Override `visit_*` methods and always call `walk_*` to continue traversal:

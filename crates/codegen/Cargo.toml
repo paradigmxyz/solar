@@ -35,6 +35,9 @@ tracing.workspace = true
 snapbox.workspace = true
 tempfile.workspace = true
 
+[build-dependencies]
+cranelift-isle.workspace = true
+
 [features]
 nightly = [
     "solar-ast/nightly",
