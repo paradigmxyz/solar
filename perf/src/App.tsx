@@ -105,10 +105,12 @@ function HistoryGraph({
   const padding = range === 0 ? Math.max(Math.abs(max) * 0.04, 1) : range * 0.1
   const chartMin = min - padding
   const chartMax = max + padding
+  const position = (value: number) =>
+    Math.max(10, Math.min(90, 90 - ((value - chartMin) / (chartMax - chartMin)) * 80))
   const path = points
     .map((run, index) => {
       const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
-      const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
+      const y = position(run.metrics[metric]!)
       return `${index ? 'L' : 'M'} ${x} ${y}`
     })
     .join(' ')
@@ -149,7 +151,7 @@ function HistoryGraph({
               </svg>
               {points.map((run, index) => {
                 const x = 3 + (index / Math.max(points.length - 1, 1)) * 94
-                const y = 90 - ((run.metrics[metric]! - chartMin) / (chartMax - chartMin)) * 80
+                const y = position(run.metrics[metric]!)
                 const label = `${formatValue(run.metrics[metric]!, unit)} · ${short(run.commit)} · ${new Date(run.timestamp).toLocaleDateString()}`
                 return (
                   <button
