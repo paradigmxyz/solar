@@ -9,7 +9,7 @@ fn @plain() [selector=0xc2dcee6a, pure] {
   bb6:
     v17 = calldataload 4
     v18 = add v17, 4
-    v19 = add v17, 36
+    v19 = add v18, 32
     v20 = gt v17, 0xffffffffffffffff
     v21 = gt v19, v15
     v22 = or v20, v21

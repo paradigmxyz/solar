@@ -20,7 +20,7 @@ fn @asValue() [selector=0x440a9300, pure] {
     mstore v11, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v12 = add v11, 4
     mstore v12, v0
-    v13 = add v11, 36
+    v13 = add v12, 32
     mstore v13, arg1
     v14 = mload 64 !metadata(memory=scratch)
     v15 = add v14, 32
@@ -33,7 +33,7 @@ fn @asValue() [selector=0x440a9300, pure] {
     mstore v15, v20
     v22 = add v20, 31
     v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v24 = add v14, 64
+    v24 = add v15, 32
     jumpi v23, bb4, bb5
   bb4:
     v26 = sub v23, 32
@@ -78,7 +78,7 @@ fn @viaCall() [selector=0x23d014a1] {
     mstore v19, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
     v20 = add v19, 4
     mstore v20, v1
-    v21 = add v19, 36
+    v21 = add v20, 32
     mstore v21, arg2
     v5 = call v0, arg0, 0, v19, 68, 0, 0
     v14 = iszero v5

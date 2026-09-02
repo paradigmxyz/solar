@@ -71,8 +71,8 @@ bb8:
   push 4
   dup 2
   add
-  push 36
-  dup 3
+  push 32
+  dup 2
   add
   swap 2
   push 0
@@ -197,10 +197,10 @@ bb20:
   iszero
   push bb22
   jumpi
-  push 32
   push 192
   mload
-  mul
+  push 5
+  shl
   push 224
   mload
   add
@@ -240,8 +240,8 @@ bb24:
   push 4
   dup 2
   add
-  push 36
-  dup 3
+  push 32
+  dup 2
   add
   swap 2
   push 0
@@ -329,8 +329,8 @@ bb33:
   push 4
   dup 2
   add
-  push 36
-  dup 3
+  push 32
+  dup 2
   add
   swap 2
   push 0
@@ -359,8 +359,8 @@ bb33:
   push 4
   dup 2
   add
-  push 36
-  dup 3
+  push 32
+  dup 2
   add
   swap 2
   push 0

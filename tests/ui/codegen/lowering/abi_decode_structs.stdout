@@ -149,7 +149,7 @@ fn @dNested() [selector=0xfc7ec666, pure] {
     mstore v55, v61
     v63 = add v61, 31
     v64 = and v63, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v65 = add v54, 128
+    v65 = add v55, 32
     jumpi v64, bb12, bb13
   bb12:
     v67 = sub v64, 32
@@ -244,7 +244,7 @@ fn @dFixed() [selector=0xc298c02b, pure] {
     v26 = shl 5, v24
     v27 = add v18, v26
     v28 = internal_call @decode_memory_type, 1, v27, v18, v13
-    v39 = mul v24, 32
+    v39 = shl 5, v24
     v40 = add v23, v39
     mstore v40, v28
     v29 = add v24, 1
@@ -318,7 +318,7 @@ fn @dDynArr() [selector=0xaca542ca, pure] {
   bb10:
     v38 = internal_call @decode_memory_type, 1, v35, v10, v4
     v47 = add v24, 32
-    v48 = mul v36, 32
+    v48 = shl 5, v36
     v49 = add v47, v48
     mstore v49, v38
     v39 = sub v34, 1
@@ -342,7 +342,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v0 = calldatasize
     v1 = calldataload arg0
     v2 = add v1, 4
-    v3 = add v1, 36
+    v3 = add v2, 32
     v4 = gt v1, 0xffffffffffffffff
     v5 = gt v3, v0
     v6 = or v4, v5

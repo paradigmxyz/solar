@@ -48,8 +48,8 @@ bb6:
   push 4
   dup 2
   add
-  push 36
-  dup 3
+  push 32
+  dup 2
   add
   swap 2
   push 0

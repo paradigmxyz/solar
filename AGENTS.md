@@ -155,12 +155,16 @@ The `egraph` pass (`transform/egraph.rs`) is the MIR simplification and
 value-numbering pass: an acyclic e-graph with dominator-scoped hash-consing,
 `rewrite` results kept as alternative nodes, `simplify` results merged, and
 the cheapest node per class extracted under a static gas cost model, all at
-the original instruction positions. It also merges phis, deletes zero-byte
-copies, and rewrites branches on `iszero`. A numbering-only instance runs
-after memory lowering: rewrites there reach past operands and extend live
-ranges the stack scheduler must spill, which measured as a loss. Extend the
-pass by adding rules to `egraph.isle`, bounds to `max_bits`, and costs to
-`base_cost`, never by matching instructions in the pass itself.
+the original instruction positions. Its cost model is static gas plus stack
+traffic: an operand is charged only when the node is its sole user, and a
+rewrite pays a copy for every non-immediate value it newly reaches while a
+displaced operand stays live elsewhere. Without that term, rewrites after
+memory lowering extend live ranges the stack scheduler spills and measure
+as a loss. The pass also merges phis, deletes zero-byte copies, and rewrites
+branches on `iszero`, and runs once more after memory lowering. Extend it
+by adding rules to `egraph.isle`, bounds to `max_bits`, and costs to
+`base_cost` or `Costs::node`, never by matching instructions in the pass
+itself.
 
 ### Visitor Pattern
 

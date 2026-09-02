@@ -20,7 +20,7 @@ fn @encodeFirst() [selector=0xe9a7b169, pure] {
     mstore v9, v14
     v16 = add v14, 31
     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v18 = add v8, 64
+    v18 = add v9, 32
     jumpi v17, bb3, bb4
   bb3:
     v20 = sub v17, 32
@@ -51,16 +51,16 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     v3 = internal_call @decode_calldata_type, 1, 4
     v7 = mload 64 !metadata(memory=scratch)
     v8 = add v7, 32
-    v9 = add v7, 64
+    v9 = add v8, 32
     v10 = sub v9, v8
     mstore v8, v10
     v11 = mload v3
     v49 = add v3, 32
     v12 = mload v49
-    v13 = add v7, 128
+    v13 = add v9, 64
     mstore v9, v11
     v15 = sub v13, v9
-    v14 = add v7, 96
+    v14 = add v9, 32
     mstore v14, v15
     v16 = internal_call @encode_abi_array, 1, v12, v13
     v17 = sub v16, v9
@@ -86,7 +86,7 @@ fn @encodeSecond() [selector=0x108c1ec5, pure] {
     mstore v27, v32
     v34 = add v32, 31
     v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v36 = add v26, 64
+    v36 = add v27, 32
     jumpi v35, bb5, bb6
   bb5:
     v38 = sub v35, 32
@@ -120,7 +120,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
   bb44:
     v169 = calldataload 36
     v170 = add v169, 4
-    v171 = add v169, 36
+    v171 = add v170, 32
     v172 = gt v169, 0xffffffffffffffff
     v173 = gt v171, v167
     v174 = or v172, v173
@@ -335,7 +335,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v199 = add v153, 32
     mcopy v199, v139, v154
     v202 = add v123, 32
-    v203 = mul v135, 32
+    v203 = shl 5, v135
     v204 = add v202, v203
     mstore v204, v153
     v164 = sub v133, 1
@@ -395,7 +395,7 @@ fn @roundTrip() [selector=0x00746047, pure] {
     v184 = add v56, 32
     calldatacopy v184, v43, v42
     v187 = add v20, 32
-    v188 = mul v21, 32
+    v188 = shl 5, v21
     v189 = add v187, v188
     mstore v189, v56
     v58 = add v21, 1
@@ -427,7 +427,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     mstore 64, v74 !metadata(memory=scratch)
     v8 = calldataload v2
     mstore v7, v8
-    v9 = add v1, 36
+    v9 = add v2, 32
     v10 = calldataload v9
     v11 = add v2, v10
     v12 = add v11, 32
@@ -508,7 +508,7 @@ fn @decode_calldata_type(arg0: u256) -> memptr {
     v60 = add v50, 32
     calldatacopy v60, v36, v42
     v63 = add v26, 32
-    v64 = mul v32, 32
+    v64 = shl 5, v32
     v65 = add v63, v64
     mstore v65, v50
     v55 = sub v30, 1
@@ -535,16 +535,16 @@ fn @encodeFirst.body(arg0: memptr) -> memptr [pure] {
   bb0:
     v1 = mload 64 !metadata(memory=scratch)
     v2 = add v1, 32
-    v3 = add v1, 64
+    v3 = add v2, 32
     v4 = sub v3, v2
     mstore v2, v4
     v5 = mload arg0
     v20 = add arg0, 32
     v6 = mload v20
-    v7 = add v1, 128
+    v7 = add v3, 64
     mstore v3, v5
     v9 = sub v7, v3
-    v8 = add v1, 96
+    v8 = add v3, 32
     mstore v8, v9
     v10 = internal_call @encode_abi_array, 1, v6, v7
     v11 = sub v10, v3

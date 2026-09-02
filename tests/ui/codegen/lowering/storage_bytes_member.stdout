@@ -270,8 +270,8 @@ bb29:
   lt
   push bb137
   jumpi
-  push 64
-  dup 3
+  push 63
+  dup 2
   add
   dup 2
   dup 2
@@ -651,9 +651,8 @@ bb47:
   push 160
   mload
   sub
-  push 62
-  push 160
-  mload
+  push 63
+  dup 2
   add
   dup 2
   dup 2
@@ -1444,7 +1443,7 @@ bb111:
   dup 1
   push 128
   mstore
-  swap 1
+  dup 2
   mstore
   push 31
   push 128
@@ -1453,8 +1452,8 @@ bb111:
   push 31
   not
   and
-  push 64
-  dup 3
+  swap 1
+  push 32
   add
   dup 2
   push 128

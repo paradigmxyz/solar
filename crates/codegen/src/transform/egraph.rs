@@ -8,11 +8,14 @@
 //! value and `rewrite` adds an equivalent node to the class. New nodes only
 //! reference classes that already exist, so no rebuild or fixpoint is needed.
 //!
-//! After the walk, every surviving class keeps its cheapest node under a static
-//! gas cost model. Instructions are rewritten in place at their original
-//! position; merged instructions are deleted and their uses redirected.
-//! Placement never changes, so the pass cannot hoist or sink and never grows
-//! code.
+//! After the walk, every surviving class keeps its cheapest node. The cost
+//! model is static gas plus the stack traffic a node implies: an operand's
+//! computation is charged only when this node is its sole user, and a node that
+//! reaches for a value the instruction did not need before pays for the copy
+//! that keeps that value alive, unless the operand it displaces dies here.
+//! Instructions are rewritten in place at their original position; merged
+//! instructions are deleted and their uses redirected. Placement never
+//! changes, so the pass cannot hoist or sink and never grows code.
 //!
 //! Instructions with effects, phis, and terminators form the skeleton. They
 //! stay in place and see their operands canonicalized; `rewrite` rules still
@@ -46,22 +49,11 @@ mod isle;
 const TRACE_TARGET: &str = "solar::codegen::mir::egraph";
 
 /// Function pass for e-graph based simplification and value numbering.
-pub(crate) struct Egraph {
-    /// Whether `rewrite` rules add alternative nodes.
-    rewrites: bool,
-}
-
-impl Egraph {
-    /// Numbering, simplification, and rewrites.
-    pub(crate) const FULL: Self = Self { rewrites: true };
-    /// Numbering and simplification only, for late positions where a rewrite
-    /// that reaches past an operand would extend live ranges on the stack.
-    pub(crate) const NUMBERING: Self = Self { rewrites: false };
-}
+pub(crate) struct Egraph;
 
 impl MirPass for Egraph {
     fn name(&self) -> &'static str {
-        if self.rewrites { "egraph" } else { "egraph-numbering" }
+        "egraph"
     }
 
     fn run_pass(
@@ -71,8 +63,7 @@ impl MirPass for Egraph {
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         run_function_pass(module, analyses, |func, analyses| {
-            let cfg = Rc::clone(&analyses.cfg);
-            Builder::new(func, gcx.sess.opts.evm_version, cfg, self.rewrites).run() != 0
+            Builder::new(func, gcx.sess.opts.evm_version, Rc::clone(&analyses.cfg)).run() != 0
         })
     }
 }
@@ -98,8 +89,6 @@ struct Builder<'a> {
     func: &'a mut Function,
     evm_version: EvmVersion,
     cfg: Rc<CfgInfo>,
-    /// Whether `rewrite` rules add alternative nodes.
-    rewrites: bool,
     /// One identity for equal immediates, so nodes over them compare equal.
     immediates: FxHashMap<Immediate, ValueId>,
     /// One identity for equal immediates and for each function argument.
@@ -116,25 +105,22 @@ struct Builder<'a> {
     undo: Vec<(NodeKey, Option<ValueId>)>,
     /// Hash-consing table for the phis of the current block.
     phis: FxHashMap<PhiKey, ValueId>,
+    /// Number of uses of every value before the pass.
+    uses: FxHashMap<ValueId, u32>,
     /// Instructions merged into another class or deleted as no-ops.
     dead: DenseBitSet<InstId>,
     changed: usize,
 }
 
 impl<'a> Builder<'a> {
-    fn new(
-        func: &'a mut Function,
-        evm_version: EvmVersion,
-        cfg: Rc<CfgInfo>,
-        rewrites: bool,
-    ) -> Self {
+    fn new(func: &'a mut Function, evm_version: EvmVersion, cfg: Rc<CfgInfo>) -> Self {
         let dead = DenseBitSet::new_empty(func.num_insts());
         let (immediates, leaves) = canonical_leaves(func);
+        let uses = use_counts(func);
         Self {
             func,
             evm_version,
             cfg,
-            rewrites,
             immediates,
             leaves,
             merged: FxHashMap::default(),
@@ -142,6 +128,7 @@ impl<'a> Builder<'a> {
             memo: FxHashMap::default(),
             undo: Vec::new(),
             phis: FxHashMap::default(),
+            uses,
             dead,
             changed: 0,
         }
@@ -233,7 +220,7 @@ impl<'a> Builder<'a> {
         // Grow the class with equivalent nodes, then look for a value it already equals.
         let mut nodes = vec![op];
         let mut current = op;
-        for _ in 0..(if self.rewrites { MAX_REWRITES } else { 0 }) {
+        for _ in 0..MAX_REWRITES {
             let Some(next) = isle::RuleContext::new(self.func, self.evm_version).rewrite(&current)
             else {
                 break;
@@ -289,9 +276,6 @@ impl<'a> Builder<'a> {
 
     /// Applies the rewrite rules to an instruction outside the e-graph.
     fn rewrite_in_place(&mut self, inst_id: InstId) {
-        if !self.rewrites {
-            return;
-        }
         let op = self.func.inst(inst_id).kind.op();
         if op.into_kind().is_none() {
             return;
@@ -366,7 +350,12 @@ impl<'a> Builder<'a> {
     /// Rewrites every surviving class to its cheapest node, deletes merged
     /// instructions, and redirects their uses.
     fn materialize(&mut self) {
-        let mut costs = FxHashMap::default();
+        let mut costs = Costs {
+            func: self.func,
+            classes: &self.classes,
+            uses: &self.uses,
+            cache: FxHashMap::default(),
+        };
         let mut cheapest = Vec::with_capacity(self.classes.len());
         for class in self.classes.values() {
             // Rules only produce canonical forms, so the latest node wins ties.
@@ -375,7 +364,7 @@ impl<'a> Builder<'a> {
                 .iter()
                 .rev()
                 .copied()
-                .min_by_key(|node| node_cost(&self.classes, &mut costs, node))
+                .min_by_key(|node| costs.node(class, node))
                 .expect("a class holds its own node");
             cheapest.push((class.home, best));
         }
@@ -504,6 +493,22 @@ fn canonical_leaves(
         }
     }
     (immediates, leaves)
+}
+
+/// Counts the uses of every value in instructions and terminators.
+fn use_counts(func: &Function) -> FxHashMap<ValueId, u32> {
+    let mut uses = FxHashMap::<ValueId, u32>::default();
+    for inst_id in func.instructions() {
+        for operand in func.inst(inst_id).operands() {
+            *uses.entry(operand).or_default() += 1;
+        }
+    }
+    for block in func.blocks.iter() {
+        if let Some(term) = &block.terminator {
+            term.for_each_operand(|operand| *uses.entry(operand).or_default() += 1);
+        }
+    }
+    uses
 }
 
 /// Returns whether an instruction is a pure expression the e-graph may number.
@@ -638,36 +643,78 @@ fn base_cost(op: &Op) -> u32 {
     }
 }
 
-/// Cost of the cheapest node of a class; values outside the e-graph are free.
-fn class_cost(
-    classes: &FxHashMap<ValueId, Class>,
-    costs: &mut FxHashMap<ValueId, u32>,
-    value: ValueId,
-) -> u32 {
-    if let Some(&cost) = costs.get(&value) {
-        return cost;
-    }
-    let Some(class) = classes.get(&value) else { return 0 };
-    let cost = class
-        .nodes
-        .iter()
-        .map(|node| node_cost(classes, costs, node))
-        .min()
-        .expect("a class holds its own node");
-    costs.insert(value, cost);
-    cost
+/// Gas of one stack copy, charged for a value a node keeps alive.
+const COPY_COST: u32 = 3;
+
+/// Cost evaluation over the classes of one function.
+struct Costs<'a> {
+    func: &'a Function,
+    classes: &'a FxHashMap<ValueId, Class>,
+    uses: &'a FxHashMap<ValueId, u32>,
+    /// Cheapest cost per class, memoized.
+    cache: FxHashMap<ValueId, u32>,
 }
 
-fn node_cost(
-    classes: &FxHashMap<ValueId, Class>,
-    costs: &mut FxHashMap<ValueId, u32>,
-    node: &Op,
-) -> u32 {
-    let mut operands = SmallVec::<[ValueId; 8]>::new();
+impl Costs<'_> {
+    fn uses(&self, value: ValueId) -> u32 {
+        self.uses.get(&value).copied().unwrap_or(0)
+    }
+
+    /// Cost of the cheapest node of a class; values outside the e-graph are free.
+    fn class(&mut self, value: ValueId) -> u32 {
+        if let Some(&cost) = self.cache.get(&value) {
+            return cost;
+        }
+        let Some(class) = self.classes.get(&value) else { return 0 };
+        let cost = class
+            .nodes
+            .iter()
+            .map(|node| self.node(class, node))
+            .min()
+            .expect("a class holds its own node");
+        self.cache.insert(value, cost);
+        cost
+    }
+
+    /// Cost of computing `node` in place of the instruction that roots `class`.
+    fn node(&mut self, class: &Class, node: &Op) -> u32 {
+        let operands = operands_of(node);
+        // An operand shared with other users is computed regardless of this choice.
+        let mut cost = base_cost(node);
+        for &operand in &operands {
+            if self.uses(operand) <= 1 {
+                cost += self.class(operand);
+            }
+        }
+        // A rewrite that reaches for values the instruction did not need keeps
+        // them alive up to here, unless every operand it stops needing dies here.
+        // Immediates are pushed fresh and cost nothing to keep.
+        let original = operands_of(&class.nodes[0]);
+        if node != &class.nodes[0] {
+            let displaced_survive =
+                original.iter().any(|value| !operands.contains(value) && self.uses(*value) > 1);
+            if displaced_survive {
+                let reached = operands
+                    .iter()
+                    .filter(|&&value| {
+                        !original.contains(&value)
+                            && !matches!(self.func.value(value), Value::Immediate(_))
+                    })
+                    .count();
+                cost += COPY_COST * reached as u32;
+            }
+        }
+        cost
+    }
+}
+
+/// Returns the value operands of a node.
+fn operands_of(node: &Op) -> SmallVec<[ValueId; 8]> {
+    let mut operands = SmallVec::new();
     // Only the visit matters; the mapped copy is discarded.
     let _ = node.map_values(|value| {
         operands.push(value);
         value
     });
-    base_cost(node) + operands.iter().map(|&value| class_cost(classes, costs, value)).sum::<u32>()
+    operands
 }

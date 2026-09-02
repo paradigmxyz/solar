@@ -26,7 +26,7 @@ fn @outer() [selector=0x87c3dbb6, pure] {
     mstore v7, v12
     v14 = add v12, 31
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v6, 64
+    v16 = add v7, 32
     jumpi v15, bb1, bb2
   bb1:
     v18 = sub v15, 32
@@ -66,7 +66,7 @@ fn @inner() [selector=0x4adb7729, pure] {
     mstore v7, v12
     v14 = add v12, 31
     v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v6, 64
+    v16 = add v7, 32
     jumpi v15, bb1, bb2
   bb1:
     v18 = sub v15, 32
@@ -207,8 +207,6 @@ bb13:
   mstore
   dup 4
   mstore
-  swap 2
-  pop
   push 31
   push 128
   mload
@@ -219,12 +217,11 @@ bb13:
   dup 1
   push 192
   mstore
-  push 64
-  dup 4
+  swap 3
+  push 32
   add
   push 224
   mstore
-  swap 2
   pop
   pop
   iszero
