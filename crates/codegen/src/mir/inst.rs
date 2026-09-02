@@ -1458,6 +1458,9 @@ impl InstKind {
     /// This includes commutative instructions and comparisons whose opcode can be reversed with
     /// their operands.
     pub(crate) const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
+        if !self.op_def().traits.contains(super::OpTraits::REORDERABLE) {
+            return None;
+        }
         match self {
             Self::InsertValue { aggregate: a, value: b, .. }
             | Self::DataCopy(_, a, b)
