@@ -93,16 +93,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let (object, layout) =
             self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
-        for (index, &field) in struct_fields.iter().enumerate() {
-            let Some(argument) =
-                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-            else {
-                return self.cx.report_unsupported(args.span, "struct constructor argument");
-            };
-            let field_ty = self.cx.gcx.type_of_item(field.into());
-            let value = self.lower_typed_expr(argument, field_ty)?;
-            let value = self.materialize_memory_argument(field_ty, value, argument.span)?;
-            let value = self.encode_memory_scalar(field_ty, value);
+        let arguments = self.lower_call_arguments(
+            args,
+            struct_fields.len(),
+            Some(parameter_names.as_slice()),
+            false,
+            args.span,
+            "struct constructor argument",
+            |this, index, argument| {
+                let field_ty = this.cx.gcx.type_of_item(struct_fields[index].into());
+                let value = this.lower_typed_expr(argument, field_ty)?;
+                let value = this.materialize_memory_argument(field_ty, value, argument.span)?;
+                Some(this.encode_memory_scalar(field_ty, value))
+            },
+        )?;
+        for (index, value) in arguments.into_iter().enumerate() {
             self.builder.memory_object_store_field(object, layout, index as u64, value);
         }
         Some(object)

@@ -99,19 +99,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 id: constructor_id,
                 skips_receiver: false,
             });
-            let mut values = Vec::with_capacity(constructor.parameters.len());
-            for (index, &parameter) in constructor.parameters.iter().enumerate() {
-                let Some(argument) =
-                    args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-                else {
-                    return self
-                        .cx
-                        .report_unsupported(constructor.span, "named base constructor argument");
-                };
-                let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-                let value = self.lower_typed_expr(argument, parameter_ty)?;
-                values.push(value);
-            }
+            let values = self.lower_call_arguments(
+                args,
+                constructor.parameters.len(),
+                Some(parameter_names.as_slice()),
+                false,
+                constructor.span,
+                "named base constructor argument",
+                |this, index, argument| {
+                    let parameter_ty =
+                        this.cx.gcx.type_of_item(constructor.parameters[index].into());
+                    this.lower_typed_expr(argument, parameter_ty)
+                },
+            )?;
             for (&parameter, &value) in constructor.parameters.iter().zip(&values) {
                 let previous = self.values.insert(parameter, value);
                 saved_parameters.push((parameter, previous));

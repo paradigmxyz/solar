@@ -453,6 +453,48 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result
     }
 
+    fn lower_call_arguments<'a, T>(
+        &mut self,
+        args: hir::CallArgs<'a>,
+        parameter_count: usize,
+        parameter_names: Option<&[Option<Symbol>]>,
+        reverse: bool,
+        span: Span,
+        error: &'static str,
+        mut lower: impl FnMut(&mut Self, usize, &'a hir::Expr<'a>) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        let mut source_args = match args.kind {
+            hir::CallArgsKind::Unnamed(args) => args.iter().enumerate().collect::<Vec<_>>(),
+            hir::CallArgsKind::Named(args) => {
+                let Some(parameter_names) = parameter_names else {
+                    return self.cx.report_unsupported(span, error);
+                };
+                let arguments = args
+                    .iter()
+                    .map(|arg| {
+                        parameter_names
+                            .iter()
+                            .position(|&name| name == Some(arg.name.name))
+                            .map(|index| (index, &arg.value))
+                    })
+                    .collect::<Option<Vec<_>>>();
+                let Some(arguments) = arguments else {
+                    return self.cx.report_unsupported(span, error);
+                };
+                arguments
+            }
+        };
+        if reverse {
+            source_args.reverse();
+        }
+        let mut values = Vec::with_capacity(parameter_count);
+        values.resize_with(parameter_count, || None);
+        for (index, argument) in source_args {
+            values[index] = Some(lower(self, index, argument)?);
+        }
+        Some(values.into_iter().map(|value| value.expect("argument lowered")).collect())
+    }
+
     fn lower_call_options(
         &mut self,
         options: Option<&hir::CallOptions<'_>>,

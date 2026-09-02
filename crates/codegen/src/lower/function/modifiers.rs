@@ -95,25 +95,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             hir::CallArgsKind::Unnamed(_) => None,
         };
         let saved_parameters = self.snapshot_bindings(modifier_function.parameters);
-        for (index, &parameter) in modifier_function.parameters.iter().enumerate() {
-            let Some(argument) =
-                modifier.args.argument_for_parameter(index, parameter_names.as_deref())
-            else {
-                return self.cx.report_unsupported(modifier.span, "named modifier argument");
-            };
-            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-            if Self::is_storage_parameter(parameter_ty) {
-                let Some(access) = self.storage_access(argument) else {
-                    return self.cx.report_unsupported(argument.span, "storage access");
-                };
-                self.storage_refs.insert(parameter, access);
-            } else {
-                let value = self.lower_typed_expr(argument, parameter_ty)?;
-                let value = self.normalize_dirty_scalar(value, parameter_ty);
-                let value = self.materialize_call_argument(parameter_ty, value, argument.span)?;
-                self.values.insert(parameter, value);
-            }
-        }
+        self.lower_call_arguments(
+            modifier.args,
+            modifier_function.parameters.len(),
+            parameter_names.as_deref(),
+            false,
+            modifier.span,
+            "named modifier argument",
+            |this, index, argument| {
+                let parameter = modifier_function.parameters[index];
+                let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
+                if Self::is_storage_parameter(parameter_ty) {
+                    let Some(access) = this.storage_access(argument) else {
+                        return this.cx.report_unsupported(argument.span, "storage access");
+                    };
+                    this.storage_refs.insert(parameter, access);
+                } else {
+                    let value = this.lower_typed_expr(argument, parameter_ty)?;
+                    let value = this.normalize_dirty_scalar(value, parameter_ty);
+                    let value =
+                        this.materialize_call_argument(parameter_ty, value, argument.span)?;
+                    this.values.insert(parameter, value);
+                }
+                Some(())
+            },
+        )?;
 
         let context = ModifierContext {
             modifiers,

@@ -423,22 +423,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Error(error_id));
-        let mut values = Vec::with_capacity(parameters.len());
-        let mut types = Vec::with_capacity(parameters.len());
-        for (index, &parameter) in parameters.iter().enumerate() {
-            let Some(argument) =
-                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-            else {
-                return self.cx.report_unsupported(args.span, "error argument");
-            };
-            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-            let (mut value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
-            if matches!(abi_type, AbiType::Word(_)) {
-                value = self.lower_word_value(parameter_ty, argument, value);
-            }
-            values.push(value);
-            types.push(abi_type);
-        }
+        let arguments = self.lower_call_arguments(
+            args,
+            parameters.len(),
+            Some(parameter_names.as_slice()),
+            false,
+            args.span,
+            "error argument",
+            |this, index, argument| {
+                let parameter_ty = this.cx.gcx.type_of_item(parameters[index].into());
+                let (mut value, abi_type) = this.lower_abi_call_argument(argument, parameter_ty)?;
+                if matches!(abi_type, AbiType::Word(_)) {
+                    value = this.lower_word_value(parameter_ty, argument, value);
+                }
+                Some((value, abi_type))
+            },
+        )?;
+        let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let selector = self
             .builder
@@ -488,22 +489,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .imm(U256::from_be_slice(self.cx.gcx.event_selector(event_id).as_slice())),
             );
         }
+        let arguments = self.lower_call_arguments(
+            *args,
+            event.parameters.len(),
+            Some(parameter_names.as_slice()),
+            false,
+            args.span,
+            "event argument",
+            |this, index, argument| {
+                let parameter_ty = this.cx.gcx.type_of_item(event.parameters[index].into());
+                let value = this.lower_typed_expr(argument, parameter_ty)?;
+                if let Some(argument_ty) = this.cx.gcx.type_of_expr(argument.id)
+                    && let Some(argument_abi_type) = this.types.abi_type(argument_ty)
+                {
+                    this.validate_calldata_bytes_argument(value, &argument_abi_type);
+                }
+                Some((argument, value))
+            },
+        )?;
         let mut data_values = Vec::new();
         let mut data_types = Vec::new();
         for (index, &parameter) in event.parameters.iter().enumerate() {
-            let Some(argument) =
-                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-            else {
-                return self.cx.report_unsupported(args.span, "event argument");
-            };
+            let (argument, mut value) = arguments[index];
             let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let variable = self.cx.gcx.hir.variable(parameter);
-            let mut value = self.lower_typed_expr(argument, parameter_ty)?;
-            if let Some(argument_ty) = self.cx.gcx.type_of_expr(argument.id)
-                && let Some(argument_abi_type) = self.types.abi_type(argument_ty)
-            {
-                self.validate_calldata_bytes_argument(value, &argument_abi_type);
-            }
             if variable.indexed {
                 // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {

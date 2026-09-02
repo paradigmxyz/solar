@@ -239,19 +239,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(args.span, "constructor arguments");
         }
 
-        let mut values = Vec::with_capacity(parameters.len());
-        let mut types = Vec::with_capacity(parameters.len());
-        for (index, &parameter) in parameters.iter().enumerate() {
-            let Some(argument) =
-                args.argument_for_parameter(index, Some(parameter_names.as_slice()))
-            else {
-                return self.cx.report_unsupported(args.span, "constructor argument");
-            };
-            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-            let (value, abi_type) = self.lower_abi_call_argument(argument, parameter_ty)?;
-            values.push(value);
-            types.push(abi_type);
-        }
+        let arguments = self.lower_call_arguments(
+            args,
+            parameters.len(),
+            Some(parameter_names.as_slice()),
+            false,
+            args.span,
+            "constructor argument",
+            |this, index, argument| {
+                let parameter_ty = this.cx.gcx.type_of_item(parameters[index].into());
+                this.lower_abi_call_argument(argument, parameter_ty)
+            },
+        )?;
+        let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
         // arguments = abi_encode(constructor_args)
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice());
@@ -404,15 +404,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .gcx
             .call_param_source(callee)
             .map(|source| self.cx.gcx.callable_param_names(source));
-        let mut values = Vec::with_capacity(function.parameters.len());
-        for (index, &parameter) in function.parameters.iter().enumerate() {
-            let Some(argument) = args.argument_for_parameter(index, parameter_names.as_deref())
-            else {
-                return self.cx.report_unsupported(expr.span, "named internal function argument");
-            };
-            let value = self.lower_typed_expr(argument, parameter)?;
-            values.push(self.materialize_call_argument(parameter, value, argument.span)?);
-        }
+        let mut values = self.lower_call_arguments(
+            args,
+            function.parameters.len(),
+            parameter_names.as_deref(),
+            false,
+            expr.span,
+            "named internal function argument",
+            |this, index, argument| {
+                let parameter = function.parameters[index];
+                let value = this.lower_typed_expr(argument, parameter)?;
+                this.materialize_call_argument(parameter, value, argument.span)
+            },
+        )?;
         values.insert(0, function_value);
 
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
@@ -731,31 +735,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             values.push(self.materialize_call_argument(parameter_ty, value, receiver.span)?);
         }
-        let mut parameter_indices = (receiver_count..function.parameters.len()).collect::<Vec<_>>();
-        if function.is_yul {
-            parameter_indices.reverse();
-        }
-        let mut arguments = vec![None; function.parameters.len() - receiver_count];
-        for index in parameter_indices {
-            let parameter = function.parameters[index];
-            let Some(argument) =
-                args.argument_for_parameter(index - receiver_count, parameter_names.as_deref())
-            else {
-                return self.cx.report_unsupported(expr.span, "named function argument");
-            };
-            let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-            let value = if Self::is_storage_parameter(parameter_ty) {
-                let Some(access) = self.storage_access(argument) else {
-                    return self.cx.report_unsupported(argument.span, "storage access");
+        let arguments = self.lower_call_arguments(
+            args,
+            function.parameters.len() - receiver_count,
+            parameter_names.as_deref(),
+            function.is_yul,
+            expr.span,
+            "named function argument",
+            |this, argument_index, argument| {
+                let parameter = function.parameters[argument_index + receiver_count];
+                let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
+                let value = if Self::is_storage_parameter(parameter_ty) {
+                    let Some(access) = this.storage_access(argument) else {
+                        return this.cx.report_unsupported(argument.span, "storage access");
+                    };
+                    access.slot
+                } else {
+                    this.lower_typed_expr(argument, parameter_ty)?
                 };
-                access.slot
-            } else {
-                self.lower_typed_expr(argument, parameter_ty)?
-            };
-            arguments[index - receiver_count] =
-                Some(self.materialize_call_argument(parameter_ty, value, argument.span)?);
-        }
-        values.extend(arguments.into_iter().map(|value| value.expect("argument lowered")));
+                this.materialize_call_argument(parameter_ty, value, argument.span)
+            },
+        )?;
+        values.extend(arguments);
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
@@ -912,23 +913,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         error: &'static str,
         storage_parameters: bool,
     ) -> Option<(Vec<ValueId>, Vec<AbiType>)> {
-        let parameter_names = parameter_names.map(|names| names.as_slice());
-        let values_and_types = parameter_types
-            .enumerate()
-            .map(|(index, parameter_ty)| {
-                let argument = args
-                    .argument_for_parameter(index, parameter_names)
-                    .or_else(|| self.cx.report_unsupported(span, error))?;
+        let parameter_types = parameter_types.collect::<Vec<_>>();
+        let values_and_types = self.lower_call_arguments(
+            args,
+            parameter_types.len(),
+            parameter_names.map(CallableParamNames::as_slice),
+            false,
+            span,
+            error,
+            |this, index, argument| {
+                let parameter_ty = parameter_types[index];
                 if storage_parameters && Self::is_storage_parameter(parameter_ty) {
-                    let Some(access) = self.storage_access(argument) else {
-                        return self.cx.report_unsupported(argument.span, "storage access");
+                    let Some(access) = this.storage_access(argument) else {
+                        return this.cx.report_unsupported(argument.span, "storage access");
                     };
                     Some((access.slot, AbiType::Word(None)))
                 } else {
-                    Some(self.lower_abi_call_argument(argument, parameter_ty)?)
+                    this.lower_abi_call_argument(argument, parameter_ty)
                 }
-            })
-            .collect::<Option<Vec<_>>>()?;
+            },
+        )?;
         let (values, types) = values_and_types.into_iter().unzip();
         Some((values, types))
     }
