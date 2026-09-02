@@ -10,9 +10,8 @@ fn @unwrap(arg0: calldataptr, arg1: u256) -> (calldataptr, u256) [pure] {
   bb1:
     jump bb2
   bb2:
-    v17 = phi [bb1: arg0], [bb0: arg0]
     v18 = phi [bb1: v1], [bb0: arg1]
-    ret v17, v18
+    ret arg0, v18
 }
 
 fn @use() [selector=0x01bd03f7, pure] {

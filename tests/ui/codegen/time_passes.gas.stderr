@@ -64,6 +64,7 @@ time: <TIME>	MIR TimePasses coalesce-allocs changed=false
 time: <TIME>	MIR TimePasses lower-alloc changed=false
 time: <TIME>	MIR TimePasses lower-memory-zero changed=false
 time: <TIME>	MIR TimePasses lower-mcopy changed=false
+time: <TIME>	MIR TimePasses egraph-numbering changed=false
 time: <TIME>	MIR TimePasses lower-evm-shaped changed=true
 time: <TIME>	MIR TimePasses dce changed=false
 time: <TIME>	MIR TimePasses evm-inst-schedule changed=false
