@@ -179,7 +179,7 @@ function HistoryGraph({
                     style={{ top: `${activeY}%` }}
                   />
                   <span
-                    className={`chart-tooltip${activeX > 65 ? ' tooltip-left' : ''}${activeY < 32 ? ' tooltip-below' : ''}`}
+                    className={`chart-tooltip${activeX > 40 ? ' tooltip-left' : ''}${activeY < 32 ? ' tooltip-below' : ''}`}
                     style={{ left: `${activeX}%`, top: `${activeY}%` }}
                   >
                     {new Date(active.timestamp).toLocaleString()} · {short(active.commit)} ·{' '}
