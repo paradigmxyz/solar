@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 
-import { creationCodeByteLength, formatArtifactContents } from './artifactFormat'
+import { creationCodeByteLength, formatArtifactContents } from '../src/artifactFormat'
 
 describe('artifact formatting', () => {
   it('keeps only creation code before its runtime suffix', () => {
