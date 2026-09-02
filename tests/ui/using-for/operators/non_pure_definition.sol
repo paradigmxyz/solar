@@ -10,7 +10,7 @@ function sub(U a, U b) returns (U) {
     return a;
 }
 
-function mul(U a, U b) payable returns (U) {
+function mul(U a, U b) payable returns (U) { //~ ERROR: free functions cannot be payable
     return a;
 }
 

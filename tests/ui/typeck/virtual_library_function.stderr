@@ -1,0 +1,20 @@
+error[7801]: library functions cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/virtual_library_function.sol:LL:CC
+   │
+LL │     function f() internal pure virtual returns (uint) { return 0; }
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7801]: library functions cannot be `virtual`
+   ╭▸ ROOT/tests/ui/typeck/virtual_library_function.sol:LL:CC
+   │
+LL │     function g() public virtual {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[3942]: `virtual` and `private` cannot be used together
+   ╭▸ ROOT/tests/ui/typeck/virtual_library_function.sol:LL:CC
+   │
+LL │     function i() private virtual {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+
