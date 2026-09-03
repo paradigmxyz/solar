@@ -15,6 +15,14 @@ extend-exclude = [
     "dist-workspace.toml",
 ]
 
+[default]
+# Abbreviated commit hashes such as `ba539e44a`.
+extend-ignore-re = ["\\b[0-9a-f]{9}\\b"]
+
+[default.extend-identifiers]
+numLits = "numLits"
+unitLits = "unitLits"
+
 [default.extend-words]
 ket = "ket"
 Mke = "Mke"
