@@ -14,8 +14,12 @@
 //! an execution.
 
 use crate::{
-    backend::evm::{ir::compact_pushes, op, select},
-    mir::{Op, ValueId},
+    backend::evm::{
+        ir::compact_pushes,
+        op,
+        select::{self, OpcodeLowering},
+    },
+    mir::{EffectKind, Function, InstKind, Op, Value, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -440,6 +444,36 @@ impl Target {
     pub(crate) fn internal_return(self, params: usize, returns: usize) -> Cost {
         let moved = (params + returns) as u32;
         Cost::new(24 + moved * 8, 8 + moved * 4)
+    }
+
+    /// Estimated code of a function body: every operation with the pushes
+    /// of its immediates, and a pushed label with a jump and a landing per
+    /// edge. Sizes the shape of a helper before deciding to share it.
+    pub(crate) fn code_estimate(self, func: &Function) -> Cost {
+        let mut cost = Cost::ZERO;
+        for block in &func.blocks {
+            for &inst in &block.instructions {
+                let kind = &func.inst(inst).kind;
+                let immediate = |value| match func.value(value) {
+                    Value::Immediate(immediate) => immediate.as_u256(),
+                    _ => None,
+                };
+                cost += self.op(&kind.op(), immediate);
+                for operand in kind.operands() {
+                    if let Some(value) = immediate(operand) {
+                        cost += self.push(value);
+                    }
+                }
+            }
+            let edges =
+                block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
+            for _ in 0..edges {
+                cost += self.opcode(op::PUSH2);
+                cost += self.opcode(op::JUMPI);
+                cost += self.opcode(op::JUMPDEST);
+            }
+        }
+        cost
     }
 
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
