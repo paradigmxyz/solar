@@ -426,51 +426,33 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v75 = eq v70, v74
     jumpi v75, bb7, bb32
   bb32:
-    v76 = add v73, 31
-    v77 = div v76, 32
-    v78 = add v73, 63
-    v79 = lt v78, v73
-    jumpi v79, bb9, bb33
-  bb33:
-    v80 = not 31
-    v81 = and v78, v80
-    v82 = alloc memorybytes, exact, uninitialized, panic, v81
-    set_memory_object_len memorybytes, v82, v73
-    jumpi v70, bb35, bb34
+    v76 = lt 0, v73
+    v77 = iszero v76
+    jumpi v77, bb33, bb34
   bb34:
-    v83 = and v68, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v82, 0, v83
-    jump bb36
+    jumpi v70, bb35, bb36
+  bb36:
+    jump bb37
   bb35:
-    v84 = storage_array_data_slot 0
+    v78 = storage_array_data_slot 0
+    v79 = shr 5, 0
+    v80 = add v78, v79
     jump bb37
   bb37:
-    v85 = phi [bb35: 0], [bb38: v90]
-    v86 = lt v85, v77
-    jumpi v86, bb38, bb39
-  bb39:
-    jump bb36
-  bb36:
-    v91 = memory_object_len memorybytes, v82
-    v92 = lt 0, v91
-    v93 = iszero v92
-    jumpi v93, bb40, bb41
-  bb41:
-    v94 = memory_object_load_byte memorybytes, v82, 0
-    v95 = shl 248, v94
-    v96 = shr 248, v95
-    ret v96
-  bb40:
+    v81 = phi [bb35: v80], [bb36: 0]
+    v82 = and 0, 31
+    v83 = sub 31, v82
+    v84 = sload v81 !metadata(storage=symbolic(v81))
+    v85 = mul v83, 8
+    v86 = shr v85, v84
+    v87 = and v86, 255
+    v88 = shl 248, v87
+    v89 = shr 248, v88
+    ret v89
+  bb33:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb38:
-    v87 = add v84, v85
-    v88 = sload v87 !metadata(storage=symbolic(v87))
-    v89 = mul v85, 32
-    memory_object_store_word memorybytes, v82, v89, v88
-    v90 = add v85, 1
-    jump bb37
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)

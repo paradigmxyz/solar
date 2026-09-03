@@ -7,7 +7,8 @@
 // `push`/`pop` (previously rejected with "does not support this `.push`
 // member call"), element read/write, `.length`, and using the field as a
 // value (which materializes a `[length][data...]` memory copy — previously
-// the raw slot word was handed out as if it were a memory pointer).
+// the raw slot word was handed out as if it were a memory pointer). Element
+// access and `.length` read the header slot directly instead of copying.
 // Runtime behavior is verified equal to solc 0.8.30 separately, across the
 // 31/32-byte short/long form boundary (nitro-contracts HashProofHelper).
 
@@ -68,7 +69,8 @@ contract StorageBytesMember {
 
     // CHECK: [[LEN]]:
     // CHECK: keccak256
-    // CHECK: mload
+    // CHECK: sload
+    // CHECK-NOT: mload
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]]:
     // CHECK: return
@@ -81,8 +83,9 @@ contract StorageBytesMember {
     // CHECK: caller
     // CHECK: push 32
     // CHECK-NEXT: mstore
-    // CHECK: mload
-    // CHECK: mload
+    // CHECK: sload
+    // CHECK-NOT: mload
+    // CHECK: sload
     function at(uint256 i) external view returns (bytes1) {
         KeccakState storage state = states[msg.sender];
         return state.part[i];
@@ -91,6 +94,8 @@ contract StorageBytesMember {
     // CHECK: [[SET_AT]]:
     // CHECK: keccak256
     // CHECK: sload
+    // CHECK-NOT: mcopy
+    // CHECK: sstore
     function setAt(uint256 i, bytes1 b) external {
         KeccakState storage state = states[msg.sender];
         state.part[i] = b;

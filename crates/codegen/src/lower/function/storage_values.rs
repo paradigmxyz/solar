@@ -1212,6 +1212,56 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.icall(helper, vec![slot], MirType::MemoryObject(MemoryObjectKind::Bytes), 1)
     }
 
+    /// Reads the length of a storage `bytes`/`string` value from its header slot.
+    pub(super) fn storage_bytes_length(&mut self, slot: ValueId) -> ValueId {
+        // length = extract_length(sload(slot))
+        let (_, _, length) = decode_storage_bytes_header(&mut self.builder, slot);
+        length
+    }
+
+    /// Resolves one element of a storage `bytes`/`string` value to the single
+    /// word that holds it, after bounds-checking the index.
+    ///
+    /// A short value keeps its data in the header slot, a long value keeps word
+    /// `index / 32` at `storage_array_data_slot(slot) + index / 32`. The element
+    /// is byte `index % 32` of that word, counted from the most significant
+    /// byte, so the packed-word offset is `31 - index % 32`.
+    pub(super) fn storage_bytes_byte_access(
+        &mut self,
+        slot: ValueId,
+        index: ValueId,
+    ) -> StorageAccess {
+        let (_, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
+        self.builder.bounds_check(index, length);
+
+        // word_slot = is_long ? storage_array_data_slot(slot) + index / 32 : slot
+        let long_block = self.builder.create_block();
+        let short_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        self.builder.branch(is_long, long_block, short_block);
+
+        self.builder.switch_to_block(long_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let word_shift = self.builder.imm(5);
+        let word_index = self.builder.shr(word_shift, index);
+        let long_slot = self.builder.add(data_slot, word_index);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(short_block);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
+        let word_slot = self.builder.phi(vec![(long_block, long_slot), (short_block, slot)]);
+
+        // offset = 31 - index % 32
+        let last_byte = self.builder.imm(31);
+        let index_in_word = self.builder.and(index, last_byte);
+        let offset = self.builder.sub(last_byte, index_in_word);
+        let location =
+            StorageLocation::packed_word(TypeSize::new_int_bits(8), StorageEncoding::FixedBytes);
+        StorageAccess { slot: word_slot, location, offset: Some(offset) }
+    }
+
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
         // store_storage_bytes(slot, object)
         let clear_helper = self.storage_clear_helper();
