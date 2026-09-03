@@ -1,9 +1,10 @@
 // ported-from: test/libsolidity/syntaxTests/functionCalls/calloptions_repeated.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/external_functions_with_variable_number_of_stack_slots.sol
 
-// Call options on an external function value are valid before a member access, where they have
-// no effect, as in solc. They are still validated, and a function value carrying options cannot
-// be used anywhere else, because dropping the options would silently change the call.
+// Call options on an external function value are valid where the value they produce is unused:
+// before a member access and in a discarded expression statement. There they have no effect, as
+// in solc. They are still validated, and a function value carrying options cannot be used
+// anywhere else, because dropping the options would silently change the call.
 
 contract CallOptionMembers {
     function g() external {}
@@ -33,7 +34,15 @@ contract CallOptionMembers {
         //~^ ERROR: member `selector` not found on type `function ()`
     }
 
-    // A function value carrying options is only usable for a call or a member access.
+    // An expression statement discards the function value, so it takes options too.
+    function discarded() external {
+        this.g{gas: 42};
+        (this.h{gas: 42, value: 5});
+        internalFn{gas: 1}; //~ ERROR: function call options can only be set on external function calls or contract creations
+    }
+
+    // A function value carrying options is only usable for a call, a member access, or a
+    // discarded expression statement.
     function badPositions() external {
         function() external f = this.g{gas: 42}; //~ ERROR: call options must be part of a call expression
         f;

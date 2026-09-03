@@ -1028,7 +1028,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
+            ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr_with_options(expr)),
             ast::StmtKind::If(cond, then, else_) => hir::StmtKind::If(
                 self.lower_expr(cond),
                 self.lower_stmt(then),
@@ -1899,7 +1899,7 @@ impl<'gcx> ResolveContext<'gcx> {
             },
             ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
             ast::ExprKind::Member(expr, member) => {
-                hir::ExprKind::Member(self.lower_member_receiver(expr), *member)
+                hir::ExprKind::Member(self.lower_expr_with_options(expr), *member)
             }
             ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
             ast::ExprKind::Payable(args) => 'b: {
@@ -1932,16 +1932,17 @@ impl<'gcx> ResolveContext<'gcx> {
         self.arena.alloc_with(|| lit.copy_without_data())
     }
 
-    /// Lowers the receiver of a member access.
+    /// Lowers an expression that may carry call options, which have no effect.
     ///
-    /// Call options are valid on a function value before a member access, as in
-    /// `this.f{gas: 42}.address`, where they have no effect; solc discards them too.
-    fn lower_member_receiver(&mut self, receiver: &ast::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
-        if !matches!(receiver.peel_parens().kind, ast::ExprKind::CallOptions(..)) {
-            return self.lower_expr(receiver);
+    /// Call options are valid on a function value whose options cannot be applied to a call: the
+    /// receiver of a member access, as in `this.f{gas: 42}.address`, and a discarded expression
+    /// statement, as in `this.f{gas: 42};`. solc discards them in both.
+    fn lower_expr_with_options(&mut self, expr: &ast::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
+        if !matches!(expr.peel_parens().kind, ast::ExprKind::CallOptions(..)) {
+            return self.lower_expr(expr);
         }
-        let span = receiver.span;
-        let (inner, options) = self.lower_call_callee(receiver);
+        let span = expr.span;
+        let (inner, options) = self.lower_call_callee(expr);
         let options = options.expect("call options are present");
         let id = self.next_id();
         self.hir_builder().expr(id, hir::ExprKind::CallOptions(inner, options), span)
