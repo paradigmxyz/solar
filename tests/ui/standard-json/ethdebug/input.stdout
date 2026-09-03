@@ -535,7 +535,7 @@
                 {
                   "offset": 50,
                   "operation": {
-                    "mnemonic": "DUP1"
+                    "mnemonic": "PUSH0"
                   }
                 },
                 {
