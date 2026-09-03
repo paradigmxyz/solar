@@ -77,8 +77,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/base_constructor_storage_arg.sol`; fixed in `5967d1929`)
 - [ ] 25. Five valid programs from the solc semantic tests are rejected by the type checker
       (see the item; the repros are the upstream test files)
-- [ ] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
-      (`symbolic-audit/storage_bytes_index_gas.sol`)
+- [x] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
+      (`symbolic-audit/storage_bytes_index_gas.sol`; fixed in `92a20464d`)
 
 ## Findings
 
@@ -951,6 +951,23 @@ storage arrays are indexed directly and are not affected.
 Severity: gas. Correct results, but 3x to 25x the gas of solc on storage
 `bytes` element access, and callers with tight gas limits see reverts solc
 does not produce.
+
+Fix (`92a20464d`): element access on storage `bytes` and `string` now
+resolves to one storage word the way solc does (decode the header slot,
+bounds-check, then `keccak(slot) + i / 32` for long values or the header
+slot itself for short ones) and reuses the packed-storage read and
+read-modify-write machinery; `.length` reads the header instead of copying.
+Re-measured on `92a20464d` after storing 914 bytes:
+
+| Call | solc gas | solar gas | ratio |
+|------|------|------|------|
+| `readOne(5)` | 25 945 | 25 808 | 0.99 |
+| `readAll()` | 703 959 | 623 467 | 0.89 |
+| `writeAll()` | 998 031 | 977 873 | 0.98 |
+
+The UI codegen corpus shrinks 1.0% at `-Ogas` and 1.7% at `-Osize` in
+runtime size; the probe set `storage_bytes.sol` still agrees with solc on
+random multi-call sequences.
 
 ## solc-side observations
 
