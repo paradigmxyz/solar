@@ -81,8 +81,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/storage_bytes_index_gas.sol`; fixed in `92a20464d`)
 - [x] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
       (`symbolic-audit/external_call_prebyzantium.sol`; fixed in `49cf1b51d`, tests in `46b9d61f8`)
-- [ ] 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value, so loops of them are quadratic in gas
-      (`symbolic-audit/storage_bytes_push_gas.sol`)
+- [x] 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value, so loops of them are quadratic in gas
+      (`symbolic-audit/storage_bytes_push_gas.sol`; fixed in `8f2e55ba`, review fix `3d5d21f8`)
 - [ ] 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects, so every external call runs out of gas
       (`symbolic-audit/external_call_gas_prebyzantium.sol`)
 - [ ] 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium because the catch path emits `RETURNDATACOPY`
@@ -99,6 +99,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/interface_free_function_checks.sol`)
 - [ ] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
       (`symbolic-audit/loop_tuple_assign_miscompile.sol`)
+- [ ] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
+      (`symbolic-audit/storage_array_push_rvalue.sol`)
 
 ## Findings
 
@@ -1118,6 +1120,43 @@ alone.
 Severity: gas. Correct results, but 2.5x to 4.7x the gas of solc on
 `bytes` growth and shrink loops.
 
+Cause and fix (`8f2e55ba`): the three operations were lowered as a
+whole-value round trip through `load_storage_bytes` and
+`store_storage_bytes`. They now follow solc's `array_push`,
+`array_push_zero`, and `byte_array_pop`: decode the header, and for a long
+value write only the affected data word and the header, with the
+short-to-long transition at 31 to 32 bytes on push and the long-to-short
+transition only when popping from 32 bytes, popped bytes cleared,
+`Panic(0x31)` on an empty pop and `Panic(0x41)` at the 2^64 length limit.
+The `StorageBytePush` lvalue variant is gone: `a.push() = x` is an
+ordinary packed-storage read-modify-write like `a[i]`. Re-measured on
+`8f2e55ba` at `-Ogas`, osaka:
+
+| Call | solc gas | solar gas | ratio |
+|------|------|------|------|
+| `pushArg(40)` | 113 957 | 110 047 | 0.97 |
+| `pushArg(300)` | 554 634 | 484 170 | 0.87 |
+| `pushNoArg(300)` | 275 553 | 177 460 | 0.64 |
+| `pushNoArgAssign(300)` | 576 619 | 511 326 | 0.89 |
+| `popAll()` over 300 bytes | 291 550 | 302 777 | 1.04 |
+| `pushU8(300)` on `uint8[]` | 449 171 | 445 338 | 0.99 |
+
+The repro and `probes/storage_bytes.sol` agree on random sequences, and
+`push_no_args_bytes.sol` `g(1000)` at byzantium, which ran out of the
+harness's 20M gas before, now agrees at ratio 0.999. The UI codegen
+corpus shrinks 0.6% at `-Ogas` and 1.1% at `-Osize`. The review compared
+every branch against solc's Yul helpers, ran the harness at three
+optimization levels and at byzantium and homestead, and found one defect
+in the commit: `a.push()` used as a value returned a constant zero instead
+of reading the appended byte, visible when assembly had dirtied the slot
+(`3d5d21f8`, with dirty-header, 2^64 limit, and `bytes(string)`
+coverage added). It confirmed three non-issues: pop costs about 37 gas
+more than solc because solc outlines `byte_array_pop` and we inline it, a
+bare `a.push();` keeps a dead phi at `-Onone`, and non-bytes arrays check
+the push length with `Panic(0x11)` where solc uses `Panic(0x41)` at 2^64
+(reachable only through an assembly-dirtied length slot). It also found
+finding 37.
+
 ### 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects
 
 File: `symbolic-audit/external_call_gas_prebyzantium.sol`
@@ -1409,6 +1448,38 @@ does not, and the loop body writes the tuple temporary at 160.
 
 Severity: miscompile (wrong return value) at the default optimization
 level, with no assembly involved. Highest priority of the open items.
+
+### 37. `a.push()` used as a value on a non-bytes storage array returns 0
+
+File: `symbolic-audit/storage_array_push_rvalue.sol`
+Found by the review of finding 28's fix (`3d5d21f8`), which fixed the
+same defect for storage `bytes`; the generic array path has it too.
+
+```solidity
+uint256[] a;
+function dirtyThenPush(uint256 v) external returns (uint256 r) {
+    uint256 len = a.length;
+    assembly { mstore(0, a.slot) sstore(add(keccak256(0, 32), len), v) }
+    r = a.push();
+}
+```
+
+| Call | solc | solar |
+|------|------|------|
+| `dirtyThenPush(0xff)` on `uint256[]` | `0xff` | `0` |
+| `dirtyThenPush8(0x7f)` on `uint8[]` | `0x7f` | `0` |
+| `pushClean()` twice, slot never dirtied | `0` | `0` |
+
+`push()` without an argument appends an element without writing it, and
+its value is a reference to the new slot. solc reads that slot when the
+expression is used as a value; our `lower_storage_array_push` returns a
+constant zero for the no-argument form on value-type elements. Because
+neither compiler clears the slot on push, the difference is visible
+whenever assembly (or an earlier pop-free length manipulation) left a
+value there. Storage effects and the appended length agree.
+
+Severity: miscompile of a returned value, reachable only with an
+assembly-written slot. Low.
 
 ## solc-side observations
 
