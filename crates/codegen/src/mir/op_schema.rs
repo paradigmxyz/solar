@@ -361,6 +361,8 @@ macro_rules! opaque_attributes {
 /// Generates one `FunctionBuilder` method for an operation marked
 /// `#[builder(name)]` or `#[builder(name, void)]`, taking its value operands in
 /// declaration order. The result type comes from the operation's result kind.
+/// Only tuple operands are generated; an operation with named fields or none
+/// keeps a hand-written builder.
 macro_rules! builder_method {
     ($inst:ident::$variant:ident; []; ($($operand:ident)*); {$($field:ident)*}) => {};
     ($inst:ident::$variant:ident; [$name:ident]; ($($operand:ident)+); {}) => {
@@ -373,39 +375,11 @@ macro_rules! builder_method {
             }
         }
     };
-    ($inst:ident::$variant:ident; [$name:ident]; (); {$($field:ident)+}) => {
-        impl crate::mir::FunctionBuilder<'_> {
-            #[doc = concat!("Emits `", stringify!($name), "`.")]
-            pub(crate) fn $name(&mut self $(, $field: ValueId)+) -> ValueId {
-                let kind = $inst::$variant { $($field),+ };
-                let ty = kind.op_def().result.default_type();
-                self.emit_inst(kind, ty)
-            }
-        }
-    };
-    ($inst:ident::$variant:ident; [$name:ident]; (); {}) => {
-        impl crate::mir::FunctionBuilder<'_> {
-            #[doc = concat!("Emits `", stringify!($name), "`.")]
-            pub(crate) fn $name(&mut self) -> ValueId {
-                let kind = $inst::$variant;
-                let ty = kind.op_def().result.default_type();
-                self.emit_inst(kind, ty)
-            }
-        }
-    };
     ($inst:ident::$variant:ident; [$name:ident, void]; ($($operand:ident)+); {}) => {
         impl crate::mir::FunctionBuilder<'_> {
             #[doc = concat!("Emits `", stringify!($name), "`.")]
             pub(crate) fn $name(&mut self $(, $operand: ValueId)+) {
                 self.emit_void_inst($inst::$variant($($operand),+));
-            }
-        }
-    };
-    ($inst:ident::$variant:ident; [$name:ident, void]; (); {$($field:ident)+}) => {
-        impl crate::mir::FunctionBuilder<'_> {
-            #[doc = concat!("Emits `", stringify!($name), "`.")]
-            pub(crate) fn $name(&mut self $(, $field: ValueId)+) {
-                self.emit_void_inst($inst::$variant { $($field),+ });
             }
         }
     };
