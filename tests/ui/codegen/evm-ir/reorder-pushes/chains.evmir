@@ -37,11 +37,11 @@ bb1:
 // CHECK: +   push 1
 // CHECK: -   swap 1
 bb2:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->2)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->2)
   calldatasize
   calldatasize
   add
@@ -56,10 +56,10 @@ bb2:
 // CHECK: +   push 2
 // CHECK: -   swap 1
 bb3:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
   push 0
   calldatasize
   calldatasize

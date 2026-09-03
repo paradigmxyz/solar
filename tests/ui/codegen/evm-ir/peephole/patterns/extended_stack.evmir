@@ -7,7 +7,7 @@
 // CHECK: {{^[ +].*}}dup 235
 // CHECK-NEXT: -   swap 235
 bb0:
-  callf !meta(stack=0->235)
+  callf !metadata(stack=0->235)
   dup 235
   swap 235
   stop
@@ -17,7 +17,7 @@ bb0:
 // CHECK: +   swap 18
 // CHECK: -   swap 1
 bb1:
-  callf !meta(stack=0->19)
+  callf !metadata(stack=0->19)
   swap 17
   pop
   pop
@@ -44,7 +44,7 @@ bb1:
 // CHECK: -   swap 17
 // CHECK-COUNT-18: {{^[ +].*}}pop
 bb2:
-  callf !meta(stack=0->18)
+  callf !metadata(stack=0->18)
   swap 17
   pop
   pop
