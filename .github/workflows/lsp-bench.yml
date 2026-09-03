@@ -32,13 +32,11 @@ jobs:
         if: github.event_name == 'pull_request'
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MERGE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$MERGE_SHA"
-          test "$(git rev-parse HEAD^1)" = "$BASE_SHA"
           test "$(git rev-parse HEAD^2)" = "$HEAD_SHA"
 
       - name: Install Rust
@@ -97,8 +95,6 @@ jobs:
         shell: bash
         env:
           TESTED_MERGE_SHA: ${{ github.sha }}
-          TESTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          TESTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           target/release/solar-lsp-bench run \
@@ -141,14 +137,14 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          TESTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           TESTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           TESTED_MERGE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$TESTED_MERGE_SHA"
-          test "$(git rev-parse HEAD^1)" = "$TESTED_BASE_SHA"
           test "$(git rev-parse HEAD^2)" = "$TESTED_HEAD_SHA"
+          TESTED_BASE_SHA="$(git rev-parse HEAD^1)"
+          export TESTED_BASE_SHA
           mkdir -p target/lsp-bench/pr-comment
           cp -- target/lsp-bench/pr-smoke/summary.json target/lsp-bench/pr-comment/summary.json
           node <<'NODE'

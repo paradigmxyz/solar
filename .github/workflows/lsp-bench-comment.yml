@@ -87,8 +87,7 @@ jobs:
               pull.head?.ref !== headBranch ||
               pull.head?.repo?.full_name !== headRepository ||
               pull.base?.repo?.full_name !== repository ||
-              !pull.base?.ref ||
-              !SHA_RE.test(pull.base?.sha || "")
+              !pull.base?.ref
             ) {
               throw new Error(`Pull request identity changed for workflow run ${run.id}`);
             }
@@ -96,7 +95,6 @@ jobs:
             core.setOutput("head_sha", pull.head.sha);
             core.setOutput("head_ref", pull.head.ref);
             core.setOutput("head_repo", pull.head.repo.full_name);
-            core.setOutput("base_sha", pull.base.sha);
             core.setOutput("base_ref", pull.base.ref);
             core.setOutput("base_repo", pull.base.repo.full_name);
 
@@ -230,6 +228,10 @@ jobs:
               ...context.repo,
               pull_number: prNumber,
             });
+            const { data: base } = await github.rest.repos.getBranch({
+              ...context.repo,
+              branch: pull.base.ref,
+            });
             const { data: merge } = await github.rest.repos.getCommit({
               ...context.repo,
               ref: provenance.merge_sha,
@@ -239,13 +241,14 @@ jobs:
               : [];
             if (
               pull.state !== "open" ||
+              pull.mergeable !== true ||
               pull.base?.repo?.full_name !== repository ||
               pull.base?.ref !== provenance.base_ref ||
-              pull.base?.sha !== provenance.base_sha ||
               pull.head?.repo?.full_name !== provenance.head_repository ||
               pull.head?.ref !== provenance.head_ref ||
               pull.head?.sha !== provenance.head_sha ||
               pull.merge_commit_sha !== provenance.merge_sha ||
+              base.commit?.sha !== provenance.base_sha ||
               merge.sha !== provenance.merge_sha ||
               parents.length !== 2 ||
               parents[0] !== provenance.base_sha ||
@@ -315,15 +318,35 @@ jobs:
             });
             if (
               pull.state !== "open" ||
+              pull.mergeable !== true ||
               pull.head?.sha !== process.env.HEAD_SHA ||
               pull.head?.ref !== process.env.HEAD_REF ||
               pull.head?.repo?.full_name !== process.env.HEAD_REPO ||
-              pull.base?.sha !== process.env.BASE_SHA ||
               pull.base?.ref !== process.env.BASE_REF ||
               pull.base?.repo?.full_name !== process.env.BASE_REPO ||
               pull.merge_commit_sha !== process.env.MERGE_SHA
             ) {
               throw new Error("Pull request base or head changed before the benchmark comment was posted");
+            }
+            const { data: base } = await github.rest.repos.getBranch({
+              ...context.repo,
+              branch: pull.base.ref,
+            });
+            const { data: merge } = await github.rest.repos.getCommit({
+              ...context.repo,
+              ref: process.env.MERGE_SHA,
+            });
+            const parents = Array.isArray(merge.parents)
+              ? merge.parents.map((parent) => parent.sha)
+              : [];
+            if (
+              base.commit?.sha !== process.env.BASE_SHA ||
+              merge.sha !== process.env.MERGE_SHA ||
+              parents.length !== 2 ||
+              parents[0] !== process.env.BASE_SHA ||
+              parents[1] !== process.env.HEAD_SHA
+            ) {
+              throw new Error("Pull request merge changed before the benchmark comment was posted");
             }
 
       - name: Publish sticky benchmark comment

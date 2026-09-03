@@ -71,8 +71,8 @@ jobs:
             });
             if (
               pull.state !== "open" ||
+              pull.mergeable !== true ||
               pull.base?.repo?.full_name !== repository ||
-              !SHA_RE.test(pull.base?.sha || "") ||
               !pull.base?.ref ||
               !pull.head?.repo?.full_name ||
               !pull.head?.ref ||
@@ -85,20 +85,25 @@ jobs:
               ...context.repo,
               ref: pull.merge_commit_sha,
             });
+            const { data: base } = await github.rest.repos.getBranch({
+              ...context.repo,
+              branch: pull.base.ref,
+            });
             const parents = Array.isArray(merge.parents)
               ? merge.parents.map((parent) => parent.sha)
               : [];
             if (
               merge.sha !== pull.merge_commit_sha ||
               parents.length !== 2 ||
-              parents[0] !== pull.base.sha ||
+              !SHA_RE.test(parents[0] || "") ||
+              base.commit?.sha !== parents[0] ||
               parents[1] !== pull.head.sha
             ) {
-              throw new Error("Pull request merge commit is not exactly `[base, head]`");
+              throw new Error("Pull request merge commit has invalid parents");
             }
             core.setOutput("repository", repository);
             core.setOutput("pr_number", String(number));
-            core.setOutput("base_sha", pull.base.sha);
+            core.setOutput("base_sha", base.commit.sha);
             core.setOutput("base_ref", pull.base.ref);
             core.setOutput("head_repository", pull.head.repo.full_name);
             core.setOutput("head_sha", pull.head.sha);
@@ -446,15 +451,35 @@ jobs:
             });
             if (
               pull.state !== "open" ||
+              pull.mergeable !== true ||
               pull.head?.sha !== process.env.HEAD_SHA ||
               pull.head?.ref !== process.env.HEAD_REF ||
               pull.head?.repo?.full_name !== process.env.HEAD_REPO ||
-              pull.base?.sha !== process.env.BASE_SHA ||
               pull.base?.ref !== process.env.BASE_REF ||
               pull.base?.repo?.full_name !== process.env.BASE_REPO ||
               pull.merge_commit_sha !== process.env.MERGE_SHA
             ) {
               throw new Error("Pull request base or head changed before the benchmark comment was posted");
+            }
+            const { data: base } = await github.rest.repos.getBranch({
+              ...context.repo,
+              branch: pull.base.ref,
+            });
+            const { data: merge } = await github.rest.repos.getCommit({
+              ...context.repo,
+              ref: process.env.MERGE_SHA,
+            });
+            const parents = Array.isArray(merge.parents)
+              ? merge.parents.map((parent) => parent.sha)
+              : [];
+            if (
+              base.commit?.sha !== process.env.BASE_SHA ||
+              merge.sha !== process.env.MERGE_SHA ||
+              parents.length !== 2 ||
+              parents[0] !== process.env.BASE_SHA ||
+              parents[1] !== process.env.HEAD_SHA
+            ) {
+              throw new Error("Pull request merge changed before the benchmark comment was posted");
             }
 
       - name: Publish sticky cross-server comment
