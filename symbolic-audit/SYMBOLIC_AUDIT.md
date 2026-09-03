@@ -77,6 +77,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/base_constructor_storage_arg.sol`)
 - [ ] 25. Five valid programs from the solc semantic tests are rejected by the type checker
       (see the item; the repros are the upstream test files)
+- [ ] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
+      (`symbolic-audit/storage_bytes_index_gas.sol`)
 
 ## Findings
 
@@ -903,6 +905,34 @@ triage.
 errors.
 
 Severity: valid programs rejected.
+
+### 26. Indexing a storage `bytes` loads the whole array into memory
+
+File: `symbolic-audit/storage_bytes_index_gas.sol`
+Source: `semanticTests/array/copying/bytes_storage_to_storage.sol`, which
+under `-Onone` ran out of the harness's 20M gas in solar for `f(914)` while
+solc used 4M; with a 500M cap both agree, so the divergence is gas, not
+values. Measured at `-Ogas` after storing 914 bytes:
+
+| Call | solc gas | solar gas | ratio |
+|------|------|------|------|
+| `readOne(5)`, one `a[i]` | 25 945 | 87 547 | 3.4 |
+| `readAll()`, `a[i]` in a loop over 914 | 703 959 | 17 264 688 | 24.5 |
+| `writeAll()`, `a[i] = ...` in a loop | 998 031 | 23 045 244 | 23.1 |
+| `fill(914)`, memory to storage copy | 832 070 | 788 481 | 0.9 |
+
+The MIR for `readOne` shows why: `a[i]` is lowered as
+`internal_call @load_storage_bytes` (copy the whole `bytes` to memory),
+`mload` the length for the bounds check, then `mload`/`byte` on the copy.
+solc reads the length slot, checks the bound, and loads the single data
+slot `keccak(slot) + i / 32`. Every index of a long storage `bytes` therefore
+costs a full copy (29 cold `sload`s for 914 bytes), and loops over the array
+are quadratic. Writes behave the same way. `uint8[]` and `uint256[]`
+storage arrays are indexed directly and are not affected.
+
+Severity: gas. Correct results, but 3x to 25x the gas of solc on storage
+`bytes` element access, and callers with tight gas limits see reverts solc
+does not produce.
 
 ## solc-side observations
 
