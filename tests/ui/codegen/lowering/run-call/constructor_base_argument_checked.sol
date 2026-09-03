@@ -5,10 +5,15 @@
 //@ run-call: CheckedBaseArgList::x => 6
 //@ run-call: CheckedBaseArgElement::x; constructor=[1] => 6
 //@ run-call: CheckedBaseArgNegate::y; constructor=[1] => -1
+//@ run-call: CheckedBaseArgSub::x; constructor=[3] => 2
+//@ run-call: CheckedBaseArgExp::x; constructor=[3] => 9
+//@ run-call: CheckedBaseArgFactory::deployShift 0x8000000000000000000000000000000000000000000000000000000000000000 => 0
 //@ run-call-fail: CheckedBaseArgFactory::deployAdd 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Panic(0x11)
 //@ run-call-fail: CheckedBaseArgFactory::deployMul 0x8000000000000000000000000000000000000000000000000000000000000000 => Panic(0x11)
 //@ run-call-fail: CheckedBaseArgFactory::deployNegate -57896044618658097711785492504343953926634992332820282019728792003956564819968 => Panic(0x11)
 //@ run-call-fail: CheckedBaseArgFactory::deployElement 2 => Panic(0x32)
+//@ run-call-fail: CheckedBaseArgFactory::deploySub 0 => Panic(0x11)
+//@ run-call-fail: CheckedBaseArgFactory::deployExp 0x0100000000000000000000000000000000 => Panic(0x11)
 
 contract CheckedBase {
     uint256 public x;
@@ -53,6 +58,24 @@ contract CheckedBaseArgNegate is CheckedSignedBase {
     constructor(int256 v) CheckedSignedBase(-v) {}
 }
 
+contract CheckedBaseArgSub is CheckedBase {
+    constructor(uint256 v) CheckedBase(v - 1) {}
+}
+
+contract CheckedBaseArgExp is CheckedBase {
+    constructor(uint256 v) CheckedBase(v ** 2) {}
+}
+
+// A shift truncates instead of overflowing, so it must stay unchecked.
+// CHECK-LABEL: @module CheckedBaseArgShift
+// CHECK: fn @constructor(arg0: u256)
+// CHECK-NEXT: bb0:
+// CHECK-NEXT: [[SHIFTED:v[0-9]+]] = shl 1, arg0
+// CHECK-NEXT: sstore 0, [[SHIFTED]]
+contract CheckedBaseArgShift is CheckedBase {
+    constructor(uint256 v) CheckedBase(v << 1) {}
+}
+
 contract CheckedBaseArgElement is CheckedBase {
     constructor(uint256 i) CheckedBase(table()[i]) {}
 
@@ -77,5 +100,17 @@ contract CheckedBaseArgFactory {
 
     function deployElement(uint256 i) external returns (uint256) {
         return new CheckedBaseArgElement(i).x();
+    }
+
+    function deploySub(uint256 v) external returns (uint256) {
+        return new CheckedBaseArgSub(v).x();
+    }
+
+    function deployExp(uint256 v) external returns (uint256) {
+        return new CheckedBaseArgExp(v).x();
+    }
+
+    function deployShift(uint256 v) external returns (uint256) {
+        return new CheckedBaseArgShift(v).x();
     }
 }
