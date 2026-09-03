@@ -30,6 +30,7 @@ jobs:
       head_repository: ${{ steps.resolve.outputs.head_repository }}
       head_sha: ${{ steps.resolve.outputs.head_sha }}
       head_ref: ${{ steps.resolve.outputs.head_ref }}
+      merge_sha: ${{ steps.resolve.outputs.merge_sha }}
     steps:
       - name: Validate request and freeze PR revision
         id: resolve
@@ -75,9 +76,25 @@ jobs:
               !pull.base?.ref ||
               !pull.head?.repo?.full_name ||
               !pull.head?.ref ||
-              !SHA_RE.test(pull.head?.sha || "")
+              !SHA_RE.test(pull.head?.sha || "") ||
+              !SHA_RE.test(pull.merge_commit_sha || "")
             ) {
               throw new Error("Pull request is closed or has incomplete revision provenance");
+            }
+            const { data: merge } = await github.rest.repos.getCommit({
+              ...context.repo,
+              ref: pull.merge_commit_sha,
+            });
+            const parents = Array.isArray(merge.parents)
+              ? merge.parents.map((parent) => parent.sha)
+              : [];
+            if (
+              merge.sha !== pull.merge_commit_sha ||
+              parents.length !== 2 ||
+              parents[0] !== pull.base.sha ||
+              parents[1] !== pull.head.sha
+            ) {
+              throw new Error("Pull request merge commit is not exactly `[base, head]`");
             }
             core.setOutput("repository", repository);
             core.setOutput("pr_number", String(number));
@@ -86,6 +103,7 @@ jobs:
             core.setOutput("head_repository", pull.head.repo.full_name);
             core.setOutput("head_sha", pull.head.sha);
             core.setOutput("head_ref", pull.head.ref);
+            core.setOutput("merge_sha", pull.merge_commit_sha);
 
   benchmark:
     name: run cross-server PR smoke
@@ -104,21 +122,25 @@ jobs:
           needs.resolve.outputs.repository) }}-${{ needs.resolve.outputs.pr_number }}
       cancel-in-progress: true
     steps:
-      - name: Checkout exact PR head
+      - name: Checkout exact test merge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.resolve.outputs.repository }}
-          ref: refs/pull/${{ needs.resolve.outputs.pr_number }}/head
+          ref: refs/pull/${{ needs.resolve.outputs.pr_number }}/merge
           fetch-depth: 0
           persist-credentials: false
 
       - name: Verify checked out revision
         shell: bash
         env:
+          BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          MERGE_SHA: ${{ needs.resolve.outputs.merge_sha }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$MERGE_SHA"
+          test "$(git rev-parse HEAD^1)" = "$BASE_SHA"
+          test "$(git rev-parse HEAD^2)" = "$HEAD_SHA"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
@@ -136,6 +158,8 @@ jobs:
           done
 
       - name: Build candidate and harness
+        env:
+          SOLAR_LSP_BENCH_BUILD_REVISION: ${{ needs.resolve.outputs.merge_sha }}
         run: |
           cargo build --locked --release -p solar-lsp-bench
           cargo build --locked --release -p solar-compiler --bin solar
@@ -154,6 +178,7 @@ jobs:
             echo "pr_number=${{ needs.resolve.outputs.pr_number }}"
             echo "base_sha=${{ needs.resolve.outputs.base_sha }}"
             echo "head_sha=${{ needs.resolve.outputs.head_sha }}"
+            echo "merge_sha=${{ needs.resolve.outputs.merge_sha }}"
             echo "runner_name=$RUNNER_NAME"
             echo "runner_os=$RUNNER_OS"
             echo "runner_arch=$RUNNER_ARCH"
@@ -176,7 +201,7 @@ jobs:
       - name: Run cross-server PR smoke comparison
         shell: bash
         env:
-          HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          TESTED_MERGE_SHA: ${{ needs.resolve.outputs.merge_sha }}
         run: |
           set -euo pipefail
           target/release/solar-lsp-bench run \
@@ -185,27 +210,65 @@ jobs:
             --output target/lsp-bench/pr-smoke \
             --allow-failures \
             --solar-binary target/release/solar \
-            --solar-revision "$HEAD_SHA"
+            --solar-revision "$TESTED_MERGE_SHA"
 
       - name: Publish cross-server summary
         if: always() && hashFiles('target/lsp-bench/pr-smoke/summary.md') != ''
         run: cat target/lsp-bench/pr-smoke/summary.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Stage comment report
-        if: always() && hashFiles('target/lsp-bench/pr-smoke/summary.md') != ''
+      - name: Stage comment data
+        if: always() && hashFiles('target/lsp-bench/pr-smoke/summary.json') != ''
         shell: bash
+        env:
+          BASE_REF: ${{ needs.resolve.outputs.base_ref }}
+          HEAD_REF: ${{ needs.resolve.outputs.head_ref }}
+          HEAD_REPOSITORY: ${{ needs.resolve.outputs.head_repository }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          TESTED_BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+          TESTED_HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          TESTED_MERGE_SHA: ${{ needs.resolve.outputs.merge_sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_MERGE_SHA"
+          test "$(git rev-parse HEAD^1)" = "$TESTED_BASE_SHA"
+          test "$(git rev-parse HEAD^2)" = "$TESTED_HEAD_SHA"
           mkdir -p target/lsp-bench/manual-comment
-          cp -- target/lsp-bench/pr-smoke/summary.md target/lsp-bench/manual-comment/report.md
+          cp -- target/lsp-bench/pr-smoke/summary.json target/lsp-bench/manual-comment/summary.json
+          node <<'NODE'
+          const crypto = require("crypto");
+          const fs = require("fs");
+          const digest = (path) =>
+            crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
+          const provenance = {
+            schema_version: 1,
+            kind: "solar-cross-lsp-comment-data",
+            repository: process.env.GITHUB_REPOSITORY,
+            pr_number: Number(process.env.PR_NUMBER),
+            run_id: Number(process.env.GITHUB_RUN_ID),
+            run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT),
+            base_ref: process.env.BASE_REF,
+            base_sha: process.env.TESTED_BASE_SHA,
+            head_repository: process.env.HEAD_REPOSITORY,
+            head_ref: process.env.HEAD_REF,
+            head_sha: process.env.TESTED_HEAD_SHA,
+            merge_sha: process.env.TESTED_MERGE_SHA,
+            harness_sha256: digest("target/release/solar-lsp-bench"),
+            summary_sha256: digest("target/lsp-bench/manual-comment/summary.json"),
+          };
+          fs.writeFileSync(
+            "target/lsp-bench/manual-comment/provenance.json",
+            `${JSON.stringify(provenance, null, 2)}\n`,
+            { encoding: "utf8", mode: 0o600 },
+          );
+          NODE
 
-      - name: Upload comment report
+      - name: Upload comment data
         id: upload
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cross-lsp-manual-${{ github.run_id }}-${{ github.run_attempt }}
-          path: target/lsp-bench/manual-comment/report.md
+          path: target/lsp-bench/manual-comment/
           retention-days: 30
           if-no-files-found: warn
 
@@ -225,7 +288,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - name: Download exact comment report
+      - name: Download exact comment data
         id: download
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -236,27 +299,131 @@ jobs:
 
       # Artifact contents are data only; this write-permission job never
       # checks out or executes pull request code.
-      - name: Isolate report file
-        id: report
+      - name: Isolate comment data
+        id: data
         shell: bash
         env:
           REPORT_ROOT: ${{ runner.temp }}/cross-lsp-manual-comment
         run: |
           set -euo pipefail
-          mapfile -t reports < <(find -P "$REPORT_ROOT" -type f -name report.md -print)
-          if [[ "${#reports[@]}" -ne 1 ]]; then
-            echo "Expected one regular report.md, found ${#reports[@]}" >&2
+          summary="$REPORT_ROOT/summary.json"
+          provenance="$REPORT_ROOT/provenance.json"
+          if [[ ! -f "$summary" || ! -f "$provenance" || \
+                -L "$summary" || -L "$provenance" ]]; then
+            echo "Expected regular summary.json and provenance.json at artifact root" >&2
             exit 1
           fi
-          report="${reports[0]}"
-          case "$report" in
-            "$REPORT_ROOT"/*) ;;
-            *) echo "Report escaped the artifact directory" >&2; exit 1 ;;
-          esac
-          test -s "$report"
+          mapfile -t extra < <(find -P "$REPORT_ROOT" -mindepth 1 -maxdepth 1 \
+            ! -name summary.json ! -name provenance.json -print)
+          if [[ "${#extra[@]}" -ne 0 ]]; then
+            echo "Comment data artifact contains unexpected files" >&2
+            exit 1
+          fi
+          test -s "$summary"
+          test -s "$provenance"
+          test "$(stat -c %s "$summary")" -le 1048576
+          test "$(stat -c %s "$provenance")" -le 16384
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+          echo "provenance=$provenance" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tested revisions and comment data
+        id: provenance
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_BASE_REF: ${{ needs.resolve.outputs.base_ref }}
+          EXPECTED_BASE_SHA: ${{ needs.resolve.outputs.base_sha }}
+          EXPECTED_HEAD_REF: ${{ needs.resolve.outputs.head_ref }}
+          EXPECTED_HEAD_REPO: ${{ needs.resolve.outputs.head_repository }}
+          EXPECTED_HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          EXPECTED_PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+          EXPECTED_MERGE_SHA: ${{ needs.resolve.outputs.merge_sha }}
+          PROVENANCE_PATH: ${{ steps.data.outputs.provenance }}
+          SUMMARY_PATH: ${{ steps.data.outputs.summary }}
+        with:
+          script: |
+            const crypto = require("crypto");
+            const fs = require("fs");
+            const SHA_RE = /^[0-9a-f]{40}$/;
+            const SHA256_RE = /^[0-9a-f]{64}$/;
+            const expectedKeys = [
+              "base_ref", "base_sha", "harness_sha256", "head_ref",
+              "head_repository", "head_sha", "kind", "merge_sha",
+              "pr_number", "repository", "run_attempt", "run_id",
+              "schema_version", "summary_sha256",
+            ];
+            const provenance = JSON.parse(fs.readFileSync(process.env.PROVENANCE_PATH, "utf8"));
+            if (
+              provenance === null ||
+              Array.isArray(provenance) ||
+              typeof provenance !== "object" ||
+              JSON.stringify(Object.keys(provenance).sort()) !== JSON.stringify(expectedKeys)
+            ) {
+              throw new Error("Comment provenance does not match the exact schema");
+            }
+            const repository = context.payload.repository?.full_name;
+            const runId = Number(context.runId || process.env.GITHUB_RUN_ID);
+            if (
+              provenance.schema_version !== 1 ||
+              provenance.kind !== "solar-cross-lsp-comment-data" ||
+              provenance.repository !== repository ||
+              provenance.pr_number !== Number(process.env.EXPECTED_PR_NUMBER) ||
+              provenance.run_id !== runId ||
+              provenance.run_attempt !== Number(process.env.GITHUB_RUN_ATTEMPT) ||
+              provenance.base_ref !== process.env.EXPECTED_BASE_REF ||
+              provenance.base_sha !== process.env.EXPECTED_BASE_SHA ||
+              provenance.head_repository !== process.env.EXPECTED_HEAD_REPO ||
+              provenance.head_ref !== process.env.EXPECTED_HEAD_REF ||
+              provenance.head_sha !== process.env.EXPECTED_HEAD_SHA ||
+              provenance.merge_sha !== process.env.EXPECTED_MERGE_SHA ||
+              !SHA_RE.test(provenance.base_sha || "") ||
+              !SHA_RE.test(provenance.head_sha || "") ||
+              !SHA_RE.test(provenance.merge_sha || "") ||
+              !SHA256_RE.test(provenance.harness_sha256 || "") ||
+              !SHA256_RE.test(provenance.summary_sha256 || "")
+            ) {
+              throw new Error("Comment provenance does not match the benchmark request");
+            }
+            const summaryDigest = crypto
+              .createHash("sha256")
+              .update(fs.readFileSync(process.env.SUMMARY_PATH))
+              .digest("hex");
+            if (summaryDigest !== provenance.summary_sha256) {
+              throw new Error("Summary digest does not match comment provenance");
+            }
+            core.setOutput("harness_sha256", provenance.harness_sha256);
+
+      - name: Checkout trusted report renderer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: trusted-renderer
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.96"
+
+      - name: Render comment from validated data
+        id: report
+        shell: bash
+        env:
+          EXPECTED_HARNESS_SHA256: ${{ steps.provenance.outputs.harness_sha256 }}
+          EXPECTED_MERGE_SHA: ${{ needs.resolve.outputs.merge_sha }}
+          SUMMARY_PATH: ${{ steps.data.outputs.summary }}
+        run: |
+          set -euo pipefail
           destination="$RUNNER_TEMP/cross-lsp-manual-comment-final/report.md"
           mkdir -p "$(dirname "$destination")"
-          cp -- "$report" "$destination"
+          CARGO_TARGET_DIR="$RUNNER_TEMP/cross-lsp-render-target" cargo run --locked --release \
+            --manifest-path "$GITHUB_WORKSPACE/trusted-renderer/tools/lsp-bench/Cargo.toml" -- \
+            report --input "$SUMMARY_PATH" --output "$destination" \
+            --expected-harness-revision "$EXPECTED_MERGE_SHA" \
+            --expected-harness-sha256 "$EXPECTED_HARNESS_SHA256" \
+            --expected-profile pr-smoke
+          test -s "$destination"
+          test "$(stat -c %s "$destination")" -le 60000
           echo "path=$destination" >> "$GITHUB_OUTPUT"
 
       - name: Recheck pull request identity
@@ -269,6 +436,7 @@ jobs:
           HEAD_REF: ${{ needs.resolve.outputs.head_ref }}
           HEAD_REPO: ${{ needs.resolve.outputs.head_repository }}
           HEAD_SHA: ${{ needs.resolve.outputs.head_sha }}
+          MERGE_SHA: ${{ needs.resolve.outputs.merge_sha }}
           PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
         with:
           script: |
@@ -283,7 +451,8 @@ jobs:
               pull.head?.repo?.full_name !== process.env.HEAD_REPO ||
               pull.base?.sha !== process.env.BASE_SHA ||
               pull.base?.ref !== process.env.BASE_REF ||
-              pull.base?.repo?.full_name !== process.env.BASE_REPO
+              pull.base?.repo?.full_name !== process.env.BASE_REPO ||
+              pull.merge_commit_sha !== process.env.MERGE_SHA
             ) {
               throw new Error("Pull request base or head changed before the benchmark comment was posted");
             }
@@ -291,6 +460,8 @@ jobs:
       - name: Publish sticky cross-server comment
         if: >-
           steps.download.outcome == 'success' &&
+          steps.data.outcome == 'success' &&
+          steps.provenance.outcome == 'success' &&
           steps.report.outcome == 'success' &&
           steps.recheck.outcome == 'success'
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5

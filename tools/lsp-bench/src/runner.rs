@@ -22,7 +22,7 @@ use crate::{
 use anyhow::{Context, Result, anyhow, bail};
 use lsp_types::{
     CompletionResponse, DocumentSymbol, DocumentSymbolResponse, GotoDefinitionResponse, Hover,
-    HoverContents, Location, MarkedString, Range, Url,
+    HoverContents, Location, MarkedString, OneOf, Range, Url, WorkspaceSymbolResponse,
 };
 use serde_json::{Value, json};
 use std::{
@@ -858,6 +858,26 @@ impl<'a> Session<'a> {
         }
     }
 
+    fn anchor_with_encoding(&self, name: &str, encoding: PositionEncoding) -> Result<Anchor> {
+        let disk_anchor = self.fixture.anchor_with_encoding(name, encoding)?;
+        if let Some(document) = self.documents.get(&disk_anchor.path) {
+            self.fixture.anchor_in_text(name, &disk_anchor.path, &document.text, encoding)
+        } else {
+            Ok(disk_anchor)
+        }
+    }
+
+    fn identifier_range(&self, anchor: &Anchor, encoding: PositionEncoding) -> Result<Range> {
+        let disk_text;
+        let text = if let Some(document) = self.documents.get(&anchor.path) {
+            &document.text
+        } else {
+            disk_text = fs::read_to_string(&anchor.path)?;
+            &disk_text
+        };
+        solidity_identifier_range(text, anchor.position, encoding)
+    }
+
     fn initialize(&mut self) -> Result<()> {
         let root_uri = file_uri(self.fixture.root())?;
         self.process.set_root(root_uri.as_str());
@@ -1018,7 +1038,8 @@ impl<'a> Session<'a> {
             .into());
         }
         self.open(relative)?;
-        let anchor = self.fixture.anchor(anchor_name)?;
+        let encoding = PositionEncoding::parse(self.process.position_encoding())?;
+        let anchor = self.anchor_with_encoding(anchor_name, encoding)?;
         if anchor.path != path {
             return Err(WorkloadError::new(
                 FailureKind::HarnessError,
@@ -1034,7 +1055,6 @@ impl<'a> Session<'a> {
                 .find(&needle)
                 .context("edit anchor disappeared from open document")?;
             let end_offset = offset + needle.len();
-            let encoding = PositionEncoding::parse(self.process.position_encoding())?;
             let start = position_at_with_encoding(&document.text, offset, encoding);
             let end = position_at_with_encoding(&document.text, end_offset, encoding);
             document.text.replace_range(offset..end_offset, replacement);
@@ -1088,7 +1108,7 @@ impl<'a> Session<'a> {
     ) -> Result<()> {
         self.open(relative)?;
         let encoding = PositionEncoding::parse(self.process.position_encoding())?;
-        let anchor = self.fixture.anchor_with_encoding(anchor, encoding)?;
+        let anchor = self.anchor_with_encoding(anchor, encoding)?;
         let uri = file_uri(&anchor.path)?;
         if !self.process.supports_document("textDocument/rename", &uri, SOLIDITY_LANGUAGE_ID) {
             return Err(WorkloadError::new(
@@ -1101,7 +1121,7 @@ impl<'a> Session<'a> {
             .iter()
             .map(|expected| {
                 let path = self.fixture.path(&expected.path)?;
-                let anchor = self.fixture.anchor_with_encoding(&expected.anchor, encoding)?;
+                let anchor = self.anchor_with_encoding(&expected.anchor, encoding)?;
                 if anchor.path != path {
                     bail!(
                         "rename expected anchor `{}` belongs to `{}`, not `{}`",
@@ -1110,8 +1130,7 @@ impl<'a> Session<'a> {
                         path.display()
                     )
                 }
-                let text = fs::read_to_string(&path)?;
-                let range = solidity_identifier_range(&text, anchor.position, encoding)?;
+                let range = self.identifier_range(&anchor, encoding)?;
                 Ok((file_uri(&path)?, range))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -1195,11 +1214,20 @@ impl<'a> Session<'a> {
                 "newUri": new_uri
             }]}),
         )?;
+        let document = self.documents.remove(&old_path);
         if let Some(parent) = new_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::rename(&old_path, &new_path)?;
-        if let Some(document) = self.documents.remove(&old_path) {
+        if let Err(error) = fs::rename(&old_path, &new_path) {
+            if let Some(document) = document {
+                self.documents.insert(old_path, document);
+            }
+            return Err(error.into());
+        }
+        if let Some(document) = document {
+            self.process.notify_workspace_edit_notifications(document_rename_notifications(
+                &old_uri, &new_uri, &document,
+            ))?;
             self.documents.insert(new_path, document);
         }
         self.process.notify(
@@ -1217,8 +1245,17 @@ impl<'a> Session<'a> {
         self.require_file_operation("workspace/willDeleteFiles", &uri, false)?;
         self.require_file_operation("workspace/didDeleteFiles", &uri, false)?;
         self.prepare_file_operation("workspace/willDeleteFiles", json!({"files": [{"uri": uri}]}))?;
-        fs::remove_file(&path)?;
-        self.documents.remove(&path);
+        let document = self.documents.remove(&path);
+        if document.is_some() {
+            self.process
+                .notify_workspace_edit_notifications(vec![document_close_notification(&uri)])?;
+        }
+        if let Err(error) = fs::remove_file(&path) {
+            if let Some(document) = document {
+                self.documents.insert(path, document);
+            }
+            return Err(error.into());
+        }
         self.process.notify("workspace/didDeleteFiles", json!({"files": [{"uri": uri}]}))?;
         self.finish_lifecycle("delete-file", started, probe)
     }
@@ -1395,11 +1432,9 @@ impl<'a> Session<'a> {
                     self.require_open_for_probe(path)?;
                 }
                 let source_anchor =
-                    self.fixture.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
-                let expected = self
-                    .fixture
-                    .anchor_with_encoding(expected_anchor, encoding)
-                    .map_err(harness_error)?;
+                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                let expected =
+                    self.anchor_with_encoding(expected_anchor, encoding).map_err(harness_error)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
                 if !self.process.supports_document(
                     "textDocument/definition",
@@ -1427,7 +1462,7 @@ impl<'a> Session<'a> {
                     self.require_open_for_probe(path)?;
                 }
                 let source_anchor =
-                    self.fixture.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
                 if !self.process.supports_document(
                     "textDocument/completion",
@@ -1462,7 +1497,7 @@ impl<'a> Session<'a> {
                     self.require_open_for_probe(path)?;
                 }
                 let source_anchor =
-                    self.fixture.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
                 if !self.process.supports_document("textDocument/hover", &uri, SOLIDITY_LANGUAGE_ID)
                 {
@@ -1484,7 +1519,7 @@ impl<'a> Session<'a> {
                     self.require_open_for_probe(path)?;
                 }
                 let source_anchor =
-                    self.fixture.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
+                    self.anchor_with_encoding(anchor, encoding).map_err(harness_error)?;
                 let uri = file_uri(&source_anchor.path).map_err(harness_error)?;
                 if !self.process.supports_document(
                     "textDocument/references",
@@ -1509,7 +1544,6 @@ impl<'a> Session<'a> {
                     .iter()
                     .map(|location| {
                         let anchor = self
-                            .fixture
                             .anchor_with_encoding(&location.anchor, encoding)
                             .map_err(harness_error)?;
                         let uri =
@@ -1867,23 +1901,8 @@ fn apply_workspace_edit_to(
                     }
                     transaction.rename(&old_path, &new_path, overwrite)?;
                     if let Some(document) = documents.remove(&old_path) {
-                        let version = document.version;
-                        let text = document.text.clone();
-                        notifications.push((
-                            "textDocument/didClose".into(),
-                            json!({"textDocument": {"uri": old_uri}}),
-                        ));
-                        notifications.push((
-                            "textDocument/didOpen".into(),
-                            json!({
-                                "textDocument": {
-                                    "uri": new_uri,
-                                    "languageId": "solidity",
-                                    "version": version,
-                                    "text": text
-                                }
-                            }),
-                        ));
+                        notifications
+                            .extend(document_rename_notifications(&old_uri, &new_uri, &document));
                         documents.insert(new_path, document);
                     }
                     notifications.push((
@@ -1905,10 +1924,7 @@ fn apply_workspace_edit_to(
                     }
                     transaction.delete(&path)?;
                     if documents.remove(&path).is_some() {
-                        notifications.push((
-                            "textDocument/didClose".into(),
-                            json!({"textDocument": {"uri": uri}}),
-                        ));
+                        notifications.push(document_close_notification(&uri));
                     }
                     notifications.push((
                         "workspace/didDeleteFiles".into(),
@@ -1930,6 +1946,31 @@ fn apply_workspace_edit_to(
             Err(error)
         }
     }
+}
+
+fn document_close_notification(uri: &Url) -> (String, Value) {
+    ("textDocument/didClose".into(), json!({"textDocument": {"uri": uri}}))
+}
+
+fn document_rename_notifications(
+    old_uri: &Url,
+    new_uri: &Url,
+    document: &Document,
+) -> WorkspaceEditNotifications {
+    vec![
+        document_close_notification(old_uri),
+        (
+            "textDocument/didOpen".into(),
+            json!({
+                "textDocument": {
+                    "uri": new_uri,
+                    "languageId": SOLIDITY_LANGUAGE_ID,
+                    "version": document.version,
+                    "text": document.text
+                }
+            }),
+        ),
+    ]
 }
 
 fn parse_workspace_edit(fixture: &Fixture, edit: &Value) -> Result<Vec<WorkspaceEditOperation>> {
@@ -2127,12 +2168,7 @@ fn harness_error(error: anyhow::Error) -> WorkloadError {
 
 fn classify_request_error(error: anyhow::Error) -> WorkloadError {
     if let Some(remote) = error.downcast_ref::<RemoteError>() {
-        let kind = match remote.code {
-            Some(-32601) => FailureKind::Unsupported,
-            Some(-32602) => FailureKind::HarnessError,
-            _ => FailureKind::HarnessError,
-        };
-        return WorkloadError::new(kind, format!("{remote}"));
+        return WorkloadError::new(FailureKind::HarnessError, format!("{remote}"));
     }
     let message = format!("{error:#}");
     let kind = if message.contains("timed out") {
@@ -2297,27 +2333,61 @@ fn validate_rename_operations(
     new_name: &str,
     expected: &[(Url, Range)],
 ) -> std::result::Result<(), WorkloadError> {
+    let mut actual = Vec::new();
+    for operation in operations {
+        let WorkspaceEditOperation::Text { uri, edits, .. } = operation else {
+            let kind = match operation {
+                WorkspaceEditOperation::Create { .. } => "create",
+                WorkspaceEditOperation::Rename { .. } => "rename",
+                WorkspaceEditOperation::Delete { .. } => "delete",
+                WorkspaceEditOperation::Text { .. } => unreachable!(),
+            };
+            return Err(WorkloadError::new(
+                FailureKind::Incorrect,
+                format!("rename WorkspaceEdit contained unexpected `{kind}` operation"),
+            ));
+        };
+        for edit in edits {
+            let replacement = edit.get("newText").and_then(Value::as_str).ok_or_else(|| {
+                WorkloadError::new(
+                    FailureKind::Incorrect,
+                    format!("rename WorkspaceEdit contained an invalid text edit: {edit}"),
+                )
+            })?;
+            let range = edit
+                .get("range")
+                .cloned()
+                .and_then(|range| serde_json::from_value::<Range>(range).ok())
+                .ok_or_else(|| {
+                    WorkloadError::new(
+                        FailureKind::Incorrect,
+                        format!("rename WorkspaceEdit contained an invalid text edit: {edit}"),
+                    )
+                })?;
+            actual.push((uri, range, replacement));
+        }
+    }
+
     for (expected_uri, expected_range) in expected {
-        let matched = operations.iter().any(|operation| {
-            let WorkspaceEditOperation::Text { uri, edits, .. } = operation else { return false };
-            uri == expected_uri
-                && edits.iter().any(|edit| {
-                    edit.get("newText").and_then(Value::as_str) == Some(new_name)
-                        && edit
-                            .get("range")
-                            .cloned()
-                            .and_then(|range| serde_json::from_value::<Range>(range).ok())
-                            .is_some_and(|range| range == *expected_range)
-                })
-        });
-        if !matched {
+        let Some(index) = actual.iter().position(|(uri, range, replacement)| {
+            *uri == expected_uri && range == expected_range && *replacement == new_name
+        }) else {
             return Err(WorkloadError::new(
                 FailureKind::Incorrect,
                 format!(
                     "rename WorkspaceEdit did not change `{new_name}` at {expected_uri} {expected_range:?}"
                 ),
             ));
-        }
+        };
+        actual.swap_remove(index);
+    }
+    if let Some((uri, range, replacement)) = actual.first() {
+        return Err(WorkloadError::new(
+            FailureKind::Incorrect,
+            format!(
+                "rename WorkspaceEdit contained unexpected change `{replacement}` at {uri} {range:?}"
+            ),
+        ));
     }
     Ok(())
 }
@@ -2434,15 +2504,24 @@ fn validate_workspace_symbol(
     expected_uri: &Url,
     present: bool,
 ) -> std::result::Result<(), WorkloadError> {
-    let Some(items) = value.as_array() else {
-        return Err(WorkloadError::new(
-            FailureKind::Incorrect,
-            format!("workspace symbols response was not an array: {value}"),
-        ));
-    };
-    let matched = items.iter().any(|item| {
-        item.get("name").and_then(Value::as_str) == Some(expected_name)
-            && item.pointer("/location/uri").and_then(Value::as_str) == Some(expected_uri.as_str())
+    let response = serde_json::from_value::<Option<WorkspaceSymbolResponse>>(value.clone())
+        .map_err(|_| {
+            WorkloadError::new(
+                FailureKind::Incorrect,
+                format!("workspace symbols returned an invalid result: {value}"),
+            )
+        })?;
+    let matched = response.as_ref().is_some_and(|response| match response {
+        WorkspaceSymbolResponse::Flat(symbols) => symbols
+            .iter()
+            .any(|symbol| symbol.name == expected_name && symbol.location.uri == *expected_uri),
+        WorkspaceSymbolResponse::Nested(symbols) => symbols.iter().any(|symbol| {
+            let uri = match &symbol.location {
+                OneOf::Left(location) => &location.uri,
+                OneOf::Right(location) => &location.uri,
+            };
+            symbol.name == expected_name && uri == expected_uri
+        }),
     });
     if matched == present {
         Ok(())
@@ -2642,11 +2721,12 @@ scenarios:
     }
 
     #[test]
-    fn workspace_symbol_absence_requires_an_array_response() {
+    fn workspace_symbol_absence_accepts_only_typed_empty_results() {
         let uri = Url::parse("file:///tmp/Missing.sol").unwrap();
 
         assert!(validate_workspace_symbol(json!([]), "Missing", &uri, false).is_ok());
-        assert!(validate_workspace_symbol(Value::Null, "Missing", &uri, false).is_err());
+        assert!(validate_workspace_symbol(Value::Null, "Missing", &uri, false).is_ok());
+        assert!(validate_workspace_symbol(json!([{}]), "Missing", &uri, false).is_err());
         assert!(validate_workspace_symbol(json!({}), "Missing", &uri, false).is_err());
     }
 
@@ -2662,7 +2742,7 @@ scenarios:
     }
 
     #[test]
-    fn rename_edit_validator_requires_every_expected_anchor() {
+    fn rename_edit_validator_requires_the_exact_operation_set() {
         let main_uri = Url::parse("file:///tmp/Main.sol").unwrap();
         let math_uri = Url::parse("file:///tmp/Math.sol").unwrap();
         let expected = vec![
@@ -2718,8 +2798,23 @@ scenarios:
             })],
         }];
         assert!(validate_rename_operations(&oversized, "renamed", &expected[..1]).is_err());
-        let complete = vec![edit(main_uri, 12), edit(math_uri, 9)];
+        let complete = vec![edit(main_uri.clone(), 12), edit(math_uri.clone(), 9)];
         assert!(validate_rename_operations(&complete, "renamed", &expected).is_ok());
+
+        let extra_edit =
+            vec![edit(main_uri.clone(), 12), edit(math_uri.clone(), 9), edit(main_uri.clone(), 12)];
+        assert!(validate_rename_operations(&extra_edit, "renamed", &expected).is_err());
+
+        let extra_delete = vec![
+            edit(main_uri, 12),
+            edit(math_uri.clone(), 9),
+            WorkspaceEditOperation::Delete {
+                uri: math_uri,
+                recursive: false,
+                ignore_if_not_exists: false,
+            },
+        ];
+        assert!(validate_rename_operations(&extra_delete, "renamed", &expected).is_err());
     }
 
     #[test]
@@ -3106,6 +3201,17 @@ scenarios:
     fn closed_server_transport_is_a_crash() {
         let error = classify_request_error(anyhow!("LSP stdout closed unexpectedly"));
         assert!(matches!(error.kind, FailureKind::Crashed));
+    }
+
+    #[test]
+    fn method_not_found_after_a_request_is_not_unsupported() {
+        let error = classify_request_error(anyhow::Error::new(RemoteError {
+            method: "initialize".into(),
+            code: Some(-32601),
+            message: "method not found".into(),
+        }));
+
+        assert!(matches!(error.kind, FailureKind::HarnessError));
     }
 
     #[test]

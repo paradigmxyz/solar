@@ -2,21 +2,24 @@
 
 use crate::{
     config::{Config, TransportSpec},
-    process::{MemoryAccounting, Observations, ProcessAccounting, ProcessMetrics},
+    lifecycle::VERSION_PROBE_TIMEOUT,
+    process::{
+        MemoryAccounting, Observations, ProcessAccounting, ProcessMetrics, restricted_command,
+        run_command_with_bounded_output,
+    },
 };
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    time::Duration,
 };
 
-pub(crate) const RESULT_SCHEMA_VERSION: u32 = 6;
+pub(crate) const RESULT_SCHEMA_VERSION: u32 = 7;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -266,6 +269,7 @@ pub(crate) struct SummaryReport {
     pub(crate) profile: String,
     pub(crate) harness_version: String,
     pub(crate) harness_contract_sha256: Option<String>,
+    pub(crate) harness_executable_sha256: Option<String>,
     pub(crate) rustc_version: Option<String>,
     pub(crate) npm_runtime: Option<NpmRuntimeMetadata>,
     pub(crate) harness_git_revision: Option<String>,
@@ -394,7 +398,6 @@ pub(crate) fn summarize(input: SummaryInput<'_>) -> SummaryReport {
         })
         .collect();
 
-    let (harness_git_revision, harness_git_dirty) = harness_git_provenance();
     let npm_runtime = requires_npm_runtime(config, &servers).then(observe_npm_runtime);
     SummaryReport {
         schema_version: RESULT_SCHEMA_VERSION,
@@ -405,12 +408,13 @@ pub(crate) fn summarize(input: SummaryInput<'_>) -> SummaryReport {
         config_path,
         profile,
         harness_version: env!("CARGO_PKG_VERSION").into(),
-        harness_contract_sha256: harness_contract_sha256(),
+        harness_contract_sha256: build_value(env!("SOLAR_LSP_BENCH_CONTRACT_SHA256")),
+        harness_executable_sha256: harness_executable_sha256(),
         rustc_version: command_output("rustc", &["--version", "--verbose"])
             .map(|output| normalize_multiline_output(&output)),
         npm_runtime,
-        harness_git_revision,
-        harness_git_dirty,
+        harness_git_revision: build_value(env!("SOLAR_LSP_BENCH_BUILD_REVISION")),
+        harness_git_dirty: env!("SOLAR_LSP_BENCH_BUILD_DIRTY").parse().ok(),
         repeat_override,
         timeout_ms,
         environment: Environment::current(samples),
@@ -433,76 +437,24 @@ pub(crate) fn summarize(input: SummaryInput<'_>) -> SummaryReport {
     }
 }
 
-fn harness_git_provenance() -> (Option<String>, Option<bool>) {
-    let revision = git_output(&["rev-parse", "HEAD"]).filter(|revision| {
-        revision.len() == 40 && revision.bytes().all(|byte| byte.is_ascii_hexdigit())
-    });
-    let dirty = revision
-        .as_ref()
-        .and_then(|_| git_output(&["status", "--porcelain", "--untracked-files=normal"]))
-        .map(|status| !status.is_empty());
-    (revision, dirty)
+fn build_value(value: &str) -> Option<String> {
+    (value != "unavailable").then(|| value.into())
 }
 
-fn harness_contract_sha256() -> Option<String> {
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let mut files = vec![manifest_dir.join("Cargo.toml")];
-    collect_contract_files(&manifest_dir.join("src"), &mut files).ok()?;
-    files.sort();
-
-    let mut hasher = Sha256::new();
-    for path in files {
-        let relative = path.strip_prefix(manifest_dir).ok()?;
-        let contents = fs::read(&path).ok()?;
-        hasher.update(relative.to_string_lossy().as_bytes());
-        hasher.update([0]);
-        hasher.update(contents.len().to_le_bytes());
-        hasher.update(contents);
-    }
-
-    let dependency_tree = Command::new("cargo")
-        .args(["tree", "--locked", "--offline", "--manifest-path"])
-        .arg(manifest_dir.join("Cargo.toml"))
-        .args([
-            "-p",
-            "solar-lsp-bench",
-            "--edges",
-            "normal,build,features",
-            "--prefix",
-            "none",
-            "--no-dedupe",
-        ])
-        .env("CARGO_TERM_COLOR", "never")
-        .output()
-        .ok()?;
-    if !dependency_tree.status.success() {
-        return None;
-    }
-    let dependency_tree = String::from_utf8(dependency_tree.stdout).ok()?;
-    hasher.update(dependency_tree.replace(&manifest_dir.to_string_lossy().into_owned(), "."));
-    Some(format!("{:x}", hasher.finalize()))
-}
-
-fn collect_contract_files(directory: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in fs::read_dir(directory)? {
-        let entry = entry?;
-        let path = entry.path();
-        if entry.file_type()?.is_dir() {
-            collect_contract_files(&path, files)?;
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
-            files.push(path);
-        }
-    }
-    Ok(())
-}
-
-fn git_output(args: &[&str]) -> Option<String> {
-    command_output("git", args)
+fn harness_executable_sha256() -> Option<String> {
+    std::env::current_exe().ok().and_then(|path| crate::lifecycle::sha256_path(&path).ok())
 }
 
 fn command_output(command: &str, args: &[&str]) -> Option<String> {
-    let output = Command::new(command).args(args).output().ok()?;
-    output.status.success().then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    command_output_with_timeout(command, args, VERSION_PROBE_TIMEOUT)
+}
+
+fn command_output_with_timeout(command: &str, args: &[&str], timeout: Duration) -> Option<String> {
+    let mut process = restricted_command(command);
+    process.args(args);
+    let output = run_command_with_bounded_output(process, Path::new(command), timeout).ok()?;
+    (!output.timed_out && !output.forced_kill && output.status.success())
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
 fn requires_npm_runtime(config: &Config, servers: &[ServerMetadata]) -> bool {
@@ -569,17 +521,40 @@ pub(crate) fn regenerate_markdown(
     input: &Path,
     output: &Path,
     require_authoritative: bool,
+    expected_harness_revision: Option<&str>,
+    expected_harness_sha256: Option<&str>,
+    expected_profile: Option<&str>,
 ) -> Result<()> {
     let summary = read_summary(input)?;
     if require_authoritative && !summary.environment.authoritative {
         anyhow::bail!("benchmark summary is not authoritative")
     }
+    validate_expected(
+        "harness revision",
+        summary.harness_git_revision.as_deref(),
+        expected_harness_revision,
+    )?;
+    validate_expected(
+        "harness executable SHA-256",
+        summary.harness_executable_sha256.as_deref(),
+        expected_harness_sha256,
+    )?;
+    validate_expected("benchmark profile", Some(&summary.profile), expected_profile)?;
     if let Some(parent) = output.parent()
         && !parent.as_os_str().is_empty()
     {
         fs::create_dir_all(parent)?;
     }
     fs::write(output, markdown(&summary))?;
+    Ok(())
+}
+
+fn validate_expected(label: &str, actual: Option<&str>, expected: Option<&str>) -> Result<()> {
+    if let Some(expected) = expected
+        && actual != Some(expected)
+    {
+        bail!("{label} does not match expected value")
+    }
     Ok(())
 }
 
@@ -649,6 +624,10 @@ fn markdown(summary: &SummaryReport) -> String {
         (
             "Harness contract SHA-256",
             summary.harness_contract_sha256.clone().unwrap_or_else(|| "unavailable".into()),
+        ),
+        (
+            "Harness executable SHA-256",
+            summary.harness_executable_sha256.clone().unwrap_or_else(|| "unavailable".into()),
         ),
         ("Rust compiler", summary.rustc_version.clone().unwrap_or_else(|| "unavailable".into())),
         (
@@ -763,12 +742,12 @@ fn markdown(summary: &SummaryReport) -> String {
             let _ = writeln!(
                 output,
                 "| {} | {} | {} | {} | {} | {} | {} | - | - | - | - | - |",
-                group.server,
-                group.fixture,
-                group.workload,
+                markdown_cell(&group.server),
+                markdown_cell(&group.fixture),
+                markdown_cell(&group.workload),
                 capability,
                 group.successful_runs,
-                statuses,
+                markdown_cell(&statuses),
                 result,
             );
         }
@@ -776,14 +755,14 @@ fn markdown(summary: &SummaryReport) -> String {
             let _ = writeln!(
                 output,
                 "| {} | {} | {} | {} | {} | {} | {} | {} | {:.2} | {:.2} | {:.2} | {:.2} |",
-                group.server,
-                group.fixture,
-                group.workload,
+                markdown_cell(&group.server),
+                markdown_cell(&group.fixture),
+                markdown_cell(&group.workload),
                 capability,
                 group.successful_runs,
-                statuses,
+                markdown_cell(&statuses),
                 result,
-                name,
+                markdown_cell(name),
                 stats.p50,
                 stats.p95,
                 stats.p99,
@@ -799,7 +778,12 @@ const fn yes_no(value: bool) -> &'static str {
 }
 
 fn markdown_cell(value: &str) -> String {
-    value.split_whitespace().collect::<Vec<_>>().join(" ").replace('|', "\\|")
+    let value = value.split_whitespace().collect::<Vec<_>>().join(" ");
+    let longest_backtick_run =
+        value.split(|character| character != '`').map(str::len).max().unwrap_or_default();
+    let delimiter = "`".repeat(longest_backtick_run + 1);
+    let value = value.replace('|', "\\|");
+    format!("{delimiter} {value} {delimiter}")
 }
 
 fn server_status_name(status: ServerStatus) -> &'static str {
@@ -872,6 +856,7 @@ mod tests {
     use super::*;
     use crate::process::{Direction, RequestMeasurement, TraceEvent};
     use snapbox::{assert_data_eq, str};
+    use std::time::Instant;
 
     fn process_metrics(
         accounting: ProcessAccounting,
@@ -923,6 +908,7 @@ mod tests {
             profile: "test".into(),
             harness_version: env!("CARGO_PKG_VERSION").into(),
             harness_contract_sha256: None,
+            harness_executable_sha256: None,
             rustc_version: None,
             npm_runtime: None,
             harness_git_revision: None,
@@ -977,6 +963,95 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn report_requires_expected_build_provenance() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("summary.json");
+        let output = directory.path().join("summary.md");
+        let mut summary = summary_with_groups(Vec::new());
+        summary.profile = "pr-smoke".into();
+        summary.harness_git_revision = Some("1".repeat(40));
+        summary.harness_executable_sha256 = Some("2".repeat(64));
+        fs::write(&input, serde_json::to_vec(&summary).unwrap()).unwrap();
+
+        regenerate_markdown(
+            &input,
+            &output,
+            false,
+            Some(&"1".repeat(40)),
+            Some(&"2".repeat(64)),
+            Some("pr-smoke"),
+        )
+        .unwrap();
+        assert!(output.is_file());
+
+        for (revision, digest, profile) in [
+            (Some("3".repeat(40)), Some("2".repeat(64)), Some("pr-smoke")),
+            (Some("1".repeat(40)), Some("4".repeat(64)), Some("pr-smoke")),
+            (Some("1".repeat(40)), Some("2".repeat(64)), Some("full")),
+        ] {
+            assert!(
+                regenerate_markdown(
+                    &input,
+                    &output,
+                    false,
+                    revision.as_deref(),
+                    digest.as_deref(),
+                    profile,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn metadata_version_commands_are_isolated_and_bounded() {
+        assert!(std::env::var_os("HOME").is_some(), "test requires a parent HOME");
+        let value = command_output_with_timeout(
+            "sh",
+            &["-c", "test -z \"${HOME+x}\" && printf 'version\\n'"],
+            Duration::from_secs(1),
+        );
+        assert_eq!(value.as_deref(), Some("version"));
+
+        let started = Instant::now();
+        let value = command_output_with_timeout(
+            "sh",
+            &["-c", "sleep 30 & printf 'version\\n'; exit 0"],
+            Duration::from_secs(1),
+        );
+        assert!(value.is_none(), "surviving descendants must invalidate metadata");
+        assert!(started.elapsed() < Duration::from_secs(3));
+
+        let started = Instant::now();
+        let value =
+            command_output_with_timeout("sh", &["-c", "exec sleep 30"], Duration::from_millis(50));
+        assert!(value.is_none(), "timed-out metadata must be unavailable");
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[test]
+    fn markdown_treats_dynamic_values_as_plain_text() {
+        let mut summary = summary_with_groups(vec![SummaryGroup {
+            server: "server|@reviewers".into(),
+            fixture: "<img src=x>".into(),
+            workload: "[click](https://example.invalid)`tail".into(),
+            successful_runs: 1,
+            status_counts: BTreeMap::from([("pass".into(), 1)]),
+            status: SummaryStatus::Pass,
+            metrics: BTreeMap::from([("metric|@reviewers".into(), metric_stats(1, 1.0, 1.0, 1.0))]),
+        }]);
+        summary.profile = "profile\n@reviewers".into();
+
+        let output = markdown(&summary);
+        assert!(output.contains("` profile @reviewers `"));
+        assert!(output.contains("` server\\|@reviewers `"));
+        assert!(output.contains("` <img src=x> `"));
+        assert!(output.contains("`` [click](https://example.invalid)`tail ``"));
+        assert!(output.contains("` metric\\|@reviewers `"));
     }
 
     #[test]
@@ -1077,7 +1152,7 @@ mod tests {
 ...
 ## Results
 ...
-| external | synthetic | correctness | textDocument/didChange, textDocument/didSave | 0 | incorrect:1 | :red_circle: **FAILED** | - | - | - | - | - |
+| ` external ` | ` synthetic ` | ` correctness ` | ` textDocument/didChange, textDocument/didSave ` | 0 | ` incorrect:1 ` | :red_circle: **FAILED** | - | - | - | - | - |
 ...
 "#]],
         );
@@ -1140,11 +1215,11 @@ mod tests {
 ...
 ## Servers
 ...
-| server | Server 1 | available | server 1.0 | 1.0 | [..] | [..] | unavailable |
+| ` server ` | ` Server 1 ` | ` available ` | ` server 1.0 ` | ` 1.0 ` | ` [..] ` | ` [..] ` | ` unavailable ` |
 ...
 ## Fixtures
 ...
-| fixture | Fixture corpus | [..] | [..] | 2 | 20 | 200 | unavailable | unavailable |
+| ` fixture ` | ` Fixture corpus ` | ` [..] ` | ` [..] ` | 2 | 20 | 200 | ` unavailable ` | ` unavailable ` |
 ...
 "#]],
         );

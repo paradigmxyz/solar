@@ -91,6 +91,15 @@ impl FixtureSource {
             validate_git_state(&root, expected)?;
         }
 
+        for source_root in &spec.source_roots {
+            if let Some(ignored) = ignored_directory(source_root) {
+                bail!(
+                    "fixture `{}` source root `{}` contains ignored directory `{ignored}`",
+                    spec.id,
+                    source_root.display()
+                )
+            }
+        }
         let source_roots = spec.source_roots.iter().map(|path| root.join(path)).collect::<Vec<_>>();
         let mut paths = Vec::new();
         for source_root in &source_roots {
@@ -268,10 +277,31 @@ impl Fixture {
             })?;
         let path = self.path(&spec.path)?;
         let text = fs::read_to_string(&path)?;
+        self.anchor_in_text(name, &path, &text, encoding)
+    }
+
+    pub(crate) fn anchor_in_text(
+        &self,
+        name: &str,
+        path: &Path,
+        text: &str,
+        encoding: PositionEncoding,
+    ) -> Result<Anchor> {
+        let spec =
+            self.source.spec.anchors.get(name).with_context(|| {
+                format!("fixture `{}` has no anchor `{name}`", self.metadata().id)
+            })?;
+        let expected_path = self.path(&spec.path)?;
+        if expected_path != path {
+            bail!("anchor `{name}` belongs to `{}`, not `{}`", spec.path.display(), path.display())
+        }
         let offset = text.find(&spec.needle).with_context(|| {
             format!("anchor `{name}` disappeared from `{}`", spec.path.display())
         })? + spec.offset;
-        Ok(Anchor { path, position: position_at_with_encoding(&text, offset, encoding) })
+        Ok(Anchor {
+            path: path.to_owned(),
+            position: position_at_with_encoding(text, offset, encoding),
+        })
     }
 
     pub(crate) fn anchor_needle(&self, name: &str) -> Result<String> {
@@ -396,6 +426,13 @@ fn collect_solidity_files(root: &Path, directory: &Path, paths: &mut Vec<PathBuf
         }
     }
     Ok(())
+}
+
+fn ignored_directory(path: &Path) -> Option<&str> {
+    path.components().find_map(|component| {
+        let name = component.as_os_str().to_str()?;
+        IGNORED_DIRECTORIES.contains(&name).then_some(name)
+    })
 }
 
 fn fixture_content_sha256(root: &Path) -> Result<String> {
@@ -574,6 +611,19 @@ mod tests {
             source: None,
         };
         assert!(FixtureSource::open(&spec).is_err());
+    }
+
+    #[test]
+    fn rejects_explicitly_ignored_source_roots() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("cache")).unwrap();
+        fs::write(root.path().join("cache/Main.sol"), "contract Main {}\n").unwrap();
+        let mut spec = fixture_spec(root.path());
+        spec.source_roots = vec!["cache".into()];
+
+        let error = FixtureSource::open(&spec).unwrap_err().to_string();
+
+        assert!(error.contains("ignored directory `cache`"), "{error}");
     }
 
     #[test]

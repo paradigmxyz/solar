@@ -1,8 +1,14 @@
 #![allow(unused_crate_dependencies)]
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use snapbox::{assert_data_eq, str};
-use std::{fs, io::Read, path::Path, process::Command};
+use std::{
+    fs,
+    io::{self, Read},
+    path::Path,
+    process::Command,
+};
 
 fn read_json(path: &Path) -> Value {
     serde_json::from_reader(fs::File::open(path).unwrap()).unwrap()
@@ -166,6 +172,8 @@ scenarios:
           query: Scratch
           expected_name: Scratch
           expected_path: Scratch.sol
+      - kind: open
+        path: Scratch.sol
       - kind: rename-file
         from: Scratch.sol
         to: Renamed.sol
@@ -174,6 +182,12 @@ scenarios:
           query: Scratch
           expected_name: Scratch
           expected_path: Renamed.sol
+      - kind: save
+        path: Renamed.sol
+        probe:
+          kind: document-symbol
+          path: Renamed.sol
+          expected_name: Scratch
       - kind: delete-file
         path: Renamed.sol
         probe:
@@ -219,6 +233,8 @@ scenarios:
         .arg(&config)
         .args(["--profile", "smoke", "--repeat", "1", "--output"])
         .arg(&output)
+        // The fake server fails if the harness forwards this ambient variable.
+        .env("LSP_BENCH_AMBIENT_SECRET_CANARY", "must-not-reach-server")
         .status()
         .unwrap();
     if !status.success() {
@@ -247,6 +263,12 @@ scenarios:
     assert_eq!(summary["environment"]["network_isolated"], false);
     assert_hex_digest(&summary["harness_git_revision"], 40);
     assert!(summary["harness_git_dirty"].is_boolean());
+    assert_hex_digest(&summary["harness_contract_sha256"], 64);
+    assert_hex_digest(&summary["harness_executable_sha256"], 64);
+    assert_eq!(
+        summary["harness_executable_sha256"].as_str().unwrap(),
+        sha256_path(Path::new(env!("CARGO_BIN_EXE_solar-lsp-bench")))
+    );
     assert_hex_digest(&summary["servers"][0]["executable_sha256"], 64);
     assert_hex_digest(&summary["fixtures"][0]["content_sha256"], 64);
     assert_hex_digest(&summary["fixtures"][0]["solc_native_sha256"], 64);
@@ -330,17 +352,28 @@ scenarios:
         .filter(|event| event["direction"] == "send")
         .filter_map(|event| event["method"].as_str())
         .collect::<Vec<_>>();
-    let opened_uris = lifecycle["observations"]["events"]
-        .as_array()
-        .unwrap()
+    let events = lifecycle["observations"]["events"].as_array().unwrap();
+    let opened_uris = events
         .iter()
         .filter(|event| event["direction"] == "send" && event["method"] == "textDocument/didOpen")
         .filter_map(|event| {
             event.pointer("/message/params/textDocument/uri").and_then(Value::as_str)
         })
         .collect::<Vec<_>>();
-    assert_eq!(opened_uris.len(), 1, "lifecycle probes must not open their targets");
+    assert_eq!(opened_uris.len(), 3, "lifecycle probes must not open their targets");
     assert!(opened_uris[0].ends_with("/Main.sol"));
+    assert!(opened_uris[1].ends_with("/Scratch.sol"));
+    assert!(opened_uris[2].ends_with("/Renamed.sol"));
+    let closed_uris = events
+        .iter()
+        .filter(|event| event["direction"] == "send" && event["method"] == "textDocument/didClose")
+        .filter_map(|event| {
+            event.pointer("/message/params/textDocument/uri").and_then(Value::as_str)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(closed_uris.len(), 2);
+    assert!(closed_uris[0].ends_with("/Scratch.sol"));
+    assert!(closed_uris[1].ends_with("/Renamed.sol"));
     for lifecycle in [
         ["workspace/willCreateFiles", "workspace/didCreateFiles"],
         ["workspace/willRenameFiles", "workspace/didRenameFiles"],
@@ -361,6 +394,36 @@ scenarios:
     let did_create =
         sent_methods.iter().position(|method| method == &"workspace/didCreateFiles").unwrap();
     assert!(will_create < apply_preflight_edit && apply_preflight_edit < did_create);
+    let event_position = |method: &str, suffix: &str| {
+        events
+            .iter()
+            .position(|event| {
+                event["direction"] == "send"
+                    && event["method"] == method
+                    && event
+                        .pointer("/message/params/textDocument/uri")
+                        .and_then(Value::as_str)
+                        .is_some_and(|uri| uri.ends_with(suffix))
+            })
+            .unwrap_or_else(|| panic!("missing {method} for {suffix}"))
+    };
+    let sent_event_position = |method: &str| {
+        events
+            .iter()
+            .position(|event| event["direction"] == "send" && event["method"] == method)
+            .unwrap_or_else(|| panic!("missing {method}"))
+    };
+    let close_old = event_position("textDocument/didClose", "/Scratch.sol");
+    let open_new = event_position("textDocument/didOpen", "/Renamed.sol");
+    let will_rename = sent_event_position("workspace/willRenameFiles");
+    let did_rename = sent_event_position("workspace/didRenameFiles");
+    assert!(will_rename < close_old && close_old < open_new && open_new < did_rename);
+    let save_new = event_position("textDocument/didSave", "/Renamed.sol");
+    let close_deleted = event_position("textDocument/didClose", "/Renamed.sol");
+    let will_delete = sent_event_position("workspace/willDeleteFiles");
+    let did_delete = sent_event_position("workspace/didDeleteFiles");
+    assert!(open_new < save_new && save_new < will_delete);
+    assert!(will_delete < close_deleted && close_deleted < did_delete);
     let recovery = samples["samples"]
         .as_array()
         .unwrap()
@@ -408,6 +471,13 @@ scenarios:
         .unwrap();
     assert!(status.success());
     assert_eq!(summary_markdown, read_text(&regenerated_markdown));
+}
+
+fn sha256_path(path: &Path) -> String {
+    let mut file = fs::File::open(path).unwrap();
+    let mut hasher = Sha256::new();
+    io::copy(&mut file, &mut hasher).unwrap();
+    format!("{:x}", hasher.finalize())
 }
 
 #[test]
@@ -707,6 +777,67 @@ scenarios:
 }
 
 #[test]
+fn server_that_never_reads_stdin_is_bounded_by_request_timeout() {
+    let directory = tempfile::tempdir().unwrap();
+    let fixture = directory.path().join("fixture");
+    fs::create_dir(&fixture).unwrap();
+    fs::write(fixture.join("Main.sol"), "contract Main {}\n").unwrap();
+    let initialization_payload = serde_json::to_string(&"x".repeat(1024 * 1024)).unwrap();
+    let config = directory.path().join("benchmark.yaml");
+    fs::write(
+        &config,
+        format!(
+            r#"version: 1
+profiles:
+  smoke:
+    warmup: 0
+    samples: 1
+    cold_samples: 1
+    lifecycle_samples: 1
+    timeout_ms: 200
+servers:
+  - id: blocked-stdin
+    command: "{}"
+    version_args: [--version]
+    env:
+      LSP_BENCH_FAKE_BEHAVIOR: never-read-stdin
+    initialization_options:
+      payload: {initialization_payload}
+fixtures:
+  - id: synthetic
+    root: "{}"
+    source_roots: [.]
+scenarios:
+  - id: initialize
+    fixture: synthetic
+    steps:
+      - kind: open
+        path: Main.sol
+"#,
+            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+            fixture.display(),
+        ),
+    )
+    .unwrap();
+    let output = directory.path().join("results");
+    let started = std::time::Instant::now();
+    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
+        .args(["run", "--config"])
+        .arg(&config)
+        .args(["--profile", "smoke", "--allow-failures", "--output"])
+        .arg(&output)
+        .status()
+        .unwrap();
+
+    assert!(status.success());
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    let samples = read_json(&output.join("samples.json"));
+    let sample = &samples["samples"][0];
+    assert_eq!(sample["status"], "timeout");
+    assert!(sample["error"].as_str().unwrap().contains("timed out writing LSP message"));
+}
+
+#[test]
 fn shutdown_crash_overrides_an_unsupported_workload() {
     let directory = tempfile::tempdir().unwrap();
     let fixture = directory.path().join("fixture");
@@ -893,6 +1024,78 @@ scenarios:
         .find(|event| event["direction"] == "send" && event["method"] == "textDocument/didSave")
         .unwrap();
     assert!(notification.pointer("/message/params/text").is_none());
+}
+
+#[test]
+fn probes_resolve_anchors_after_unsaved_multiline_unicode_edits() {
+    let directory = tempfile::tempdir().unwrap();
+    let fixture = directory.path().join("fixture");
+    fs::create_dir(&fixture).unwrap();
+    fs::write(fixture.join("Main.sol"), "contract Main { function target() external {} }\n")
+        .unwrap();
+    let config = directory.path().join("benchmark.yaml");
+    fs::write(
+        &config,
+        format!(
+            r#"version: 1
+profiles:
+  smoke:
+    warmup: 0
+    samples: 1
+    cold_samples: 1
+    lifecycle_samples: 1
+    timeout_ms: 1000
+servers:
+  - id: fake
+    command: "{}"
+    version_args: [--version]
+    env:
+      LSP_BENCH_FAKE_BEHAVIOR: position-sensitive-hover
+fixtures:
+  - id: synthetic
+    root: "{}"
+    source_roots: [.]
+    anchors:
+      header:
+        path: Main.sol
+        needle: "contract Main {{"
+      target:
+        path: Main.sol
+        needle: target
+scenarios:
+  - id: edited-anchor
+    fixture: synthetic
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: replace
+        path: Main.sol
+        anchor: header
+        text: "contract Main {{\n    string constant FACE = unicode\"😀\";"
+        probe:
+          kind: hover
+          path: Main.sol
+          anchor: target
+          expected_text: function add
+"#,
+            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+            fixture.display(),
+        ),
+    )
+    .unwrap();
+    let output = directory.path().join("results");
+    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
+        .args(["run", "--config"])
+        .arg(&config)
+        .args(["--profile", "smoke", "--repeat", "1", "--allow-failures", "--output"])
+        .arg(&output)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let samples = read_json(&output.join("samples.json"));
+    let sample = &samples["samples"].as_array().unwrap()[0];
+    assert_eq!(sample["status"], "pass", "{sample:#}");
 }
 
 #[test]

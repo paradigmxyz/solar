@@ -94,6 +94,15 @@ enum Command {
         /// Refuse to generate a report from a non-authoritative run.
         #[arg(long)]
         require_authoritative: bool,
+        /// Require the summary to come from this harness Git revision.
+        #[arg(long, value_name = "SHA")]
+        expected_harness_revision: Option<String>,
+        /// Require the summary to come from this harness executable digest.
+        #[arg(long, value_name = "SHA256")]
+        expected_harness_sha256: Option<String>,
+        /// Require the summary to use this benchmark profile.
+        #[arg(long, value_name = "NAME")]
+        expected_profile: Option<String>,
     },
 }
 
@@ -163,8 +172,22 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Command::Report { input, output, require_authoritative } => {
-            report::regenerate_markdown(&input, &output, require_authoritative)?;
+        Command::Report {
+            input,
+            output,
+            require_authoritative,
+            expected_harness_revision,
+            expected_harness_sha256,
+            expected_profile,
+        } => {
+            report::regenerate_markdown(
+                &input,
+                &output,
+                require_authoritative,
+                expected_harness_revision.as_deref(),
+                expected_harness_sha256.as_deref(),
+                expected_profile.as_deref(),
+            )?;
             println!("Report: {}", output.display());
         }
     }

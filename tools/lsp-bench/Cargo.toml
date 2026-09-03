@@ -28,6 +28,9 @@ sha2 = "0.10"
 tempfile.workspace = true
 thiserror = "1.0"
 
+[build-dependencies]
+sha2 = "0.10"
+
 [dev-dependencies]
 snapbox.workspace = true
 

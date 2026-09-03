@@ -4,7 +4,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -91,6 +97,154 @@ def step_block(job: str, name: str) -> str:
     return marker + remainder
 
 
+def github_script(step: str) -> str:
+    script = step.split("          script: |\n", 1)[1]
+    if not all(
+        not line or line.startswith("            ") for line in script.splitlines()
+    ):
+        raise AssertionError("github-script block has unexpected indentation")
+    return "\n".join(line[12:] for line in script.splitlines())
+
+
+def run_manual_comment_validation(
+    provenance: dict[str, object], summary: bytes, *, expect_success: bool
+) -> str:
+    step = step_block(
+        manual_command_job_block("comment"),
+        "Validate tested revisions and comment data",
+    )
+    script = github_script(step)
+    harness = f"""
+const AsyncFunction = Object.getPrototypeOf(async function () {{}}).constructor;
+const workflowScript = {json.dumps(script)};
+const outputs = {{}};
+const core = {{ setOutput: (name, value) => {{ outputs[name] = value; }} }};
+const context = {{
+  payload: {{ repository: {{ full_name: "target/solar" }} }},
+  runId: 100,
+}};
+(async () => {{
+  const execute = new AsyncFunction("github", "core", "context", "require", workflowScript);
+  await execute({{}}, core, context, require);
+  process.stdout.write(JSON.stringify(outputs));
+}})().catch((error) => {{
+  console.error(error.stack || String(error));
+  process.exitCode = 1;
+}});
+"""
+    with tempfile.TemporaryDirectory(prefix="cross-lsp-comment-") as directory:
+        root = Path(directory)
+        summary_path = root / "summary.json"
+        provenance_path = root / "provenance.json"
+        summary_path.write_bytes(summary)
+        provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "EXPECTED_BASE_REF": "main",
+                "EXPECTED_BASE_SHA": "a" * 40,
+                "EXPECTED_HEAD_REF": "feature",
+                "EXPECTED_HEAD_REPO": "contributor/solar",
+                "EXPECTED_HEAD_SHA": "b" * 40,
+                "EXPECTED_MERGE_SHA": "c" * 40,
+                "EXPECTED_PR_NUMBER": "12",
+                "GITHUB_RUN_ATTEMPT": "1",
+                "GITHUB_RUN_ID": "100",
+                "PROVENANCE_PATH": str(provenance_path),
+                "SUMMARY_PATH": str(summary_path),
+            }
+        )
+        completed = subprocess.run(
+            ["node"],
+            input=harness,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+            env=environment,
+        )
+    if expect_success:
+        completed.check_returncode()
+        return completed.stdout
+    if completed.returncode == 0:
+        raise AssertionError("comment validation unexpectedly accepted provenance")
+    return completed.stderr
+
+
+def run_workflow_comment_validation(
+    provenance: dict[str, object],
+    summary: bytes,
+    pull: dict[str, object],
+    merge: dict[str, object],
+    *,
+    expect_success: bool,
+) -> str:
+    step = step_block(
+        comment_job_block("comment"),
+        "Validate tested revisions and comment data",
+    )
+    script = github_script(step)
+    harness = f"""
+const AsyncFunction = Object.getPrototypeOf(async function () {{}}).constructor;
+const workflowScript = {json.dumps(script)};
+const outputs = {{}};
+const core = {{ setOutput: (name, value) => {{ outputs[name] = value; }} }};
+const context = {{
+  payload: {{
+    repository: {{ full_name: "target/solar" }},
+    workflow_run: {{ id: 100, run_attempt: 1, head_sha: {json.dumps("b" * 40)} }},
+  }},
+  repo: {{ owner: "target", repo: "solar" }},
+}};
+const github = {{
+  rest: {{
+    pulls: {{ get: async () => ({{ data: {json.dumps(pull)} }}) }},
+    repos: {{ getCommit: async () => ({{ data: {json.dumps(merge)} }}) }},
+  }},
+}};
+(async () => {{
+  const execute = new AsyncFunction("github", "core", "context", "require", workflowScript);
+  await execute(github, core, context, require);
+  process.stdout.write(JSON.stringify(outputs));
+}})().catch((error) => {{
+  console.error(error.stack || String(error));
+  process.exitCode = 1;
+}});
+"""
+    with tempfile.TemporaryDirectory(prefix="cross-lsp-workflow-comment-") as directory:
+        root = Path(directory)
+        summary_path = root / "summary.json"
+        provenance_path = root / "provenance.json"
+        summary_path.write_bytes(summary)
+        provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "EXPECTED_HEAD_REF": "feature",
+                "EXPECTED_HEAD_REPO": "contributor/solar",
+                "EXPECTED_HEAD_SHA": "b" * 40,
+                "EXPECTED_PR_NUMBER": "12",
+                "PROVENANCE_PATH": str(provenance_path),
+                "SUMMARY_PATH": str(summary_path),
+            }
+        )
+        completed = subprocess.run(
+            ["node"],
+            input=harness,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+            env=environment,
+        )
+    if expect_success:
+        completed.check_returncode()
+        return completed.stdout
+    if completed.returncode == 0:
+        raise AssertionError("workflow comment validation unexpectedly accepted provenance")
+    return completed.stderr
+
+
 class CrossServerWorkflowTests(unittest.TestCase):
     def test_triggers_permissions_and_runtime_bounds_are_preserved(self) -> None:
         text = workflow()
@@ -135,6 +289,7 @@ class CrossServerWorkflowTests(unittest.TestCase):
             2,
         )
         self.assertNotIn("github-script", text)
+        self.assertIn("name: Verify checked out test merge", text)
 
     def test_pr_smoke_runs_core4_synthetic_with_failure_tolerance(self) -> None:
         pr = job_block("pr-smoke")
@@ -145,25 +300,29 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn(SERVER_ARGS, run)
         self.assertIn("--allow-failures", run)
         self.assertIn("--solar-binary target/release/solar", run)
-        self.assertIn('--solar-revision "$(git rev-parse HEAD)"', run)
+        self.assertIn('--solar-revision "$TESTED_MERGE_SHA"', run)
+        self.assertIn('TESTED_MERGE_SHA: ${{ github.sha }}', run)
         self.assertNotIn("--require-authoritative", pr)
 
-    def test_same_repository_pr_publishes_a_distinct_sticky_comment(self) -> None:
+    def test_pr_smoke_uploads_only_validated_comment_data(self) -> None:
         pr = job_block("pr-smoke")
-        comment = step_block(pr, "Publish PR smoke comment")
-
-        self.assertIn("issues: write", pr)
-        self.assertIn("pull-requests: write", pr)
-        self.assertIn(f"uses: {STICKY_COMMENT_ACTION}", comment)
+        self.assertNotIn("issues: write", pr)
+        self.assertNotIn("pull-requests: write", pr)
+        build = step_block(pr, "Build candidate and harness")
+        stage = step_block(pr, "Stage PR smoke comment data")
+        upload = step_block(pr, "Upload PR smoke comment data")
         self.assertIn(
-            "github.event.pull_request.head.repo.full_name == github.repository", comment
+            "SOLAR_LSP_BENCH_BUILD_REVISION: ${{ github.sha }}", build
         )
+        self.assertIn("summary.json", stage)
+        self.assertIn("provenance.json", stage)
+        self.assertIn("git rev-parse HEAD^1", stage)
+        self.assertIn("git rev-parse HEAD^2", stage)
         self.assertIn(
-            "hashFiles('target/lsp-bench/pr-smoke/summary.md') != ''", comment
+            'harness_sha256: digest("target/release/solar-lsp-bench")', stage
         )
-        self.assertIn("header: cross-lsp-benchmark", comment)
-        self.assertIn("path: target/lsp-bench/pr-smoke/summary.md", comment)
-        self.assertNotIn("lsp-bench-command", comment)
+        self.assertIn("target/lsp-bench/pr-comment/", upload)
+        self.assertNotIn(f"uses: {STICKY_COMMENT_ACTION}", pr)
 
     def test_manual_full_runs_strict_core4_matrix(self) -> None:
         full = job_block("full")
@@ -228,14 +387,12 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertEqual(text.count(f"uses: {UPLOAD_ACTION}"), 3)
         self.assertIn("${{ github.run_id }}-${{ github.run_attempt }}", text)
 
-        comment_upload = step_block(
-            job_block("pr-smoke"), "Upload PR smoke comment report"
-        )
+        comment_upload = step_block(job_block("pr-smoke"), "Upload PR smoke comment data")
         self.assertIn(
             "name: cross-lsp-pr-comment-${{ github.run_id }}-${{ github.run_attempt }}",
             comment_upload,
         )
-        self.assertIn("target/lsp-bench/pr-comment/report.md", comment_upload)
+        self.assertIn("target/lsp-bench/pr-comment/", comment_upload)
         self.assertIn("retention-days: 30", comment_upload)
         self.assertIn("if-no-files-found: warn", comment_upload)
 
@@ -251,7 +408,6 @@ class CrossServerWorkflowTests(unittest.TestCase):
         for condition in (
             "github.event.workflow_run.event == 'pull_request'",
             "github.event.workflow_run.conclusion == 'success'",
-            "github.event.workflow_run.head_repository.full_name != github.repository",
         ):
             self.assertIn(condition, job)
         for permission in (
@@ -263,30 +419,39 @@ class CrossServerWorkflowTests(unittest.TestCase):
             self.assertIn(permission, job)
 
         self.assertNotIn("pull_request_target", header)
-        self.assertNotIn("uses: actions/checkout@", text)
+        self.assertIn(f"uses: {CHECKOUT_ACTION}", text)
         self.assertNotIn("path: target/", text)
         for contract in (
             'const workflowPath = ".github/workflows/lsp-bench.yml"',
             "run.repository?.full_name !== repository",
             'run.path === workflowPath || run.path?.startsWith(`${workflowPath}@`)',
             'run.event !== "pull_request"',
-            "run_id: run.id",
+            "provenance.run_id !== Number(run.id)",
             "artifact.workflow_run?.id === run.id",
             'artifact.name === expectedName',
             "artifact-ids: ${{ steps.artifact.outputs.artifact_id }}",
             "run-id: ${{ github.event.workflow_run.id }}",
             "${{ runner.temp }}/cross-lsp-comment",
-            "find -P \"$REPORT_ROOT\" -type f -name report.md",
+            'summary="$REPORT_ROOT/summary.json"',
+            'provenance="$REPORT_ROOT/provenance.json"',
             'pull.head?.sha !== run.head_sha',
             'pull.head?.repo?.full_name !== headRepository',
             'pull.base?.repo?.full_name !== repository',
-            'pull.head?.sha !== process.env.HEAD_SHA',
-            'pull.base?.sha !== process.env.BASE_SHA',
+            'pull.merge_commit_sha !== provenance.merge_sha',
+            'parents[0] !== provenance.base_sha',
+            'parents[1] !== provenance.head_sha',
             "header: cross-lsp-benchmark",
             "number_force: ${{ steps.pr.outputs.number }}",
         ):
             self.assertIn(contract, text)
         self.assertNotIn("lsp-bench-command", text)
+
+        renderer = step_block(job, "Render comment from validated data")
+        self.assertIn("trusted-renderer/tools/lsp-bench/Cargo.toml", renderer)
+        self.assertIn("--expected-harness-revision", renderer)
+        self.assertIn("--expected-harness-sha256", renderer)
+        self.assertIn("--expected-profile pr-smoke", renderer)
+        self.assertNotIn("report.md", step_block(job, "Isolate comment data"))
 
     def test_manual_cross_server_command_is_split_by_permissions(self) -> None:
         text = manual_command_workflow()
@@ -309,6 +474,16 @@ class CrossServerWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(association, resolve)
         self.assertIn("pull-requests: read", resolve)
+        self.assertIn("merge_sha: ${{ steps.resolve.outputs.merge_sha }}", resolve)
+        for contract in (
+            "!SHA_RE.test(pull.merge_commit_sha || \"\")",
+            "github.rest.repos.getCommit",
+            "parents.length !== 2",
+            "parents[0] !== pull.base.sha",
+            "parents[1] !== pull.head.sha",
+            'core.setOutput("merge_sha", pull.merge_commit_sha)',
+        ):
+            self.assertIn(contract, resolve)
 
         self.assertIn("needs: resolve", benchmark)
         self.assertIn("contents: read", benchmark)
@@ -316,14 +491,25 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertNotIn("pull-requests: write", benchmark)
         self.assertIn(f"uses: {CHECKOUT_ACTION}", benchmark)
         self.assertIn(
-            "ref: refs/pull/${{ needs.resolve.outputs.pr_number }}/head", benchmark
+            "ref: refs/pull/${{ needs.resolve.outputs.pr_number }}/merge", benchmark
         )
         self.assertIn("persist-credentials: false", benchmark)
-        self.assertIn('test "$(git rev-parse HEAD)" = "$HEAD_SHA"', benchmark)
+        self.assertIn('test "$(git rev-parse HEAD)" = "$MERGE_SHA"', benchmark)
+        self.assertIn('test "$(git rev-parse HEAD^1)" = "$BASE_SHA"', benchmark)
+        self.assertIn('test "$(git rev-parse HEAD^2)" = "$HEAD_SHA"', benchmark)
+        build = step_block(benchmark, "Build candidate and harness")
+        self.assertIn(
+            "SOLAR_LSP_BENCH_BUILD_REVISION: ${{ needs.resolve.outputs.merge_sha }}",
+            build,
+        )
+        stage = step_block(benchmark, "Stage comment data")
+        self.assertIn(
+            'harness_sha256: digest("target/release/solar-lsp-bench")', stage
+        )
         self.assertIn("run \\\n            --profile pr-smoke", benchmark)
         self.assertIn(SERVER_ARGS, benchmark)
         self.assertIn("--allow-failures", benchmark)
-        self.assertIn("--solar-revision \"$HEAD_SHA\"", benchmark)
+        self.assertIn("--solar-revision \"$TESTED_MERGE_SHA\"", benchmark)
         self.assertIn("artifact_id: ${{ steps.upload.outputs.artifact-id }}", benchmark)
         self.assertIn(
             "name: cross-lsp-manual-${{ github.run_id }}-${{ github.run_attempt }}",
@@ -335,20 +521,142 @@ class CrossServerWorkflowTests(unittest.TestCase):
         self.assertIn("actions: read", comment)
         self.assertIn("issues: write", comment)
         self.assertIn("pull-requests: write", comment)
-        self.assertNotIn("uses: actions/checkout@", comment)
+        self.assertIn(f"uses: {CHECKOUT_ACTION}", comment)
         for contract in (
             "artifact-ids: ${{ needs.benchmark.outputs.artifact_id }}",
             "run-id: ${{ github.run_id }}",
             "${{ runner.temp }}/cross-lsp-manual-comment",
-            "find -P \"$REPORT_ROOT\" -type f -name report.md",
-            'pull.head?.sha !== process.env.HEAD_SHA',
+            'summary="$REPORT_ROOT/summary.json"',
+            'provenance="$REPORT_ROOT/provenance.json"',
+            "Expected regular summary.json and provenance.json at artifact root",
+            "Validate tested revisions and comment data",
+            "Comment provenance does not match the benchmark request",
+            "Summary digest does not match comment provenance",
+            "Checkout trusted report renderer",
+            "ref: ${{ github.sha }}",
+            "path: trusted-renderer",
+            "Render comment from validated data",
+            "--expected-harness-revision \"$EXPECTED_MERGE_SHA\"",
+            "--expected-harness-sha256 \"$EXPECTED_HARNESS_SHA256\"",
+            "--expected-profile pr-smoke",
+            'pull.merge_commit_sha !== process.env.MERGE_SHA',
             'pull.base?.sha !== process.env.BASE_SHA',
             "header: cross-lsp-command",
             "number_force: ${{ needs.resolve.outputs.pr_number }}",
         ):
             self.assertIn(contract, text)
+        self.assertNotIn("find -P \"$REPORT_ROOT\" -type f -name report.md", text)
+        self.assertNotIn("cp -- \"$report\"", text)
         self.assertNotIn("cross-lsp-benchmark", text)
         self.assertNotIn("lsp-bench-command", text)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow tests")
+    def test_manual_comment_provenance_is_strict_and_digest_bound(self) -> None:
+        summary = b'{"schema_version":7}\n'
+        provenance: dict[str, object] = {
+            "schema_version": 1,
+            "kind": "solar-cross-lsp-comment-data",
+            "repository": "target/solar",
+            "pr_number": 12,
+            "run_id": 100,
+            "run_attempt": 1,
+            "base_ref": "main",
+            "base_sha": "a" * 40,
+            "head_repository": "contributor/solar",
+            "head_ref": "feature",
+            "head_sha": "b" * 40,
+            "merge_sha": "c" * 40,
+            "harness_sha256": "d" * 64,
+            "summary_sha256": hashlib.sha256(summary).hexdigest(),
+        }
+
+        outputs = json.loads(
+            run_manual_comment_validation(provenance, summary, expect_success=True)
+        )
+        self.assertEqual(outputs, {"harness_sha256": "d" * 64})
+
+        with_extra = dict(provenance, unexpected=True)
+        error = run_manual_comment_validation(
+            with_extra, summary, expect_success=False
+        )
+        self.assertIn("does not match the exact schema", error)
+
+        wrong_revision = dict(provenance, base_sha="e" * 40)
+        error = run_manual_comment_validation(
+            wrong_revision, summary, expect_success=False
+        )
+        self.assertIn("does not match the benchmark request", error)
+
+        error = run_manual_comment_validation(
+            provenance, summary + b" ", expect_success=False
+        )
+        self.assertIn("Summary digest does not match", error)
+
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required for workflow tests")
+    def test_workflow_comment_rejects_stale_or_unrelated_test_merges(self) -> None:
+        summary = b'{"schema_version":7}\n'
+        provenance: dict[str, object] = {
+            "schema_version": 1,
+            "kind": "solar-cross-lsp-comment-data",
+            "repository": "target/solar",
+            "pr_number": 12,
+            "run_id": 100,
+            "run_attempt": 1,
+            "base_ref": "main",
+            "base_sha": "a" * 40,
+            "head_repository": "contributor/solar",
+            "head_ref": "feature",
+            "head_sha": "b" * 40,
+            "merge_sha": "c" * 40,
+            "harness_sha256": "d" * 64,
+            "summary_sha256": hashlib.sha256(summary).hexdigest(),
+        }
+        pull: dict[str, object] = {
+            "state": "open",
+            "base": {
+                "repo": {"full_name": "target/solar"},
+                "ref": "main",
+                "sha": "a" * 40,
+            },
+            "head": {
+                "repo": {"full_name": "contributor/solar"},
+                "ref": "feature",
+                "sha": "b" * 40,
+            },
+            "merge_commit_sha": "c" * 40,
+        }
+        merge: dict[str, object] = {
+            "sha": "c" * 40,
+            "parents": [{"sha": "a" * 40}, {"sha": "b" * 40}],
+        }
+
+        outputs = json.loads(
+            run_workflow_comment_validation(
+                provenance, summary, pull, merge, expect_success=True
+            )
+        )
+        self.assertEqual(outputs["base_sha"], "a" * 40)
+        self.assertEqual(outputs["merge_sha"], "c" * 40)
+
+        stale_pull = dict(pull)
+        stale_pull["base"] = {
+            "repo": {"full_name": "target/solar"},
+            "ref": "main",
+            "sha": "e" * 40,
+        }
+        error = run_workflow_comment_validation(
+            provenance, summary, stale_pull, merge, expect_success=False
+        )
+        self.assertIn("does not match the tested merge", error)
+
+        wrong_merge = {
+            "sha": "c" * 40,
+            "parents": [{"sha": "b" * 40}, {"sha": "a" * 40}],
+        }
+        error = run_workflow_comment_validation(
+            provenance, summary, pull, wrong_merge, expect_success=False
+        )
+        self.assertIn("does not match the tested merge", error)
 
 
 if __name__ == "__main__":

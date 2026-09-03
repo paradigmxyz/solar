@@ -5,7 +5,10 @@ use crate::{
         ArtifactSpec, CompilerSpec, Config, FixtureSpec, InstallSpec, ServerSpec, SourceSpec,
     },
     fixture::FixtureSource,
-    process::{cgroup_v2_process_tree_available, network_isolation_available},
+    process::{
+        cgroup_v2_process_tree_available, network_isolation_available, restricted_command,
+        run_command_with_bounded_output,
+    },
 };
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
@@ -16,8 +19,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 #[cfg(unix)]
@@ -626,7 +628,7 @@ fn prepare_compiler(kind: &str, fixture: &str, compiler: &CompilerSpec) -> Resul
         download_verified(url, &archive, compiler.archive_sha256.as_deref())?;
         let parent = archive.parent().unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(parent)?;
-        let status = Command::new("tar")
+        let status = restricted_command("tar")
             .args(["-xzf"])
             .arg(&archive)
             .args(["--no-same-owner", "--no-same-permissions", "-C"])
@@ -686,7 +688,7 @@ fn download_verified(url: &str, destination: &Path, expected_sha256: Option<&str
         fs::create_dir_all(parent)?;
     }
     let temporary = destination.with_extension("download.tmp");
-    let status = Command::new("curl")
+    let status = restricted_command("curl")
         .args(["--fail", "--location", "--retry", "3", "--silent", "--show-error"])
         .arg(url)
         .args(["--output"])
@@ -755,7 +757,7 @@ pub(crate) fn inspect_version(
             .map(str::to_owned)
             .with_context(|| format!("`{}` has no package version", package_json.display()));
     }
-    let mut process = Command::new(command);
+    let mut process = restricted_command(command);
     process
         .args(&spec.version_args)
         .env_remove("RUST_LOG")
@@ -779,7 +781,7 @@ pub(crate) fn inspect_compiler_version(
     timeout: Duration,
 ) -> Result<Option<String>> {
     let Some(command) = compiler.native.as_deref() else { return Ok(None) };
-    let mut process = Command::new(command);
+    let mut process = restricted_command(command);
     process
         .arg("--version")
         .env_remove("RUST_LOG")
@@ -795,35 +797,24 @@ pub(crate) fn inspect_compiler_version(
     Ok(Some(actual))
 }
 
-fn inspect_version_command(
-    mut process: Command,
-    command: &Path,
-    timeout: Duration,
-) -> Result<String> {
-    let mut child =
-        process.spawn().with_context(|| format!("failed to run `{}`", command.display()))?;
-    let deadline = Instant::now() + timeout;
-    loop {
-        if let Some(status) = child.try_wait()? {
-            let output = child.wait_with_output()?;
-            if !status.success() {
-                bail!("version command exited with {status}")
-            }
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let value = if stdout.trim().is_empty() { stderr.trim() } else { stdout.trim() };
-            if value.is_empty() {
-                bail!("version command produced no output")
-            }
-            return Ok(value.to_owned());
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            bail!("timed out waiting for version command")
-        }
-        thread::sleep(Duration::from_millis(5));
+fn inspect_version_command(process: Command, command: &Path, timeout: Duration) -> Result<String> {
+    let output = run_command_with_bounded_output(process, command, timeout)?;
+    if output.timed_out {
+        bail!("timed out waiting for version command")
     }
+    if output.forced_kill {
+        bail!("version command left descendants running")
+    }
+    if !output.status.success() {
+        bail!("version command exited with {}", output.status)
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let value = if stdout.trim().is_empty() { stderr.trim() } else { stdout.trim() };
+    if value.is_empty() {
+        bail!("version command produced no output")
+    }
+    Ok(value.to_owned())
 }
 
 pub(crate) fn verify_server_version_output(server: &ServerSpec, actual: &str) -> Result<()> {
@@ -970,7 +961,7 @@ fn prepare_server(server: &ServerSpec, manifest_dir: &Path) -> Result<()> {
                     format!("failed to stage server `{}` npm `{name}`", server.id)
                 })?;
             }
-            let status = Command::new("npm")
+            let status = restricted_command("npm")
                 .args(["ci", "--prefix"])
                 .arg(&artifact_root)
                 .args(["--ignore-scripts", "--no-audit", "--no-fund"])
@@ -998,7 +989,7 @@ fn prepare_server(server: &ServerSpec, manifest_dir: &Path) -> Result<()> {
                         .replace("{target}", &artifact_root.display().to_string())
                 })
                 .collect::<Vec<_>>();
-            let status = Command::new(program)
+            let status = restricted_command(program)
                 .args(args)
                 .current_dir(if source_root.is_dir() { &source_root } else { manifest_dir })
                 .stdin(Stdio::null())
@@ -1092,7 +1083,7 @@ fn prepare_archive_server(
         fs::create_dir_all(parent)?;
     }
     download_verified(url, &staged_artifact, Some(expected))?;
-    let status = Command::new("tar")
+    let status = restricted_command("tar")
         .arg("-xzf")
         .arg(&staged_artifact)
         .arg("-C")
@@ -1223,7 +1214,7 @@ fn prepare_pip_server(
         fs::remove_dir_all(&venv)
             .with_context(|| format!("failed to remove stale venv `{}`", venv.display()))?;
     }
-    let status = Command::new(python)
+    let status = restricted_command(python)
         .args(["-m", "venv"])
         .arg(&venv)
         .stdin(Stdio::null())
@@ -1266,17 +1257,23 @@ fn prepare_pip_server(
 }
 
 fn pip_command(command: impl AsRef<Path>) -> Command {
-    let mut process = Command::new(command.as_ref());
+    let mut process = restricted_command(command.as_ref());
     process.args(["-m", "pip", "--disable-pip-version-check"]).env("PIP_CONFIG_FILE", "/dev/null");
     process
 }
 
 fn inspect_python_minor(command: &str) -> Result<String> {
-    let output = Command::new(command)
-        .args(["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"])
-        .stdin(Stdio::null())
-        .output()
-        .with_context(|| format!("failed to inspect Python command `{command}`"))?;
+    let mut process = restricted_command(command);
+    process.args(["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"]);
+    let output =
+        run_command_with_bounded_output(process, Path::new(command), VERSION_PROBE_TIMEOUT)
+            .with_context(|| format!("failed to inspect Python command `{command}`"))?;
+    if output.timed_out {
+        bail!("timed out waiting for Python version command `{command}`")
+    }
+    if output.forced_kill {
+        bail!("Python version command `{command}` left descendants running")
+    }
     if !output.status.success() {
         bail!("Python version command `{command}` exited with {}", output.status)
     }
@@ -1379,7 +1376,7 @@ fn prepare_submodules(root: &Path) -> Result<()> {
 }
 
 fn run_git(root: &Path, args: &[&str]) -> Result<()> {
-    let status = Command::new("git").arg("-C").arg(root).args(args).status()?;
+    let status = restricted_command("git").arg("-C").arg(root).args(args).status()?;
     if !status.success() {
         bail!("Git command failed in `{}` with {status}", root.display())
     }
@@ -1387,7 +1384,7 @@ fn run_git(root: &Path, args: &[&str]) -> Result<()> {
 }
 
 pub(crate) fn git_output(root: &Path, args: &[&str]) -> Result<String> {
-    let output = Command::new("git")
+    let output = restricted_command("git")
         .arg("-C")
         .arg(root)
         .args(args)
@@ -1775,6 +1772,42 @@ mod tests {
         let version = checks.iter().find(|check| check.kind == "server-version").unwrap();
         assert!(matches!(version.status, CheckStatus::Pass));
         assert_eq!(version.detail, "Wake 4.9.0 build abc");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn version_probe_rejects_descendants_that_outlive_the_command() {
+        let root = tempfile::tempdir().unwrap();
+        let executable = root.path().join("server");
+        fs::write(&executable, "#!/bin/sh\nsleep 30 & printf 'Wake 4.9.0 build abc\\n'; exit 0\n")
+            .unwrap();
+        make_executable(&executable).unwrap();
+        let mut server = server_spec();
+        server.command = executable.clone();
+        server.version_args = vec!["--version".into()];
+
+        let error =
+            inspect_version(&executable, &server, VERSION_PROBE_TIMEOUT).unwrap_err().to_string();
+
+        assert!(error.contains("left descendants running"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn version_probe_reports_when_the_command_itself_times_out() {
+        let root = tempfile::tempdir().unwrap();
+        let executable = root.path().join("server");
+        fs::write(&executable, "#!/bin/sh\nexec sleep 30\n").unwrap();
+        make_executable(&executable).unwrap();
+        let mut server = server_spec();
+        server.command = executable.clone();
+        server.version_args = vec!["--version".into()];
+
+        let error = inspect_version(&executable, &server, Duration::from_millis(50))
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("timed out waiting for version command"), "{error}");
     }
 
     #[test]

@@ -722,6 +722,12 @@ impl Config {
                 bail!("workload `{}` restart must have steps before and after it", workload.id)
             }
             for step in &workload.steps {
+                if let StepSpec::Warm { name, samples: Some(0), .. } = step {
+                    bail!(
+                        "workload `{}` warm step `{name}` sample count must be greater than zero",
+                        workload.id
+                    )
+                }
                 validate_step_paths(step)?;
                 let fixture = config
                     .fixtures
@@ -1251,6 +1257,37 @@ mod tests {
 
         let error = Config::load(&path).unwrap_err().to_string();
         assert!(error.contains("more than one warm request"), "{error}");
+    }
+
+    #[test]
+    fn rejects_zero_warm_sample_overrides() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("benchmark.yaml");
+        for warmup in [0, 1] {
+            fs::write(
+                &path,
+                format!(
+                    "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: zero-samples\n    fixture: fixture\n    steps:\n      - kind: warm\n        name: measured\n        warmup: {warmup}\n        samples: 0\n        probe:\n          kind: document-symbol\n          path: Main.sol\n"
+                ),
+            )
+            .unwrap();
+
+            let error = Config::load(&path).unwrap_err().to_string();
+            assert!(error.contains("sample count must be greater than zero"), "{error}");
+        }
+    }
+
+    #[test]
+    fn accepts_zero_warmup_with_measured_samples() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("benchmark.yaml");
+        fs::write(
+            &path,
+            "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: no-warmup\n    fixture: fixture\n    steps:\n      - kind: warm\n        name: measured\n        warmup: 0\n        samples: 1\n        probe:\n          kind: document-symbol\n          path: Main.sol\n",
+        )
+        .unwrap();
+
+        Config::load(&path).unwrap();
     }
 
     #[test]

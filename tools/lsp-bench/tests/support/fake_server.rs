@@ -12,6 +12,9 @@ use std::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::var_os("LSP_BENCH_AMBIENT_SECRET_CANARY").is_some() {
+        return Err("ambient environment leaked into the LSP server".into());
+    }
     if std::env::args().any(|argument| argument == "--version") {
         println!("solar-lsp-bench-fake 1");
         return Ok(());
@@ -38,6 +41,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let behavior = std::env::var("LSP_BENCH_FAKE_BEHAVIOR").unwrap_or_default();
+    if behavior == "never-read-stdin" {
+        std::thread::sleep(std::time::Duration::from_secs(30));
+        return Ok(());
+    }
 
     let cache_marker = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
@@ -274,6 +281,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     )?;
                 }
             }
+            Some("textDocument/didClose") => {
+                if let Some(uri) = message["params"]["textDocument"]["uri"].as_str() {
+                    documents.remove(uri);
+                }
+            }
             Some("textDocument/didChange") => {
                 lifecycle_valid &=
                     behavior != "no-text-sync" && behavior != "dynamic-text-sync-selector-mismatch";
@@ -334,6 +346,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if behavior == "timeout-hover" {
                     continue;
                 }
+                let position_matches = if behavior == "position-sensitive-hover" {
+                    let uri = message["params"]["textDocument"]["uri"]
+                        .as_str()
+                        .ok_or("hover URI is missing")?;
+                    let document = documents.get(uri).ok_or("hover document is not open")?;
+                    let line = message["params"]["position"]["line"]
+                        .as_u64()
+                        .ok_or("hover line is missing")? as usize;
+                    let character = message["params"]["position"]["character"]
+                        .as_u64()
+                        .ok_or("hover character is missing")?
+                        as usize;
+                    utf8_offset(document, line, character)
+                        .and_then(|offset| identifier_range(document, offset))
+                        .is_some_and(|(start, end)| &document[start..end] == "target")
+                } else {
+                    true
+                };
                 write_message(
                     &mut writer,
                     &json!({"jsonrpc":"2.0","id":"apply","method":"workspace/applyEdit","params":{"label":"fake edit","edit":{"changes":{}}}}),
@@ -344,7 +374,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "jsonrpc":"2.0",
                         "id":message["id"],
                         "result":{"contents":{"kind":"markdown","value":
-                            if behavior == "incorrect-hover" {
+                            if behavior == "incorrect-hover" || !position_matches {
                                 "function wrong(uint256)"
                             } else if cache_reused {
                                 "function add(uint256) cache-reused"
@@ -642,6 +672,17 @@ fn identifier_range(document: &str, character: usize) -> Option<(usize, usize)> 
         end += 1;
     }
     (start < end).then_some((start, end))
+}
+
+fn utf8_offset(document: &str, line: usize, character: usize) -> Option<usize> {
+    let mut line_start = 0;
+    for _ in 0..line {
+        line_start += document[line_start..].find('\n')? + 1;
+    }
+    let line_end =
+        document[line_start..].find('\n').map_or(document.len(), |offset| line_start + offset);
+    let offset = line_start.checked_add(character)?;
+    (offset <= line_end && document.is_char_boundary(offset)).then_some(offset)
 }
 
 fn is_identifier_byte(byte: u8) -> bool {
