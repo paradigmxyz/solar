@@ -134,6 +134,7 @@ struct StackArgUseInfo {
 
 #[derive(Clone)]
 struct SpillStore {
+    value: ValueId,
     slot: SpillSlot,
     block: ir::BlockId,
     range: std::ops::Range<usize>,
@@ -2358,6 +2359,7 @@ pub struct EvmCodegen<'gcx> {
     elided_insts: FxHashSet<InstId>,
     spill_stores: Vec<SpillStore>,
     spill_loads: Vec<(SpillSlot, ir::BlockId, usize)>,
+    early_spill_removals: Vec<(ir::BlockId, std::ops::Range<usize>)>,
     function_ir_block_start: usize,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
@@ -2446,6 +2448,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             elided_insts: FxHashSet::default(),
             spill_stores: Vec::new(),
             spill_loads: Vec::new(),
+            early_spill_removals: Vec::new(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
@@ -3986,6 +3989,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_addr_consts.clear();
         self.spill_stores.clear();
         self.spill_loads.clear();
+        self.early_spill_removals.clear();
         self.function_ir_block_start = self.asm.block_count();
 
         // Cross-block rematerialization is selected during spill preallocation. Record every
@@ -4313,6 +4317,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // Save an instruction result that remains live so either successor can reload
                 // the same definition instead of observing an unwritten reserved spill slot.
                 self.spill_value_if_needed(func, *condition);
+            }
+            if !preserve_branch_targets.is_empty() {
+                self.remove_dead_carried_spill_stores(
+                    func,
+                    liveness,
+                    block_id,
+                    &preserve_branch_targets,
+                );
             }
 
             let global_branch_preserved = if !stack_phi_preserved
@@ -5896,8 +5908,61 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.store_stack_top_to_spill(func, val, slot);
         let (end_block, end) = self.asm.next_instruction_position();
         if end_block == block {
-            self.spill_stores.push(SpillStore { slot, block, range: start..end });
+            self.spill_stores.push(SpillStore { value: val, slot, block, range: start..end });
         }
+    }
+
+    /// Drops stores of values that remain on the stack on every live branch
+    /// arm. A later block stores the value again if it needs a memory home.
+    fn remove_dead_carried_spill_stores(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block_id: BlockId,
+        preserved: &[BlockId],
+    ) {
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            func.blocks[block_id].terminator.as_ref()
+        else {
+            return;
+        };
+        let successors = [*then_block, *else_block];
+        let current_block = self.asm.next_instruction_position().0;
+        let mut removals = Vec::new();
+        self.spill_stores.retain(|store| {
+            let defined_here = matches!(func.value(store.value), Value::Inst(inst)
+                if func.blocks[block_id].instructions.contains(inst));
+            let reloaded_here = self
+                .spill_loads
+                .iter()
+                .any(|&(slot, block, _)| block == store.block && slot == store.slot);
+            let remove = store.block == current_block
+                && store.value != *condition
+                && defined_here
+                && !reloaded_here
+                && self.scheduler.stack.contains(store.value)
+                && successors.iter().all(|&successor| {
+                    preserved.contains(&successor)
+                        || !liveness.live_in(successor).contains(store.value)
+                });
+            if remove {
+                removals.push(store.clone());
+            }
+            !remove
+        });
+        for store in &removals {
+            if let Some((_, references)) =
+                self.spill_addr_consts.get_mut(&u64::from(store.slot.offset))
+            {
+                *references = references.saturating_sub(1);
+            }
+            self.scheduler.spills.invalidate_stored(store.value);
+            if let Some(available) = &mut self.spill_available {
+                available.remove(&store.value);
+            }
+        }
+        self.early_spill_removals
+            .extend(removals.into_iter().map(|store| (store.block, store.range)));
     }
 
     fn remove_dead_spill_stores(&mut self) {
@@ -6002,6 +6067,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 (store.block, store.range.clone())
             })
             .collect::<Vec<_>>();
+        removals.extend(std::mem::take(&mut self.early_spill_removals));
         self.asm.remove_instructions(&mut removals);
     }
 
