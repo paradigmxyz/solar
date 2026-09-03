@@ -191,14 +191,16 @@ pub(super) fn lower(
         for (function_id, expose_selector) in function_ids {
             let mir_id = context.function_ids[&function_id];
             let name = context.module.function(mir_id).name;
-            let errors_before = gcx.dcx().err_count();
             let Some(mut mir) = function::lower(context.reborrow(), function_id, expose_selector)
             else {
                 let function = gcx.hir.function(function_id);
                 // The trapping body below only stands in for a reported
-                // failure. Report anything that bailed out silently, so that
-                // no unsupported construct reaches the runtime as `INVALID`.
-                if gcx.dcx().err_count() == errors_before {
+                // failure. Report a bail-out from a compilation that has not
+                // failed yet, so that no unsupported construct reaches the
+                // runtime as `INVALID`. Any earlier error already withholds
+                // the bytecode, and a bail-out that follows one is usually its
+                // consequence rather than a gap of its own.
+                if gcx.dcx().has_errors().is_ok() {
                     let _: Option<()> = context.report_unsupported(function.span, "function");
                 }
                 let mut builder = FunctionBuilder::new(context.module.function_mut(mir_id));
@@ -219,11 +221,10 @@ pub(super) fn lower(
             let mir_id = context.module.add_function(Function::new(
                 solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor),
             ));
-            let errors_before = gcx.dcx().err_count();
             let Some(mut mir) =
                 function::lower_synthetic_constructor(context.reborrow(), contract_id)
             else {
-                if gcx.dcx().err_count() == errors_before {
+                if gcx.dcx().has_errors().is_ok() {
                     let _: Option<()> = context.report_unsupported(contract.name.span, "contract");
                 }
                 FunctionBuilder::new(context.module.function_mut(mir_id)).invalid();
