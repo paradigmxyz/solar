@@ -22,6 +22,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && self.cx.gcx.sess.opts.evm_version.has_static_call()
     }
 
+    /// Returns `true` if a call expecting `returns` return values must check that the callee has
+    /// code.
+    ///
+    /// A call that expects return data needs no check from Byzantium on: a code-less callee
+    /// returns nothing, so the return-data length check reverts anyway. Before Byzantium there is
+    /// no `RETURNDATASIZE` and nothing subsumes the check, so every call needs it.
+    pub(super) fn needs_code_check(&self, returns: usize) -> bool {
+        returns == 0 || !self.cx.gcx.sess.opts.evm_version.supports_returndata()
+    }
+
     pub(super) fn lower_user_operator(
         &mut self,
         span: Span,
@@ -352,7 +362,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, zero, return_tys);
-        if returns == 0 {
+        if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
         // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
@@ -881,7 +891,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, zero, &return_tys);
-        if returns == 0
+        if self.needs_code_check(returns)
             && (self.builder.func().attributes.is_constructor
                 || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This))
         {
@@ -1052,7 +1062,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let zero = self.builder.imm(U256::ZERO);
         let address = self.builder.imm(address);
         let gas = self.builder.gas();
-        if function.returns.is_empty() {
+        if self.needs_code_check(function.returns.len()) {
             self.revert_if_no_code(address);
         }
         // ok = delegatecall(gas, library, input, 0, 0)
@@ -1178,9 +1188,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.lower_decoded_return_value(data, return_tys, span).map(|value| vec![value])
             };
         }
-        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
-            self.validate_static_returndata(offset, return_tys);
-        }
+        self.validate_static_returndata(offset, return_tys);
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, offset);
         }
@@ -1242,6 +1250,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn revert_if_short_returndata(&mut self, expected: ValueId) {
+        // Before Byzantium the returned length is unobservable, so there is nothing to compare
+        // against; `revert_if_no_code` guards the code-less callee instead.
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            return;
+        }
         let actual = self.current_returndata_size();
         let short = self.builder.lt(actual, expected);
         self.builder.revert_if(short);
