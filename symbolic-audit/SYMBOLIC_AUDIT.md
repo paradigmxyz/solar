@@ -75,6 +75,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/base_constructor_arg_overflow.sol`)
 - [ ] 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
       (`symbolic-audit/base_constructor_storage_arg.sol`)
+- [ ] 25. Five valid programs from the solc semantic tests are rejected by the type checker
+      (see the item; the repros are the upstream test files)
 
 ## Findings
 
@@ -863,6 +865,26 @@ path that emits `invalid` at runtime without a diagnostic (the same class as
 finding 8), and the array case is now rejected at compile time.
 
 Severity: miscompile (silent `INVALID` on valid code) plus a support gap.
+
+### 25. Five valid programs from the solc semantic tests are rejected by the type checker
+
+Found by the stateful sweep over `semanticTests/`, which compiles every file
+with both compilers: solc accepts these, solar reports an error. They are
+front-end acceptance gaps, not codegen divergences, and are grouped here for
+triage.
+
+| Upstream test | Construct | solar error |
+|------|------|------|
+| `array/copying/nested_array_storage_to_memory.sol` | `a3.push([1, 2])` on `uint256[2][] storage` | `no matching member push found on type uint256[2][] storage` |
+| `array/slices/array_slice_calldata_to_memory.sol` | `[b[start:end]][0][0]`, an array literal of calldata slices | `cannot infer nameable array element type` |
+| `constantEvaluator/rounding.sol` | `uint[c] memory x` with an `int` constant `c` as the length | `mismatched types: expected uint256, found int256` |
+| `errors/named_parameters_shadowing_types.sol` | `error E2(EnumType StructType, StructType EnumType)` | `name has to refer to a valid user-defined type` |
+| `functionTypes/stack_height_check_on_adding_gas_variable_to_function.sol` | `this.g{gas: 42}.address` | `call options must be part of a call expression` |
+
+`cargo tq solc-solidity` does not catch these because it compares only parser
+errors.
+
+Severity: valid programs rejected.
 
 ## solc-side observations
 
