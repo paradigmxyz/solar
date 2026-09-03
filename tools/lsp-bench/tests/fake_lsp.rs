@@ -776,6 +776,80 @@ scenarios:
     assert!(sample["error"].as_str().unwrap().contains("timed out waiting for LSP message"));
 }
 
+#[cfg(unix)]
+#[test]
+fn descendant_cleanup_does_not_fail_a_successful_run() {
+    let directory = tempfile::tempdir().unwrap();
+    let fixture = directory.path().join("fixture");
+    fs::create_dir(&fixture).unwrap();
+    fs::write(fixture.join("Main.sol"), "contract Main {}\n").unwrap();
+    let config = directory.path().join("benchmark.yaml");
+    fs::write(
+        &config,
+        format!(
+            r#"version: 1
+profiles:
+  smoke:
+    warmup: 0
+    samples: 1
+    cold_samples: 1
+    lifecycle_samples: 1
+    timeout_ms: 1000
+servers:
+  - id: cleanup
+    command: "{}"
+    version_args: [--version]
+    env:
+      LSP_BENCH_FAKE_BEHAVIOR: leave-descendant-on-exit
+fixtures:
+  - id: synthetic
+    root: "{}"
+    source_roots: [.]
+scenarios:
+  - id: restart
+    fixture: synthetic
+    steps:
+      - kind: open
+        path: Main.sol
+      - kind: restart
+      - kind: open
+        path: Main.sol
+"#,
+            env!("CARGO_BIN_EXE_solar-lsp-bench-fake"),
+            fixture.display(),
+        ),
+    )
+    .unwrap();
+    let output = directory.path().join("results");
+    let status = Command::new(env!("CARGO_BIN_EXE_solar-lsp-bench"))
+        .args(["run", "--config"])
+        .arg(&config)
+        .args(["--profile", "smoke", "--repeat", "1", "--output"])
+        .arg(&output)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let samples = read_json(&output.join("samples.json"));
+    let sample = &samples["samples"][0];
+    assert_eq!(sample["status"], "pass");
+    assert!(sample["error"].is_null());
+    assert_eq!(sample["setup_phases"][0]["name"], "cache-population");
+    for process in [&sample["setup_phases"][0]["process"], &sample["process"]] {
+        assert_eq!(process["exit_code"], 0);
+        assert_eq!(process["forced_kill"], true);
+    }
+
+    let summary = read_json(&output.join("summary.json"));
+    assert_eq!(summary["environment"]["authoritative"], false);
+    let group = &summary["summaries"][0];
+    assert_eq!(group["status"], "pass");
+    assert_eq!(group["successful_runs"], 1);
+    assert_eq!(group["status_counts"]["pass"], 1);
+    assert_eq!(group["metrics"]["cache_population_process_ms"]["count"], 1);
+    assert_eq!(group["metrics"]["session_wall_ms"]["count"], 1);
+}
+
 #[test]
 fn server_that_never_reads_stdin_is_bounded_by_request_timeout() {
     let directory = tempfile::tempdir().unwrap();

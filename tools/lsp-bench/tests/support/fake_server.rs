@@ -631,6 +631,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 {
                     return Err("incremental multi-edit was not applied sequentially".into());
                 }
+                if behavior == "leave-descendant-on-exit" {
+                    #[cfg(unix)]
+                    let _child = std::process::Command::new(std::env::current_exe()?)
+                        .env("LSP_BENCH_FAKE_BEHAVIOR", "never-read-stdin")
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()?;
+                    #[cfg(not(unix))]
+                    return Err("descendant cleanup behavior requires Unix".into());
+                }
                 break;
             }
             _ if behavior == "multi-edit-apply" && message["id"] == "multi-edit" => {

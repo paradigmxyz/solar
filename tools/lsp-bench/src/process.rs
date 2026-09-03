@@ -304,6 +304,8 @@ pub(crate) struct FinishedProcess {
     pub(crate) metrics: ProcessMetrics,
     pub(crate) observations: Observations,
     pub(crate) shutdown_error: Option<anyhow::Error>,
+    /// Whether the direct server process exceeded its exit deadline.
+    pub(crate) wait_timed_out: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -1258,7 +1260,7 @@ impl LspProcess {
         }
 
         let child = self.child.take().context("LSP child is unavailable")?;
-        let (status, usage, mut forced_kill, _) =
+        let (status, usage, mut forced_kill, wait_timed_out) =
             wait_with_usage(child, self.timeout, self.process_group)?;
         if let Some(cgroup) = &self.cgroup {
             forced_kill |= cgroup.kill_and_wait(self.timeout)?;
@@ -1334,6 +1336,7 @@ impl LspProcess {
             },
             observations: self.observations.clone(),
             shutdown_error,
+            wait_timed_out,
         })
     }
 

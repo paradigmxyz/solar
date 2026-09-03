@@ -596,9 +596,10 @@ fn record_setup_phase(sample: &mut RunSample, outcome: PhaseOutcome) -> bool {
         sample.timings_ms.insert(format!("cache_setup_{name}"), value);
     }
     match (result, process_result) {
-        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error: None }))
-            if metrics.exit_code == Some(0) && !metrics.forced_kill =>
-        {
+        (
+            Ok(()),
+            Ok(FinishedProcess { metrics, observations, shutdown_error: None, wait_timed_out }),
+        ) if process_exited_successfully(&metrics, wait_timed_out) => {
             sample.timings_ms.insert("cache_population_process_ms".into(), metrics.wall_ms);
             sample.setup_phases.push(ProcessPhase {
                 name: "cache-population".into(),
@@ -607,13 +608,20 @@ fn record_setup_phase(sample: &mut RunSample, outcome: PhaseOutcome) -> bool {
             });
             true
         }
-        (Err(error), Ok(FinishedProcess { metrics, observations, shutdown_error })) => {
+        (
+            Err(error),
+            Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out }),
+        ) => {
             let kind = error
                 .downcast_ref::<WorkloadError>()
                 .map_or(FailureKind::HarnessError, |error| error.kind);
             let shutdown_failure = shutdown_error.map(classify_request_error);
-            let (status, process_failure) =
-                status_with_process_evidence(kind, shutdown_failure.as_ref(), &metrics);
+            let (status, process_failure) = status_with_process_evidence(
+                kind,
+                shutdown_failure.as_ref(),
+                &metrics,
+                wait_timed_out,
+            );
             sample.status = status;
             let mut message = format!("cache setup failed: {error:#}");
             if let Some(shutdown_failure) = shutdown_failure {
@@ -630,12 +638,16 @@ fn record_setup_phase(sample: &mut RunSample, outcome: PhaseOutcome) -> bool {
             });
             false
         }
-        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error })) => {
+        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out })) => {
             let shutdown_failure = shutdown_error.map(classify_request_error);
             let kind =
                 shutdown_failure.as_ref().map_or(FailureKind::Crashed, |failure| failure.kind);
-            let (status, process_failure) =
-                status_with_process_evidence(kind, shutdown_failure.as_ref(), &metrics);
+            let (status, process_failure) = status_with_process_evidence(
+                kind,
+                shutdown_failure.as_ref(),
+                &metrics,
+                wait_timed_out,
+            );
             sample.status = status;
             let mut message = shutdown_failure.map_or_else(
                 || format!("cache setup server exited with {:?}", metrics.exit_code),
@@ -672,20 +684,28 @@ fn record_measured_phase(sample: &mut RunSample, outcome: PhaseOutcome) {
     sample.correctness.extend(correctness);
     sample.timings_ms.extend(timings);
     match (result, process_result) {
-        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error: None }))
-            if metrics.exit_code == Some(0) && !metrics.forced_kill =>
-        {
+        (
+            Ok(()),
+            Ok(FinishedProcess { metrics, observations, shutdown_error: None, wait_timed_out }),
+        ) if process_exited_successfully(&metrics, wait_timed_out) => {
             sample.status = RunStatus::Pass;
             sample.process = Some(metrics);
             sample.observations = observations;
         }
-        (Err(error), Ok(FinishedProcess { metrics, observations, shutdown_error })) => {
+        (
+            Err(error),
+            Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out }),
+        ) => {
             let kind = error
                 .downcast_ref::<WorkloadError>()
                 .map_or(FailureKind::HarnessError, |error| error.kind);
             let shutdown_failure = shutdown_error.map(classify_request_error);
-            let (status, process_failure) =
-                status_with_process_evidence(kind, shutdown_failure.as_ref(), &metrics);
+            let (status, process_failure) = status_with_process_evidence(
+                kind,
+                shutdown_failure.as_ref(),
+                &metrics,
+                wait_timed_out,
+            );
             sample.status = status;
             let mut message = format!("{error:#}");
             if let Some(shutdown_failure) = shutdown_failure {
@@ -698,12 +718,16 @@ fn record_measured_phase(sample: &mut RunSample, outcome: PhaseOutcome) {
             sample.process = Some(metrics);
             sample.observations = observations;
         }
-        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error })) => {
+        (Ok(()), Ok(FinishedProcess { metrics, observations, shutdown_error, wait_timed_out })) => {
             let shutdown_failure = shutdown_error.map(classify_request_error);
             let kind =
                 shutdown_failure.as_ref().map_or(FailureKind::Crashed, |failure| failure.kind);
-            let (status, process_failure) =
-                status_with_process_evidence(kind, shutdown_failure.as_ref(), &metrics);
+            let (status, process_failure) = status_with_process_evidence(
+                kind,
+                shutdown_failure.as_ref(),
+                &metrics,
+                wait_timed_out,
+            );
             sample.status = status;
             let mut message = shutdown_failure.map_or_else(
                 || format!("server exited with {:?}", metrics.exit_code),
@@ -788,8 +812,12 @@ fn status_for(kind: FailureKind) -> RunStatus {
     }
 }
 
-fn process_failure_detail(metrics: &ProcessMetrics) -> Option<String> {
-    (metrics.exit_code != Some(0) || metrics.forced_kill).then(|| {
+fn process_exited_successfully(metrics: &ProcessMetrics, wait_timed_out: bool) -> bool {
+    !wait_timed_out && metrics.exit_code == Some(0)
+}
+
+fn process_failure_detail(metrics: &ProcessMetrics, wait_timed_out: bool) -> Option<String> {
+    (!process_exited_successfully(metrics, wait_timed_out)).then(|| {
         format!("server exited with {:?}; forced kill: {}", metrics.exit_code, metrics.forced_kill)
     })
 }
@@ -798,14 +826,16 @@ fn status_with_process_evidence(
     kind: FailureKind,
     shutdown_failure: Option<&WorkloadError>,
     metrics: &ProcessMetrics,
+    wait_timed_out: bool,
 ) -> (RunStatus, Option<String>) {
     let timed_out = matches!(kind, FailureKind::Timeout)
         || shutdown_failure.is_some_and(|failure| matches!(failure.kind, FailureKind::Timeout));
-    let forced_timeout_cleanup = timed_out
-        && metrics.forced_kill
-        && metrics.exit_code.is_none_or(|exit_code| exit_code == 0);
-    let process_failure =
-        (!forced_timeout_cleanup).then(|| process_failure_detail(metrics)).flatten();
+    // `forced_kill` also records post-exit descendant cleanup, so use the
+    // direct wait result to identify timeout termination.
+    let forced_timeout_cleanup = timed_out && wait_timed_out;
+    let process_failure = (!forced_timeout_cleanup)
+        .then(|| process_failure_detail(metrics, wait_timed_out))
+        .flatten();
     let status = if process_failure.is_some() {
         RunStatus::Crash
     } else if let Some(failure) = shutdown_failure {
@@ -3239,6 +3269,7 @@ scenarios:
                 metrics,
                 observations: Observations::default(),
                 shutdown_error: None,
+                wait_timed_out: false,
             }),
             timings: BTreeMap::new(),
             correctness: Vec::new(),
@@ -3275,6 +3306,37 @@ scenarios:
     }
 
     #[test]
+    fn descendant_cleanup_is_not_process_failure() {
+        let metrics = ProcessMetrics {
+            wall_ms: 1.0,
+            user_cpu_ms: Some(0.0),
+            system_cpu_ms: Some(0.0),
+            peak_memory_mib: Some(1.0),
+            peak_process_tree_rss_mib: Some(1.0),
+            accounting: ProcessAccounting::CgroupV2ProcessTree,
+            memory_accounting: MemoryAccounting::CgroupV2Total,
+            process_tree: true,
+            network_isolated: true,
+            cgroup_path: None,
+            exit_code: Some(0),
+            forced_kill: true,
+            stderr: String::new(),
+        };
+        assert!(process_exited_successfully(&metrics, false));
+        assert!(!process_exited_successfully(&metrics, true));
+        assert!(
+            ProcessMetrics { forced_kill: false, ..metrics.clone() }
+                .has_authoritative_process_tree_metrics()
+        );
+        assert!(!metrics.has_authoritative_process_tree_metrics());
+
+        let (status, process_failure) =
+            status_with_process_evidence(FailureKind::Unsupported, None, &metrics, false);
+        assert!(matches!(status, RunStatus::Unsupported));
+        assert!(process_failure.is_none());
+    }
+
+    #[test]
     fn timeout_only_takes_precedence_for_forced_cleanup() {
         let natural_failure = ProcessMetrics {
             wall_ms: 1.0,
@@ -3292,17 +3354,35 @@ scenarios:
             stderr: String::new(),
         };
         let (status, _) =
-            status_with_process_evidence(FailureKind::Timeout, None, &natural_failure);
+            status_with_process_evidence(FailureKind::Timeout, None, &natural_failure, false);
         assert!(matches!(status, RunStatus::Crash));
 
-        let forced_cleanup =
-            ProcessMetrics { exit_code: None, forced_kill: true, ..natural_failure };
-        let (status, _) = status_with_process_evidence(FailureKind::Timeout, None, &forced_cleanup);
+        let unix_wait_timeout =
+            ProcessMetrics { exit_code: None, forced_kill: true, ..natural_failure.clone() };
+        let (status, _) =
+            status_with_process_evidence(FailureKind::Timeout, None, &unix_wait_timeout, false);
+        assert!(matches!(status, RunStatus::Crash));
+
+        let (status, _) =
+            status_with_process_evidence(FailureKind::Timeout, None, &unix_wait_timeout, true);
         assert!(matches!(status, RunStatus::Timeout));
 
-        let raced_natural_failure = ProcessMetrics { exit_code: Some(1), ..forced_cleanup };
+        let windows_wait_timeout = ProcessMetrics { forced_kill: true, ..natural_failure };
         let (status, _) =
-            status_with_process_evidence(FailureKind::Timeout, None, &raced_natural_failure);
+            status_with_process_evidence(FailureKind::Timeout, None, &windows_wait_timeout, true);
+        assert!(matches!(status, RunStatus::Timeout));
+        let wait_timeout_without_cleanup_flag =
+            ProcessMetrics { forced_kill: false, ..windows_wait_timeout.clone() };
+        let (status, _) = status_with_process_evidence(
+            FailureKind::Timeout,
+            None,
+            &wait_timeout_without_cleanup_flag,
+            true,
+        );
+        assert!(matches!(status, RunStatus::Timeout));
+
+        let (status, _) =
+            status_with_process_evidence(FailureKind::Timeout, None, &windows_wait_timeout, false);
         assert!(matches!(status, RunStatus::Crash));
     }
 
@@ -3333,6 +3413,7 @@ scenarios:
             FailureKind::Unsupported,
             Some(&shutdown_failure),
             &metrics,
+            false,
         );
         assert!(matches!(status, RunStatus::HarnessError));
     }
@@ -3362,6 +3443,7 @@ scenarios:
                     code: Some(-32601),
                     message: "method not found".into(),
                 })),
+                wait_timed_out: false,
             }),
             timings: BTreeMap::new(),
             correctness: Vec::new(),
