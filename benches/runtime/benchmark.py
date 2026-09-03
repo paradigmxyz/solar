@@ -294,8 +294,26 @@ def with_evm_version(input_text: str, evm_version: str | None) -> str:
     return json.dumps(payload)
 
 
+def with_optimizer_runs(input_text: str, optimizer_runs: int | None) -> str:
+    """Replaces the optimizer run count of a Standard JSON input.
+
+    Solar selects its objective from the run count: fewer than 200 runs optimize for size,
+    200 or more for gas. Pinning every case to one count benchmarks the corpus under one
+    objective for both compilers.
+    """
+    if optimizer_runs is None:
+        return input_text
+    payload = json.loads(input_text)
+    optimizer = payload.setdefault("settings", {}).setdefault("optimizer", {})
+    optimizer["enabled"] = True
+    optimizer["runs"] = optimizer_runs
+    return json.dumps(payload)
+
+
 def compiler_input(
-    test_case: TestCase, evm_version: str | None
+    test_case: TestCase,
+    evm_version: str | None,
+    optimizer_runs: int | None = None,
 ) -> tuple[str, int, str]:
     if test_case.project_file is not None:
         if test_case.whole_project:
@@ -313,6 +331,7 @@ def compiler_input(
         input_text = standard_json_input(test_case)
         timeout = 120
     input_text = with_evm_version(input_text, evm_version)
+    input_text = with_optimizer_runs(input_text, optimizer_runs)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
 
 
@@ -1559,6 +1578,7 @@ def run_test_case(
     reference_solc_path: Path | None = None,
     repeat_long_compiles: bool = False,
     artifact_root: Path | None = None,
+    optimizer_runs: int | None = None,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1577,7 +1597,7 @@ def run_test_case(
     prepared_input = (
         None
         if test_case.project_file is not None and not test_case.project_path.exists()
-        else compiler_input(test_case, evm_version)
+        else compiler_input(test_case, evm_version, optimizer_runs)
     )
     for spec in specs:
         verbose_log(verbose, f"[{test_case.test_id}] compiling with {spec.compiler_id}")
@@ -1787,6 +1807,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--evm-version",
         help="Override Standard JSON `evmVersion` for every benchmark case",
+    )
+    parser.add_argument(
+        "--optimizer-runs",
+        type=int,
+        help="Override Standard JSON `optimizer.runs` for every benchmark case; below 200 Solar optimizes for size",
     )
     parser.add_argument(
         "--solar-only",
@@ -2002,6 +2027,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if args.evm_version:
         print(f"Forcing EVM version {args.evm_version}")
+    if args.optimizer_runs is not None:
+        objective = "size" if args.optimizer_runs < 200 else "gas"
+        print(f"Forcing optimizer runs {args.optimizer_runs} ({objective} objective for Solar)")
     print(f"Running {len(tests)} tests")
 
     results = []
@@ -2046,6 +2074,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     solc,
                     args.repeat_long_compiles,
                     args.artifacts,
+                    args.optimizer_runs,
                 )
             except Exception as exc:
                 print(
@@ -2129,6 +2158,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     document = {
         "format_version": 1,
         "evm_version_override": args.evm_version,
+        "optimizer_runs_override": args.optimizer_runs,
         "timings": timings,
         "results": results,
     }

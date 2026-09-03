@@ -14,6 +14,11 @@ Pass `--evm-version VERSION` to replace every archived Standard JSON target and 
 corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
 installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
 
+Pass `--optimizer-runs N` to replace every case's `optimizer.runs`. Solar optimizes for size below
+200 runs and for gas from 200 up, so `--optimizer-runs 1` turns the same corpus into a size
+benchmark: both compilers build every contract for size, the size table compares the results, and
+the runtime checks and gas calls still run against the size-optimized code when `--gas` is given.
+
 Use `--solar-only` for repeated local runs after recording a two-compiler baseline. This skips the
 reference solc compile for each case while retaining Solar compilation, gas measurements, and
 runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful
