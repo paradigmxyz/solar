@@ -1849,7 +1849,7 @@ impl<'gcx> ResolveContext<'gcx> {
             },
             ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
             ast::ExprKind::Member(expr, member) => {
-                hir::ExprKind::Member(self.lower_expr(expr), *member)
+                hir::ExprKind::Member(self.lower_member_receiver(expr), *member)
             }
             ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
             ast::ExprKind::Payable(args) => 'b: {
@@ -1880,6 +1880,21 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {
         self.arena.alloc_with(|| lit.copy_without_data())
+    }
+
+    /// Lowers the receiver of a member access.
+    ///
+    /// Call options are valid on a function value before a member access, as in
+    /// `this.f{gas: 42}.address`, where they have no effect; solc discards them too.
+    fn lower_member_receiver(&mut self, receiver: &ast::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
+        if !matches!(receiver.peel_parens().kind, ast::ExprKind::CallOptions(..)) {
+            return self.lower_expr(receiver);
+        }
+        let span = receiver.span;
+        let (inner, options) = self.lower_call_callee(receiver);
+        let options = options.expect("call options are present");
+        let id = self.next_id();
+        self.hir_builder().expr(id, hir::ExprKind::CallOptions(inner, options), span)
     }
 
     fn lower_call_callee(
