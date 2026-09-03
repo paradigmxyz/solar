@@ -874,6 +874,64 @@ The scratch tooling used for these runs is copied to `symbolic-audit/tools/`
 triage, and the repro recheck script). It expects to live under
 `target/symaudit/` and is kept here only for reference.
 
+### Fourth session (2026-09-03)
+
+New probe sets and a real-world library corpus on `decbf7fcf` and
+`e9ca037d5` (solar binaries snapshotted before the session's fixes; the
+fixes touch ABI output and diagnostics, not codegen). Findings 20 to 22
+came from this session and are all fixed; none is a codegen divergence. The
+probe sources are in `symbolic-audit/probes/session4/`.
+
+| Angle | Probe file(s) | Result |
+|-------|------|--------|
+| Signed arithmetic edges: `int.min / -1`, `-int.min`, signed `%`, shifts, `**` with negative bases, narrow truncation | `signed_arith.sol` | agree |
+| Fixed bytes: shifts, indexing, bitwise ops, conversions to and from integers, `bytes.concat`, `bytesN(bytes calldata)` truncation | `fixed_bytes.sol` | agree |
+| Storage packing: mixed narrow variables, packed structs, `uint8[]`/`bool[]`/`int8[]`/`bytes1[]`, fixed arrays, delete, dirty raw slots | `storage_packing.sol` | agree |
+| Enums and conversions: out-of-range `Panic(0x21)`, 256-member enum, address and integer chains, dirty enum words | `enum_conv.sol` | agree |
+| Control flow: do-while `continue`, nested breaks, early returns, modifier `_` twice or never, return inside modifiers | `control_flow.sol` | agree |
+| Memory arrays: nested `new`, reference semantics, array literals, multi-dimensional, storage copies both ways, `pop` on empty | `arrays_memory.sol` | agree |
+| Calldata slices: `[i:j]`, slice of slice, `bytes4(d[:4])`, `abi.decode(d[4:])`, slices to internal functions | `calldata_slices.sol` | agree |
+| Errors: `require` with custom errors, `revert` with dynamic args, every `Panic` code, exponentiation overflow by base and width | `errors_require.sol` | agree |
+| Compound assignment and `++`/`--` on locals, storage, arrays, mappings, structs, with side-effecting indices; checked and unchecked | `checked_ops.sol` | agree |
+| Mapping keys of every type, nested mappings, structs and arrays as values, raw slot checks, dirty keys | `mappings.sol` | agree |
+| Inheritance: diamond `super` chains, overloads, recursion, many arguments and returns, free functions, constants | `functions_inherit.sol` | agree |
+| ABI: `encodeWithSelector`/`encodeCall`/packed with narrow and dirty values, nested static structs, decode round trips | `abi_misc.sol` | agree |
+| Yul: `switch`, `for`, functions, `leave`, recursion, `byte`/`signextend`/`sar`/`sdiv`/`smod`, `mcopy`, `clz`, dirty assignments to typed locals, `.slot`/`.offset` | `yul_advanced.sol` | agree |
+| Libraries: `using for` on structs, storage pointers, internal and external function pointers in locals, arrays, structs, storage, mappings | `libs_fnptr.sol` | agree (finding 20 on ABI output) |
+| Algebraic identities that must keep checked semantics: `x*0`, `x/x`, `(x+1)-1`, dead trapping expressions, phi of constants | `constant_folding.sol` | agree |
+| Loop-invariant trapping expressions with zero iterations, loop-carried narrow values, length changes inside loops, aliasing in loops | `loops_opt.sol` | agree |
+| CSE and GVN hazards: reads across storage, memory, and assembly writes, keccak after mutation, inlined helpers with side effects, mixed-width equalities | `inline_cse.sol` | agree |
+| Deep storage structs: nested structs with arrays and bytes, copies between storage slots, array-of-struct pop clearing, `bytes[]` | `storage_structs_deep.sol` | agree (concrete only; symbolic timeouts) |
+| String and hex literals: escapes, unicode, 31/32/33-byte storage boundary, literal to `bytesN`, `string.concat` | `strings_unicode.sol` | agree |
+| Public getters for every state variable shape, including structs that drop array members and dirty raw slots | `getters.sol` | agree |
+| Deep expressions: 20 live locals across branches and loops, 10-argument calls with side effects, nested ternaries, mixed widths | `deep_expressions.sol` | agree |
+| Modifiers under inheritance: overridden modifiers, `super` chains through three levels, modifier arguments with side effects | `modifiers_inherit.sol` | agree |
+| `delete` on every storage, memory, and function-pointer type, including packed arrays and dirty slots | `delete_semantics.sol` | agree |
+| Memory bytes manipulation, dirty scratch and zero-slot before allocation, empty array pointers, free-memory-pointer deltas | `memory_bytes_ops.sol` | agree except the pointer deltas (non-bug) |
+| Memory-safe assembly convention: scribbling at `mload(0x40)` after every allocation shape | `fmp_convention.sol` | agree |
+| Real-world libraries: OpenZeppelin `Math`, `SafeCast`, `SignedMath`, `Strings`, `Bytes`, `Packing`, `RLP`, `Base58`, `Base64`, `Arrays`, `ECDSA`, `MerkleProof`, `P256`, `RSA`, `Time`, `SlotDerivation`, and others, plus PRBMath `UD60x18`/`SD59x18` math, casting, and helpers, each internal function wrapped as an external entry point by `tools/gen_wrappers.py` | `target/symaudit/corpus/` | agree except `RLP.decodeList` (non-bug) |
+
+Every lane also ran under `-Onone` and `-Osize`, and every function the
+solver could not close (nonlinear multiplication, exponentiation, deep
+loops, heavy storage) was replayed concretely at its boundary values under
+all three optimization levels: about 480 concrete cases per level, all
+agreeing. A `paris` EVM-version lane is in progress.
+
+| Lane | Settings | Checked | Agreement | Incomplete | Mismatch |
+|------|----------|---------|-----------|------------|----------|
+| probes | `-Ogas` | 1297 | 1025 | 267 | 5 |
+| probes | `-Onone` | 1261 | 996 | 262 | 3 |
+| probes | `-Osize` | 1261 | 995 | 261 | 5 |
+| corpus | `-Ogas` | 662 | 537 | 124 | 1 |
+| corpus | `-Onone` | 662 | 533 | 128 | 1 |
+| corpus | `-Osize` | 662 | 535 | 126 | 1 |
+
+Every mismatch is one of the reviewed non-bugs below: `fnPtrExt` and
+`fnPtrExtEnc` return `this.f` (the embedded address differs, the selector
+agrees), the `memPtrAfter*` functions return free-memory-pointer deltas, and
+`RLP.decodeList` returns `Memory.Slice` values that pack a memory pointer
+into their low 128 bits (solc `0xa1`, solar `0x541`; the length half agrees).
+
 ## Value-cleanup probe set
 
 `symbolic-audit/probes/` holds the probe contracts behind findings 10 to 13.
@@ -915,6 +973,12 @@ compilers are allowed to differ.
   returns the free-memory-pointer delta of an external call.
 - `semanticTests/various/create_random.sol` returns addresses derived from
   `address(this)` through `create` and `create2`.
+- Fourth-session probes `memPtrAfterConcat`, `memPtrAfterEncode`, and
+  `memPtrAfterString` return the free-memory-pointer delta of one allocation;
+  solar's allocator reserves different amounts. `fmp_convention.sol` shows
+  memory-safe assembly still sees a consistent pointer on both compilers.
+- OpenZeppelin `RLP.decodeList` returns `Memory.Slice[]`, and each slice
+  packs a memory pointer into the input buffer; only that pointer differs.
 - Value-cleanup probes: `f.address := raw` in assembly followed by an assembly
   read of `f.address` shows the raw word in solc and a masked word in solar.
   Assembly reads of dirty locals are implementation-defined. A probe that

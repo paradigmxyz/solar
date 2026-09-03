@@ -148,7 +148,7 @@ def main():
         elif ONLY_SKIPPED:
             if MIN_SKIP_RE.search(text) or not SKIP_RE.search(text):
                 continue
-        elif SKIP_RE.search(text):
+        elif SKIP_RE.search(text) and not os.environ.get("SYMAUDIT_NO_SKIP"):
             continue
         key = str(path.relative_to(ROOT))
         if key in done:
