@@ -85,55 +85,55 @@ fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v5 = mul arg0, 1
-    v6 = iszero 1
-    v7 = div v5, 1
-    v8 = eq v7, arg0
-    v9 = or v6, v8
-    v10 = iszero v9
-    jumpi v10, bb4, bb5
+    v4 = mul arg0, 1
+    v5 = iszero 1
+    v6 = div v4, 1
+    v7 = eq v6, arg0
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb4, bb5
   bb5:
-    v11 = add v5, 1
-    v12 = lt v11, v5
-    jumpi v12, bb4, bb6
+    v10 = add v4, 1
+    v11 = lt v10, v4
+    jumpi v11, bb4, bb6
   bb6:
-    v13 = mul v11, 32
-    v14 = iszero 32
-    v15 = div v13, 32
-    v16 = eq v15, v11
-    v17 = or v14, v16
-    v18 = iszero v17
-    jumpi v18, bb4, bb7
+    v12 = mul v10, 32
+    v13 = iszero 32
+    v14 = div v12, 32
+    v15 = eq v14, v10
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb4, bb7
   bb7:
-    v19 = alloc memoryarray<1>, exact, zeroed, panic, v13
-    set_memory_object_len memoryarray, v19, arg0
-    v20 = memory_object_len memoryarray, v0
-    v21 = lt 0, v20
-    v22 = iszero v21
-    jumpi v22, bb8, bb9
+    v18 = alloc memoryarray<1>, exact, zeroed, panic, v12
+    set_memory_object_len memoryarray, v18, arg0
+    v19 = memory_object_len memoryarray, v0
+    v20 = lt 0, v19
+    v21 = iszero v20
+    jumpi v21, bb8, bb9
   bb9:
-    memory_object_store_element memoryarray<1>, v0, 0, v19
-    v23 = memory_object_len memoryarray, v0
-    v24 = lt 0, v23
-    v25 = iszero v24
-    jumpi v25, bb8, bb10
+    memory_object_store_element memoryarray<1>, v0, 0, v18
+    v22 = memory_object_len memoryarray, v0
+    v23 = lt 0, v22
+    v24 = iszero v23
+    jumpi v24, bb8, bb10
   bb10:
-    v26 = memory_object_load_element memoryarray<1>, v0, 0
-    v27 = eq v26, 0
-    jumpi v27, bb11, bb12
+    v25 = memory_object_load_element memoryarray<1>, v0, 0
+    v26 = eq v25, 0
+    jumpi v26, bb11, bb12
   bb11:
-    v28 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v28, 0
-    memory_object_store_element memoryarray<1>, v0, 0, v28
+    v27 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v27, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v27
     jump bb12
   bb12:
-    v29 = phi [bb10: v26], [bb11: v28]
-    v30 = memory_object_len memoryarray, v29
-    ret v30
+    v28 = phi [bb10: v25], [bb11: v27]
+    v29 = memory_object_len memoryarray, v28
+    ret v29
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -143,10 +143,8 @@ fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v3, 0
-    memory_object_store_element memoryarray<1>, v0, v1, v3
-    v4 = add v1, 1
+    memory_object_store_element memoryarray<1>, v0, v1, 96
+    v3 = add v1, 1
     jump bb1
 }
 
@@ -176,20 +174,18 @@ fn @makeStructArray(arg0: u256) -> u256 [selector=0x4273d03f, pure, abi_params=[
     set_memory_object_len memoryarray, v14, arg0
     jump bb5
   bb5:
-    v15 = phi [bb4: 0], [bb6: v19]
+    v15 = phi [bb4: 0], [bb6: v18]
     v16 = lt v15, arg0
     jumpi v16, bb6, bb7
   bb7:
-    v20 = memory_object_len memoryarray, v14
-    ret v20
+    v19 = memory_object_len memoryarray, v14
+    ret v19
   bb6:
     v17 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v17, 0, 0
-    v18 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v18, 0
-    memory_object_store_field memorystruct<2>, v17, 1, v18
+    memory_object_store_field memorystruct<2>, v17, 1, 96
     memory_object_store_element memoryarray<1>, v14, v15, v17
-    v19 = add v15, 1
+    v18 = add v15, 1
     jump bb5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

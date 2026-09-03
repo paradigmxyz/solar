@@ -261,9 +261,16 @@ struct BranchPhiShape {
 
 fn union_values(first: &[ValueId], second: &[ValueId]) -> Vec<ValueId> {
     let mut union = first.to_vec();
+    let mut available = FxHashMap::default();
+    for &value in first {
+        *available.entry(value).or_insert(0usize) += 1;
+    }
     for &value in second {
-        if !union.contains(&value) {
+        let count = available.entry(value).or_default();
+        if *count == 0 {
             union.push(value);
+        } else {
+            *count -= 1;
         }
     }
     union
@@ -1022,9 +1029,16 @@ impl<'a> StackPhiPlanner<'a> {
                         _ => false,
                     }
             });
+            let phis = self.phi_insts(block);
+            let phi_source_is_live_in = block.predecessors.iter().any(|&pred| {
+                self.phi_sources_for_pred(&phis, pred).is_some_and(|sources| {
+                    sources.iter().any(|&source| liveness.live_in(block_id).contains(source))
+                })
+            });
             if preds_ok
-                && self.phi_insts(block).len() <= LIVE_JOIN_LAYOUT_LIMIT
-                && self.phi_result_values(&self.phi_insts(block)).is_some()
+                && !phi_source_is_live_in
+                && phis.len() <= LIVE_JOIN_LAYOUT_LIMIT
+                && self.phi_result_values(&phis).is_some()
             {
                 joins.push(block_id);
             }
@@ -4550,7 +4564,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         else {
             return Vec::new();
         };
-        if carried.len() > MAX_STACK_ACCESS {
+        if carried.len() > STACK_PHI_LAYOUT_LIMIT {
             return Vec::new();
         }
 

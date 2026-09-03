@@ -37,7 +37,7 @@ bb0:
   dup 2
   add
   dup 1
-  push 192
+  push 224
   mstore
   push 0x3339
   push 240
@@ -82,12 +82,12 @@ bb9:
   not
   and
   dup 1
-  push 224
+  push 160
   mstore
   push 64
   dup 4
   add
-  push 160
+  push 192
   mstore
   swap 2
   pop
@@ -97,27 +97,29 @@ bb9:
   jumpi
   push 0
   push 32
-  push 224
+  push 160
   mload
   sub
-  push 160
+  push 192
   mload
   add
   mstore
   jump bb7
 bb7:
-  push 224
-  mload
-  push 160
-  mload
-  add
-  push 128
-  mload
   push 192
   mload
   push 160
   mload
+  dup 2
+  add
+  push 128
+  mload
+  push 224
+  mload
+  dup 4
   mcopy
+  swap 1
+  pop
   push 256
   mload
   swap 1
@@ -130,9 +132,6 @@ bb7:
   and
   push 64
   mload
-  dup 1
-  push 288
-  mstore
   swap 1
   dup 2
   add
@@ -165,7 +164,7 @@ bb8:
   dup 2
   add
   dup 1
-  push 192
+  push 224
   mstore
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup 2
@@ -358,7 +357,7 @@ bb28:
   dup 2
   add
   dup 1
-  push 224
+  push 256
   mstore
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup 2
@@ -379,9 +378,6 @@ bb28:
 bb31 [cold]:
   push 64
   mload
-  dup 1
-  push 320
-  mstore
   push 0x8c379a0
   push 224
   shl
@@ -422,30 +418,32 @@ bb31 [cold]:
   not
   and
   dup 1
-  push 256
+  push 192
   mstore
   swap 2
   push 68
   add
-  push 192
+  push 224
   mstore
   pop
   push bb33
   jumpi
   jump bb34
 bb34 [cold]:
-  push 256
-  mload
-  push 192
-  mload
-  add
-  push 160
-  mload
   push 224
   mload
   push 192
   mload
+  dup 2
+  add
+  push 160
+  mload
+  push 256
+  mload
+  dup 4
   mcopy
+  swap 1
+  pop
   push 288
   mload
   swap 1
@@ -461,9 +459,6 @@ bb34 [cold]:
   and
   push 64
   mload
-  dup 1
-  push 320
-  mstore
   swap 1
   dup 2
   add
@@ -475,10 +470,10 @@ bb34 [cold]:
 bb33 [cold]:
   push 0
   push 32
-  push 256
+  push 192
   mload
   sub
-  push 192
+  push 224
   mload
   add
   mstore

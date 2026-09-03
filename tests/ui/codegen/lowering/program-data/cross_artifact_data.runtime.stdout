@@ -32,7 +32,7 @@ bb0:
   dup 2
   add
   dup 1
-  push 192
+  push 160
   mstore
   push 160
   push_data literal_0
@@ -74,12 +74,12 @@ bb0:
   not
   and
   dup 1
-  push 224
+  push 192
   mstore
   push 64
   dup 4
   add
-  push 160
+  push 224
   mstore
   swap 2
   pop
@@ -89,10 +89,10 @@ bb0:
   jumpi
   push 0
   push 32
-  push 224
+  push 192
   mload
   sub
-  push 160
+  push 224
   mload
   add
   mstore
@@ -100,16 +100,18 @@ bb0:
 bb6:
   push 224
   mload
-  push 160
+  push 192
   mload
+  dup 2
   add
   push 128
   mload
-  push 192
-  mload
   push 160
   mload
+  dup 4
   mcopy
+  swap 1
+  pop
   push 256
   mload
   swap 1
@@ -122,9 +124,6 @@ bb6:
   and
   push 64
   mload
-  dup 1
-  push 288
-  mstore
   swap 1
   dup 2
   add

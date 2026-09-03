@@ -6,43 +6,41 @@ fn @chunksAndHash() -> (memoryarray, bytes32) [pure] {
     set_memory_object_len memoryarray, v0, 20
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v3]
     v2 = lt v1, 20
     jumpi v2, bb2, bb3
   bb3:
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 96
-    set_memory_object_len memorybytes, v5, 40
-    v6 = memory_object_data memorybytes, v5
-    mstore v6, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
-    v7 = add v6, 32
-    mstore v7, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
-    v8 = memory_object_len memoryarray, v0
-    v9 = lt 0, v8
-    v10 = iszero v9
-    jumpi v10, bb4, bb5
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v4, 40
+    v5 = memory_object_data memorybytes, v4
+    mstore v5, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
+    v6 = add v5, 32
+    mstore v6, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 0, v7
+    v9 = iszero v8
+    jumpi v9, bb4, bb5
   bb5:
-    memory_object_store_element memoryarray<1>, v0, 0, v5
-    v11 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v11, 4
-    v12 = memory_object_data memorybytes, v11
-    mstore v12, 0x7461696c00000000000000000000000000000000000000000000000000000000
-    v13 = memory_object_len memoryarray, v0
-    v14 = lt 15, v13
-    v15 = iszero v14
-    jumpi v15, bb4, bb6
+    memory_object_store_element memoryarray<1>, v0, 0, v4
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v10, 4
+    v11 = memory_object_data memorybytes, v10
+    mstore v11, 0x7461696c00000000000000000000000000000000000000000000000000000000
+    v12 = memory_object_len memoryarray, v0
+    v13 = lt 15, v12
+    v14 = iszero v13
+    jumpi v14, bb4, bb6
   bb6:
-    memory_object_store_element memoryarray<1>, v0, 15, v11
-    v16 = shl 0, 7
-    ret v0, v16
+    memory_object_store_element memoryarray<1>, v0, 15, v10
+    v15 = shl 0, 7
+    ret v0, v15
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v3 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v3, 0
-    memory_object_store_element memoryarray<1>, v0, v1, v3
-    v4 = add v1, 1
+    memory_object_store_element memoryarray<1>, v0, v1, 96
+    v3 = add v1, 1
     jump bb1
 }
 

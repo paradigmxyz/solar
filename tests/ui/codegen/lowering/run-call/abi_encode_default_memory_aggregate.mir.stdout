@@ -31,26 +31,22 @@ fn @hashDynamicTuple() -> bytes32 [selector=0xfe92a929, pure, abi_params=[], abi
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v6]
+    v1 = phi [bb0: 0], [bb2: v4]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v7 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], scratch, args v0
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = keccak256 v8, v9
-    ret v10
+    v5 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], scratch, args v0
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = keccak256 v6, v7
+    ret v8
   bb2:
     v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     memory_object_store_field memorystruct<3>, v3, 0, 0
-    v4 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v4, 0
-    memory_object_store_field memorystruct<3>, v3, 1, v4
-    v5 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
-    set_memory_object_len memoryarray, v5, 0
-    memory_object_store_field memorystruct<3>, v3, 2, v5
+    memory_object_store_field memorystruct<3>, v3, 1, 96
+    memory_object_store_field memorystruct<3>, v3, 2, 96
     memory_object_store_element memoryarray<1>, v0, v1, v3
-    v6 = add v1, 1
+    v4 = add v1, 1
     jump bb1
 }
 
@@ -83,31 +79,29 @@ fn @hashDynamicFixedArray() -> bytes32 [selector=0x6c0960c7, pure, abi_params=[]
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb6: v8]
+    v1 = phi [bb0: 0], [bb6: v7]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v9 = abi_encode [memory_array<array<3, memory_bytes>>], scratch, args v0
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = keccak256 v10, v11
-    ret v12
+    v8 = abi_encode [memory_array<array<3, memory_bytes>>], scratch, args v0
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = keccak256 v9, v10
+    ret v11
   bb2:
     v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     jump bb4
   bb4:
-    v4 = phi [bb2: 0], [bb5: v7]
+    v4 = phi [bb2: 0], [bb5: v6]
     v5 = lt v4, 3
     jumpi v5, bb5, bb6
   bb6:
     memory_object_store_element memoryarray<1>, v0, v1, v3
-    v8 = add v1, 1
+    v7 = add v1, 1
     jump bb1
   bb5:
-    v6 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v6, 0
-    memory_object_store_element memoryfixedarray<3, 1>, v3, v4, v6
-    v7 = add v4, 1
+    memory_object_store_element memoryfixedarray<3, 1>, v3, v4, 96
+    v6 = add v4, 1
     jump bb4
 }
 
@@ -117,15 +111,15 @@ fn @hashNestedTuple() -> bytes32 [selector=0xe4f5ccbe, pure, abi_params=[], abi_
     set_memory_object_len memoryarray, v0, 1
     jump bb1
   bb1:
-    v1 = phi [bb0: 0], [bb2: v6]
+    v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 1
     jumpi v2, bb2, bb3
   bb3:
-    v7 = abi_encode [memory_array<tuple<tuple<word, word, word>, memory_bytes>>], scratch, args v0
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = keccak256 v8, v9
-    ret v10
+    v6 = abi_encode [memory_array<tuple<tuple<word, word, word>, memory_bytes>>], scratch, args v0
+    v7 = slice_ptr v6
+    v8 = slice_len v6
+    v9 = keccak256 v7, v8
+    ret v9
   bb2:
     v3 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
@@ -133,11 +127,9 @@ fn @hashNestedTuple() -> bytes32 [selector=0xe4f5ccbe, pure, abi_params=[], abi_
     memory_object_store_field memorystruct<3>, v4, 1, 0
     memory_object_store_field memorystruct<3>, v4, 2, 0
     memory_object_store_field memorystruct<2>, v3, 0, v4
-    v5 = alloc memorybytes, exact, uninitialized, infallible, 32
-    set_memory_object_len memorybytes, v5, 0
-    memory_object_store_field memorystruct<2>, v3, 1, v5
+    memory_object_store_field memorystruct<2>, v3, 1, 96
     memory_object_store_element memoryarray<1>, v0, v1, v3
-    v6 = add v1, 1
+    v5 = add v1, 1
     jump bb1
 }
 

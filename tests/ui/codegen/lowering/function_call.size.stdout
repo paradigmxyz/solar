@@ -60,9 +60,6 @@ bb16:
   swap 1
   jump
 bb7:
-  dup 1
-  push 192
-  mstore
   push bb8
   swap 1
   jump bb16
@@ -77,9 +74,6 @@ bb10:
   push 4
   calldataload
   add
-  dup 1
-  push 192
-  mstore
   push 4
   calldataload
   dup 2
@@ -92,9 +86,6 @@ bb10:
 bb13:
   jump bb8
 bb8:
-  dup 1
-  push 160
-  mstore
   push 128
   mstore
   push 32

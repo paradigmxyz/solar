@@ -47,7 +47,7 @@ fn @dirtyAddress() -> address [selector=0x986597e5, pure, abi_params=[], abi_ret
 // === ROOT/tests/ui/codegen/lowering/run-call/external_returndata_bounds.sol:ReturnHarness ===
 @module ReturnHarness
 data:
-  ReturnProducer_initcode_0: hex"34600e576101c18060125f395ff35b5f5ffd346038575f3560e01c80630a39e7bc14602a578063986597e514602f578063af36778b146034576038565b610189565b610198565b603c565b5f5ffd5b6101e06040526040518060e0528060e05260408101604052604051806101a052602081016040526040518061016052604081016040526040368280610160523780610160528152806101a0528152602081015f8152508060e05251518061010052806101005260025f101590501560db575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b600b610100515260e0518060e052515180610120528061012052600260011015905060ae57602061012051016016815250602060e05101602181525060e0518060e052515180610140528061014052505f5b80610180526002811015610162576020818061018052026101405101516020820260800152600181019050806101c05261012d565b604060800150506040608001602060e0510151815260209001506060608001608090036080f35b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
+  ReturnProducer_initcode_0: hex"34600e576101bd8060125f395ff35b5f5ffd346038575f3560e01c80630a39e7bc14602a578063986597e514602f578063af36778b146034576038565b610185565b610194565b603c565b5f5ffd5b6101e06040526040518060e0528060e05260408101604052604051806101405260208101604052604051806101005260408101604052604036828061010052378061010052815280610140528152602081015f8152508060e05251518061018052806101805260025f10151560d9575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b600b81525060e0518060e0525151806101a052806101a05260026001101560ac576020810190506016815250602060e05101602181525060e0518060e0525151806101205280610120525f60e05191905b8061016052600281101561015757602081806101605202820151602082026080015260018101905061012a565b6040608001505050604060800160208201915081519150818152905060209001506060608001608090036080f35b60205f5261010060205260405ff35b5f1973ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f3"
 
 fn @check(arg0: memorystruct) -> u256 [pure] {
   bb0:
@@ -98,13 +98,13 @@ fn @staticAggregate() -> u256 [selector=0x9982aedb, abi_params=[], abi_returns=[
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 498, v1
+    v2 = and 494, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 467
+    data_copy ReturnProducer_initcode_0, v3, 463
     v4 = slice_ptr v0
-    v5 = add v3, 467
+    v5 = add v3, 463
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 467
+    v6 = create 0, v3, 463
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -134,13 +134,13 @@ fn @projectedAggregate() -> u256 [selector=0xec2041b8, abi_params=[], abi_return
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 498, v1
+    v2 = and 494, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 467
+    data_copy ReturnProducer_initcode_0, v3, 463
     v4 = slice_ptr v0
-    v5 = add v3, 467
+    v5 = add v3, 463
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 467
+    v6 = create 0, v3, 463
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -180,13 +180,13 @@ fn @functionPointerAggregate() -> u256 [selector=0xebe6d175, abi_params=[], abi_
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 498, v1
+    v2 = and 494, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 467
+    data_copy ReturnProducer_initcode_0, v3, 463
     v4 = slice_ptr v0
-    v5 = add v3, 467
+    v5 = add v3, 463
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 467
+    v6 = create 0, v3, 463
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -221,13 +221,13 @@ fn @dirtyAddressBoundary() -> u256 [selector=0x2986c9cc, abi_params=[], abi_retu
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 498, v1
+    v2 = and 494, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 467
+    data_copy ReturnProducer_initcode_0, v3, 463
     v4 = slice_ptr v0
-    v5 = add v3, 467
+    v5 = add v3, 463
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 467
+    v6 = create 0, v3, 463
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -270,13 +270,13 @@ fn @truncated() -> u256 [selector=0xfc1dad0b, abi_params=[], abi_returns=[word]]
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 498, v1
+    v2 = and 494, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ReturnProducer_initcode_0, v3, 467
+    data_copy ReturnProducer_initcode_0, v3, 463
     v4 = slice_ptr v0
-    v5 = add v3, 467
+    v5 = add v3, 463
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 467
+    v6 = create 0, v3, 463
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

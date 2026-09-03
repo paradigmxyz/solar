@@ -242,52 +242,48 @@ bb35:
   jumpi
   jump bb57
 bb38:
-  push 0
-  swap 1
-  jump bb39
-bb39:
-  dup 2
-  push 224
-  mstore
-  push 36
-  calldataload
-  dup 3
-  lt
-  dup 4
   push 192
   mstore
-  dup 2
+  push 0
   push 160
   mstore
-  swap 3
-  pop
-  pop
-  pop
+  push 224
+  mstore
+  jump bb39
+bb39:
+  push 36
+  calldataload
+  push 160
+  mload
+  lt
   push bb41
   jumpi
   push 1
-  push 192
+  push 224
   mload
   add
-  push 160
+  push 192
   mload
   jump bb35
 bb40:
   push 1
-  push 224
+  push 160
   mload
   add
+  dup 1
+  push 160
+  mstore
   push 256
   mload
   push 192
-  mload
-  swap 2
-  swap 1
+  mstore
+  push 160
+  mstore
   jump bb39
 bb41:
-  push 192
-  mload
   push 224
+  mload
+  push 160
   mload
   dup 2
   add
@@ -304,13 +300,13 @@ bb41:
   lt
   push bb55
   jumpi
-  push 160
+  push 192
   mload
   add
   dup 1
   push 256
   mstore
-  push 160
+  push 192
   mload
   gt
   swap 1

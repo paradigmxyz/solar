@@ -33,9 +33,6 @@ bb0:
   push 96
   shr
   and
-  dup 1
-  push 160
-  mstore
   push 1
   dup 2
   sub
@@ -46,21 +43,15 @@ bb0:
 bb25:
   dup 3
   add
-  dup 1
-  push 160
-  mstore
   swap 1
   pop
   jump bb24
 bb24:
-  dup 1
-  push 160
-  mstore
+  swap 1
+  dup 2
   lt
   push bb10
   jumpi
-  push 160
-  mload
   jump bb23
 bb23:
   push 128

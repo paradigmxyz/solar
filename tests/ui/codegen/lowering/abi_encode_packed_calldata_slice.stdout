@@ -75,15 +75,11 @@ bb15:
   jump
 bb7:
   dup 1
-  push 160
-  mstore
-  dup 1
   calldataload
   swap 1
   push 32
   add
-  push 192
-  mstore
+  swap 1
   push 68
   calldataload
   gt
@@ -100,16 +96,12 @@ bb7:
   push 68
   calldataload
   sub
+  swap 1
   push 36
   calldataload
-  push 192
-  mload
   add
   push 64
   mload
-  dup 1
-  push 160
-  mstore
   dup 3
   dup 3
   dup 3
@@ -145,38 +137,27 @@ bb10:
   jump bb15
 bb12:
   dup 1
-  push 224
-  mstore
-  dup 1
   calldataload
-  dup 1
-  push 160
-  mstore
   swap 1
   push 32
   add
-  push 192
-  mstore
   push 36
   calldataload
-  gt
+  dup 3
+  lt
   push bb4
   jumpi
   push 36
   calldataload
-  push 160
-  mload
+  swap 1
+  swap 2
   sub
+  swap 1
   push 36
   calldataload
-  push 192
-  mload
   add
   push 64
   mload
-  dup 1
-  push 224
-  mstore
   push 112
   push 248
   shl
