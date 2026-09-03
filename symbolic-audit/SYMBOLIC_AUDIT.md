@@ -79,6 +79,8 @@ and describe behavior that no longer differs.
       (see the item; the repros are the upstream test files)
 - [x] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
       (`symbolic-audit/storage_bytes_index_gas.sol`; fixed in `92a20464d`)
+- [ ] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
+      (`symbolic-audit/external_call_prebyzantium.sol`)
 
 ## Findings
 
@@ -982,6 +984,42 @@ inlined header decode costs bytecode size on copy-heavy contracts
 (`storage_struct_dynamic_copy`, `storage_copy_recursive_struct`) even
 though the corpus total shrinks; outlining the decode is a possible
 follow-up.
+
+### 27. Pre-byzantium external calls with return values have no `extcodesize` guard
+
+File: `symbolic-audit/external_call_prebyzantium.sol`
+Source: `semanticTests/array/array_function_pointers.sol` (`g(811, 1)` calls a
+zero-initialized external function pointer),
+`abicoder/calldataDecoding/array/calldata_array_function_types_v2.sol`,
+`abicoder/calldataDecoding/struct/member_external_function_v2.sol`.
+Found by the stateful sweep at `--evm-version homestead`; the same three
+tests agree from byzantium on.
+
+```solidity
+interface I { function f() external returns (uint256); function g() external; }
+contract R {
+    function callRet(address a) external returns (uint256) { return I(a).f(); }
+    function callNoRet(address a) external { I(a).g(); }
+}
+```
+
+| Call, target has no code | solc (homestead, tangerineWhistle, spuriousDragon) | solar |
+|------|------|------|
+| `callRet(address(0))`, `callView`, `callPtr` (return values) | reverts | succeeds, returns 0 |
+| `callNoRet(address(0))`, `callPtrNoRet` (no return values) | reverts | reverts |
+| all of the above from byzantium on | agree | agree |
+
+Before byzantium there is no `RETURNDATASIZE`, so solc guards every external
+call with `if iszero(extcodesize(target)) { revert }` (visible in
+`--ir-optimized` at homestead); from byzantium on it drops the guard for
+calls with return values because the return-data length check subsumes it.
+solar's homestead lowering of a call with return values emits neither: the
+MIR is `call ...; revert 0, 0` on failure and `mload` of the untouched output
+buffer on success, so a missing contract yields zeros instead of a revert.
+Calls without return values keep the `extcodesize` check on both compilers.
+
+Severity: miscompile for the three pre-byzantium targets. A call to a
+non-existent contract that returns a value silently succeeds.
 
 ## solc-side observations
 
