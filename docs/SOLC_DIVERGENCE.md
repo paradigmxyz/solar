@@ -110,6 +110,28 @@ them silently would change a later call.
 Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
 [#1269](https://github.com/paradigmxyz/solar/pull/1269#discussion_r3846737698).
 
+### TYPECK-003: Inline array literals adopt the expected element type
+
+Status: parity debt.
+
+Difference: `solc` types an inline array literal from its elements alone and
+then requires the result to convert to the destination, which rules out any
+element widening: `uint256[2] memory x = [1, 2];` is an error, and so are
+`int256[2] memory y = [1, 2];`, `bytes[2] memory z = ["a", "b"];` and the
+nested `uint256[2][2] memory w = [[1, 2], [3, 4]];`. `solar` seeds the
+literal's element type with the element type of the destination, so it accepts
+all of them and stores the widened values. A copy into storage, such as
+`s = [[1, 2], [3, 4]];` or `a.push([1, 2])`, is accepted by both, because a
+storage copy converts element-wise.
+
+Rationale: the seed gives a literal the element type of its destination, which
+is how a nested literal copied into storage picks up the destination's element
+type. The widened values are correct; only the acceptance is wider.
+
+Coverage: `tests/ui/typeck/inline_array_reference_elements.sol`,
+`tests/ui/typeck/array_push_element_locations.sol`, and
+`tests/ui/codegen/lowering/run-call/nested_array_storage_memory.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.
