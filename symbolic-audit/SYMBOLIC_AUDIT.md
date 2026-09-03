@@ -73,6 +73,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/library_declaration_checks.sol`; fixed in `96551139a`)
 - [ ] 23. Checked arithmetic in a base-constructor argument is lowered unchecked
       (`symbolic-audit/base_constructor_arg_overflow.sol`)
+- [ ] 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
+      (`symbolic-audit/base_constructor_storage_arg.sol`)
 
 ## Findings
 
@@ -830,6 +832,37 @@ in a function body. Only expressions written directly in the inheritance
 specifier's argument list are affected.
 
 Severity: miscompile. A checked operation silently wraps.
+
+### 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
+
+File: `symbolic-audit/base_constructor_storage_arg.sol`
+Sources: `semanticTests/types/struct_mapping_abstract_constructor_param.sol`,
+`semanticTests/types/array_mapping_abstract_constructor_param.sol`
+Found by the stateful Foundry differential sweep over the solc semantic
+tests on `023e758e4`.
+
+```solidity
+struct S { mapping(uint256 => uint256) m; }
+abstract contract A { constructor(S storage s) { s.m[5] = 16; } }
+contract C is A {
+    mapping(uint256 => S) m;
+    constructor() A(m[1]) {}
+}
+```
+
+| Deployment | solc | solar |
+|------|------|-------|
+| `C()` then `getM(1, 5)` | deploys, returns `16` | deploys revert: the constructor MIR is `callvalue` check then `invalid` |
+| `D()` with `mapping(...)[] storage` parameter and `m.push()` | deploys, `m(1, 0, 1)` returns `2` | before `fadddd133`: compiles, deployment reverts; after: compile error `codegen rewrite does not support this storage access yet` |
+
+solc passes a storage pointer to a base constructor as its slot number, the
+same way it passes storage pointers to internal functions. solar's lowering
+of the inheritance-specifier argument does not handle reference-typed
+storage arguments: the struct case falls into the "unsupported expression"
+path that emits `invalid` at runtime without a diagnostic (the same class as
+finding 8), and the array case is now rejected at compile time.
+
+Severity: miscompile (silent `INVALID` on valid code) plus a support gap.
 
 ## solc-side observations
 
