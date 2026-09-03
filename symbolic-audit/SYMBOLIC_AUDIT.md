@@ -95,6 +95,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/this_call_from_constructor_helper.sol`)
 - [ ] 34. Any recursive internal function is rejected before constantinople by the post-legalization stack verifier
       (`symbolic-audit/recursion_preconstantinople.sol`)
+- [ ] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
+      (`symbolic-audit/interface_free_function_checks.sol`)
 
 ## Findings
 
@@ -1338,6 +1340,31 @@ constantinople on the check is skipped, so the same program compiles. The
 
 Severity: valid programs rejected for the four oldest EVM versions, with
 an internal verification failure as the diagnostic.
+
+### 35. `virtual` free functions and non-`external` interface functions are accepted
+
+File: `symbolic-audit/interface_free_function_checks.sol`
+Found by re-probing the diagnostic gaps the item-22 review listed. The
+others on that list are already handled: constructors marked `virtual`
+(7001) are a parse error, `receive` in a library and non-pure operator
+definitions (7775) are rejected with solc's wording, a fractional array
+length is rejected, and "Type too large for memory" is reported.
+
+```solidity
+interface I { function f() public; function g() internal; }
+function free() virtual {}
+```
+
+| Declaration | solc | solar |
+|------|------|------|
+| `public` or `internal` function in an interface | error 1560 `Functions in interfaces must be declared external.` | compiles |
+| `virtual` free function | error 4493 `Free functions cannot be virtual.` | compiles |
+
+Both checks live in `TypeChecker::visit(FunctionDefinition)` next to the
+library and `payable` checks fixed in items 21 and 22. Not codegen
+divergences: solar accepts programs solc refuses.
+
+Severity: missing diagnostics.
 
 ## solc-side observations
 
