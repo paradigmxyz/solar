@@ -3047,9 +3047,13 @@ fn valid_delete(ty: Ty<'_>) -> bool {
     }
 }
 
+/// Returns `true` if index range access is supported on `ty`, which requires a dynamically sized
+/// calldata array.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/analysis/TypeChecker.cpp#L3717-L3718>
 fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
-    ty.is_ref_at(DataLocation::Calldata)
-        || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
+    let array = if let TyKind::Slice(array) = ty.kind { array } else { ty };
+    array.is_ref_at(DataLocation::Calldata) && array.peel_refs().is_dynamically_sized()
 }
 
 /// The element type of an array-typed expression, descending through slices.
