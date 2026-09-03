@@ -4163,14 +4163,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         is_cross_block_recomputable_kind(&func.inst(*inst_id).kind)
     }
 
-    /// Spills all live-out values that are currently on the stack to memory.
-    /// This ensures values that need to be accessed in successor blocks can be reloaded.
+    /// Spills stack-resident values a successor reads under their own identity.
+    /// Phi inputs are consumed by their predecessor edge copies.
     fn spill_live_out_values(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
-        let live_out = liveness.live_out(block_id);
-
-        for val in live_out {
-            self.spill_value_if_needed(func, val);
-        }
+        self.spill_live_out_values_except(func, liveness, block_id, &[]);
     }
 
     fn spill_live_out_values_except(
@@ -4184,8 +4180,15 @@ impl<'gcx> EvmCodegen<'gcx> {
         for &value in exempt {
             exempt_values.insert(value);
         }
+        let successors = func.blocks[block_id]
+            .terminator
+            .as_ref()
+            .map(Terminator::successors)
+            .unwrap_or_default();
         for val in liveness.live_out(block_id) {
-            if !exempt_values.contains(val) {
+            if !exempt_values.contains(val)
+                && successors.iter().any(|&succ| liveness.live_in(succ).contains(val))
+            {
                 self.spill_value_if_needed(func, val);
             }
         }
