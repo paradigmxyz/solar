@@ -369,19 +369,14 @@ impl<'gcx> ResolveContext<'gcx> {
 
             // Only the parameters of a function without a body are hidden; a modifier's are not.
             let hidden = ast_func.body.is_none() && !self.hir.function(id).kind.is_modifier();
-            self.hir.functions[id].parameters = self.lower_function_variables(
+            let (parameters, returns) = self.lower_function_variables(
                 *ast_func.header.parameters,
-                id,
-                hir::VarKind::FunctionParam,
-                hidden,
-            );
-
-            self.hir.functions[id].returns = self.lower_function_variables(
                 ast_func.header.returns(),
                 id,
-                hir::VarKind::FunctionReturn,
                 hidden,
             );
+            self.hir.functions[id].parameters = parameters;
+            self.hir.functions[id].returns = returns;
 
             self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
@@ -1621,12 +1616,9 @@ impl<'gcx> ResolveContext<'gcx> {
         parent: Option<hir::ItemId>,
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
-        let ids: &'gcx [hir::VariableId] = self.arena.alloc_slice_fill_iter(
-            vars.iter().map(|var| self.lower_variable_undeclared(var, parent, kind)),
-        );
-        for &id in ids {
-            let _ = self.declare_variable(id);
-        }
+        let ids = self.lower_variables_partial(vars, parent, kind);
+        self.lower_variable_types(vars, ids);
+        self.declare_variables(ids);
         ids
     }
 
@@ -1634,31 +1626,85 @@ impl<'gcx> ResolveContext<'gcx> {
     /// parameters and returns of an implemented function or of a modifier, and the variables of a
     /// try/catch clause.
     ///
-    /// Each name is declared as the list is lowered, so it can shadow a type used by a later
-    /// sibling's type.
+    /// Every name is declared before any type is lowered, so a name shadows a type used by any
+    /// sibling's type, including its own.
     fn lower_variables_visible(
         &mut self,
         vars: &[ast::VariableDefinition<'_>],
         parent: Option<hir::ItemId>,
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
-        self.arena
-            .alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, parent, kind).0))
+        let ids = self.lower_variables_partial(vars, parent, kind);
+        self.declare_variables(ids);
+        self.lower_variable_types(vars, ids);
+        ids
     }
 
-    /// Lowers the parameters or returns of a function.
+    /// Lowers the parameters and returns of a function.
+    ///
+    /// Both lists live in the function's scope, so a visible name also shadows a type used by the
+    /// other list.
     fn lower_function_variables(
         &mut self,
-        vars: &[ast::VariableDefinition<'_>],
+        parameters: &[ast::VariableDefinition<'_>],
+        returns: &[ast::VariableDefinition<'_>],
         id: hir::FunctionId,
-        kind: hir::VarKind,
         hidden: bool,
-    ) -> &'gcx [hir::VariableId] {
+    ) -> (&'gcx [hir::VariableId], &'gcx [hir::VariableId]) {
         let parent = Some(hir::ItemId::Function(id));
+        let parameter_ids =
+            self.lower_variables_partial(parameters, parent, hir::VarKind::FunctionParam);
+        let return_ids = self.lower_variables_partial(returns, parent, hir::VarKind::FunctionReturn);
+        if !hidden {
+            self.declare_variables(parameter_ids);
+            self.declare_variables(return_ids);
+        }
+        self.lower_variable_types(parameters, parameter_ids);
+        self.lower_variable_types(returns, return_ids);
         if hidden {
-            self.lower_variables_hidden(vars, parent, kind)
-        } else {
-            self.lower_variables_visible(vars, parent, kind)
+            self.declare_variables(parameter_ids);
+            self.declare_variables(return_ids);
+        }
+        (parameter_ids, return_ids)
+    }
+
+    /// Lowers each variable to HIR, leaving its type, initializer, and name declaration behind.
+    fn lower_variables_partial(
+        &mut self,
+        vars: &[ast::VariableDefinition<'_>],
+        parent: Option<hir::ItemId>,
+        kind: hir::VarKind,
+    ) -> &'gcx [hir::VariableId] {
+        self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
+            super::lower::lower_variable_partial(
+                &mut self.lcx.hir,
+                var,
+                self.scopes.source.unwrap(),
+                self.scopes.contract,
+                parent,
+                kind,
+                hir::DocId::EMPTY,
+            )
+        }))
+    }
+
+    /// Lowers the type and initializer of each variable.
+    fn lower_variable_types(
+        &mut self,
+        vars: &[ast::VariableDefinition<'_>],
+        ids: &'gcx [hir::VariableId],
+    ) {
+        debug_assert_eq!(vars.len(), ids.len());
+        for (var, &id) in vars.iter().zip(ids) {
+            self.hir.variables[id].ty = self.lower_type(&var.ty);
+            self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
+        }
+    }
+
+    /// Declares every named variable of the list in the current scope.
+    fn declare_variables(&mut self, ids: &'gcx [hir::VariableId]) {
+        for &id in ids {
+            let _ = self.declare_variable(id);
         }
     }
 

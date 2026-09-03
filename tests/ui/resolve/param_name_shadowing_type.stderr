@@ -26,7 +26,19 @@ error: name has to refer to a valid user-defined type
    ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
    │
 LL │     function implemented(EnumType StructType, StructType memory EnumType) external {}
+   ╰╴                         ━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function implemented(EnumType StructType, StructType memory EnumType) external {}
    ╰╴                                              ━━━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function implementedReturns() external returns (EnumType StructType, StructType memory EnumType) {}
+   ╰╴                                                    ━━━━━━━━
 
 error: name has to refer to a valid user-defined type
    ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
@@ -37,14 +49,38 @@ LL │     function implementedReturns() external returns (EnumType StructType, 
 error: name has to refer to a valid user-defined type
    ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
    │
+LL │     function selfShadowing(StructType memory StructType) external {}
+   ╰╴                           ━━━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function returnShadowsParameter(EnumType e) external returns (uint256 EnumType) { e; EnumType = 1; }
+   ╰╴                                    ━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     modifier m(EnumType StructType, StructType memory EnumType) virtual;
+   ╰╴               ━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
 LL │     modifier m(EnumType StructType, StructType memory EnumType) virtual;
    ╰╴                                    ━━━━━━━━━━
 
 error: name has to refer to a valid user-defined type
    ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
    │
-LL │ …     try this.g() returns (EnumType StructType, StructType memory EnumType) {}
-   ╰╴                                                 ━━━━━━━━━━
+LL │         try this.g() returns (EnumType StructType, StructType memory EnumType) {}
+   ╰╴                              ━━━━━━━━
 
-error: aborting due to 4 previous errors; 4 warnings emitted
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │         try this.g() returns (EnumType StructType, StructType memory EnumType) {}
+   ╰╴                                                   ━━━━━━━━━━
+
+error: aborting due to 10 previous errors; 4 warnings emitted
 

@@ -45,12 +45,19 @@ abstract contract D {
         uint x;
     }
 
-    // A function with a body declares its parameter names before resolving the types of later
-    // parameters, so they do shadow. solc rejects the same declarations, pointing at the first
-    // parameter instead.
-    function implemented(EnumType StructType, StructType memory EnumType) external {} //~ ERROR: name has to refer to a valid user-defined type
+    // A function with a body declares its parameter names before resolving any of the types, so
+    // every name shadows, including its own type's.
+    function implemented(EnumType StructType, StructType memory EnumType) external {}
+    //~^ ERROR: name has to refer to a valid user-defined type
+    //~| ERROR: name has to refer to a valid user-defined type
 
-    function implementedReturns() external returns (EnumType StructType, StructType memory EnumType) {} //~ ERROR: name has to refer to a valid user-defined type
+    function implementedReturns() external returns (EnumType StructType, StructType memory EnumType) {}
+    //~^ ERROR: name has to refer to a valid user-defined type
+    //~| ERROR: name has to refer to a valid user-defined type
+
+    function selfShadowing(StructType memory StructType) external {} //~ ERROR: name has to refer to a valid user-defined type
+
+    function returnShadowsParameter(EnumType e) external returns (uint256 EnumType) { e; EnumType = 1; } //~ ERROR: name has to refer to a valid user-defined type
 }
 
 abstract contract E {
@@ -62,13 +69,17 @@ abstract contract E {
 
     // A modifier's parameters are visible even when it has no body, since solc's rule only
     // covers functions.
-    modifier m(EnumType StructType, StructType memory EnumType) virtual; //~ ERROR: name has to refer to a valid user-defined type
+    modifier m(EnumType StructType, StructType memory EnumType) virtual;
+    //~^ ERROR: name has to refer to a valid user-defined type
+    //~| ERROR: name has to refer to a valid user-defined type
 
     function g() external virtual returns (EnumType, StructType memory);
 
     // The variables of a try/catch clause are visible too.
     function f() external {
-        try this.g() returns (EnumType StructType, StructType memory EnumType) {} //~ ERROR: name has to refer to a valid user-defined type
+        try this.g() returns (EnumType StructType, StructType memory EnumType) {}
+        //~^ ERROR: name has to refer to a valid user-defined type
+        //~| ERROR: name has to refer to a valid user-defined type
         catch {}
     }
 }
