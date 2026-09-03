@@ -4108,6 +4108,23 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             self.spill_available = avail_in;
+            // A store emitted by a sibling branch arm also marked its value
+            // reloadable, so a copy carried in on the stack could be dropped
+            // in favor of a slot this path never wrote. Forget stores that are
+            // not available on every emitted forward predecessor.
+            if let Some(available) = &self.spill_available {
+                let stale: Vec<ValueId> = self
+                    .scheduler
+                    .spills
+                    .reloadable_values()
+                    .filter(|&value| {
+                        !available.contains(&value) && self.scheduler.stack.contains(value)
+                    })
+                    .collect();
+                for value in stale {
+                    self.scheduler.spills.invalidate_stored(value);
+                }
+            }
             self.invalidate_carried_phi_spills(func, block_id);
             if block_id == BlockId::ENTRY
                 && let Some(values) =
