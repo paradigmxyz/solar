@@ -184,6 +184,19 @@ impl<'gcx> TypeChecker<'gcx> {
         self.check_expr_with(expr, Some(expected))
     }
 
+    /// Checks the length expression of a fixed-size array type.
+    ///
+    /// Any integer expression is accepted, whatever its declared signedness and width. Only the
+    /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
+    #[must_use]
+    fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        let ty = self.check_expr(size);
+        if !ty.is_integer() && !ty.references_error() {
+            let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
+        }
+        ty
+    }
+
     #[track_caller]
     #[must_use]
     fn check_expr_with(
@@ -463,7 +476,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else if let TyKind::Type(elem_ty) = ty.kind {
                     // `elem_ty` array type expression.
                     let arr = if let Some(index) = index {
-                        let index_ty = self.expect_ty(index, self.gcx.types.uint(256));
+                        let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
                             .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
@@ -2784,7 +2797,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
                 if let Some(size) = array.size {
-                    let _ = self.expect_ty(size, self.gcx.types.uint(256));
+                    let _ = self.check_array_size(size);
                 }
                 return self.visit_ty(&array.element);
             }
