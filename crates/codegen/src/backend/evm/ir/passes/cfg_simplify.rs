@@ -217,7 +217,7 @@ fn redirect_jump_thunks(
                 metadata.set_function_invoke(function);
             }
             if let Some(terminator) = &block.terminator {
-                preserve_debug_metadata(&mut metadata, &terminator.metadata);
+                metadata.absorb_debug_info(&terminator.metadata);
             }
             (block_id, metadata)
         })
@@ -230,7 +230,7 @@ fn redirect_jump_thunks(
                 && let Some(PushValue::Block(target)) = block.instructions[at].value
             {
                 if let Some(metadata) = thunk_metadata.get(&target) {
-                    preserve_debug_metadata(&mut block.instructions[at].metadata, metadata);
+                    block.instructions[at].metadata.absorb_debug_info(metadata);
                 }
                 let resolved = resolve(target);
                 changed |= resolved != target;
@@ -240,7 +240,7 @@ fn redirect_jump_thunks(
         if let Some(term) = &mut block.terminator {
             term.kind.visit_targets_mut(|target| {
                 if let Some(metadata) = thunk_metadata.get(target) {
-                    preserve_debug_metadata(&mut term.metadata, metadata);
+                    term.metadata.absorb_debug_info(metadata);
                 }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
@@ -266,20 +266,6 @@ fn is_direct_jump_label(block: &Block, at: usize) -> bool {
                 .terminator
                 .as_ref()
                 .is_some_and(|term| matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))))
-}
-
-fn preserve_debug_metadata(destination: &mut Metadata, source: &Metadata) {
-    destination.merge_source_spans(source);
-    if destination.function_invoke().is_none()
-        && let Some(function) = source.function_invoke()
-    {
-        destination.set_function_invoke(function);
-    }
-    if destination.function_exit().is_none()
-        && let Some(exit) = source.function_exit()
-    {
-        destination.set_function_exit(exit);
-    }
 }
 
 #[must_use]

@@ -724,6 +724,22 @@ impl Metadata {
         self.modifier_depth = other.modifier_depth;
     }
 
+    /// Absorbs another operation's debug information: its origins are added and its function
+    /// events are taken when this operation has none of its own.
+    pub(crate) fn absorb_debug_info(&mut self, other: &Self) {
+        self.merge_source_spans(other);
+        if self.function_invoke.is_none()
+            && let Some(function) = other.function_invoke()
+        {
+            self.set_function_invoke(function);
+        }
+        if self.function_exit.is_none()
+            && let Some(exit) = other.function_exit()
+        {
+            self.set_function_exit(exit);
+        }
+    }
+
     /// Adds origins from another operation without changing machine semantics.
     pub(crate) fn merge_source_spans(&mut self, other: &Self) {
         let had_source_spans = !self.source_spans.is_empty();
