@@ -4144,7 +4144,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             // availability over emitted forward predecessors (loop back edges
             // are exempt: a value redefined around a loop is handled by the
             // carried-phi invalidation, and its pre-loop store stays valid; a
-            // predecessor emitted later stores organically on its own path).
+            // predecessor emitted later stores every value live across the edge
+            // before jumping here, including the ones a preserved stack edge
+            // would otherwise leave to this block).
             let mut avail_in: Option<FxHashSet<ValueId>> = None;
             for &pred in func.blocks[block_id].predecessors.iter() {
                 if store_cfg.dominators().dominates(block_id, pred) {
@@ -4323,6 +4325,32 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for value in std::mem::take(&mut pinned_hazard_values) {
                     if live_out.contains(value) && !hazard_carried.contains(&value) {
                         self.spill_value_if_needed(func, value);
+                    }
+                }
+            }
+
+            // A preserved stack edge hands its carried values to the successor,
+            // which stores the ones it drops. An already-emitted successor
+            // chose those stores without seeing this path, so it cannot take
+            // the obligation over: store everything live across the edge here,
+            // which is what the store-availability intersection assumes a
+            // later-emitted predecessor does. Back edges are exempt for the
+            // same reason that intersection skips them.
+            //
+            //   dup depth(value)
+            //   push slot(value)
+            //   mstore
+            let emitted_successors =
+                block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+            for successor in emitted_successors {
+                if block_pos.get(&successor).is_some_and(|&target| target < pos)
+                    && !store_cfg.dominators().dominates(successor, block_id)
+                {
+                    let live_in = liveness.live_in(successor);
+                    for value in liveness.live_out(block_id) {
+                        if live_in.contains(value) {
+                            self.spill_value_if_needed(func, value);
+                        }
                     }
                 }
             }
