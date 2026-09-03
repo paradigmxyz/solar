@@ -425,6 +425,23 @@ impl Target {
             + self.copy_word_gas().saturating_mul(words)
     }
 
+    /// Cost of one internal call site with its return landing: the pushed
+    /// return label, the jump, the landing, and the frame protocol moving
+    /// `args` arguments in and `returns` results out, whose gas grows with
+    /// the callee's frame of `frame_words` words.
+    pub(crate) fn internal_call(self, args: usize, returns: usize, frame_words: u64) -> Cost {
+        let moved = (args + returns) as u32;
+        let protocol = 90 + moved * 24 + u32::try_from(frame_words).unwrap_or(u32::MAX) * 6;
+        Cost::new(protocol, 18 + moved * 5)
+    }
+
+    /// Cost of one internal return: the jump back through the pushed label
+    /// and the protocol handing `returns` results past `params` parameters.
+    pub(crate) fn internal_return(self, params: usize, returns: usize) -> Cost {
+        let moved = (params + returns) as u32;
+        Cost::new(24 + moved * 8, 8 + moved * 4)
+    }
+
     /// Deployment-lifetime gas of `cost`: expected executions of its runtime
     /// gas plus the deposit of its bytes.
     pub(crate) fn lifetime_gas(self, cost: Cost) -> u128 {

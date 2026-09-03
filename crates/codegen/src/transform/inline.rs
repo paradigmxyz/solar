@@ -123,6 +123,8 @@ struct MirInliner {
     /// Expected executions per deployment. This is supplied by Standard JSON
     /// optimizer runs and defaults to solc's 200-run convention.
     expected_executions_per_deployment: u64,
+    /// The cost model pricing call protocol against deposited bytes.
+    target: Target,
     /// Optional hard ceiling for the module size estimator. Normal gas-mode
     /// profitability is governed by lifetime cost instead of this ceiling;
     /// zero remains the explicit off switch used by size mode.
@@ -147,6 +149,11 @@ impl Default for MirInliner {
             inline_single_call: true,
             max_caller_inlined_instructions: 64,
             expected_executions_per_deployment: Target::DEFAULT_EXPECTED_EXECUTIONS,
+            target: Target::with(
+                solar_config::EvmVersion::default(),
+                solar_config::OptimizationMode::Gas,
+                Target::DEFAULT_EXPECTED_EXECUTIONS,
+            ),
             max_module_code_size: usize::MAX,
             mode: InlineMode::Normal,
         }
@@ -233,7 +240,8 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     fn run(&mut self, gcx: Gcx<'_>, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
-        self.expected_executions_per_deployment = Target::new(gcx).expected_executions();
+        self.target = Target::new(gcx);
+        self.expected_executions_per_deployment = self.target.expected_executions();
 
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
         // summarizing the module or building its call graph when no call site
@@ -538,8 +546,8 @@ impl MirInliner {
                 || summary.has_external_call
                 || summary.has_log)
             && summary.estimated_code_size
-                > estimated_internal_call_code_size(site)
-                    + estimated_internal_return_code_size(summary, site)
+                > estimated_internal_call_code_size(self.target, site)
+                    + estimated_internal_return_code_size(self.target, summary, site)
         {
             return false;
         }
@@ -560,10 +568,11 @@ impl MirInliner {
         const CODE_DEPOSIT_GAS_PER_BYTE: u128 = Target::CODE_DEPOSIT_GAS_PER_BYTE as u128;
 
         let inlined_bytes = summary.estimated_code_size;
-        let mut removed_bytes = estimated_internal_call_code_size(site);
+        let mut removed_bytes = estimated_internal_call_code_size(self.target, site);
         if single_call {
             removed_bytes = removed_bytes.saturating_add(
-                summary.estimated_code_size + estimated_internal_return_code_size(summary, site),
+                summary.estimated_code_size
+                    + estimated_internal_return_code_size(self.target, summary, site),
             );
         }
         if inlined_bytes <= removed_bytes {
@@ -572,8 +581,9 @@ impl MirInliner {
 
         let added_deposit_cost =
             (inlined_bytes - removed_bytes) as u128 * CODE_DEPOSIT_GAS_PER_BYTE;
-        let execution_savings = u128::from(estimated_internal_call_savings(site, summary))
-            * u128::from(self.expected_executions_per_deployment);
+        let execution_savings =
+            u128::from(estimated_internal_call_savings(self.target, site, summary))
+                * u128::from(self.expected_executions_per_deployment);
         execution_savings > added_deposit_cost
     }
 }
@@ -974,22 +984,30 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
     MirCost { runtime_gas, code_size }
 }
 
-fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
+fn estimated_internal_call_savings(
+    target: Target,
+    site: CallSite,
+    summary: MirInlineSummary,
+) -> u64 {
     let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
         + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
         + (site.args_len + site.returns) as u64;
-    let protocol = 90 + ((site.args_len + site.returns) as u64) * 24 + frame_words * 6;
-    let return_protocol = 24 + (summary.param_count as u64 + site.returns as u64) * 8;
+    let protocol = target.internal_call(site.args_len, site.returns, frame_words).gas;
+    let return_protocol = target.internal_return(summary.param_count, site.returns).gas;
     let loop_multiplier = (site.loop_depth as u64).saturating_add(1);
-    (protocol + return_protocol) * loop_multiplier
+    u64::from(protocol + return_protocol) * loop_multiplier
 }
 
-fn estimated_internal_call_code_size(site: CallSite) -> usize {
-    18 + (site.args_len + site.returns) * 5
+fn estimated_internal_call_code_size(target: Target, site: CallSite) -> usize {
+    target.internal_call(site.args_len, site.returns, 0).bytes as usize
 }
 
-fn estimated_internal_return_code_size(summary: MirInlineSummary, site: CallSite) -> usize {
-    8 + (summary.param_count + site.returns) * 4
+fn estimated_internal_return_code_size(
+    target: Target,
+    summary: MirInlineSummary,
+    site: CallSite,
+) -> usize {
+    target.internal_return(summary.param_count, site.returns).bytes as usize
 }
 
 fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
