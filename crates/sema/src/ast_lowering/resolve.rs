@@ -1656,7 +1656,8 @@ impl<'gcx> ResolveContext<'gcx> {
         let parent = Some(hir::ItemId::Function(id));
         let parameter_ids =
             self.lower_variables_partial(parameters, parent, hir::VarKind::FunctionParam);
-        let return_ids = self.lower_variables_partial(returns, parent, hir::VarKind::FunctionReturn);
+        let return_ids =
+            self.lower_variables_partial(returns, parent, hir::VarKind::FunctionReturn);
         if !hidden {
             self.declare_variables(parameter_ids);
             self.declare_variables(return_ids);
