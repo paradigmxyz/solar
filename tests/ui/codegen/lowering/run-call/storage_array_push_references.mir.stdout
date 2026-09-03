@@ -218,48 +218,53 @@ fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_params=[], abi_retur
     v79 = phi [bb20: v64], [bb22: v66], [bb23: 2]
     v80 = and v54, 31
     v81 = sub 31, v80
-    v82 = sload 2 !metadata(storage=slot(2))
-    v83 = and v82, 1
-    v84 = eq v83, 1
-    v85 = shr 1, v82
-    v86 = and v85, 127
-    v87 = select v84, v85, v86
-    v88 = lt v87, 32
-    v89 = eq v84, v88
-    jumpi v89, bb7, bb25
+    v82 = sload v79 !metadata(storage=symbolic(v79))
+    v83 = mul v81, 8
+    v84 = shr v83, v82
+    v85 = and v84, 255
+    v86 = shl 248, v85
+    v87 = sload 2 !metadata(storage=slot(2))
+    v88 = and v87, 1
+    v89 = eq v88, 1
+    v90 = shr 1, v87
+    v91 = and v90, 127
+    v92 = select v89, v90, v91
+    v93 = lt v92, 32
+    v94 = eq v89, v93
+    jumpi v94, bb7, bb25
   bb25:
-    v90 = sload 2 !metadata(storage=slot(2))
-    v91 = and v90, 1
-    v92 = eq v91, 1
-    v93 = shr 1, v90
-    v94 = and v93, 127
-    v95 = select v92, v93, v94
-    v96 = lt v95, 32
-    v97 = eq v92, v96
-    jumpi v97, bb7, bb26
+    v95 = sload 2 !metadata(storage=slot(2))
+    v96 = and v95, 1
+    v97 = eq v96, 1
+    v98 = shr 1, v95
+    v99 = and v98, 127
+    v100 = select v97, v98, v99
+    v101 = lt v100, 32
+    v102 = eq v97, v101
+    jumpi v102, bb7, bb26
   bb26:
-    v98 = lt 70, v95
-    v99 = iszero v98
-    jumpi v99, bb27, bb28
+    v103 = lt 70, v100
+    v104 = iszero v103
+    jumpi v104, bb27, bb28
   bb28:
-    jumpi v92, bb29, bb30
+    jumpi v97, bb29, bb30
   bb30:
     jump bb31
   bb29:
-    v100 = storage_array_data_slot 2
-    v101 = shr 5, 70
-    v102 = add v100, v101
+    v105 = storage_array_data_slot 2
+    v106 = shr 5, 70
+    v107 = add v105, v106
     jump bb31
   bb31:
-    v103 = phi [bb29: v102], [bb30: 2]
-    v104 = and 70, 31
-    v105 = sub 31, v104
-    v106 = sload v103 !metadata(storage=symbolic(v103))
-    v107 = mul v105, 8
-    v108 = shr v107, v106
-    v109 = and v108, 255
-    v110 = shl 248, v109
-    ret v87, v110
+    v108 = phi [bb29: v107], [bb30: 2]
+    v109 = and 70, 31
+    v110 = sub 31, v109
+    v111 = sload v108 !metadata(storage=symbolic(v108))
+    v112 = mul v110, 8
+    v113 = shr v112, v111
+    v114 = and v113, 255
+    v115 = shl 248, v114
+    ret v92, v115
   bb27:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

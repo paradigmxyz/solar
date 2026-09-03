@@ -699,12 +699,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(receiver.span, "storage access");
         };
         let slot = access.slot;
-        let Some(argument) = argument else {
-            // The zero byte a plain `push()` appends is written by the growth itself.
-            self.grow_storage_bytes(slot);
-            return Some(self.builder.imm(U256::ZERO));
-        };
         let byte_ty = self.cx.gcx.types.fixed_bytes(1);
+        let Some(argument) = argument else {
+            // The zero byte a plain `push()` appends is written by the growth itself, so the
+            // appended element only has to be read back to produce the call's value.
+            let element = self.grow_storage_bytes(slot);
+            return self.load_storage_value(byte_ty, element, receiver.span);
+        };
         let value = self.lower_typed_expr(argument, byte_ty)?;
 
         // data = sload(slot)

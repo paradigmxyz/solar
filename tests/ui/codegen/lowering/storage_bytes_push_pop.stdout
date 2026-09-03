@@ -260,6 +260,11 @@ fn @pushZero() [selector=0xe83b401e, abi_params=[], abi_returns=[]] {
     v30 = phi [bb5: v15], [bb7: v17], [bb8: 0]
     v31 = and v5, 31
     v32 = sub 31, v31
+    v33 = sload v30 !metadata(storage=symbolic(v30))
+    v34 = mul v32, 8
+    v35 = shr v34, v33
+    v36 = and v35, 255
+    v37 = shl 248, v36
     stop
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
