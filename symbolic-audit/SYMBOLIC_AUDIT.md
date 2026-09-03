@@ -915,7 +915,27 @@ Every lane also ran under `-Onone` and `-Osize`, and every function the
 solver could not close (nonlinear multiplication, exponentiation, deep
 loops, heavy storage) was replayed concretely at its boundary values under
 all three optimization levels: about 480 concrete cases per level, all
-agreeing. A `paris` EVM-version lane is in progress.
+agreeing. Further lanes on the same sources:
+
+- `--evm-version paris` (no `PUSH0`, no `MCOPY`, no transient storage) over
+  the probes and the corpus: 1104 and 534 checks, 2 mismatches (the
+  `fnPtrExt` self-address pair), no new divergence.
+- A second corpus from the other project archives: Arbitrum Nitro
+  one-step-proof state libraries (`Deserialize`, `Value`, `Machine`,
+  `MerkleProof`, `GlobalState`, stacks), Morpho Blue math libraries, Aave's
+  `SafeCast`, and forge-std `StdMath`, `StdStyle`, `LibVariable`: 126
+  wrapper functions agree symbolically, the rest are solver limits,
+  `vm.toString` cheatcodes, or nested struct inputs the harness cannot
+  build; the math incompletes were replayed concretely at all three
+  optimization levels (26 functions, 5 to 14 boundary cases each) and agree.
+- Self-prefix lane: every nonpayable probe function first called concretely
+  with representative arguments, then compared symbolically against the
+  resulting non-zero storage: 331 tasks, 251 agree, 0 mismatch.
+- Non-canonical ABI input: every probe function with a narrow value
+  parameter (`uintN`, `intN`, `bool`, `address`, `bytesN`) called with dirty
+  high or low bits in each such word, all narrow words dirty at once, and
+  the canonical encoding: 347 functions, 0 mismatches (both
+  compilers reject the same encodings).
 
 | Lane | Settings | Checked | Agreement | Incomplete | Mismatch |
 |------|----------|---------|-----------|------------|----------|
