@@ -34,5 +34,17 @@ error: name has to refer to a valid user-defined type
 LL │     function implementedReturns() external returns (EnumType StructType, StructType memory EnumType) {}
    ╰╴                                                                         ━━━━━━━━━━
 
-error: aborting due to 2 previous errors; 4 warnings emitted
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     modifier m(EnumType StructType, StructType memory EnumType) virtual;
+   ╰╴                                    ━━━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │ …     try this.g() returns (EnumType StructType, StructType memory EnumType) {}
+   ╰╴                                                 ━━━━━━━━━━
+
+error: aborting due to 4 previous errors; 4 warnings emitted
 
