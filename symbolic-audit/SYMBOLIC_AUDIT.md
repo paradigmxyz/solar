@@ -919,6 +919,12 @@ triage.
 | `errors/named_parameters_shadowing_types.sol` | `error E2(EnumType StructType, StructType EnumType)` | `name has to refer to a valid user-defined type` |
 | `functionTypes/stack_height_check_on_adding_gas_variable_to_function.sol` | `this.g{gas: 42}.address` | `call options must be part of a call expression` |
 
+The reverse direction also appears once: solar accepts `bytes transient`
+and `string transient` state variables and lowers their `.length` and
+`t[i]` against regular storage, while solc rejects the declaration with
+"Transient data location is only supported for value types" (found by the
+finding 26 review).
+
 `cargo tq solc-solidity` does not catch these because it compares only parser
 errors.
 
@@ -967,7 +973,15 @@ Re-measured on `92a20464d` after storing 914 bytes:
 
 The UI codegen corpus shrinks 1.0% at `-Ogas` and 1.7% at `-Osize` in
 runtime size; the probe set `storage_bytes.sol` still agrees with solc on
-random multi-call sequences.
+random multi-call sequences. The review (`ca8fe0247`) ran about 1100
+differential calls over encoding edges, dirty headers (`Panic(0x22)` before
+`Panic(0x32)`, as in solc), tuple assignments, side-effecting indices,
+storage-pointer parameters, and all three optimization levels, all
+agreeing, and pinned the dirty-header cases in a UI test. It noted that the
+inlined header decode costs bytecode size on copy-heavy contracts
+(`storage_struct_dynamic_copy`, `storage_copy_recursive_struct`) even
+though the corpus total shrinks; outlining the decode is a possible
+follow-up.
 
 ## solc-side observations
 
