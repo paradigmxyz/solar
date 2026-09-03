@@ -218,10 +218,13 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
-                let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
+                // The expected element type also seeds the elements, so a nested literal such as
+                // `[[1, 2], [3, 4]]` picks up the element type of its destination.
+                let element_expected = expected.and_then(|arr| arr.base_type(self.gcx));
+                let mut common = element_expected;
                 let mut guar: Option<ErrorGuaranteed> = None;
                 for (i, expr) in exprs.iter().enumerate() {
-                    let expr_ty = self.check_expr(expr);
+                    let expr_ty = self.check_expr_with_noexpect(expr, element_expected);
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
@@ -929,22 +932,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn can_copy_to_storage(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> bool {
         let TyKind::Ref(to, DataLocation::Storage) = to.kind else { return false };
-        self.can_copy_storage_value(from, to)
-    }
-
-    fn can_copy_storage_value(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> bool {
-        let from = from.peel_refs();
-        let to = to.peel_refs();
-        match (from.kind, to.kind) {
-            (TyKind::DynArray(from), TyKind::DynArray(to))
-            | (TyKind::Array(from, _), TyKind::DynArray(to)) => {
-                self.can_copy_storage_value(from, to)
-            }
-            (TyKind::Array(from, from_len), TyKind::Array(to, to_len)) => {
-                from_len <= to_len && self.can_copy_storage_value(from, to)
-            }
-            _ => from.convert_implicit_to(to, self.gcx),
-        }
+        from.can_copy_to_storage_value(to, self.gcx)
     }
 
     /// Tries to evaluate an expression made up of int literals.
@@ -1170,6 +1158,16 @@ impl<'gcx> TypeChecker<'gcx> {
         expected: Ty<'gcx>,
     ) -> Result<(), TyConvertError> {
         let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return Ok(()) };
+
+        // A location-less reference parameter is a direct storage value, as in the argument of a
+        // storage array's `push`. Copies into storage are element-wise, so the element types only
+        // have to be convertible.
+        if matches!(actual.kind, TyKind::Ref(..))
+            && !matches!(expected.kind, TyKind::Ref(..))
+            && actual.can_copy_to_storage_value(expected, self.gcx)
+        {
+            return Ok(());
+        }
 
         if let TyKind::Tuple([ty]) = expected.kind
             && matches!(ty.kind, TyKind::Variadic)
