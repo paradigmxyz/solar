@@ -60,8 +60,16 @@ async function dataRoot() {
   return activeRoot
 }
 
+async function resolveCommit(commit: string) {
+  if (commit.length === 40) return commit
+  const prefix = commit.toLowerCase()
+  const matches = (await loadIndex()).runs.filter((run) => run.commit.startsWith(prefix))
+  return matches.length === 1 ? matches[0].commit : commit
+}
+
 export async function loadRun(commit: string) {
-  return getJson<RunDocument>(await dataRoot(), `runs/${encodeURIComponent(commit)}/run.json`)
+  const resolved = await resolveCommit(commit)
+  return getJson<RunDocument>(await dataRoot(), `runs/${encodeURIComponent(resolved)}/run.json`)
 }
 
 export async function loadArtifact(
@@ -70,7 +78,8 @@ export async function loadArtifact(
   compiler: string,
   storagePath: string,
 ): Promise<string | null> {
-  const parts = [commit, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
+  const resolved = await resolveCommit(commit)
+  const parts = [resolved, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
   const root = await dataRoot()
   const roots = fallbackRoots(root)
   for (const candidate of roots) {
