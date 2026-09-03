@@ -19,6 +19,15 @@ contract C {
         uint256[] memory s = data[start:end];
     }
 
+    // A slice mobilizes to its memory array type, so it is a valid inline array element.
+    function inlineArrayElement(uint256[] calldata data, uint256 start, uint256 end)
+        external
+        pure
+    {
+        uint256[][1] memory s = [data[start:end]];
+        s;
+    }
+
     function accessSlice(uint256[] calldata data) external pure {
         data[1:2][0];
         data[1:][0];
