@@ -832,6 +832,7 @@ impl GlobalState {
 
                 commit.cache_invalidated = true;
                 commit.discovery_pending = false;
+                commit.workspace_roots_before_change = None;
                 commit.analysis_paths = AnalysisPathIndex::default();
                 commit.deferred_source_file_events.clear();
                 commit.symbol_tables_version = version;

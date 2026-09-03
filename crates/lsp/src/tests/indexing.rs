@@ -775,6 +775,57 @@ async fn synchronous_workspace_folder_loader_failure_rolls_back_roots() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn clearing_cache_discards_workspace_root_rollback_checkpoint() {
+    let (project, config) = workspace_folder_failure_fixture();
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(config);
+
+    let old_root = project.path("/a");
+    let new_root = project.path("/b");
+    let previous_roots = state.config.workspace_roots().to_vec();
+    {
+        let config = Arc::make_mut(&mut state.config);
+        config.remove_workspace(&old_root);
+        config.add_workspaces([new_root.clone()]);
+    }
+    state.record_workspace_root_change(previous_roots);
+    let _ = state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    assert_eq!(
+        state.analysis_commit.lock().workspace_roots_before_change.as_deref(),
+        Some(std::slice::from_ref(&old_root))
+    );
+
+    state.clear_analysis_cache();
+    assert!(state.analysis_commit.lock().workspace_roots_before_change.is_none());
+    assert_eq!(state.config.workspace_roots(), std::slice::from_ref(&new_root));
+
+    let (version, progress) = state
+        .begin_analysis(AnalysisMode::Rediscover, Vec::new(), Vec::new(), AnalysisTrigger::External)
+        .unwrap();
+    let cancellation = IndexingCancellation::default();
+    let Err(error) = state.config.try_discover_workspaces(&cancellation) else {
+        panic!("host loader should fail workspace discovery")
+    };
+    assert!(
+        state
+            .on_workspace_discovery_failed(WorkspaceDiscoveryFailed {
+                version,
+                error: error.to_string(),
+                progress,
+            })
+            .is_continue()
+    );
+
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis())
+        .await
+        .expect("failed discovery should publish its terminal version")
+        .unwrap();
+    assert_eq!(state.config.workspace_roots(), [new_root]);
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn background_workspace_folder_loader_failure_rolls_back_roots() {
     struct WorkspaceStateProbe {
         old_root: PathBuf,
