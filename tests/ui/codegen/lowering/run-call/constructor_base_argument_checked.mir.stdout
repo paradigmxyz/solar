@@ -157,6 +157,120 @@ fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
     ret v0
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgSub ===
+@module CheckedBaseArgSub
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    v0 = sub arg0, 1
+    v1 = lt arg0, 1
+    jumpi v1, bb1, bb2
+  bb2:
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    jump bb4
+  bb4:
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgExp ===
+@module CheckedBaseArgExp
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 1], [bb6: v12]
+    v1 = phi [bb0: arg0], [bb6: v14]
+    v2 = phi [bb0: 2], [bb6: v13]
+    v3 = gt v2, 0
+    jumpi v3, bb2, bb3
+  bb3:
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb7
+  bb7:
+    jump bb8
+  bb8:
+    stop
+  bb2:
+    v4 = and v2, 1
+    v5 = mul v0, v1
+    v6 = iszero v1
+    v7 = div v5, v1
+    v8 = eq v7, v0
+    v9 = or v6, v8
+    v10 = iszero v9
+    v11 = and v4, v10
+    jumpi v11, bb4, bb5
+  bb5:
+    v12 = select v4, v5, v0
+    v13 = shr 1, v2
+    v14 = mul v1, v1
+    v15 = iszero v1
+    v16 = div v14, v1
+    v17 = eq v16, v1
+    v18 = or v15, v17
+    v19 = iszero v18
+    v20 = gt v13, 0
+    v21 = and v20, v19
+    jumpi v21, bb4, bb6
+  bb6:
+    jump bb1
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgShift ===
+@module CheckedBaseArgShift
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    v0 = shl 1, arg0
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    stop
+}
+
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgElement ===
 @module CheckedBaseArgElement
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
@@ -218,6 +332,9 @@ data:
   CheckedBaseArgMul_initcode_1: hex"61011638038061011660e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460b85760e060e0610116380301602082019150811190501560b45760b0565b600260e051028060c0528060c0526002156002820460e051901481179050151560a6577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b8060c0525f5560bc565b5f5ffd5b6056565b5f5ffd5b60508060c65f395ff3346028575f3560e01c80630c55699c1460205780635fdf05d7146024576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b60026080526020608001608090036080f3"
   CheckedBaseArgNegate_initcode_2: hex"60fa38038060fa60c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460bc5760c060c060fa380301602082019150811190501560b85760b4565b7f800000000000000000000000000000000000000000000000000000000000000060c051141560a9577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b60c0515f035f5560c0565b5f5ffd5b6053565b5f5ffd5b60308060ca5f395ff334601a575f3560e01c8063a56dfe4a14601657601a565b601e565b5f5ffd5b5f546080526020608001608090036080f3"
   CheckedBaseArgElement_initcode_3: hex"6101ca3803806101ca60e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c1565b6040518060a051606001528060a0516060015260408101604052604036828060a051606001523760025f1015156098575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8060a0516060015260058152600260011015606b576020810160068152508060a0516040015250565b3461016b5760e060e06101ca380301602082019150811190501561016757610163565b60405160a05181602001528060a05260800160405260ff603a565b60a051604001518060c05260a0516020015160a0528060c052600260e051101515610151577f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b602060e0510281019050515f5561016f565b5f5ffd5b60e4565b5f5ffd5b60508061017a5f395ff3346028575f3560e01c80630c55699c1460205780635fdf05d7146024576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b60026080526020608001608090036080f3"
+  CheckedBaseArgSub_initcode_4: hex"61010b38038061010b60e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460ad5760e060e061010b380301602082019150811190501560a95760a5565b600160e051038060c0528060c052600160e0511015609b577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b8060c0525f5560b1565b5f5ffd5b6056565b5f5ffd5b60508060bb5f395ff3346028575f3560e01c80630c55699c1460205780635fdf05d7146024576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b60026080526020608001608090036080f3"
+  CheckedBaseArgExp_initcode_5: hex"6101e03803806101e06101c0396101c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405234610181576101c06101c06101e0380301602082019150811190501561017d57610179565b60016101c0516002915b82610100525f83111560c257826101005260018316806101205280610120528160c0528260e052828060e052820280610140528061014052838060e05215848060e0528204848060c0529014811790501582161560fc5760cf565b8060c0525f555050610185565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b82818382820302905001806101605292505050806101605282806101005260011c806101805292508261018052818060e0528002806101a052806101a052828060e05215838060e0528204848060e052901493508390179250821592505f841183901692505050905060cf57610160516101a05161018051916067565b5f5ffd5b605d565b5f5ffd5b6050806101905f395ff3346028575f3560e01c80630c55699c1460205780635fdf05d7146024576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b60026080526020608001608090036080f3"
+  CheckedBaseArgShift_initcode_6: hex"60c538038060c560c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460675760c060c060c53803016020820191508111905015606357605f565b60c05160011b5f55606b565b5f5ffd5b6053565b5f5ffd5b60508060755f395ff3346028575f3560e01c80630c55699c1460205780635fdf05d7146024576028565b602c565b603e565b5f5ffd5b5f546080526020608001608090036080f35b60026080526020608001608090036080f3"
 
 fn @deployAdd(arg0: u256) -> u256 [selector=0xec1495a8, abi_params=[u256], abi_returns=[word]] {
   bb0:
@@ -341,6 +458,117 @@ fn @deployElement(arg0: u256) -> u256 [selector=0x178d3c81, abi_params=[u256], a
     v5 = add v3, 458
     mcopy v5, v4, 32 !metadata(memory=heap)
     v6 = create 0, v3, 490
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, 0, 32
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = lt v12, 32
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = add 0, 0
+    v17 = mload v16
+    ret v17
+  bb5:
+    revert 0, 0
+}
+
+fn @deploySub(arg0: u256) -> u256 [selector=0xd5c4b324, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], args arg0
+    v1 = not 31
+    v2 = and 330, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CheckedBaseArgSub_initcode_4, v3, 267
+    v4 = slice_ptr v0
+    v5 = add v3, 267
+    mcopy v5, v4, 32 !metadata(memory=heap)
+    v6 = create 0, v3, 299
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, 0, 32
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = lt v12, 32
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = add 0, 0
+    v17 = mload v16
+    ret v17
+  bb5:
+    revert 0, 0
+}
+
+fn @deployExp(arg0: u256) -> u256 [selector=0x2744a5b3, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], args arg0
+    v1 = not 31
+    v2 = and 543, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CheckedBaseArgExp_initcode_5, v3, 480
+    v4 = slice_ptr v0
+    v5 = add v3, 480
+    mcopy v5, v4, 32 !metadata(memory=heap)
+    v6 = create 0, v3, 512
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xc55699c00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, 0, 32
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = lt v12, 32
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = add 0, 0
+    v17 = mload v16
+    ret v17
+  bb5:
+    revert 0, 0
+}
+
+fn @deployShift(arg0: u256) -> u256 [selector=0xca2ccfdb, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], args arg0
+    v1 = not 31
+    v2 = and 260, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CheckedBaseArgShift_initcode_6, v3, 197
+    v4 = slice_ptr v0
+    v5 = add v3, 197
+    mcopy v5, v4, 32 !metadata(memory=heap)
+    v6 = create 0, v3, 229
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
