@@ -2731,24 +2731,40 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 if let Some(modifier) = modifier
                     && !modifier.args.is_dummy()
                 {
-                    let arg_count = modifier.args.exprs().len();
+                    let arg_count = modifier.args.len();
                     if arg_count != ctor_param_types.len() {
                         self.dcx().emit_err(modifier.span, format!(
                             "wrong number of arguments for base constructor: expected {}, found {}",
                             ctor_param_types.len(),
                             arg_count
                         ));
+                    } else if let hir::CallArgsKind::Named(named_args) = modifier.args.kind {
+                        // Named arguments bind by parameter name, the way codegen
+                        // binds them; pairing them positionally checks them against
+                        // the wrong parameter type.
+                        self.with_construction_context(|this| {
+                            let _ = this.check_named_call_args(
+                                modifier.span,
+                                modifier.args.span,
+                                named_args,
+                                ctor_param_types,
+                                Some(CallableParamSource::Function {
+                                    id: ctor_id,
+                                    skips_receiver: false,
+                                }),
+                            );
+                        });
                     } else {
-                        for (arg_expr, expected_arg_ty) in
-                            modifier.args.exprs().zip(ctor_param_types.iter())
+                        for (arg_expr, &expected_arg_ty) in
+                            modifier.args.exprs().zip(ctor_param_types)
                         {
                             // Register the argument's own type, not just the types
                             // of its subexpressions: codegen reads it to select
                             // checked arithmetic and other type-directed lowering.
                             let actual_arg_ty = self.with_construction_context(|this| {
-                                this.check_expr_with_noexpect(arg_expr, Some(*expected_arg_ty))
+                                this.check_expr_with_noexpect(arg_expr, Some(expected_arg_ty))
                             });
-                            let _ = self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
+                            let _ = self.check_expected(arg_expr, actual_arg_ty, expected_arg_ty);
                         }
                     }
                 }

@@ -22,5 +22,23 @@ error: mismatched types
 LL │ contract Derived6 is Base { constructor() Base("a", 1) {} }
    ╰╴                                               ━━━ expected `uint256`, found `utf8_string_literal[1]`
 
-error: aborting due to 4 previous errors
+error: named argument `nope` does not match function declaration
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Named3 is NamedBase({nope: 1, b: 2}) { }
+   ╰╴                              ━━━━
+
+error: duplicate named argument `a`
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Named4 is NamedBase({a: 1, a: 2}) { }
+   ╰╴                                    ━
+
+error: wrong number of arguments for base constructor: expected 2, found 1
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Named5 is NamedBase({a: 1}) { }
+   ╰╴                   ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
 
