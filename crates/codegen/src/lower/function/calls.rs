@@ -135,7 +135,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 // for i in 0..length { object[i] = default(element) }
                 self.counted_loop(len, |this, index| {
-                    let value = this.default_object(element)?;
+                    let value = this.default_binding_value(element);
                     this.builder.memory_object_store_element(object, layout, index, value);
                     Some(())
                 })?;

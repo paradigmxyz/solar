@@ -102,3 +102,25 @@ fn @writeStructs() -> u256 [selector=0xa4c02825, pure, abi_params=[], abi_return
     v4 = add v1, 1
     jump bb1
 }
+
+fn @sharedBytesDefault() -> bool [selector=0x8e773052, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v1, 2
+    jumpi v2, bb2, bb3
+  bb3:
+    v4 = add v0, 64
+    v5 = mload v4
+    v6 = add v0, 32
+    v7 = mload v6
+    v8 = eq v7, v5
+    ret v8
+  bb2:
+    memory_object_store_element memoryarray<1>, v0, v1, 96
+    v3 = add v1, 1
+    jump bb1
+}
