@@ -170,9 +170,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(modifier.span, "base constructor arguments");
         }
         let saved_parameters = self.snapshot_bindings(constructor.parameters);
-        for (&parameter, value) in constructor.parameters.iter().zip(values) {
-            self.values.insert(parameter, value);
-        }
+        self.bind_constructor_parameters(constructor.parameters, &values);
 
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();

@@ -111,23 +111,55 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 |this, index, argument| {
                     let parameter_ty =
                         this.cx.gcx.type_of_item(constructor.parameters[index].into());
+                    // A storage-reference argument passes the referenced slot,
+                    // like a storage parameter of an internal call.
+                    if Self::is_storage_parameter(parameter_ty) {
+                        let Some(access) = this.storage_access(argument) else {
+                            return this.cx.report_unsupported(argument.span, "storage access");
+                        };
+                        return Some(access.slot);
+                    }
                     this.lower_typed_expr(argument, parameter_ty)
                 },
             )?;
-            for (&parameter, &value) in constructor.parameters.iter().zip(&values) {
-                let previous = self.values.insert(parameter, value);
-                saved_parameters.push((parameter, previous));
-            }
+            // Later bases may name an earlier base's parameters in their own
+            // argument list, so bind them until every list is lowered.
+            saved_parameters.push(self.snapshot_bindings(constructor.parameters));
+            self.bind_constructor_parameters(constructor.parameters, &values);
             self.constructor_arguments.insert(constructor_id, values);
         }
-        for (parameter, previous) in saved_parameters.into_iter().rev() {
-            if let Some(value) = previous {
-                self.values.insert(parameter, value);
-            } else {
-                self.values.remove(&parameter);
-            }
+        for snapshot in saved_parameters.into_iter().rev() {
+            self.restore_bindings(&snapshot);
         }
         Some(())
+    }
+
+    /// Binds an inlined constructor's parameters to already lowered arguments.
+    ///
+    /// A storage-reference parameter is a slot number, so it binds as a
+    /// storage reference like a lowered function's own parameter does.
+    pub(super) fn bind_constructor_parameters(
+        &mut self,
+        parameters: &[VariableId],
+        values: &[ValueId],
+    ) {
+        for (&parameter, &value) in parameters.iter().zip(values) {
+            let ty = self.cx.gcx.type_of_item(parameter.into());
+            if Self::is_storage_parameter(ty) {
+                self.values.remove(&parameter);
+                self.storage_refs.insert(
+                    parameter,
+                    StorageAccess {
+                        slot: value,
+                        location: StorageLocation::word(U256::ZERO),
+                        offset: None,
+                    },
+                );
+            } else {
+                self.storage_refs.remove(&parameter);
+                self.values.insert(parameter, value);
+            }
+        }
     }
 
     pub(super) fn lower_implicit_base_constructors_inner(
