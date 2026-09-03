@@ -73,8 +73,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/library_declaration_checks.sol`; fixed in `96551139a`)
 - [x] 23. Checked arithmetic in a base-constructor argument is lowered unchecked
       (`symbolic-audit/base_constructor_arg_overflow.sol`; fixed in `fadddd133`, hardened in `9c9bfbcc0`)
-- [ ] 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
-      (`symbolic-audit/base_constructor_storage_arg.sol`)
+- [x] 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
+      (`symbolic-audit/base_constructor_storage_arg.sol`; fixed in `5967d1929`)
 - [ ] 25. Five valid programs from the solc semantic tests are rejected by the type checker
       (see the item; the repros are the upstream test files)
 - [ ] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
@@ -885,6 +885,20 @@ path that emits `invalid` at runtime without a diagnostic (the same class as
 finding 8), and the array case is now rejected at compile time.
 
 Severity: miscompile (silent `INVALID` on valid code) plus a support gap.
+
+Cause and fix (`5967d1929`): the inlined base constructor bound every
+parameter as a plain value, while a function's own storage parameters are
+bound as storage references, so the base body could not resolve `s` or `m`
+as storage and the whole function lowering bailed. For `C` the bail was
+silent and the contract lowering substituted an `invalid` body; for `D` the
+`push` path reported. The argument side also loaded storage arguments as
+values (a memory copy for `uint256[] storage` and `bytes storage`) instead
+of passing the slot. Both now go through the path internal calls and
+modifier arguments use. The contract lowering also no longer replaces a
+failed function with `invalid` unless a diagnostic was emitted, closing the
+silent-`INVALID` class of finding 8 for good. Re-verified on `5967d1929`
+with the stateful harness: `C` and `D` deploy and `getM(1, 5)` returns 16
+on both compilers.
 
 ### 25. Five valid programs from the solc semantic tests are rejected by the type checker
 
