@@ -3,8 +3,5 @@
   "name": "solar-web",
   "main": "src/worker.ts",
   "compatibility_date": "2026-09-02",
-  "vars": {
-    "GITHUB_REPOSITORY": "paradigmxyz/solar",
-    "WEB_DATA_REF": "gh-pages"
-  }
+  "vars": {}
 }

@@ -357,6 +357,42 @@ button:disabled {
   color: var(--muted);
   font-size: 13px;
 }
+.access-page {
+  max-width: 520px;
+}
+.access-page h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+.access-page > p:not(.eyebrow) {
+  max-width: 470px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.github-access {
+  display: flex;
+  gap: 8px;
+  margin-top: 22px;
+}
+.github-access label {
+  flex: 1;
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.github-access input {
+  width: 100%;
+}
+.github-access button {
+  align-self: end;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-text);
+  font-weight: 600;
+}
 footer {
   padding: 28px 0 42px;
   color: var(--muted);

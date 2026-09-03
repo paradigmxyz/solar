@@ -1,25 +1,21 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 
-import { isPublishedDataPath, publishedDataUrl } from './server/githubData'
-
 interface Env {
   CLICKHOUSE_DATABASE?: string
   CLICKHOUSE_PASSWORD?: string
   CLICKHOUSE_HOST?: string
   CLICKHOUSE_USER?: string
-  GITHUB_REPOSITORY?: string
-  GITHUB_TOKEN?: string
-  WEB_DATA_REF?: string
 }
 
 const app = new Hono<{ Bindings: Env }>()
 
 const commit = /^[0-9a-f]{40}$/
 const component = /^[\w.-]+$/
+const artifactPath = /^\d+\.json$/
 
-function clickhouseConfigured(env: Env) {
-  return Boolean(env.CLICKHOUSE_HOST)
+function clickhouseConfigured(env?: Env) {
+  return Boolean(env?.CLICKHOUSE_HOST)
 }
 
 async function clickhouse(env: Env, query: string) {
@@ -159,69 +155,52 @@ app.use(
 
 app.get('/api/health', (context) =>
   context.json({
-    source: clickhouseConfigured(context.env) ? 'clickhouse' : 'github',
-    repository: context.env.GITHUB_REPOSITORY || 'paradigmxyz/solar',
-    ref: context.env.WEB_DATA_REF || 'gh-pages',
+    source: clickhouseConfigured(context.env) ? 'clickhouse' : 'unconfigured',
   }),
 )
 
 app.get('/api/data/*', async (context) => {
   const path = context.req.path.slice('/api/data/'.length)
-  if (!isPublishedDataPath(path)) return context.json({ error: 'Unknown data file' }, 404)
+  if (
+    path !== 'index.json' &&
+    !/^runs\/[0-9a-f]{40}(?:\/run\.json|\/[\w.-]+\/(?:solar|solc)\/\d+\.json)$/.test(path)
+  )
+    return context.json({ error: 'Unknown data file' }, 404)
 
-  if (clickhouseConfigured(context.env)) {
-    try {
-      if (path === 'index.json') return context.json(await indexFromClickHouse(context.env))
-      const [sha, benchmark, compiler, storagePath] = path.replace(/^runs\//, '').split('/')
-      if (!commit.test(sha)) return context.json({ error: 'Unknown data file' }, 404)
-      if (path.endsWith('/run.json')) {
-        const run = await runFromClickHouse(context.env, sha)
-        return run ? context.json(run) : context.json({ error: 'Run not found' }, 404)
-      }
-      if (
-        !component.test(benchmark) ||
-        !component.test(compiler) ||
-        !/^\d+\.json$/.test(storagePath)
-      )
-        return context.json({ error: 'Unknown data file' }, 404)
-      const [run] = await clickhouse(
-        context.env,
-        `SELECT workflow_run_id FROM runs FINAL WHERE commit = '${sha}' ORDER BY imported_at DESC LIMIT 1`,
-      )
-      if (!run) return context.json({ error: 'Run not found' }, 404)
-      const [artifact] = await clickhouse(
-        context.env,
-        `SELECT content FROM artifact_files FINAL
-         WHERE workflow_run_id = ${Number(run.workflow_run_id)}
-           AND test_id = '${benchmark}' AND compiler = '${compiler}' AND storage_path = '${storagePath}'
-         ORDER BY imported_at DESC LIMIT 1`,
-      )
-      return artifact
-        ? new Response(JSON.stringify(artifact.content), {
-            headers: { 'content-type': 'application/json' },
-          })
-        : context.json({ error: 'Artifact not found' }, 404)
-    } catch (error) {
-      console.error(error)
-      return context.json({ error: 'Benchmark data is unavailable' }, 503)
+  if (!clickhouseConfigured(context.env))
+    return context.json({ error: 'Benchmark data service is unavailable' }, 503)
+
+  try {
+    if (path === 'index.json') return context.json(await indexFromClickHouse(context.env))
+    const [sha, benchmark, compiler, storagePath] = path.replace(/^runs\//, '').split('/')
+    if (!commit.test(sha)) return context.json({ error: 'Unknown data file' }, 404)
+    if (path.endsWith('/run.json')) {
+      const run = await runFromClickHouse(context.env, sha)
+      return run ? context.json(run) : context.json({ error: 'Run not found' }, 404)
     }
+    if (!component.test(benchmark) || !component.test(compiler) || !artifactPath.test(storagePath))
+      return context.json({ error: 'Unknown data file' }, 404)
+    const [run] = await clickhouse(
+      context.env,
+      `SELECT workflow_run_id FROM runs FINAL WHERE commit = '${sha}' ORDER BY imported_at DESC LIMIT 1`,
+    )
+    if (!run) return context.json({ error: 'Run not found' }, 404)
+    const [artifact] = await clickhouse(
+      context.env,
+      `SELECT content FROM artifact_files FINAL
+       WHERE workflow_run_id = ${Number(run.workflow_run_id)}
+         AND test_id = '${benchmark}' AND compiler = '${compiler}' AND storage_path = '${storagePath}'
+       ORDER BY imported_at DESC LIMIT 1`,
+    )
+    return artifact
+      ? new Response(JSON.stringify(artifact.content), {
+          headers: { 'content-type': 'application/json' },
+        })
+      : context.json({ error: 'Artifact not found' }, 404)
+  } catch (error) {
+    console.error(error)
+    return context.json({ error: 'Benchmark data is unavailable' }, 503)
   }
-
-  const repository = context.env.GITHUB_REPOSITORY || 'paradigmxyz/solar'
-  const ref = context.env.WEB_DATA_REF || 'gh-pages'
-  const headers = new Headers({ accept: 'application/json' })
-  if (context.env.GITHUB_TOKEN) headers.set('authorization', `Bearer ${context.env.GITHUB_TOKEN}`)
-
-  const response = await fetch(publishedDataUrl(repository, ref, path), { headers })
-  if (!response.ok)
-    return Response.json({ error: 'Published data is unavailable' }, { status: response.status })
-
-  return new Response(response.body, {
-    headers: {
-      'cache-control': path === 'index.json' ? 'public, max-age=60' : 'public, max-age=3600',
-      'content-type': 'application/json; charset=utf-8',
-    },
-  })
 })
 
 app.notFound((context) => context.json({ error: 'Not found' }, 404))

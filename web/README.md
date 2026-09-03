@@ -1,18 +1,12 @@
 # Solar web
 
 This standalone Vite app publishes a benchmark viewer to GitHub Pages. PR benchmark comments link
-straight to a comparison. The static site loads the two run documents and artifact files from its
-own `data/` directory; it does not need ClickHouse or a Worker.
+straight to a comparison. The browser finds the matching GitHub Actions runs, downloads their
+benchmark artifacts, and keeps the downloaded ZIPs only in the browser cache.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm dev
-```
-
-To test the static path against local published data without the Worker, run:
-
-```bash
-VITE_WEB_DATA_URL=/solar/data pnpm dev
 ```
 
 Open a comparison URL with full commit SHAs, for example:
@@ -20,6 +14,9 @@ Open a comparison URL with full commit SHAs, for example:
 ```text
 http://127.0.0.1:5173/solar/?base=<base-sha>&head=<head-sha>&benchmark=<benchmark>
 ```
+
+GitHub requires an access token with Actions read access to download artifact ZIPs. The site stores
+the token only in browser storage; it never sends it to a Solar service.
 
 Run `pnpm check`, `pnpm test`, and `pnpm build` before changing the site.
 
@@ -34,8 +31,7 @@ VITE_WEB_API_URL=http://127.0.0.1:8787 pnpm dev
 ```
 
 Set the following Worker secrets with Wrangler: `CLICKHOUSE_HOST`, `CLICKHOUSE_USER`, and
-`CLICKHOUSE_PASSWORD`. `CLICKHOUSE_DATABASE` defaults to `solar_perf`. `GITHUB_TOKEN`,
-`GITHUB_REPOSITORY`, and `WEB_DATA_REF` only configure the static fallback.
+`CLICKHOUSE_PASSWORD`. `CLICKHOUSE_DATABASE` defaults to `solar_perf`.
 
 ## ClickHouse ingestion
 
@@ -77,20 +73,3 @@ VITE_WEB_API_URL=http://127.0.0.1:8787 pnpm dev
 ```
 
 Stop the database with `docker compose down`. Add `-v` only when you want to discard local data.
-
-`web-pages.yml` imports each completed Benchmark workflow into the Pages data directory, retains
-the latest 200 runs, and deploys the static viewer. It does not use `WEB_API_URL`.
-
-Import a local benchmark run before starting the site:
-
-```bash
-node scripts/import-run.mjs \
-  --results ../target/codegen-bench/results.json \
-  --artifacts ../target/codegen-bench/artifacts \
-  --output public/data \
-  --commit "$(git rev-parse HEAD)" \
-  --branch "$(git branch --show-current)"
-```
-
-Do not commit imported run data. CI keeps it on the `gh-pages` branch and deploys that branch with
-GitHub Pages.

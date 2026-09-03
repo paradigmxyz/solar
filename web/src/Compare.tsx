@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { BenchmarkHistory } from './BenchmarkHistory'
 import { changeClass, formatChange } from './change'
 import { loadRun } from './data'
+import { GitHubAccess } from './GitHubAccess'
+import { GitHubTokenRequired } from './githubActions'
 import { benchmarkSource } from './sources'
 import type { BenchmarkResult, RunDocument, Theme } from './types'
 
@@ -55,6 +57,8 @@ export function Compare({ base, head }: Props) {
   const initialMetric = initial.get('metric')
   const [runs, setRuns] = useState<[RunDocument, RunDocument] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [needsGitHubAccess, setNeedsGitHubAccess] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [query, setQuery] = useState('')
   const [metric, setMetric] = useState(
     initialMetric && initialMetric in metrics ? initialMetric : 'runtimeGas',
@@ -64,10 +68,12 @@ export function Compare({ base, head }: Props) {
   useEffect(() => {
     setRuns(null)
     setLoadError(null)
-    Promise.all([loadRun(base), loadRun(head)]).then(setRuns, () => {
-      setLoadError('These benchmark runs are not published yet.')
+    setNeedsGitHubAccess(false)
+    Promise.all([loadRun(base), loadRun(head)]).then(setRuns, (error: unknown) => {
+      if (error instanceof GitHubTokenRequired) setNeedsGitHubAccess(true)
+      else setLoadError(error instanceof Error ? error.message : 'Could not load benchmark runs')
     })
-  }, [base, head])
+  }, [attempt, base, head])
 
   const rows = useMemo(() => {
     if (!runs) return []
@@ -90,6 +96,7 @@ export function Compare({ base, head }: Props) {
     history.replaceState(null, '', url)
   }
 
+  if (needsGitHubAccess) return <GitHubAccess onSave={() => setAttempt((value) => value + 1)} />
   if (loadError)
     return (
       <main className="compare-page">
