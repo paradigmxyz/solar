@@ -5,6 +5,7 @@
 
 use crate::{
     analysis::{CallGraphInfo, LoopAnalyzer},
+    backend::evm::{op, select},
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
@@ -788,6 +789,14 @@ struct MirCost {
 }
 
 fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
+    // An operation with one opcode costs what the target schedule says; the arms below
+    // estimate the code the memory, ABI, and storage lowerings expand the others into.
+    if select::opcode_lowering(&kind.op()).is_some()
+        && !matches!(kind, InstKind::InternalCall { .. } | InstKind::LoadImmutable(_))
+    {
+        let cost = Target::new(gcx).op(&kind.op(), |_| None);
+        return (MirCost { runtime_gas: u64::from(cost.gas), code_size: cost.bytes as usize }, 1);
+    }
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
@@ -840,65 +849,10 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
             let slots = layout.storage_slots();
             (slots * 5_000, slots as usize * 2)
         }
-        InstKind::Add(..)
-        | InstKind::Sub(..)
-        | InstKind::Lt(..)
-        | InstKind::Gt(..)
-        | InstKind::SLt(..)
-        | InstKind::SGt(..)
-        | InstKind::Eq(..)
-        | InstKind::IsZero(..)
-        | InstKind::And(..)
-        | InstKind::Or(..)
-        | InstKind::Xor(..)
-        | InstKind::Not(..)
-        | InstKind::Byte(..)
-        | InstKind::Shl(..)
-        | InstKind::Shr(..)
-        | InstKind::Sar(..)
-        | InstKind::SignExtend(..)
-        | InstKind::MLoad(..)
-        | InstKind::FrameLoad { .. }
-        | InstKind::MStore(..)
-        | InstKind::FrameStore { .. }
-        | InstKind::MStore8(..)
-        | InstKind::CalldataLoad(..)
-        | InstKind::CalldataSize
-        | InstKind::Caller
-        | InstKind::CallValue
-        | InstKind::Origin
-        | InstKind::GasPrice
-        | InstKind::Coinbase
-        | InstKind::Timestamp
-        | InstKind::BlockNumber
-        | InstKind::PrevRandao
-        | InstKind::GasLimit
-        | InstKind::SlotNum
-        | InstKind::ChainId
-        | InstKind::Address
-        | InstKind::SelfBalance
-        | InstKind::Gas
-        | InstKind::BaseFee
-        | InstKind::BlobBaseFee => (3, 1),
-        InstKind::Clz(..)
-        | InstKind::Mul(..)
-        | InstKind::Div(..)
-        | InstKind::SDiv(..)
-        | InstKind::Mod(..)
-        | InstKind::SMod(..) => (5, 1),
-        InstKind::Exp(..) => (50, 1),
-        InstKind::AddMod(..) | InstKind::MulMod(..) => (8, 1),
-        InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
-        InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
+        InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => (3, 1),
         InstKind::StoreImmutable(..) => (6, 4),
-        InstKind::DataCopy(..)
-        | InstKind::MCopy(..)
-        | InstKind::CalldataCopy(..)
-        | InstKind::CodeCopy(..)
-        | InstKind::ExtCodeCopy(..)
-        | InstKind::ReturnDataCopy(..) => (12, 1),
+        InstKind::DataCopy(..) => (12, 1),
         InstKind::MemoryZero(..) => (15, 2),
-        InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::ConstructorArgsBase => (3, 3),
         InstKind::ConstructorArgsEnd => (9, 8),
         InstKind::InternalFrameAddr(_) => (6, 3),
@@ -922,12 +876,6 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
                 }
             }
         }
-        InstKind::ExtCodeSize(..)
-        | InstKind::ExtCodeHash(..)
-        | InstKind::Balance(..)
-        | InstKind::BlockHash(..)
-        | InstKind::BlobHash(..)
-        | InstKind::Keccak256(..) => (30, 1),
         // Expands to length load + data pointer + physical keccak.
         InstKind::Keccak256Bytes(_) => (36, 5),
         InstKind::MappingSlot(..) => (36, 3),
@@ -937,24 +885,25 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::StorageArrayElementSlot { element_slots, .. } => {
             (36 + u64::from(*element_slots > 1) * 5, 4)
         }
+        // External calls lower to a sequence around the call opcode; the call itself
+        // dominates, at the schedule's cold price.
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
         | InstKind::DelegateCall { .. }
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
-        | InstKind::ExtStaticCall { .. } => (700, 1),
+        | InstKind::ExtStaticCall { .. } => (u64::from(Target::new(gcx).opcode_gas(op::CALL)), 1),
         InstKind::InternalCall { args, returns, .. } => {
             let returns = *returns as usize;
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
         }
-        InstKind::Create(..) | InstKind::Create2(..) => (32_000, 1),
-        InstKind::Log0(..) => (375, 1),
-        InstKind::Log1(..) => (750, 1),
-        InstKind::Log2(..) => (1_125, 1),
-        InstKind::Log3(..) => (1_500, 1),
-        InstKind::Log4(..) => (1_875, 1),
         InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
+        // Every other operation lowers to one opcode and was priced above.
+        _ => {
+            debug_assert!(false, "operation without a single opcode is not priced: {kind}");
+            (3, 1)
+        }
     };
     let instructions = match kind {
         InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
