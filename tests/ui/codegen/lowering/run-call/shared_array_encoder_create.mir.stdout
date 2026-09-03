@@ -1,0 +1,373 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/shared_array_encoder_create.sol:Child ===
+@module Child
+fn @xs(arg0: u256) -> address [selector=0x6ee65772, view, abi_params=[u256], abi_returns=[word<u160>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    jumpi v1, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v2 = storage_array_data_slot 0
+    v3 = div arg0, 1
+    v4 = add v2, v3
+    v5 = mod arg0, 1
+    v6 = mul v5, 20
+    v7 = sload v4 !metadata(storage=symbolic(v4))
+    v8 = mul v6, 8
+    v9 = shr v8, v7
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v10
+}
+
+fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, address>]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, v0
+    jumpi v2, bb1, bb2
+  bb1:
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v0], [bb4: v18]
+    v4 = lt v3, v1
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb6
+  bb6:
+    v19 = phi [bb2: 0], [bb7: v35]
+    v20 = lt v19, v0
+    jumpi v20, bb7, bb8
+  bb8:
+    stop
+  bb7:
+    v21 = memory_object_load_element memoryarray<1>, arg0, v19
+    v22 = storage_array_data_slot 0
+    v23 = div v19, 1
+    v24 = add v22, v23
+    v25 = mod v19, 1
+    v26 = mul v25, 20
+    v27 = mul v26, 8
+    v28 = shl v27, 0xffffffffffffffffffffffffffffffffffffffff
+    v29 = sload v24 !metadata(storage=symbolic(v24))
+    v30 = not v28
+    v31 = and v29, v30
+    v32 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
+    v33 = shl v27, v32
+    v34 = or v31, v33
+    sstore v24, v34 !metadata(storage=symbolic(v24))
+    v35 = add v19, 1
+    jump bb6
+  bb4:
+    v5 = storage_array_data_slot 0
+    v6 = div v3, 1
+    v7 = add v5, v6
+    v8 = mod v3, 1
+    v9 = mul v8, 20
+    v10 = mul v9, 8
+    v11 = shl v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = sload v7 !metadata(storage=symbolic(v7))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = and 0, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = shl v10, v15
+    v17 = or v14, v16
+    sstore v7, v17 !metadata(storage=symbolic(v7))
+    v18 = add v3, 1
+    jump bb3
+}
+
+fn @get(arg0: u256) -> address [selector=0x9507d39a, view, abi_params=[u256], abi_returns=[word<u160>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = div arg0, 1
+    v5 = add v3, v4
+    v6 = mod arg0, 1
+    v7 = mul v6, 20
+    v8 = sload v5 !metadata(storage=symbolic(v5))
+    v9 = mul v7, 8
+    v10 = shr v9, v8
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v11
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @len() -> u256 [selector=0x56d88e27, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/shared_array_encoder_create.sol:C ===
+@module C
+data:
+  Child_initcode_0: hex"6105803803806105806103a0396103a001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016604052346103ae576103a0806101805280610180526103a0610580380301806101a052806101a0526020820181806101a0529011156101d0576101cc565b610260518061026052518060c0528060c0525f548060e0528060e052818060c0528111905090501560a95760e05160c0519060b8565b60c0518060c0525f555f610136565b81610100528060e052811015610131575f5f5260205f206001828061010052048101905060018206601490026008900273ffffffffffffffffffffffffffffffffffffffff811b8254811991501673ffffffffffffffffffffffffffffffffffffffff5f16821b915017905560018101905060e05160b8565b5060a9565b806101405260c0518060c0528110156101c7576020610260510160208280610140520281019050515f5f5260205f20600183048101905060018306601490026008900273ffffffffffffffffffffffffffffffffffffffff811b8254811991501673ffffffffffffffffffffffffffffffffffffffff8416935083821b915092508217915055600181019050610136565b610422565b5f5ffd5b5f828061018052015180610380528201806101c0529150816101c0526020820167ffffffffffffffff6103805111826101a05282806101a052821191501715610218575b5f5ffd5b81806101c05251806101e052806101e05260208301806102005292508261020052600181018061022052806102205281806101e052811015610282575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b602081806102205202806102405280610240526020156020820483806102205290149250829017915081159150826101e0528461020052509050905090506102555760405180610260528061026052610240518061024052810180610360528061036052818061026052811067ffffffffffffffff821181179050156103b2576103f5565b6102005180610200526101a0510360051c6101e0511161021457610260516101e051610200515f929091905b81610280525f82111561036857826102a05282806102a05251806102e052806102e052806102e05260a01c1561037557610214565b8061026052505050506073565b806102605260208101602085806102c05202810190506102e051806102e052815250600182039150602083019250600184019350610333565b5f5ffd5b806103605260405280610260526101e051806101e052815260206101e051026020156020820491506101e051806101e05282149150171590501561030757610255565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b6101528061042e5f395ff3346037575f3560e01c806356d88e2714602a5780636ee6577214602f5780639507d39a146033576037565b610140565b603b565b60a7565b5f5ffd5b602436101560a357609f565b5f54600435106054575f5ffd5b5f5f5260205f20600160043504810190506001600435066014900281549150600890021c73ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f35b5f5ffd5b6047565b602436101561013c57610138565b5f5460043510151560ed577f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b5f5f5260205f20600160043504810190506001600435066014900281549150600890021c73ffffffffffffffffffffffffffffffffffffffff90166080526020608001608090036080f35b5f5ffd5b60b5565b5f546080526020608001608090036080f3"
+
+fn @mk(arg0: address, arg1: address) -> address {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 0, v4
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 1, v5
+    v7 = iszero v6
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 1, v8
+    v9 = abi_encode [memory_array<word<u160>>], args v0
+    v10 = slice_len v9
+    v11 = add 0x580, v10
+    v12 = lt v11, 0x580
+    jumpi v12, bb4, bb5
+  bb5:
+    v13 = add v11, 31
+    v14 = lt v13, v11
+    jumpi v14, bb4, bb6
+  bb6:
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc raw, exact, uninitialized, infallible, v16
+    data_copy Child_initcode_0, v17, 0x580
+    v18 = slice_ptr v9
+    v19 = add v17, 0x580
+    mcopy v19, v18, v10 !metadata(memory=heap)
+    v20 = create 0, v17, v11
+    jumpi v20, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    ret v20
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @mk3(arg0: address, arg1: address, arg2: address) -> address {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v0, 3
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 0, v4
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 1, v5
+    v7 = iszero v6
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 1, v8
+    v9 = memory_object_len memoryarray, v0
+    v10 = lt 2, v9
+    v11 = iszero v10
+    jumpi v11, bb1, bb4
+  bb4:
+    v12 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 2, v12
+    v13 = abi_encode [memory_array<word<u160>>], args v0
+    v14 = slice_len v13
+    v15 = add 0x580, v14
+    v16 = lt v15, 0x580
+    jumpi v16, bb5, bb6
+  bb6:
+    v17 = add v15, 31
+    v18 = lt v17, v15
+    jumpi v18, bb5, bb7
+  bb7:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc raw, exact, uninitialized, infallible, v20
+    data_copy Child_initcode_0, v21, 0x580
+    v22 = slice_ptr v13
+    v23 = add v21, 0x580
+    mcopy v23, v22, v14 !metadata(memory=heap)
+    v24 = create 0, v21, v15
+    jumpi v24, bb9, bb8
+  bb8:
+    revert_returndata
+  bb9:
+    ret v24
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @second() -> address [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<u160>]] {
+  bb0:
+    v0 = internal_call @mk, 1, 1, 2
+    v1 = internal_call @mk, 1, 3, 4
+    v2 = gas
+    v3 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args 0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v2, v0, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = eq v10, v11
+    v13 = iszero v12
+    jumpi v13, bb3, bb5
+  bb5:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = gas
+    v17 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args 1
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = staticcall v16, v1, v18, v19, 0, 32
+    jumpi v20, bb7, bb6
+  bb6:
+    revert_returndata
+  bb7:
+    v21 = returndatasize
+    v22 = lt v21, 32
+    jumpi v22, bb3, bb8
+  bb8:
+    v23 = add 0, 0
+    v24 = mload v23
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v26 = eq v24, v25
+    v27 = iszero v26
+    jumpi v27, bb3, bb9
+  bb9:
+    v28 = add 0, 0
+    v29 = mload v28
+    ret v29
+  bb3:
+    revert 0, 0
+}
+
+fn @both() -> (u256, u256) [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @mk, 1, 1, 2
+    v1 = internal_call @mk3, 1, 3, 4, 5
+    v2 = gas
+    v3 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args 1
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v2, v0, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = eq v10, v11
+    v13 = iszero v12
+    jumpi v13, bb3, bb5
+  bb5:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = gas
+    v17 = abi_encode [word], selector 0x9507d39a00000000000000000000000000000000000000000000000000000000, args 1
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = staticcall v16, v1, v18, v19, 0, 32
+    jumpi v20, bb7, bb6
+  bb6:
+    revert_returndata
+  bb7:
+    v21 = returndatasize
+    v22 = lt v21, 32
+    jumpi v22, bb3, bb8
+  bb8:
+    v23 = add 0, 0
+    v24 = mload v23
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v26 = eq v24, v25
+    v27 = iszero v26
+    jumpi v27, bb3, bb9
+  bb9:
+    v28 = add 0, 0
+    v29 = mload v28
+    ret v15, v29
+  bb3:
+    revert 0, 0
+}
+
+fn @lengths() -> (u256, u256) [selector=0xdab1fa12, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @mk, 1, 1, 2
+    v1 = internal_call @mk3, 1, 3, 4, 5
+    v2 = gas
+    v3 = abi_encode [], selector 0x56d88e2700000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v2, v0, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    v13 = gas
+    v14 = abi_encode [], selector 0x56d88e2700000000000000000000000000000000000000000000000000000000
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v1, v15, v16, 0, 32
+    jumpi v17, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v18 = returndatasize
+    v19 = lt v18, 32
+    jumpi v19, bb3, bb7
+  bb7:
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = add 0, 0
+    v23 = mload v22
+    ret v12, v23
+  bb3:
+    revert 0, 0
+}

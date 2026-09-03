@@ -43,19 +43,16 @@ bb15:
   push 128
   return
 bb16:
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb6
   jumpi
   push 4
   calldataload
-  dup 1
+  push 2
+  gt
   iszero
-  iszero
-  sub
   push bb6
   jumpi
   push 4

@@ -1,0 +1,16 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/assembly_constant_access.sol:AssemblyConstantAccess ===
+@module AssemblyConstantAccess
+fn @assemblyValues() -> (u256, bytes2, bytes3, bool, address) [selector=0x5fa26448, pure, abi_params=[], abi_returns=[word, word<bytes2>, word<bytes3>, word<bool>, word<u160>]] {
+  bb0:
+    ret 2, 0xabcd000000000000000000000000000000000000000000000000000000000000, 0x6162630000000000000000000000000000000000000000000000000000000000, 1, 0x1212121212121212121212121212121212121212
+}
+
+fn @assemblyReferences() -> (bytes2, bytes3) [selector=0x7bafbded, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>]] {
+  bb0:
+    ret 0xabcd000000000000000000000000000000000000000000000000000000000000, 0x6162630000000000000000000000000000000000000000000000000000000000
+}
+
+fn @solidityValues() -> (bytes2, bytes3) [selector=0x8c965a6e, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes3>]] {
+  bb0:
+    ret 0xabcd000000000000000000000000000000000000000000000000000000000000, 0x6162630000000000000000000000000000000000000000000000000000000000
+}

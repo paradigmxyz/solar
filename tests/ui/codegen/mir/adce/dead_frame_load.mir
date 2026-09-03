@@ -1,0 +1,16 @@
+//@compile-flags: -Zmir-pipeline=adce
+//@filecheck:
+@module DeadFrameLoad
+
+// A dead `frame_load` is a plain memory read: adce must delete it while the
+// side-effectful `frame_store` stays behind.
+// CHECK-LABEL: fn @dead_load
+// CHECK: frame_store scratch, word, 0, 7
+// CHECK-NOT: {{^[ +]}}v0 = frame_load
+// CHECK: - {{v[0-9]+}} = frame_load scratch, word, 0
+fn @dead_load() {
+  bb0:
+    frame_store scratch, word, 0, 7
+    v0 = frame_load scratch, word, 0
+    stop
+}

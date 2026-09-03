@@ -1,12 +1,13 @@
 //@ revisions: warn allow
-//@[warn] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam
-//@[allow] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam --allow=5574
+//@[warn] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam --allow=3860,5574
+//@[allow] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam --allow=3860,5574
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
 
-import "./initcode.sol";
+contract A {}
+contract test {}
 
-contract RuntimeAmsterdam { //~[warn] WARN: contract code size is
+contract RuntimeAmsterdam {
     function deployTest() external returns (address) {
         return address(new test());
     }

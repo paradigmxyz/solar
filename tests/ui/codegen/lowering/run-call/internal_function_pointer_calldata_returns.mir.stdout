@@ -1,0 +1,74 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata_returns.sol:InternalFunctionPointerCalldataReturns ===
+@module InternalFunctionPointerCalldataReturns
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffffffffffffff
+    v2 = and v0, v1
+    v3 = and 4, 0xffffffffffffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    stop
+}
+
+fn @dynamic(arg0: calldataslice) -> (u256, u256, u256) [selector=0xd543852a, abi_params=[bytes], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffff
+    v2 = internal_call @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, 3, v1, arg0
+    v3 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v4 = add v3, 64
+    v5 = mload v4
+    v6 = add v3, 96
+    v7 = mload v6
+    v8 = add v3, 128
+    v9 = mload v8
+    v10 = make_calldata_slice v7, v9
+    v11 = slice_len v2
+    v12 = slice_len v10
+    ret v11, v5, v12
+}
+
+fn @specialized(arg0: calldataslice) -> (u256, u256, u256) [selector=0xe932b9d2, pure, abi_params=[bytes], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = internal_call @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice, 3, 4, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 64
+    v3 = mload v2
+    v4 = add v1, 96
+    v5 = mload v4
+    v6 = add v1, 128
+    v7 = mload v6
+    v8 = make_calldata_slice v5, v7
+    v9 = slice_len v0
+    v10 = slice_len v8
+    ret v9, v3, v10
+}
+
+fn @identity(arg0: calldataslice) -> (calldataslice, u256, calldataslice) [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = make_calldata_slice 0, 0
+    ret arg0, 7, arg0
+}
+
+fn @internal_dispatcher_p_calldataslice_r_calldataslice_u256_calldataslice(arg0: function, arg1: calldataslice) -> (calldataslice, u256, calldataslice) [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 4
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @identity, 3, arg1
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 64
+    v4 = mload v3
+    v5 = add v2, 96
+    v6 = mload v5
+    v7 = add v5, 32
+    v8 = mload v7
+    v9 = make_calldata_slice v6, v8
+    ret v1, v4, v9
+}

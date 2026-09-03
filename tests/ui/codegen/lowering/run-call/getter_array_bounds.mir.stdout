@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/getter_array_bounds.sol:GetterArrayBounds ===
+@module GetterArrayBounds
+fn @dynamicArray(arg0: u256) -> u256 [selector=0x9a9bdca7, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt arg0, v0
+    jumpi v1, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v2 = storage_array_data_slot 0
+    v3 = add v2, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}
+
+fn @fixedArray(arg0: u256) -> u256 [selector=0x9a5009ac, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
+    v1 = add 1, arg0
+    v2 = sload v1 !metadata(storage=offset(arg0, 1))
+    ret v2
+}

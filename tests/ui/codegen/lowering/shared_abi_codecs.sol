@@ -1,20 +1,17 @@
-//@ revisions: ir gas size
+//@ codegen-matrix: standard ir
 //@[ir] compile-flags: -Osize -Zdump=mir
 //@[ir] filecheck:
-//@[gas] compile-flags: -Ogas
-//@[size] compile-flags: -Osize
-//@[gas] run-call: roundTrip 3, [[5], [8]] => 16
-//@[size] run-call: roundTrip 3, [[5], [8]] => 16
+//@ run-call: roundTrip 3, [[5], [8]] => 16
 
 // CHECK-LABEL: fn @encodeFirst
-// CHECK: internal_call @__abi_decode_calldata_[[DECODER:[0-9]+]]
-// CHECK: internal_call @__abi_encode_[[ENCODER:[0-9]+]]
-// CHECK: fn @__abi_decode_calldata_[[DECODER]]
+// CHECK: internal_call @[[DECODER:decode_calldata_type]]
+// CHECK: internal_call @[[ENCODER:encodeFirst.body]]
 // CHECK: ret
 // CHECK-LABEL: fn @encodeSecond
-// CHECK: internal_call @__abi_decode_calldata_[[DECODER]]
-// CHECK: internal_call @__abi_encode_[[ENCODER]]
-// CHECK: fn @__abi_encode_[[ENCODER]]
+// CHECK: internal_call @[[DECODER]]
+// CHECK: internal_call @[[ENCODER]]
+// CHECK: fn @[[DECODER]]
+// CHECK: fn @[[ENCODER]]
 // CHECK: mstore
 // CHECK: ret
 

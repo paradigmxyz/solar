@@ -1,0 +1,150 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_mixed.sol:StorageReturnPointerMixed ===
+@module StorageReturnPointerMixed
+fn @g() -> (u256, u256, storageptr) [view] {
+  bb0:
+    ret 1, 2, 0
+}
+
+fn @h() -> (u256, u256) [selector=0xb8c9d365, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    ret 5, 6
+}
+
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 3 !metadata(storage=symbolic(v4))
+    sstore 0, v1 !metadata(storage=slot(0))
+    v5 = address
+    v6 = gas
+    v7 = abi_encode [], selector 0xb8c9d36500000000000000000000000000000000000000000000000000000000
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = staticcall v6, v5, v8, v9, v8, 64
+    jumpi v10, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v11 = returndatasize
+    v12 = lt v11, 64
+    jumpi v12, bb5, bb6
+  bb6:
+    v13 = add v8, 0
+    v14 = mload v13
+    v15 = add v8, 32
+    v16 = mload v15
+    frame_store multi_return, word, 0, v8 !metadata(memory=scratch)
+    v17 = add v8, 0
+    v18 = mload v17
+    v19 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v20 = add v19, 32
+    v21 = mload v20
+    v22 = eq v18, 5
+    v23 = iszero v22
+    jumpi v23, bb8, bb7
+  bb7:
+    v24 = eq v21, 6
+    v25 = iszero v24
+    jump bb9
+  bb8:
+    jump bb9
+  bb9:
+    v26 = phi [bb7: v25], [bb8: 1]
+    jumpi v26, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    v27 = internal_call @g, 3
+    v28 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v29 = add v28, 32
+    v30 = mload v29
+    v31 = add v28, 64
+    v32 = mload v31
+    v33 = eq v27, 1
+    v34 = iszero v33
+    jumpi v34, bb14, bb13
+  bb13:
+    v35 = eq v30, 2
+    v36 = iszero v35
+    jump bb15
+  bb14:
+    jump bb15
+  bb15:
+    v37 = phi [bb13: v36], [bb14: 1]
+    jumpi v37, bb17, bb16
+  bb16:
+    v38 = sload v32 !metadata(storage=symbolic(v32))
+    v39 = lt 0, v38
+    v40 = iszero v39
+    jumpi v40, bb19, bb20
+  bb20:
+    v41 = storage_array_data_slot v32
+    v42 = add v41, 0
+    v43 = sload v42 !metadata(storage=symbolic(v41))
+    v44 = eq v43, 3
+    v45 = iszero v44
+    jump bb18
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    jump bb18
+  bb18:
+    v46 = phi [bb20: v45], [bb17: 1]
+    jumpi v46, bb21, bb22
+  bb22:
+    jump bb23
+  bb23:
+    v47 = eq v30, 2
+    v48 = iszero v47
+    jumpi v48, bb25, bb24
+  bb24:
+    v49 = eq v27, 1
+    v50 = iszero v49
+    jump bb26
+  bb25:
+    jump bb26
+  bb26:
+    v51 = phi [bb24: v50], [bb25: 1]
+    jumpi v51, bb27, bb28
+  bb28:
+    jump bb29
+  bb29:
+    v52 = eq 8, 8
+    v53 = iszero v52
+    jumpi v53, bb31, bb30
+  bb30:
+    v54 = eq 10, 10
+    v55 = iszero v54
+    jump bb32
+  bb31:
+    jump bb32
+  bb32:
+    v56 = phi [bb30: v55], [bb31: 1]
+    jumpi v56, bb33, bb34
+  bb34:
+    jump bb35
+  bb35:
+    ret 0
+  bb33:
+    ret 4
+  bb27:
+    ret 3
+  bb21:
+    ret 2
+  bb10:
+    ret 1
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

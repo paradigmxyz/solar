@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_fixed_bytes.sol:ConstructorBaseFixedBytesBase ===
+@module ConstructorBaseFixedBytesBase
+fn @value() -> bytes3 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<bytes3>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @constructor(arg0: bytes3) [constructor, abi_params=[bytes3]] {
+  bb0:
+    v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 0xffffff
+    v3 = and v1, v2
+    v4 = shr 232, v0
+    v5 = and v4, 0xffffff
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_fixed_bytes.sol:ConstructorBaseFixedBytes ===
+@module ConstructorBaseFixedBytes
+fn @value() -> bytes3 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<bytes3>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffff
+    v2 = and v0, v1
+    v3 = shr 232, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v4 = and v3, 0xffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    stop
+}

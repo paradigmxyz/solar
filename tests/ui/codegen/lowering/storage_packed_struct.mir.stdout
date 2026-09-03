@@ -1,0 +1,621 @@
+// === ROOT/tests/ui/codegen/lowering/storage_packed_struct.sol:PackedStruct ===
+@module PackedStruct
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = shl 8, 255
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and 2, 255
+    v10 = shl 8, v9
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = add 0, 1
+    sstore v12, 3 !metadata(storage=slot(1))
+    v13 = lt 0, 4
+    v14 = iszero v13
+    jumpi v14, bb1, bb2
+  bb2:
+    v15 = div 0, 32
+    v16 = add 2, v15
+    v17 = mod 0, 32
+    v18 = mul v17, 1
+    v19 = mul v18, 8
+    v20 = shl v19, 255
+    v21 = sload v16 !metadata(storage=offset(v15, 2))
+    v22 = not v20
+    v23 = and v21, v22
+    v24 = and 1, 255
+    v25 = shl v19, v24
+    v26 = or v23, v25
+    sstore v16, v26 !metadata(storage=offset(v15, 2))
+    v27 = lt 1, 4
+    v28 = iszero v27
+    jumpi v28, bb1, bb3
+  bb3:
+    v29 = div 1, 32
+    v30 = add 2, v29
+    v31 = mod 1, 32
+    v32 = mul v31, 1
+    v33 = mul v32, 8
+    v34 = shl v33, 255
+    v35 = sload v30 !metadata(storage=offset(v29, 2))
+    v36 = not v34
+    v37 = and v35, v36
+    v38 = and 2, 255
+    v39 = shl v33, v38
+    v40 = or v37, v39
+    sstore v30, v40 !metadata(storage=offset(v29, 2))
+    v41 = lt 2, 4
+    v42 = iszero v41
+    jumpi v42, bb1, bb4
+  bb4:
+    v43 = div 2, 32
+    v44 = add 2, v43
+    v45 = mod 2, 32
+    v46 = mul v45, 1
+    v47 = mul v46, 8
+    v48 = shl v47, 255
+    v49 = sload v44 !metadata(storage=offset(v43, 2))
+    v50 = not v48
+    v51 = and v49, v50
+    v52 = and 3, 255
+    v53 = shl v47, v52
+    v54 = or v51, v53
+    sstore v44, v54 !metadata(storage=offset(v43, 2))
+    v55 = lt 3, 4
+    v56 = iszero v55
+    jumpi v56, bb1, bb5
+  bb5:
+    v57 = div 3, 32
+    v58 = add 2, v57
+    v59 = mod 3, 32
+    v60 = mul v59, 1
+    v61 = mul v60, 8
+    v62 = shl v61, 255
+    v63 = sload v58 !metadata(storage=offset(v57, 2))
+    v64 = not v62
+    v65 = and v63, v64
+    v66 = and 4, 255
+    v67 = shl v61, v66
+    v68 = or v65, v67
+    sstore v58, v68 !metadata(storage=offset(v57, 2))
+    v69 = sload 3 !metadata(storage=slot(3))
+    v70 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v71 = and v69, v70
+    v72 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v73 = or v71, v72
+    sstore 3, v73 !metadata(storage=slot(3))
+    v74 = shl 160, 255
+    v75 = sload 3 !metadata(storage=slot(3))
+    v76 = not v74
+    v77 = and v75, v76
+    v78 = and 1, 255
+    v79 = shl 160, v78
+    v80 = or v77, v79
+    sstore 3, v80 !metadata(storage=slot(3))
+    v81 = shl 168, 0xffff
+    v82 = sload 3 !metadata(storage=slot(3))
+    v83 = not v81
+    v84 = and v82, v83
+    v85 = and 0x1234, 0xffff
+    v86 = shl 168, v85
+    v87 = or v84, v86
+    sstore 3, v87 !metadata(storage=slot(3))
+    v88 = shl 224, 0x11223344
+    v89 = sload 4 !metadata(storage=slot(4))
+    v90 = not 0xffffffff
+    v91 = and v89, v90
+    v92 = shr 224, v88
+    v93 = and v92, 0xffffffff
+    v94 = or v91, v93
+    sstore 4, v94 !metadata(storage=slot(4))
+    v95 = sub 0, 7
+    v96 = shl 32, 255
+    v97 = sload 4 !metadata(storage=slot(4))
+    v98 = not v96
+    v99 = and v97, v98
+    v100 = and v95, 255
+    v101 = shl 32, v100
+    v102 = or v99, v101
+    sstore 4, v102 !metadata(storage=slot(4))
+    v103 = shl 224, 0x55667788
+    v104 = lt 1, 2
+    v105 = iszero v104
+    jumpi v105, bb1, bb6
+  bb6:
+    v106 = div 1, 8
+    v107 = add 5, v106
+    v108 = mod 1, 8
+    v109 = mul v108, 4
+    v110 = mul v109, 8
+    v111 = shl v110, 0xffffffff
+    v112 = sload v107 !metadata(storage=offset(v106, 5))
+    v113 = not v111
+    v114 = and v112, v113
+    v115 = shr 224, v103
+    v116 = and v115, 0xffffffff
+    v117 = shl v110, v116
+    v118 = or v114, v117
+    sstore v107, v118 !metadata(storage=offset(v106, 5))
+    v119 = sub 0, 8
+    v120 = lt 1, 2
+    v121 = iszero v120
+    jumpi v121, bb1, bb7
+  bb7:
+    v122 = div 1, 32
+    v123 = add 6, v122
+    v124 = mod 1, 32
+    v125 = mul v124, 1
+    v126 = mul v125, 8
+    v127 = shl v126, 255
+    v128 = sload v123 !metadata(storage=offset(v122, 6))
+    v129 = not v127
+    v130 = and v128, v129
+    v131 = and v119, 255
+    v132 = shl v126, v131
+    v133 = or v130, v132
+    sstore v123, v133 !metadata(storage=offset(v122, 6))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @read() -> (u8, u8, u256) [selector=0x57de26a4, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = shr 8, v2
+    v4 = and v3, 255
+    v5 = add 0, 1
+    v6 = sload v5 !metadata(storage=slot(1))
+    ret v1, v4, v6
+}
+
+fn @copyValues() -> (u8, u8, u256) [selector=0xd888038d, view, abi_params=[], abi_returns=[word<u8>, word<u8>, word]] {
+  bb0:
+    v0 = alloc memorystruct<3>, exact, uninitialized, panic, 96
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 255
+    v3 = and v2, 255
+    memory_object_store_field memorystruct<3>, v0, 0, v3
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = shr 8, v4
+    v6 = and v5, 255
+    v7 = and v6, 255
+    memory_object_store_field memorystruct<3>, v0, 1, v7
+    v8 = add 0, 1
+    v9 = sload v8 !metadata(storage=slot(1))
+    memory_object_store_field memorystruct<3>, v0, 2, v9
+    v10 = memory_object_load_field memorystruct<3>, v0, 0
+    v11 = and v10, 255
+    v12 = memory_object_load_field memorystruct<3>, v0, 1
+    v13 = and v12, 255
+    v14 = memory_object_load_field memorystruct<3>, v0, 2
+    ret v11, v13, v14
+}
+
+fn @raw() -> bytes32 [selector=0xc096a632, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @write(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0x529e141c, abi_params=[u8, u8, u256], abi_returns=[word<u8>, word<u8>, word]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = and v0, 255
+    v5 = or v3, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = and arg1, 255
+    v7 = shl 8, 255
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = not v7
+    v10 = and v8, v9
+    v11 = and v6, 255
+    v12 = shl 8, v11
+    v13 = or v10, v12
+    sstore 0, v13 !metadata(storage=slot(0))
+    v14 = add 0, 1
+    sstore v14, arg2 !metadata(storage=slot(1))
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = and v15, 255
+    v17 = sload 0 !metadata(storage=slot(0))
+    v18 = shr 8, v17
+    v19 = and v18, 255
+    v20 = add 0, 1
+    v21 = sload v20 !metadata(storage=slot(1))
+    ret v16, v19, v21
+}
+
+fn @replace(arg0: u8, arg1: u8, arg2: u256) -> (u8, u8, u256) [selector=0xcde69356, abi_params=[u8, u8, u256], abi_returns=[word<u8>, word<u8>, word]] {
+  bb0:
+    v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v1 = and arg0, 255
+    v2 = and arg1, 255
+    memory_object_store_field memorystruct<3>, v0, 0, v1
+    memory_object_store_field memorystruct<3>, v0, 1, v2
+    memory_object_store_field memorystruct<3>, v0, 2, arg2
+    v3 = memory_object_load_field memorystruct<3>, v0, 0
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not 255
+    v6 = and v4, v5
+    v7 = and v3, 255
+    v8 = or v6, v7
+    sstore 0, v8 !metadata(storage=slot(0))
+    v9 = memory_object_load_field memorystruct<3>, v0, 1
+    v10 = shl 8, 255
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = not v10
+    v13 = and v11, v12
+    v14 = and v9, 255
+    v15 = shl 8, v14
+    v16 = or v13, v15
+    sstore 0, v16 !metadata(storage=slot(0))
+    v17 = add 0, 1
+    v18 = memory_object_load_field memorystruct<3>, v0, 2
+    sstore v17, v18 !metadata(storage=slot(1))
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = and v19, 255
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = shr 8, v21
+    v23 = and v22, 255
+    v24 = add 0, 1
+    v25 = sload v24 !metadata(storage=slot(1))
+    ret v20, v23, v25
+}
+
+fn @arrayRead(arg0: u256) -> u8 [selector=0x0ef5e270, view, abi_params=[u256], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = lt arg0, 4
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = div arg0, 32
+    v3 = add 2, v2
+    v4 = mod arg0, 32
+    v5 = mul v4, 1
+    v6 = sload v3 !metadata(storage=offset(v2, 2))
+    v7 = mul v5, 8
+    v8 = shr v7, v6
+    v9 = and v8, 255
+    ret v9
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @arrayWrite(arg0: u256, arg1: u8) -> u8 [selector=0xf78d2d7a, abi_params=[u256, u8], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = lt arg0, 4
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = div arg0, 32
+    v3 = add 2, v2
+    v4 = mod arg0, 32
+    v5 = mul v4, 1
+    v6 = and arg1, 255
+    v7 = mul v5, 8
+    v8 = shl v7, 255
+    v9 = sload v3 !metadata(storage=offset(v2, 2))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = and v6, 255
+    v13 = shl v7, v12
+    v14 = or v11, v13
+    sstore v3, v14 !metadata(storage=offset(v2, 2))
+    v15 = lt arg0, 4
+    v16 = iszero v15
+    jumpi v16, bb1, bb3
+  bb3:
+    v17 = div arg0, 32
+    v18 = add 2, v17
+    v19 = mod arg0, 32
+    v20 = mul v19, 1
+    v21 = sload v18 !metadata(storage=offset(v17, 2))
+    v22 = mul v20, 8
+    v23 = shr v22, v21
+    v24 = and v23, 255
+    ret v24
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @mixedRead() -> (address, bool, u16) [selector=0x3e58c576, view, abi_params=[], abi_returns=[word<u160>, word<bool>, word<u16>]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = sload 3 !metadata(storage=slot(3))
+    v3 = shr 160, v2
+    v4 = and v3, 255
+    v5 = sload 3 !metadata(storage=slot(3))
+    v6 = shr 168, v5
+    v7 = and v6, 0xffff
+    ret v1, v4, v7
+}
+
+fn @encodedRead() -> (bytes4, i8) [selector=0xb2b63fb7, view, abi_params=[], abi_returns=[word<bytes4>, word<i8>]] {
+  bb0:
+    v0 = sload 4 !metadata(storage=slot(4))
+    v1 = and v0, 0xffffffff
+    v2 = shl 224, v1
+    v3 = sload 4 !metadata(storage=slot(4))
+    v4 = shr 32, v3
+    v5 = and v4, 255
+    v6 = signextend 0, v5
+    ret v2, v6
+}
+
+fn @encodedWrite(arg0: bytes4, arg1: i8) -> (bytes4, i8) [selector=0xf0fbe3a2, abi_params=[bytes4, i8], abi_returns=[word<bytes4>, word<i8>]] {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = sload 4 !metadata(storage=slot(4))
+    v2 = not 0xffffffff
+    v3 = and v1, v2
+    v4 = shr 224, v0
+    v5 = and v4, 0xffffffff
+    v6 = or v3, v5
+    sstore 4, v6 !metadata(storage=slot(4))
+    v7 = signextend 0, arg1
+    v8 = shl 32, 255
+    v9 = sload 4 !metadata(storage=slot(4))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = and v7, 255
+    v13 = shl 32, v12
+    v14 = or v11, v13
+    sstore 4, v14 !metadata(storage=slot(4))
+    v15 = sload 4 !metadata(storage=slot(4))
+    v16 = and v15, 0xffffffff
+    v17 = shl 224, v16
+    v18 = sload 4 !metadata(storage=slot(4))
+    v19 = shr 32, v18
+    v20 = and v19, 255
+    v21 = signextend 0, v20
+    ret v17, v21
+}
+
+fn @encodedArrayRead(arg0: u256) -> (bytes4, i8) [selector=0xdf819380, view, abi_params=[u256], abi_returns=[word<bytes4>, word<i8>]] {
+  bb0:
+    v0 = lt arg0, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = div arg0, 8
+    v3 = add 5, v2
+    v4 = mod arg0, 8
+    v5 = mul v4, 4
+    v6 = sload v3 !metadata(storage=offset(v2, 5))
+    v7 = mul v5, 8
+    v8 = shr v7, v6
+    v9 = and v8, 0xffffffff
+    v10 = shl 224, v9
+    v11 = lt arg0, 2
+    v12 = iszero v11
+    jumpi v12, bb1, bb3
+  bb3:
+    v13 = div arg0, 32
+    v14 = add 6, v13
+    v15 = mod arg0, 32
+    v16 = mul v15, 1
+    v17 = sload v14 !metadata(storage=offset(v13, 6))
+    v18 = mul v16, 8
+    v19 = shr v18, v17
+    v20 = and v19, 255
+    v21 = signextend 0, v20
+    ret v10, v21
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @encodedArrayWrite(arg0: u256, arg1: bytes4, arg2: i8) -> (bytes4, i8) [selector=0xe381ba9e, abi_params=[u256, bytes4, i8], abi_returns=[word<bytes4>, word<i8>]] {
+  bb0:
+    v0 = lt arg0, 2
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = div arg0, 8
+    v3 = add 5, v2
+    v4 = mod arg0, 8
+    v5 = mul v4, 4
+    v6 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v7 = mul v5, 8
+    v8 = shl v7, 0xffffffff
+    v9 = sload v3 !metadata(storage=offset(v2, 5))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = shr 224, v6
+    v13 = and v12, 0xffffffff
+    v14 = shl v7, v13
+    v15 = or v11, v14
+    sstore v3, v15 !metadata(storage=offset(v2, 5))
+    v16 = lt arg0, 2
+    v17 = iszero v16
+    jumpi v17, bb1, bb3
+  bb3:
+    v18 = div arg0, 32
+    v19 = add 6, v18
+    v20 = mod arg0, 32
+    v21 = mul v20, 1
+    v22 = signextend 0, arg2
+    v23 = mul v21, 8
+    v24 = shl v23, 255
+    v25 = sload v19 !metadata(storage=offset(v18, 6))
+    v26 = not v24
+    v27 = and v25, v26
+    v28 = and v22, 255
+    v29 = shl v23, v28
+    v30 = or v27, v29
+    sstore v19, v30 !metadata(storage=offset(v18, 6))
+    v31 = lt arg0, 2
+    v32 = iszero v31
+    jumpi v32, bb1, bb4
+  bb4:
+    v33 = div arg0, 8
+    v34 = add 5, v33
+    v35 = mod arg0, 8
+    v36 = mul v35, 4
+    v37 = sload v34 !metadata(storage=offset(v33, 5))
+    v38 = mul v36, 8
+    v39 = shr v38, v37
+    v40 = and v39, 0xffffffff
+    v41 = shl 224, v40
+    v42 = lt arg0, 2
+    v43 = iszero v42
+    jumpi v43, bb1, bb5
+  bb5:
+    v44 = div arg0, 32
+    v45 = add 6, v44
+    v46 = mod arg0, 32
+    v47 = mul v46, 1
+    v48 = sload v45 !metadata(storage=offset(v44, 6))
+    v49 = mul v47, 8
+    v50 = shr v49, v48
+    v51 = and v50, 255
+    v52 = signextend 0, v51
+    ret v41, v52
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @replaceArray() -> (u8, u8, u8, u8) [selector=0x47102f59, abi_params=[], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    memory_zero v0, 128
+    v1 = lt 0, 4
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = and 5, 255
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 0, v3
+    v4 = lt 1, 4
+    v5 = iszero v4
+    jumpi v5, bb1, bb3
+  bb3:
+    v6 = and 6, 255
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 1, v6
+    v7 = lt 2, 4
+    v8 = iszero v7
+    jumpi v8, bb1, bb4
+  bb4:
+    v9 = and 7, 255
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 2, v9
+    v10 = lt 3, 4
+    v11 = iszero v10
+    jumpi v11, bb1, bb5
+  bb5:
+    v12 = and 8, 255
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 3, v12
+    jump bb6
+  bb6:
+    v13 = phi [bb5: 0], [bb11: v37]
+    v14 = lt v13, 4
+    jumpi v14, bb7, bb8
+  bb8:
+    v38 = lt 0, 4
+    v39 = iszero v38
+    jumpi v39, bb1, bb12
+  bb12:
+    v40 = div 0, 32
+    v41 = add 2, v40
+    v42 = mod 0, 32
+    v43 = mul v42, 1
+    v44 = sload v41 !metadata(storage=offset(v40, 2))
+    v45 = mul v43, 8
+    v46 = shr v45, v44
+    v47 = and v46, 255
+    v48 = lt 1, 4
+    v49 = iszero v48
+    jumpi v49, bb1, bb13
+  bb13:
+    v50 = div 1, 32
+    v51 = add 2, v50
+    v52 = mod 1, 32
+    v53 = mul v52, 1
+    v54 = sload v51 !metadata(storage=offset(v50, 2))
+    v55 = mul v53, 8
+    v56 = shr v55, v54
+    v57 = and v56, 255
+    v58 = lt 2, 4
+    v59 = iszero v58
+    jumpi v59, bb1, bb14
+  bb14:
+    v60 = div 2, 32
+    v61 = add 2, v60
+    v62 = mod 2, 32
+    v63 = mul v62, 1
+    v64 = sload v61 !metadata(storage=offset(v60, 2))
+    v65 = mul v63, 8
+    v66 = shr v65, v64
+    v67 = and v66, 255
+    v68 = lt 3, 4
+    v69 = iszero v68
+    jumpi v69, bb1, bb15
+  bb15:
+    v70 = div 3, 32
+    v71 = add 2, v70
+    v72 = mod 3, 32
+    v73 = mul v72, 1
+    v74 = sload v71 !metadata(storage=offset(v70, 2))
+    v75 = mul v73, 8
+    v76 = shr v75, v74
+    v77 = and v76, 255
+    ret v47, v57, v67, v77
+  bb7:
+    v15 = div v13, 32
+    v16 = add 2, v15
+    v17 = mod v13, 32
+    v18 = mul v17, 1
+    v19 = lt v13, 4
+    jumpi v19, bb9, bb10
+  bb10:
+    v29 = mul v18, 8
+    v30 = shl v29, 255
+    v31 = sload v16 !metadata(storage=offset(v15, 2))
+    v32 = not v30
+    v33 = and v31, v32
+    v34 = and 0, 255
+    v35 = shl v29, v34
+    v36 = or v33, v35
+    sstore v16, v36 !metadata(storage=offset(v15, 2))
+    jump bb11
+  bb9:
+    v20 = memory_object_load_element memoryfixedarray<4, 1>, v0, v13
+    v21 = mul v18, 8
+    v22 = shl v21, 255
+    v23 = sload v16 !metadata(storage=offset(v15, 2))
+    v24 = not v22
+    v25 = and v23, v24
+    v26 = and v20, 255
+    v27 = shl v21, v26
+    v28 = or v25, v27
+    sstore v16, v28 !metadata(storage=offset(v15, 2))
+    jump bb11
+  bb11:
+    v37 = add v13, 1
+    jump bb6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

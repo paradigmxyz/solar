@@ -1,0 +1,26 @@
+error: codegen cannot emit EOF-only external calls in legacy bytecode
+   ╭▸ ROOT/tests/ui/codegen/lowering/yul_ext_calls.sol:LL:CC
+   │
+LL │             pop(extcall(target, 0, 0, 0))
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the EOF-only call or use a compiler that emits EOF containers
+
+error: codegen cannot emit EOF-only external calls in legacy bytecode
+   ╭▸ ROOT/tests/ui/codegen/lowering/yul_ext_calls.sol:LL:CC
+   │
+LL │             pop(extdelegatecall(target, 0, 0))
+   │                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the EOF-only call or use a compiler that emits EOF containers
+
+error: codegen cannot emit EOF-only external calls in legacy bytecode
+   ╭▸ ROOT/tests/ui/codegen/lowering/yul_ext_calls.sol:LL:CC
+   │
+LL │             result := extstaticcall(target, 0, 0)
+   │                       ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove the EOF-only call or use a compiler that emits EOF containers
+
+error: aborting due to 3 previous errors
+

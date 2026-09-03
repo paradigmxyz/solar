@@ -1,127 +1,51 @@
 // === ROOT/tests/ui/codegen/lowering/custom_error_payloads.sol:CustomErrorPayloads ===
 @module CustomErrorPayloads
-fn @revert_empty() {
+fn @revert_empty() [selector=0xc8567119, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = alloc raw, exact, uninitialized, infallible, 4
-    mstore v0, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
-    revert v0, 4
+    v0 = abi_encode [], selector 0x4f3d7def00000000000000000000000000000000000000000000000000000000
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    revert v1, v2
 }
 
-fn @revert_args() {
+fn @revert_args() [selector=0x3a185347, pure, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 6
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v2 = alloc raw, exact, uninitialized, infallible, 68
-    mstore v2, 0xb9344e200000000000000000000000000000000000000000000000000000000
-    v3 = add v2, 4
-    v4 = add v3, 64
-    mstore v3, 7
-    v5 = add v3, 32
-    v6 = sub v4, v3
-    mstore v5, v6
-    v7 = memory_object_len memorybytes, v0
-    mstore v4, v7
-    v8 = not 31
-    v9 = add v7, 31
-    v10 = and v9, v8
-    v11 = add v4, 32
-    v12 = iszero v10
-    jumpi v12, bb2, bb1
-  bb1:
-    v13 = sub v10, 32
-    v14 = add v11, v13
-    mstore v14, 0
-    jump bb2
-  bb2:
-    v15 = memory_object_data memorybytes, v0
-    v16 = add v11, v10
-    mcopy v11, v15, v7 !metadata(memory=heap)
-    v17 = sub v16, v3
-    v18 = add v17, 4
-    revert v2, v18
+    v2 = abi_encode [word, memory_bytes], selector 0xb9344e200000000000000000000000000000000000000000000000000000000, args 7, v0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    revert v3, v4
 }
 
-fn @require_empty(arg0: bool) {
+fn @require_empty(arg0: bool) [selector=0xfa8d4a29, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v0 = iszero arg0
+    jumpi v0, bb1, bb2
   bb2:
-    v3 = calldataload 4
-    v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = iszero arg0
-    jumpi v7, bb5, bb6
-  bb6:
     stop
-  bb5:
-    v8 = alloc raw, exact, uninitialized, infallible, 4
-    mstore v8, 0x4f3d7def00000000000000000000000000000000000000000000000000000000
-    revert v8, 4
   bb1:
-    revert 0, 0
+    v1 = abi_encode [], selector 0x4f3d7def00000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    revert v2, v3
 }
 
-fn @require_named(arg0: bool) {
+fn @require_named(arg0: bool) [selector=0x868ff2e0, pure, abi_params=[bool], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 6
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v2 = iszero arg0
     jumpi v2, bb1, bb2
   bb2:
-    v3 = calldataload 4
-    v4 = iszero v3
-    v5 = iszero v4
-    v6 = eq v3, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = iszero arg0
-    jumpi v7, bb5, bb6
-  bb6:
     stop
-  bb5:
-    v8 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v8, 6
-    v9 = memory_object_data memorybytes, v8
-    mstore v9, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v10 = alloc raw, exact, uninitialized, infallible, 68
-    mstore v10, 0xb9344e200000000000000000000000000000000000000000000000000000000
-    v11 = add v10, 4
-    v12 = add v11, 64
-    mstore v11, 7
-    v13 = add v11, 32
-    v14 = sub v12, v11
-    mstore v13, v14
-    v15 = memory_object_len memorybytes, v8
-    mstore v12, v15
-    v16 = not 31
-    v17 = add v15, 31
-    v18 = and v17, v16
-    v19 = add v12, 32
-    v20 = iszero v18
-    jumpi v20, bb8, bb7
-  bb7:
-    v21 = sub v18, 32
-    v22 = add v19, v21
-    mstore v22, 0
-    jump bb8
-  bb8:
-    v23 = memory_object_data memorybytes, v8
-    v24 = add v19, v18
-    mcopy v19, v23, v15 !metadata(memory=heap)
-    v25 = sub v24, v11
-    v26 = add v25, 4
-    revert v10, v26
   bb1:
-    revert 0, 0
+    v3 = abi_encode [word, memory_bytes], selector 0xb9344e200000000000000000000000000000000000000000000000000000000, args 7, v0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    revert v4, v5
 }

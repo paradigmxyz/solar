@@ -1,0 +1,85 @@
+// === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutSlots ===
+@module LayoutSlots
+fn @slots() -> (u256, u256, u256, u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    ret 7, 0, 7, 1, 8, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutStorage ===
+@module LayoutStorage
+fn @store(arg0: u256) -> (u256, u256) [selector=0x6057361d, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    sstore 42, arg0 !metadata(storage=slot(42))
+    v0 = sload 42 !metadata(storage=slot(42))
+    v1 = sload 42 !metadata(storage=slot(42))
+    ret v1, v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutBase ===
+@module LayoutBase
+
+// === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutMiddle ===
+@module LayoutMiddle
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutDerived ===
+@module LayoutDerived
+fn @slots() -> (u256, u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    ret 2, 3, 4
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutTransient ===
+@module LayoutTransient
+fn @slots() -> (u256, u256) [selector=0x48547d69, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    ret 0, 7
+}
+
+// === ROOT/tests/ui/codegen/lowering/storage_layout_base.sol:LayoutErc7201 ===
+@module LayoutErc7201
+fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 12
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v2 = internal_call @erc7201Reference, 1, v0
+    v3 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v2
+    ret v3
+}
+
+fn @erc7201Reference(arg0: memorybytes) -> u256 [pure] {
+  bb0:
+    v0 = add 0, 0
+    v1 = keccak256_bytes arg0
+    v2 = sub v1, 1
+    v3 = lt v1, 1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = shl 0, v2
+    v5 = add v0, 32
+    v6 = add v5, 63
+    v7 = not 31
+    v8 = and v6, v7
+    v9 = alloc memorybytes, exact, uninitialized, panic, v8
+    set_memory_object_len memorybytes, v9, v5
+    memory_object_store_word memorybytes, v9, 0, v4
+    v10 = add 0, 32
+    v11 = keccak256_bytes v9
+    v12 = not 255
+    v13 = and v11, v12
+    ret v13
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

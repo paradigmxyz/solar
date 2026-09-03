@@ -1,0 +1,46 @@
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
+//@ run-call: copyDynamic [[10, 11], [20, 21, 22]] => 33
+//@ run-call: copyFixedDynamic [[10, 11], [20, 21]] => 33
+//@ run-call: copyDynamicFixed [[10, 11], [20, 21]] => 33
+//@ run-call: copyDynamicFixedWiden [[10, 11]] => 22
+//@ run-call: copyFixed [[10, 11], [20, 21]] => 31
+// ported-from: test/libsolidity/semanticTests/array/copying/nested_array_calldata_to_storage.sol
+
+pragma abicoder v2;
+
+contract StorageNestedDynamicWordsCalldata {
+    uint256[][] private dynamicValues;
+    uint256[][2] private fixedOuter;
+    uint256[2][] private dynamicOuterFixed;
+    uint256[4][] private dynamicOuterWidened;
+    uint256[2][2] private fixedValues;
+
+    function copyDynamic(uint256[][] calldata input) external returns (uint256) {
+        dynamicValues = input;
+        return dynamicValues.length + dynamicValues[0][1] + dynamicValues[1][0];
+    }
+
+    function copyFixedDynamic(uint256[][2] calldata input) external returns (uint256) {
+        fixedOuter = input;
+        return fixedOuter[0].length + fixedOuter[0][1] + fixedOuter[1][0];
+    }
+
+    function copyDynamicFixed(uint256[2][] calldata input) external returns (uint256) {
+        dynamicOuterFixed = input;
+        return dynamicOuterFixed.length + dynamicOuterFixed[0][1] + dynamicOuterFixed[1][0];
+    }
+
+    function copyDynamicFixedWiden(uint256[2][] calldata input) external returns (uint256) {
+        dynamicOuterWidened = input;
+        return dynamicOuterWidened.length + dynamicOuterWidened[0][0]
+            + dynamicOuterWidened[0][1] + dynamicOuterWidened[0][2]
+            + dynamicOuterWidened[0][3];
+    }
+
+    function copyFixed(uint256[2][2] calldata input) external returns (uint256) {
+        fixedValues = input;
+        return fixedValues[0][0] + fixedValues[1][1];
+    }
+}

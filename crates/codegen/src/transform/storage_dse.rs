@@ -75,7 +75,7 @@ impl StorageStoreEliminator {
             self.alias = Some(Rc::new(AliasAnalysis::new(func)));
         }
 
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             self.remove_overwritten_stores(
                 func,

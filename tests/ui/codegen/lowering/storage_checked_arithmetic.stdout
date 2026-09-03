@@ -1,153 +1,98 @@
 // === ROOT/tests/ui/codegen/lowering/storage_checked_arithmetic.sol:StorageCheckedArithmetic ===
 @module StorageCheckedArithmetic
-fn @storage_sub(arg0: address, arg1: u256) {
+fn @storage_sub(arg0: address, arg1: u256) [selector=0x8af2db43, abi_params=[address, u256], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = sub v2, arg1
+    v4 = lt v2, arg1
+    jumpi v4, bb1, bb2
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = mapping_slot arg0, 0
-    v7 = sload v6 !metadata(storage=symbolic(v6))
-    v8 = sub v7, arg1
-    v9 = lt v7, arg1
-    jumpi v9, bb5, bb6
-  bb6:
-    v10 = mapping_slot arg0, 0
-    sstore v10, v8 !metadata(storage=symbolic(v10))
+    sstore v1, v3 !metadata(storage=symbolic(v1))
     stop
-  bb5:
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
-fn @storage_binary_sub(arg0: address, arg1: u256) {
+fn @storage_binary_sub(arg0: address, arg1: u256) [selector=0x816bb6a5, abi_params=[address, u256], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = sub v2, arg1
+    v4 = lt v2, arg1
+    jumpi v4, bb1, bb2
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = mapping_slot arg0, 0
-    v7 = sload v6 !metadata(storage=symbolic(v6))
-    v8 = sub v7, arg1
-    v9 = lt v7, arg1
-    jumpi v9, bb5, bb6
-  bb6:
-    v10 = mapping_slot arg0, 0
-    sstore v10, v8 !metadata(storage=symbolic(v10))
+    v5 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = mapping_slot v5, 0
+    sstore v6, v3 !metadata(storage=symbolic(v6))
     stop
-  bb5:
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
-fn @storage_struct_add(arg0: address, arg1: u128) {
+fn @storage_struct_add(arg0: address, arg1: u128) [selector=0xb11dd1b8, abi_params=[address, u128], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff
+    v4 = and arg1, 0xffffffffffffffffffffffffffffffff
+    v5 = add v3, v4
+    v6 = gt v5, 0xffffffffffffffffffffffffffffffff
+    jumpi v6, bb1, bb2
   bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = calldataload 36
-    v7 = and v6, 0xffffffffffffffffffffffffffffffff
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    v9 = mapping_slot arg0, 1
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    v11 = and v10, 0xffffffffffffffffffffffffffffffff
-    v12 = add v11, arg1
-    v13 = gt v12, 0xffffffffffffffffffffffffffffffff
-    jumpi v13, bb7, bb8
-  bb8:
-    v14 = mapping_slot arg0, 1
-    v15 = sload v14 !metadata(storage=symbolic(v14))
-    v16 = and v15, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v17 = and v12, 0xffffffffffffffffffffffffffffffff
-    v18 = or v16, v17
-    sstore v14, v18 !metadata(storage=symbolic(v14))
+    v7 = sload v1 !metadata(storage=symbolic(v1))
+    v8 = not 0xffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v5, 0xffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore v1, v11 !metadata(storage=symbolic(v1))
     stop
-  bb7:
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
-    revert 0, 0
 }
 
-fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
+fn @storage_struct_signed_sub(arg0: address, arg1: i8) [selector=0x14ebfa30, abi_params=[address, i8], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = calldataload 36
-    v7 = signextend 0, v6
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    v9 = mapping_slot arg0, 1
-    v10 = sload v9 !metadata(storage=symbolic(v9))
-    v11 = shr 128, v10
-    v12 = signextend 0, v11
-    v13 = sub v12, arg1
-    v14 = slt v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v15 = sgt v13, 127
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = mapping_slot v0, 1
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = shr 128, v2
+    v4 = and v3, 255
+    v5 = signextend 0, v4
+    v6 = signextend 0, arg1
+    v7 = sub v5, v6
+    v8 = slt v5, 0
+    v9 = slt v6, 0
+    v10 = slt v7, 0
+    v11 = xor v8, v9
+    v12 = xor v10, v8
+    v13 = and v11, v12
+    v14 = slt v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v15 = sgt v7, 127
     v16 = or v14, v15
-    jumpi v16, bb7, bb8
-  bb8:
-    v17 = mapping_slot arg0, 1
-    v18 = sload v17 !metadata(storage=symbolic(v17))
-    v19 = and v18, 0xffffffffffffffffffffffffffffff00ffffffffffffffffffffffffffffffff
-    v20 = and v13, 255
-    v21 = shl 128, v20
-    v22 = or v19, v21
-    sstore v17, v22 !metadata(storage=symbolic(v17))
+    v17 = or v13, v16
+    jumpi v17, bb1, bb2
+  bb2:
+    v18 = shl 128, 255
+    v19 = sload v1 !metadata(storage=symbolic(v1))
+    v20 = not v18
+    v21 = and v19, v20
+    v22 = and v7, 255
+    v23 = shl 128, v22
+    v24 = or v21, v23
+    sstore v1, v24 !metadata(storage=symbolic(v1))
     stop
-  bb7:
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
-  bb1:
-    revert 0, 0
 }

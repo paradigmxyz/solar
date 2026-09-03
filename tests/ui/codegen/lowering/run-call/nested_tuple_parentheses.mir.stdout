@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_parentheses.sol:NestedTupleParentheses ===
+@module NestedTupleParentheses
+fn @f0() -> (i256, bool) [selector=0xa5850475, pure, abi_params=[], abi_returns=[word, word<bool>]] {
+  bb0:
+    ret 2, 1
+}
+
+fn @f1() -> i256 [selector=0xc27fc305, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @f2() -> i256 [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+fn @f3() -> i256 [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 3
+}
+
+fn @f4() -> i256 [selector=0xc3f90202, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 4
+}
+
+fn @rhsParens() -> (u256, u256) [selector=0xbcf1ba40, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    ret 7, 8
+}
+
+fn @scalarParens() -> u256 [selector=0x2d8b3eca, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 7
+}

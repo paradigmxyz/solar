@@ -12,11 +12,10 @@
 contract C {
     // CHECK: push 0x6a57f6c7
     // CHECK: eq
-    // CHECK-NEXT: push [[DELEGATE:bb[0-9]+]]
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: push 0x6b995abd
     // CHECK: eq
-    // CHECK-NEXT: push [[CALL:bb[0-9]+]]
-    // CHECK: [[CALL]]:
+    // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: jump [[RETURN:bb[0-9]+]]

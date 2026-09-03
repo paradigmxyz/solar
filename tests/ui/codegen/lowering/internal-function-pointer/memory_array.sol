@@ -3,7 +3,7 @@
 //@ run-call: callArray 10, 2 => 13
 //@ run-call: callArray 10, 3 => 15
 //@ run-call: callArray 10, 4 => 18
-//@ run-call-fail: callArray 10, 5 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
+//@ run-call-fail: callArray 10, 5 => Panic(0x51)
 
 // ported-from: test/libsolidity/semanticTests/array/function_memory_array.sol
 

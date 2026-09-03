@@ -1,0 +1,57 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/yul_arg_eval_order.sol:C ===
+@module C
+fn @builtinOrder() -> u256 [selector=0x0eb481d9, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 0, 3 !metadata(memory=scratch)
+    v0 = internal_call @eff, 1
+    v1 = mload 0 !metadata(memory=scratch)
+    v2 = mul v1, v0
+    ret v2
+}
+
+fn @userFnOrder() -> u256 [selector=0x6b0e5af2, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 0, 1 !metadata(memory=scratch)
+    v0 = internal_call @w, 1, 7
+    v1 = mload 0 !metadata(memory=scratch)
+    v2 = add v1, 100
+    v3 = sub v2, v0
+    ret v3
+}
+
+fn @deployIdiom() -> u256 [selector=0x298d6964, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 20
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x600a600a5f39600a5ff3600760005260206000f3000000000000000000000000
+    mstore 32, 0 !metadata(memory=scratch)
+    v2 = internal_call @doCreate, 1, v0
+    v3 = mload 32 !metadata(memory=scratch)
+    v4 = extcodesize v3
+    v5 = mul v4, v2
+    v6 = iszero v5
+    v7 = iszero v6
+    ret v7
+}
+
+fn @eff() -> u256 {
+  bb0:
+    mstore 0, 5 !metadata(memory=scratch)
+    ret 10
+}
+
+fn @w(arg0: u256) -> u256 {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    ret arg0
+}
+
+fn @doCreate(arg0: u256) -> u256 {
+  bb0:
+    v0 = mload arg0
+    v1 = add arg0, 32
+    v2 = create 0, v1, v0
+    mstore 32, v2 !metadata(memory=scratch)
+    ret v2
+}

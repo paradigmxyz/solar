@@ -1,0 +1,133 @@
+// === ROOT/tests/ui/codegen/run-call/unchecked_signed_division.sol:UncheckedSignedDivision ===
+@module UncheckedSignedDivision
+fn @uncheckedI8(arg0: i8, arg1: i8) -> i8 [selector=0xa7f45646, pure, abi_params=[i8, i8], abi_returns=[word<i8>]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = signextend 0, arg1
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = sdiv v0, v1
+    v3 = signextend 0, v2
+    ret v3
+}
+
+fn @uncheckedI24(arg0: i24, arg1: i24) -> i24 [selector=0xed3614ef, pure, abi_params=[i24, i24], abi_returns=[word<i24>]] {
+  bb0:
+    v0 = signextend 2, arg0
+    v1 = signextend 2, arg1
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = sdiv v0, v1
+    v3 = signextend 2, v2
+    ret v3
+}
+
+fn @uncheckedI128(arg0: i128, arg1: i128) -> i128 [selector=0x0486d865, pure, abi_params=[i128, i128], abi_returns=[word<i128>]] {
+  bb0:
+    v0 = signextend 15, arg0
+    v1 = signextend 15, arg1
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = sdiv v0, v1
+    v3 = signextend 15, v2
+    ret v3
+}
+
+fn @uncheckedI256(arg0: i256, arg1: i256) -> i256 [selector=0x9762a930, pure, abi_params=[i256, i256], abi_returns=[word]] {
+  bb0:
+    jumpi arg1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v0 = sdiv arg0, arg1
+    ret v0
+}
+
+fn @checkedI8(arg0: i8, arg1: i8) -> i8 [selector=0x8287dbba, pure, abi_params=[i8, i8], abi_returns=[word<i8>]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = signextend 0, arg1
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v3 = eq v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = and v2, v3
+    jumpi v4, bb3, bb4
+  bb4:
+    v5 = sdiv v0, v1
+    ret v5
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @upcastI8(arg0: i8, arg1: i8) -> i256 [selector=0xc8f1d00b, pure, abi_params=[i8, i8], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = signextend 0, arg1
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = sdiv v0, v1
+    v3 = signextend 0, v2
+    ret v3
+}
+
+fn @internalI8(arg0: i8, arg1: i8) -> i8 [selector=0xeca4fc1e, pure, abi_params=[i8, i8], abi_returns=[word<i8>]] {
+  bb0:
+    v0 = internal_call @divideI8, 1, arg0, arg1
+    ret v0
+}
+
+fn @isNegativeI8(arg0: i8, arg1: i8) -> bool [selector=0x9ff9f4e2, pure, abi_params=[i8, i8], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = signextend 0, arg1
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = sdiv v0, v1
+    v3 = signextend 0, v2
+    v4 = slt v3, 0
+    ret v4
+}
+
+fn @divideI8(arg0: i8, arg1: i8) -> i8 [pure] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = signextend 0, arg1
+    jumpi v1, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v2 = sdiv v0, v1
+    v3 = signextend 0, v2
+    ret v3
+}

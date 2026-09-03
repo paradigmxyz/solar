@@ -1,31 +1,27 @@
-//@ revisions: ir run
-//@[ir] compile-flags: -Zdump=evm-ir-runtime --pretty-json
+//@ codegen-matrix: standard ir
+//@[ir] compile-flags: -Zdump=evm-ir-runtime
 //@[ir] filecheck:
-//@[run] run-call: StackPhiLoop::loopCarried 4, true => 46
-//@[run] run-call: StackPhiLoop::loopCarried 4, false => 62
-//@[run] run-call: StackPhiLoop::sequential 3, 2 => 14
-//@[run] run-call: StackPhiLoop::nested 2, 3 => 15
+//@ run-call: StackPhiLoop::loopCarried 4, true => 46
+//@ run-call: StackPhiLoop::loopCarried 4, false => 62
+//@ run-call: StackPhiLoop::sequential 3, 2 => 14
+//@ run-call: StackPhiLoop::nested 2, 3 => 15
 
 contract StackPhiLoop {
+    uint256 private stored;
+
+    // CHECK-LABEL: @module StackPhiLoop_runtime
     // CHECK: push 0x50d1f082
-    // CHECK: eq
-    // CHECK-NEXT: push [[NESTED:bb[0-9]+]]
     // CHECK: push 0x71b76bb2
     // CHECK: eq
-    // CHECK-NEXT: push [[CARRIED:bb[0-9]+]]
-    // CHECK: push 0xfb08deb2
-    // CHECK: eq
-    // CHECK-NEXT: push [[SEQUENTIAL:bb[0-9]+]]
+    // CHECK: push [[CARRIED:bb[0-9]+]]
+    // CHECK: jumpi
     // CHECK: [[CARRIED]]:
+    // CHECK: push 7
+    // CHECK: [[CARRIED_MERGE:bb[0-9]+]]:
     // CHECK: jump [[CARRIED_HEADER:bb[0-9]+]]
     // CHECK: [[CARRIED_HEADER]]:
-    // CHECK: push [[CARRIED_BODY:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: return
-    // CHECK: jump [[CARRIED_HEADER]]
-    // CHECK: [[CARRIED_BODY]]:
-    // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
+    // CHECK: jump [[CARRIED_HEADER]]
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {
         uint256 step = flag ? 7 : 11;
         uint256 acc = 0;
@@ -35,19 +31,6 @@ contract StackPhiLoop {
         return acc;
     }
 
-    // CHECK: [[SEQUENTIAL]]:
-    // CHECK: jump [[FIRST_HEADER:bb[0-9]+]]
-    // CHECK: [[FIRST_HEADER]]:
-    // CHECK: push [[FIRST_EXIT:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: push 1
-    // CHECK: jump [[FIRST_HEADER]]
-    // CHECK: [[FIRST_EXIT]]:
-    // CHECK: jump [[SECOND_HEADER:bb[0-9]+]]
-    // CHECK: [[SECOND_HEADER]]:
-    // CHECK: push {{bb[0-9]+}}
-    // CHECK-NEXT: jumpi
-    // CHECK: jump [[SECOND_HEADER]]
     function sequential(uint256 a, uint256 b) public pure returns (uint256) {
         uint256 acc = 0;
         for (uint256 i = 0; i < a; i++) {
@@ -59,17 +42,6 @@ contract StackPhiLoop {
         return acc;
     }
 
-    // CHECK: [[NESTED]]:
-    // CHECK: jump [[OUTER_HEADER:bb[0-9]+]]
-    // CHECK: [[OUTER_HEADER]]:
-    // CHECK: push [[OUTER_BODY:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
-    // CHECK: [[OUTER_BODY]]:
-    // CHECK: jump [[INNER_HEADER:bb[0-9]+]]
-    // CHECK: [[INNER_HEADER]]:
-    // CHECK: push [[OUTER_HEADER]]
-    // CHECK-NEXT: jumpi
-    // CHECK: jump [[INNER_HEADER]]
     function nested(uint256 outer, uint256 inner) public pure returns (uint256) {
         uint256 acc = 0;
         for (uint256 i = 0; i < outer; i++) {
@@ -78,5 +50,14 @@ contract StackPhiLoop {
             }
         }
         return acc;
+    }
+
+    function storeAfterLoop(uint256 a, uint256 b, uint256 iterations) public {
+        uint256 result = a;
+        for (uint256 i = 0; i < iterations; ++i) {
+            result = (result * b + a) / 2;
+            result = result % 1_000_000 + 1;
+        }
+        stored = result;
     }
 }

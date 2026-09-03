@@ -7,9 +7,7 @@ contract MappingBytesValues {
 
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
-    // CHECK: {{v[0-9]+}} = memory_object_len memorybytes
-    // CHECK: sload [[SLOT]]
-    // CHECK: sstore [[SLOT]],
+    // CHECK: internal_call @store_storage_bytes, 0, [[SLOT]], arg1
     function set(uint256 key, bytes memory value) external {
         data[key] = value;
     }
@@ -17,15 +15,14 @@ contract MappingBytesValues {
     // CHECK-LABEL: fn @setNested{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot arg0, 1
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
-    // CHECK: sload [[INNER]]
-    // CHECK: sstore [[INNER]],
+    // CHECK: internal_call @store_storage_bytes, 0, [[INNER]], arg2
     function setNested(uint256 outer, uint256 inner, string memory value) external {
         nested[outer][inner] = value;
     }
 
     // CHECK-LABEL: fn @get{{[( ]}}
     // CHECK: [[SLOT:v[0-9]+]] = mapping_slot arg0, 0
-    // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, [[SLOT]]
+    // CHECK: [[VALUE:v[0-9]+]] = internal_call @load_storage_bytes{{.*}}, 1, [[SLOT]]
     // CHECK: ret [[VALUE]]
     function get(uint256 key) external view returns (bytes memory) {
         return data[key];
@@ -34,7 +31,7 @@ contract MappingBytesValues {
     // CHECK-LABEL: fn @getNested{{[( ]}}
     // CHECK: [[OUTER:v[0-9]+]] = mapping_slot arg0, 1
     // CHECK: [[INNER:v[0-9]+]] = mapping_slot arg1, [[OUTER]]
-    // CHECK: [[VALUE:v[0-9]+]] = internal_call @__load_storage_bytes, 1, [[INNER]]
+    // CHECK: [[VALUE:v[0-9]+]] = internal_call @load_storage_bytes{{.*}}, 1, [[INNER]]
     // CHECK: ret [[VALUE]]
     function getNested(uint256 outer, uint256 inner) external view returns (string memory) {
         return nested[outer][inner];

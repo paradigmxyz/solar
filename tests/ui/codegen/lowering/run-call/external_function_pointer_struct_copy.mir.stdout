@@ -1,0 +1,238 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
+@module ExternalFunctionPointerStructCopyTarget
+fn @copy(arg0: calldataslice) -> memorystruct [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 96
+    v1 = slice_len arg0
+    v2 = slice_ptr arg0
+    v3 = mul v1, 32
+    v4 = iszero 32
+    v5 = div v3, 32
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = calldatasize
+    v10 = sub v9, v2
+    v11 = slt v10, v3
+    jumpi v11, bb3, bb4
+  bb4:
+    v12 = mul v1, 32
+    v13 = iszero 32
+    v14 = div v12, 32
+    v15 = eq v14, v1
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb1, bb5
+  bb5:
+    v18 = add 32, v12
+    v19 = lt v18, 32
+    jumpi v19, bb1, bb6
+  bb6:
+    v20 = alloc memoryarray<1>, exact, uninitialized, infallible, v18
+    set_memory_object_len memoryarray, v20, v1
+    jump bb7
+  bb7:
+    v21 = phi [bb6: 0], [bb11: v36]
+    v22 = lt v21, v1
+    jumpi v22, bb8, bb9
+  bb9:
+    memory_object_store_field memorystruct<1>, v0, 0, v20
+    v37 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v37, 0, 96
+    ret v0
+  bb8:
+    v23 = mul v21, 32
+    v24 = iszero 32
+    v25 = div v23, 32
+    v26 = eq v25, v21
+    v27 = or v24, v26
+    v28 = iszero v27
+    jumpi v28, bb1, bb10
+  bb10:
+    v29 = add v2, v23
+    v30 = calldataload v29
+    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v32 = eq v30, v31
+    v33 = iszero v32
+    jumpi v33, bb3, bb11
+  bb11:
+    v34 = shr 64, v30
+    v35 = shl 64, v34
+    memory_object_store_element memoryarray<1>, v20, v21, v35
+    v36 = add v21, 1
+    jump bb7
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
+@module ExternalFunctionPointerStructCopy
+data:
+  ExternalFunctionPointerStructCopyTarget_initcode_0: hex"34600e5761054f8060125f395ff35b5f5ffd34601a575f3560e01c80630bf8d45f14601657601a565b601e565b5f5ffd5b61046060405260243610156102815761027d565b6040518061022052806102205260208101604052606081526020600460043501358060805202806103005280610300526020156020820460805180608052901481179050151560a9575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b6004600435016020018060e0523603818061030052901290501560cb575b5f5ffd5b60206080510280610320528061032052602015602082046080518060805290148117905015607c5780610320526020018061034052806103405260208110607c57604051806101a052806101a052818061034052810191508160405290506080518060805281525f60e051608051919092909193915b806101c052848060805281101561018257806101c05260208102806103605280610360526020156020820483806101c052901481179050151561021a57607c565b81806101a0528380610220525250509150506040518060a052602081016040526060815250604051806101e052806101e05260208101604052818061022052518061026052915081610260528180610260525182806102605215158061010052806101005280610100528102806101205290508061012052600181018061028052806102805281806101205281101561031d576102f0565b8061036052840135806103805280610380527fffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000811681141560c757806103805260401c60401b60208301602083806101c052028101905052600181019050610141565b5f5ffd5b6004358060a052600401806102405280610240526020810167ffffffffffffffff60a0511136806103a0528211915017156102bb575b5f5ffd5b8061024052358060805280608052602061024051018060e0528060e0528060e052360360051c81116102b75780608052506032565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b602081806102805202806101405280610140526020156020820483806102805290149250829017915081159150836101e05284610260528261012052509050905090506102f05760405180610200528061020052610140518061014052810160405261012051806101205281525f6101205161010051610260516101e051939094909192919394935b806103c05282806101205281101561040d5760208501602082806103c05202810190505184806101005290027fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000009016602083016020830281019050526001810190506103a6565b818061020052865250505050506040518061016052806101605260208101806101805280610180528180610160528103825282806101e0525192506020810181806101805281038252835184151581028060c05290508060c0528060c0528152602060c0510260208201806102a0529150816102a05260208501806102c0529450846102c0528101806102e052806102e0525f60c051909091909195919395939495945b806103e052848060c05281101561050f57602081806103e052028060a052830160a0518060a0528501815191507fffffffffffffffffffffffffffffffffffffffffffffffff000000000000000082169150526001810190506104b1565b858061018052820394505050505081019050818061016052900390505f9001601f8101601f19811690506040518060a05281810191508160405290508181f3"
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 0x580, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy ExternalFunctionPointerStructCopyTarget_initcode_0, v3, 0x561
+    v4 = slice_ptr v0
+    v5 = add v3, 0x561
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 0x561
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = and v7, v8
+    v10 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v9, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    stop
+}
+
+fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v0, 3
+    v1 = address
+    v2 = shl 32, v1
+    v3 = or v2, 0xd24c5a36
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 0, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = shl 64, v3
+    memory_object_store_element memoryarray<1>, v0, 0, v7
+    v8 = address
+    v9 = shl 32, v8
+    v10 = or v9, 0xc5337ed4
+    v11 = memory_object_len memoryarray, v0
+    v12 = lt 1, v11
+    v13 = iszero v12
+    jumpi v13, bb1, bb3
+  bb3:
+    v14 = shl 64, v10
+    memory_object_store_element memoryarray<1>, v0, 1, v14
+    v15 = address
+    v16 = shl 32, v15
+    v17 = or v16, 0xafb0db5f
+    v18 = memory_object_len memoryarray, v0
+    v19 = lt 2, v18
+    v20 = iszero v19
+    jumpi v20, bb1, bb4
+  bb4:
+    v21 = shl 64, v17
+    memory_object_store_element memoryarray<1>, v0, 2, v21
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffff
+    v24 = gas
+    v25 = abi_encode [memory_array<function>], selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v26 = slice_ptr v25
+    v27 = slice_len v25
+    v28 = staticcall v24, v23, v26, v27, 0, 0
+    jumpi v28, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v29 = returndatasize
+    v30 = add v29, 63
+    v31 = lt v30, v29
+    jumpi v31, bb7, bb8
+  bb8:
+    v32 = not 31
+    v33 = and v30, v32
+    v34 = alloc memorybytes, exact, uninitialized, infallible, v33
+    set_memory_object_len memorybytes, v34, v29
+    v35 = make_returndata_slice 0, v29
+    memory_object_copy_from_slice memorybytes, v34, v35
+    v36 = abi_decode [tuple<array<_, function>>], v34
+    v37 = memory_object_load_field memorystruct<1>, v36, 0
+    v38 = memory_object_len memoryarray, v37
+    v39 = eq v38, 3
+    v40 = iszero v39
+    jumpi v40, bb9, bb10
+  bb10:
+    v41 = memory_object_load_field memorystruct<1>, v36, 0
+    v42 = memory_object_len memoryarray, v41
+    v43 = lt 0, v42
+    v44 = iszero v43
+    jumpi v44, bb1, bb11
+  bb11:
+    v45 = memory_object_load_element memoryarray<1>, v41, 0
+    v46 = shr 64, v45
+    v47 = address
+    v48 = shl 32, v47
+    v49 = or v48, 0xd24c5a36
+    v50 = eq v46, v49
+    v51 = iszero v50
+    jumpi v51, bb9, bb12
+  bb12:
+    v52 = memory_object_load_field memorystruct<1>, v36, 0
+    v53 = memory_object_len memoryarray, v52
+    v54 = lt 1, v53
+    v55 = iszero v54
+    jumpi v55, bb1, bb13
+  bb13:
+    v56 = memory_object_load_element memoryarray<1>, v52, 1
+    v57 = shr 64, v56
+    v58 = address
+    v59 = shl 32, v58
+    v60 = or v59, 0xc5337ed4
+    v61 = eq v57, v60
+    v62 = iszero v61
+    jumpi v62, bb9, bb14
+  bb14:
+    v63 = memory_object_load_field memorystruct<1>, v36, 0
+    v64 = memory_object_len memoryarray, v63
+    v65 = lt 2, v64
+    v66 = iszero v65
+    jumpi v66, bb1, bb15
+  bb15:
+    v67 = memory_object_load_element memoryarray<1>, v63, 2
+    v68 = shr 64, v67
+    v69 = address
+    v70 = shl 32, v69
+    v71 = or v70, 0xafb0db5f
+    v72 = eq v68, v71
+    v73 = iszero v72
+    jumpi v73, bb9, bb16
+  bb16:
+    ret 1
+  bb9:
+    revert 0, 0
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}

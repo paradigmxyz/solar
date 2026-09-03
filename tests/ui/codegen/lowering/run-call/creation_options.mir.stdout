@@ -1,0 +1,238 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptionsChild ===
+@module CreationOptionsChild
+
+// === ROOT/tests/ui/codegen/lowering/run-call/creation_options.sol:CreationOptions ===
+@module CreationOptions
+fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 51, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v4 = slice_ptr v0
+    v5 = add v3, 20
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create2 0, v3, 20, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode []
+    v8 = not 31
+    v9 = and 51, v8
+    v10 = alloc raw, exact, uninitialized, infallible, v9
+    mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v11 = slice_ptr v7
+    v12 = add v10, 20
+    mcopy v12, v11, 0 !metadata(memory=heap)
+    v13 = create2 0, v10, 20, 0x78797a0000000000000000000000000000000000000000000000000000000000
+    v14 = eq v13, 0
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = returndatasize
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    jumpi v18, bb6, bb7
+  bb7:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    v22 = make_returndata_slice 0, v16
+    memory_object_copy_from_slice memorybytes, v21, v22
+    v23 = memory_object_data memorybytes, v21
+    v24 = memory_object_len memorybytes, v21
+    v25 = make_memory_slice v23, v24
+    v26 = memory_slice_load_word memory, v25, 0
+    v27 = lt v24, 4
+    v28 = iszero v27
+    v29 = shr 224, v26
+    v30 = eq v29, 0x8c379a0
+    v31 = and v28, v30
+    v32 = lt v24, 36
+    v33 = iszero v32
+    v34 = eq v29, 0x4e487b71
+    v35 = and v33, v34
+    jumpi 1, bb8, bb9
+  bb9:
+    revert v23, v24
+  bb8:
+    ret 1
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
+  bb5:
+    ret 0
+}
+
+fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 51, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v4 = slice_ptr v0
+    v5 = add v3, 20
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create2 0, v3, 20, 0
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode []
+    v8 = not 31
+    v9 = and 51, v8
+    v10 = alloc raw, exact, uninitialized, infallible, v9
+    mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v11 = slice_ptr v7
+    v12 = add v10, 20
+    mcopy v12, v11, 0 !metadata(memory=heap)
+    v13 = create2 0, v10, 20, 0
+    v14 = eq v13, 0
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = returndatasize
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    jumpi v18, bb6, bb7
+  bb7:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    v22 = make_returndata_slice 0, v16
+    memory_object_copy_from_slice memorybytes, v21, v22
+    v23 = memory_object_data memorybytes, v21
+    v24 = memory_object_len memorybytes, v21
+    v25 = make_memory_slice v23, v24
+    v26 = memory_slice_load_word memory, v25, 0
+    v27 = lt v24, 4
+    v28 = iszero v27
+    v29 = shr 224, v26
+    v30 = eq v29, 0x8c379a0
+    v31 = and v28, v30
+    v32 = lt v24, 36
+    v33 = iszero v32
+    v34 = eq v29, 0x4e487b71
+    v35 = and v33, v34
+    jumpi 1, bb8, bb9
+  bb9:
+    revert v23, v24
+  bb8:
+    ret 1
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
+  bb5:
+    ret 0
+}
+
+fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 51, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v4 = slice_ptr v0
+    v5 = add v3, 20
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create2 0, v3, 20, 0x3132333435363738393031323334353637383930313233343536373839303132
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode []
+    v8 = not 31
+    v9 = and 51, v8
+    v10 = alloc raw, exact, uninitialized, infallible, v9
+    mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v11 = slice_ptr v7
+    v12 = add v10, 20
+    mcopy v12, v11, 0 !metadata(memory=heap)
+    v13 = create2 0, v10, 20, 0x3132333435363738393031323334353637383930313233343536373839303132
+    v14 = eq v13, 0
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = returndatasize
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    jumpi v18, bb6, bb7
+  bb7:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    v22 = make_returndata_slice 0, v16
+    memory_object_copy_from_slice memorybytes, v21, v22
+    v23 = memory_object_data memorybytes, v21
+    v24 = memory_object_len memorybytes, v21
+    v25 = make_memory_slice v23, v24
+    v26 = memory_slice_load_word memory, v25, 0
+    v27 = lt v24, 4
+    v28 = iszero v27
+    v29 = shr 224, v26
+    v30 = eq v29, 0x8c379a0
+    v31 = and v28, v30
+    v32 = lt v24, 36
+    v33 = iszero v32
+    v34 = eq v29, 0x4e487b71
+    v35 = and v33, v34
+    jumpi 1, bb8, bb9
+  bb9:
+    revert v23, v24
+  bb8:
+    ret 1
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    ret 0
+  bb5:
+    ret 0
+}
+
+fn @differentLiteralSalts() -> bool [selector=0x3109d26e, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 51, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v4 = slice_ptr v0
+    v5 = add v3, 20
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create2 0, v3, 20, 0x6162630000000000000000000000000000000000000000000000000000000000
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode []
+    v8 = not 31
+    v9 = and 51, v8
+    v10 = alloc raw, exact, uninitialized, infallible, v9
+    mstore v10, 0x34600d5760038060115f395ff35b5f5ffd5f5ffd000000000000000000000000
+    v11 = slice_ptr v7
+    v12 = add v10, 20
+    mcopy v12, v11, 0 !metadata(memory=heap)
+    v13 = create2 0, v10, 20, 0x6465660000000000000000000000000000000000000000000000000000000000
+    jumpi v13, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v14 = eq v6, v13
+    v15 = iszero v14
+    ret v15
+}

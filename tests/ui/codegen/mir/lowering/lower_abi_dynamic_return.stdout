@@ -1,14 +1,267 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_return.mir (after lower-abi) ===
   @module LowerAbiDynamicReturn
-- fn @givesBytes(arg0: memorybytes) -> memorybytes [abi_returns=[memory_bytes]] {
+- fn @givesBytes(arg0: memorybytes) -> memorybytes [selector=0x0dead001, abi_returns=[memory_bytes]] {
 + @phase abi
-+ fn @givesBytes() {
++ fn @givesBytes() [selector=0x0dead001] {
     bb0:
 -     ret arg0
-+     v0 = abi_encode [memory_bytes], args arg0
-+     v1 = slice_ptr v0
-+     v2 = slice_len v0
-+     returndata v1, v2
++     v0 = calldatasize
++     v1 = lt v0, 36
++     jumpi v1, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
++     v2 = abi_encode [memory_bytes], args arg0
++     v3 = slice_ptr v2
++     v4 = slice_len v2
++     returndata v3, v4
++   bb2:
++     revert 0, 0
+  }
+  
+  fn @canonicalAddresses() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 96
+      v1 = add 2, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+- fn @givesAddresses() -> memoryarray [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
++ fn @givesAddresses() [selector=0x0dead002] {
+    bb0:
+      v0 = internal_call @canonicalAddresses, 1
+-     ret v0
++     v1 = abi_encode [memory_array<word>], args v0
++     v2 = slice_ptr v1
++     v3 = slice_len v1
++     returndata v2, v3
+  }
+  
+- fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
++ fn @givesAddressesAgain() [selector=0x0dead003] {
+    bb0:
+      v0 = internal_call @canonicalAddresses, 1
+-     ret v0
++     v1 = abi_encode [memory_array<word>], args v0
++     v2 = slice_ptr v1
++     v3 = slice_len v1
++     returndata v2, v3
+  }
+  
+  fn @canonicalAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = internal_call @canonicalAddresses, 1
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+- fn @givesAddressArrays() -> memoryarray [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
++ fn @givesAddressArrays() [selector=0x0dead005] {
+    bb0:
+      v0 = internal_call @canonicalAddressArrays, 1
+-     ret v0
++     v1 = abi_encode [memory_array<memory_array<word>>], args v0
++     v2 = slice_ptr v1
++     v3 = slice_len v1
++     returndata v2, v3
+  }
+  
+- fn @givesAddressArraysAgain() -> memoryarray [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
++ fn @givesAddressArraysAgain() [selector=0x0dead006] {
+    bb0:
+      v0 = internal_call @canonicalAddressArrays, 1
+-     ret v0
++     v1 = abi_encode [memory_array<memory_array<word>>], args v0
++     v2 = slice_ptr v1
++     v3 = slice_len v1
++     returndata v2, v3
+  }
+  
+  fn @dirtyAddressArrays() -> memoryarray {
+    bb0:
+      v0 = alloc memoryarray<1>, exact, uninitialized, panic, 64
+      v1 = add 1, 0
+      set_memory_object_len memoryarray, v0, v1
+      jump bb1
+    bb1:
+      v2 = phi [bb0: 0], [bb2: v5]
+      v3 = lt v2, v1
+      jumpi v3, bb2, bb3
+    bb3:
+      ret v0
+    bb2:
+      v4 = internal_call @canonicalAddresses, 1
+      memory_object_store_element memoryarray<1>, v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      memory_object_store_element memoryarray<1>, v0, v2, v4
+      v5 = add v2, 1
+      jump bb1
+  }
+  
+- fn @givesDirtyAddressArrays() -> memoryarray [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
++ fn @givesDirtyAddressArrays() [selector=0x0dead007] {
+    bb0:
+      v0 = internal_call @dirtyAddressArrays, 1
+-     ret v0
++     v1 = internal_call @cleanup_return.12, 1, v0
++     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v3 = slice_ptr v2
++     v4 = slice_len v2
++     returndata v3, v4
+  }
+  
+- fn @givesDirtyAddressArraysAgain() -> memoryarray [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
++ fn @givesDirtyAddressArraysAgain() [selector=0x0dead008] {
+    bb0:
+      v0 = internal_call @dirtyAddressArrays, 1
+-     ret v0
++     v1 = internal_call @cleanup_return.12, 1, v0
++     v2 = abi_encode [memory_array<memory_array<word>>], args v1
++     v3 = slice_ptr v2
++     v4 = slice_len v2
++     returndata v3, v4
+  }
+  
+- fn @givesZeroedTuple() -> memorystruct [selector=0x0dead004, abi_returns=[tuple<word, word>], abi_return_params=[tuple<u128, address>]] {
++ fn @givesZeroedTuple() [selector=0x0dead004] {
+    bb0:
+      v0 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+      memory_zero v0, 64
+-     ret v0
++     v1 = memory_object_load_field memorystruct<2>, v0, 0
++     mstore 128, v1
++     v2 = add 128, 32
++     v3 = memory_object_load_field memorystruct<2>, v0, 1
++     mstore v2, v3
++     v4 = add v2, 32
++     v5 = add 128, 64
++     v6 = sub v5, 128
++     returndata 128, v6
++ }
++ 
++ fn @cleanup_return.11(arg0: memoryarray) -> memoryarray {
++   bb0:
++     v0 = memory_object_len memoryarray, arg0
++     v1 = add v0, 1
++     v2 = lt v1, v0
++     jumpi v2, bb1, bb2
++   bb2:
++     v3 = mul v1, 32
++     v4 = iszero 32
++     v5 = div v3, 32
++     v6 = eq v5, v1
++     v7 = or v4, v6
++     v8 = iszero v7
++     jumpi v8, bb1, bb3
++   bb3:
++     v9 = alloc memoryarray<1>, exact, uninitialized, infallible, v3
++     set_memory_object_len memoryarray, v9, v0
++     jump bb4
++   bb4:
++     v10 = phi [bb3: 0], [bb5: v14]
++     v11 = lt v10, v0
++     jumpi v11, bb5, bb6
++   bb6:
++     ret v9
++   bb5:
++     v12 = memory_object_load_element memoryarray<1>, arg0, v10
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
++     memory_object_store_element memoryarray<1>, v9, v10, v13
++     v14 = add v10, 1
++     jump bb4
++   bb1:
++     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 65 !metadata(memory=scratch)
++     revert 0, 36
++ }
++ 
++ fn @cleanup_return.12(arg0: memoryarray) -> memoryarray {
++   bb0:
++     v0 = memory_object_len memoryarray, arg0
++     v1 = add v0, 1
++     v2 = lt v1, v0
++     jumpi v2, bb1, bb2
++   bb2:
++     v3 = mul v1, 32
++     v4 = iszero 32
++     v5 = div v3, 32
++     v6 = eq v5, v1
++     v7 = or v4, v6
++     v8 = iszero v7
++     jumpi v8, bb1, bb3
++   bb3:
++     v9 = alloc memoryarray<1>, exact, uninitialized, infallible, v3
++     set_memory_object_len memoryarray, v9, v0
++     jump bb4
++   bb4:
++     v10 = phi [bb3: 0], [bb11: v32]
++     v11 = lt v10, v0
++     jumpi v11, bb5, bb6
++   bb6:
++     ret v9
++   bb5:
++     v12 = memory_object_load_element memoryarray<1>, arg0, v10
++     v13 = memory_object_len memoryarray, v12
++     v14 = iszero v12
++     v15 = iszero v14
++     v16 = mul v13, v15
++     v17 = add v16, 1
++     v18 = lt v17, v16
++     jumpi v18, bb1, bb7
++   bb7:
++     v19 = mul v17, 32
++     v20 = iszero 32
++     v21 = div v19, 32
++     v22 = eq v21, v17
++     v23 = or v20, v22
++     v24 = iszero v23
++     jumpi v24, bb1, bb8
++   bb8:
++     v25 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
++     set_memory_object_len memoryarray, v25, v16
++     jump bb9
++   bb9:
++     v26 = phi [bb8: 0], [bb10: v31]
++     v27 = lt v26, v16
++     jumpi v27, bb10, bb11
++   bb11:
++     memory_object_store_element memoryarray<1>, v9, v10, v25
++     v32 = add v10, 1
++     jump bb4
++   bb10:
++     v28 = memory_object_load_element memoryarray<1>, v12, v26
++     v29 = mul v28, v15
++     v30 = and v29, 0xffffffffffffffffffffffffffffffffffffffff
++     memory_object_store_element memoryarray<1>, v25, v26, v30
++     v31 = add v26, 1
++     jump bb9
++   bb1:
++     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
++     mstore 4, 65 !metadata(memory=scratch)
++     revert 0, 36
   }
   

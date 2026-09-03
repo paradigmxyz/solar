@@ -1,0 +1,90 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_dynamic.sol:AbiCalldataFixedDynamic ===
+@module AbiCalldataFixedDynamic
+fn @lengths(arg0: calldataslice) -> u256 [selector=0xe718a709, pure, abi_params=[array<2, bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb5
+  bb5:
+    v15 = calldataload v9
+    v16 = gt v15, 0xffffffffffffffff
+    jumpi v16, bb3, bb6
+  bb6:
+    v17 = mul v15, 1
+    v18 = add v9, 32
+    v19 = calldatasize
+    v20 = sub v19, v17
+    v21 = sgt v18, v20
+    jumpi v21, bb3, bb7
+  bb7:
+    v22 = add v9, 32
+    v23 = make_calldata_slice v22, v15
+    v24 = slice_len v23
+    v25 = slice_len arg0
+    v26 = lt 1, v25
+    v27 = iszero v26
+    jumpi v27, bb1, bb8
+  bb8:
+    v28 = slice_ptr arg0
+    v29 = add v28, 32
+    v30 = calldatasize
+    v31 = sub v30, v29
+    v32 = slt v31, 32
+    jumpi v32, bb3, bb9
+  bb9:
+    v33 = calldataload v29
+    v34 = add v28, v33
+    v35 = calldatasize
+    v36 = sub v35, v28
+    v37 = sub v36, 31
+    v38 = slt v33, v37
+    v39 = iszero v38
+    jumpi v39, bb3, bb10
+  bb10:
+    v40 = calldataload v34
+    v41 = gt v40, 0xffffffffffffffff
+    jumpi v41, bb3, bb11
+  bb11:
+    v42 = mul v40, 1
+    v43 = add v34, 32
+    v44 = calldatasize
+    v45 = sub v44, v42
+    v46 = sgt v43, v45
+    jumpi v46, bb3, bb12
+  bb12:
+    v47 = add v34, 32
+    v48 = make_calldata_slice v47, v40
+    v49 = slice_len v48
+    v50 = add v24, v49
+    v51 = lt v50, v24
+    jumpi v51, bb13, bb14
+  bb14:
+    ret v50
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -1,110 +1,28 @@
 // === ROOT/tests/ui/codegen/lowering/selector_on_bare_overload_set.sol:ERC1155Recipient ===
 @module ERC1155Recipient
-fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [abi_returns=[word]] {
+fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [selector=0xf23a6e61, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 160
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldatasize
-    v4 = calldataload 4
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v4, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = calldataload 36
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = eq v7, v8
-    jumpi v9, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    v10 = slice_ptr arg4
-    v11 = slice_len arg4
-    v12 = lt v10, 32
-    v13 = sub v10, 32
-    v14 = lt v13, 4
-    v15 = or v12, v14
-    jumpi v15, bb7, bb8
-  bb8:
-    v16 = gt v13, v3
-    v17 = sub v3, v13
-    v18 = gt 32, v17
-    v19 = or v16, v18
-    jumpi v19, bb9, bb10
-  bb10:
-    v20 = sub v3, v10
-    v21 = gt v11, v20
-    jumpi v21, bb11, bb12
-  bb12:
     ret 0x1111111100000000000000000000000000000000000000000000000000000000
-  bb11:
-    revert 0, 0
-  bb9:
-    revert 0, 0
-  bb7:
-    revert 0, 0
-  bb1:
-    revert 0, 0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
 }
 
 // === ROOT/tests/ui/codegen/lowering/selector_on_bare_overload_set.sol:SelectorOnBareOverloadSet ===
 @module SelectorOnBareOverloadSet
-fn @viaBareIdent() -> bytes4 [abi_returns=[word]] {
+fn @viaBareIdent() -> bytes4 [selector=0xfe408e0f, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
     ret 0xf23a6e6100000000000000000000000000000000000000000000000000000000
 }
 
-fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [abi_returns=[word]] {
+fn @onERC1155Received(arg0: address, arg1: address, arg2: u256, arg3: u256, arg4: calldataslice) -> bytes4 [selector=0xf23a6e61, abi_params=[address, address, u256, u256, bytes], abi_returns=[word<bytes4>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 160
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldatasize
-    v4 = calldataload 4
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v4, v5
-    jumpi v6, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v7 = calldataload 36
-    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
-    v9 = eq v7, v8
-    jumpi v9, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    v10 = slice_ptr arg4
-    v11 = slice_len arg4
-    v12 = lt v10, 32
-    v13 = sub v10, 32
-    v14 = lt v13, 4
-    v15 = or v12, v14
-    jumpi v15, bb7, bb8
-  bb8:
-    v16 = gt v13, v3
-    v17 = sub v3, v13
-    v18 = gt 32, v17
-    v19 = or v16, v18
-    jumpi v19, bb9, bb10
-  bb10:
-    v20 = sub v3, v10
-    v21 = gt v11, v20
-    jumpi v21, bb11, bb12
-  bb12:
     ret 0x1111111100000000000000000000000000000000000000000000000000000000
-  bb11:
-    revert 0, 0
-  bb9:
-    revert 0, 0
-  bb7:
-    revert 0, 0
-  bb1:
-    revert 0, 0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
 }

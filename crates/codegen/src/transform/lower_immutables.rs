@@ -34,11 +34,11 @@ impl MirPass for LowerImmutables {
     ) -> bool {
         let staging_base = immutable_staging_base(module);
         let runtime_reachable = runtime_reachable_functions(module);
-        let mut constructor_only = DenseBitSet::new_filled(module.functions.len());
-        constructor_only.subtract(&runtime_reachable);
         let mut changed = false;
-        for func_id in constructor_only.iter() {
-            let func = module.function_mut(func_id);
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
+            if runtime_reachable.contains(func_id) {
+                continue;
+            }
             let stores: Vec<_> = func
                 .instructions()
                 .filter_map(|inst_id| match func.inst(inst_id).kind {

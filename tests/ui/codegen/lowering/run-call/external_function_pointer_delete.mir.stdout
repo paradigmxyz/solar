@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_delete.sol:ExternalFunctionPointerDelete ===
+@module ExternalFunctionPointerDelete
+fn @value() [selector=0x3fa4f245, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @clear() -> bool [selector=0x52efea6e, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x3fa4f245
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v5 = and v3, v4
+    v6 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v7 = or v5, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = not 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = and v8, v9
+    v11 = and 0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v12 = or v10, v11
+    sstore 0, v12 !metadata(storage=slot(0))
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v15 = eq v14, 0
+    ret v15
+}

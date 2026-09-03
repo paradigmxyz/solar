@@ -177,6 +177,8 @@ impl Block {
 pub(crate) struct BlockMetadata {
     /// Estimated block hotness for layout decisions.
     pub(crate) hotness: Hotness,
+    /// Whether the block belongs to a natural loop.
+    pub(crate) in_loop: bool,
 }
 
 /// Block hotness metadata.

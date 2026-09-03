@@ -12,17 +12,9 @@ contract ConstructorAbiValidation {
     bool public second;
 
     // CHECK-LABEL: fn @constructor{{[( ]}}
-    // CHECK: [[BASE:v[0-9]+]] = constructor_args_base
-    // CHECK: [[FIRST:v[0-9]+]] = add [[BASE]], 0
-    // CHECK-NEXT: {{v[0-9]+}} = mload [[FIRST]]
-    // CHECK: revert 0, 0
-    // CHECK: [[SECOND:v[0-9]+]] = add [[BASE]], 32
-    // CHECK-NEXT: {{v[0-9]+}} = mload [[SECOND]]
-    // CHECK: revert 0, 0
-    // CHECK: [[THIRD:v[0-9]+]] = add [[BASE]], 64
-    // CHECK-NEXT: {{v[0-9]+}} = mload [[THIRD]]
-    // CHECK: revert 0, 0
-    // CHECK: memory_object_element_addr memoryfixedarray<2, 1>, {{v[0-9]+}}, 1
+    // CHECK: eq arg0, 0
+    // CHECK: iszero
+    // CHECK: memory_object_load_element memoryfixedarray<2, 1>, arg1, 1
     // CHECK: sstore 0,
     constructor(bool flag_, bool[2] memory flags) {
         flag = flag_;

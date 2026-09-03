@@ -10,7 +10,7 @@
 //@ run-call: structValue 41, 43 => 41, 43, 1
 //@ run-call: structPopThenPush => 0, 1
 //@ run-call: popThenPush => 0, 1
-//@ run-call-fail: popEmpty() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000031
+//@ run-call-fail: popEmpty => Panic(0x31)
 
 contract StorageArrayPush {
     struct Bucket {

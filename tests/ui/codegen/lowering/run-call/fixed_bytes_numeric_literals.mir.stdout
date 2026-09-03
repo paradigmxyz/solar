@@ -1,0 +1,86 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_numeric_literals.sol:FixedBytesNumericLiterals ===
+@module FixedBytesNumericLiterals
+fn @wrapBytes1() -> bytes1 [selector=0xfe67d303, pure, abi_params=[], abi_returns=[word<bytes1>]] {
+  bb0:
+    ret 0x100000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @wrapBytes2() -> bytes2 [selector=0x6e68db55, pure, abi_params=[], abi_returns=[word<bytes2>]] {
+  bb0:
+    ret 0x102000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @wrapBytes4() -> bytes4 [selector=0x33337265, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x102030400000000000000000000000000000000000000000000000000000000
+}
+
+fn @wrapBytes32() -> bytes32 [selector=0x13b3c557, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+}
+
+fn @overloadedOr() -> bytes1 [selector=0xd89a6a5e, pure, abi_params=[], abi_returns=[word<bytes1>]] {
+  bb0:
+    v0 = internal_call @orByte, 1, 0x100000000000000000000000000000000000000000000000000000000000000, 0x200000000000000000000000000000000000000000000000000000000000000
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+fn @literalReturn() -> bytes1 [selector=0x4e6d2451, pure, abi_params=[], abi_returns=[word<bytes1>]] {
+  bb0:
+    ret 0x100000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @widen() -> bytes2 [selector=0x89b397d7, pure, abi_params=[], abi_returns=[word<bytes2>]] {
+  bb0:
+    ret 0x100000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @roundTrip(arg0: bytes1) -> bytes1 [selector=0xe2d2fb76, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
+  bb0:
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @encodeSelector(arg0: bytes4) -> bytes4 [selector=0xe234433f, pure, abi_params=[bytes4], abi_returns=[word<bytes4>]] {
+  bb0:
+    v0 = abi_encode [word], object, selector arg0, args 1
+    v1 = memory_object_load_element memorybytes, v0, 0
+    v2 = memory_object_len memorybytes, v0
+    v3 = lt v2, 4
+    v4 = sub 4, v2
+    v5 = mul 8, v4
+    v6 = shl v5, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v7 = select v3, v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = and v1, v7
+    ret v8
+}
+
+fn @encodeLocalSelector() -> bytes4 [selector=0x0e6d4a3f, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    v0 = shl 224, 0x12345678
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v1, 3
+    v2 = memory_object_data memorybytes, v1
+    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = abi_encode [memory_bytes], object, selector v0, args v1
+    v4 = memory_object_load_element memorybytes, v3, 0
+    v5 = memory_object_len memorybytes, v3
+    v6 = lt v5, 4
+    v7 = sub 4, v5
+    v8 = mul 8, v7
+    v9 = shl v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v10 = select v6, v9, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = and v4, v10
+    ret v11
+}
+
+fn @orByte(arg0: bytes1, arg1: bytes1) -> bytes1 [pure] {
+  bb0:
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v2 = or v0, v1
+    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v3
+}

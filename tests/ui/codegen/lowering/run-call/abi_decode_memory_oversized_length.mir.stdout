@@ -1,0 +1,94 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_memory_oversized_length.sol:AbiDecodeMemoryOversizedLength ===
+@module AbiDecodeMemoryOversizedLength
+fn @decodeWordArray(arg0: memoryarray) -> u256 [selector=0x5592ecdf, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    ret v0
+}
+
+fn @decodeNarrowArray(arg0: memoryarray) -> u256 [selector=0x42670e32, pure, abi_params=[array<_, u8>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    ret v0
+}
+
+fn @decodeBytes(arg0: memorybytes) -> u256 [selector=0x197621ce, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    ret v0
+}
+
+fn @decodeNestedArray(arg0: memoryarray) -> u256 [selector=0xad885292, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    ret v0
+}
+
+fn @wordArray() -> bool [selector=0xdbd2add2, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @oversized, 1, 0x5592ecdf00000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @narrowArray() -> bool [selector=0x69b43bd0, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @oversized, 1, 0x42670e3200000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @bytesValue() -> bool [selector=0x5a286ac0, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @oversized, 1, 0x197621ce00000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @nestedArray() -> bool [selector=0x810ef4b8, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @oversized, 1, 0xad88529200000000000000000000000000000000000000000000000000000000
+    ret v0
+}
+
+fn @oversized(arg0: bytes4) -> bool {
+  bb0:
+    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v1 = not 31
+    v2 = and 131, v1
+    v3 = alloc memorybytes, exact, uninitialized, infallible, v2
+    set_memory_object_len memorybytes, v3, 68
+    memory_object_store_word memorybytes, v3, 0, v0
+    memory_object_store_word memorybytes, v3, 4, 32
+    memory_object_store_word memorybytes, v3, 36, 0xffffffffffffffff
+    v4 = address
+    v5 = gas
+    v6 = memory_object_data memorybytes, v3
+    v7 = memory_object_len memorybytes, v3
+    v8 = call v5, v4, 0, v6, v7, 0, 0
+    v9 = returndatasize
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb1, bb2
+  bb2:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = make_returndata_slice 0, v9
+    memory_object_copy_from_slice memorybytes, v14, v15
+    v16 = iszero v8
+    jumpi v16, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    v17 = keccak256_bytes v14
+    v18 = abi_encode [word], object, selector 0x4e487b7100000000000000000000000000000000000000000000000000000000, args 65
+    v19 = keccak256_bytes v18
+    v20 = eq v17, v19
+    jump bb5
+  bb5:
+    v21 = phi [bb3: v20], [bb4: 0]
+    ret v21
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

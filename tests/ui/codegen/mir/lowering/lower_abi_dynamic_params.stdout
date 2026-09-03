@@ -1,13 +1,21 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_params.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_dynamic_params.mir (after lower-abi) ===
   @module LowerAbiDynamicParams
-- fn @takesBytes(arg0: memptr, arg1: u256) {
+- fn @takesBytes(arg0: memptr, arg1: u256) [selector=0x0dead002] {
 + @phase abi
-+ fn @takesBytes() {
++ fn @takesBytes() [selector=0x0dead002] {
     bb0:
++     v2 = calldatasize
++     v3 = lt v2, 68
++     jumpi v3, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
       v0 = mload arg0
       v1 = add v0, arg1
       mstore 128, v1
       returndata 128, 32
++   bb2:
++     revert 0, 0
   }
   

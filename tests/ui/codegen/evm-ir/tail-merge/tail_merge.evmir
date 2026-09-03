@@ -124,10 +124,10 @@ bb10:
 
 // EXCHANGE lowers to two bytes on Amsterdam. Generic EVM IR keeps the three-swap size when deciding
 // whether to merge tails, which keeps the merge independent of target lowering.
-// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK-LABEL: {{^[ +].*}}bb13 [cold]:
 // CHECK: {{^[ +].*}}push 1
 // CHECK: + jump [[TAIL_D:bb[0-9]+]]
-bb11:
+bb13 [cold]:
   push 1
   push 2
   push 3
@@ -136,16 +136,43 @@ bb11:
   pop
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK-LABEL: {{^[ +].*}}bb14 [cold]:
 // CHECK: {{^[ +].*}}push 4
 // CHECK: + jump [[TAIL_D]]
-bb12:
+bb14 [cold]:
   push 4
   push 5
   push 6
   exchange 1, 2
   pop
   pop
+  stop
+
+// A six-byte hot suffix does not pay for its runtime jump in gas mode.
+// CHECK-LABEL: {{^[ +].*}}bb11:
+// CHECK: {{^[ +].*}}push 11
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}push 2
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}stop
+bb11:
+  push 11
+  push 1
+  push 2
+  push0
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb12:
+// CHECK: {{^[ +].*}}push 12
+// CHECK-NEXT: {{^[ +].*}}push 1
+// CHECK-NEXT: {{^[ +].*}}push 2
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: {{^[ +].*}}stop
+bb12:
+  push 12
+  push 1
+  push 2
+  push0
   stop
 
 // CHECK: + [[TAIL_B]]:

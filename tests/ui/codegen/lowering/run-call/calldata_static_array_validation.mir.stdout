@@ -1,0 +1,159 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/calldata_static_array_validation.sol:CalldataStaticArrayValidation ===
+@module CalldataStaticArrayValidation
+fn @readSecond(arg0: calldataslice) -> u8 [selector=0xe9d33e2a, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 32
+    v5 = calldataload v4
+    v6 = and v5, 255
+    v7 = eq v5, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    ret v5
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @readFirst(arg0: calldataslice) -> u8 [selector=0x77c98de5, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldataload v4
+    v6 = and v5, 255
+    v7 = eq v5, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    ret v5
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @unused(arg0: calldataslice) -> u256 [selector=0x492c7c0b, pure, abi_params=[array<2, u8>], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+fn @nested(arg0: calldataslice) -> u8 [selector=0xf4e4bddf, pure, abi_params=[array<2, array<2, u8>>], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 64
+    v5 = make_calldata_slice v4, 2
+    v6 = slice_len v5
+    v7 = lt 1, v6
+    v8 = iszero v7
+    jumpi v8, bb1, bb3
+  bb3:
+    v9 = slice_ptr v5
+    v10 = add v9, 32
+    v11 = calldataload v10
+    v12 = and v11, 255
+    v13 = eq v11, v12
+    v14 = iszero v13
+    jumpi v14, bb4, bb5
+  bb5:
+    ret v11
+  bb4:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @passToInternal(arg0: calldataslice) -> u8 [selector=0xbdb87238, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = internal_call @second, 1, arg0
+    ret v0
+}
+
+fn @second(arg0: calldataslice) -> u8 [pure] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 1, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 32
+    v5 = calldataload v4
+    v6 = and v5, 255
+    v7 = eq v5, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    ret v5
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @copyToMemory(arg0: calldataslice) -> u8 [selector=0x13aac4cb, pure, abi_params=[array<2, u8>], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = calldatasize
+    v2 = sub v1, v0
+    v3 = slt v2, 64
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    jump bb3
+  bb3:
+    v5 = phi [bb2: 0], [bb6: v13]
+    v6 = lt v5, 2
+    jumpi v6, bb4, bb5
+  bb5:
+    v14 = make_calldata_slice v0, 64
+    memory_object_copy_from_slice memoryfixedarray, v4, v14
+    v15 = lt 1, 2
+    v16 = iszero v15
+    jumpi v16, bb7, bb8
+  bb8:
+    v17 = memory_object_load_element memoryfixedarray<2, 1>, v4, 1
+    v18 = and v17, 255
+    ret v18
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v7 = mul v5, 32
+    v8 = add v0, v7
+    v9 = calldataload v8
+    v10 = and v9, 255
+    v11 = eq v9, v10
+    v12 = iszero v11
+    jumpi v12, bb1, bb6
+  bb6:
+    v13 = add v5, 1
+    jump bb3
+  bb1:
+    revert 0, 0
+}

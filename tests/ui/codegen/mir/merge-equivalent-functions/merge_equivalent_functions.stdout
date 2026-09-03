@@ -32,7 +32,7 @@
       ret v0
   }
   
-  fn @entry() -> u256 {
+  fn @entry() -> u256 [selector=0x01020304] {
     bb0:
       v0 = internal_call @wrap_a, 1, 1
 -     v1 = internal_call @wrap_b, 1, 2
@@ -64,7 +64,7 @@
       ret v0
   }
   
-  fn @recursive_entry() {
+  fn @recursive_entry() [selector=0x01020306] {
     bb0:
       v0 = internal_call @recursive_a, 1, 1, 1
 -     v1 = internal_call @recursive_b, 1, 1, 2

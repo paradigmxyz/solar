@@ -8,14 +8,13 @@ library Lib {
 }
 
 contract C {
-    // Linked-library calls return through DELEGATECALL. Until MIR has
-    // first-class multi-result calls, lowering must publish the return buffer
-    // used by tuple extraction.
+    // Linked-library calls return through DELEGATECALL. Lowering decodes the
+    // returned words before tuple extraction.
     // CHECK-LABEL: fn @pair{{[( ]}}
     // CHECK: delegatecall
-    // CHECK: mstore 32, {{v[0-9]+}}
-    // CHECK: {{v[0-9]+}} = mload 32
-    // CHECK: mload {{v[0-9]+}}
+    // CHECK: returndatasize
+    // CHECK: mload
+    // CHECK: mload
     function pair() external pure returns (uint256, uint256) {
         return Lib.pair();
     }

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_alias.mir (after storage-promotion) ===
   @module StoragePromotionAlias
-  fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) {
+  fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) [selector=0x01020304] {
     bb0:
 -     sstore arg0, 1
 -     sstore arg1, 2
@@ -28,7 +28,7 @@
       jump bb1
   }
   
-  fn @reject_symbolic_and_constant_slots(arg0: u256) {
+  fn @reject_symbolic_and_constant_slots(arg0: u256) [selector=0x01020304] {
     bb0:
 -     sstore arg0, 1
 -     sstore 7, 2
@@ -55,7 +55,7 @@
       jump bb1
   }
   
-  fn @promote_two_constant_slots() {
+  fn @promote_two_constant_slots() [selector=0x01020304] {
     bb0:
 -     sstore 0, 1
 -     sstore 1, 2
@@ -86,7 +86,7 @@
       jump bb1
   }
   
-  fn @promote_same_base_distinct_offsets(arg0: u256) {
+  fn @promote_same_base_distinct_offsets(arg0: u256) [selector=0x01020304] {
     bb0:
       v0 = add arg0, 1
 -     sstore v0, 1

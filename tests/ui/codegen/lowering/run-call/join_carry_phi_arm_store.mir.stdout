@@ -1,0 +1,136 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/join_carry_phi_arm_store.sol:JoinCarryPhiArmStore ===
+@module JoinCarryPhiArmStore
+fn @helper(arg0: u256, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = sub arg0, 1
+    v2 = lt arg0, 1
+    jumpi v2, bb4, bb5
+  bb5:
+    v3 = add arg1, 1
+    v4 = lt v3, arg1
+    jumpi v4, bb4, bb6
+  bb6:
+    v5 = internal_call @helper, 1, v1, v3
+    ret v5
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    ret arg1
+}
+
+fn @sum(arg0: u256) -> u256 [selector=0x188b85b4, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb14: v0]
+    v1 = phi [bb0: 0], [bb14: v10]
+    v2 = phi [bb0: 0], [bb14: v9]
+    v3 = lt v1, v0
+    jumpi v3, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    jumpi 2, bb8, bb7
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v4 = mod v1, 2
+    v5 = eq v4, 1
+    jumpi v5, bb9, bb10
+  bb10:
+    jump bb11
+  bb9:
+    v6 = internal_call @helper, 1, v1, v2
+    v7 = add v6, v1
+    v8 = lt v7, v6
+    jumpi v8, bb12, bb13
+  bb13:
+    jump bb11
+  bb11:
+    v9 = phi [bb13: v7], [bb10: v2]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v1, 1
+    v11 = lt v10, v1
+    jumpi v11, bb12, bb14
+  bb14:
+    jump bb1
+  bb12:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @pick(arg0: u256, arg1: u256) -> u256 [selector=0xa62f4550, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb1, bb2
+  bb2:
+    v3 = sub arg1, arg0
+    v4 = lt arg1, arg0
+    jumpi v4, bb4, bb6
+  bb6:
+    jump bb3
+  bb1:
+    v1 = sub arg0, arg1
+    v2 = lt arg0, arg1
+    jumpi v2, bb4, bb5
+  bb5:
+    jump bb3
+  bb3:
+    v5 = phi [bb5: v1], [bb6: v3]
+    jump bb7
+  bb7:
+    v6 = phi [bb3: arg1], [bb17: v6]
+    v7 = phi [bb3: v5], [bb17: v7]
+    v8 = phi [bb3: arg0], [bb17: v8]
+    v9 = phi [bb3: 0], [bb17: v17]
+    v10 = phi [bb3: 0], [bb17: v18]
+    v11 = lt v10, v6
+    jumpi v11, bb10, bb11
+  bb11:
+    jump bb8
+  bb8:
+    ret v9
+  bb10:
+    v12 = lt v10, v8
+    v13 = iszero v12
+    jumpi v13, bb13, bb14
+  bb14:
+    jump bb15
+  bb13:
+    v14 = internal_call @helper, 1, v7, v10
+    v15 = add v9, v14
+    v16 = lt v15, v9
+    jumpi v16, bb4, bb16
+  bb16:
+    jump bb15
+  bb15:
+    v17 = phi [bb16: v15], [bb14: v9]
+    jump bb12
+  bb12:
+    jump bb9
+  bb9:
+    v18 = add v10, 1
+    v19 = lt v18, v10
+    jumpi v19, bb4, bb17
+  bb17:
+    jump bb7
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -1,28 +1,80 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_retargets_calls.mir (after lower-abi) ===
   @module LowerAbiRetargets
-- fn @pub(arg0: u256) -> u256 [abi_returns=[word]] {
+- fn @pub(arg0: u256) -> u256 [selector=0x0a0a0a01, abi_returns=[word]] {
 + @phase abi
-+ fn @pub() {
++ fn @pub() [selector=0x0a0a0a01] {
     bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
       v0 = add arg0, 1
 -     ret v0
 +     mstore 128, v0
-+     returndata 128, 32
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
++   bb2:
++     revert 0, 0
   }
   
-- fn @caller(arg0: u256) -> u256 [abi_returns=[word]] {
-+ fn @caller() {
+- fn @caller(arg0: u256) -> u256 [selector=0x0a0a0a02, abi_returns=[word]] {
++ fn @caller() [selector=0x0a0a0a02] {
     bb0:
 -     v0 = internal_call @pub, 1, arg0
+-     ret v0
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
 +     v0 = internal_call @pub.body, 1, arg0
 +     mstore 128, v0
-+     returndata 128, 32
++     v3 = add 128, 32
++     v4 = sub v3, 128
++     returndata 128, v4
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @literal() -> memorybytes [selector=0x0a0a0a03, abi_params=[], abi_returns=[memory_bytes]] {
++ fn @literal() [selector=0x0a0a0a03] {
+    bb0:
+-     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+-     set_memory_object_len memorybytes, v0, 1
+-     memory_object_store_word memorybytes, v0, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     mstore 128, 32
++     mstore 160, 1
++     mstore 192, 0x3100000000000000000000000000000000000000000000000000000000000000
++     returndata 128, 96
++ }
++ 
++ fn @literalCaller() [selector=0x0a0a0a04] {
++   bb0:
++     v0 = internal_call @literal.body, 1
++     v1 = abi_encode [memory_bytes], args v0
++     v2 = slice_ptr v1
++     v3 = slice_len v1
++     returndata v2, v3
 + }
 + 
 + fn @pub.body(arg0: u256) -> u256 {
 +   bb0:
 +     v0 = add arg0, 1
+      ret v0
+  }
+  
+- fn @literalCaller() -> memorybytes [selector=0x0a0a0a04, abi_params=[], abi_returns=[memory_bytes]] {
++ fn @literal.body() -> memorybytes {
+    bb0:
+-     v0 = internal_call @literal, 1
++     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
++     set_memory_object_len memorybytes, v0, 1
++     memory_object_store_word memorybytes, v0, 0, 0x31ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       ret v0
   }
   

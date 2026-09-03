@@ -13,11 +13,9 @@ bb0:
   sub
   push bb3
   jumpi
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb3
   jumpi
   push 4

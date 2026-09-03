@@ -56,4 +56,9 @@ contract SafeMathTest {
         uint256 result = lib.chainedOps(10, 5, 2);
         assert(result == 30);
     }
+
+    function test_linkedExtensionEvaluationOrder() public {
+        assert(lib.linkedExtensionEvaluationOrder() == 102);
+        assert(lib.next() == 2);
+    }
 }

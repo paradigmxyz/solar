@@ -1,0 +1,49 @@
+// === ROOT/tests/ui/codegen/lowering/storage_reference_loop.sol:StorageReferenceLoop ===
+@module StorageReferenceLoop
+fn @rebindLoop(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0x936672d8, abi_params=[bool, u256, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = mapping_slot arg1, 0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb11: v1]
+    v2 = phi [bb0: arg3], [bb11: v2]
+    v3 = phi [bb0: 0], [bb11: v12]
+    v4 = phi [bb0: 0], [bb11: v4]
+    v5 = phi [bb0: arg0], [bb11: v5]
+    v6 = phi [bb0: arg2], [bb11: v6]
+    v7 = phi [bb0: 0], [bb11: v7]
+    v8 = phi [bb0: v0], [bb11: v11]
+    v9 = lt v3, 1
+    jumpi v9, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    sstore v8, v2 !metadata(storage=symbolic(v8))
+    v14 = mapping_slot v1, 0
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    v16 = mapping_slot v6, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    ret v15, v17
+  bb4:
+    jumpi v5, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v10 = mapping_slot v6, 0
+    jump bb9
+  bb9:
+    v11 = phi [bb7: v10], [bb8: v8]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v12 = add v3, 1
+    v13 = lt v12, v3
+    jumpi v13, bb10, bb11
+  bb11:
+    jump bb1
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

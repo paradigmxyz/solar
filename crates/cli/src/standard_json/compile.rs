@@ -9,6 +9,7 @@ use super::{
     },
     metadata::Metadata,
 };
+use crate::bytecode::MaybeHexBytecode;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, RuntimeDataFn};
 use solar_config::{
@@ -501,7 +502,15 @@ fn make_bytecode_output(
 
     let mut output = BytecodeOutput::default();
     if output_selection.contains(object_flag) {
-        output.object = Some(bytecode.cloned().unwrap_or_default());
+        let references = artifact.map_or(&[][..], |artifact| {
+            if deployed {
+                &artifact.runtime_link_references
+            } else {
+                &artifact.deployment_link_references
+            }
+        });
+        output.object =
+            Some(MaybeHexBytecode::new(bytecode.cloned().unwrap_or_default(), references));
     }
     if output_selection.contains(opcodes_flag) {
         output.opcodes = Some(solar_codegen::backend::evm::disassemble_standard_json(
@@ -510,7 +519,23 @@ fn make_bytecode_output(
         ));
     }
     if output_selection.contains(link_references_flag) {
-        output.link_references = Some(FxIndexMap::default());
+        let references = artifact.into_iter().flat_map(|artifact| {
+            if deployed {
+                artifact.runtime_link_references.iter()
+            } else {
+                artifact.deployment_link_references.iter()
+            }
+        });
+        let mut by_source = FxIndexMap::<String, FxIndexMap<String, Vec<OffsetLength>>>::default();
+        for reference in references {
+            by_source
+                .entry(reference.source.clone())
+                .or_default()
+                .entry(reference.name.clone())
+                .or_default()
+                .push(OffsetLength { start: reference.start, length: 20 });
+        }
+        output.link_references = Some(by_source);
     }
     if deployed
         && output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES)

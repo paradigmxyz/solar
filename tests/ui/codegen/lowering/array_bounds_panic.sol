@@ -9,9 +9,7 @@
 // - storage dynamic arrays check against the length stored at the base slot;
 // - calldata dynamic arrays/bytes check against the length word at
 //   `4 + head`;
-// - constant indexes are folded inside the bounds-check helper: known in-range
-//   indexes omit the check and known out-of-range indexes emit an unconditional
-//   panic.
+// - constant indexes remain explicit in the unoptimized MIR.
 // Runtime-verified differentially against solc 0.8.30 --via-ir on anvil:
 // in-range results match and out-of-range reverts are byte-identical.
 contract ArrayBoundsPanic {
@@ -20,8 +18,8 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @memFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: mstore 4, 50
-    // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, {{v[0-9]+}}, arg0
+    // CHECK: jumpi
+    // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, arg0
     function memFix(uint256 i) public pure returns (uint256) {
         uint256[3] memory x;
         x[1] = 20;
@@ -29,9 +27,9 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConst{{[( ]}}
-    // CHECK-NOT: lt 2, 3
-    // CHECK-NOT: mstore 4, 50
-    // CHECK: ret
+    // CHECK: lt 2, 3
+    // CHECK: jumpi
+    // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 2
     function memFixConst() public pure returns (uint256) {
         uint256[3] memory x;
         x[2] = 30;
@@ -39,10 +37,9 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @memFixConstOob{{[( ]}}
-    // CHECK-NOT: lt 5, 3
-    // CHECK: jumpi 1
-    // CHECK: mstore 4, 50
-    // CHECK: revert 0, 36
+    // CHECK: lt 5, 3
+    // CHECK: jumpi
+    // CHECK: memory_object_load_element memoryfixedarray<3, 1>, {{v[0-9]+}}, 5
     function memFixConstOob() public pure returns (uint256) {
         uint256[3] memory x;
         return x[5];
@@ -51,7 +48,7 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @memDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = memory_object_len memoryarray
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: mstore 4, 50
+    // CHECK: jumpi
     function memDyn(uint256 n, uint256 i) public pure returns (uint256) {
         uint256[] memory x = new uint256[](n);
         return x[i];
@@ -60,8 +57,9 @@ contract ArrayBoundsPanic {
     // CHECK-LABEL: fn @stDyn{{[( ]}}
     // CHECK: [[LEN:v[0-9]+]] = sload 0
     // CHECK: {{v[0-9]+}} = lt arg0, [[LEN]]
-    // CHECK: mstore 4, 50
-    // CHECK: keccak256 0, 32
+    // CHECK: jumpi
+    // CHECK: {{v[0-9]+}} = storage_array_data_slot 0
+    // CHECK: {{v[0-9]+}} = add {{v[0-9]+}}, arg0
     function stDyn(uint256 i) public view returns (uint256) {
         return sdyn[i];
     }
@@ -76,14 +74,13 @@ contract ArrayBoundsPanic {
 
     // CHECK-LABEL: fn @stFix{{[( ]}}
     // CHECK: {{v[0-9]+}} = lt arg0, 3
-    // CHECK: mstore 4, 50
+    // CHECK: jumpi
     // CHECK: sload
     function stFix(uint256 i) public view returns (uint256) {
         return sfix[i];
     }
 
     // CHECK-LABEL: fn @cdDyn{{[( ]}}
-    // CHECK: slice_len arg0
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
     // CHECK: calldataload
@@ -92,17 +89,17 @@ contract ArrayBoundsPanic {
     }
 
     // CHECK-LABEL: fn @cdFix{{[( ]}}
-    // CHECK: {{v[0-9]+}} = lt arg3, 3
-    // CHECK: memory_object_element_addr memoryfixedarray<3, 1>, {{v[0-9]+}}, arg3
+    // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
+    // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
+    // CHECK: calldataload
     function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) {
         return x[i];
     }
 
     // CHECK-LABEL: fn @cdBytes{{[( ]}}
-    // CHECK: slice_len arg0
     // CHECK: [[LEN:v[0-9]+]] = slice_len arg0
     // CHECK: {{v[0-9]+}} = lt arg1, [[LEN]]
-    // CHECK: calldataload
+    // CHECK: calldata_slice_load_word calldata
     function cdBytes(bytes calldata b, uint256 i) public pure returns (bytes1) {
         return b[i];
     }

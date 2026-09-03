@@ -1,0 +1,397 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:LongReturn ===
+@module LongReturn
+fn @f() -> memoryfixedarray [selector=0x26121ff0, pure, abi_params=[], abi_returns=[array<20, word>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<20, 1>, exact, uninitialized, infallible, 640
+    memory_zero v0, 640
+    v1 = lt 0, 20
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<20, 1>, v0, 0, 42
+    v3 = lt 1, 20
+    v4 = iszero v3
+    jumpi v4, bb1, bb3
+  bb3:
+    memory_object_store_element memoryfixedarray<20, 1>, v0, 1, 43
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ShortReturn ===
+@module ShortReturn
+fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
+@module ExternalCallReturndataSize
+data:
+  LongReturn_initcode_0: hex"34600d5760d48060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b610360604052604051806103005280610300526102808101604052610280368280610300523760145f101515607b575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8061030052602a8152601460011015604e5760208101602b8152505f5b8061032052601481101560c35760208180610320520282015160208202608001526001810190506098565b610280608001915050608090036080f3"
+  ShortReturn_initcode_1: hex"34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b602a6080526020608001608090036080f3"
+
+fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 260, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy LongReturn_initcode_0, v3, 229
+    v4 = slice_ptr v0
+    v5 = add v3, 229
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 229
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = mload 64 !metadata(memory=scratch)
+    v8 = gas
+    v9 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = staticcall v8, v6, v10, v11, 0, 32
+    jumpi v12, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v13 = returndatasize
+    v14 = lt v13, 32
+    jumpi v14, bb5, bb6
+  bb6:
+    v15 = add 0, 0
+    v16 = mload v15
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = mload 64 !metadata(memory=scratch)
+    v20 = sub v19, v7
+    ret v20, v18
+  bb5:
+    revert 0, 0
+}
+
+fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 260, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy LongReturn_initcode_0, v3, 229
+    v4 = slice_ptr v0
+    v5 = add v3, 229
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 229
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = shl 32, v6
+    v8 = or v7, 0x26121ff0
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = and v8, 0xffffffff
+    v11 = shl 224, v10
+    v12 = shr 32, v8
+    v13 = gas
+    v14 = abi_encode [], selector v11
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v12, v15, v16, 0, 32
+    jumpi v17, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v18 = returndatasize
+    v19 = lt v18, 32
+    jumpi v19, bb5, bb6
+  bb6:
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = add 0, 0
+    v23 = mload v22
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = sub v24, v9
+    ret v25, v23
+  bb5:
+    revert 0, 0
+}
+
+fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 260, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy LongReturn_initcode_0, v3, 229
+    v4 = slice_ptr v0
+    v5 = add v3, 229
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 229
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = mload 64 !metadata(memory=scratch)
+    v8 = gas
+    v9 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = staticcall v8, v6, v10, v11, v10, 64
+    jumpi v12, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v13 = returndatasize
+    v14 = lt v13, 64
+    jumpi v14, bb5, bb6
+  bb6:
+    v15 = add v10, 0
+    v16 = mload v15
+    v17 = add v10, 32
+    v18 = mload v17
+    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
+    v19 = add v10, 0
+    v20 = mload v19
+    v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v22 = add v21, 32
+    v23 = mload v22
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = sub v24, v7
+    ret v25, v20, v23
+  bb5:
+    revert 0, 0
+}
+
+fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 260, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy LongReturn_initcode_0, v3, 229
+    v4 = slice_ptr v0
+    v5 = add v3, 229
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 229
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = shl 32, v6
+    v8 = or v7, 0x26121ff0
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = and v8, 0xffffffff
+    v11 = shl 224, v10
+    v12 = shr 32, v8
+    v13 = gas
+    v14 = abi_encode [], selector v11
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = staticcall v13, v12, v15, v16, v15, 64
+    jumpi v17, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v18 = returndatasize
+    v19 = lt v18, 64
+    jumpi v19, bb5, bb6
+  bb6:
+    v20 = add v15, 0
+    v21 = mload v20
+    v22 = add v15, 32
+    v23 = mload v22
+    frame_store multi_return, word, 0, v15 !metadata(memory=scratch)
+    v24 = add v15, 0
+    v25 = mload v24
+    v26 = add v15, 32
+    v27 = mload v26
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = sub v28, v9
+    ret v29, v25, v27
+  bb5:
+    revert 0, 0
+}
+
+fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 96, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy ShortReturn_initcode_1, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, v9, 64
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = lt v12, 64
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = add v9, 0
+    v15 = mload v14
+    v16 = add v9, 32
+    v17 = mload v16
+    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
+    v18 = add v9, 0
+    v19 = mload v18
+    v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = mload v21
+    ret v19, v22
+  bb5:
+    revert 0, 0
+}
+
+fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 96, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy ShortReturn_initcode_1, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = shl 32, v6
+    v8 = or v7, 0x26121ff0
+    v9 = and v8, 0xffffffff
+    v10 = shl 224, v9
+    v11 = shr 32, v8
+    v12 = gas
+    v13 = abi_encode [], selector v10
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = staticcall v12, v11, v14, v15, v14, 64
+    jumpi v16, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v17 = returndatasize
+    v18 = lt v17, 64
+    jumpi v18, bb5, bb6
+  bb6:
+    v19 = add v14, 0
+    v20 = mload v19
+    v21 = add v14, 32
+    v22 = mload v21
+    frame_store multi_return, word, 0, v14 !metadata(memory=scratch)
+    v23 = add v14, 0
+    v24 = mload v23
+    v25 = add v14, 32
+    v26 = mload v25
+    ret v24, v26
+  bb5:
+    revert 0, 0
+}
+
+fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 96, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy ShortReturn_initcode_1, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, 0, 32
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = lt v12, 32
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = iszero v15
+    v17 = iszero v16
+    v18 = eq v15, v17
+    v19 = iszero v18
+    jumpi v19, bb5, bb7
+  bb7:
+    v20 = add 0, 0
+    v21 = mload v20
+    ret v21
+  bb5:
+    revert 0, 0
+}
+
+fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 96, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy ShortReturn_initcode_1, v3, 65
+    v4 = slice_ptr v0
+    v5 = add v3, 65
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 65
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = shl 32, v6
+    v8 = or v7, 0x26121ff0
+    v9 = and v8, 0xffffffff
+    v10 = shl 224, v9
+    v11 = shr 32, v8
+    v12 = gas
+    v13 = abi_encode [], selector v10
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = staticcall v12, v11, v14, v15, 0, 32
+    jumpi v16, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v17 = returndatasize
+    v18 = lt v17, 32
+    jumpi v18, bb5, bb6
+  bb6:
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = iszero v20
+    v22 = iszero v21
+    v23 = eq v20, v22
+    v24 = iszero v23
+    jumpi v24, bb5, bb7
+  bb7:
+    v25 = add 0, 0
+    v26 = mload v25
+    ret v26
+  bb5:
+    revert 0, 0
+}

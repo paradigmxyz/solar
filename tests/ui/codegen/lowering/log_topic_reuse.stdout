@@ -32,11 +32,9 @@ bb5:
   push 128
   return
 bb6:
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb4
   jumpi
   push 4

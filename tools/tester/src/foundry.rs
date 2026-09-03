@@ -55,8 +55,6 @@ struct TestConfig {
     contract_filter: Option<String>,
     /// If true, only run with the compiler (no solc comparison).
     solar_only: bool,
-    /// If true, defer this project until its compiler failures are fixed.
-    ignored: bool,
     /// Skipped test name patterns, passed to `--no-match-test` and re-applied
     /// post-hoc so both legs judge the same set.
     skip_tests: Vec<SkipEntry>,
@@ -83,14 +81,13 @@ struct TestConfig {
 
 impl TestConfig {
     /// Creates a config for an in-repo project under `tests/foundry`.
-    fn in_repo(name: String, path: PathBuf, solar_only: bool, ignored: bool) -> Self {
+    fn in_repo(name: String, path: PathBuf, solar_only: bool) -> Self {
         Self {
             name,
             path,
             test_filter: None,
             contract_filter: None,
             solar_only,
-            ignored,
             skip_tests: Vec::new(),
             skip_contracts: Vec::new(),
             policy: AssertionPolicy::InRepoStrict,
@@ -187,19 +184,6 @@ impl ForgeCompiler {
 
 static SOLAR_BINARY: OnceLock<PathBuf> = OnceLock::new();
 
-const TEMPORARILY_IGNORED_PROJECTS: &[&str] = &[
-    "abi-encoding",
-    "equivalence",
-    "erc20-minimal",
-    "erc721-minimal",
-    "multicall",
-    "stress-arrays",
-    "stress-inheritance",
-    "unifap-v2",
-    "unifap-v2-create",
-    "vault-minimal",
-];
-
 fn foundry_root() -> PathBuf {
     workspace_root().join("tests/foundry")
 }
@@ -221,9 +205,8 @@ fn discover_projects(root: &Path) -> Vec<TestConfig> {
                 return None;
             }
             let solar_only = relative == Path::new("stack-deep");
-            let ignored = TEMPORARILY_IGNORED_PROJECTS.contains(&name.as_str());
 
-            Some(TestConfig::in_repo(name, path, solar_only, ignored))
+            Some(TestConfig::in_repo(name, path, solar_only))
         })
         .collect()
 }
@@ -262,12 +245,18 @@ fn get_solar_binary() -> PathBuf {
         return PathBuf::from(path);
     }
 
+    // `cargo tq foundry` builds the debug binary and `cargo tq foundry-external` the release
+    // one; whichever was built last is the compiler under test, so a release binary left behind
+    // by an earlier run never shadows a fresh debug build.
     let workspace_root = workspace_root();
     let release_binary = workspace_root.join("target/release/solar");
-    if release_binary.exists() {
-        return release_binary;
+    let debug_binary = workspace_root.join("target/debug/solar");
+    let modified = |path: &Path| std::fs::metadata(path).and_then(|meta| meta.modified()).ok();
+    match (modified(&release_binary), modified(&debug_binary)) {
+        (Some(release), Some(debug)) if release > debug => release_binary,
+        (Some(_), None) => release_binary,
+        _ => debug_binary,
     }
-    workspace_root.join("target/debug/solar")
 }
 
 /// Gets the path to the workspace root.
@@ -1070,10 +1059,6 @@ pub(super) fn run_default_suite(solar: &Path) {
 
     let mut failures = Vec::new();
     for config in projects {
-        if config.ignored {
-            eprintln!("[{}] temporarily ignored", config.name);
-            continue;
-        }
         let name = config.name.clone();
         if catch_unwind(AssertUnwindSafe(|| config.run())).is_err() {
             failures.push(name);

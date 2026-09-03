@@ -1,0 +1,10 @@
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
+//@ run-call: 0xb3de648b0000000100000000000000000000000000000000000000000000000000000000 => 0xb3de648b00000000000000000000000000000000000000000000000000000000
+
+contract MsgSigMask {
+    function f(uint256 value) external pure returns (bytes32) {
+        return bytes32(msg.sig);
+    }
+}

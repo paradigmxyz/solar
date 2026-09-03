@@ -44,4 +44,12 @@ contract ParamReassignedAcrossControlFlow {
         }
         return d.length;
     }
+
+    function deferredMemory(bool c) external pure returns (uint256) {
+        bytes memory d;
+        if (c) {
+            d = hex"aabbcc";
+        }
+        return d.length;
+    }
 }

@@ -1,0 +1,41 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_memory_scalar_array_validation.sol:AbiMemoryScalarArrayValidation ===
+@module AbiMemoryScalarArrayValidation
+fn @enumArray(arg0: memoryarray) -> u256 [selector=0x3aa5639d, pure, abi_params=[array<_, enum<2, u8>>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @enumCalldata(arg0: calldataslice) -> u256 [selector=0xff3a5c19, pure, abi_params=[array<_, enum<2, u8>>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @boolArray(arg0: memoryarray) -> u256 [selector=0xfb71b98a, pure, abi_params=[array<_, bool>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @uint8Array(arg0: memoryarray) -> u256 [selector=0x43b2375f, pure, abi_params=[array<_, u8>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @addressArray(arg0: memoryarray) -> u256 [selector=0xdd98bce6, pure, abi_params=[array<_, address>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @bytes1Array(arg0: memoryarray) -> u256 [selector=0xbb7306ad, pure, abi_params=[array<_, bytes1>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @fixedBoolArray(arg0: memoryfixedarray) -> u256 [selector=0xd2504b91, pure, abi_params=[array<1, bool>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @fixedBoolCalldata(arg0: calldataslice) -> u256 [selector=0xcf1534b6, pure, abi_params=[array<1, bool>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}

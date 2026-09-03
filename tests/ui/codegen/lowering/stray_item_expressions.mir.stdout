@@ -1,0 +1,33 @@
+// === ROOT/tests/ui/codegen/lowering/stray_item_expressions.sol:Lib ===
+@module Lib
+fn @multiply(arg0: u256, arg1: u256) -> u256 [selector=0x165c4a16, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = iszero arg1
+    v2 = div v0, arg1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/stray_item_expressions.sol:StrayItemExpressions ===
+@module StrayItemExpressions
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 9
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -2,9 +2,9 @@
 //@[mir] filecheck: --check-prefix=MIR
 //@[optimized] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[optimized] filecheck: --check-prefix=OPT
-//@ run-call: FactoryWithArgs::plain() => 11
-//@ run-call: FactoryWithArgs::salted() => 22
-//@ run-call: FactoryWithArgs::pair() => 7
+//@ run-call: FactoryWithArgs::plain => 11
+//@ run-call: FactoryWithArgs::salted => 22
+//@ run-call: FactoryWithArgs::pair => 7
 
 contract ChildWithArg {
     uint256 public immutable value;

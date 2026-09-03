@@ -1,11 +1,19 @@
-//@ run-call: BaseConstructorArgs::value(); constructor=[5] => 11
-//@ run-call: BaseConstructorArgs::labelHash(); constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
-//@ run-call: ConstructorArgumentOrder::order() => 1, 3, 2, 4
-//@ run-call: ConstructorInitializationOrder::x() => 4
-//@ run-call: NamedDerived::value() => 12
-//@ run-call: BaseConstructorReturn::value() => 2
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
+//@ run-call: BaseConstructorArgs::value; constructor=[5] => 11
+//@ run-call: BaseConstructorArgs::labelHash; constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
+//@ run-call: ConstructorArgumentOrder::order => 1, 3, 2, 4
+//@ run-call: ConstructorInitializationOrder::x => 2
+//@ run-call: NamedDerived::value => 12
+//@ run-call: BaseConstructorReturn::value => 2
+//@ run-call: FunctionUsageDerived::getA => 2
+//@ run-call: VirtualFunctionUsageDerived::getA => 2
+//@ run-call: EmptyBaseArgumentMask::domain => "Token", "1"
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
-// ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_legacy.sol
+// ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
+// ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol
+// ported-from: test/libsolidity/semanticTests/virtualFunctions/virtual_function_usage_in_constructor_arguments.sol
 
 contract Root {
     uint256 public value;
@@ -99,4 +107,79 @@ contract BaseConstructorReturn is ReturningBase {
     constructor() {
         value = 2;
     }
+}
+
+contract FunctionUsageBaseBase {
+    uint256 internal value;
+
+    constructor(uint256 value_) {
+        value = value_;
+    }
+
+    function g() public pure returns (uint256) {
+        return 2;
+    }
+}
+
+contract FunctionUsageBase is FunctionUsageBaseBase(FunctionUsageBaseBase.g()) {}
+
+contract FunctionUsageDerived is FunctionUsageBase {
+    function getA() public view returns (uint256) {
+        return value;
+    }
+}
+
+contract VirtualFunctionUsageBaseBase {
+    uint256 internal value;
+
+    constructor(uint256 value_) {
+        value = value_;
+    }
+
+    function overridden() public pure virtual returns (uint256) {
+        return 1;
+    }
+
+    function g() public pure returns (uint256) {
+        return overridden();
+    }
+}
+
+contract VirtualFunctionUsageBase
+    is VirtualFunctionUsageBaseBase(VirtualFunctionUsageBaseBase.g()) {}
+
+contract VirtualFunctionUsageDerived is VirtualFunctionUsageBase {
+    function getA() public view returns (uint256) {
+        return value;
+    }
+
+    function overridden() public pure override returns (uint256) {
+        return 2;
+    }
+}
+
+contract DomainBase {
+    string internal domainName;
+    string internal domainVersion;
+
+    constructor(string memory name_, string memory version_) {
+        domainName = name_;
+        domainVersion = version_;
+    }
+
+    function domain() external view returns (string memory, string memory) {
+        return (domainName, domainVersion);
+    }
+}
+
+contract PermitBase is DomainBase {
+    constructor(string memory name_) DomainBase(name_, "1") {}
+}
+
+contract TokenBase {
+    constructor(string memory, string memory) {}
+}
+
+contract EmptyBaseArgumentMask is TokenBase, PermitBase {
+    constructor() TokenBase("Token", "TKN") PermitBase("Token") {}
 }

@@ -36,11 +36,9 @@ bb19 [cold]:
   push 0
   revert
 bb5:
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb4
   jumpi
   push bb7
@@ -62,18 +60,13 @@ bb16:
   swap 1
   jump
 bb7:
-  dup 1
-  push 192
-  mstore
   push bb8
   swap 1
   jump bb16
 bb10:
-  push 4
+  push 68
   calldatasize
-  sub
-  push 64
-  sgt
+  lt
   push bb4
   jumpi
   push 36
@@ -81,9 +74,6 @@ bb10:
   push 4
   calldataload
   add
-  dup 1
-  push 192
-  mstore
   push 4
   calldataload
   dup 2
@@ -96,9 +86,6 @@ bb10:
 bb13:
   jump bb8
 bb8:
-  dup 1
-  push 160
-  mstore
   push 128
   mstore
   push 32

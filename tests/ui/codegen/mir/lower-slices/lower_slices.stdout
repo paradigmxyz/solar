@@ -1,13 +1,21 @@
 - // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-abi) ===
   @module LowerSlices
-- fn @entry(arg0: calldataslice) {
+- fn @entry(arg0: calldataslice) [selector=0x12345678] {
 + @phase abi
-+ fn @entry() {
++ fn @entry() [selector=0x12345678] {
     bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
       v0 = internal_call @len, 1, arg0
       mstore 128, v0
       returndata 128, 32
++   bb2:
++     revert 0, 0
   }
   
   fn @len(arg0: calldataslice) -> u256 {
@@ -46,11 +54,19 @@
 + // === ROOT/tests/ui/codegen/mir/lower-slices/lower_slices.mir (after lower-slices) ===
   @module LowerSlices
   @phase abi
-  fn @entry() {
+  fn @entry() [selector=0x12345678] {
     bb0:
+      v1 = calldatasize
+      v2 = lt v1, 36
+      jumpi v2, bb2, bb3
+    bb3:
+      jump bb1
+    bb1:
       v0 = internal_call @len, 1, arg0
       mstore 128, v0
       returndata 128, 32
+    bb2:
+      revert 0, 0
   }
   
 - fn @len(arg0: calldataslice) -> u256 {

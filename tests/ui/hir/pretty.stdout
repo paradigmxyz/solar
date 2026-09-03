@@ -42,16 +42,16 @@ source 0 "ROOT/tests/ui/hir/pretty.sol" {
                 uint256 i = 0;
                 hir.loop(for) {
                     if (i < limit) {
-                        {
-                            if (i == 2) {
-                                continue;
-                            }
-                            sum += i;
+                        if (i == 2) {
+                            continue;
                         }
-                        i++;
+                        sum += i;
                     }
                     else {
                         break;
+                    }
+                    hir.loop.update {
+                        i++;
                     }
                 }
             }
@@ -88,12 +88,12 @@ source 0 "ROOT/tests/ui/hir/pretty.sol" {
                             {
                                 doubled = add(doubled, j);
                             }
-                            {
-                                j = add(j, 1);
-                            }
                         }
                         else {
                             break;
+                        }
+                        hir.loop.update {
+                            j = add(j, 1);
                         }
                     }
                 }

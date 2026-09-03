@@ -1,0 +1,127 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_struct_dynamic.sol:AbiCalldataStructDynamic ===
+@module AbiCalldataStructDynamic
+fn @hash(arg0: calldataslice) -> bytes32 [selector=0x43298469, pure, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = slice_ptr arg0
+    v2 = mul v0, 32
+    v3 = iszero 32
+    v4 = div v2, 32
+    v5 = eq v4, v0
+    v6 = or v3, v5
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = calldatasize
+    v9 = sub v8, v1
+    v10 = slt v9, v2
+    jumpi v10, bb3, bb4
+  bb4:
+    v11 = mul v0, 32
+    v12 = iszero 32
+    v13 = div v11, 32
+    v14 = eq v13, v0
+    v15 = or v12, v14
+    v16 = iszero v15
+    jumpi v16, bb1, bb5
+  bb5:
+    v17 = add 32, v11
+    v18 = lt v17, 32
+    jumpi v18, bb1, bb6
+  bb6:
+    v19 = alloc memoryarray<1>, exact, uninitialized, infallible, v17
+    set_memory_object_len memoryarray, v19, v0
+    jump bb7
+  bb7:
+    v20 = phi [bb6: 0], [bb18: v68]
+    v21 = lt v20, v0
+    jumpi v21, bb8, bb9
+  bb9:
+    v69 = abi_encode [memory_array<tuple<memory_array<word>>>], scratch, args v19
+    v70 = slice_ptr v69
+    v71 = slice_len v69
+    v72 = keccak256 v70, v71
+    ret v72
+  bb8:
+    v22 = mul v20, 32
+    v23 = iszero 32
+    v24 = div v22, 32
+    v25 = eq v24, v20
+    v26 = or v23, v25
+    v27 = iszero v26
+    jumpi v27, bb1, bb10
+  bb10:
+    v28 = add v1, v22
+    v29 = calldatasize
+    v30 = sub v29, v28
+    v31 = slt v30, 32
+    jumpi v31, bb3, bb11
+  bb11:
+    v32 = calldataload v28
+    v33 = add v1, v32
+    v34 = calldatasize
+    v35 = sub v34, v1
+    v36 = sub v35, 31
+    v37 = slt v32, v36
+    v38 = iszero v37
+    jumpi v38, bb3, bb12
+  bb12:
+    v39 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v40 = calldatasize
+    v41 = sub v40, v33
+    v42 = slt v41, 32
+    jumpi v42, bb3, bb13
+  bb13:
+    v43 = calldataload v33
+    v44 = add v33, v43
+    v45 = calldatasize
+    v46 = sub v45, v33
+    v47 = sub v46, 31
+    v48 = slt v43, v47
+    v49 = iszero v48
+    jumpi v49, bb3, bb14
+  bb14:
+    v50 = calldataload v44
+    v51 = gt v50, 0xffffffffffffffff
+    jumpi v51, bb3, bb15
+  bb15:
+    v52 = mul v50, 32
+    v53 = add v44, 32
+    v54 = calldatasize
+    v55 = sub v54, v52
+    v56 = sgt v53, v55
+    jumpi v56, bb3, bb16
+  bb16:
+    v57 = add v44, 32
+    v58 = mul v50, 32
+    v59 = iszero 32
+    v60 = div v58, 32
+    v61 = eq v60, v50
+    v62 = or v59, v61
+    v63 = iszero v62
+    jumpi v63, bb1, bb17
+  bb17:
+    v64 = add 32, v58
+    v65 = lt v64, 32
+    jumpi v65, bb1, bb18
+  bb18:
+    v66 = alloc memoryarray<1>, exact, uninitialized, infallible, v64
+    set_memory_object_len memoryarray, v66, v50
+    v67 = make_calldata_slice v57, v58
+    memory_object_copy_from_slice memoryarray, v66, v67
+    memory_object_store_field memorystruct<1>, v39, 0, v66
+    memory_object_store_element memoryarray<1>, v19, v20, v39
+    v68 = add v20, 1
+    jump bb7
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @unused(arg0: calldataslice) -> u256 [selector=0x642b2333, pure, abi_params=[array<_, tuple<array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    ret 1
+}

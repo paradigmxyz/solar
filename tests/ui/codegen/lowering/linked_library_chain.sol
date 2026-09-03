@@ -9,6 +9,10 @@
 // verified equal to solc 0.8.30's linked flow separately.
 
 library DataTypes {
+    // CHECK-LABEL: @module DataTypes_runtime
+    // CHECK: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: revert
     struct Map {
         uint256 data;
     }

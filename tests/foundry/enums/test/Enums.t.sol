@@ -64,6 +64,13 @@ contract EnumsTest {
         assert(enums.uintToStatus(3) == Enums.Status.Cancelled);
     }
 
+    function test_uintToStatus_outOfRange() public {
+        (bool success,) = address(enums).call(
+            abi.encodeWithSignature("uintToStatus(uint256)", 4)
+        );
+        assert(!success);
+    }
+
     function test_allStatusValues() public {
         enums.setStatus(Enums.Status.Pending);
         assert(enums.currentStatus() == Enums.Status.Pending);

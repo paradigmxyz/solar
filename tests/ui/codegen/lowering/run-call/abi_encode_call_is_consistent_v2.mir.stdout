@@ -1,0 +1,153 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_is_consistent_v2.sol:AbiEncodeCallConsistent ===
+@module AbiEncodeCallConsistent
+fn @fExternal(arg0: u256, arg1: memorybytes) [selector=0x33d85810, abi_params=[u256, bytes], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @getExternalFunctionPointer() -> function [selector=0x0d5de1f2, abi_params=[], abi_returns=[function]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 255
+    v2 = and v0, v1
+    v3 = and 1, 255
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = address
+    v6 = shl 32, v5
+    v7 = or v6, 0x33d85810
+    ret v7
+}
+
+fn @test() -> u8 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v1 = abi_encode [word, memory_bytes], object, selector 0x33d8581000000000000000000000000000000000000000000000000000000000, args 1, v0
+    v2 = address
+    v3 = shl 32, v2
+    v4 = or v3, 0x33d85810
+    v5 = shl 8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v10 = shl 8, v9
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = shr 8, v12
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v15 = and v14, 0xffffffff
+    v16 = shl 224, v15
+    v17 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v18 = abi_encode [word, memory_bytes], object, selector v16, args 1, v17
+    v19 = address
+    v20 = shl 32, v19
+    v21 = or v20, 0x33d85810
+    v22 = and v21, 0xffffffff
+    v23 = shl 224, v22
+    v24 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v25 = abi_encode [word, memory_bytes], object, selector v23, args 1, v24
+    v26 = internal_call @getExternalFunctionPointer, 1
+    v27 = and v26, 0xffffffff
+    v28 = shl 224, v27
+    v29 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v30 = abi_encode [word, memory_bytes], object, selector v28, args 1, v29
+    v31 = keccak256_bytes v1
+    v32 = keccak256_bytes v18
+    v33 = eq v31, v32
+    jumpi v33, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v34 = or 0, 1
+    jump bb3
+  bb3:
+    v35 = phi [bb1: v34], [bb2: 0]
+    v36 = keccak256_bytes v1
+    v37 = keccak256_bytes v25
+    v38 = eq v36, v37
+    jumpi v38, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v39 = or v35, 2
+    jump bb6
+  bb6:
+    v40 = phi [bb4: v39], [bb5: v35]
+    v41 = keccak256_bytes v1
+    v42 = keccak256_bytes v30
+    v43 = eq v41, v42
+    jumpi v43, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v44 = or v40, 4
+    jump bb9
+  bb9:
+    v45 = phi [bb7: v44], [bb8: v40]
+    v46 = sload 0 !metadata(storage=slot(0))
+    v47 = and v46, 255
+    jumpi v47, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    v48 = or v45, 8
+    jump bb12
+  bb12:
+    v49 = phi [bb10: v48], [bb11: v45]
+    ret v49
+}
+
+fn @storageEncoded() -> memorybytes [selector=0x46ad9d89, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x33d85810
+    v3 = shl 8, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = not v3
+    v6 = and v4, v5
+    v7 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v8 = shl 8, v7
+    v9 = or v6, v8
+    sstore 0, v9 !metadata(storage=slot(0))
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = shr 8, v10
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v13 = and v12, 0xffffffff
+    v14 = shl 224, v13
+    v15 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v16 = abi_encode [word, memory_bytes], object, selector v14, args 1, v15
+    ret v16
+}
+
+fn @localEncoded() -> memorybytes [selector=0xde7d55c6, view, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0x33d85810
+    v3 = and v2, 0xffffffff
+    v4 = shl 224, v3
+    v5 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v6 = abi_encode [word, memory_bytes], object, selector v4, args 1, v5
+    ret v6
+}
+
+fn @returnedEncoded() -> memorybytes [selector=0xb62b7ad3, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = internal_call @getExternalFunctionPointer, 1
+    v1 = and v0, 0xffffffff
+    v2 = shl 224, v1
+    v3 = internal_call @literal_bytes_word, 1, 0x3132330000000000000000000000000000000000000000000000000000000000, 3
+    v4 = abi_encode [word, memory_bytes], object, selector v2, args 1, v3
+    ret v4
+}
+
+fn @literal_bytes_word(arg0: bytes32, arg1: u256) -> memorybytes {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, arg1
+    memory_object_store_word memorybytes, v0, 0, arg0
+    ret v0
+}

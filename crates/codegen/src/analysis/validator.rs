@@ -120,18 +120,14 @@ impl<'a> Validator<'a> {
                 }
             };
 
-            let term_succs = term.successors();
-
             // Check successor blocks exist and back-link.
-            for &succ in &term_succs {
+            term.for_each_successor(|succ| {
                 if succ.index() >= num_blocks {
                     self.emit_at_block(
                         format_args!("terminator references nonexistent block bb{}", succ.index()),
                         block_id,
                     );
-                    continue;
-                }
-                if !func.blocks[succ].predecessors.contains(&block_id) {
+                } else if !func.blocks[succ].predecessors.contains(&block_id) {
                     self.emit_at_block(
                         format_args!(
                             "successor bb{} does not list bb{} as a predecessor",
@@ -141,7 +137,7 @@ impl<'a> Validator<'a> {
                         block_id,
                     );
                 }
-            }
+            });
 
             // Check stored predecessor blocks exist and branch to this block.
             for &pred in &block.predecessors {
@@ -162,7 +158,7 @@ impl<'a> Validator<'a> {
                     );
                     continue;
                 };
-                if !pred_term.successors().contains(&block_id) {
+                if !pred_term.has_successor(block_id) {
                     self.emit_at_block(
                         format_args!(
                             "stored predecessor bb{} does not branch to bb{}",
@@ -175,7 +171,7 @@ impl<'a> Validator<'a> {
             }
 
             // Check terminator operands are in range.
-            for op in term.operands() {
+            term.for_each_operand(|op| {
                 if op.index() >= num_values {
                     self.emit_at_block(
                         format_args!(
@@ -186,7 +182,7 @@ impl<'a> Validator<'a> {
                         block_id,
                     );
                 }
-            }
+            });
 
             // ----- Walk instructions in this block -----
             let block_preds: Vec<BlockId> = block.predecessors.iter().copied().collect();
@@ -361,11 +357,11 @@ impl<'a> Validator<'a> {
                 let mut stack = vec![from];
                 while let Some(current) = stack.pop() {
                     if let Some(term) = func.blocks[current].terminator.as_ref() {
-                        for succ in term.successors() {
+                        term.for_each_successor(|succ| {
                             if seen.insert(succ) {
                                 stack.push(succ);
                             }
-                        }
+                        });
                     }
                 }
                 seen
@@ -436,7 +432,7 @@ impl<'a> Validator<'a> {
                 }
             }
             if let Some(term) = &block.terminator {
-                for &operand in term.operands().iter() {
+                term.for_each_operand(|operand| {
                     if let Some((def, _)) = def_location_of[operand]
                         && def != block_id
                         && !reaches(def, block_id)
@@ -450,7 +446,7 @@ impl<'a> Validator<'a> {
                             block_id,
                         );
                     }
-                }
+                });
             }
         }
     }
@@ -730,18 +726,14 @@ impl<'a> Validator<'a> {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
                     let inst = func.inst(inst_id);
-                    let semantic = matches!(
-                        inst.kind,
-                        InstKind::Alloc { kind: crate::mir::AllocationKind::Object(_), .. }
-                            | InstKind::MemoryObjectLen(_, _)
-                            | InstKind::SetMemoryObjectLen(_, _, _)
-                            | InstKind::MemoryObjectData(_, _)
-                            | InstKind::MemoryObjectFieldAddr { .. }
-                            | InstKind::MemoryObjectElementAddr { .. }
-                            | InstKind::Keccak256Bytes(_)
-                    ) || inst
-                        .result_ty
-                        .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
+                    let semantic = inst.kind.is_memory_object_op()
+                        || matches!(
+                            inst.kind,
+                            InstKind::FrameLoad { .. } | InstKind::FrameStore { .. }
+                        )
+                        || inst
+                            .result_ty
+                            .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
                     if semantic {
                         self.emit_at_inst(
                             format_args!(
@@ -773,10 +765,19 @@ impl<'a> Validator<'a> {
                         }
                         InstKind::MemoryZero(_, _) => Some("memory zero"),
                         InstKind::AbiEncode { .. } => Some("ABI encoding"),
+                        InstKind::AbiDecode { .. } => Some("ABI decoding"),
                         InstKind::StorageToMemory { .. }
                         | InstKind::MemoryToStorage { .. }
                         | InstKind::ClearStorage { .. } => Some("aggregate"),
+                        InstKind::MappingSlot(_, _)
+                        | InstKind::MappingSlotMemory(_, _)
+                        | InstKind::MappingSlotCalldata(_, _)
+                        | InstKind::StorageArrayDataSlot(_)
+                        | InstKind::StorageArrayElementSlot { .. } => Some("storage slot"),
                         InstKind::StoreImmutable(..) => Some("immutable assignment"),
+                        InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => {
+                            Some("frame slot")
+                        }
                         _ => None,
                     };
                     if let Some(semantic_op) = semantic_op {
@@ -852,8 +853,8 @@ error: module is in the `evm-shaped` phase but has no `entry` routing function
             let mut func = make_func();
             {
                 let mut builder = FunctionBuilder::new(&mut func);
-                let dest = builder.imm_u64(0);
-                let size = builder.imm_u64(1);
+                let dest = builder.imm(0);
+                let size = builder.imm(1);
                 builder.data_copy(DataRef::new(DataId::from_usize(7), 0), dest, size);
                 builder.stop();
             }
@@ -878,8 +879,8 @@ error: [fn0] [bb0, inst0] data_copy references nonexistent data7
             let mut func = make_func();
             {
                 let mut builder = FunctionBuilder::new(&mut func);
-                let dest = builder.imm_u64(0);
-                let size = builder.imm_u64(1);
+                let dest = builder.imm(0);
+                let size = builder.imm(1);
                 builder.data_copy(DataRef::new(data, 5), dest, size);
                 builder.stop();
             }

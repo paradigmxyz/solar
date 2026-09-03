@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_constants.sol:FixedBytesConstants ===
+@module FixedBytesConstants
+fn @constantHex() -> bytes4 [selector=0x28cc24e9, view, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x100000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @constantString() -> bytes4 [selector=0x8731913b, view, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x6100000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @localHex() -> bytes4 [selector=0xb8c33054, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x100000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @localString() -> bytes4 [selector=0xafb88da4, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x6100000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @castHex() -> bytes4 [selector=0xc15c6f5a, pure, abi_params=[], abi_returns=[word<bytes4>]] {
+  bb0:
+    ret 0x102000000000000000000000000000000000000000000000000000000000000
+}

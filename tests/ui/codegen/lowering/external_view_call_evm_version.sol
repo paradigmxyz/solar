@@ -13,11 +13,10 @@ contract Caller {
     // HOMESTEAD: call
     // HOMESTEAD-NOT: staticcall
     // HOMESTEAD-NOT: returndatasize
-    // HOMESTEAD: revert 0, 0
+    // HOMESTEAD: revert_returndata
     // BYZANTIUM-LABEL: fn @read
     // BYZANTIUM: staticcall
-    // BYZANTIUM: returndatasize
-    // BYZANTIUM: returndatacopy
+    // BYZANTIUM: revert_returndata
     function read(Target target) external view returns (uint256) {
         return target.read();
     }
@@ -26,11 +25,11 @@ contract Caller {
     // HOMESTEAD: call
     // HOMESTEAD-NOT: staticcall
     // HOMESTEAD-NOT: returndatasize
-    // HOMESTEAD: revert 0, 0
+    // HOMESTEAD: revert_returndata
     // BYZANTIUM-LABEL: fn @readPointer
     // BYZANTIUM: staticcall
+    // BYZANTIUM: revert_returndata
     // BYZANTIUM: returndatasize
-    // BYZANTIUM: returndatacopy
     function readPointer(function() external view returns (uint256) target)
         external
         view

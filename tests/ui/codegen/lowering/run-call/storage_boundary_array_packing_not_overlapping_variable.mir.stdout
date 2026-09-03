@@ -1,0 +1,201 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_packing_not_overlapping_variable.sol:StorageBoundaryArrayPacking ===
+@module StorageBoundaryArrayPacking
+fn @getArray() -> storageptr [pure] {
+  bb0:
+    v0 = sub 0, 1
+    ret v0
+}
+
+fn @getCanary() -> storageptr [pure] {
+  bb0:
+    ret 2
+}
+
+fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @getCanary, 1
+    sstore v0, 99 !metadata(storage=symbolic(v0))
+    v1 = internal_call @getArray, 1
+    v2 = alloc memoryfixedarray<10, 1>, exact, uninitialized, infallible, 320
+    v3 = and 1, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 0, v3
+    v4 = and 2, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 1, v4
+    v5 = and 3, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 2, v5
+    v6 = and 4, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 3, v6
+    v7 = and 5, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 4, v7
+    v8 = and 6, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 5, v8
+    v9 = and 7, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 6, v9
+    v10 = and 8, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 7, v10
+    v11 = and 9, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 8, v11
+    v12 = and 10, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<10, 1>, v2, 9, v12
+    v13 = lt 0, 1
+    v14 = iszero v13
+    jumpi v14, bb1, bb2
+  bb2:
+    v15 = mul 0, 3
+    v16 = add v1, v15
+    jump bb3
+  bb3:
+    v17 = phi [bb2: 0], [bb8: v41]
+    v18 = lt v17, 10
+    jumpi v18, bb4, bb5
+  bb5:
+    v42 = alloc memoryfixedarray<5, 1>, exact, uninitialized, infallible, 160
+    v43 = and 11, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<5, 1>, v42, 0, v43
+    v44 = and 12, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<5, 1>, v42, 1, v44
+    v45 = and 13, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<5, 1>, v42, 2, v45
+    v46 = and 14, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<5, 1>, v42, 3, v46
+    v47 = and 15, 0xffffffffffffffff
+    memory_object_store_element memoryfixedarray<5, 1>, v42, 4, v47
+    v48 = lt 0, 1
+    v49 = iszero v48
+    jumpi v49, bb1, bb9
+  bb9:
+    v50 = mul 0, 3
+    v51 = add v1, v50
+    jump bb10
+  bb10:
+    v52 = phi [bb9: 0], [bb15: v76]
+    v53 = lt v52, 10
+    jumpi v53, bb11, bb12
+  bb12:
+    jump bb16
+  bb16:
+    v77 = phi [bb12: 0], [bb27: v101]
+    v78 = phi [bb12: 0], [bb27: v103]
+    v79 = phi [bb12: 0], [bb27: v79]
+    v80 = phi [bb12: v0], [bb27: v80]
+    v81 = phi [bb12: v1], [bb27: v81]
+    v82 = lt 0, 1
+    v83 = iszero v82
+    jumpi v83, bb1, bb19
+  bb19:
+    v84 = mul 0, 3
+    v85 = add v81, v84
+    v86 = lt v78, 10
+    jumpi v86, bb20, bb21
+  bb21:
+    jump bb17
+  bb17:
+    v105 = sload v80 !metadata(storage=symbolic(v80))
+    ret v77, v105
+  bb20:
+    v87 = lt 0, 1
+    v88 = iszero v87
+    jumpi v88, bb1, bb23
+  bb23:
+    v89 = mul 0, 3
+    v90 = add v81, v89
+    v91 = lt v78, 10
+    v92 = iszero v91
+    jumpi v92, bb1, bb24
+  bb24:
+    v93 = div v78, 4
+    v94 = add v90, v93
+    v95 = mod v78, 4
+    v96 = mul v95, 8
+    v97 = sload v94 !metadata(storage=symbolic(v94))
+    v98 = mul v96, 8
+    v99 = shr v98, v97
+    v100 = and v99, 0xffffffffffffffff
+    v101 = add v77, v100
+    v102 = lt v101, v77
+    jumpi v102, bb25, bb26
+  bb26:
+    jump bb22
+  bb22:
+    jump bb18
+  bb18:
+    v103 = add v78, 1
+    v104 = lt v103, v78
+    jumpi v104, bb25, bb27
+  bb27:
+    jump bb16
+  bb25:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    v54 = div v52, 4
+    v55 = add v51, v54
+    v56 = mod v52, 4
+    v57 = mul v56, 8
+    v58 = lt v52, 5
+    jumpi v58, bb13, bb14
+  bb14:
+    v68 = mul v57, 8
+    v69 = shl v68, 0xffffffffffffffff
+    v70 = sload v55 !metadata(storage=symbolic(v55))
+    v71 = not v69
+    v72 = and v70, v71
+    v73 = and 0, 0xffffffffffffffff
+    v74 = shl v68, v73
+    v75 = or v72, v74
+    sstore v55, v75 !metadata(storage=symbolic(v55))
+    jump bb15
+  bb13:
+    v59 = memory_object_load_element memoryfixedarray<5, 1>, v42, v52
+    v60 = mul v57, 8
+    v61 = shl v60, 0xffffffffffffffff
+    v62 = sload v55 !metadata(storage=symbolic(v55))
+    v63 = not v61
+    v64 = and v62, v63
+    v65 = and v59, 0xffffffffffffffff
+    v66 = shl v60, v65
+    v67 = or v64, v66
+    sstore v55, v67 !metadata(storage=symbolic(v55))
+    jump bb15
+  bb15:
+    v76 = add v52, 1
+    jump bb10
+  bb4:
+    v19 = div v17, 4
+    v20 = add v16, v19
+    v21 = mod v17, 4
+    v22 = mul v21, 8
+    v23 = lt v17, 10
+    jumpi v23, bb6, bb7
+  bb7:
+    v33 = mul v22, 8
+    v34 = shl v33, 0xffffffffffffffff
+    v35 = sload v20 !metadata(storage=symbolic(v20))
+    v36 = not v34
+    v37 = and v35, v36
+    v38 = and 0, 0xffffffffffffffff
+    v39 = shl v33, v38
+    v40 = or v37, v39
+    sstore v20, v40 !metadata(storage=symbolic(v20))
+    jump bb8
+  bb6:
+    v24 = memory_object_load_element memoryfixedarray<10, 1>, v2, v17
+    v25 = mul v22, 8
+    v26 = shl v25, 0xffffffffffffffff
+    v27 = sload v20 !metadata(storage=symbolic(v20))
+    v28 = not v26
+    v29 = and v27, v28
+    v30 = and v24, 0xffffffffffffffff
+    v31 = shl v25, v30
+    v32 = or v29, v31
+    sstore v20, v32 !metadata(storage=symbolic(v20))
+    jump bb8
+  bb8:
+    v41 = add v17, 1
+    jump bb3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -1,20 +1,13 @@
-//@ revisions: unoptimized optimized
-//@[unoptimized] compile-flags: -O none
-//@[optimized] compile-flags: -O gas
-//@[unoptimized] run-call: slice(string,uint256) "abcd", 0 => "abcd"
-//@[unoptimized] run-call: slice(string,uint256) "abcd", 2 => "abcd"
-//@[unoptimized] run-call: slice(string,uint256) "abcd", 4 => "abcd"
-//@[unoptimized] run-call-fail: slice(string,uint256) "abcd", 5 => 0x
-//@[unoptimized] run-call: segment(string,uint256,uint256) "abcd", 1, 3 => "bc"
-//@[unoptimized] run-call: segment(string,uint256,uint256) "abcd", 4, 4 => ""
-//@[unoptimized] run-call: nested(string,uint256,uint256,uint256,uint256) "abcdef", 1, 5, 1, 3 => "cd"
-//@[optimized] run-call: slice(string,uint256) "abcd", 0 => "abcd"
-//@[optimized] run-call: slice(string,uint256) "abcd", 2 => "abcd"
-//@[optimized] run-call: slice(string,uint256) "abcd", 4 => "abcd"
-//@[optimized] run-call-fail: slice(string,uint256) "abcd", 5 => 0x
-//@[optimized] run-call: segment(string,uint256,uint256) "abcd", 1, 3 => "bc"
-//@[optimized] run-call: segment(string,uint256,uint256) "abcd", 4, 4 => ""
-//@[optimized] run-call: nested(string,uint256,uint256,uint256,uint256) "abcdef", 1, 5, 1, 3 => "cd"
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
+//@ run-call: slice "abcd", 0 => "abcd"
+//@ run-call: slice "abcd", 2 => "abcd"
+//@ run-call: slice "abcd", 4 => "abcd"
+//@ run-call-fail: slice "abcd", 5 => 0x
+//@ run-call: segment "abcd", 1, 3 => "bc"
+//@ run-call: segment "abcd", 4, 4 => ""
+//@ run-call: nested "abcdef", 1, 5, 1, 3 => "cd"
 // ported-from: test/libsolidity/semanticTests/strings/concat/string_concat_different_types.sol
 
 contract CalldataStringSlicing {

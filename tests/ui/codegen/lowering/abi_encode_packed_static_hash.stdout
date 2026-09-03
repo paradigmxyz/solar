@@ -1,34 +1,29 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_packed_static_hash.sol:AbiEncodePackedStaticHash ===
 @module AbiEncodePackedStaticHash
-fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [abi_returns=[word]] {
+fn @hash(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0xd9d28840, pure, abi_params=[u64, u64, bytes32], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 96
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = calldataload 36
-    v7 = and v6, 0xffffffffffffffff
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    v9 = shl 136, arg0
-    v10 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v9
-    v11 = shl 72, arg1
-    v12 = or v10, v11
-    mstore 0, v12 !metadata(memory=scratch)
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffff
+    v2 = shl 136, v0
+    v3 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v2
+    v4 = shl 72, v1
+    v5 = or v3, v4
+    mstore 0, v5 !metadata(memory=scratch)
     mstore 23, arg2 !metadata(memory=scratch)
-    v13 = keccak256 0, 55 !metadata(memory=scratch)
-    ret v13
-  bb1:
-    revert 0, 0
+    v6 = keccak256 0, 55 !metadata(memory=scratch)
+    ret v6
+}
+
+fn @hashLocal(arg0: u64, arg1: u64, arg2: bytes32) -> bytes32 [selector=0x9f31b347, pure, abi_params=[u64, u64, bytes32], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffff
+    v1 = and arg1, 0xffffffffffffffff
+    v2 = shl 136, v0
+    v3 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v2
+    v4 = shl 72, v1
+    v5 = or v3, v4
+    mstore 0, v5 !metadata(memory=scratch)
+    mstore 23, arg2 !metadata(memory=scratch)
+    v6 = keccak256 0, 55 !metadata(memory=scratch)
+    ret v6
 }

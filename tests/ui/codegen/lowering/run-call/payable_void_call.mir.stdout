@@ -1,0 +1,74 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Callee ===
+@module Callee
+fn @stored() -> u256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params=[address, u256], abi_returns=[]] {
+  bb0:
+    v0 = caller
+    v1 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v0, v1, arg1
+    sstore 0, arg1 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===
+@module Caller
+data:
+  Callee_initcode_0: hex"34600d5760ab8060115f395ff35b5f5ffd5f3560e01c8063095ea7b314601c578063e582dd31146020576024565b6042565b6028565b5f5ffd5b34603e575f546080526020608001608090036080f35b5f5ffd5b6044361015609c576098565b73ffffffffffffffffffffffffffffffffffffffff6004351660243581337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f5fa4506024355f55005b5f5ffd5b60043560a01c1515609857604e56"
+
+fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 219, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy Callee_initcode_0, v3, 188
+    v4 = slice_ptr v0
+    v5 = add v3, 188
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 188
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = address
+    log4 0, 0, 0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925, v7, 0xbeef, 7
+    v8 = gas
+    v9 = and 0xbeef, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = abi_encode [word<u160>, word], selector 0x95ea7b300000000000000000000000000000000000000000000000000000000, args v9, 7
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = extcodesize v6
+    v14 = iszero v13
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = call v8, v6, 0, v11, v12, 0, 0
+    jumpi v15, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v16 = gas
+    v17 = abi_encode [], selector 0xe582dd3100000000000000000000000000000000000000000000000000000000
+    v18 = slice_ptr v17
+    v19 = slice_len v17
+    v20 = staticcall v16, v6, v18, v19, 0, 32
+    jumpi v20, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v21 = returndatasize
+    v22 = lt v21, 32
+    jumpi v22, bb3, bb9
+  bb9:
+    v23 = add 0, 0
+    v24 = mload v23
+    v25 = add 0, 0
+    v26 = mload v25
+    ret v26
+  bb3:
+    revert 0, 0
+}

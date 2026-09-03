@@ -1,461 +1,348 @@
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
 @module MemoryFixedArrayAlloc
-fn @guardedFix(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
-    mstore v4, 0
-    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
-    mstore v5, 0
-    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 2
-    mstore v6, 0
-    v7 = lt arg0, 3
-    jumpi v7, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v8 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
-    v9 = mload v8
-    ret v9
-  bb1:
-    revert 0, 0
-}
-
-fn @structArr(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 0
-    mstore v5, 0
-    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 1
-    mstore v6, 0
-    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 2
-    mstore v7, 0
-    v8 = memory_object_field_addr memorystruct<1>, v3, 0
-    mstore v8, v4
-    v9 = memory_object_field_addr memorystruct<1>, v3, 0
-    v10 = mload v9
-    v11 = lt arg0, 3
-    jumpi v11, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v12 = memory_object_element_addr memoryfixedarray<3, 1>, v10, arg0
-    v13 = mload v12
-    ret v13
-  bb1:
-    revert 0, 0
-}
-
-fn @nested(arg0: u256, arg1: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v5 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 0
-    mstore v5, 0
-    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 1
-    mstore v6, 0
-    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
-    mstore v7, v4
-    v8 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v9 = memory_object_element_addr memoryfixedarray<2, 1>, v8, 0
-    mstore v9, 0
-    v10 = memory_object_element_addr memoryfixedarray<2, 1>, v8, 1
-    mstore v10, 0
-    v11 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
-    mstore v11, v8
-    v12 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
-    v13 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 0
-    mstore v13, 0
-    v14 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 1
-    mstore v14, 0
-    v15 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 2
-    mstore v15, v12
-    v16 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
-    v17 = mload v16
-    v18 = memory_object_element_addr memoryfixedarray<2, 1>, v17, 0
-    mstore v18, 1
-    v19 = lt arg0, 3
-    jumpi v19, bb4, bb3
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb4:
-    v20 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
-    v21 = mload v20
-    v22 = lt arg1, 2
-    jumpi v22, bb6, bb5
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v23 = memory_object_element_addr memoryfixedarray<2, 1>, v21, arg1
-    v24 = mload v23
-    ret v24
-  bb1:
-    revert 0, 0
-}
-
-fn @fmpIntegrity() -> (u256, u256) [abi_returns=[word, word]] {
+fn @guardedFix(arg0: u256) -> u256 [selector=0x93390577, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
-    mstore v1, 0
-    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v3, 0
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v4, 7
-    v5 = mul 1, 32
-    v6 = div v5, 32
-    v7 = eq v6, 1
-    jumpi v7, bb2, bb1
+    memory_zero v0, 96
+    v1 = lt arg0, 3
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
+    ret v3
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v8 = add v5, 32
-    v9 = lt v8, v5
-    jumpi v9, bb3, bb4
-  bb4:
-    v10 = alloc memoryarray<1>, exact, zeroed, panic, v8
-    set_memory_object_len memoryarray, v10, 1
-    v11 = memory_object_len memoryarray, v10
-    v12 = lt 0, v11
-    jumpi v12, bb6, bb5
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v13 = memory_object_element_addr memoryarray<1>, v10, 0
-    mstore v13, 9
-    v14 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    v15 = mload v14
-    v16 = memory_object_len memoryarray, v10
-    v17 = lt 0, v16
-    jumpi v17, bb8, bb7
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v18 = memory_object_element_addr memoryarray<1>, v10, 0
-    v19 = mload v18
-    ret v15, v19
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @literal() -> u256 [abi_returns=[word]] {
+fn @structArr(arg0: u256) -> u256 [selector=0x40b8037f, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = add v0, 0
-    mstore v1, 1
-    v2 = add v0, 32
-    mstore v2, 2
-    v3 = add v0, 64
-    mstore v3, 3
-    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    v5 = mload v4
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_zero v1, 96
+    memory_object_store_field memorystruct<1>, v0, 0, v1
+    v2 = memory_object_load_field memorystruct<1>, v0, 0
+    v3 = lt arg0, 3
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = memory_object_load_element memoryfixedarray<3, 1>, v2, arg0
     ret v5
-}
-
-fn @bulkDefault(arg0: u256) -> u256 [abi_returns=[word]] {
-  bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
-    memory_zero v3, 128
-    v4 = lt arg0, 4
-    jumpi v4, bb4, bb3
-  bb3:
+  bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb4:
-    v5 = memory_object_element_addr memoryfixedarray<4, 1>, v3, arg0
-    v6 = mload v5
-    ret v6
+}
+
+fn @nested(arg0: u256, arg1: u256) -> u256 [selector=0x50d1f082, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    jump bb1
   bb1:
-    revert 0, 0
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, 3
+    jumpi v2, bb2, bb3
+  bb3:
+    v5 = lt 0, 3
+    v6 = iszero v5
+    jumpi v6, bb4, bb5
+  bb5:
+    v7 = memory_object_load_element memoryfixedarray<3, 1>, v0, 0
+    v8 = eq v7, 0
+    jumpi v8, bb6, bb7
+  bb6:
+    v9 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v9, 64
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, v9
+    jump bb7
+  bb7:
+    v10 = phi [bb5: v7], [bb6: v9]
+    v11 = lt 0, 2
+    v12 = iszero v11
+    jumpi v12, bb4, bb8
+  bb8:
+    memory_object_store_element memoryfixedarray<2, 1>, v10, 0, 1
+    v13 = lt arg0, 3
+    v14 = iszero v13
+    jumpi v14, bb4, bb9
+  bb9:
+    v15 = memory_object_load_element memoryfixedarray<3, 1>, v0, arg0
+    v16 = eq v15, 0
+    jumpi v16, bb10, bb11
+  bb10:
+    v17 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v17, 64
+    memory_object_store_element memoryfixedarray<3, 1>, v0, arg0, v17
+    jump bb11
+  bb11:
+    v18 = phi [bb9: v15], [bb10: v17]
+    v19 = lt arg1, 2
+    v20 = iszero v19
+    jumpi v20, bb4, bb12
+  bb12:
+    v21 = memory_object_load_element memoryfixedarray<2, 1>, v18, arg1
+    ret v21
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v3, 64
+    memory_object_store_element memoryfixedarray<3, 1>, v0, v1, v3
+    v4 = add v1, 1
+    jump bb1
+}
+
+fn @fmpIntegrity() -> (u256, u256) [selector=0xe547cb4d, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_zero v0, 96
+    v1 = lt 2, 3
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 7
+    v3 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v3, 1
+    v4 = memory_object_len memoryarray, v3
+    v5 = lt 0, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb3
+  bb3:
+    memory_object_store_element memoryarray<1>, v3, 0, 9
+    v7 = lt 2, 3
+    v8 = iszero v7
+    jumpi v8, bb1, bb4
+  bb4:
+    v9 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
+    v10 = memory_object_len memoryarray, v3
+    v11 = lt 0, v10
+    v12 = iszero v11
+    jumpi v12, bb1, bb5
+  bb5:
+    v13 = memory_object_load_element memoryarray<1>, v3, 0
+    ret v9, v13
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @literal() -> u256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 2
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
+    v1 = lt 2, 3
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = memory_object_load_element memoryfixedarray<3, 1>, v0, 2
+    ret v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @bulkDefault(arg0: u256) -> u256 [selector=0xbe4421b6, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
+    memory_zero v0, 128
+    v1 = lt arg0, 4
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = memory_object_load_element memoryfixedarray<4, 1>, v0, arg0
+    ret v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 // === ROOT/tests/ui/codegen/lowering/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
 @module NamedReturnAndDelete
-fn @namedReturn() -> (memoryfixedarray, u256) [abi_returns=[array<3, word>, word]] {
+fn @namedReturn() -> (memoryfixedarray, u256) [selector=0xf76de570, pure, abi_params=[], abi_returns=[array<3, word>, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
-    mstore v1, 0
-    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v3, 0
-    mstore 128, v0
-    mstore 160, 0
-    v4 = mload 128
-    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 0
-    mstore v5, 1
-    v6 = mload 128
-    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v6, 2
-    mstore v7, 3
-    v8 = add 32, 31
-    v9 = lt v8, 32
-    jumpi v9, bb1, bb2
+    memory_zero v0, 96
+    v1 = lt 0, 3
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
   bb2:
-    v10 = not 31
-    v11 = and v8, v10
-    v12 = add v11, 32
-    v13 = lt v12, v11
-    jumpi v13, bb3, bb4
-  bb4:
-    v14 = alloc memorybytes, exact, zeroed, panic, v12
-    set_memory_object_len memorybytes, v14, 32
-    v15 = memory_object_len memorybytes, v14
-    v16 = lt 0, v15
-    jumpi v16, bb6, bb5
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v17 = memory_object_data memorybytes, v14
-    v18 = add v17, 0
-    mstore8 v18, 238
-    v19 = memory_object_len memorybytes, v14
-    v20 = lt 0, v19
-    jumpi v20, bb8, bb7
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v21 = memory_object_data memorybytes, v14
-    v22 = add v21, 0
-    v23 = mload v22
-    v24 = and v23, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v25 = shr 248, v24
-    v26 = and v25, 255
-    mstore 160, v26
-    v27 = mload 128
-    v28 = mload 160
-    ret v27, v28
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 1
+    v3 = lt 2, 3
+    v4 = iszero v3
+    jumpi v4, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 3
+    v5 = not 31
+    v6 = and 95, v5
+    v7 = alloc memorybytes, exact, zeroed, panic, v6
+    set_memory_object_len memorybytes, v7, 32
+    v8 = shl 248, 238
+    v9 = memory_object_len memorybytes, v7
+    v10 = lt 0, v9
+    v11 = iszero v10
+    jumpi v11, bb1, bb4
+  bb4:
+    v12 = byte 0, v8
+    memory_object_store_byte memorybytes, v7, 0, v12
+    v13 = memory_object_len memorybytes, v7
+    v14 = lt 0, v13
+    v15 = iszero v14
+    jumpi v15, bb1, bb5
+  bb5:
+    v16 = memory_object_load_byte memorybytes, v7, 0
+    v17 = shl 248, v16
+    v18 = shr 248, v17
+    ret v0, v18
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @emptyMemoryReferences() -> u256 [abi_returns=[word]] {
+fn @emptyMemoryReferences() -> u256 [selector=0xc82d0745, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = memory_object_field_addr memorystruct<2>, v0, 0
-    mstore v1, 96
-    v2 = memory_object_field_addr memorystruct<2>, v0, 1
-    mstore v2, 96
-    v3 = mload 96 !metadata(memory=scratch)
-    v4 = mload 96 !metadata(memory=scratch)
-    v5 = add v3, v4
-    v6 = lt v5, v3
-    jumpi v6, bb1, bb2
+    memory_object_store_field memorystruct<2>, v0, 0, 96
+    memory_object_store_field memorystruct<2>, v0, 1, 96
+    v1 = memory_object_len memoryarray, 96
+    v2 = memory_object_len memorybytes, 96
+    v3 = add v1, v2
+    v4 = lt v3, v1
+    jumpi v4, bb1, bb2
   bb2:
-    v7 = memory_object_field_addr memorystruct<2>, v0, 0
-    v8 = mload v7
-    v9 = mload v8
-    v10 = add v5, v9
-    v11 = lt v10, v5
-    jumpi v11, bb3, bb4
-  bb4:
-    v12 = memory_object_field_addr memorystruct<2>, v0, 1
-    v13 = mload v12
-    v14 = mload v13
-    v15 = add v10, v14
-    v16 = lt v15, v10
-    jumpi v16, bb5, bb6
-  bb6:
-    ret v15
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v5 = memory_object_load_field memorystruct<2>, v0, 0
+    v6 = memory_object_len memoryarray, v5
+    v7 = add v3, v6
+    v8 = lt v7, v3
+    jumpi v8, bb1, bb3
   bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
+    v9 = memory_object_load_field memorystruct<2>, v0, 1
+    v10 = memory_object_len memorybytes, v9
+    v11 = add v7, v10
+    v12 = lt v11, v7
+    jumpi v12, bb1, bb4
+  bb4:
+    ret v11
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }
 
-fn @emptyNamedReturns() -> (memoryarray, memorybytes) [abi_returns=[memory_array<word>, memory_bytes]] {
+fn @emptyNamedReturns() -> (memoryarray, memorybytes) [selector=0xf4994cb3, pure, abi_params=[], abi_returns=[memory_array<word>, memory_bytes]] {
   bb0:
-    mstore 128, 96
-    mstore 160, 96
-    v0 = mload 128
-    v1 = mload 160
-    ret v0, v1
+    ret 96, 96
 }
 
-fn @emptyWideNamedStruct() -> memorystruct [abi_returns=[tuple<word, memory_bytes, word, word>]] {
+fn @emptyWideNamedStruct() -> memorystruct [selector=0x27d08cee, pure, abi_params=[], abi_returns=[tuple<word, memory_bytes, word, word>]] {
   bb0:
     v0 = alloc memorystruct<4>, exact, uninitialized, infallible, 128
     memory_zero v0, 128
-    v1 = memory_object_field_addr memorystruct<4>, v0, 1
-    mstore v1, 96
-    mstore 128, v0
-    v2 = mload 128
-    ret v2
+    memory_object_store_field memorystruct<4>, v0, 1, 96
+    ret v0
 }
 
-fn @fullyInitializedNamedStruct() -> memorystruct [abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
+fn @fullyInitializedNamedStruct() -> memorystruct [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>]] {
   bb0:
-    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = memory_object_field_addr memorystruct<2>, v0, 0
-    mstore v1, 96
-    v2 = memory_object_field_addr memorystruct<2>, v0, 1
-    mstore v2, 96
-    mstore 128, v0
-    v3 = mul 1, 32
-    v4 = div v3, 32
-    v5 = eq v4, 1
-    jumpi v5, bb2, bb1
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb2:
-    v6 = add v3, 32
-    v7 = lt v6, v3
-    jumpi v7, bb3, bb4
-  bb4:
-    v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
-    set_memory_object_len memoryarray, v8, 1
-    v9 = mload 128
-    v10 = memory_object_field_addr memorystruct<2>, v9, 0
-    mstore v10, v8
-    v11 = add 1, 31
-    v12 = lt v11, 1
-    jumpi v12, bb5, bb6
-  bb6:
-    v13 = not 31
-    v14 = and v11, v13
-    v15 = add v14, 32
-    v16 = lt v15, v14
-    jumpi v16, bb7, bb8
-  bb8:
-    v17 = alloc memorybytes, exact, zeroed, panic, v15
-    set_memory_object_len memorybytes, v17, 1
-    v18 = mload 128
-    v19 = memory_object_field_addr memorystruct<2>, v18, 1
-    mstore v19, v17
-    v20 = mload 128
-    ret v20
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v1, 0, 96
+    memory_object_store_field memorystruct<2>, v1, 1, 96
+    memory_object_store_field memorystruct<2>, v1, 0, v0
+    v2 = not 31
+    v3 = and 64, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, 1
+    memory_object_store_field memorystruct<2>, v1, 1, v4
+    ret v1
 }
 
-fn @deleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
+fn @deleteRebind() -> (u256, u256) [selector=0x81e51eb1, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
-    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
-    mstore v1, 0
-    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
-    mstore v2, 0
-    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
-    mstore v3, 0
-    mstore 128, v0
-    v4 = mload 128
-    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 0
-    mstore v5, 5
-    v6 = mload 128
-    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v6, 1
-    mstore v7, 6
-    v8 = mload 128
-    v9 = memory_object_element_addr memoryfixedarray<3, 1>, v8, 2
-    mstore v9, 7
-    v10 = mload 128
-    mstore v10, 0
-    v11 = add v10, 32
-    mstore v11, 0
-    v12 = add v10, 64
-    mstore v12, 0
-    v13 = mload 128
-    v14 = memory_object_element_addr memoryfixedarray<3, 1>, v13, 2
-    mstore v14, 9
-    v15 = mload 128
-    v16 = memory_object_element_addr memoryfixedarray<3, 1>, v15, 0
-    v17 = mload v16
-    v18 = mload 128
-    v19 = memory_object_element_addr memoryfixedarray<3, 1>, v18, 2
-    v20 = mload v19
-    ret v17, v20
+    memory_zero v0, 96
+    v1 = lt 0, 3
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 0, 5
+    v3 = lt 1, 3
+    v4 = iszero v3
+    jumpi v4, bb1, bb3
+  bb3:
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 1, 6
+    v5 = lt 2, 3
+    v6 = iszero v5
+    jumpi v6, bb1, bb4
+  bb4:
+    memory_object_store_element memoryfixedarray<3, 1>, v0, 2, 7
+    v7 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_zero v7, 96
+    v8 = lt 2, 3
+    v9 = iszero v8
+    jumpi v9, bb1, bb5
+  bb5:
+    memory_object_store_element memoryfixedarray<3, 1>, v7, 2, 9
+    v10 = lt 0, 3
+    v11 = iszero v10
+    jumpi v11, bb1, bb6
+  bb6:
+    v12 = memory_object_load_element memoryfixedarray<3, 1>, v7, 0
+    v13 = lt 2, 3
+    v14 = iszero v13
+    jumpi v14, bb1, bb7
+  bb7:
+    v15 = memory_object_load_element memoryfixedarray<3, 1>, v7, 2
+    ret v12, v15
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }
 
-fn @bulkDeleteInPlace() -> (u256, u256) [abi_returns=[word, word]] {
+fn @bulkDeleteRebind() -> (u256, u256) [selector=0x535bf203, pure, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_zero v0, 128
-    mstore 128, v0
-    v1 = mload 128
-    v2 = memory_object_element_addr memoryfixedarray<4, 1>, v1, 0
-    mstore v2, 5
-    v3 = mload 128
-    v4 = memory_object_element_addr memoryfixedarray<4, 1>, v3, 3
-    mstore v4, 7
-    v5 = mload 128
+    v1 = lt 0, 4
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 0, 5
+    v3 = lt 3, 4
+    v4 = iszero v3
+    jumpi v4, bb1, bb3
+  bb3:
+    memory_object_store_element memoryfixedarray<4, 1>, v0, 3, 7
+    v5 = alloc memoryfixedarray<4, 1>, exact, uninitialized, infallible, 128
     memory_zero v5, 128
-    v6 = mload 128
-    v7 = memory_object_element_addr memoryfixedarray<4, 1>, v6, 3
-    mstore v7, 9
-    v8 = mload 128
-    v9 = memory_object_element_addr memoryfixedarray<4, 1>, v8, 0
-    v10 = mload v9
-    v11 = mload 128
-    v12 = memory_object_element_addr memoryfixedarray<4, 1>, v11, 3
-    v13 = mload v12
+    v6 = lt 3, 4
+    v7 = iszero v6
+    jumpi v7, bb1, bb4
+  bb4:
+    memory_object_store_element memoryfixedarray<4, 1>, v5, 3, 9
+    v8 = lt 0, 4
+    v9 = iszero v8
+    jumpi v9, bb1, bb5
+  bb5:
+    v10 = memory_object_load_element memoryfixedarray<4, 1>, v5, 0
+    v11 = lt 3, 4
+    v12 = iszero v11
+    jumpi v12, bb1, bb6
+  bb6:
+    v13 = memory_object_load_element memoryfixedarray<4, 1>, v5, 3
     ret v10, v13
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }

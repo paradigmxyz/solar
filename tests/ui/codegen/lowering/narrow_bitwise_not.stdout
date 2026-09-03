@@ -1,131 +1,52 @@
 // === ROOT/tests/ui/codegen/lowering/narrow_bitwise_not.sol:NarrowBitwiseNot ===
 @module NarrowBitwiseNot
-fn @notUint8(arg0: u8) -> u8 [abi_returns=[word]] {
+fn @notUint8(arg0: u8) -> u8 [selector=0x129f3ff5, pure, abi_params=[u8], abi_returns=[word<u8>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 255
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = not arg0
-    v7 = and v6, 255
-    ret v7
-  bb1:
-    revert 0, 0
+    v0 = and arg0, 255
+    v1 = not v0
+    v2 = and v1, 255
+    ret v2
 }
 
-fn @notUint16(arg0: u16) -> u16 [abi_returns=[word]] {
+fn @notUint16(arg0: u16) -> u16 [selector=0xfec0a8c2, pure, abi_params=[u16], abi_returns=[word<u16>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = not arg0
-    v7 = and v6, 0xffff
-    ret v7
-  bb1:
-    revert 0, 0
+    v0 = and arg0, 0xffff
+    v1 = not v0
+    v2 = and v1, 0xffff
+    ret v2
 }
 
-fn @notUint256(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @notUint256(arg0: u256) -> u256 [selector=0x245aff7f, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = not arg0
-    ret v3
-  bb1:
-    revert 0, 0
+    v0 = not arg0
+    ret v0
 }
 
-fn @notInt8(arg0: i8) -> i8 [abi_returns=[word]] {
+fn @notInt8(arg0: i8) -> i8 [selector=0x78e60e9a, pure, abi_params=[i8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = signextend 0, v3
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = not arg0
-    ret v6
-  bb1:
-    revert 0, 0
+    v0 = signextend 0, arg0
+    v1 = not v0
+    ret v1
 }
 
-fn @notBytes1(arg0: bytes1) -> bytes1 [abi_returns=[word]] {
+fn @notBytes1(arg0: bytes1) -> bytes1 [selector=0x67681bff, pure, abi_params=[bytes1], abi_returns=[word<bytes1>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = not arg0
-    v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
-    ret v7
-  bb1:
-    revert 0, 0
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = not v0
+    v2 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v2
 }
 
-fn @notBytes2(arg0: bytes2) -> bytes2 [abi_returns=[word]] {
+fn @notBytes2(arg0: bytes2) -> bytes2 [selector=0x42cc764f, pure, abi_params=[bytes2], abi_returns=[word<bytes2>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = not arg0
-    v7 = and v6, 0xffff000000000000000000000000000000000000000000000000000000000000
-    ret v7
-  bb1:
-    revert 0, 0
+    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v1 = not v0
+    v2 = and v1, 0xffff000000000000000000000000000000000000000000000000000000000000
+    ret v2
 }
 
-fn @notBytes32(arg0: bytes32) -> bytes32 [abi_returns=[word]] {
+fn @notBytes32(arg0: bytes32) -> bytes32 [selector=0xb683cb30, pure, abi_params=[bytes32], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = not arg0
-    ret v3
-  bb1:
-    revert 0, 0
+    v0 = not arg0
+    ret v0
 }

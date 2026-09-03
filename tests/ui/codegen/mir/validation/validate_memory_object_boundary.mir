@@ -4,6 +4,7 @@
 //~? ERROR: [fn0] [bb0, inst0] memory-object instruction `alloc` survives the `memory-lowered` phase boundary
 //~? ERROR: [fn0] [bb0, inst1] memory-object instruction `memory_object_len` survives the `memory-lowered` phase boundary
 //~? ERROR: [fn0] [bb0, inst2] memory-object instruction `set_memory_object_len` survives the `memory-lowered` phase boundary
+//~? ERROR: [fn0] [bb0, inst3] memory-object instruction `memory_object_load_byte` survives the `memory-lowered` phase boundary
 @module ValidateMemoryObjectBoundary
 @phase memory-lowered
 
@@ -12,5 +13,6 @@ fn @object(arg0: memorybytes) -> memorystruct {
     v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
     v2 = memory_object_len memorybytes, arg0
     set_memory_object_len memorybytes, arg0, v2
+    v3 = memory_object_load_byte memorybytes, arg0, 0
     ret v1
 }

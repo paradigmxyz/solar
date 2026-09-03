@@ -1,0 +1,379 @@
+// === ROOT/tests/ui/codegen/lowering/stack_phi_loop.sol:StackPhiLoop (runtime) ===
+@module StackPhiLoop_runtime
+bb0:
+  callvalue
+  push bb6
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x50d1f082
+  eq
+  push bb33
+  jumpi
+  dup 1
+  push 0x71b76bb2
+  eq
+  push bb7
+  jumpi
+  dup 1
+  push 0xd8c2ef0a
+  eq
+  push bb46
+  jumpi
+  dup 1
+  push 0xfb08deb2
+  eq
+  push bb20
+  jumpi
+  jump bb6
+bb6 [cold]:
+  push 0
+  push 0
+  revert
+bb7:
+  push 68
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push 36
+  calldataload
+  push 2
+  gt
+  iszero
+  push bb6
+  jumpi
+  push 7
+  push 36
+  calldataload
+  iszero
+  push bb10
+  jumpi
+  jump bb11
+bb11:
+  push 0
+  push 0
+  jump bb12
+bb12:
+  push 4
+  calldataload
+  dup 3
+  lt
+  push bb15
+  jumpi
+  jump bb57
+bb57:
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb10:
+  pop
+  push 11
+  jump bb11
+bb14:
+  push 1
+  push 192
+  mload
+  add
+  push 224
+  mload
+  push 160
+  mload
+  swap 2
+  swap 1
+  jump bb12
+bb15:
+  dup 2
+  push 192
+  mstore
+  push 3
+  dup 3
+  mul
+  push 3
+  dup 2
+  div
+  dup 4
+  sub
+  push bb55
+  jumpi
+  dup 4
+  push 160
+  mstore
+  dup 4
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb55
+  jumpi
+  dup 2
+  add
+  dup 1
+  push 224
+  mstore
+  lt
+  swap 2
+  pop
+  pop
+  iszero
+  push bb14
+  jumpi
+  jump bb55
+bb55 [cold]:
+  push 0x4e487b71
+  push 224
+  shl
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  revert
+bb20:
+  push 68
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push 0
+  push 0
+  jump bb22
+bb22:
+  push 4
+  calldataload
+  dup 2
+  lt
+  iszero
+  push bb24
+  jumpi
+  push 1
+  add
+  dup 1
+  dup 3
+  add
+  swap 2
+  dup 3
+  lt
+  push bb55
+  jumpi
+  jump bb22
+bb24:
+  pop
+  push 0
+  jump bb26
+bb26:
+  push 36
+  calldataload
+  dup 2
+  lt
+  push bb29
+  jumpi
+  dup 2
+  jump bb57
+bb28:
+  push 1
+  push 160
+  mload
+  add
+  push 192
+  mload
+  swap 1
+  jump bb26
+bb29:
+  dup 1
+  push 160
+  mstore
+  dup 1
+  push 1
+  shl
+  dup 1
+  push 1
+  shr
+  dup 3
+  sub
+  push bb55
+  jumpi
+  push 3
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb55
+  jumpi
+  dup 3
+  add
+  dup 1
+  push 192
+  mstore
+  swap 2
+  dup 3
+  lt
+  swap 2
+  pop
+  pop
+  iszero
+  push bb28
+  jumpi
+  jump bb55
+bb33:
+  push 68
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push 0
+  push 0
+  jump bb35
+bb35:
+  push 4
+  calldataload
+  dup 3
+  lt
+  push bb38
+  jumpi
+  jump bb57
+bb38:
+  push 192
+  mstore
+  push 0
+  push 160
+  mstore
+  push 224
+  mstore
+  jump bb39
+bb39:
+  push 36
+  calldataload
+  push 160
+  mload
+  lt
+  push bb41
+  jumpi
+  push 1
+  push 224
+  mload
+  add
+  push 192
+  mload
+  jump bb35
+bb40:
+  push 1
+  push 160
+  mload
+  add
+  dup 1
+  push 160
+  mstore
+  push 256
+  mload
+  push 192
+  mstore
+  push 160
+  mstore
+  jump bb39
+bb41:
+  push 224
+  mload
+  push 160
+  mload
+  dup 2
+  add
+  dup 2
+  dup 2
+  lt
+  push bb55
+  jumpi
+  push 1
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb55
+  jumpi
+  push 192
+  mload
+  add
+  dup 1
+  push 256
+  mstore
+  push 192
+  mload
+  gt
+  swap 1
+  pop
+  iszero
+  push bb40
+  jumpi
+  jump bb55
+bb46:
+  push 100
+  calldatasize
+  lt
+  push bb6
+  jumpi
+  push 0
+  push 4
+  calldataload
+  jump bb48
+bb48:
+  push 68
+  calldataload
+  dup 3
+  lt
+  push bb50
+  jumpi
+  push 0
+  sstore
+  stop
+bb50:
+  push 36
+  calldataload
+  dup 2
+  mul
+  push 36
+  calldataload
+  iszero
+  push 36
+  calldataload
+  dup 3
+  div
+  swap 1
+  swap 3
+  eq
+  swap 1
+  swap 2
+  or
+  iszero
+  push bb55
+  jumpi
+  push 4
+  calldataload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb55
+  jumpi
+  push 1
+  shr
+  push 0xf4240
+  swap 1
+  mod
+  push 1
+  add
+  swap 1
+  push 1
+  add
+  swap 1
+  jump bb48

@@ -1,4 +1,4 @@
-//! EVM-shaped phase lowering: make non-returning call edges explicit.
+//! EVM-shaped phase lowering: prepare control flow for the EVM backend.
 //!
 //! Real lowered external bodies keep their encode fused: they terminate with
 //! `RETURN`/`REVERT` and never return to a caller. After the ABI and dispatch
@@ -17,10 +17,17 @@
 //! frame addresses and jumps, pushing no return address. That addressing only
 //! exists for callees the backend gives a static frame (bodied, selectorless,
 //! non-recursive), so calls to any other callee are left as ordinary calls.
+//!
+//! The backend also eliminates phis by copying each incoming value at the end of its predecessor.
+//! When a phi's previous value remains live on a sibling edge, that copy must run after the branch
+//! selects the phi successor. This pass isolates only those copies in a single-successor block.
 
 use crate::{
-    analysis::{CallGraphInfo, CfgInfo},
-    mir::{Function, InstKind, MirPhase, Module, Terminator, utils::repair_reachability_phis},
+    analysis::{CallGraphInfo, CfgInfo, Liveness},
+    mir::{
+        Function, InstKind, MirPhase, Module, Terminator,
+        utils::{repair_reachability_phis, split_edge},
+    },
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
 };
@@ -63,47 +70,25 @@ impl MirPass for LowerEvmShaped {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerEvmShapedCx::default().run(module)
+        lower_evm_shaped(module)
     }
 }
 
-/// Statistics from EVM-shape lowering.
-#[derive(Clone, Debug, Default)]
-struct LowerEvmShapedStats {
-    /// Number of internal calls rewritten into tail calls.
-    tail_calls: usize,
-}
+fn lower_evm_shaped(module: &mut Module) -> bool {
+    if module.phase != MirPhase::MemoryLowered {
+        return false;
+    }
 
-#[derive(Debug, Default)]
-struct LowerEvmShapedCx {
-    stats: LowerEvmShapedStats,
-}
-
-impl LowerEvmShapedCx {
-    fn run(&mut self, module: &mut Module) -> bool {
-        self.stats = LowerEvmShapedStats::default();
-        if module.phase >= MirPhase::EvmShaped {
-            return false;
-        }
-        if module.phase != MirPhase::MemoryLowered {
-            return false;
-        }
-
-        // Entry routing already uses explicit tail calls. Most modules have no
-        // resultless internal call left to reshape, so avoid building a call
-        // graph and classifying every function in that common case.
-        let has_candidate = module.functions.iter().any(|func| {
-            func.instructions().any(|inst_id| {
-                let inst = func.inst(inst_id);
-                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
-            })
-        });
-        if !has_candidate {
-            let changed = module.phase != MirPhase::EvmShaped;
-            module.advance_phase(MirPhase::EvmShaped);
-            return changed;
-        }
-
+    // Entry routing already uses explicit tail calls. Most modules have no
+    // resultless internal call left to reshape, so avoid building a call
+    // graph and classifying every function in that common case.
+    let has_candidate = module.functions.iter().any(|func| {
+        func.instructions().any(|inst_id| {
+            let inst = func.inst(inst_id);
+            inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
+        })
+    });
+    if has_candidate {
         let call_graph = CallGraphInfo::new(module);
         let mut tail_callable = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
@@ -133,49 +118,91 @@ impl LowerEvmShapedCx {
             }
         }
 
-        let mut changed = false;
-        let function_ids: Vec<_> = module.functions.indices().collect();
-        for func_id in function_ids {
-            let func = &mut module.functions[func_id];
+        for (func_id, func) in module.functions.iter_mut_enumerated() {
             let mut function_changed = false;
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
-                let Some(position) = insts.iter().position(|&inst_id| {
-                    let inst = func.inst(inst_id);
-                    inst.result_ty.is_none()
-                        && matches!(
-                            &inst.kind,
-                            InstKind::InternalCall { function, args, .. }
-                                if tail_callable.contains(*function)
-                                    && (args.is_empty()
-                                        || !constructor_reachable.contains(func_id))
-                        )
-                }) else {
+                let Some((position, function, args)) =
+                    insts.iter().enumerate().find_map(|(position, &inst_id)| {
+                        let inst = func.inst(inst_id);
+                        if inst.result_ty.is_none()
+                            && let InstKind::InternalCall { function, args, .. } = &inst.kind
+                            && tail_callable.contains(*function)
+                            && (args.is_empty() || !constructor_reachable.contains(func_id))
+                        {
+                            Some((position, *function, args.iter().copied().collect()))
+                        } else {
+                            None
+                        }
+                    })
+                else {
                     continue;
                 };
-
-                let inst_id = func.blocks[block_id].instructions[position];
-                let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind else {
-                    unreachable!("position matched an internal call");
-                };
-                let (function, args) = (*function, args.iter().copied().collect());
 
                 // Control never comes back: everything after the call is dead.
                 func.blocks[block_id].instructions.truncate(position);
                 func.blocks[block_id].terminator = Some(Terminator::TailCall { function, args });
-                self.stats.tail_calls += 1;
                 function_changed = true;
             }
             if function_changed {
-                function_changed |= repair_reachability_phis(func);
-                function_changed |= remove_unreachable_blocks(func) != 0;
+                let _ = repair_reachability_phis(func);
+                let _ = remove_unreachable_blocks(func);
             }
-            changed |= function_changed;
         }
+    }
+    for func in &mut module.functions {
+        split_clobbering_phi_edges(func);
+    }
 
-        let phase_changed = module.phase != MirPhase::EvmShaped;
-        module.advance_phase(MirPhase::EvmShaped);
-        changed || phase_changed
+    module.advance_phase(MirPhase::EvmShaped);
+    true
+}
+
+fn split_clobbering_phi_edges(func: &mut Function) {
+    let phi_successors =
+        func.blocks.indices().filter(|&block| func.block_has_phi(block)).collect::<Vec<_>>();
+    if phi_successors.is_empty() {
+        return;
+    }
+
+    let liveness = Liveness::compute(func);
+    let mut edges = Vec::new();
+
+    for successor in phi_successors {
+        let block = &func.blocks[successor];
+        for &predecessor in &block.predecessors {
+            let Some(terminator) = &func.blocks[predecessor].terminator else { continue };
+            let successors = terminator.successors();
+            if !successors.iter().any(|&sibling| sibling != successor) {
+                continue;
+            }
+
+            let terminator_operands = terminator.operands();
+            let copy_clobbers_live_value = block
+                .instructions
+                .iter()
+                .take_while(|&&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+                .filter(|&&inst| {
+                    let InstKind::Phi(incoming) = &func.inst(inst).kind else { unreachable!() };
+                    incoming.iter().any(|&(block, _)| block == predecessor)
+                })
+                .filter_map(|&inst| func.inst_result_value(inst))
+                .any(|destination| {
+                    terminator_operands.contains(&destination)
+                        || successors.iter().any(|&sibling| {
+                            sibling != successor && liveness.live_in(sibling).contains(destination)
+                        })
+                });
+            if copy_clobbers_live_value {
+                edges.push((predecessor, successor));
+            }
+        }
+    }
+
+    edges.sort_unstable_by_key(|(predecessor, successor)| (predecessor.index(), successor.index()));
+    edges.dedup();
+    for (predecessor, successor) in edges {
+        split_edge(func, predecessor, successor);
     }
 }
 

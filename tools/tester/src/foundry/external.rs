@@ -255,7 +255,6 @@ impl ResolvedProject {
             test_filter: None,
             contract_filter: None,
             solar_only: false,
-            ignored: false,
             skip_tests: self.skip_tests.clone(),
             skip_contracts: self.skip_contracts.clone(),
             policy: AssertionPolicy::ExternalDifferential,

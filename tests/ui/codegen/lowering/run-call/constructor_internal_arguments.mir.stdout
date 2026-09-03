@@ -1,0 +1,135 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArgumentsHelper ===
+@module ConstructorInternalArgumentsHelper
+fn @constructor(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]] {
+  bb0:
+    v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 0xffffff
+    v3 = and v1, v2
+    v4 = shr 232, v0
+    v5 = and v4, 0xffffff
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = eq arg1, 0
+    v8 = iszero v7
+    v9 = shl 24, 255
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = not v9
+    v12 = and v10, v11
+    v13 = and v8, 255
+    v14 = shl 24, v13
+    v15 = or v12, v14
+    sstore 0, v15 !metadata(storage=slot(0))
+    stop
+}
+
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 24, v0
+    v2 = and v1, 255
+    ret v2
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_internal_arguments.sol:ConstructorInternalArguments ===
+@module ConstructorInternalArguments
+data:
+  ConstructorInternalArgumentsHelper_initcode_0: hex"61015a38038061015a60e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040523460ea5760e08060c0528060c05260e061015a38030160408201111560c65760c2565b7fffffff000000000000000000000000000000000000000000000000000000000060e051165f5462ffffff19811690508160e81c915062ffffff82169150175f555f60e060200151141560ff60181b5f54811991501660ff821691508160181b9150175f5560ee565b5f5ffd5b8060c0528060c0525160181b151560c257602060c0510151600290101560c2576059565b5f5ffd5b60628060f85f395ff3346028575f3560e01c806317d7de7c146020578063f9633930146024576028565b602c565b6047565b5f5ffd5b5f5462ffffff901660e81b6080526020608001608090036080f35b5f5460181c60ff901615156080526020608001608090036080f3"
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v1 = eq 1, 0
+    v2 = iszero v1
+    v3 = abi_encode [word<bytes3>, word<bool>], args v0, v2
+    v4 = not 31
+    v5 = and 441, v4
+    v6 = alloc raw, exact, uninitialized, infallible, v5
+    data_copy ConstructorInternalArgumentsHelper_initcode_0, v6, 346
+    v7 = slice_ptr v3
+    v8 = add v6, 346
+    mcopy v8, v7, 64 !metadata(memory=heap)
+    v9 = create 0, v6, 410
+    jumpi v9, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = and v10, v11
+    v13 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = or v12, v13
+    sstore 0, v14 !metadata(storage=slot(0))
+    stop
+}
+
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = gas
+    v3 = abi_encode [], selector 0xf963393000000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v2, v1, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = iszero v10
+    v12 = iszero v11
+    v13 = eq v10, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb5
+  bb5:
+    v15 = add 0, 0
+    v16 = mload v15
+    ret v16
+  bb3:
+    revert 0, 0
+}
+
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = gas
+    v3 = abi_encode [], selector 0x17d7de7c00000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v2, v1, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = and v10, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v12 = eq v10, v11
+    v13 = iszero v12
+    jumpi v13, bb3, bb5
+  bb5:
+    v14 = add 0, 0
+    v15 = mload v14
+    ret v15
+  bb3:
+    revert 0, 0
+}

@@ -1,0 +1,78 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_multi.sol:StorageReturnPointerMulti ===
+@module StorageReturnPointerMulti
+fn @refs() -> (storageptr, storageptr) [view] {
+  bb0:
+    ret 0, 1
+}
+
+fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @refs, 2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = sload v0 !metadata(storage=symbolic(v0))
+    v5 = add v4, 1
+    v6 = lt v5, v4
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = storage_array_data_slot v0
+    v8 = add v7, v4
+    sstore v8, 7 !metadata(storage=symbolic(v8))
+    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v9 = sload v3 !metadata(storage=symbolic(v3))
+    v10 = add v9, 1
+    v11 = lt v10, v9
+    jumpi v11, bb1, bb3
+  bb3:
+    v12 = storage_array_data_slot v3
+    v13 = add v12, v9
+    sstore v3, v10 !metadata(storage=symbolic(v3))
+    v14 = sload v3 !metadata(storage=symbolic(v3))
+    v15 = lt 0, v14
+    v16 = iszero v15
+    jumpi v16, bb4, bb5
+  bb5:
+    v17 = storage_array_data_slot v3
+    v18 = add v17, 0
+    v19 = sload v18 !metadata(storage=symbolic(v17))
+    v20 = add v19, 1
+    v21 = lt v20, v19
+    jumpi v21, bb1, bb6
+  bb6:
+    v22 = storage_array_data_slot v18
+    v23 = add v22, v19
+    sstore v23, 9 !metadata(storage=symbolic(v23))
+    sstore v18, v20 !metadata(storage=symbolic(v17))
+    v24 = sload v0 !metadata(storage=symbolic(v0))
+    v25 = sload v3 !metadata(storage=symbolic(v3))
+    v26 = add v24, v25
+    v27 = lt v26, v24
+    jumpi v27, bb7, bb8
+  bb8:
+    v28 = sload v3 !metadata(storage=symbolic(v3))
+    v29 = lt 0, v28
+    v30 = iszero v29
+    jumpi v30, bb4, bb9
+  bb9:
+    v31 = storage_array_data_slot v3
+    v32 = add v31, 0
+    v33 = sload v32 !metadata(storage=symbolic(v31))
+    v34 = add v26, v33
+    v35 = lt v34, v26
+    jumpi v35, bb7, bb10
+  bb10:
+    ret v34
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

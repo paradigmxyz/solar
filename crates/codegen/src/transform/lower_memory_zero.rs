@@ -4,7 +4,7 @@
 //! `calldatasize()` implements an arbitrary-length zero fill without a loop.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, InstKind, Module},
+    mir::{Function, FunctionBuilder, InstKind, Module},
     pass::MirPass,
 };
 use solar_sema::Gcx;
@@ -29,9 +29,7 @@ impl MirPass for LowerMemoryZero {
     ) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut() {
-            if !func.blocks.is_empty() {
-                changed |= lower_function(func);
-            }
+            changed |= lower_function(func);
         }
         changed
     }
@@ -42,17 +40,23 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let blocks: Vec<BlockId> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let zero = match builder.func().inst(inst).kind {
-                InstKind::MemoryZero(dest, size) => Some((dest, size)),
-                _ => None,
+            let InstKind::MemoryZero(dest, size) = builder.func().inst(inst).kind else {
+                builder.func_mut().blocks[block].instructions.push(inst);
+                continue;
             };
-            if let Some((dest, size)) = zero {
+            if builder.func().value_u64(size) == Some(32) {
+                let zero = builder.imm(0);
+                let instruction = builder.func_mut().inst_mut(inst);
+                instruction.kind = InstKind::MStore(dest, zero);
+                instruction.metadata.set_memory_region(None);
+                instruction.metadata.set_effect(Some(instruction.kind.effect_kind()));
+            } else {
                 let calldata_end = builder.calldatasize();
                 builder.func_mut().inst_mut(inst).kind =
                     InstKind::CalldataCopy(dest, calldata_end, size);

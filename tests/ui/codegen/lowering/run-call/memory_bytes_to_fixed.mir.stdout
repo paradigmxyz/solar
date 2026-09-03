@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/memory_bytes_to_fixed.sol:MemoryBytesToFixed ===
+@module MemoryBytesToFixed
+fn @shorten(arg0: memorybytes, arg1: u256) -> bytes16 [selector=0xe05b43e0, pure, abi_params=[bytes, u256], abi_returns=[word<bytes16>]] {
+  bb0:
+    mstore arg0, arg1
+    v0 = memory_object_load_element memorybytes, arg0, 0
+    v1 = memory_object_len memorybytes, arg0
+    v2 = lt v1, 16
+    v3 = sub 16, v1
+    v4 = mul 8, v3
+    v5 = shl v4, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v6 = select v2, v5, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v7 = and v0, v6
+    ret v7
+}

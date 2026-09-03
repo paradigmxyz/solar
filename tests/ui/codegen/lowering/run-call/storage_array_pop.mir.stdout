@@ -1,0 +1,53 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_pop.sol:StorageArrayPop ===
+@module StorageArrayPop
+fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 7 !metadata(storage=symbolic(v4))
+    sstore 0, v1 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = add v5, 1
+    v7 = lt v6, v5
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
+    sstore v9, 3 !metadata(storage=symbolic(v9))
+    sstore 0, v6 !metadata(storage=slot(0))
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = eq v11, 0
+    jumpi v12, bb4, bb5
+  bb5:
+    v13 = sub v11, 1
+    sstore 0, v13 !metadata(storage=slot(0))
+    v14 = storage_array_data_slot 0
+    v15 = add v14, v13
+    sstore v15, 0 !metadata(storage=symbolic(v15))
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = sload 0 !metadata(storage=slot(0))
+    v18 = eq v17, 0
+    jumpi v18, bb4, bb6
+  bb6:
+    v19 = sub v17, 1
+    sstore 0, v19 !metadata(storage=slot(0))
+    v20 = storage_array_data_slot 0
+    v21 = add v20, v19
+    sstore v21, 0 !metadata(storage=symbolic(v21))
+    v22 = sload 0 !metadata(storage=slot(0))
+    ret v16, v22
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 49 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

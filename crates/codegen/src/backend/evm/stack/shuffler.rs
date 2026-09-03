@@ -502,8 +502,32 @@ impl<'a> StackShuffler<'a> {
             pop_count += 1;
         }
 
-        self.ops.extend(std::iter::repeat_n(StackOp::Pop, pop_count));
-        self.source.drain(..pop_count);
+        if Self::matches_target(&self.source[pop_count..], self.target) {
+            self.ops.extend(std::iter::repeat_n(StackOp::Pop, pop_count));
+            self.source.drain(..pop_count);
+            return;
+        }
+
+        while self.source.len() > self.target.len() {
+            let depth = self.target.len();
+            if depth == 0 {
+                self.ops.push(StackOp::Pop);
+                self.source.remove(0);
+                continue;
+            }
+            if depth > self.max_stack_access() {
+                break;
+            }
+
+            // The arrangement phase fixes the target prefix, so remove the first excess word
+            // without discarding that prefix.
+            self.swap(depth);
+            self.ops.push(StackOp::Pop);
+            self.source.remove(0);
+            for restore_depth in 1..depth {
+                self.swap(restore_depth);
+            }
+        }
     }
 
     /// Find the depth of a value in source stack.
@@ -619,6 +643,36 @@ mod tests {
         let result = StackShuffler::new(&source, &target).shuffle().unwrap();
         // Should swap v1 to the top, then pop v0.
         assert!(result.ops.iter().any(|op| matches!(op, StackOp::Pop | StackOp::Swap(_))));
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_shuffle_pops_duplicate_suffix() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let v2 = ValueId::from_usize(2);
+        let source = make_model(&[Some(v0), Some(v1), Some(v2), Some(v0), Some(v1), Some(v2)]);
+        let target = [TargetSlot::Value(v0), TargetSlot::Value(v1), TargetSlot::Value(v2)];
+
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+
+        assert_reaches(&source, &target, &result);
+    }
+
+    #[test]
+    fn test_shuffle_pops_large_duplicate_suffix() {
+        let values = [23usize, 53, 17, 47, 11, 41, 5, 35, 53, 17, 41, 11, 35, 5, 47, 23];
+        let source = make_model(
+            &values.iter().copied().map(ValueId::from_usize).map(Some).collect::<Vec<_>>(),
+        );
+        let target = [23usize, 53, 17, 47, 11, 41, 5, 35]
+            .into_iter()
+            .map(ValueId::from_usize)
+            .map(TargetSlot::Value)
+            .collect::<Vec<_>>();
+
+        let result = StackShuffler::new(&source, &target).shuffle().unwrap();
+
         assert_reaches(&source, &target, &result);
     }
 

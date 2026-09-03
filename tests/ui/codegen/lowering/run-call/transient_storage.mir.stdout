@@ -1,0 +1,145 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientStorage ===
+@module TransientStorage
+fn @temporary() -> u256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = tload 0
+    ret v0
+}
+
+fn @separateSpaces(arg0: u256, arg1: u256) -> (u256, u256, u256, u256, u256, u256) [selector=0x9ef32708, abi_params=[u256, u256], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    tstore 0, arg1
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = tload 0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = tload 0
+    ret v0, v1, v2, v3, 0, 0
+}
+
+fn @packed() -> (u16, u16, u256) [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<u16>, word<u16>, word]] {
+  bb0:
+    v0 = tload 1
+    v1 = not 0xffff
+    v2 = and v0, v1
+    v3 = and 0x1122, 0xffff
+    v4 = or v2, v3
+    tstore 1, v4
+    v5 = shl 16, 0xffff
+    v6 = tload 1
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and 0x3344, 0xffff
+    v10 = shl 16, v9
+    v11 = or v8, v10
+    tstore 1, v11
+    v12 = tload 1
+    v13 = tload 1
+    v14 = and v13, 0xffff
+    v15 = tload 1
+    v16 = shr 16, v15
+    v17 = and v16, 0xffff
+    ret v14, v17, v12
+}
+
+fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<i16>]] {
+  bb0:
+    v0 = sub 0, 2
+    v1 = shl 32, 0xffff
+    v2 = tload 1
+    v3 = not v1
+    v4 = and v2, v3
+    v5 = and v0, 0xffff
+    v6 = shl 32, v5
+    v7 = or v4, v6
+    tstore 1, v7
+    v8 = tload 1
+    v9 = shr 32, v8
+    v10 = and v9, 0xffff
+    v11 = signextend 1, v10
+    ret v11
+}
+
+fn @clear() -> (u256, u256) [selector=0x52efea6e, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    tstore 0, 42
+    tstore 0, 0
+    v0 = tload 0
+    v1 = tload 0
+    ret v0, v1
+}
+
+fn @getter() -> u256 [selector=0x993a04b7, abi_params=[], abi_returns=[word]] {
+  bb0:
+    tstore 0, 77
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x52099d8b00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = staticcall v1, v0, v3, v4, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v6 = returndatasize
+    v7 = lt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    ret v11
+  bb3:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/transient_storage.sol:TransientModifier ===
+@module TransientModifier
+fn @run() -> u16 [selector=0xc0406226, abi_params=[], abi_returns=[word<u16>]] {
+  bb0:
+    v0 = tload 0
+    v1 = and v0, 0xffff
+    v2 = tload 0
+    v3 = and v2, 0xffff
+    v4 = add v3, 10
+    v5 = gt v4, 0xffff
+    jumpi v5, bb2, bb3
+  bb3:
+    v6 = tload 0
+    v7 = not 0xffff
+    v8 = and v6, v7
+    v9 = and v4, 0xffff
+    v10 = or v8, v9
+    tstore 0, v10
+    v11 = tload 0
+    v12 = and v11, 0xffff
+    v13 = mul v12, 10
+    v14 = iszero 10
+    v15 = div v13, 10
+    v16 = eq v15, v12
+    v17 = or v14, v16
+    v18 = iszero v17
+    v19 = gt v13, 0xffff
+    v20 = or v18, v19
+    jumpi v20, bb2, bb5
+  bb5:
+    v21 = tload 0
+    v22 = not 0xffff
+    v23 = and v21, v22
+    v24 = and v13, 0xffff
+    v25 = or v23, v24
+    tstore 0, v25
+    v26 = tload 0
+    v27 = and v26, 0xffff
+    jump bb4
+  bb4:
+    jump bb1
+  bb1:
+    ret v27
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

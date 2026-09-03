@@ -1,40 +1,19 @@
 // === ROOT/tests/ui/codegen/lowering/comparison.sol:Comparison ===
 @module Comparison
-fn @eq(arg0: u256, arg1: u256) -> bool [abi_returns=[word]] {
+fn @eq(arg0: u256, arg1: u256) -> bool [selector=0x32148d73, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = eq arg0, arg1
-    ret v3
-  bb1:
-    revert 0, 0
+    v0 = eq arg0, arg1
+    ret v0
 }
 
-fn @lt(arg0: u256, arg1: u256) -> bool [abi_returns=[word]] {
+fn @lt(arg0: u256, arg1: u256) -> bool [selector=0x118fc88c, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = lt arg0, arg1
-    ret v3
-  bb1:
-    revert 0, 0
+    v0 = lt arg0, arg1
+    ret v0
 }
 
-fn @is_zero(arg0: u256) -> bool [abi_returns=[word]] {
+fn @is_zero(arg0: u256) -> bool [selector=0xe9b4cfc4, pure, abi_params=[u256], abi_returns=[word<bool>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = eq arg0, 0
-    ret v3
-  bb1:
-    revert 0, 0
+    v0 = eq arg0, 0
+    ret v0
 }

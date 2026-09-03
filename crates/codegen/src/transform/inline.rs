@@ -8,13 +8,14 @@ use crate::{
     immutable::immutable_push_type_size,
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId,
-        InstKind, Instruction, MirType, Module, Terminator, Value, ValueId,
+        AbiLayout, AbiType, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
+        FunctionId as MirFunctionId, Immediate, ImmutableEncoding, InstId, InstKind, Instruction,
+        MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
-use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_ast::StateMutability;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -56,6 +57,25 @@ impl MirPass for InlineTinyLeaves {
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
         let mut inliner = MirInliner::for_tiny_leaves();
+        inliner.run(gcx, module).inlined != 0
+    }
+}
+
+/// Module pass for specializing one constant-argument call to a shared pure leaf.
+pub(crate) struct InlineConstantLeaves;
+
+impl MirPass for InlineConstantLeaves {
+    fn name(&self) -> &'static str {
+        "inline-constant-leaves"
+    }
+
+    fn run_pass(
+        &self,
+        gcx: Gcx<'_>,
+        module: &mut Module,
+        _analyses: &mut crate::pass::ModuleAnalyses,
+    ) -> bool {
+        let mut inliner = MirInliner::for_constant_leaves();
         inliner.run(gcx, module).inlined != 0
     }
 }
@@ -106,8 +126,14 @@ struct MirInliner {
     /// profitability is governed by lifetime cost instead of this ceiling;
     /// zero remains the explicit off switch used by size mode.
     max_module_code_size: usize,
-    /// Restrict candidates to single-block leaf helpers with at most four MIR instructions.
-    tiny_leaves_only: bool,
+    mode: InlineMode,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InlineMode {
+    Normal,
+    TinyLeaves,
+    ConstantLeaves,
 }
 
 impl Default for MirInliner {
@@ -121,7 +147,7 @@ impl Default for MirInliner {
             max_caller_inlined_instructions: 64,
             expected_executions_per_deployment: 200,
             max_module_code_size: usize::MAX,
-            tiny_leaves_only: false,
+            mode: InlineMode::Normal,
         }
     }
 }
@@ -147,11 +173,18 @@ impl MirInliner {
             max_single_call_sanity_instructions: 12,
             max_blocks: 1,
             max_shared_callee_blocks: 1,
-            inline_single_call: true,
-            max_caller_inlined_instructions: 64,
-            expected_executions_per_deployment: 200,
-            max_module_code_size: usize::MAX,
-            tiny_leaves_only: true,
+            mode: InlineMode::TinyLeaves,
+            ..Self::default()
+        }
+    }
+
+    #[must_use]
+    fn for_constant_leaves() -> Self {
+        Self {
+            max_instructions: 64,
+            inline_single_call: false,
+            mode: InlineMode::ConstantLeaves,
+            ..Self::default()
         }
     }
 }
@@ -184,10 +217,15 @@ struct MirInlineSummary {
     has_log: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
+    has_reference_return: bool,
+    /// A one-block helper that only returns an argument or forwards an internal call's result.
+    /// Such wrappers are safe to inline even when the value is memory-backed.
+    is_transparent_forwarder: bool,
     is_entry_point: bool,
     is_constructor: bool,
-    no_inline: bool,
+    is_function_pointer_dispatcher: bool,
     has_function_selector: bool,
+    is_pure: bool,
 }
 
 impl MirInliner {
@@ -219,9 +257,9 @@ impl MirInliner {
         // Specialize dispatcher calls before helper-local inlining introduces phis.
         let mut caller_ids = module.functions.indices().collect::<Vec<_>>();
         caller_ids.sort_by_key(|caller| {
-            summaries
-                .get(caller)
-                .is_some_and(|summary| summary.no_inline && summary.has_function_selector)
+            summaries.get(caller).is_some_and(|summary| {
+                summary.is_function_pointer_dispatcher && summary.has_function_selector
+            })
         });
         for caller_id in caller_ids {
             let loop_depths = block_loop_depths(module.function(caller_id));
@@ -276,7 +314,15 @@ impl MirInliner {
                         .saturating_sub(old_size)
                         .saturating_add(new_summary.estimated_code_size);
                     summaries.insert(caller_id, new_summary);
-                    call_counts = self.call_counts(module);
+                    if self.mode == InlineMode::TinyLeaves {
+                        // Tiny-leaf candidates cannot contain internal calls, so inlining removes
+                        // exactly one call to the callee and cannot introduce another call site.
+                        if let Some(count) = call_counts.get_mut(&site.callee) {
+                            *count = count.saturating_sub(1);
+                        }
+                    } else {
+                        call_counts = self.call_counts(module);
+                    }
                     cursor = (site.block.index(), 0);
                 } else {
                     stats.skipped += 1;
@@ -316,7 +362,7 @@ impl MirInliner {
         counts
     }
 
-    /// Picks one call site for each shared callee above the ordinary block cap.
+    /// Picks one call site for each large shared callee.
     ///
     /// Prefer a call nearest the end of its block, where inlining is most
     /// likely to expose a terminal path, then the smallest caller.
@@ -327,24 +373,34 @@ impl MirInliner {
     ) -> FxHashMap<MirFunctionId, (MirFunctionId, InstId)> {
         let mut preferred = FxHashMap::<
             MirFunctionId,
-            ((usize, usize, usize, usize), (MirFunctionId, InstId)),
+            ((bool, usize, usize, usize, usize), (MirFunctionId, InstId)),
         >::default();
         for (caller, func) in module.functions.iter_enumerated() {
             let caller_size =
                 summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
             for (block_index, block) in func.blocks.iter().enumerate() {
                 for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
-                    let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind else {
+                    let InstKind::InternalCall { function, ref args, .. } = func.inst(inst_id).kind
+                    else {
                         continue;
                     };
-                    if !summaries
-                        .get(&function)
-                        .is_some_and(|summary| summary.block_count > self.max_shared_callee_blocks)
-                    {
+                    if !summaries.get(&function).is_some_and(|summary| {
+                        summary.block_count > self.max_shared_callee_blocks
+                            || (self.mode == InlineMode::ConstantLeaves
+                                && summary.instruction_count > 4)
+                    }) {
                         continue;
                     }
                     let instructions_after = block.instructions.len() - inst_index - 1;
-                    let score = (instructions_after, caller_size, caller.index(), block_index);
+                    let has_constant_argument =
+                        args.iter().any(|&arg| func.value(arg).as_immediate().is_some());
+                    let score = (
+                        self.mode == InlineMode::ConstantLeaves && !has_constant_argument,
+                        instructions_after,
+                        caller_size,
+                        caller.index(),
+                        block_index,
+                    );
                     preferred
                         .entry(function)
                         .and_modify(|current| {
@@ -382,6 +438,9 @@ impl MirInliner {
                         has_constant_function_selector: args
                             .first()
                             .is_some_and(|&arg| func.value(arg).as_immediate().is_some()),
+                        has_constant_argument: args
+                            .iter()
+                            .any(|&arg| func.value(arg).as_immediate().is_some()),
                     });
                 }
             }
@@ -401,11 +460,13 @@ impl MirInliner {
 
         // Keep shared helpers intact unless a constant function selector lets
         // later passes discard all but one dispatcher arm.
-        let can_specialize_dispatcher = summary.no_inline
+        let can_specialize_dispatcher = summary.is_function_pointer_dispatcher
             && summary.has_function_selector
             && site.has_constant_function_selector;
         if caller == site.callee
-            || (summary.no_inline && !single_call && !can_specialize_dispatcher)
+            || (summary.is_function_pointer_dispatcher
+                && !single_call
+                && !can_specialize_dispatcher)
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
@@ -415,7 +476,7 @@ impl MirInliner {
             return false;
         }
 
-        if self.tiny_leaves_only
+        if self.mode == InlineMode::TinyLeaves
             && (summary.block_count != 1
                 || summary.instruction_count
                     > if single_call {
@@ -424,10 +485,23 @@ impl MirInliner {
                         self.max_instructions
                     }
                 || summary.return_count != 1
-                || summary.has_internal_call
+                || (summary.has_reference_return && !summary.is_transparent_forwarder)
+                || (summary.has_internal_call && !summary.is_transparent_forwarder)
                 || summary.has_control_flow)
         {
             return false;
+        }
+
+        if self.mode == InlineMode::ConstantLeaves {
+            return call_count > 1
+                && preferred_large_call_site == Some((caller, site.inst))
+                && site.has_constant_argument
+                && summary.is_pure
+                && summary.block_count == 1
+                && summary.instruction_count <= self.max_instructions
+                && !summary.has_internal_call
+                && !summary.has_reference_return
+                && !summary.has_control_flow;
         }
 
         if !single_call
@@ -513,6 +587,7 @@ struct CallSite {
     returns: usize,
     loop_depth: usize,
     has_constant_function_selector: bool,
+    has_constant_argument: bool,
 }
 
 fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
@@ -524,30 +599,46 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
-        no_inline: func.attributes.no_inline,
+        has_reference_return: func.returns.iter().any(|ty| {
+            matches!(
+                ty,
+                MirType::MemPtr
+                    | MirType::MemoryObject(_)
+                    | MirType::StoragePtr
+                    | MirType::CalldataPtr
+                    | MirType::Slice(_)
+            )
+        }),
+        is_transparent_forwarder: is_transparent_forwarder(func),
+        is_function_pointer_dispatcher: func.attributes.is_function_pointer_dispatcher,
         has_function_selector: func.params.first() == Some(&MirType::Function),
+        is_pure: func.attributes.state_mutability == StateMutability::Pure,
         ..MirInlineSummary::default()
     };
 
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            summary.instruction_count += match kind {
-                InstKind::MappingSlot(..) => 3,
-                InstKind::MappingSlotMemory(..) => 8,
-                InstKind::MappingSlotCalldata(..) => 9,
-                _ => 1,
-            };
-            let inst_cost = estimate_inst_cost(gcx, module, kind);
+            let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
+            summary.instruction_count += instructions;
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
+                // ABI decoding validates its input through branches, and dynamic encoding
+                // emits copy loops and padding branches, so neither operation is a tiny leaf.
+                InstKind::AbiDecode { .. } => summary.has_control_flow = true,
+                InstKind::AbiEncode { layout, .. } if abi_layout_has_loops(layout) => {
+                    summary.has_control_flow = true;
+                }
                 InstKind::Call { .. }
                 | InstKind::CallCode { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
+                | InstKind::ExtCall { .. }
+                | InstKind::ExtDelegateCall { .. }
+                | InstKind::ExtStaticCall { .. }
                 | InstKind::Create(..)
                 | InstKind::Create2(..) => {
                     summary.has_external_call = true;
@@ -570,6 +661,11 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
             }
             Some(term @ Terminator::Revert { .. }) => {
+                let term_cost = estimate_terminator_cost(term);
+                summary.estimated_code_size += term_cost.code_size;
+                summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
+            Some(term @ Terminator::RevertReturndata) => {
                 let term_cost = estimate_terminator_cost(term);
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
@@ -600,34 +696,87 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
     summary
 }
 
-fn is_transparent_function_pointer_cast(func: &Function) -> bool {
-    if func.params != [MirType::Function]
-        || func.returns != [MirType::Function]
+fn is_transparent_forwarder(func: &Function) -> bool {
+    if func.attributes.no_inline
+        || func.selector.is_some()
+        || func.attributes.is_constructor
+        || func.attributes.is_fallback
+        || func.attributes.is_receive
         || func.blocks.len() != 1
+        || func.internal_frame_size != 0
+        || func.returns.len() != 1
     {
         return false;
     }
 
-    let block = &func.blocks[BlockId::ENTRY];
-    if !block.instructions.is_empty() {
+    if is_identity_function(func) {
+        return true;
+    }
+
+    let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
+    let InstKind::InternalCall { returns: 1, .. } = func.inst(*call).kind else { return false };
+    let Some(result) = func.inst_result_value(*call) else { return false };
+    matches!(
+        func.blocks[BlockId::ENTRY].terminator.as_ref(),
+        Some(Terminator::Return { values }) if values.as_slice() == [result]
+    )
+}
+
+fn is_identity_function(func: &Function) -> bool {
+    let [param] = func.params.raw.as_slice() else { return false };
+    let [return_ty] = func.returns.as_slice() else { return false };
+    if param != return_ty || func.blocks.len() != 1 {
         return false;
     }
 
-    let Some(Terminator::Return { values }) = &block.terminator else {
-        return false;
-    };
-    values.len() == 1
-        && matches!(func.value(values[0]), Value::Arg(index) if index.index() == 0)
-        && func.value_ty(values[0]) == Some(MirType::Function)
+    let block = &func.blocks[BlockId::ENTRY];
+    let Some(Terminator::Return { values }) = &block.terminator else { return false };
+    let [value] = values.as_slice() else { return false };
+    block.instructions.is_empty()
+        && matches!(func.value(*value), Value::Arg(index) if index.index() == 0)
+        && func.value_ty(*value) == Some(*param)
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+fn is_transparent_function_pointer_cast(func: &Function) -> bool {
+    func.params == [MirType::Function]
+        && func.returns == [MirType::Function]
+        && is_identity_function(func)
+}
+
+/// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
+///
+/// The placeholder is one MIR instruction, but words are loaded, cleaned, and stored one by
+/// one, dynamic values become copy loops, and aggregates encode field by field, so inlining
+/// decisions must see the expanded shape rather than the placeholder.
+fn abi_type_expansion(ty: &AbiType) -> usize {
+    match ty {
+        AbiType::Word(None) => 2,
+        AbiType::Word(Some(_)) | AbiType::Function => 3,
+        AbiType::Bytes(_) => 14,
+        AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
+        AbiType::FixedArray { element, len } => {
+            1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
+        }
+        AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),
+    }
+}
+
+fn abi_layout_expansion(layout: &AbiLayout) -> usize {
+    layout.types.iter().map(abi_type_expansion).sum()
+}
+
+/// Whether encoding the layout emits loops or branches: every dynamic value does.
+fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
+    layout.types.iter().any(AbiType::is_dynamic)
+}
+
+#[derive(Clone, Copy, Debug)]
 struct MirCost {
     runtime_gas: u64,
     code_size: usize,
 }
 
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
@@ -644,12 +793,33 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
             let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
             (8 + base_cost * 3, 2 + base_cost as usize)
         }
+        InstKind::MemoryObjectLoadField { layout, field, .. }
+        | InstKind::MemoryObjectStoreField { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
+        }
+        InstKind::MemoryObjectLoadElement { layout, .. }
+        | InstKind::MemoryObjectStoreElement { layout, .. } => {
+            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
+            (11 + base_cost * 3, 3 + base_cost as usize)
+        }
+        InstKind::MemoryObjectLoadByte { .. } => (8, 2),
+        InstKind::MemoryObjectStoreByte { .. } => (8, 2),
+        InstKind::MemoryObjectStoreWord { .. } => (8, 2),
+        InstKind::MemorySliceLoadWord { .. } => (6, 1),
+        InstKind::CalldataSliceLoadWord { .. } => (6, 1),
+        InstKind::MemoryObjectCopyFromSlice { .. } => (12, 1),
+        InstKind::MemoryObjectCopyFromSliceAt { .. } => (12, 1),
+        InstKind::MemoryObjectCopy { .. } => (12, 1),
         InstKind::MemoryObjectLen(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => (3, 1),
         InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
         InstKind::Alloc { .. } => (9, 3),
         InstKind::AbiEncode { args, layout, .. } => {
             let words = layout.head_size() / 32;
-            (30 + words * 12, 8 + args.len() * 3)
+            (30 + words * 12, 8 + args.len() * 3 + abi_layout_expansion(layout))
+        }
+        InstKind::AbiDecode { layout, .. } => {
+            let words = layout.checked_head_size().expect("ABI head size exceeds u64 range") / 32;
+            (30 + words * 12, 8 + layout.types.len() * 3)
         }
         InstKind::StorageToMemory { layout, .. } => {
             let slots = layout.storage_slots();
@@ -677,7 +847,9 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         | InstKind::Sar(..)
         | InstKind::SignExtend(..)
         | InstKind::MLoad(..)
+        | InstKind::FrameLoad { .. }
         | InstKind::MStore(..)
+        | InstKind::FrameStore { .. }
         | InstKind::MStore8(..)
         | InstKind::CalldataLoad(..)
         | InstKind::CalldataSize
@@ -717,6 +889,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::MemoryZero(..) => (15, 2),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::ConstructorArgsBase => (3, 3),
+        InstKind::ConstructorArgsEnd => (9, 8),
         InstKind::InternalFrameAddr(_) => (6, 3),
         // Typed PUSH<N> placeholder patched at deploy time.
         InstKind::LoadImmutable(id) => {
@@ -749,10 +922,17 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::MappingSlot(..) => (36, 3),
         InstKind::MappingSlotMemory(..) => (60, 8),
         InstKind::MappingSlotCalldata(..) => (63, 9),
+        InstKind::StorageArrayDataSlot(..) => (36, 3),
+        InstKind::StorageArrayElementSlot { element_slots, .. } => {
+            (36 + u64::from(*element_slots > 1) * 5, 4)
+        }
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. } => (700, 1),
+        | InstKind::DelegateCall { .. }
+        | InstKind::ExtCall { .. }
+        | InstKind::ExtDelegateCall { .. }
+        | InstKind::ExtStaticCall { .. } => (700, 1),
         InstKind::InternalCall { args, returns, .. } => {
             let returns = *returns as usize;
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
@@ -765,7 +945,15 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> MirCost
         InstKind::Log4(..) => (1_875, 1),
         InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
     };
-    MirCost { runtime_gas, code_size }
+    let instructions = match kind {
+        InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
+        InstKind::MappingSlotMemory(..) => 8,
+        InstKind::MappingSlotCalldata(..) => 9,
+        InstKind::StorageArrayElementSlot { .. } => 4,
+        InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
+        _ => 1,
+    };
+    (MirCost { runtime_gas, code_size }, instructions)
 }
 
 fn estimate_terminator_cost(term: &Terminator) -> MirCost {
@@ -774,7 +962,9 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
         Terminator::Branch { .. } => (13, 4),
         Terminator::Switch { cases, .. } => (13 + (cases.len() as u64) * 10, 4 + cases.len() * 4),
         Terminator::Return { values } => (20 + (values.len() as u64) * 12, 8),
-        Terminator::Revert { .. } | Terminator::ReturnData { .. } => (20, 4),
+        Terminator::Revert { .. }
+        | Terminator::RevertReturndata
+        | Terminator::ReturnData { .. } => (20, 4),
         Terminator::Stop => (0, 1),
         Terminator::SelfDestruct { .. } => (5_000, 1),
         Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
@@ -819,7 +1009,7 @@ fn specialize_function_pointers(module: &mut Module) -> usize {
     for (function, func) in module.functions.iter_enumerated() {
         if is_transparent_function_pointer_cast(func) {
             casts.insert(function);
-        } else if func.attributes.no_inline && func.params.first() == Some(&MirType::Function) {
+        } else if func.attributes.is_function_pointer_dispatcher {
             dispatchers.insert(function);
         }
     }
@@ -1032,8 +1222,10 @@ fn inline_call_impl(
     caller.blocks[continuation].terminator = old_terminator;
     redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
 
-    let caller_is_external =
-        caller.selector.is_some() || caller.attributes.is_receive || caller.attributes.is_fallback;
+    let caller_is_external = caller.selector.is_some()
+        || caller.attributes.is_constructor
+        || caller.attributes.is_receive
+        || caller.attributes.is_fallback;
     let caller_frame_prefix = if caller_is_external {
         0
     } else {
@@ -1064,13 +1256,13 @@ fn inline_call_impl(
             &cloner.return_edges,
         )?;
         replacements.insert(call_result?, return_values[0]);
-        insert_extra_return_stores(
+        insert_return_buffer_stores(
             cloner.caller,
             continuation,
-            &return_values[1..],
+            &return_values,
+            &callee.returns,
             caller_is_external,
             caller_frame_prefix,
-            &mut replacements,
         )?;
     }
 
@@ -1238,6 +1430,7 @@ impl<'a> InlineCloner<'a> {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
             },
+            Terminator::RevertReturndata => Terminator::RevertReturndata,
             Terminator::TailCall { function, args } => Terminator::TailCall {
                 function: *function,
                 args: args
@@ -1273,95 +1466,69 @@ fn build_return_values(
     Some(values)
 }
 
-fn insert_extra_return_stores(
+fn insert_return_buffer_stores(
     caller: &mut Function,
     continuation: BlockId,
     values: &[ValueId],
+    return_tys: &[MirType],
     caller_is_external: bool,
     caller_frame_prefix: u64,
-    replacements: &mut FxHashMap<ValueId, ValueId>,
 ) -> Option<()> {
-    if values.is_empty() {
+    debug_assert_eq!(values.len(), return_tys.len());
+    if values.len() < 2 {
         return Some(());
     }
 
-    // Reserve a compiler-owned frame buffer, including the unused result-zero
-    // word expected by the multi-return projection protocol. Using the
-    // unbumped free-memory pointer here would overwrite any object that inline
-    // assembly is constructing there.
-    let buffer_size =
-        u64::try_from(values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-    let buffer_local_offset = caller.internal_frame_size;
-    caller.internal_frame_size = caller.internal_frame_size.checked_add(buffer_size)?;
-    let buffer_frame_offset = caller_frame_prefix.checked_add(buffer_local_offset)?;
-
-    // Insert the stores right after the continuation block's leading phis.
     let phi_count = caller.blocks[continuation]
         .instructions
         .iter()
         .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
         .count();
-    let base_load = caller.blocks[continuation].instructions.get(phi_count).and_then(|&inst_id| {
-        let InstKind::MLoad(addr) = caller.inst(inst_id).kind else { return None };
-        (caller.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
-            .then(|| caller.inst_result_value(inst_id))
-            .flatten()
-    });
-
-    let mut insert_at = phi_count;
-
-    for (index, &value) in values.iter().enumerate() {
-        let offset = u64::try_from(index + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-        let frame_offset = buffer_frame_offset.checked_add(offset)?;
-        let (addr, addr_value) = if caller_is_external {
-            let absolute = EvmMemoryLayout::HEAP_START
-                .checked_add(buffer_local_offset.checked_add(offset)?)?;
-            (None, caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(absolute)))))
-        } else {
-            let (inst, value) = caller.alloc_value_inst(Instruction::new(
-                InstKind::InternalFrameAddr(frame_offset),
-                Some(MirType::MemPtr),
-            ));
-            (Some(inst), value)
-        };
-        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
-        if let Some(addr) = addr {
-            caller.blocks[continuation].instructions.insert(insert_at, addr);
-            insert_at += 1;
+    let existing_len = caller.blocks[continuation].instructions.len();
+    let instructions = {
+        let mut builder = FunctionBuilder::new(caller);
+        builder.switch_to_block(continuation);
+        let mut stored_values = Vec::with_capacity(return_tys.len());
+        for (index, (&value, &ty)) in values.iter().zip(return_tys).enumerate() {
+            if let MirType::Slice(_) = ty {
+                if index != 0 {
+                    stored_values.push(builder.slice_ptr(value));
+                }
+                stored_values.push(builder.slice_len(value));
+            } else if index != 0 {
+                stored_values.push(value);
+            }
         }
-        caller.blocks[continuation].instructions.insert(insert_at, store);
-        insert_at += 1;
-    }
 
-    let (base_inst, base) = if caller_is_external {
-        let absolute = EvmMemoryLayout::HEAP_START.checked_add(buffer_local_offset)?;
-        (None, caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(absolute)))))
-    } else {
-        let (inst, value) = caller.alloc_value_inst(Instruction::new(
-            InstKind::InternalFrameAddr(buffer_frame_offset),
-            Some(MirType::MemPtr),
-        ));
-        (Some(inst), value)
+        let size =
+            u64::try_from(stored_values.len() + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+        let local_offset = builder.func().internal_frame_size;
+        builder.func_mut().internal_frame_size =
+            builder.func().internal_frame_size.checked_add(size)?;
+        let frame_offset = caller_frame_prefix.checked_add(local_offset)?;
+        for (index, value) in stored_values.into_iter().enumerate() {
+            let offset = u64::try_from(index + 1).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
+            let offset = if caller_is_external {
+                builder.imm(
+                    EvmMemoryLayout::HEAP_START.checked_add(local_offset.checked_add(offset)?)?,
+                )
+            } else {
+                builder.internal_frame_addr(frame_offset.checked_add(offset)?)
+            };
+            builder.mstore(offset, value);
+        }
+        let base = if caller_is_external {
+            builder.imm(EvmMemoryLayout::HEAP_START.checked_add(local_offset)?)
+        } else {
+            builder.internal_frame_addr(frame_offset)
+        };
+        builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, base);
+        builder.func_mut().blocks[continuation]
+            .instructions
+            .drain(existing_len..)
+            .collect::<Vec<_>>()
     };
-    if let Some(base_inst) = base_inst {
-        caller.blocks[continuation].instructions.insert(insert_at, base_inst);
-        insert_at += 1;
-    }
-
-    // Lowering reads the just-published base from scratch slot 0x20 before
-    // projecting returns 1..N. Preserve that same identity in SSA after
-    // inlining: otherwise memory DSE sees only an indirect load through the
-    // scratch word and can incorrectly delete a compiler-frame return store.
-    // Keep publishing the pointer as well for any non-canonical consumers.
-    if let Some(base_load) = base_load {
-        replacements.insert(base_load, base);
-    }
-
-    let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
-        EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT,
-    ))));
-    let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
-    caller.blocks[continuation].instructions.insert(insert_at, publish);
+    caller.blocks[continuation].instructions.splice(phi_count..phi_count, instructions);
     Some(())
 }
 

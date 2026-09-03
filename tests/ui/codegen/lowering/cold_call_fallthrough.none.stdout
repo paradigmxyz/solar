@@ -24,7 +24,7 @@ bb1:
 bb2:
   jump bb5
 bb3:
-  jump bb10
+  jump bb11
 bb4 [cold]:
   push 0
   push 0
@@ -33,59 +33,56 @@ bb5:
   push 256
   push 64
   mstore
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  swap 1
-  slt
+  lt
   iszero
-  push bb7
+  push bb10
   jumpi
-  jump bb6
-bb6 [cold]:
-  push 0
-  push 0
-  revert
-bb7:
+  jump bb9
+bb6:
   push 0
   push 4
   calldataload
   eq
   iszero
-  push bb9
+  push bb8
   jumpi
-  jump bb8
+  jump bb7
+bb7:
+  push 4
+  calldataload
+  jump bb17
 bb8:
   push 4
   calldataload
-  jump bb15
-bb9:
-  push 4
-  calldataload
   push 128
   mstore
   push 32
+  push 128
+  add
+  push 128
+  swap 1
+  sub
   push 128
   return
-bb10:
-  push 256
-  push 64
-  mstore
-  push 4
-  calldatasize
-  sub
-  push 32
-  swap 1
-  slt
-  iszero
-  push bb12
-  jumpi
-  jump bb11
-bb11 [cold]:
+bb9 [cold]:
   push 0
   push 0
   revert
+bb10:
+  jump bb6
+bb11:
+  push 256
+  push 64
+  mstore
+  push 36
+  calldatasize
+  lt
+  iszero
+  push bb16
+  jumpi
+  jump bb15
 bb12:
   push 100
   push 4
@@ -98,7 +95,7 @@ bb12:
 bb13:
   push 4
   calldataload
-  jump bb15
+  jump bb17
 bb14:
   push 4
   calldataload
@@ -106,25 +103,22 @@ bb14:
   mstore
   push 32
   push 128
+  add
+  push 128
+  swap 1
+  sub
+  push 128
   return
-bb15:
+bb15 [cold]:
+  push 0
+  push 0
+  revert
+bb16:
+  jump bb12
+bb17:
   push 160
   mstore
   push 0
-  push 160
-  mload
-  eq
-  iszero
-  push bb17
-  jumpi
-  jump bb16
-bb16:
-  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
-  push 4
-  swap 1
-  jump bb22
-bb17:
-  push 1
   push 160
   mload
   eq
@@ -133,12 +127,12 @@ bb17:
   jumpi
   jump bb18
 bb18:
-  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
-  push 3
+  push 0x7a65726f00000000000000000000000000000000000000000000000000000000
+  push 4
   swap 1
-  jump bb22
+  jump bb24
 bb19:
-  push 2
+  push 1
   push 160
   mload
   eq
@@ -147,16 +141,30 @@ bb19:
   jumpi
   jump bb20
 bb20:
+  push 0x6f6e650000000000000000000000000000000000000000000000000000000000
+  push 3
+  swap 1
+  jump bb24
+bb21:
+  push 2
+  push 160
+  mload
+  eq
+  iszero
+  push bb23
+  jumpi
+  jump bb22
+bb22:
   push 0x74776f0000000000000000000000000000000000000000000000000000000000
   push 3
   swap 1
-  jump bb22
-bb21:
+  jump bb24
+bb23:
   push 0x6f74686572000000000000000000000000000000000000000000000000000000
   push 5
   swap 1
-  jump bb22
-bb22:
+  jump bb24
+bb24:
   push 224
   mstore
   push 192

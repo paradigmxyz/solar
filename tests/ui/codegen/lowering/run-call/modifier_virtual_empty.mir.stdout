@@ -1,0 +1,22 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_virtual_empty.sol:ModifierVirtualEmpty ===
+@module ModifierVirtualEmpty
+fn @f() -> bool [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    jumpi 0, bb2, bb3
+  bb3:
+    jump bb4
+  bb2:
+    jump bb5
+  bb5:
+    jump bb4
+  bb4:
+    v0 = phi [bb5: 1], [bb3: 0]
+    jump bb1
+  bb1:
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    stop
+}

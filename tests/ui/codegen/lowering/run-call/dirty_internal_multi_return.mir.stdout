@@ -1,0 +1,43 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/dirty_internal_multi_return.sol:DirtyInternalMultiReturn ===
+@module DirtyInternalMultiReturn
+fn @dirtyPair() -> (u256, u8) [pure] {
+  bb0:
+    ret 0, 257
+}
+
+fn @dirty(arg0: u8) -> u8 [pure] {
+  bb0:
+    ret 257
+}
+
+fn @multipleReturns() -> bool [selector=0xd40a8f12, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @dirtyPair, 2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = and v3, 255
+    v5 = eq v4, 1
+    ret v5
+}
+
+fn @functionPointer() -> bool [selector=0xbd108928, pure, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @internal_dispatcher_p_u8_r_u8, 1, 2, 1
+    v1 = and v0, 255
+    v2 = eq v1, 1
+    ret v2
+}
+
+fn @internal_dispatcher_p_u8_r_u8(arg0: function, arg1: u8) -> u8 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @dirty, 1, arg1
+    ret v1
+}

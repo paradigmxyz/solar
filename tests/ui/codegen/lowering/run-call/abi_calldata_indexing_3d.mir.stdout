@@ -1,0 +1,208 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_indexing_3d.sol:AbiCalldataIndexing3d ===
+@module AbiCalldataIndexing3d
+fn @f(arg0: calldataslice, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256, u256, u256) [selector=0xe272a16e, pure, abi_params=[array<_, array<2, array<_, u256>>>, u256, u256, u256], abi_returns=[word, word, word, word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = slice_len arg0
+    v2 = lt arg1, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = slice_ptr arg0
+    v5 = mul arg1, 32
+    v6 = iszero 32
+    v7 = div v5, 32
+    v8 = eq v7, arg1
+    v9 = or v6, v8
+    v10 = iszero v9
+    jumpi v10, bb3, bb4
+  bb4:
+    v11 = add v4, v5
+    v12 = calldatasize
+    v13 = sub v12, v11
+    v14 = slt v13, 32
+    jumpi v14, bb5, bb6
+  bb6:
+    v15 = calldataload v11
+    v16 = add v4, v15
+    v17 = calldatasize
+    v18 = sub v17, v4
+    v19 = sub v18, 63
+    v20 = slt v15, v19
+    v21 = iszero v20
+    jumpi v21, bb5, bb7
+  bb7:
+    v22 = make_calldata_slice v16, 2
+    v23 = slice_len arg0
+    v24 = lt arg1, v23
+    v25 = iszero v24
+    jumpi v25, bb1, bb8
+  bb8:
+    v26 = slice_ptr arg0
+    v27 = mul arg1, 32
+    v28 = iszero 32
+    v29 = div v27, 32
+    v30 = eq v29, arg1
+    v31 = or v28, v30
+    v32 = iszero v31
+    jumpi v32, bb3, bb9
+  bb9:
+    v33 = add v26, v27
+    v34 = calldatasize
+    v35 = sub v34, v33
+    v36 = slt v35, 32
+    jumpi v36, bb5, bb10
+  bb10:
+    v37 = calldataload v33
+    v38 = add v26, v37
+    v39 = calldatasize
+    v40 = sub v39, v26
+    v41 = sub v40, 63
+    v42 = slt v37, v41
+    v43 = iszero v42
+    jumpi v43, bb5, bb11
+  bb11:
+    v44 = make_calldata_slice v38, 2
+    v45 = slice_len v44
+    v46 = lt arg2, v45
+    v47 = iszero v46
+    jumpi v47, bb1, bb12
+  bb12:
+    v48 = slice_ptr v44
+    v49 = mul arg2, 32
+    v50 = iszero 32
+    v51 = div v49, 32
+    v52 = eq v51, arg2
+    v53 = or v50, v52
+    v54 = iszero v53
+    jumpi v54, bb3, bb13
+  bb13:
+    v55 = add v48, v49
+    v56 = calldatasize
+    v57 = sub v56, v55
+    v58 = slt v57, 32
+    jumpi v58, bb5, bb14
+  bb14:
+    v59 = calldataload v55
+    v60 = add v48, v59
+    v61 = calldatasize
+    v62 = sub v61, v48
+    v63 = sub v62, 31
+    v64 = slt v59, v63
+    v65 = iszero v64
+    jumpi v65, bb5, bb15
+  bb15:
+    v66 = calldataload v60
+    v67 = gt v66, 0xffffffffffffffff
+    jumpi v67, bb5, bb16
+  bb16:
+    v68 = mul v66, 32
+    v69 = add v60, 32
+    v70 = calldatasize
+    v71 = sub v70, v68
+    v72 = sgt v69, v71
+    jumpi v72, bb5, bb17
+  bb17:
+    v73 = add v60, 32
+    v74 = make_calldata_slice v73, v66
+    v75 = slice_len v74
+    v76 = slice_len arg0
+    v77 = lt arg1, v76
+    v78 = iszero v77
+    jumpi v78, bb1, bb18
+  bb18:
+    v79 = slice_ptr arg0
+    v80 = mul arg1, 32
+    v81 = iszero 32
+    v82 = div v80, 32
+    v83 = eq v82, arg1
+    v84 = or v81, v83
+    v85 = iszero v84
+    jumpi v85, bb3, bb19
+  bb19:
+    v86 = add v79, v80
+    v87 = calldatasize
+    v88 = sub v87, v86
+    v89 = slt v88, 32
+    jumpi v89, bb5, bb20
+  bb20:
+    v90 = calldataload v86
+    v91 = add v79, v90
+    v92 = calldatasize
+    v93 = sub v92, v79
+    v94 = sub v93, 63
+    v95 = slt v90, v94
+    v96 = iszero v95
+    jumpi v96, bb5, bb21
+  bb21:
+    v97 = make_calldata_slice v91, 2
+    v98 = slice_len v97
+    v99 = lt arg2, v98
+    v100 = iszero v99
+    jumpi v100, bb1, bb22
+  bb22:
+    v101 = slice_ptr v97
+    v102 = mul arg2, 32
+    v103 = iszero 32
+    v104 = div v102, 32
+    v105 = eq v104, arg2
+    v106 = or v103, v105
+    v107 = iszero v106
+    jumpi v107, bb3, bb23
+  bb23:
+    v108 = add v101, v102
+    v109 = calldatasize
+    v110 = sub v109, v108
+    v111 = slt v110, 32
+    jumpi v111, bb5, bb24
+  bb24:
+    v112 = calldataload v108
+    v113 = add v101, v112
+    v114 = calldatasize
+    v115 = sub v114, v101
+    v116 = sub v115, 31
+    v117 = slt v112, v116
+    v118 = iszero v117
+    jumpi v118, bb5, bb25
+  bb25:
+    v119 = calldataload v113
+    v120 = gt v119, 0xffffffffffffffff
+    jumpi v120, bb5, bb26
+  bb26:
+    v121 = mul v119, 32
+    v122 = add v113, 32
+    v123 = calldatasize
+    v124 = sub v123, v121
+    v125 = sgt v122, v124
+    jumpi v125, bb5, bb27
+  bb27:
+    v126 = add v113, 32
+    v127 = make_calldata_slice v126, v119
+    v128 = slice_len v127
+    v129 = lt arg3, v128
+    v130 = iszero v129
+    jumpi v130, bb1, bb28
+  bb28:
+    v131 = slice_ptr v127
+    v132 = mul arg3, 32
+    v133 = iszero 32
+    v134 = div v132, 32
+    v135 = eq v134, arg3
+    v136 = or v133, v135
+    v137 = iszero v136
+    jumpi v137, bb3, bb29
+  bb29:
+    v138 = add v131, v132
+    v139 = calldataload v138
+    ret v0, 2, v75, v139
+  bb5:
+    revert 0, 0
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

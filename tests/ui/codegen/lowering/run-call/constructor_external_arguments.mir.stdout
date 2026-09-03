@@ -1,0 +1,40 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_external_arguments.sol:ConstructorExternalArguments ===
+@module ConstructorExternalArguments
+fn @constructor(arg0: bytes3, arg1: bool) [constructor, abi_params=[bytes3, bool]] {
+  bb0:
+    v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 0xffffff
+    v3 = and v1, v2
+    v4 = shr 232, v0
+    v5 = and v4, 0xffffff
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = eq arg1, 0
+    v8 = iszero v7
+    v9 = shl 24, 255
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = not v9
+    v12 = and v10, v11
+    v13 = and v8, 255
+    v14 = shl 24, v13
+    v15 = or v12, v14
+    sstore 0, v15 !metadata(storage=slot(0))
+    stop
+}
+
+fn @getName() -> bytes3 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffff
+    v2 = shl 232, v1
+    ret v2
+}
+
+fn @getFlag() -> bool [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 24, v0
+    v2 = and v1, 255
+    ret v2
+}

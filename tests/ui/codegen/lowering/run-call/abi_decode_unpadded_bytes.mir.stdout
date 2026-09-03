@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_unpadded_bytes.sol:AbiDecodeUnpaddedBytes ===
+@module AbiDecodeUnpaddedBytes
+fn @decode() -> (u256, bytes1) [selector=0xc0f8940c, pure, abi_params=[], abi_returns=[word, word<bytes1>]] {
+  bb0:
+    v0 = not 31
+    v1 = and 128, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 65
+    v3 = add v2, 32
+    mstore v3, 32
+    v4 = add v2, 64
+    mstore v4, 1
+    v5 = add v2, 96
+    mstore8 v5, 122
+    v6 = abi_decode [bytes], v2
+    v7 = memory_object_len memorybytes, v6
+    v8 = memory_object_len memorybytes, v6
+    v9 = lt 0, v8
+    v10 = iszero v9
+    jumpi v10, bb1, bb2
+  bb2:
+    v11 = memory_object_load_byte memorybytes, v6, 0
+    v12 = shl 248, v11
+    ret v7, v12
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

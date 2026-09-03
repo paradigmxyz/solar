@@ -28,17 +28,18 @@ contract SF {
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
     // Runtime static frames omit the unused dynamic-frame header.
-    // CHECK: eq
-    // CHECK-NEXT: swap 1
-    // CHECK: pop
-    // CHECK-NEXT: iszero
-    // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
+    // CHECK: push 3{{$}}
+    // CHECK-NEXT: push 4{{$}}
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: mul
+    // CHECK: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push [[CHAIN_RET:bb[0-9]+]]
     // CHECK: push 416
     // CHECK-NEXT: mstore
     // CHECK: [[CHAIN_RET]]:
-    // CHECK-NEXT: push 224
+    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: push 256
     // CHECK-NEXT: mstore
     // CHECK: push 7
     // CHECK-NEXT: push 4
@@ -47,13 +48,12 @@ contract SF {
     // CHECK: push bb80
     // CHECK-NEXT: jump [[REC_DISPATCH:bb[0-9]+]]
     // CHECK: [[REC_DISPATCH]]:
+    // CHECK-NEXT: push 160
+    // CHECK-NEXT: mload
     // CHECK: push 288
     // CHECK-NEXT: add
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: pop
-    // CHECK-NEXT: push [[TOP_REC_RET:bb[0-9]+]]
-    // CHECK-NEXT: jump [[REC_ENTRY:bb[0-9]+]]
     function top(uint256 x) external returns (uint256) {
         uint256 keep = x * 3; // live across all the calls below
         uint256 a = chainA(x);

@@ -1,0 +1,114 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget ===
+@module ExternalFunctionPointerHigherOrderTarget
+fn @addTwo(arg0: u256) -> u256 [selector=0xcae57913, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 2
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrder ===
+@module ExternalFunctionPointerHigherOrder
+data:
+  ExternalFunctionPointerHigherOrderTarget_initcode_0: hex"34600d57608a8060115f395ff35b5f5ffd34601a575f3560e01c8063cae5791314601657601a565b601e565b5f5ffd5b60243610156086576082565b6002600435018060a0528060a052600435811015606e577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b8060a0526080526020608001608090036080f35b5f5ffd5b602a56"
+
+fn @store(arg0: function) [selector=0xf018a0a7, abi_params=[function], abi_returns=[]] {
+  bb0:
+    v0 = shl 64, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not v0
+    v3 = and v1, v2
+    v4 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v5 = shl 64, v4
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    stop
+}
+
+fn @eval(arg0: function) -> u256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl 224, v0
+    v2 = shr 32, arg0
+    v3 = gas
+    v4 = abi_encode [word], selector v1, args 7
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v3, v2, 0, v5, v6, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndatasize
+    v9 = lt v8, 32
+    jumpi v9, bb3, bb4
+  bb4:
+    v10 = add 0, 0
+    v11 = mload v10
+    v12 = add 0, 0
+    v13 = mload v12
+    ret v13
+  bb3:
+    revert 0, 0
+}
+
+fn @t() -> u256 [selector=0x92d0d153, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffffffffffffff
+    v2 = and v0, v1
+    v3 = and 3, 0xffffffffffffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = address
+    v6 = gas
+    v7 = abi_encode []
+    v8 = not 31
+    v9 = and 186, v8
+    v10 = alloc raw, exact, uninitialized, infallible, v9
+    data_copy ExternalFunctionPointerHigherOrderTarget_initcode_0, v10, 155
+    v11 = slice_ptr v7
+    v12 = add v10, 155
+    mcopy v12, v11, 0 !metadata(memory=heap)
+    v13 = create 0, v10, 155
+    jumpi v13, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v14 = shl 32, v13
+    v15 = or v14, 0xcae57913
+    v16 = abi_encode [function], selector 0xf018a0a700000000000000000000000000000000000000000000000000000000, args v15
+    v17 = slice_ptr v16
+    v18 = slice_len v16
+    v19 = call v6, v5, 0, v17, v18, 0, 0
+    jumpi v19, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = and v20, 0xffffffffffffffff
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = shr 64, v22
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v25 = internal_call @internal_dispatcher_p_function_r_u256, 1, v21, v24
+    ret v25
+}
+
+fn @internal_dispatcher_p_function_r_u256(arg0: function, arg1: function) -> u256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 3
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @eval, 1, arg1
+    ret v1
+}

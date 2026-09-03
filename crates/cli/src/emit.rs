@@ -1,5 +1,5 @@
+use crate::bytecode::MaybeHexBytecode;
 use alloy_json_abi::AbiItem;
-use alloy_primitives::Bytes;
 use anstyle::{AnsiColor, Color, Style};
 use solar_codegen::{
     ContractArtifact, ContractSelection, RuntimeDataFn,
@@ -33,10 +33,11 @@ struct CombinedJson<'a> {
 struct CombinedJsonContract<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     abi: Option<&'a [AbiItem<'a>]>,
-    #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
-    bin: Option<Bytes>,
-    #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
-    bin_runtime: Option<Bytes>,
+    /// Hex bytecode; unresolved library addresses print as solc's `__$<hash>$__` placeholders.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bin: Option<MaybeHexBytecode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bin_runtime: Option<MaybeHexBytecode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
 }
@@ -296,12 +297,18 @@ fn emit_combined_json(
             contract_output.hashes = Some(contract_hashes(gcx, id));
         }
 
-        if let Some(bytecode) = artifacts.and_then(|artifacts| artifacts.get(&id)) {
+        if let Some(artifact) = artifacts.and_then(|artifacts| artifacts.get(&id)) {
             if emit_bin {
-                contract_output.bin = Some(bytecode.deployment.clone());
+                contract_output.bin = Some(MaybeHexBytecode::new(
+                    artifact.deployment.clone(),
+                    &artifact.deployment_link_references,
+                ));
             }
             if emit_bin_runtime {
-                contract_output.bin_runtime = Some(bytecode.runtime.clone());
+                contract_output.bin_runtime = Some(MaybeHexBytecode::new(
+                    artifact.runtime.clone(),
+                    &artifact.runtime_link_references,
+                ));
             }
         }
     }
@@ -592,14 +599,6 @@ fn write_disassembly_dump_contract(
         .map_err(|e| gcx.sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
     Ok(())
-}
-
-fn serialize_hex_bytes<S>(bytes: &Option<Bytes>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let Some(bytes) = bytes else { return serializer.serialize_none() };
-    serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
 }
 
 pub(crate) fn format_deployment_evm_ir(

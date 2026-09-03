@@ -1,6 +1,6 @@
 //@ compile-flags: -Osize -Zdump=mir,evm-ir-runtime
 //@ filecheck: --check-prefixes=MIR,RUNTIME
-//@ run-call: lastDataByte() => 90
+//@ run-call: lastDataByte => 90
 
 contract CodeSizeData {
     // MIR-LABEL: fn @outer{{[( ]}}

@@ -1,7 +1,7 @@
 - // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_nested.mir (before storage-promotion) ===
 + // === ROOT/tests/ui/codegen/mir/storage-promotion/storage_promotion_nested.mir (after storage-promotion) ===
   @module StoragePromotionNested
-  fn @promote_outer_after_inner_flush_split() {
+  fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
     bb0:
 +     v4 = sload 0
 +     mstore 192, v4
@@ -50,7 +50,7 @@
       jump bb1
   }
   
-  fn @reject_outer_when_inner_flush_may_alias(arg0: u256) {
+  fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
     bb0:
       jump bb6
     bb6:

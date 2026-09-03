@@ -1,0 +1,137 @@
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
+//@ run-call: arithmetic => 1, 1, 1, 1, 1, 0
+//@ run-call: comparisons => true, false, true, false, true, false
+//@ run-call: increments => 1, 0
+//@ run-call-fail: decrements => Panic(0x11)
+//@ run-call-fail: negation => Panic(0x11)
+//@ run-call: wideningConversions => 0x78, 0x78
+//@ run-call: explicitWideningReturn => 0x78
+//@ run-call: implicitReturn => 0x78
+//@ run-call-fail: invalidEnum => Panic(0x21)
+//@ run-call: assemblyRead => 0x0101
+//@ run-call: internalArguments => 0x42, 0x42
+//@ run-call: storageAssignment => 1
+// ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
+// ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
+// ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol
+// ported-from: test/libsolidity/semanticTests/operators/userDefined/operator_parameter_cleanup.sol
+// ported-from: test/libsolidity/semanticTests/variables/storing_invalid_boolean.sol
+
+type DirtyU8 is uint8;
+using {dirtyNot as ~} for DirtyU8 global;
+
+function dirtyNot(DirtyU8 value) pure returns (DirtyU8 result) {
+    assembly {
+        result := div(value, 256)
+    }
+}
+
+contract InlineAssemblyScalarCleanup {
+    enum Choice {
+        Zero,
+        One
+    }
+
+    bool private stored;
+
+    function arithmetic() external pure returns (uint8, uint8, uint8, uint8, uint8, uint8) {
+        uint8 value;
+        assembly {
+            value := 0x0101
+        }
+        return (value + 0, value * 1, value / 1, value % 2, value << 0, value >> 1);
+    }
+
+    function comparisons() external pure returns (bool, bool, bool, bool, bool, bool) {
+        uint8 value;
+        assembly {
+            value := 0x0101
+        }
+        return (value == 1, value != 1, value >= 1, value <= 0, value > 0, value < 1);
+    }
+
+    function increments() external pure returns (uint8 pre, uint8 post) {
+        assembly {
+            pre := 0x0100
+            post := 0x0100
+        }
+        return (++pre, post++);
+    }
+
+    function decrements() external pure returns (uint8 value) {
+        assembly {
+            value := not(0xff)
+        }
+        return --value;
+    }
+
+    function negation() external pure returns (int8 value) {
+        assembly {
+            value := 0x80
+        }
+        return -value;
+    }
+
+    function wideningConversions() external pure returns (uint16 assigned, uint256 called) {
+        uint8 value;
+        assembly {
+            value := 0x12345678
+        }
+        assigned = value;
+        called = widen(value);
+    }
+
+    function explicitWideningReturn() external pure returns (uint256) {
+        uint8 value;
+        assembly {
+            value := 0x12345678
+        }
+        return value;
+    }
+
+    function implicitReturn() external pure returns (uint8 value) {
+        assembly {
+            value := 0x12345678
+        }
+    }
+
+    function invalidEnum() external pure returns (Choice value) {
+        assembly {
+            value := 2
+        }
+        value == Choice.Zero;
+    }
+
+    function assemblyRead() external pure returns (uint256 raw) {
+        uint8 value;
+        assembly {
+            value := 0x0101
+            raw := value
+        }
+    }
+
+    function internalArguments() external pure returns (DirtyU8, DirtyU8) {
+        DirtyU8 value;
+        assembly {
+            value := 0x4200
+        }
+        return (~value, dirtyNot(value));
+    }
+
+    function storageAssignment() external returns (uint256 raw) {
+        bool value;
+        assembly {
+            value := 5
+        }
+        stored = value;
+        assembly {
+            raw := sload(stored.slot)
+        }
+    }
+
+    function widen(uint256 value) internal pure returns (uint256) {
+        return value;
+    }
+}

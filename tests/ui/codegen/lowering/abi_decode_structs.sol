@@ -2,10 +2,9 @@
 //@filecheck: --check-prefix=ADS
 
 // `abi.decode` into structs, struct arrays, and mixed tuples routes through
-// shared type-keyed helpers from the recursive materializer that also decodes
-// struct parameters: static structs read directly from their heads, dynamic
-// structs and struct arrays follow their tail offsets, and nested aggregates
-// become memory pointers. Verified
+// shared type-keyed helpers in ABI lowering: static structs read directly from
+// their heads, dynamic structs and struct arrays follow their tail offsets,
+// and nested aggregates become memory pointers. Verified
 // behaviorally against solc, including a static sub-struct followed by
 // dynamic fields (whose head sizing previously mis-offset later fields).
 
@@ -31,12 +30,21 @@ contract AbiDecodeStructs {
         return (n.flat.a, n.dyn.name, n.tail.length);
     }
 
+    // ADS-LABEL: fn @dFixed
+    // ADS: [[INDEX:v[0-9]+]] = phi
+    // ADS: lt [[INDEX]], 2
+    // ADS: internal_call @[[FIXED_HELPER:decode_memory_type]]
+    function dFixed(bytes memory b) public pure returns (uint256) {
+        Dyn[2] memory ds = abi.decode(b, (Dyn[2]));
+        return ds[1].nums.length;
+    }
+
     // ADS-LABEL: fn @dDynArr
     // A dynamic array of dynamic structs: elements rebuild one at a time into
     // a fresh memory array of pointers.
-    // ADS: internal_call @[[DYN_ARRAY_HELPER:__abi_decode_memory_[0-9]+]]
-    // ADS: fn @[[DYN_ARRAY_HELPER]]
-    // ADS: internal_call @__abi_decode_memory_
+    // ADS: internal_call @[[CALLDATA_HELPER:decode_calldata_type]]
+    // ADS: mload
+    // ADS: fn @[[CALLDATA_HELPER]]
     function dDynArr(bytes memory b) public pure returns (uint256 count) {
         Dyn[] memory ds = abi.decode(b, (Dyn[]));
         count = ds.length;

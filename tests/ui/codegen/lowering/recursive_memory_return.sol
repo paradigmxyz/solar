@@ -17,15 +17,11 @@ contract C {
     }
 
     // recursive function returning a memory struct
-    // CHECK-LABEL: fn @build.0(
-    // CHECK: internal_call @build.1, 1,
-    // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: memory_object_field_addr memorystruct<2>, [[RESULT]], 0
-    // CHECK: ret [[RESULT]]
-    // CHECK-LABEL: fn @build.1(
-    // CHECK: internal_call @build.1, 1,
-    // CHECK: [[RESULT:v[0-9]+]] = alloc memorystruct<2>
-    // CHECK: ret [[RESULT]]
+    // CHECK-LABEL: fn @build(
+    // CHECK: internal_call @build, 1,
+    // CHECK: alloc memorystruct<2>
+    // CHECK: memory_object_store_field memorystruct<2>
+    // CHECK: ret
     function build(uint256 n) public pure returns (P memory) {
         if (n == 0) return P({x: 0, y: 0});
         P memory inner = build(n - 1);
@@ -34,9 +30,9 @@ contract C {
 
     // public function returning a dynamic word-array (external ABI encoding)
     // CHECK-LABEL: fn @mkArr{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: set_memory_object_len memoryarray, [[ARRAY]], arg0
-    // CHECK: ret [[ARRAY]]
+    // CHECK: alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK: set_memory_object_len memoryarray, {{v[0-9]+}}, arg0
+    // CHECK: ret
     function mkArr(uint256 n) public pure returns (uint256[] memory) {
         uint256[] memory r = new uint256[](n);
         for (uint256 i = 0; i < n; i++) r[i] = i * 10;
@@ -45,7 +41,7 @@ contract C {
 
     // recursive helper returning a memory array, consumed by a public function
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
-    // CHECK: memory_object_element_addr memoryarray<1>, arg0, arg1
+    // CHECK: memory_object_store_element memoryarray<1>, arg0, arg1
     // CHECK: [[NEXT:v[0-9]+]] = add arg1, 1
     // CHECK: [[RESULT:v[0-9]+]] = internal_call @fillImpl, 1, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]
@@ -57,9 +53,9 @@ contract C {
     }
 
     // CHECK-LABEL: fn @squares{{[( ]}}
-    // CHECK: [[ARRAY:v[0-9]+]] = alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: [[FILLED:v[0-9]+]] = internal_call @fillImpl, 1, [[ARRAY]], 0
-    // CHECK: ret [[FILLED]]
+    // CHECK: alloc memoryarray<1>, exact, zeroed, panic
+    // CHECK: internal_call @fillImpl, 1, {{v[0-9]+}}, 0
+    // CHECK: ret
     function squares(uint256 n) public pure returns (uint256[] memory) {
         return fillImpl(new uint256[](n), 0);
     }

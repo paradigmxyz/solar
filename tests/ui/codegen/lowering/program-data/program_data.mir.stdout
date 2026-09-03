@@ -5,7 +5,7 @@ data:
   literal_1: hex"303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465663031323334353637383961626364656630313233343536373839616263646566303132333435363738396162636465665a00000000000000000000000000000000000000000000000000000000000000"
   literal_2: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
-fn @data() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @data() -> memorybytes [selector=0x73d4a13a, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 320
     set_memory_object_len memorybytes, v0, 257
@@ -14,7 +14,7 @@ fn @data() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @subslice() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @subslice() -> memorybytes [selector=0xb9ad073e, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 224
     set_memory_object_len memorybytes, v0, 161
@@ -23,17 +23,17 @@ fn @subslice() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @dataHash() -> bytes32 [abi_returns=[word]] {
+fn @dataHash() -> bytes32 [selector=0x1b3012a3, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
 }
 
-fn @subsliceHash() -> bytes32 [abi_returns=[word]] {
+fn @subsliceHash() -> bytes32 [selector=0xe5a3e763, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
 }
 
-fn @zeroData.4() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @zeroData() -> memorybytes [selector=0x6ec059cd, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192
     set_memory_object_len memorybytes, v0, 160
@@ -42,7 +42,7 @@ fn @zeroData.4() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @zeroWord.5() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @zeroWord() -> memorybytes [selector=0x4c092794, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v0, 32
@@ -51,7 +51,7 @@ fn @zeroWord.5() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @splatData.6() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @splatData() -> memorybytes [selector=0xe1910fda, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
     v0 = alloc memorybytes, exact, uninitialized, infallible, 192
     set_memory_object_len memorybytes, v0, 160
@@ -60,50 +60,23 @@ fn @splatData.6() -> memorybytes [abi_returns=[memory_bytes]] {
     ret v0
 }
 
-fn @zeroHash() -> bytes32 [abi_returns=[word]] {
+fn @zeroHash() -> bytes32 [selector=0x672c8259, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @zeroData.8, 1
+    v0 = internal_call @zeroData, 1
     v1 = keccak256_bytes v0
     ret v1
 }
 
-fn @zeroData.8() -> memorybytes {
+fn @zeroWordHash() -> bytes32 [selector=0x0d00d797, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 192
-    set_memory_object_len memorybytes, v0, 160
-    v1 = memory_object_data memorybytes, v0
-    memory_zero v1, 160
-    ret v0
-}
-
-fn @zeroWordHash() -> bytes32 [abi_returns=[word]] {
-  bb0:
-    v0 = internal_call @zeroWord.10, 1
+    v0 = internal_call @zeroWord, 1
     v1 = keccak256_bytes v0
     ret v1
 }
 
-fn @zeroWord.10() -> memorybytes {
+fn @splatHash() -> bytes32 [selector=0x38f844b9, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v0, 32
-    v1 = memory_object_data memorybytes, v0
-    mstore v1, 0
-    ret v0
-}
-
-fn @splatHash() -> bytes32 [abi_returns=[word]] {
-  bb0:
-    v0 = internal_call @splatData.12, 1
+    v0 = internal_call @splatData, 1
     v1 = keccak256_bytes v0
     ret v1
-}
-
-fn @splatData.12() -> memorybytes {
-  bb0:
-    v0 = alloc memorybytes, exact, uninitialized, infallible, 192
-    set_memory_object_len memorybytes, v0, 160
-    v1 = memory_object_data memorybytes, v0
-    data_copy literal_2, v1, 160
-    ret v0
 }

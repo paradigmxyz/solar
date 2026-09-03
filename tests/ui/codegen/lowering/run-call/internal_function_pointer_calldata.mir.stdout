@@ -1,0 +1,98 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_calldata.sol:InternalFunctionPointerCalldata ===
+@module InternalFunctionPointerCalldata
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffffffffffffff
+    v2 = and v0, v1
+    v3 = and 2, 0xffffffffffffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    stop
+}
+
+fn @read(arg0: calldataslice) -> bytes1 [pure] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 2, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = calldata_slice_load_word calldata, arg0, 2
+    v5 = byte 0, v4
+    v6 = shl 248, v5
+    ret v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @invoke(arg0: calldataslice) -> bytes1 [selector=0xa6514259, abi_params=[bytes], abi_returns=[word<bytes1>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffff
+    v2 = internal_call @internal_dispatcher_p_calldataslice_r_bytes1, 1, v1, arg0
+    ret v2
+}
+
+fn @run() -> u8 [selector=0xc0406226, abi_params=[], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = not 31
+    v1 = and 97, v0
+    v2 = alloc memorybytes, exact, zeroed, panic, v1
+    set_memory_object_len memorybytes, v2, 34
+    v3 = shl 248, 7
+    v4 = memory_object_len memorybytes, v2
+    v5 = lt 2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = byte 0, v3
+    memory_object_store_byte memorybytes, v2, 2, v7
+    v8 = address
+    v9 = gas
+    v10 = abi_encode [memory_bytes], selector 0xa651425900000000000000000000000000000000000000000000000000000000, args v2
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = call v9, v8, 0, v11, v12, 0, 32
+    jumpi v13, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v14 = returndatasize
+    v15 = lt v14, 32
+    jumpi v15, bb5, bb6
+  bb6:
+    v16 = add 0, 0
+    v17 = mload v16
+    v18 = and v17, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v19 = eq v17, v18
+    v20 = iszero v19
+    jumpi v20, bb5, bb7
+  bb7:
+    v21 = add 0, 0
+    v22 = mload v21
+    v23 = shr 248, v22
+    ret v23
+  bb5:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @internal_dispatcher_p_calldataslice_r_bytes1(arg0: function, arg1: calldataslice) -> bytes1 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @read, 1, arg1
+    ret v1
+}

@@ -1,5 +1,5 @@
 //@ compile-flags: -O gas --evm-version paris
-//@ run-call-fail: run() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000011
+//@ run-call-fail: run => Panic(0x11)
 
 interface Vm {
     function expectRevert(bytes calldata) external;
@@ -18,7 +18,10 @@ contract FmpReloadComputedOperand {
     }
 
     function run() external {
-        vm.expectRevert(stdError.arithmeticError);
+        (bool success,) = address(vm).call(
+            abi.encodeCall(Vm.expectRevert, (stdError.arithmeticError))
+        );
+        require(success);
         this.callWithFmp(2 ** 256 - 1, 2 ** 256 - 1);
     }
 }

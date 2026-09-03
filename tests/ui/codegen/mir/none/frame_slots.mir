@@ -1,0 +1,25 @@
+//@compile-flags: -Zmir-pipeline=none
+//@filecheck:
+
+@module FrameSlots
+// CHECK-LABEL: @external
+// CHECK: frame_store scratch, word, 0, 7
+// CHECK: [[VALUE:v[0-9]+]] = frame_load scratch, word, 0
+// CHECK: ret [[VALUE]]
+fn @external() -> u256 {
+  bb0:
+    frame_store scratch, word, 0, 7
+    v0 = frame_load scratch, word, 0
+    ret v0
+}
+
+// CHECK-LABEL: @internal
+// CHECK: frame_store internal_frame, calldata, 0, arg0
+// CHECK: [[SLICE:v[0-9]+]] = frame_load internal_frame, calldata, 0
+// CHECK: ret [[SLICE]]
+fn @internal(arg0: calldataslice) -> calldataslice {
+  bb0:
+    frame_store internal_frame, calldata, 0, arg0
+    v0 = frame_load internal_frame, calldata, 0
+    ret v0
+}

@@ -16,138 +16,78 @@ bb0:
   dup 1
   push 0xf1245422
   eq
-  push bb14
+  push bb9
   jumpi
   jump bb4
 bb4 [cold]:
   push 0
   push 0
   revert
-bb24 [cold]:
-  push 0x4e487b71
-  push 224
-  shl
-  push 0
-  mstore
-  push 65
-  push 4
-  mstore
-  push 36
-  push 0
-  revert
 bb5:
-  push 384
+  push 288
   push 64
   mstore
-  push 4
+  push 68
   calldatasize
-  sub
-  push 64
-  sgt
+  lt
   push bb4
   jumpi
-  push bb29
-  jump bb26
-bb26:
-  push 36
+  push bb7
   push 4
+  jump bb14
+bb14:
+  calldatasize
+  swap 1
   calldataload
+  push 4
+  dup 2
   add
   dup 1
   push 256
   mstore
-  push 4
-  dup 1
-  calldataload
-  add
-  calldataload
-  push 160
-  mstore
-  push 32
-  dup 2
-  lt
-  push 32
+  push 36
   dup 3
-  sub
-  dup 1
+  add
+  swap 2
+  push 0
+  not
   push 192
-  mstore
-  push 4
-  dup 2
+  shr
   lt
+  swap 3
+  dup 3
+  gt
+  swap 1
+  swap 3
+  or
+  dup 3
+  calldataload
+  swap 2
+  calldatasize
+  sub
   swap 1
   swap 2
+  gt
   or
-  swap 2
-  pop
-  pop
+  push bb4
+  jumpi
   swap 1
   jump
-bb14:
-  push 384
-  push 64
-  mstore
-  push 4
-  calldatasize
-  sub
-  push 64
-  sgt
-  push bb4
-  jumpi
-  push bb31
-  jump bb26
-bb28:
-  push bb24
-  jumpi
-  push 64
-  mload
+bb7:
   dup 1
-  push 352
-  mstore
-  push 192
-  mload
-  dup 2
+  calldataload
+  swap 1
+  push 32
   add
   push 64
-  mstore
-  push 160
-  mload
-  dup 2
-  mstore
-  push 32
-  dup 2
-  add
-  push 32
-  push 224
-  mload
-  sub
-  dup 2
-  add
-  push 0
-  swap 1
-  mstore
-  push 160
-  mload
-  push 256
   mload
   dup 3
+  dup 3
+  dup 3
   calldatacopy
-  push 64
-  mload
-  dup 1
-  push 288
-  mstore
-  swap 2
-  mload
-  dup 1
-  push 320
-  mstore
-  dup 2
-  dup 4
-  mcopy
+  swap 1
   pop
-  push 320
-  mload
+  swap 1
   dup 2
   add
   push 36
@@ -155,8 +95,8 @@ bb28:
   dup 2
   mstore
   push 32
-  jump bb25
-bb25:
+  jump bb17
+bb17:
   add
   dup 2
   swap 1
@@ -168,114 +108,39 @@ bb25:
   push 32
   push 128
   return
-bb29:
-  push bb4
-  jumpi
-  calldatasize
-  push 192
-  mload
-  gt
-  push 192
-  mload
-  calldatasize
-  sub
-  push 32
-  gt
-  or
-  push bb4
-  jumpi
-  push 256
-  mload
-  calldatasize
-  sub
-  push 160
-  mload
-  gt
-  push bb4
-  jumpi
-  push 31
-  push 160
-  mload
-  add
-  dup 1
-  push 224
+bb9:
+  push 288
+  push 64
   mstore
-  push 160
-  mload
-  gt
-  push bb24
-  jumpi
-  push bb28
-  jump bb27
-bb27:
-  push 31
-  not
-  push 224
-  mload
-  and
-  push 32
-  dup 2
-  iszero
-  dup 3
-  dup 3
-  sub
-  mul
-  swap 1
-  pop
-  add
-  dup 1
-  push 224
-  mstore
-  push 32
-  dup 2
-  add
-  dup 1
-  push 192
-  mstore
+  push 68
+  calldatasize
   lt
-  swap 1
-  jump
-bb30:
-  push bb24
+  push bb4
   jumpi
-  push 64
-  mload
-  dup 1
-  push 320
-  mstore
-  push 192
-  mload
-  dup 2
-  add
-  push 64
-  mstore
+  push 36
+  calldataload
   push 160
-  mload
-  dup 2
-  mstore
+  shr
+  push bb4
+  jumpi
+  push bb12
+  push 4
+  jump bb14
+bb12:
+  dup 1
+  calldataload
+  swap 1
   push 32
-  dup 2
-  add
-  push 32
-  push 224
-  mload
-  sub
-  dup 2
   add
   push 0
-  swap 1
-  mstore
-  push 160
-  mload
-  push 256
-  mload
-  dup 3
-  calldatacopy
+  not
+  push 96
+  shr
+  push 36
+  calldataload
+  and
   push 64
   mload
-  dup 1
-  push 352
-  mstore
   push 0x707265
   push 232
   shl
@@ -284,75 +149,20 @@ bb30:
   push 3
   dup 2
   add
-  swap 3
-  mload
-  dup 1
-  push 288
-  mstore
-  dup 3
   dup 5
-  mcopy
-  swap 1
+  dup 5
+  dup 3
+  calldatacopy
+  swap 3
   pop
+  swap 3
   swap 1
-  push 288
-  mload
+  swap 2
   add
-  push 36
-  calldataload
+  swap 1
   push 96
   shl
   dup 2
   mstore
   push 20
-  jump bb25
-bb31:
-  push bb4
-  jumpi
-  calldatasize
-  push 192
-  mload
-  gt
-  push 192
-  mload
-  calldatasize
-  sub
-  push 32
-  gt
-  or
-  push bb4
-  jumpi
-  push 256
-  mload
-  calldatasize
-  sub
-  push 160
-  mload
-  gt
-  push bb4
-  jumpi
-  push 36
-  calldataload
-  push 0
-  not
-  push 96
-  shr
-  dup 2
-  and
-  sub
-  push bb4
-  jumpi
-  push 31
-  push 160
-  mload
-  add
-  dup 1
-  push 224
-  mstore
-  push 160
-  mload
-  gt
-  push bb24
-  jumpi
-  push bb30
-  jump bb27
+  jump bb17

@@ -1,0 +1,451 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_packed_complex_types.sol:AbiPackedComplexTypes ===
+@module AbiPackedComplexTypes
+fn @f() -> (bytes32, bytes32, bytes32) [selector=0x26121ff0, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v0, 3
+    v1 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v2 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = and v1, 0xffffffffffffffffffffffffffffff
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 0, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = and v3, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 0, v7
+    v8 = lt 0, 3
+    v9 = iszero v8
+    jumpi v9, bb3, bb5
+  bb5:
+    v10 = div 0, 2
+    v11 = add 0, v10
+    v12 = mod 0, 2
+    v13 = mul v12, 15
+    v14 = mul v13, 8
+    v15 = shl v14, 0xffffffffffffffffffffffffffffff
+    v16 = sload v11 !metadata(storage=symbolic(v10))
+    v17 = not v15
+    v18 = and v16, v17
+    v19 = and v3, 0xffffffffffffffffffffffffffffff
+    v20 = shl v14, v19
+    v21 = or v18, v20
+    sstore v11, v21 !metadata(storage=symbolic(v10))
+    v22 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v23 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    jumpi v23, bb1, bb6
+  bb6:
+    v24 = and v22, 0xffffffffffffffffffffffffffffff
+    v25 = memory_object_len memoryarray, v0
+    v26 = lt 1, v25
+    v27 = iszero v26
+    jumpi v27, bb3, bb7
+  bb7:
+    v28 = and v24, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 1, v28
+    v29 = lt 1, 3
+    v30 = iszero v29
+    jumpi v30, bb3, bb8
+  bb8:
+    v31 = div 1, 2
+    v32 = add 0, v31
+    v33 = mod 1, 2
+    v34 = mul v33, 15
+    v35 = mul v34, 8
+    v36 = shl v35, 0xffffffffffffffffffffffffffffff
+    v37 = sload v32 !metadata(storage=symbolic(v31))
+    v38 = not v36
+    v39 = and v37, v38
+    v40 = and v24, 0xffffffffffffffffffffffffffffff
+    v41 = shl v35, v40
+    v42 = or v39, v41
+    sstore v32, v42 !metadata(storage=symbolic(v31))
+    v43 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    v44 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    jumpi v44, bb1, bb9
+  bb9:
+    v45 = and v43, 0xffffffffffffffffffffffffffffff
+    v46 = memory_object_len memoryarray, v0
+    v47 = lt 2, v46
+    v48 = iszero v47
+    jumpi v48, bb3, bb10
+  bb10:
+    v49 = and v45, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 2, v49
+    v50 = lt 2, 3
+    v51 = iszero v50
+    jumpi v51, bb3, bb11
+  bb11:
+    v52 = div 2, 2
+    v53 = add 0, v52
+    v54 = mod 2, 2
+    v55 = mul v54, 15
+    v56 = mul v55, 8
+    v57 = shl v56, 0xffffffffffffffffffffffffffffff
+    v58 = sload v53 !metadata(storage=symbolic(v52))
+    v59 = not v57
+    v60 = and v58, v59
+    v61 = and v45, 0xffffffffffffffffffffffffffffff
+    v62 = shl v56, v61
+    v63 = or v60, v62
+    sstore v53, v63 !metadata(storage=symbolic(v52))
+    v64 = alloc memoryfixedarray<3, 1>, exact, uninitialized, panic, 96
+    jump bb12
+  bb12:
+    v65 = phi [bb11: 0], [bb13: v76]
+    v66 = lt v65, 3
+    jumpi v66, bb13, bb14
+  bb14:
+    v77 = not 31
+    v78 = and 159, v77
+    v79 = alloc memorybytes, exact, uninitialized, infallible, v78
+    set_memory_object_len memorybytes, v79, 96
+    jump bb15
+  bb15:
+    v80 = phi [bb14: 0], [bb20: v92]
+    v81 = lt v80, 3
+    jumpi v81, bb16, bb17
+  bb17:
+    v93 = keccak256_bytes v79
+    v94 = memory_object_len memoryarray, v0
+    v95 = mul v94, 32
+    v96 = iszero 32
+    v97 = div v95, 32
+    v98 = eq v97, v94
+    v99 = or v96, v98
+    v100 = iszero v99
+    jumpi v100, bb18, bb21
+  bb21:
+    v101 = add 0, v95
+    v102 = lt v101, 0
+    jumpi v102, bb18, bb22
+  bb22:
+    v103 = add v101, 63
+    v104 = lt v103, v101
+    jumpi v104, bb18, bb23
+  bb23:
+    v105 = not 31
+    v106 = and v103, v105
+    v107 = alloc memorybytes, exact, uninitialized, infallible, v106
+    set_memory_object_len memorybytes, v107, v101
+    v108 = mul v94, 32
+    v109 = iszero 32
+    v110 = div v108, 32
+    v111 = eq v110, v94
+    v112 = or v109, v111
+    v113 = iszero v112
+    jumpi v113, bb18, bb24
+  bb24:
+    v114 = add 0, v108
+    v115 = lt v114, 0
+    jumpi v115, bb18, bb25
+  bb25:
+    jump bb26
+  bb26:
+    v116 = phi [bb25: 0], [bb30: v128]
+    v117 = lt v116, v94
+    jumpi v117, bb27, bb28
+  bb28:
+    v129 = keccak256_bytes v107
+    v130 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v131 = shl 96, v130
+    mstore 0, v131 !metadata(memory=scratch)
+    v132 = keccak256 0, 20 !metadata(memory=scratch)
+    ret v93, v129, v132
+  bb27:
+    v118 = mul v116, 32
+    v119 = iszero 32
+    v120 = div v118, 32
+    v121 = eq v120, v116
+    v122 = or v119, v121
+    v123 = iszero v122
+    jumpi v123, bb18, bb29
+  bb29:
+    v124 = add 0, v118
+    v125 = lt v124, 0
+    jumpi v125, bb18, bb30
+  bb30:
+    v126 = memory_object_load_element memoryarray<1>, v0, v116
+    v127 = and v126, 0xffffffffffffffffffffffffffffff
+    memory_object_store_word memorybytes, v107, v124, v127
+    v128 = add v116, 1
+    jump bb26
+  bb16:
+    v82 = mul v80, 32
+    v83 = iszero 32
+    v84 = div v82, 32
+    v85 = eq v84, v80
+    v86 = or v83, v85
+    v87 = iszero v86
+    jumpi v87, bb18, bb19
+  bb19:
+    v88 = add 0, v82
+    v89 = lt v88, 0
+    jumpi v89, bb18, bb20
+  bb20:
+    v90 = memory_object_load_element memoryfixedarray<3, 1>, v64, v80
+    v91 = and v90, 0xffffffffffffffffffffffffffffff
+    memory_object_store_word memorybytes, v79, v88, v91
+    v92 = add v80, 1
+    jump bb15
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb13:
+    v67 = div v65, 2
+    v68 = add 0, v67
+    v69 = mod v65, 2
+    v70 = mul v69, 15
+    v71 = sload v68 !metadata(storage=symbolic(v67))
+    v72 = mul v70, 8
+    v73 = shr v72, v71
+    v74 = and v73, 0xffffffffffffffffffffffffffffff
+    v75 = and v74, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryfixedarray<3, 1>, v64, v65, v75
+    v76 = add v65, 1
+    jump bb12
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @hashAbi() -> bytes32 [selector=0x7f75b06e, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 128
+    set_memory_object_len memoryarray, v0, 3
+    v1 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v2 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = and v1, 0xffffffffffffffffffffffffffffff
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 0, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = and v3, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 0, v7
+    v8 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v9 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    jumpi v9, bb1, bb5
+  bb5:
+    v10 = and v8, 0xffffffffffffffffffffffffffffff
+    v11 = memory_object_len memoryarray, v0
+    v12 = lt 1, v11
+    v13 = iszero v12
+    jumpi v13, bb3, bb6
+  bb6:
+    v14 = and v10, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 1, v14
+    v15 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    v16 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    jumpi v16, bb1, bb7
+  bb7:
+    v17 = and v15, 0xffffffffffffffffffffffffffffff
+    v18 = memory_object_len memoryarray, v0
+    v19 = lt 2, v18
+    v20 = iszero v19
+    jumpi v20, bb3, bb8
+  bb8:
+    v21 = and v17, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 2, v21
+    v22 = abi_encode [memory_array<word<u120>>], scratch, args v0
+    v23 = slice_ptr v22
+    v24 = slice_len v22
+    v25 = keccak256 v23, v24
+    ret v25
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @hashNestedAbi() -> bytes32 [selector=0x821258ba, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v5 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v6 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    jumpi v6, bb4, bb5
+  bb5:
+    v7 = and v5, 0xffffffffffffffffffffffffffffff
+    v8 = memory_object_len memoryarray, v0
+    v9 = lt 0, v8
+    v10 = iszero v9
+    jumpi v10, bb6, bb7
+  bb7:
+    v11 = memory_object_load_element memoryarray<1>, v0, 0
+    v12 = eq v11, 0
+    jumpi v12, bb8, bb9
+  bb8:
+    v13 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v13, 64
+    memory_object_store_element memoryarray<1>, v0, 0, v13
+    jump bb9
+  bb9:
+    v14 = phi [bb7: v11], [bb8: v13]
+    v15 = lt 0, 2
+    v16 = iszero v15
+    jumpi v16, bb6, bb10
+  bb10:
+    v17 = and v7, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryfixedarray<2, 1>, v14, 0, v17
+    v18 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v19 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    jumpi v19, bb4, bb11
+  bb11:
+    v20 = and v18, 0xffffffffffffffffffffffffffffff
+    v21 = memory_object_len memoryarray, v0
+    v22 = lt 0, v21
+    v23 = iszero v22
+    jumpi v23, bb6, bb12
+  bb12:
+    v24 = memory_object_load_element memoryarray<1>, v0, 0
+    v25 = eq v24, 0
+    jumpi v25, bb13, bb14
+  bb13:
+    v26 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v26, 64
+    memory_object_store_element memoryarray<1>, v0, 0, v26
+    jump bb14
+  bb14:
+    v27 = phi [bb12: v24], [bb13: v26]
+    v28 = lt 1, 2
+    v29 = iszero v28
+    jumpi v29, bb6, bb15
+  bb15:
+    v30 = and v20, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryfixedarray<2, 1>, v27, 1, v30
+    v31 = abi_encode [memory_array<array<2, word<u120>>>], scratch, args v0
+    v32 = slice_ptr v31
+    v33 = slice_len v31
+    v34 = keccak256 v32, v33
+    ret v34
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v3 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v3, 64
+    memory_object_store_element memoryarray<1>, v0, v1, v3
+    v4 = add v1, 1
+    jump bb1
+}
+
+fn @hashStructAbi() -> bytes32 [selector=0x46dfc0fe, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v1, 64
+    memory_object_store_field memorystruct<2>, v0, 1, v1
+    v2 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v3 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = and v2, 0xffffffffffffffffffffffffffffff
+    v5 = and v4, 0xffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<2>, v0, 0, v5
+    v6 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    v7 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = and v6, 0xffffffffffffffffffffffffffffff
+    v9 = memory_object_load_field memorystruct<2>, v0, 1
+    v10 = lt 0, 2
+    v11 = iszero v10
+    jumpi v11, bb4, bb5
+  bb5:
+    v12 = and v8, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryfixedarray<2, 1>, v9, 0, v12
+    v13 = sub 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    v14 = lt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 3
+    jumpi v14, bb1, bb6
+  bb6:
+    v15 = and v13, 0xffffffffffffffffffffffffffffff
+    v16 = memory_object_load_field memorystruct<2>, v0, 1
+    v17 = lt 1, 2
+    v18 = iszero v17
+    jumpi v18, bb4, bb7
+  bb7:
+    v19 = and v15, 0xffffffffffffffffffffffffffffff
+    memory_object_store_element memoryfixedarray<2, 1>, v16, 1, v19
+    v20 = abi_encode [tuple<word<u120>, array<2, word<u120>>>], scratch, args v0
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = keccak256 v21, v22
+    ret v23
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @hashScalarAbi() -> bytes32 [selector=0x9a69e01a, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = and 258, 255
+    v1 = abi_encode [word<u8>], scratch, args v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = keccak256 v2, v3
+    ret v4
+}
+
+fn @scalarCall() -> u256 [selector=0x6c091940, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = and 258, 255
+    v3 = abi_encode [word<u8>], selector 0x1f3c3a7b00000000000000000000000000000000000000000000000000000000, args v2
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = staticcall v1, v0, v4, v5, 0, 32
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    ret v12
+  bb3:
+    revert 0, 0
+}
+
+fn @echoScalar(arg0: u8) -> u256 [selector=0x1f3c3a7b, pure, abi_params=[u8], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}

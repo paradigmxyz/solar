@@ -6,11 +6,12 @@
 //!
 //! The analysis uses dense bitsets indexed by `ValueId` for efficiency.
 //!
-//! Phi nodes are ordinary instructions (`InstKind::Phi`): their incoming operands are
-//! treated as uses at the phi instruction in the merge block, and the phi result is
-//! defined like any other instruction result.
+//! Phi nodes are ordinary instructions (`InstKind::Phi`) whose result is defined like
+//! any other instruction result, but their incoming operands are uses on the incoming
+//! edge: an operand is live out of the predecessor it flows from and is not live into
+//! the merge block, which only sees the phi result.
 
-use crate::mir::{BlockId, Function, Terminator, Value, ValueId};
+use crate::mir::{BlockId, Function, InstKind, Terminator, Value, ValueId};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
@@ -75,6 +76,12 @@ impl Liveness {
             .map(|_| LiveSet::with_capacity(num_values))
             .collect::<IndexVec<BlockId, _>>();
 
+        // Phi operands are uses on the incoming edge, keyed by the merge block: each entry
+        // is live out of its predecessor and does not enter the merge block.
+        let mut phi_edge_uses = (0..num_blocks)
+            .map(|_| SmallVec::<[(BlockId, ValueId); 4]>::new())
+            .collect::<IndexVec<BlockId, _>>();
+
         let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
@@ -82,12 +89,16 @@ impl Liveness {
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
 
-                // Collect uses (upward-exposed uses - used before defined in this block)
-                operand_buf.clear();
-                inst.kind.collect_operands(&mut operand_buf);
-                for &operand in &operand_buf {
-                    if !block_defs[block_id].contains(operand) {
-                        block_uses[block_id].insert(operand);
+                if let InstKind::Phi(incoming) = &inst.kind {
+                    phi_edge_uses[block_id].extend(incoming.iter().copied());
+                } else {
+                    // Collect uses (upward-exposed uses - used before defined in this block)
+                    operand_buf.clear();
+                    inst.kind.collect_operands(&mut operand_buf);
+                    for &operand in &operand_buf {
+                        if !block_defs[block_id].contains(operand) {
+                            block_uses[block_id].insert(operand);
+                        }
                     }
                 }
 
@@ -110,7 +121,7 @@ impl Liveness {
 
         // Worklist algorithm for computing live_in/live_out.
         //
-        // live_out(B) = union over S in succ(B) of live_in(S)
+        // live_out(B) = union over S in succ(B) of live_in(S) | phi operands S takes from B
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
         let mut worklist: VecDeque<BlockId> = func.blocks.indices().rev().collect();
         let mut queued = DenseBitSet::new_filled(num_blocks);
@@ -126,6 +137,11 @@ impl Liveness {
                 block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
             for succ in successors {
                 new_live_out.union(&block_liveness[succ].live_in);
+                for &(pred, value) in &phi_edge_uses[succ] {
+                    if pred == block_id {
+                        new_live_out.insert(value);
+                    }
+                }
             }
 
             // live_in = use ∪ (live_out - def)
@@ -152,6 +168,13 @@ impl Liveness {
         // For each value, track the last instruction index where it's used within each block.
         let mut last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>> =
             FxHashMap::default();
+        // A phi operand is used when its predecessor transfers control, so it
+        // must survive to that block's terminator.
+        for edge_uses in &phi_edge_uses {
+            for &(pred, value) in edge_uses {
+                last_use_in_block.insert((value, pred), None);
+            }
+        }
         for (block_id, block) in func.blocks.iter_enumerated() {
             // Check terminator uses - these are the last use in this block
             if let Some(term) = &block.terminator {
@@ -167,6 +190,9 @@ impl Liveness {
             // The first occurrence in reverse order is the last use in forward order
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
                 let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    continue;
+                }
                 operand_buf.clear();
                 inst.kind.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {
@@ -440,7 +466,7 @@ mod tests {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
         let x = b.add_param(MirType::uint256());
-        let one = b.imm_u64(1);
+        let one = b.imm(1);
         let sum = b.add(x, one);
         b.ret([sum]);
 
@@ -474,12 +500,12 @@ mod tests {
         b.branch(cond, then_bb, else_bb);
 
         b.switch_to_block(then_bb);
-        let c1 = b.imm_u64(1);
+        let c1 = b.imm(1);
         let v_then = b.add(x, c1);
         b.jump(merge);
 
         b.switch_to_block(else_bb);
-        let c2 = b.imm_u64(1);
+        let c2 = b.imm(1);
         let v_else = b.sub(x, c2);
         b.jump(merge);
 
@@ -511,7 +537,7 @@ mod tests {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
         let i = b.add_param(MirType::uint256());
-        let limit = b.imm_u64(10);
+        let limit = b.imm(10);
 
         let header = b.create_block();
         let body = b.create_block();
@@ -524,7 +550,7 @@ mod tests {
         b.branch(cond, body, exit);
 
         b.switch_to_block(body);
-        let step = b.imm_u64(1);
+        let step = b.imm(1);
         let _i_next = b.add(i, step);
         b.jump(header);
 
@@ -583,8 +609,8 @@ mod tests {
         let mut func = make_func();
         let mut b = FunctionBuilder::new(&mut func);
         let _unused = b.add_param(MirType::uint256());
-        let one = b.imm_u64(1);
-        let two = b.imm_u64(2);
+        let one = b.imm(1);
+        let two = b.imm(2);
         let sum = b.add(one, two);
         b.ret([sum]);
 
@@ -821,7 +847,7 @@ mod tests {
         let phi_placeholder; // ValueId slot we'll point at the phi instruction.
         {
             let mut b = FunctionBuilder::new(&mut func);
-            init = b.imm_u64(0);
+            init = b.imm(0);
             entry = b.current_block();
             header = b.create_block();
             body = b.create_block();
@@ -832,12 +858,12 @@ mod tests {
             b.switch_to_block(header);
             // Allocate a placeholder for the phi result (an undef that we'll replace).
             phi_placeholder = b.undef(MirType::uint256());
-            let limit = b.imm_u64(10);
+            let limit = b.imm(10);
             let cond = b.lt(phi_placeholder, limit);
             b.branch(cond, body, exit);
 
             b.switch_to_block(body);
-            let step = b.imm_u64(1);
+            let step = b.imm(1);
             updated = b.add(phi_placeholder, step);
             b.jump(header);
 

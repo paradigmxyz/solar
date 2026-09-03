@@ -1,7 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
 @module runtime
 bb0:
-  push 448
+  push 480
   push 64
   mstore
   callvalue
@@ -11,7 +11,7 @@ bb0:
   calldataload
   push 224
   shr
-  dup 1
+  dup1
   push 0x2143aa9
   eq
   push bb4
@@ -19,70 +19,173 @@ bb0:
   jump bb3
 bb3 [cold]:
   push 0
-  dup 1
+  dup1
   revert
 bb4:
   calldatasize
-  push 4
-  swap 1
-  sub
-  push 64
-  sgt
+  push 68
+  gt
   push bb3
   jumpi
   push 4
   calldataload
-  dup 1
+  dup1
   iszero
   iszero
   sub
   push bb3
   jumpi
-  push 0
-  push 128
-  mstore
+  push 4
+  calldataload
+  iszero
+  push bb10
+  jumpi
+  push bb8
   push 36
   calldataload
+  jump bb16
+bb16:
+  dup1
+  push 320
+  mstore
+  push 1
+  add
+  dup1
+  push 416
+  mstore
+  push 320
+  mload
+  gt
+  push bb20
+  jumpi
+  push 2
+  push 320
+  mload
+  add
+  dup1
+  push 448
+  mstore
+  push 320
+  mload
+  gt
+  push bb20
+  jumpi
+  push 64
+  push 416
+  push 352
+  mcopy
+  jump
+bb8:
+  push bb22
+  jump bb21
+bb21:
+  push 352
+  mload
+  dup1
+  push 224
+  mstore
+  push 64
+  mload
+  push 32
+  mstore
+  push 384
+  mload
+  push 32
+  mload
+  push 32
+  add
+  mstore
+  dup1
+  push 224
+  mstore
+  swap1
+  jump
+bb10:
+  push 7
+  push 36
+  calldataload
+  add
+  dup1
   push 160
   mstore
   push 36
   calldataload
+  gt
+  push bb20
+  jumpi
+  push bb12
+  push 160
+  mload
+  jump bb16
+bb12:
+  push bb23
+  jump bb21
+bb22:
+  push 32
+  mload
+  push 32
+  add
+  mload
+  dup2
+  add
+  dup1
+  push 256
+  mstore
+  swap1
+  dup2
+  lt
+  dup2
   push 192
   mstore
-  push 4
-  calldataload
-  push bb8
+  swap1
+  pop
+  push bb20
   jumpi
+  jump bb9
+bb9:
   push 192
   mload
-  push 7
-  dup 2
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb23:
+  push 32
+  mload
+  push 32
   add
-  dup 1
-  push 224
+  mload
+  dup2
+  add
+  dup1
+  push 160
   mstore
   lt
-  push bb22
+  push bb20
   jumpi
-  push bb14
-  push 224
+  push 36
+  calldataload
+  push 160
   mload
-  jump bb18
-bb18:
-  push 1
-  dup 2
   add
-  dup 1
-  push 384
+  dup1
+  push 288
   mstore
-  dup 2
-  gt
-  iszero
-  push bb19
-  jumpi
+  push 160
+  mload
+  dup2
+  lt
+  dup2
+  push 192
+  mstore
+  swap1
   pop
-  jump bb22
-bb22 [cold]:
+  iszero
+  push bb9
+  jumpi
+  jump bb20
+bb20 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -94,115 +197,3 @@ bb22 [cold]:
   push 36
   push 0
   revert
-bb8:
-  push bb9
-  push 36
-  calldataload
-  jump bb18
-bb9:
-  push 64
-  mload
-  dup 1
-  push 32
-  mstore
-  push 32
-  add
-  mstore
-  dup 1
-  push 256
-  mstore
-  push 32
-  mload
-  push 32
-  add
-  mload
-  dup 2
-  dup 1
-  push 256
-  mstore
-  push 160
-  mstore
-  dup 1
-  push 320
-  mstore
-  push 192
-  mstore
-  push 320
-  mload
-  dup 2
-  add
-  dup 1
-  push 224
-  mstore
-  lt
-  push bb22
-  jumpi
-  push 224
-  jump bb23
-bb23:
-  mload
-  dup 1
-  push 128
-  mstore
-  push 128
-  mstore
-  push 32
-  push 128
-  return
-bb14:
-  push 64
-  mload
-  dup 1
-  push 32
-  mstore
-  push 32
-  add
-  mstore
-  dup 1
-  push 256
-  mstore
-  push 32
-  mload
-  push 32
-  add
-  mload
-  dup 2
-  add
-  dup 1
-  push 224
-  mstore
-  lt
-  push bb22
-  jumpi
-  push 192
-  mload
-  push 224
-  mload
-  add
-  dup 1
-  push 288
-  mstore
-  push 224
-  mload
-  gt
-  push bb22
-  jumpi
-  push 288
-  jump bb23
-bb19:
-  push 2
-  dup 2
-  add
-  dup 1
-  push 416
-  mstore
-  lt
-  push bb22
-  jumpi
-  push 384
-  mload
-  push 416
-  mload
-  swap 1
-  swap 2
-  jump

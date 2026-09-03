@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/fallback_bytes.sol:FallbackBytes ===
+@module FallbackBytes
+fn @invoke(arg0: memorybytes) -> (u256, bytes32) [selector=0xa6514259, abi_params=[bytes], abi_returns=[word, word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = memory_object_data memorybytes, arg0
+    v3 = memory_object_len memorybytes, arg0
+    v4 = call v1, v0, 0, v2, v3, 0, 0
+    v5 = returndatasize
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, v5
+    v11 = make_returndata_slice 0, v5
+    memory_object_copy_from_slice memorybytes, v10, v11
+    v12 = iszero v4
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = memory_object_len memorybytes, v10
+    v14 = keccak256_bytes v10
+    ret v13, v14
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @fallback(arg0: calldataslice) -> memorybytes [fallback] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = calldatasize
+    v4 = sub v3, v1
+    v5 = sgt v0, v4
+    jumpi v5, bb1, bb3
+  bb3:
+    v6 = slice_len arg0
+    v7 = add v6, 63
+    v8 = lt v7, v6
+    jumpi v8, bb4, bb5
+  bb5:
+    v9 = not 31
+    v10 = and v7, v9
+    v11 = alloc memorybytes, exact, uninitialized, infallible, v10
+    set_memory_object_len memorybytes, v11, v6
+    memory_object_copy_from_slice memorybytes, v11, arg0
+    ret v11
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}

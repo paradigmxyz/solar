@@ -1,0 +1,157 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_fixed_middle_short_reencode.sol:AbiCalldataFixedMiddleShortReencode ===
+@module AbiCalldataFixedMiddleShortReencode
+fn @f(arg0: calldataslice) -> u256 [selector=0x3573c23c, pure, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+fn @g(arg0: calldataslice) -> u256 [selector=0x4a848537, view, abi_params=[array<_, array<2, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = slice_len arg0
+    v3 = slice_ptr arg0
+    v4 = mul v2, 32
+    v5 = iszero 32
+    v6 = div v4, 32
+    v7 = eq v6, v2
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb1, bb2
+  bb2:
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = slt v11, v4
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = mul v2, 32
+    v14 = iszero 32
+    v15 = div v13, 32
+    v16 = eq v15, v2
+    v17 = or v14, v16
+    v18 = iszero v17
+    jumpi v18, bb1, bb5
+  bb5:
+    v19 = add 32, v13
+    v20 = lt v19, 32
+    jumpi v20, bb1, bb6
+  bb6:
+    v21 = alloc memoryarray<1>, exact, uninitialized, infallible, v19
+    set_memory_object_len memoryarray, v21, v2
+    jump bb7
+  bb7:
+    v22 = phi [bb6: 0], [bb16: v78]
+    v23 = lt v22, v2
+    jumpi v23, bb8, bb9
+  bb9:
+    v79 = abi_encode [memory_array<array<2, memory_array<word>>>], selector 0x3573c23c00000000000000000000000000000000000000000000000000000000, args v21
+    v80 = slice_ptr v79
+    v81 = slice_len v79
+    v82 = staticcall v1, v0, v80, v81, 0, 32
+    jumpi v82, bb24, bb23
+  bb23:
+    revert_returndata
+  bb24:
+    v83 = returndatasize
+    v84 = lt v83, 32
+    jumpi v84, bb3, bb25
+  bb25:
+    v85 = add 0, 0
+    v86 = mload v85
+    v87 = add 0, 0
+    v88 = mload v87
+    ret v88
+  bb8:
+    v24 = mul v22, 32
+    v25 = iszero 32
+    v26 = div v24, 32
+    v27 = eq v26, v22
+    v28 = or v25, v27
+    v29 = iszero v28
+    jumpi v29, bb1, bb10
+  bb10:
+    v30 = add v3, v24
+    v31 = calldatasize
+    v32 = sub v31, v30
+    v33 = slt v32, 32
+    jumpi v33, bb3, bb11
+  bb11:
+    v34 = calldataload v30
+    v35 = add v3, v34
+    v36 = calldatasize
+    v37 = sub v36, v3
+    v38 = sub v37, 63
+    v39 = slt v34, v38
+    v40 = iszero v39
+    jumpi v40, bb3, bb12
+  bb12:
+    v41 = calldatasize
+    v42 = sub v41, v35
+    v43 = slt v42, 64
+    jumpi v43, bb3, bb13
+  bb13:
+    v44 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    jump bb14
+  bb14:
+    v45 = phi [bb13: 0], [bb22: v77]
+    v46 = lt v45, 2
+    jumpi v46, bb15, bb16
+  bb16:
+    memory_object_store_element memoryarray<1>, v21, v22, v44
+    v78 = add v22, 1
+    jump bb7
+  bb15:
+    v47 = mul v45, 32
+    v48 = add v35, v47
+    v49 = calldatasize
+    v50 = sub v49, v48
+    v51 = slt v50, 32
+    jumpi v51, bb3, bb17
+  bb17:
+    v52 = calldataload v48
+    v53 = add v35, v52
+    v54 = calldatasize
+    v55 = sub v54, v35
+    v56 = sub v55, 31
+    v57 = slt v52, v56
+    v58 = iszero v57
+    jumpi v58, bb3, bb18
+  bb18:
+    v59 = calldataload v53
+    v60 = gt v59, 0xffffffffffffffff
+    jumpi v60, bb3, bb19
+  bb19:
+    v61 = mul v59, 32
+    v62 = add v53, 32
+    v63 = calldatasize
+    v64 = sub v63, v61
+    v65 = sgt v62, v64
+    jumpi v65, bb3, bb20
+  bb20:
+    v66 = add v53, 32
+    v67 = mul v59, 32
+    v68 = iszero 32
+    v69 = div v67, 32
+    v70 = eq v69, v59
+    v71 = or v68, v70
+    v72 = iszero v71
+    jumpi v72, bb1, bb21
+  bb21:
+    v73 = add 32, v67
+    v74 = lt v73, 32
+    jumpi v74, bb1, bb22
+  bb22:
+    v75 = alloc memoryarray<1>, exact, uninitialized, infallible, v73
+    set_memory_object_len memoryarray, v75, v59
+    v76 = make_calldata_slice v66, v67
+    memory_object_copy_from_slice memoryarray, v75, v76
+    memory_object_store_element memoryfixedarray<2, 1>, v44, v45, v75
+    v77 = add v45, 1
+    jump bb14
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

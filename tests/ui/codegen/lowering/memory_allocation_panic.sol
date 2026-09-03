@@ -6,11 +6,11 @@
 // total allocation size, or free-memory pointer bump.
 contract MemoryAllocationPanic {
     // CHECK-LABEL: fn @makeBytes{{[( ]}}
-    // CHECK: [[PADDED:v[0-9]+]] = add arg0, 31
-    // CHECK: lt [[PADDED]], arg0
-    // CHECK: [[TOTAL:v[0-9]+]] = add {{v[0-9]+}}, 32
-    // CHECK: [[BYTES:v[0-9]+]] = alloc memorybytes, exact, zeroed, panic, [[TOTAL]]
-    // CHECK: mstore 4, 65
+    // CHECK: [[PADDED:v[0-9]+]] = add arg0, 63
+    // CHECK: [[PADDED_OVERFLOW:v[0-9]+]] = lt [[PADDED]], arg0
+    // CHECK: [[MASK:v[0-9]+]] = not 31
+    // CHECK: [[BYTES:v[0-9]+]] = and [[PADDED]], [[MASK]]
+    // CHECK: alloc memorybytes, exact, zeroed, panic, [[BYTES]]
     // CHECK: mstore 4, 65
     function makeBytes(uint256 n) external pure returns (uint256) {
         bytes memory b = new bytes(n);
@@ -18,10 +18,10 @@ contract MemoryAllocationPanic {
     }
 
     // CHECK-LABEL: fn @makeArray{{[( ]}}
-    // CHECK: [[BYTES:v[0-9]+]] = mul arg0, 32
-    // CHECK: mstore 4, 65
-    // CHECK: [[TOTAL:v[0-9]+]] = add [[BYTES]], 32
-    // CHECK: {{v[0-9]+}} = alloc memoryarray<1>, exact, zeroed, panic, [[TOTAL]]
+    // CHECK: [[ELEMENTS:v[0-9]+]] = mul arg0, 1
+    // CHECK: [[TOTAL:v[0-9]+]] = add [[ELEMENTS]], 1
+    // CHECK: [[BYTES:v[0-9]+]] = mul [[TOTAL]], 32
+    // CHECK: alloc memoryarray<1>, exact, zeroed, panic, [[BYTES]]
     // CHECK: mstore 4, 65
     function makeArray(uint256 n) external pure returns (uint256) {
         uint256[] memory a = new uint256[](n);

@@ -1,0 +1,194 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/memory_allocation_panic.sol:MemoryAllocationPanicRuntime ===
+@module MemoryAllocationPanicRuntime
+fn @makeBytes(arg0: u256) -> u256 [selector=0xd90fd4da, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 63
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = not 31
+    v3 = and v0, v2
+    v4 = alloc memorybytes, exact, zeroed, panic, v3
+    set_memory_object_len memorybytes, v4, arg0
+    v5 = memory_object_len memorybytes, v4
+    ret v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @makeArray(arg0: u256) -> u256 [selector=0x9510f212, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul arg0, 1
+    v1 = iszero 1
+    v2 = div v0, 1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = mul v6, 32
+    v9 = iszero 32
+    v10 = div v8, 32
+    v11 = eq v10, v6
+    v12 = or v9, v11
+    v13 = iszero v12
+    jumpi v13, bb1, bb4
+  bb4:
+    v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
+    set_memory_object_len memoryarray, v14, arg0
+    v15 = memory_object_len memoryarray, v14
+    ret v15
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @makeArrayTooLarge() -> u256 [selector=0x821e5729, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jumpi 1, bb1, bb2
+  bb2:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 32
+    set_memory_object_len memoryarray, v0, 0x800000000000000000000000000000000000000000000000000000000000000
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 1, v1
+    v3 = iszero v2
+    jumpi v3, bb3, bb4
+  bb4:
+    memory_object_store_element memoryarray<1>, v0, 1, 42
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 1, v4
+    v6 = iszero v5
+    jumpi v6, bb3, bb5
+  bb5:
+    v7 = memory_object_load_element memoryarray<1>, v0, 1
+    ret v7
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @makeNestedArray(arg0: u256) -> u256 [selector=0x95572958, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v3]
+    v2 = lt v1, 1
+    jumpi v2, bb2, bb3
+  bb3:
+    v4 = mul arg0, 1
+    v5 = iszero 1
+    v6 = div v4, 1
+    v7 = eq v6, arg0
+    v8 = or v5, v7
+    v9 = iszero v8
+    jumpi v9, bb4, bb5
+  bb5:
+    v10 = add v4, 1
+    v11 = lt v10, v4
+    jumpi v11, bb4, bb6
+  bb6:
+    v12 = mul v10, 32
+    v13 = iszero 32
+    v14 = div v12, 32
+    v15 = eq v14, v10
+    v16 = or v13, v15
+    v17 = iszero v16
+    jumpi v17, bb4, bb7
+  bb7:
+    v18 = alloc memoryarray<1>, exact, zeroed, panic, v12
+    set_memory_object_len memoryarray, v18, arg0
+    v19 = memory_object_len memoryarray, v0
+    v20 = lt 0, v19
+    v21 = iszero v20
+    jumpi v21, bb8, bb9
+  bb9:
+    memory_object_store_element memoryarray<1>, v0, 0, v18
+    v22 = memory_object_len memoryarray, v0
+    v23 = lt 0, v22
+    v24 = iszero v23
+    jumpi v24, bb8, bb10
+  bb10:
+    v25 = memory_object_load_element memoryarray<1>, v0, 0
+    v26 = eq v25, 0
+    jumpi v26, bb11, bb12
+  bb11:
+    v27 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v27, 0
+    memory_object_store_element memoryarray<1>, v0, 0, v27
+    jump bb12
+  bb12:
+    v28 = phi [bb10: v25], [bb11: v27]
+    v29 = memory_object_len memoryarray, v28
+    ret v29
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    memory_object_store_element memoryarray<1>, v0, v1, 96
+    v3 = add v1, 1
+    jump bb1
+}
+
+fn @makeStructArray(arg0: u256) -> u256 [selector=0x4273d03f, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul arg0, 1
+    v1 = iszero 1
+    v2 = div v0, 1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = add v0, 1
+    v7 = lt v6, v0
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = mul v6, 32
+    v9 = iszero 32
+    v10 = div v8, 32
+    v11 = eq v10, v6
+    v12 = or v9, v11
+    v13 = iszero v12
+    jumpi v13, bb1, bb4
+  bb4:
+    v14 = alloc memoryarray<1>, exact, zeroed, panic, v8
+    set_memory_object_len memoryarray, v14, arg0
+    jump bb5
+  bb5:
+    v15 = phi [bb4: 0], [bb6: v18]
+    v16 = lt v15, arg0
+    jumpi v16, bb6, bb7
+  bb7:
+    v19 = memory_object_len memoryarray, v14
+    ret v19
+  bb6:
+    v17 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v17, 0, 0
+    memory_object_store_field memorystruct<2>, v17, 1, 96
+    memory_object_store_element memoryarray<1>, v14, v15, v17
+    v18 = add v15, 1
+    jump bb5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

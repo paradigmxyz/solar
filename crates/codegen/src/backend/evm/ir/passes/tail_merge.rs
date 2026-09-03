@@ -71,12 +71,23 @@ impl RunState {
             if !is_candidate(block) {
                 continue;
             }
+            // A shared tail is reached by a jump every time it runs. In gas mode a loop block
+            // keeps its own copy: the bytes saved never pay back a jump per iteration.
+            if gcx.sess.opts.optimization.is_gas() && block.metadata.in_loop {
+                continue;
+            }
 
             let matched = self.longest_common_tail(block);
 
+            // A hot shared tail adds a runtime jump, so require one extra byte in gas mode.
             if let Some((representative, common)) = matched
                 && common > 0
-                && suffix_size(gcx, module, block_id, common) > 5
+                && {
+                    let hot = !block.metadata.hotness.is_cold()
+                        || !module.blocks[representative].metadata.hotness.is_cold();
+                    let minimum = 5 + usize::from(gcx.sess.opts.optimization.is_gas() && hot);
+                    suffix_size(gcx, module, block_id, common) > minimum
+                }
             {
                 self.merges.push(Merge { representative, block: block_id, common });
             } else {

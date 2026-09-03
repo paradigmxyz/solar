@@ -1,0 +1,37 @@
+// === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:L ===
+@module L
+
+// === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
+@module Test
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+  bb0:
+    internal_call @libFun, 0, 0
+    internal_call @libFun, 0, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @libFun(arg0: storageptr) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb2, bb3
+  bb3:
+    sstore arg0, v1 !metadata(storage=symbolic(arg0))
+    v3 = sload arg0 !metadata(storage=symbolic(arg0))
+    v4 = add v3, 256
+    v5 = lt v4, v3
+    jumpi v5, bb2, bb5
+  bb5:
+    sstore arg0, v4 !metadata(storage=symbolic(arg0))
+    jump bb4
+  bb4:
+    jump bb1
+  bb1:
+    stop
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

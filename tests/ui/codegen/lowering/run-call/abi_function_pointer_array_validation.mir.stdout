@@ -1,0 +1,120 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_function_pointer_array_validation.sol:AbiFunctionPointerArrayValidation ===
+@module AbiFunctionPointerArrayValidation
+fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @g(arg0: calldataslice) -> u256 [selector=0xc16ea9d4, pure, abi_params=[array<_, function>], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+fn @h(arg0: calldataslice) -> u256 [selector=0xdae6c3bf, pure, abi_params=[array<_, function>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldataload v4
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v7 = eq v5, v6
+    v8 = iszero v7
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = shr 64, v5
+    ret 3
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @m(arg0: memoryarray) -> u256 [selector=0x4d6e4a29, pure, abi_params=[array<_, function>], abi_returns=[word]] {
+  bb0:
+    ret 4
+}
+
+fn @checkG(arg0: bool) -> u256 [selector=0xb89497e4, view, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @invoke, 1, 0xc16ea9d400000000000000000000000000000000000000000000000000000000, arg0, 2
+    ret v0
+}
+
+fn @checkH(arg0: bool) -> u256 [selector=0x5137faa5, view, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @invoke, 1, 0xdae6c3bf00000000000000000000000000000000000000000000000000000000, arg0, 3
+    ret v0
+}
+
+fn @checkM(arg0: bool) -> u256 [selector=0xfad9a4f1, view, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @invoke, 1, 0x4d6e4a2900000000000000000000000000000000000000000000000000000000, arg0, 4
+    ret v0
+}
+
+fn @invoke(arg0: bytes4, arg1: bool, arg2: u256) -> u256 [view] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = address
+    v2 = shl 32, v1
+    v3 = or v2, 0xd4b83992
+    v4 = memory_object_len memoryarray, v0
+    v5 = lt 0, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = shl 64, v3
+    memory_object_store_element memoryarray<1>, v0, 0, v7
+    v8 = abi_encode [memory_array<function>], object, selector arg0, args v0
+    jumpi arg1, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    v9 = add v8, 32
+    v10 = add v9, 92
+    mstore8 v10, 88
+    jump bb5
+  bb5:
+    v11 = address
+    v12 = gas
+    v13 = memory_object_data memorybytes, v8
+    v14 = memory_object_len memorybytes, v8
+    v15 = staticcall v12, v11, v13, v14, 0, 0
+    v16 = returndatasize
+    v17 = add v16, 63
+    v18 = lt v17, v16
+    jumpi v18, bb6, bb7
+  bb7:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc memorybytes, exact, uninitialized, infallible, v20
+    set_memory_object_len memorybytes, v21, v16
+    v22 = make_returndata_slice 0, v16
+    memory_object_copy_from_slice memorybytes, v21, v22
+    v23 = iszero v15
+    jumpi v23, bb8, bb9
+  bb9:
+    v24 = abi_decode [u256], v21
+    v25 = eq v24, arg2
+    v26 = iszero v25
+    jumpi v26, bb8, bb10
+  bb10:
+    ret v24
+  bb8:
+    revert 0, 0
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

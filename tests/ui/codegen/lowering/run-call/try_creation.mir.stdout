@@ -1,0 +1,102 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreationChild ===
+@module TryCreationChild
+fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    stop
+  bb1:
+    internal_call @revert_error, 0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/try_creation.sol:TryCreation ===
+@module TryCreation
+fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = abi_encode [word<bool>], args v1
+    v3 = not 31
+    v4 = and 372, v3
+    v5 = alloc raw, exact, uninitialized, infallible, v4
+    mstore v5, 0x61013538038061013560e03960e001601f017fffffffffffffffffffffffffff
+    v6 = add v5, 32
+    mstore v6, 0xffffffffffffffffffffffffffffffffffffe016604052607b565b7f08c379a0
+    v7 = add v5, 64
+    mstore v7, 0x5f526020
+    v8 = add v5, 96
+    mstore v8, 0x60045260a0516040015160245260a0516060015160445260645ffd5b34610123
+    v9 = add v5, 128
+    mstore v9, 0x5760e08060c0528060c05260e06101353803016020820111156101115761010d
+    v10 = add v5, 160
+    mstore v10, 0x565b5f60e05114151515156101085760405160a0518160200152600181604001
+    v11 = add v5, 192
+    mstore v11, 0x527f780000000000000000000000000000000000000000000000000000000000
+    v12 = add v5, 224
+    mstore v12, 0x81606001528060a05260800160405260f6603a565b60a05160405260a051
+    v13 = add v5, 256
+    mstore v13, 0x6020015160a052fe5b610127565b5f5ffd5b8060c05251600290101561010d57
+    v14 = add v5, 288
+    mstore v14, 0x60a1565b5f5ffd5b6003806101325f395ff35f5ffd0000000000000000000000
+    v15 = slice_ptr v2
+    v16 = add v5, 309
+    mcopy v16, v15, 32 !metadata(memory=heap)
+    v17 = create 0, v5, 341
+    v18 = eq v17, 0
+    v19 = iszero v18
+    jumpi v19, bb1, bb2
+  bb2:
+    v22 = returndatasize
+    v23 = add v22, 63
+    v24 = lt v23, v22
+    jumpi v24, bb4, bb5
+  bb5:
+    v25 = not 31
+    v26 = and v23, v25
+    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
+    set_memory_object_len memorybytes, v27, v22
+    v28 = make_returndata_slice 0, v22
+    memory_object_copy_from_slice memorybytes, v27, v28
+    v29 = memory_object_data memorybytes, v27
+    v30 = memory_object_len memorybytes, v27
+    v31 = make_memory_slice v29, v30
+    v32 = memory_slice_load_word memory, v31, 0
+    v33 = lt v30, 4
+    v34 = iszero v33
+    v35 = shr 224, v32
+    v36 = eq v35, 0x8c379a0
+    v37 = and v34, v36
+    v38 = lt v30, 36
+    v39 = iszero v38
+    v40 = eq v35, 0x4e487b71
+    v41 = and v39, v40
+    jumpi 1, bb6, bb7
+  bb7:
+    revert v29, v30
+  bb6:
+    ret 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v20 = eq v17, 0
+    v21 = iszero v20
+    ret v21
+  bb3:
+    ret 0
+}

@@ -5,11 +5,11 @@
 //@[size] filecheck: --check-prefixes=SIZE,SPLAT
 //@[runtime] compile-flags: -Ogas
 //@[paris] compile-flags: -Osize --evm-version paris
-//@ run-call: dataHash() => 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-//@ run-call: subsliceHash() => 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-//@ run-call: zeroHash() => 0xdfded4ed5ac76ba7379cfe7b3b0f53e768dca8d45a34854e649cfc3c18cbd9cd
-//@ run-call: zeroWordHash() => 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
-//@ run-call: splatHash() => 0x779ba5798a6ad3d608b17a14735a3a2d7d61e8c9817435fc4524dd5d0cf6a177
+//@ run-call: dataHash => 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
+//@ run-call: subsliceHash => 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
+//@ run-call: zeroHash => 0xdfded4ed5ac76ba7379cfe7b3b0f53e768dca8d45a34854e649cfc3c18cbd9cd
+//@ run-call: zeroWordHash => 0x290decd9548b62a8d60345a988386fc84ba6bc95484008f6362f93160ef3e563
+//@ run-call: splatHash => 0x779ba5798a6ad3d608b17a14735a3a2d7d61e8c9817435fc4524dd5d0cf6a177
 
 // CHECK-LABEL: data:
 // CHECK: literal_0: hex"
@@ -57,7 +57,7 @@ contract C {
 
     // CHECK-LABEL: fn @splatData{{[.(]}}
     // CHECK: data_copy literal_2, {{.*}}, 160
-    // SPLAT-LABEL: fn @splatData.{{[0-9]+}}() -> memptr
+    // SPLAT-LABEL: fn @splatData.body() -> memptr
     // SPLAT-COUNT-2: mstore {{.*}}, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
     // SPLAT: mcopy {{.*}}, 64
     // SPLAT: mcopy {{.*}}, 32

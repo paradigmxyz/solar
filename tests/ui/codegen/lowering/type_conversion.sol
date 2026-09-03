@@ -4,21 +4,53 @@
 contract TypeConversion {
     // CHECK-LABEL: fn @narrowAddress{{[( ]}}
     // CHECK: [[ADDRESS:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    // CHECK: and [[ADDRESS]], 0xffff
+    // CHECK: [[NARROW:v[0-9]+]] = and [[ADDRESS]], 0xffff
+    // CHECK: ret [[NARROW]]
     function narrowAddress(address asset) public pure returns (uint16) {
         return uint16(uint160(asset));
     }
 
     // CHECK-LABEL: fn @narrowUint{{[( ]}}
-    // CHECK: and arg0, 0xffff
+    // CHECK: [[NARROW:v[0-9]+]] = and arg0, 0xffff
+    // CHECK: ret [[NARROW]]
     function narrowUint(uint256 value) public pure returns (uint16) {
         return uint16(value);
     }
 
     // CHECK-LABEL: fn @narrowSigned{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl 248, arg0
-    // CHECK: sar 248, [[SHIFTED]]
+    // CHECK: [[NARROW:v[0-9]+]] = signextend 0, arg0
+    // CHECK: ret [[NARROW]]
     function narrowSigned(int256 value) public pure returns (int8) {
+        return int8(value);
+    }
+
+    // CHECK-LABEL: fn @widenUnsigned{{[( ]}}
+    // CHECK: [[WIDENED:v[0-9]+]] = and arg0, 255
+    // CHECK: ret [[WIDENED]]
+    function widenUnsigned(uint8 value) public pure returns (uint256) {
+        return uint256(value);
+    }
+
+    // CHECK-LABEL: fn @widenSigned{{[( ]}}
+    // CHECK: [[WIDENED:v[0-9]+]] = signextend 0, arg0
+    // CHECK: ret [[WIDENED]]
+    function widenSigned(int8 value) public pure returns (int256) {
+        return int256(value);
+    }
+
+    // CHECK-LABEL: fn @reinterpretUnsigned{{[( ]}}
+    // CHECK: [[SIGNED:v[0-9]+]] = signextend 0, arg0
+    // CHECK: [[CLEAN:v[0-9]+]] = and [[SIGNED]], 255
+    // CHECK: ret [[CLEAN]]
+    function reinterpretUnsigned(int8 value) public pure returns (uint8) {
+        return uint8(value);
+    }
+
+    // CHECK-LABEL: fn @reinterpretSigned{{[( ]}}
+    // CHECK: [[UNSIGNED:v[0-9]+]] = and arg0, 255
+    // CHECK: [[CLEAN:v[0-9]+]] = signextend 0, [[UNSIGNED]]
+    // CHECK: ret [[CLEAN]]
+    function reinterpretSigned(uint8 value) public pure returns (int8) {
         return int8(value);
     }
 }

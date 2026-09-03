@@ -1,8 +1,9 @@
 //! MIR functions.
 
 use super::{
-    AbiLayoutRef, ArgIdx, BasicBlock, BlockId, Immediate, InstId, InstKind, Instruction,
-    MangledSymbol, MirType, StorageAlias, Value, ValueId, utils,
+    AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
+    InstKind, Instruction, MangledSymbol, MirType, SliceLocation, StorageAlias, Value, ValueId,
+    utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -32,6 +33,12 @@ pub(crate) struct Function {
     /// ABI layout of values returned by an external entry before `lower-abi`
     /// materializes returndata encoding.
     pub(crate) abi_returns: Option<AbiLayoutRef>,
+    /// ABI return shape with scalar type information retained until `lower-abi`.
+    pub(crate) abi_return_params: Option<AbiParamLayout>,
+    /// ABI input layout retained until `lower-abi` materializes aggregate parameters.
+    pub(crate) abi_params: Option<AbiParamLayout>,
+    /// Source locations for the ABI parameters retained until `lower-abi`.
+    pub(crate) abi_param_locations: Option<Box<[AbiParamLocation]>>,
     /// Bytes reserved for lowered local memory slots.
     ///
     /// Internal-call functions place these in the internal frame; external entries
@@ -75,6 +82,9 @@ impl Function {
             params: IndexVec::new(),
             returns: Vec::new(),
             abi_returns: None,
+            abi_return_params: None,
+            abi_params: None,
+            abi_param_locations: None,
             internal_frame_size: 0,
             external_static_return_size: 0,
             values: IndexVec::new(),
@@ -114,6 +124,15 @@ impl Function {
         }
     }
 
+    /// Returns the slice location of a value, if it is slice-typed.
+    #[must_use]
+    pub(crate) fn value_slice_location(&self, id: ValueId) -> Option<SliceLocation> {
+        match self.value_ty(id) {
+            Some(MirType::Slice(location)) => Some(location),
+            _ => None,
+        }
+    }
+
     /// Returns the type of an argument.
     #[must_use]
     pub(crate) fn arg_ty(&self, index: ArgIdx) -> MirType {
@@ -129,7 +148,7 @@ impl Function {
     }
 
     /// Returns all argument indexes.
-    pub(crate) fn arg_indices(&self) -> impl Iterator<Item = ArgIdx> + '_ {
+    pub(crate) fn arg_indices(&self) -> impl Iterator<Item = ArgIdx> + use<> {
         self.arg_types.indices()
     }
 
@@ -586,9 +605,9 @@ pub(crate) struct FunctionAttributes {
     /// original signature's frame-lifetime constraint. The backend uses this sticky bit to avoid
     /// reclaiming memory that may have escaped through inline assembly.
     pub(crate) may_return_memory: bool,
-    /// Never clone this function into multiple callers (synthesized shared
-    /// helpers whose whole point is existing once per module). A sole call
-    /// site may still absorb it: with one caller there is nothing to share.
+    /// Whether this function dispatches an internal function-pointer shape.
+    pub(crate) is_function_pointer_dispatcher: bool,
+    /// Never clone this function into multiple callers.
     pub(crate) no_inline: bool,
 }
 
@@ -602,6 +621,7 @@ impl Default for FunctionAttributes {
             is_receive: false,
             is_yul: false,
             may_return_memory: false,
+            is_function_pointer_dispatcher: false,
             no_inline: false,
         }
     }
@@ -632,7 +652,7 @@ mod tests {
             let instruction_arg = builder.add_param(MirType::uint256());
             let terminator_arg = builder.add_param(MirType::uint256());
             let unused_arg = builder.add_param(MirType::uint256());
-            let immediate = builder.imm_u64(1);
+            let immediate = builder.imm(1);
             let result = builder.add(instruction_arg, immediate);
             builder.ret([terminator_arg, result]);
             (instruction_arg, terminator_arg, unused_arg, immediate, result)
@@ -655,8 +675,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (first, second, result) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let first = builder.imm_u64(7);
-            let second = builder.imm_u64(7);
+            let first = builder.imm(7);
+            let second = builder.imm(7);
             let result = builder.add(first, second);
             builder.ret([result]);
             (first, second, result)

@@ -3,22 +3,22 @@
   @module DispatchParity
 - @phase abi
 + @phase dispatch
-  fn @pay() {
+  fn @pay() [selector=0x00000001, payable] {
     bb0:
       stop
   }
   
-  fn @nopay() {
+  fn @nopay() [selector=0x00000002] {
     bb0:
       stop
   }
   
-  fn @recv() {
+  fn @recv() [receive, payable] {
     bb0:
       stop
   }
   
-  fn @fb() {
+  fn @fb() [fallback, payable] {
     bb0:
       stop
 + }

@@ -1,0 +1,342 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_nested_static_middle.sol:AbiCalldataNestedStaticMiddle ===
+@module AbiCalldataNestedStaticMiddle
+fn @f(arg0: calldataslice) -> u256 [selector=0x6ab0914c, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+fn @g(arg0: calldataslice) -> u256 [selector=0x664ffb2b, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb5
+  bb5:
+    v15 = make_calldata_slice v9, 1
+    ret 42
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @h(arg0: calldataslice) -> u256 [selector=0xc2e687d8, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb5
+  bb5:
+    v15 = make_calldata_slice v9, 1
+    v16 = slice_len v15
+    v17 = lt 0, v16
+    v18 = iszero v17
+    jumpi v18, bb1, bb6
+  bb6:
+    v19 = slice_ptr v15
+    v20 = add v19, 0
+    v21 = calldatasize
+    v22 = sub v21, v20
+    v23 = slt v22, 32
+    jumpi v23, bb3, bb7
+  bb7:
+    v24 = calldataload v20
+    v25 = add v19, v24
+    v26 = calldatasize
+    v27 = sub v26, v19
+    v28 = sub v27, 31
+    v29 = slt v24, v28
+    v30 = iszero v29
+    jumpi v30, bb3, bb8
+  bb8:
+    v31 = calldataload v25
+    v32 = gt v31, 0xffffffffffffffff
+    jumpi v32, bb3, bb9
+  bb9:
+    v33 = mul v31, 32
+    v34 = add v25, 32
+    v35 = calldatasize
+    v36 = sub v35, v33
+    v37 = sgt v34, v36
+    jumpi v37, bb3, bb10
+  bb10:
+    v38 = add v25, 32
+    v39 = make_calldata_slice v38, v31
+    ret 42
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @materialize(arg0: calldataslice) -> u256 [selector=0xaff36081, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb5
+  bb5:
+    v15 = make_calldata_slice v9, 1
+    v16 = slice_ptr v15
+    v17 = calldatasize
+    v18 = sub v17, v16
+    v19 = slt v18, 32
+    jumpi v19, bb3, bb6
+  bb6:
+    v20 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    jump bb7
+  bb7:
+    v21 = phi [bb6: 0], [bb16: v53]
+    v22 = lt v21, 1
+    jumpi v22, bb8, bb9
+  bb9:
+    v54 = lt 0, 1
+    v55 = iszero v54
+    jumpi v55, bb1, bb17
+  bb17:
+    v56 = memory_object_load_element memoryfixedarray<1, 1>, v20, 0
+    v57 = eq v56, 0
+    jumpi v57, bb18, bb19
+  bb18:
+    v58 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v58, 0
+    memory_object_store_element memoryfixedarray<1, 1>, v20, 0, v58
+    jump bb19
+  bb19:
+    v59 = phi [bb17: v56], [bb18: v58]
+    v60 = memory_object_len memoryarray, v59
+    ret v60
+  bb8:
+    v23 = mul v21, 32
+    v24 = add v16, v23
+    v25 = calldatasize
+    v26 = sub v25, v24
+    v27 = slt v26, 32
+    jumpi v27, bb3, bb10
+  bb10:
+    v28 = calldataload v24
+    v29 = add v16, v28
+    v30 = calldatasize
+    v31 = sub v30, v16
+    v32 = sub v31, 31
+    v33 = slt v28, v32
+    v34 = iszero v33
+    jumpi v34, bb3, bb11
+  bb11:
+    v35 = calldataload v29
+    v36 = gt v35, 0xffffffffffffffff
+    jumpi v36, bb3, bb12
+  bb12:
+    v37 = mul v35, 32
+    v38 = add v29, 32
+    v39 = calldatasize
+    v40 = sub v39, v37
+    v41 = sgt v38, v40
+    jumpi v41, bb3, bb13
+  bb13:
+    v42 = add v29, 32
+    v43 = mul v35, 32
+    v44 = iszero 32
+    v45 = div v43, 32
+    v46 = eq v45, v35
+    v47 = or v44, v46
+    v48 = iszero v47
+    jumpi v48, bb14, bb15
+  bb15:
+    v49 = add 32, v43
+    v50 = lt v49, 32
+    jumpi v50, bb14, bb16
+  bb16:
+    v51 = alloc memoryarray<1>, exact, uninitialized, infallible, v49
+    set_memory_object_len memoryarray, v51, v35
+    v52 = make_calldata_slice v42, v43
+    memory_object_copy_from_slice memoryarray, v51, v52
+    memory_object_store_element memoryfixedarray<1, 1>, v20, v21, v51
+    v53 = add v21, 1
+    jump bb7
+  bb14:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=[array<_, array<1, array<_, u256>>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 31
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb5
+  bb5:
+    v15 = make_calldata_slice v9, 1
+    v16 = slice_ptr v15
+    v17 = calldatasize
+    v18 = sub v17, v16
+    v19 = slt v18, 32
+    jumpi v19, bb3, bb6
+  bb6:
+    v20 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
+    jump bb7
+  bb7:
+    v21 = phi [bb6: 0], [bb16: v53]
+    v22 = lt v21, 1
+    jumpi v22, bb8, bb9
+  bb9:
+    v54 = internal_call @readFixed, 1, v20
+    ret v54
+  bb8:
+    v23 = mul v21, 32
+    v24 = add v16, v23
+    v25 = calldatasize
+    v26 = sub v25, v24
+    v27 = slt v26, 32
+    jumpi v27, bb3, bb10
+  bb10:
+    v28 = calldataload v24
+    v29 = add v16, v28
+    v30 = calldatasize
+    v31 = sub v30, v16
+    v32 = sub v31, 31
+    v33 = slt v28, v32
+    v34 = iszero v33
+    jumpi v34, bb3, bb11
+  bb11:
+    v35 = calldataload v29
+    v36 = gt v35, 0xffffffffffffffff
+    jumpi v36, bb3, bb12
+  bb12:
+    v37 = mul v35, 32
+    v38 = add v29, 32
+    v39 = calldatasize
+    v40 = sub v39, v37
+    v41 = sgt v38, v40
+    jumpi v41, bb3, bb13
+  bb13:
+    v42 = add v29, 32
+    v43 = mul v35, 32
+    v44 = iszero 32
+    v45 = div v43, 32
+    v46 = eq v45, v35
+    v47 = or v44, v46
+    v48 = iszero v47
+    jumpi v48, bb14, bb15
+  bb15:
+    v49 = add 32, v43
+    v50 = lt v49, 32
+    jumpi v50, bb14, bb16
+  bb16:
+    v51 = alloc memoryarray<1>, exact, uninitialized, infallible, v49
+    set_memory_object_len memoryarray, v51, v35
+    v52 = make_calldata_slice v42, v43
+    memory_object_copy_from_slice memoryarray, v51, v52
+    memory_object_store_element memoryfixedarray<1, 1>, v20, v21, v51
+    v53 = add v21, 1
+    jump bb7
+  bb14:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @readFixed(arg0: memoryfixedarray) -> u256 [pure] {
+  bb0:
+    v0 = lt 0, 1
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = memory_object_load_element memoryfixedarray<1, 1>, arg0, 0
+    v3 = eq v2, 0
+    jumpi v3, bb3, bb4
+  bb3:
+    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v4, 0
+    memory_object_store_element memoryfixedarray<1, 1>, arg0, 0, v4
+    jump bb4
+  bb4:
+    v5 = phi [bb2: v2], [bb3: v4]
+    v6 = memory_object_len memoryarray, v5
+    ret v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

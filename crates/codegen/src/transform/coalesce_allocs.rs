@@ -73,7 +73,7 @@ fn coalesce_function(func: &mut Function) -> bool {
     }
 
     let mut changed = false;
-    let blocks = func.blocks.indices().collect::<Vec<_>>();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = func.blocks[block].instructions.clone();
         let mut group = Vec::<Member>::new();
@@ -213,22 +213,24 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
     } else {
         AllocationFailure::Infallible
     };
+    let preserves_fmp =
+        members.iter().any(|member| func.inst(member.inst).metadata.preserves_fmp());
 
     let base = members[0].result;
     let appended_start = func.blocks[block].instructions.len();
     let (total_size, offsets) = {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
-        let total_size = builder.imm_u64(total);
+        let total_size = builder.imm(total);
         let mut offsets = Vec::with_capacity(members.len().saturating_sub(1));
         let mut offset = members[0].size;
         for member in &members[1..] {
-            offsets.push(builder.imm_u64(offset));
+            offsets.push(builder.imm(offset));
             offset += member.size;
         }
         if zeroed {
             for member in &members {
-                let size = builder.imm_u64(member.size);
+                let size = builder.imm(member.size);
                 builder.memory_zero(member.result, size);
             }
         }
@@ -252,6 +254,7 @@ fn flush_group(func: &mut Function, block: BlockId, group: &mut Vec<Member>) -> 
             failure,
         },
     };
+    instruction.metadata.set_preserves_fmp(preserves_fmp);
 
     for (member, offset) in members[1..].iter().zip(offsets) {
         let instruction = func.inst_mut(member.inst);

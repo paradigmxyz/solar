@@ -1,0 +1,51 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
+@module NestedTupleAssignment
+fn @assign() -> (u256, u256, u256) [selector=0x12ae6397, pure, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 1
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x3000000000000000000000000000000000000000000000000000000000000000
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 1
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+    v4 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v4, 1
+    v5 = memory_object_data memorybytes, v4
+    mstore v5, 0x3200000000000000000000000000000000000000000000000000000000000000
+    v6 = memory_object_len memorybytes, v0
+    v7 = lt 0, v6
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = memory_object_load_byte memorybytes, v0, 0
+    v10 = shl 248, v9
+    v11 = shr 248, v10
+    v12 = memory_object_len memorybytes, v2
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb1, bb3
+  bb3:
+    v15 = memory_object_load_byte memorybytes, v2, 0
+    v16 = shl 248, v15
+    v17 = shr 248, v16
+    v18 = memory_object_len memorybytes, v4
+    v19 = lt 0, v18
+    v20 = iszero v19
+    jumpi v20, bb1, bb4
+  bb4:
+    v21 = memory_object_load_byte memorybytes, v4, 0
+    v22 = shl 248, v21
+    v23 = shr 248, v22
+    ret v11, v17, v23
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @swap() -> (u256, u256, u256, u256) [selector=0x8119c065, pure, abi_params=[], abi_returns=[word, word, word, word]] {
+  bb0:
+    ret 2, 1, 4, 3
+}

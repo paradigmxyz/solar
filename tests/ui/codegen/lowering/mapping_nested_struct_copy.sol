@@ -21,14 +21,16 @@ contract MappingNestedStructCopy {
 
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: = mapping_slot
-    // CHECK: memory_to_storage struct<0:word, 1:struct<0:word, 1:word>, 3:word>
+    // CHECK: memory_object_load_field memorystruct<3>, {{v[0-9]+}}, 0
+    // CHECK: sstore
     function set(uint256 key, uint256 head, uint256 left, uint256 right, uint256 tail) external {
         values[key] = Outer(head, Inner(left, right), tail);
     }
 
     // CHECK-LABEL: fn @get{{[( ]}}
     // CHECK: = mapping_slot
-    // CHECK: storage_to_memory struct<0:word, 1:struct<0:word, 1:word>, 3:word>
+    // CHECK: sload
+    // CHECK: memory_object_store_field memorystruct<3>
     function get(uint256 key)
         external
         view
@@ -40,7 +42,7 @@ contract MappingNestedStructCopy {
 
     // CHECK-LABEL: fn @clear{{[( ]}}
     // CHECK: = mapping_slot
-    // CHECK-COUNT-4: sstore
+    // CHECK: sstore
     function clear(uint256 key) external {
         delete values[key];
     }

@@ -1,57 +1,41 @@
 // === ROOT/tests/ui/codegen/lowering/abi_encode_semantic.sol:AbiEncodeSemantic ===
 @module AbiEncodeSemantic
-fn @forward(arg0: address, arg1: u256, arg2: calldataslice) {
+fn @forward(arg0: address, arg1: u256, arg2: calldataslice) [selector=0xd7f31eb9, abi_params=[address, u256, bytes], abi_returns=[]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 96
-    jumpi v2, bb1, bb2
+    v0 = gas
+    v1 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize arg0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
   bb2:
-    v3 = calldatasize
-    v4 = calldataload 4
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
-    v6 = eq v4, v5
+    v6 = call v0, arg0, 0, v2, v3, 0, 0
     jumpi v6, bb4, bb3
   bb3:
-    revert 0, 0
+    revert_returndata
   bb4:
-    v7 = slice_ptr arg2
-    v8 = slice_len arg2
-    v9 = lt v7, 32
-    v10 = sub v7, 32
-    v11 = lt v10, 4
-    v12 = or v9, v11
-    jumpi v12, bb5, bb6
-  bb6:
-    v13 = gt v10, v3
-    v14 = sub v3, v10
-    v15 = gt 32, v14
-    v16 = or v13, v15
-    jumpi v16, bb7, bb8
-  bb8:
-    v17 = sub v3, v7
-    v18 = gt v8, v17
-    jumpi v18, bb9, bb10
-  bb10:
-    v19 = abi_encode [word, calldata_bytes], selector 0x37650e7800000000000000000000000000000000000000000000000000000000, args arg1, arg2
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = gas
-    v23 = call v22, arg0, 0, v20, v21, 0, 0
-    jumpi v23, bb12, bb11
-  bb11:
-    v24 = returndatasize
-    returndatacopy 0, 0, v24 !metadata(memory=abi_return)
-    v25 = returndatasize
-    revert 0, v25
-  bb12:
     stop
-  bb9:
+  bb1:
     revert 0, 0
-  bb7:
-    revert 0, 0
-  bb5:
-    revert 0, 0
+}
+
+fn @forwardNarrow(arg0: address, arg1: calldataslice) [selector=0x251c2c33, abi_params=[address, array<_, u8>], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [calldata_array<word<u8>>], selector 0xd55990ff00000000000000000000000000000000000000000000000000000000, args arg1
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize arg0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = call v0, arg0, 0, v2, v3, 0, 0
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
   bb1:
     revert 0, 0
 }

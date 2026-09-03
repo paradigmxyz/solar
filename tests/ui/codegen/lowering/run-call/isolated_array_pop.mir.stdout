@@ -1,0 +1,100 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
+@module IsolatedArrayPop
+fn @access() -> (u256, u256, u256) [selector=0x71907f17, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore 0, v1 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = add v5, 1
+    v7 = lt v6, v5
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    v10 = add 0, 1
+    v11 = lt v10, 0
+    jumpi v11, bb4, bb5
+  bb5:
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb6, bb7
+  bb7:
+    v15 = storage_array_data_slot 0
+    v16 = add v15, 0
+    v17 = sload 0 !metadata(storage=slot(0))
+    v18 = lt 0, v17
+    v19 = iszero v18
+    jumpi v19, bb6, bb8
+  bb8:
+    v20 = storage_array_data_slot 0
+    v21 = add v20, 0
+    v22 = sload v21 !metadata(storage=symbolic(v20))
+    v23 = sload 1 !metadata(storage=slot(1))
+    v24 = and v23, 1
+    v25 = eq v24, 1
+    v26 = shr 1, v23
+    v27 = and v26, 127
+    v28 = select v25, v26, v27
+    v29 = lt v28, 32
+    v30 = eq v25, v29
+    jumpi v30, bb9, bb10
+  bb10:
+    v31 = add v28, 31
+    v32 = div v31, 32
+    v33 = add v28, 63
+    v34 = lt v33, v28
+    jumpi v34, bb1, bb11
+  bb11:
+    v35 = not 31
+    v36 = and v33, v35
+    v37 = alloc memorybytes, exact, uninitialized, panic, v36
+    set_memory_object_len memorybytes, v37, v28
+    jumpi v25, bb13, bb12
+  bb12:
+    v38 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v37, 0, v38
+    jump bb14
+  bb13:
+    v39 = storage_array_data_slot 1
+    jump bb15
+  bb15:
+    v40 = phi [bb13: 0], [bb16: v45]
+    v41 = lt v40, v32
+    jumpi v41, bb16, bb17
+  bb17:
+    jump bb14
+  bb14:
+    v46 = memory_object_len memorybytes, v37
+    ret v10, v22, v46
+  bb16:
+    v42 = add v39, v40
+    v43 = sload v42 !metadata(storage=symbolic(v42))
+    v44 = mul v40, 32
+    memory_object_store_word memorybytes, v37, v44, v43
+    v45 = add v40, 1
+    jump bb15
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -1,0 +1,375 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:PackedCheckpoints ===
+@module PackedCheckpoints
+
+// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
+@module CheckpointTarget
+immutables:
+  offset: u96
+
+fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_params=[array<_, u96>, address, u96]] {
+  bb0:
+    storeimmutable offset, arg2
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb10: v12]
+    v1 = phi [bb0: arg0], [bb10: v1]
+    v2 = phi [bb0: arg2], [bb10: v2]
+    v3 = phi [bb0: arg1], [bb10: v3]
+    v4 = memory_object_len memoryarray, v1
+    v5 = lt v0, v4
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    stop
+  bb4:
+    v6 = memory_object_len memoryarray, v1
+    v7 = lt v0, v6
+    v8 = iszero v7
+    jumpi v8, bb7, bb8
+  bb8:
+    v9 = memory_object_load_element memoryarray<1>, v1, v0
+    v10 = and v9, 0xffffffffffffffffffffffff
+    v11 = internal_call @mint, 1, v3, v10
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v12 = add v0, 1
+    v13 = lt v12, v0
+    jumpi v13, bb9, bb10
+  bb10:
+    jump bb1
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @latestKey() -> u96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[word<u96>]] {
+  bb0:
+    v0 = internal_call @latest, 3, 6
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    ret v3
+}
+
+fn @next() -> u96 [selector=0x4c8fe526, view, abi_params=[], abi_returns=[word<u96>]] {
+  bb0:
+    v0 = internal_call @nextId, 1
+    ret v0
+}
+
+fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = eq v0, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v3 = sub v0, 1
+    v4 = lt v0, 1
+    jumpi v4, bb4, bb5
+  bb5:
+    v5 = internal_call @unsafeAccess, 1, arg0, v3
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = and v6, 0xffffffffffffffffffffffff
+    v8 = and arg1, 0xffffffffffffffffffffffff
+    v9 = gt v7, v8
+    v10 = iszero v9
+    v11 = iszero v10
+    jumpi v11, bb6, bb7
+  bb7:
+    jump bb3
+  bb3:
+    v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v13 = and arg1, 0xffffffffffffffffffffffff
+    v14 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
+    memory_object_store_field memorystruct<2>, v12, 0, v13
+    memory_object_store_field memorystruct<2>, v12, 1, v14
+    v15 = sload arg0 !metadata(storage=symbolic(arg0))
+    v16 = add v15, 1
+    v17 = lt v16, v15
+    jumpi v17, bb8, bb9
+  bb9:
+    v18 = storage_array_data_slot arg0
+    v19 = add v18, v15
+    v20 = memory_object_load_field memorystruct<2>, v12, 0
+    v21 = sload v19 !metadata(storage=symbolic(v19))
+    v22 = not 0xffffffffffffffffffffffff
+    v23 = and v21, v22
+    v24 = and v20, 0xffffffffffffffffffffffff
+    v25 = or v23, v24
+    sstore v19, v25 !metadata(storage=symbolic(v19))
+    v26 = memory_object_load_field memorystruct<2>, v12, 1
+    v27 = shl 96, 0xffffffffffffffffffffffffffffffffffffffff
+    v28 = sload v19 !metadata(storage=symbolic(v19))
+    v29 = not v27
+    v30 = and v28, v29
+    v31 = and v26, 0xffffffffffffffffffffffffffffffffffffffff
+    v32 = shl 96, v31
+    v33 = or v30, v32
+    sstore v19, v33 !metadata(storage=symbolic(v19))
+    sstore arg0, v16 !metadata(storage=symbolic(arg0))
+    stop
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    revert 0, 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @latest(arg0: storageptr) -> (bool, u96, u160) [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = eq v0, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 0, 0, 0
+  bb1:
+    v3 = sub v0, 1
+    v4 = lt v0, 1
+    jumpi v4, bb4, bb5
+  bb5:
+    v5 = internal_call @unsafeAccess, 1, arg0, v3
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = and v6, 0xffffffffffffffffffffffff
+    v8 = sload v5 !metadata(storage=symbolic(v5))
+    v9 = shr 96, v8
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    ret 1, v7, v10
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @unsafeAccess(arg0: storageptr, arg1: u256) -> storageptr [pure] {
+  bb0:
+    mstore 0, arg0 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    v1 = add v0, arg1
+    ret v1
+}
+
+fn @mint(arg0: address, arg1: u96) -> u96 {
+  bb0:
+    v0 = internal_call @nextId, 1
+    v1 = and v0, 0xffffffffffffffffffffffff
+    v2 = and arg1, 0xffffffffffffffffffffffff
+    v3 = add v1, v2
+    v4 = gt v3, 0xffffffffffffffffffffffff
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = sub v3, 1
+    v6 = lt v3, 1
+    jumpi v6, bb1, bb3
+  bb3:
+    v7 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    internal_call @push, 0, 6, v5, v7
+    v8 = and v0, 0xffffffffffffffffffffffff
+    v9 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    mstore 0, v5 !metadata(memory=scratch)
+    log3 0, 32, 0x229942c5a471c3f0451428ffe170bda041510cfed1329d10dc894225df5e352b, v8, v9
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @nextId() -> u96 [view] {
+  bb0:
+    v0 = internal_call @latest, 3, 6
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    jumpi v0, bb1, bb2
+  bb2:
+    v9 = loadimmutable offset
+    jump bb3
+  bb1:
+    v6 = and v3, 0xffffffffffffffffffffffff
+    v7 = add v6, 1
+    v8 = gt v7, 0xffffffffffffffffffffffff
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb3
+  bb3:
+    v10 = phi [bb5: v7], [bb2: v9]
+    ret v10
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointConstructor ===
+@module CheckpointConstructor
+data:
+  CheckpointTarget_initcode_0: hex"610de1380380610de16103a0396103a001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405261071a565b60a05160400151548060a05160a001528060a05160a001525f81141515608a576001818060a05160a00152038060a05160c001528060a05160c00152600182109150501561015557610128565b505b6040518060a05160e001528060a05160e00152604081016040526bffffffffffffffffffffffff60a051606001511673ffffffffffffffffffffffffffffffffffffffff60a05160800151168183529050602082015260a05160400151548060a05161010001528060a0516101000152600181018060a05161012001528060a0516101200152818060a0516101000152811015610221576101f4565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b60405160a051816020015260a05160400151816040015260a05160c0015181606001528060a05260a00160405261018a61042a565b60a051608001518060a051610140015260a05160405260a0516020015160a0528060a05161014001528060a0516101400152546bffffffffffffffffffffffff90166bffffffffffffffffffffffff60a0516060015116811190501515156101f0575f5ffd5b608c565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b60a051604001515f5260205f20828060a051610100015290019150828060a05160e001525182546bffffffffffffffffffffffff19811690506bffffffffffffffffffffffff821691501782556020830192508251925073ffffffffffffffffffffffffffffffffffffffff60601b8254811991501673ffffffffffffffffffffffffffffffffffffffff841693508360601b935083901792508282559150508060a051610120015260a0516040015155565b60a05160400151548060a05160c001528060a05160c001525f81141515610322576001818060a05160c00152038060a05160e001528060a05160e00152600182109150501561036a5761033d565b5f60a051606001525f60a051608001525f60a05160a0015250565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b60405160a051816020015260a05160400151816040015260a05160e0015181606001528060a05260a00160405261039f61042a565b60a051608001518060a051610100015260a05160405260a0516020015160a0528060a05161010001528060a0516101000152546bffffffffffffffffffffffff901660a05161010001518060a05161010001525460601c73ffffffffffffffffffffffffffffffffffffffff9016600160a051606001528160a051608001528060a05160a001525050565b60a051604001515f5260205f2060a0516060015190018060a0516080015250565b60405160a05181602001528060a05261010001604052610469610619565b60a051604001518060a05160a0015260a05160405260a0516020015160a0528060a05160a001526bffffffffffffffffffffffff81166bffffffffffffffffffffffff60a051606001511681018060a05160c0015290508060a05160c001526bffffffffffffffffffffffff81111561050a575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6001818060a05160c00152038060a05160e001528060a05160e001526001821091508260a05160a001525090506104dd5773ffffffffffffffffffffffffffffffffffffffff60a051604001511660405160a05181602001526006816040015260a05160e0015181606001528181608001528060a052610160016040525061058f603d565b60a05160405260a0516020015160a0526bffffffffffffffffffffffff60a05160a001511673ffffffffffffffffffffffffffffffffffffffff60a051604001511660a05160e001518060a05160e001525f52817f229942c5a471c3f0451428ffe170bda041510cfed1329d10dc894225df5e352b60205fa35060a05160a0015160a05160800152565b60405160a0518160200152600681604001528060a0526101200160405261063e6102d4565b60a0516060015160a05160600160205260a05160405260a0516020015160a0528060a05160e001528060a05160e0015260205160208101518060a051606001528060a05160600152604082019150815150905050156106d9576bffffffffffffffffffffffff60a0516060015116600190018060a051608001528060a051608001526bffffffffffffffffffffffff811115610715576106e8565b60c0515b8060a0516040015250565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6106dd565b34610aca576103a0806101805280610180526103a0610de1380301806101a052806101a0526060820181806101a0529011156108cf576108cb565b6103a06040015160c0525f610260516103a0604001516103a060200151929091905b8161010052818061010052518160e05281106107be576107db565b610b3e565b600160e0518060e052018061016052806101605260e0518060e0528110156108b657610889565b8161010052818061010052518160e05281101515610816576107e9565b50505050610792565b610797565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8161010052602082018160e0526020820281019050516bffffffffffffffffffffffff90168461014052836101205260405160a05181602001528581604001528181606001528060a05261010001604052505050505061087461044b565b60a05160405260a0516020015160a0526107e4565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b61010051610120516101405192909190610777565b5f5ffd5b8161018052602082015160a01c15156108cb57604082015160601c15156108cb575f82015180610380528201806101c0529150816101c0526020820167ffffffffffffffff6103805111826101a05282806101a052821191501715610933575b5f5ffd5b81806101c05251806101e052806101e05260208301806102005292508261020052600181018061022052806102205281806101e05281101561099d575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b602081806102205202806102405280610240526020156020820483806102205290149250829017915081159150826101e0528461020052509050905090506109705760405180610260528061026052610240518061024052810180610360528061036052818061026052811067ffffffffffffffff82118117905015610ace57610b11565b6102005180610200526101a0510360051c6101e0511161092f57610260516101e051610200515f929091905b81610280525f821115610a8357826102a05282806102a05251806102e052806102e052806102e05260601c15610a915761092f565b806102605250505050610755565b806102605260208101602085806102c05202810190506102e051806102e052815250600182039150602083019250600184019350610a4e565b5f5ffd5b806103605260405280610260526101e051806101e052815260206101e051026020156020820491506101e051806101e052821491501715905015610a2257610970565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b61027080610b7160e03960c05160a01b61030b5173ffffffffffffffffffffffffffffffffffffffff161761030b5260e0f3346028575f3560e01c80634c8fe5261460205780638ee82b53146024576028565b6072565b602c565b5f5ffd5b6102c0604052603a600660ab565b6101a0602052602051602081015160408201915081515090506bffffffffffffffffffffffff90166080526020608001608090036080f35b6102c0604052607f6101b3565b60c0518060a0528060a0526bffffffffffffffffffffffff811690506080526020608001608090036080f35b610180526101805154806102005280610200525f8114151560e9576001818061020052038061022052806102205260018210915050156101285760fb565b5f6101a0525f6101c0525f6101e05250565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b6101386101805161022051610193565b6102a051806102405280610240528061024052546bffffffffffffffffffffffff90166102405180610240525460601c73ffffffffffffffffffffffffffffffffffffffff901660016101a052816101c052806101e0525050565b6102805261026052610260515f5260205f20610280519001806102a05250565b6101bc600660ab565b6101a05180610160526101a0602052806101605260205160208101518060e0528060e05260408201915081515090505015610229576bffffffffffffffffffffffff60e0511660019001806101005280610100526bffffffffffffffffffffffff81111561026b5761023e565b6b0000000000000000000000005b8060c05250565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b61023756"
+  ConstructorMultiReturn_initcode_1: hex"60e0604052601c565b600160a05160400152601260a05160600152565b3460635760405160a05181602001528060a052608001604052603b6008565b60a05160400160205260a05160405260a0516020015160a052602051602090015160c0526067565b5f5ffd5b60308060775f3960c0516020535ff334601a575f3560e01c80633fa4f24514601657601a565b601e565b5f5ffd5b60006080526020608001608090036080f3"
+
+fn @deploy() -> u96 [selector=0x775c300c, abi_params=[], abi_returns=[word<u96>]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 96
+    set_memory_object_len memoryarray, v0, 2
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = and 0xf52, 0xffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 0, v4
+    v5 = memory_object_len memoryarray, v0
+    v6 = lt 1, v5
+    v7 = iszero v6
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = and 6, 0xffffffffffffffffffffffff
+    memory_object_store_element memoryarray<1>, v0, 1, v8
+    v9 = and 0x1234, 0xffffffffffffffffffffffffffffffffffffffff
+    v10 = and 0x48b, 0xffffffffffffffffffffffff
+    v11 = abi_encode [memory_array<word<u96>>, word<u160>, word<u96>], args v0, v9, v10
+    v12 = slice_len v11
+    v13 = add 0xde1, v12
+    v14 = lt v13, 0xde1
+    jumpi v14, bb4, bb5
+  bb5:
+    v15 = add v13, 31
+    v16 = lt v15, v13
+    jumpi v16, bb4, bb6
+  bb6:
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc raw, exact, uninitialized, infallible, v18
+    data_copy CheckpointTarget_initcode_0, v19, 0xde1
+    v20 = slice_ptr v11
+    v21 = add v19, 0xde1
+    mcopy v21, v20, v12 !metadata(memory=heap)
+    v22 = create 0, v19, v13
+    jumpi v22, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v23 = gas
+    v24 = abi_encode [], selector 0x8ee82b5300000000000000000000000000000000000000000000000000000000
+    v25 = slice_ptr v24
+    v26 = slice_len v24
+    v27 = staticcall v23, v22, v25, v26, 0, 32
+    jumpi v27, bb10, bb9
+  bb9:
+    revert_returndata
+  bb10:
+    v28 = returndatasize
+    v29 = lt v28, 32
+    jumpi v29, bb11, bb12
+  bb12:
+    v30 = add 0, 0
+    v31 = mload v30
+    v32 = and v31, 0xffffffffffffffffffffffff
+    v33 = eq v31, v32
+    v34 = iszero v33
+    jumpi v34, bb11, bb13
+  bb13:
+    v35 = add 0, 0
+    v36 = mload v35
+    ret v36
+  bb11:
+    revert 0, 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @multiReturn() -> u8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 198, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy ConstructorMultiReturn_initcode_1, v3, 167
+    v4 = slice_ptr v0
+    v5 = add v3, 167
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 167
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = staticcall v7, v6, v9, v10, 0, 32
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = lt v12, 32
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = and v15, 255
+    v17 = eq v15, v16
+    v18 = iszero v17
+    jumpi v18, bb5, bb7
+  bb7:
+    v19 = add 0, 0
+    v20 = mload v19
+    ret v20
+  bb5:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===
+@module ConstructorMultiReturn
+immutables:
+  value: u8
+
+fn @value() -> u8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = loadimmutable value
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = internal_call @pair, 2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    storeimmutable value, v3
+    stop
+}
+
+fn @pair() -> (bool, u8) [pure] {
+  bb0:
+    ret 1, 18
+}

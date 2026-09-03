@@ -1,0 +1,10 @@
+// === ROOT/tests/ui/codegen/lowering/short_call_output.sol:ShortCallOutput ===
+@module ShortCallOutput
+fn @shortOutput() -> (bool, u256) [selector=0x66ec2a88, abi_params=[], abi_returns=[word<bool>, word]] {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    v0 = sub 0, 1
+    v1 = call v0, 1, 0, 0, 0, 0, 32
+    v2 = mload 0 !metadata(memory=scratch)
+    ret v1, v2
+}

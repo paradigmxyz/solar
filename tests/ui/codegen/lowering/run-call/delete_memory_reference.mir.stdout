@@ -1,0 +1,49 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/delete_memory_reference.sol:DeleteMemoryReference ===
+@module DeleteMemoryReference
+fn @array() -> (u256, u256, u256) [selector=0xb0ec2ae1, pure, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
+    set_memory_object_len memoryarray, v0, 1
+    v1 = memory_object_len memoryarray, v0
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    memory_object_store_element memoryarray<1>, v0, 0, 7
+    v4 = alloc memoryarray<1>, exact, uninitialized, infallible, 32
+    set_memory_object_len memoryarray, v4, 0
+    v5 = memory_object_len memoryarray, v4
+    v6 = memory_object_len memoryarray, v0
+    v7 = memory_object_len memoryarray, v0
+    v8 = lt 0, v7
+    v9 = iszero v8
+    jumpi v9, bb1, bb3
+  bb3:
+    v10 = memory_object_load_element memoryarray<1>, v0, 0
+    ret v5, v6, v10
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @bytesValue() -> (u256, u256, bytes2) [selector=0x5a286ac0, pure, abi_params=[], abi_returns=[word, word, word<bytes2>]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v0, 2
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0xabcd000000000000000000000000000000000000000000000000000000000000
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v2, 0
+    v3 = memory_object_len memorybytes, v2
+    v4 = memory_object_len memorybytes, v0
+    v5 = memory_object_load_element memorybytes, v0, 0
+    v6 = memory_object_len memorybytes, v0
+    v7 = lt v6, 2
+    v8 = sub 2, v6
+    v9 = mul 8, v8
+    v10 = shl v9, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v11 = select v7, v10, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v12 = and v5, v11
+    ret v3, v4, v12
+}

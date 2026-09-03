@@ -225,10 +225,17 @@ pub trait Visit<'hir> {
             }
             StmtKind::Block(block)
             | StmtKind::UncheckedBlock(block)
-            | StmtKind::AssemblyBlock(block)
-            | StmtKind::Loop(block, _) => {
+            | StmtKind::AssemblyBlock(block) => {
                 for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
+                }
+            }
+            StmtKind::Loop(block, source) => {
+                for stmt in block.stmts {
+                    self.visit_stmt(stmt)?;
+                }
+                if let LoopSource::For { update: Some(update) } = source {
+                    self.visit_stmt(update)?;
                 }
             }
             StmtKind::Emit(expr) => self.visit_expr(expr)?,

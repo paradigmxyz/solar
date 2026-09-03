@@ -37,8 +37,13 @@ impl Module {
 
 fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
-        let cold = if block.metadata.hotness.is_cold() { " [cold]" } else { "" };
-        writeln!(f, "bb{}{}:", block.label, cold)?;
+        let attributes = match (block.metadata.hotness.is_cold(), block.metadata.in_loop) {
+            (false, false) => "",
+            (true, false) => " [cold]",
+            (false, true) => " [loop]",
+            (true, true) => " [cold, loop]",
+        };
+        writeln!(f, "bb{}{}:", block.label, attributes)?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
         }

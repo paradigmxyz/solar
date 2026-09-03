@@ -1,4 +1,4 @@
-//@ run-call: D::f() => 15
+//@ run-call: D::f => 15
 
 contract A {
     function f() public virtual returns (uint256) {

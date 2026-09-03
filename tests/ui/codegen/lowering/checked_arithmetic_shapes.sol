@@ -13,18 +13,20 @@
 contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @sadd{{[( ]}}
     // CHECK: [[SUM:v[0-9]+]] = add arg0, arg1
-    // CHECK: [[LHS_NEG:v[0-9]+]] = slt arg0, 0
-    // CHECK: [[WRAPPED:v[0-9]+]] = slt [[SUM]], arg1
-    // CHECK: xor [[LHS_NEG]], [[WRAPPED]]
+    // CHECK: slt arg0, 0
+    // CHECK: slt arg1, 0
+    // CHECK: slt [[SUM]], 0
+    // CHECK: mstore 4, 17
     function sadd(int256 a, int256 b) public pure returns (int256) {
         return a + b;
     }
 
     // CHECK-LABEL: fn @ssub{{[( ]}}
     // CHECK: [[DIFF:v[0-9]+]] = sub arg0, arg1
-    // CHECK: [[RHS_NEG:v[0-9]+]] = slt arg1, 0
-    // CHECK: [[WRAPPED:v[0-9]+]] = sgt [[DIFF]], arg0
-    // CHECK: xor [[RHS_NEG]], [[WRAPPED]]
+    // CHECK: slt arg0, 0
+    // CHECK: slt arg1, 0
+    // CHECK: slt [[DIFF]], 0
+    // CHECK: mstore 4, 17
     function ssub(int256 a, int256 b) public pure returns (int256) {
         return a - b;
     }
@@ -32,8 +34,7 @@ contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @smul{{[( ]}}
     // CHECK: [[PRODUCT:v[0-9]+]] = mul arg0, arg1
     // CHECK: sdiv [[PRODUCT]], arg1
-    // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    // CHECK: slt arg1, 0
+    // CHECK: mstore 4, 17
     function smul(int256 a, int256 b) public pure returns (int256) {
         return a * b;
     }
@@ -58,58 +59,75 @@ contract CheckedArithmeticShapes {
     // CHECK-LABEL: fn @neg{{[( ]}}
     // CHECK: eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
     // CHECK: sub 0, arg0
+    // CHECK: mstore 4, 17
     function neg(int256 a) public pure returns (int256) {
         return -a;
     }
 
     // CHECK-LABEL: fn @inc{{[( ]}}
-    // CHECK: [[OLD:v[0-9]+]] = mload 128
-    // CHECK: [[RESULT:v[0-9]+]] = add [[OLD]], 1
-    // CHECK: lt [[RESULT]], [[OLD]]
+    // CHECK: [[RESULT:v[0-9]+]] = add arg0, 1
+    // CHECK: lt [[RESULT]], arg0
+    // CHECK: mstore 4, 17
     function inc(uint256 a) public pure returns (uint256) {
         return ++a;
     }
 
     // CHECK-LABEL: fn @dec{{[( ]}}
-    // CHECK: [[OLD:v[0-9]+]] = mload 128
-    // CHECK: [[RESULT:v[0-9]+]] = sub [[OLD]], 1
-    // CHECK: lt [[OLD]], 1
+    // CHECK: [[RESULT:v[0-9]+]] = sub arg0, 1
+    // CHECK: lt arg0, 1
+    // CHECK: mstore 4, 17
     function dec(uint256 a) public pure returns (uint256) {
         return --a;
     }
 
     // CHECK-LABEL: fn @uadd128{{[( ]}}
-    // CHECK: [[RESULT:v[0-9]+]] = add arg0, arg1
+    // CHECK: [[LHS:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffff
+    // CHECK: [[RHS:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffff
+    // CHECK: [[RESULT:v[0-9]+]] = add [[LHS]], [[RHS]]
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
+    // CHECK: mstore 4, 17
     function uadd128(uint128 a, uint128 b) public pure returns (uint128) {
         return a + b;
     }
 
     // CHECK-LABEL: fn @umul128{{[( ]}}
-    // CHECK: [[RESULT:v[0-9]+]] = mul arg0, arg1
+    // CHECK: [[LHS:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffff
+    // CHECK: [[RHS:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffff
+    // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
+    // CHECK: div [[RESULT]], [[RHS]]
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffff
+    // CHECK: mstore 4, 17
     function umul128(uint128 a, uint128 b) public pure returns (uint128) {
         return a * b;
     }
 
     // CHECK-LABEL: fn @smul128{{[( ]}}
-    // CHECK: [[RESULT:v[0-9]+]] = mul arg0, arg1
+    // CHECK: [[LHS:v[0-9]+]] = signextend 15, arg0
+    // CHECK: [[RHS:v[0-9]+]] = signextend 15, arg1
+    // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
+    // CHECK: sdiv [[RESULT]], [[RHS]]
     // CHECK: slt [[RESULT]], 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
     // CHECK: sgt [[RESULT]], 0x7fffffffffffffffffffffffffffffff
+    // CHECK: mstore 4, 17
     function smul128(int128 a, int128 b) public pure returns (int128) {
         return a * b;
     }
 
     // CHECK-LABEL: fn @umul192{{[( ]}}
-    // CHECK: [[RESULT:v[0-9]+]] = mul arg0, arg1
-    // CHECK: div [[RESULT]], arg1
+    // CHECK: [[LHS:v[0-9]+]] = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[RHS:v[0-9]+]] = and arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK: [[RESULT:v[0-9]+]] = mul [[LHS]], [[RHS]]
+    // CHECK: div [[RESULT]], [[RHS]]
     // CHECK: gt [[RESULT]], 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    // CHECK: mstore 4, 17
     function umul192(uint192 a, uint192 b) public pure returns (uint192) {
         return a * b;
     }
 
     // CHECK-LABEL: fn @leftU8{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 255
+    // CHECK: [[BITS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], [[VALUE]]
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[SHIFTED]], 255
     // CHECK-NEXT: ret [[CLEAN]]
     function leftU8(uint8 value, uint8 bits) external pure returns (uint8) {
@@ -117,7 +135,9 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @leftU16{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xffff
+    // CHECK: [[BITS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], [[VALUE]]
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[SHIFTED]], 0xffff
     // CHECK-NEXT: ret [[CLEAN]]
     function leftU16(uint16 value, uint8 bits) external pure returns (uint16) {
@@ -125,18 +145,20 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @leftI8{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
-    // CHECK-NEXT: [[ALIGNED:v[0-9]+]] = shl 248, [[SHIFTED]]
-    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = sar 248, [[ALIGNED]]
+    // CHECK: [[VALUE:v[0-9]+]] = signextend 0, arg0
+    // CHECK: [[BITS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], [[VALUE]]
+    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = signextend 0, [[SHIFTED]]
     // CHECK-NEXT: ret [[CLEAN]]
     function leftI8(int8 value, uint8 bits) external pure returns (int8) {
         return value << bits;
     }
 
     // CHECK-LABEL: fn @leftI16{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shl arg1, arg0
-    // CHECK-NEXT: [[ALIGNED:v[0-9]+]] = shl 240, [[SHIFTED]]
-    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = sar 240, [[ALIGNED]]
+    // CHECK: [[VALUE:v[0-9]+]] = signextend 1, arg0
+    // CHECK: [[BITS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[SHIFTED:v[0-9]+]] = shl [[BITS]], [[VALUE]]
+    // CHECK-NEXT: [[CLEAN:v[0-9]+]] = signextend 1, [[SHIFTED]]
     // CHECK-NEXT: ret [[CLEAN]]
     function leftI16(int16 value, uint8 bits) external pure returns (int16) {
         return value << bits;
@@ -151,14 +173,18 @@ contract CheckedArithmeticShapes {
     }
 
     // CHECK-LABEL: fn @rightU8{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = shr arg1, arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 255
+    // CHECK: [[BITS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[SHIFTED:v[0-9]+]] = shr [[BITS]], [[VALUE]]
     // CHECK-NEXT: ret [[SHIFTED]]
     function rightU8(uint8 value, uint8 bits) external pure returns (uint8) {
         return value >> bits;
     }
 
     // CHECK-LABEL: fn @rightI8{{[( ]}}
-    // CHECK: [[SHIFTED:v[0-9]+]] = sar arg1, arg0
+    // CHECK: [[VALUE:v[0-9]+]] = signextend 0, arg0
+    // CHECK: [[BITS:v[0-9]+]] = and arg1, 255
+    // CHECK: [[SHIFTED:v[0-9]+]] = sar [[BITS]], [[VALUE]]
     // CHECK-NEXT: ret [[SHIFTED]]
     function rightI8(int8 value, uint8 bits) external pure returns (int8) {
         return value >> bits;

@@ -9,7 +9,8 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationSemantics,
-        BlockId, Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, ValueId,
+        BlockId, Function, FunctionBuilder, InstId, InstKind, MemoryRegion, Module, PanicCode,
+        ValueId,
     },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
@@ -42,9 +43,7 @@ impl MirPass for LowerAlloc {
 fn lower_alloc(module: &mut Module) -> bool {
     let mut changed = false;
     for func in module.functions.iter_mut() {
-        if !func.blocks.is_empty() {
-            changed |= lower_function(func);
-        }
+        changed |= lower_function(func);
     }
     changed
 }
@@ -79,7 +78,7 @@ fn lower_function(func: &mut Function) -> bool {
         block_index += 1;
     }
 
-    let blocks: Vec<BlockId> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let mut builder = FunctionBuilder::new(func);
@@ -150,7 +149,7 @@ fn lower_checked_alloc(
     let (size, align_overflow) = aligned_size(&mut builder, size, semantics.alignment);
     let next = builder.add(ptr, size);
     let bump_overflow = builder.lt(next, ptr);
-    let limit = builder.imm_u64(EvmMemoryLayout::MAX_ALLOCATION_END);
+    let limit = builder.imm(EvmMemoryLayout::MAX_ALLOCATION_END);
     let over_limit = builder.gt(next, limit);
     let mut invalid = builder.or(bump_overflow, over_limit);
     if let Some(align_overflow) = align_overflow {
@@ -165,14 +164,7 @@ fn lower_checked_alloc(
     builder.func_mut().blocks[continuation].instructions.extend(tail);
 
     builder.switch_to_block(panic);
-    let zero = builder.imm_u64(0);
-    let four = builder.imm_u64(4);
-    let selector = builder.imm_u256(U256::from(0x4e48_7b71_u64) << 224);
-    let code = builder.imm_u64(0x41);
-    builder.mstore(zero, selector);
-    builder.mstore(four, code);
-    let size = builder.imm_u64(36);
-    builder.revert(zero, size);
+    builder.panic(PanicCode::MemoryAllocationOverflow);
 }
 
 fn aligned_size(
@@ -186,11 +178,10 @@ fn aligned_size(
     if let Some(size) = builder.func().value_u64(size)
         && let Some(aligned) = EvmMemoryLayout::align_word(size)
     {
-        return (builder.imm_u64(aligned), None);
+        return (builder.imm(aligned), None);
     }
-    let mask = builder.imm_u256(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
-    let padding = builder.imm_u64(EvmMemoryLayout::WORD_SIZE - 1);
-    let rounded = builder.add(size, padding);
+    let mask = builder.imm(U256::MAX - U256::from(EvmMemoryLayout::WORD_SIZE - 1));
+    let rounded = builder.add_u64_offset(size, EvmMemoryLayout::WORD_SIZE - 1);
     let overflow = builder.lt(rounded, size);
     (builder.and(rounded, mask), Some(overflow))
 }
@@ -207,7 +198,7 @@ fn initialize(
 }
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
-    let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
+    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = InstKind::MLoad(slot);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
@@ -218,13 +209,13 @@ fn rewrite_as_fmp_store(
     inst: crate::mir::InstId,
     ptr: crate::mir::ValueId,
 ) {
-    let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
+    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     let instruction = builder.func_mut().inst_mut(inst);
     instruction.kind = InstKind::MStore(slot, ptr);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 
 fn store_fmp(builder: &mut FunctionBuilder<'_>, ptr: crate::mir::ValueId) {
-    let slot = builder.imm_u64(EvmMemoryLayout::FMP_SLOT);
+    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
     builder.mstore(slot, ptr);
 }

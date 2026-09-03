@@ -1,0 +1,243 @@
+// === ROOT/tests/ui/codegen/lowering/try_catch_error.sol:TryCatchErrorTarget ===
+@module TryCatchErrorTarget
+fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}
+
+// === ROOT/tests/ui/codegen/lowering/try_catch_error.sol:TryCatchError ===
+@module TryCatchError
+fn @constructor() [constructor] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 197, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    mstore v3, 0x34600d5760958060115f395ff35b5f5ffd346028575f3560e01c8063a9cc4718
+    v4 = add v3, 32
+    mstore v4, 0x146020578063d909b403146024576028565b602e565b602c565b5f5ffd5b005b
+    v5 = add v3, 64
+    mstore v5, 0x60c060405260026080527f6e6f00000000000000000000000000000000000000
+    v6 = add v3, 96
+    mstore v6, 0x60a0527f08c379a000000000000000000000000000
+    v7 = add v3, 128
+    mstore v7, 0x5f52602060045260805160245260a05160
+    v8 = add v3, 160
+    mstore v8, 0x445260645ffd0000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v0
+    v10 = add v3, 166
+    mcopy v10, v9, 0 !metadata(memory=heap)
+    v11 = create 0, v3, 166
+    jumpi v11, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = not 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = and v12, v13
+    v15 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
+    v16 = or v14, v15
+    sstore 0, v16 !metadata(storage=slot(0))
+    stop
+}
+
+fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = gas
+    v3 = abi_encode [], selector 0xd909b40300000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize v1
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = staticcall v2, v1, v4, v5, 0, 0
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = returndatasize
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb6, bb7
+  bb7:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = make_returndata_slice 0, v9
+    memory_object_copy_from_slice memorybytes, v14, v15
+    v16 = memory_object_data memorybytes, v14
+    v17 = memory_object_len memorybytes, v14
+    v18 = make_memory_slice v16, v17
+    v19 = memory_slice_load_word memory, v18, 0
+    v20 = lt v17, 4
+    v21 = iszero v20
+    v22 = shr 224, v19
+    v23 = eq v22, 0x8c379a0
+    jumpi v23, bb8, bb9
+  bb9:
+    jump bb10
+  bb8:
+    v24 = internal_call @try_decode_error_message, 1, v16, v17
+    jump bb10
+  bb10:
+    v25 = phi [bb8: v24], [bb9: 0]
+    v26 = lt v17, 36
+    v27 = iszero v26
+    v28 = eq v22, 0x4e487b71
+    v29 = and v27, v28
+    jumpi v25, bb11, bb12
+  bb12:
+    revert v16, v17
+  bb11:
+    v30 = memory_object_data memorybytes, v14
+    v31 = memory_object_len memorybytes, v14
+    v32 = add v30, 4
+    v33 = sub v31, 4
+    v34 = make_memory_slice v32, v33
+    v35 = slice_len v34
+    v36 = add v35, 63
+    v37 = lt v36, v35
+    jumpi v37, bb6, bb13
+  bb13:
+    v38 = not 31
+    v39 = and v36, v38
+    v40 = alloc memorybytes, exact, uninitialized, infallible, v39
+    set_memory_object_len memorybytes, v40, v35
+    memory_object_copy_from_slice memorybytes, v40, v34
+    v41 = abi_decode [bytes], v40
+    v42 = memory_object_len memorybytes, v41
+    ret v42
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    ret 7
+  bb1:
+    revert 0, 0
+}
+
+fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = gas
+    v3 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = extcodesize v1
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = staticcall v2, v1, v4, v5, 0, 0
+    jumpi v8, bb3, bb4
+  bb4:
+    v9 = returndatasize
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb6, bb7
+  bb7:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = make_returndata_slice 0, v9
+    memory_object_copy_from_slice memorybytes, v14, v15
+    v16 = memory_object_data memorybytes, v14
+    v17 = memory_object_len memorybytes, v14
+    v18 = make_memory_slice v16, v17
+    v19 = memory_slice_load_word memory, v18, 0
+    v20 = lt v17, 4
+    v21 = iszero v20
+    v22 = shr 224, v19
+    v23 = eq v22, 0x8c379a0
+    jumpi v23, bb8, bb9
+  bb9:
+    jump bb10
+  bb8:
+    v24 = internal_call @try_decode_error_message, 1, v16, v17
+    jump bb10
+  bb10:
+    v25 = phi [bb8: v24], [bb9: 0]
+    v26 = lt v17, 36
+    v27 = iszero v26
+    v28 = eq v22, 0x4e487b71
+    v29 = and v27, v28
+    jumpi v25, bb11, bb12
+  bb12:
+    revert v16, v17
+  bb11:
+    v30 = memory_object_data memorybytes, v14
+    v31 = memory_object_len memorybytes, v14
+    v32 = add v30, 4
+    v33 = sub v31, 4
+    v34 = make_memory_slice v32, v33
+    v35 = slice_len v34
+    v36 = add v35, 63
+    v37 = lt v36, v35
+    jumpi v37, bb6, bb13
+  bb13:
+    v38 = not 31
+    v39 = and v36, v38
+    v40 = alloc memorybytes, exact, uninitialized, infallible, v39
+    set_memory_object_len memorybytes, v40, v35
+    memory_object_copy_from_slice memorybytes, v40, v34
+    v41 = abi_decode [bytes], v40
+    v42 = memory_object_len memorybytes, v41
+    ret v42
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    ret 0
+  bb1:
+    revert 0, 0
+}
+
+fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
+  bb0:
+    v0 = lt arg1, 68
+    v1 = iszero v0
+    jumpi v1, bb1, bb3
+  bb1:
+    v2 = add arg0, 4
+    v3 = mload v2
+    v4 = gt v3, 0xffffffffffffffff
+    v5 = add v3, 36
+    v6 = gt v5, arg1
+    v7 = or v4, v6
+    jumpi v7, bb3, bb2
+  bb2:
+    v8 = add v2, v3
+    v9 = mload v8
+    v10 = gt v9, 0xffffffffffffffff
+    v11 = sub arg1, v5
+    v12 = gt v9, v11
+    v13 = or v10, v12
+    v14 = iszero v13
+    ret v14
+  bb3:
+    ret 0
+}

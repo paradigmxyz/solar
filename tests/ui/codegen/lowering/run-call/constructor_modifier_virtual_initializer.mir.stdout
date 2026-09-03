@@ -1,0 +1,57 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_virtual_initializer.sol:ConstructorModifierVirtualInitializerBase ===
+@module ConstructorModifierVirtualInitializerBase
+fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = internal_call @value, 1
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    stop
+}
+
+fn @value() -> u256 {
+  bb0:
+    ret 1
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_modifier_virtual_initializer.sol:ConstructorModifierVirtualInitializer ===
+@module ConstructorModifierVirtualInitializer
+fn @valueFromInitializer() -> u256 [selector=0xa6f7461b, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @value() -> u256 [view] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @observed() -> u256 [selector=0xba210709, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = internal_call @value, 1
+    sstore 0, v0 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb1
+  bb1:
+    sstore 1, 42 !metadata(storage=slot(1))
+    stop
+}

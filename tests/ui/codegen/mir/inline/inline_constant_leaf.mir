@@ -1,0 +1,53 @@
+//@ compile-flags: -Zmir-pipeline=inline-constant-leaves
+//@ filecheck:
+@module InlineConstantLeaf
+
+// CHECK-LABEL: fn @constant_caller
+// CHECK: - {{.*}}internal_call @shared_leaf
+// CHECK: + {{.*}} = add arg0, 7
+fn @constant_caller(arg0: u256) -> u256 {
+  bb0:
+    v0 = internal_call @shared_leaf, 1, arg0, 7
+    ret v0
+}
+
+// CHECK-LABEL: fn @dynamic_caller
+// CHECK: internal_call @shared_leaf
+fn @dynamic_caller(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = internal_call @shared_leaf, 1, arg0, arg1
+    ret v0
+}
+
+fn @shared_leaf(arg0: u256, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = xor v0, arg1
+    v2 = add v1, 1
+    v3 = xor v2, arg1
+    v4 = add v3, 2
+    ret v4
+}
+
+// CHECK-LABEL: fn @constant_decode_caller
+// CHECK: internal_call @decode_leaf
+fn @constant_decode_caller(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = internal_call @decode_leaf, 1, arg0, 1
+    ret v0
+}
+
+// CHECK-LABEL: fn @dynamic_decode_caller
+// CHECK: internal_call @decode_leaf
+fn @dynamic_decode_caller(arg0: memorybytes, arg1: u256) -> u256 {
+  bb0:
+    v0 = internal_call @decode_leaf, 1, arg0, arg1
+    ret v0
+}
+
+fn @decode_leaf(arg0: memorybytes, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = abi_decode [u256], arg0
+    v1 = add v0, arg1
+    ret v1
+}

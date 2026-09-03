@@ -11,6 +11,7 @@ use crate::{
     utils::eval,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
 
 /// Function pass for bounded pure MIR evaluation.
@@ -134,16 +135,23 @@ impl PureEvaluator {
             fuel -= 1;
             let block = &func.blocks[current];
 
+            let mut phis = SmallVec::<[(ValueId, U256); 2]>::new();
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
-                let result = match &inst.kind {
-                    InstKind::Phi(incoming) => {
-                        let pred = predecessor?;
-                        let (_, value) = incoming.iter().find(|(block, _)| *block == pred)?;
-                        self.value_const(&env, *value)?
-                    }
-                    kind => self.eval_inst(kind, &env)?,
-                };
+                if let InstKind::Phi(incoming) = &inst.kind {
+                    let pred = predecessor?;
+                    let (_, value) = incoming.iter().find(|(block, _)| *block == pred)?;
+                    phis.push((func.inst_result_value(inst_id)?, self.value_const(&env, *value)?));
+                }
+            }
+            env.extend(phis);
+
+            for &inst_id in &block.instructions {
+                let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(..)) {
+                    continue;
+                }
+                let result = self.eval_inst(&inst.kind, &env)?;
                 if let Some(value_id) = func.inst_result_value(inst_id) {
                     env.insert(value_id, result);
                 }
@@ -178,6 +186,7 @@ impl PureEvaluator {
                 }
                 Terminator::ReturnData { .. }
                 | Terminator::Revert { .. }
+                | Terminator::RevertReturndata
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
                 | Terminator::TailCall { .. }
@@ -201,7 +210,7 @@ impl PureEvaluator {
 
     fn rewrite_to_return(&self, func: &mut Function, values: &[U256]) {
         let entry = BlockId::ENTRY;
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let block = &mut func.blocks[block_id];
             block.instructions.clear();

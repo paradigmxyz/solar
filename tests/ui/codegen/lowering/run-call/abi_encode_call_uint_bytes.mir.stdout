@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_uint_bytes.sol:AbiEncodeCallUintBytes ===
+@module AbiEncodeCallUintBytes
+fn @g(arg0: bytes2, arg1: bytes2, arg2: bytes2) [selector=0x6dddb956, pure, abi_params=[bytes2, bytes2, bytes2], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @h(arg0: u16, arg1: u16) [selector=0x2a62baf5, pure, abi_params=[u16, u16], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @f() -> memorybytes [selector=0x26121ff0, view, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = and 0x1234000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v1 = and 0x6162000000000000000000000000000000000000000000000000000000000000, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v2 = shl 240, 0x1234
+    v3 = and v2, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v4 = abi_encode [word<bytes2>, word<bytes2>, word<bytes2>], object, selector 0x6dddb95600000000000000000000000000000000000000000000000000000000, args v0, v1, v3
+    ret v4
+}
+
+fn @f2() -> memorybytes [selector=0x9942ec6f, view, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = shl 240, 0x1234
+    v1 = and 0x1234, 0xffff
+    v2 = shr 240, v0
+    v3 = and v2, 0xffff
+    v4 = abi_encode [word<u16>, word<u16>], object, selector 0x2a62baf500000000000000000000000000000000000000000000000000000000, args v1, v3
+    ret v4
+}

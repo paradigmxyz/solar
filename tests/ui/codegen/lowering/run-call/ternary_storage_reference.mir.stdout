@@ -1,0 +1,68 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/ternary_storage_reference.sol:TernaryStorageReference ===
+@module TernaryStorageReference
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 2
+    v4 = add v3, v0
+    sstore v4, 11 !metadata(storage=symbolic(v4))
+    sstore 2, v1 !metadata(storage=slot(2))
+    v5 = sload 3 !metadata(storage=slot(3))
+    v6 = add v5, 1
+    v7 = lt v6, v5
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = storage_array_data_slot 3
+    v9 = add v8, v5
+    sstore v9, 22 !metadata(storage=symbolic(v9))
+    sstore 3, v6 !metadata(storage=slot(3))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @choose(arg0: bool) -> (u256, u256) [selector=0xf6e00e0f, abi_params=[bool], abi_returns=[word, word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 0], [bb2: 1]
+    v1 = phi [bb1: 0], [bb2: 0]
+    sstore v0, 7 !metadata(storage=symbolic(v0))
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = sload 1 !metadata(storage=slot(1))
+    ret v2, v3
+}
+
+fn @chooseArray(arg0: bool) -> u256 [selector=0x08ef7a67, view, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 2], [bb2: 3]
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = lt 0, v1
+    v3 = iszero v2
+    jumpi v3, bb4, bb5
+  bb5:
+    v4 = storage_array_data_slot v0
+    v5 = add v4, 0
+    v6 = sload v5 !metadata(storage=symbolic(v4))
+    ret v6
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

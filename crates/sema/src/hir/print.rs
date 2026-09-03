@@ -475,7 +475,19 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
             StmtKind::Continue => self.out.write_str("continue;\n")?,
             StmtKind::Loop(block, source) => {
                 write!(self.out, "hir.loop({}) ", source.name())?;
-                self.print_block(block)?;
+                self.out.write_str("{\n")?;
+                self.indent += 1;
+                for stmt in block.stmts {
+                    self.print_stmt(stmt)?;
+                }
+                if let hir::LoopSource::For { update: Some(update) } = source {
+                    self.write_indent()?;
+                    self.out.write_str("hir.loop.update ")?;
+                    self.print_stmt_as_block(update)?;
+                }
+                self.indent -= 1;
+                self.write_indent()?;
+                self.out.write_str("}\n")?;
             }
             StmtKind::If(cond, then, else_) => {
                 self.out.write_str("if (")?;

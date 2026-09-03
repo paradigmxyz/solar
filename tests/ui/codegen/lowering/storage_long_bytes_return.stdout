@@ -1,64 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/storage_long_bytes_return.sol:StorageLongBytesReturn ===
 @module StorageLongBytesReturn
-fn @s() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @s() -> memorybytes [selector=0x86b714e2, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 0
+    v0 = internal_call @load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @__load_storage_bytes(arg0: u256) -> memorybytes {
+fn @b() -> memorybytes [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = and v0, 1
-    v2 = eq v1, 1
-    v3 = and v0, 255
-    v4 = shr 1, v3
-    v5 = shr 1, v0
-    v6 = select v2, v5, v4
-    v7 = not 31
-    v8 = add v6, 31
-    v9 = and v8, v7
-    v10 = iszero v9
-    v11 = select v10, 32, v9
-    v12 = add 32, v11
-    v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
-    set_memory_object_len memorybytes, v14, v6
-    v15 = memory_object_data memorybytes, v14
-    jumpi v2, bb2, bb1
-  bb1:
-    v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v15, v16
-    jump bb3
-  bb2:
-    mstore v13, arg0
-    v17 = keccak256 v13, 32
-    v18 = div v9, 32
-    jump bb4
-  bb4:
-    v19 = phi [bb2: v18], [bb5: v26]
-    v20 = phi [bb2: v17], [bb5: v24]
-    v21 = phi [bb2: v15], [bb5: v25]
-    v22 = gt v19, 0
-    jumpi v22, bb5, bb3
-  bb3:
-    ret v14
-  bb5:
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    mstore v21, v23
-    v24 = add v20, 1
-    v25 = add v21, 32
-    v26 = sub v19, 1
-    jump bb4
-}
-
-fn @b() -> memorybytes [abi_returns=[memory_bytes]] {
-  bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 1
+    v0 = internal_call @load_storage_bytes, 1, 1
     ret v0
 }
 
-fn @constructor() {
+fn @constructor() [constructor] {
   bb0:
     sstore 0, 65 !metadata(storage=slot(0))
     mstore 0, 0 !metadata(memory=scratch)
@@ -73,14 +27,69 @@ fn @constructor() {
     stop
 }
 
-fn @getS() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @getS() -> memorybytes [selector=0xe93314ab, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 0
+    v0 = internal_call @load_storage_bytes, 1, 0
     ret v0
 }
 
-fn @getB() -> memorybytes [abi_returns=[memory_bytes]] {
+fn @getB() -> memorybytes [selector=0xa1c51915, view, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @__load_storage_bytes, 1, 1
+    v0 = internal_call @load_storage_bytes, 1, 1
     ret v0
+}
+
+fn @load_storage_bytes(arg0: u256) -> memorybytes {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = shr 1, v0
+    v4 = and v3, 127
+    v5 = select v2, v3, v4
+    v6 = lt v5, 32
+    v7 = eq v2, v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = add v5, 31
+    v9 = div v8, 32
+    v10 = add v5, 63
+    v11 = lt v10, v5
+    jumpi v11, bb3, bb4
+  bb4:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, panic, v13
+    set_memory_object_len memorybytes, v14, v5
+    jumpi v2, bb6, bb5
+  bb5:
+    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v14, 0, v15
+    jump bb7
+  bb6:
+    v16 = storage_array_data_slot arg0
+    jump bb8
+  bb8:
+    v17 = phi [bb6: 0], [bb9: v22]
+    v18 = lt v17, v9
+    jumpi v18, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    ret v14
+  bb9:
+    v19 = add v16, v17
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v21 = mul v17, 32
+    memory_object_store_word memorybytes, v14, v21, v20
+    v22 = add v17, 1
+    jump bb8
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
 }

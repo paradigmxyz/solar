@@ -2,6 +2,16 @@
 //@filecheck:
 
 contract YulLowLevelBuiltins {
+    // CHECK-LABEL: fn @yulStringLiteral{{[( ]}}
+    // CHECK: mstore 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    // CHECK: {{v[0-9]+}} = mload 0
+    function yulStringLiteral() public pure returns (uint256 result) {
+        assembly {
+            mstore(0, "solar")
+            result := mload(0)
+        }
+    }
+
     // CHECK-LABEL: fn @leadingZeros{{[( ]}}
     // CHECK: {{v[0-9]+}} = clz arg0
     function leadingZeros(uint256 value) public pure returns (uint256 result) {

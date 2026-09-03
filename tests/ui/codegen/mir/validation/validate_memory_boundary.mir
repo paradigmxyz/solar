@@ -7,6 +7,11 @@
 //~? ERROR: [fn3] [bb0, inst0] abstract allocation instruction `fmp` survives the `evm-shaped` phase boundary
 //~? ERROR: [fn3] [bb0, inst1] abstract allocation instruction `set_fmp` survives the `evm-shaped` phase boundary
 //~? ERROR: [fn3] [bb0, inst2] abstract allocation instruction `alloc` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst3] storage slot instruction `mapping_slot` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst4] storage slot instruction `mapping_slot_memory` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst5] storage slot instruction `mapping_slot_calldata` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `evm-shaped` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
 @module ValidateMemoryBoundary
@@ -24,7 +29,7 @@ fn @abi(arg0: u256) -> memoryslice {
 }
 fn @aggregate(arg0: u256, arg1: memorystruct) {
   bb0:
-    storage_to_memory struct<0:word>, arg0, arg1
+    storage_to_memory struct<word>, arg0, arg1
     stop
 }
 fn @allocation() {
@@ -32,5 +37,10 @@ fn @allocation() {
     v0 = fmp
     set_fmp v0
     v1 = alloc raw, exact, uninitialized, infallible, 32
+    v2 = mapping_slot v0, v1
+    v3 = mapping_slot_memory v0, v1
+    v4 = mapping_slot_calldata v0, v1
+    v5 = storage_array_data_slot v0
+    v6 = storage_array_element_slot v0, v1, 1
     stop
 }

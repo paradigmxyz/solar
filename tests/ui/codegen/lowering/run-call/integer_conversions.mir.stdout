@@ -1,0 +1,58 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/integer_conversions.sol:IntegerConversions ===
+@module IntegerConversions
+fn @int8ToUint256(arg0: i8) -> u256 [selector=0x73b01ffc, pure, abi_params=[i8], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @int24ToUint256(arg0: i24) -> u256 [selector=0x68379ee3, pure, abi_params=[i24], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 2, arg0
+    v1 = and v0, 0xffffff
+    ret v1
+}
+
+fn @uint8ToInt256(arg0: u8) -> i256 [selector=0xc3594536, pure, abi_params=[u8], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = signextend 0, v0
+    ret v1
+}
+
+fn @uint24ToInt256(arg0: u24) -> i256 [selector=0x380aceed, pure, abi_params=[u24], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 0xffffff
+    v1 = signextend 2, v0
+    ret v1
+}
+
+fn @narrowInt24(arg0: i24) -> i256 [selector=0xd256d0b1, pure, abi_params=[i24], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 2, arg0
+    v1 = signextend 0, v0
+    ret v1
+}
+
+fn @directXor(arg0: i8, arg1: u24) -> u256 [selector=0x7fa5e04f, pure, abi_params=[i8, u24], abi_returns=[word]] {
+  bb0:
+    v0 = and arg1, 0xffffff
+    v1 = signextend 0, arg0
+    v2 = and v1, 255
+    v3 = xor v0, v2
+    ret v3
+}
+
+fn @isUint8Max(arg0: i8) -> bool [selector=0x9244ef1d, pure, abi_params=[i8], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = and v0, 255
+    v2 = eq v1, 255
+    ret v2
+}
+
+fn @fullWidth(arg0: i256) -> u256 [selector=0x6f5032e7, pure, abi_params=[i256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}

@@ -1,0 +1,13 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/mapping_key_cleanup.sol:C ===
+@module C
+fn @test_cleanup() -> bool [selector=0x2b63198c, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = and 0xffff0001, 0xffff
+    v1 = mapping_slot v0, 0
+    sstore v1, 3 !metadata(storage=symbolic(v1))
+    v2 = and 1, 0xffff
+    v3 = mapping_slot v2, 0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = eq v4, 3
+    ret v5
+}

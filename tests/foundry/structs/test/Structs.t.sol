@@ -88,6 +88,51 @@ contract StructsTest {
         require(s.getNestedValue() == 300, "value should be 300");
     }
 
+    // ========= Struct Array Tests =========
+
+    function testStructArray() public {
+        s.setPointArray(0, 11, 22);
+        s.setPointArray(1, 33, 44);
+
+        Structs.Point memory first = s.getPointArray(0);
+        Structs.Point memory second = s.getPointArray(1);
+        require(first.x == 11 && first.y == 22, "first point mismatch");
+        require(second.x == 33 && second.y == 44, "second point mismatch");
+        require(s.sumStoredPoint(0) == 33, "internal point sum mismatch");
+        require(s.sumStoredPointExternal(1) == 77, "external point sum mismatch");
+
+        bytes memory encoded = s.encodeStoredPoint(0);
+        (uint256 x, uint256 y) = abi.decode(encoded, (uint256, uint256));
+        require(x == 11 && y == 22, "encoded point mismatch");
+
+        bytes memory encodedCall = s.encodeCallStoredPoint(0);
+        bytes memory expectedCall = abi.encodeWithSignature("sumPoint((uint256,uint256))", 11, 22);
+        require(keccak256(encodedCall) == keccak256(expectedCall), "encoded call mismatch");
+    }
+
+    function testExternalDynamicStorageArray() public {
+        uint256[] memory values = new uint256[](3);
+        values[0] = 11;
+        values[1] = 22;
+        values[2] = 33;
+        s.setValues(values);
+        require(s.sumStoredValuesExternal() == 66, "dynamic array call mismatch");
+
+        bytes memory first = hex"0102";
+        bytes memory second = new bytes(33);
+        second[32] = 0xff;
+        s.setBlobs(first, second);
+        require(s.sumStoredBlobLengthsExternal() == 35, "nested array call mismatch");
+
+        s.setPointList(4, 5, 6, 7);
+        require(s.sumStoredPointListExternal() == 22, "multiword array call mismatch");
+
+        bytes memory complexFirst = hex"010203";
+        bytes memory complexSecond = new bytes(33);
+        s.setComplexList(complexFirst, complexSecond);
+        require(s.sumStoredComplexListExternal() == 48, "nested dynamic struct call mismatch");
+    }
+
     // ========= Complex Operations =========
 
     function testDistanceSquared() public view {

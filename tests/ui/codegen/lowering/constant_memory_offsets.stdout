@@ -19,13 +19,9 @@ bb0:
   push bb4
   jumpi
   push 192
+  dup 1
   push 64
   mstore
-  push 0
-  push 128
-  mstore
-  push 64
-  mload
   dup 1
   push 160
   mstore
@@ -60,22 +56,12 @@ bb4 [cold]:
   revert
 bb6:
   push 224
-  push 64
-  mstore
-  push 0
-  push 128
-  mstore
-  push 64
-  mload
   dup 1
-  push 160
+  push 64
   mstore
   push 128
   dup 2
   add
-  dup 1
-  push 192
-  mstore
   dup 2
   dup 2
   lt
@@ -97,10 +83,8 @@ bb6:
   push 3
   dup 2
   mstore
-  push 32
+  push 96
   dup 2
-  add
-  push 64
   add
   push 7
   swap 1

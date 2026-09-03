@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_bytes_value.sol:ConstantBytesValue ===
+@module ConstantBytesValue
+fn @length() -> u256 [selector=0x1f7b6d32, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v0, 40
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    v2 = add v1, 32
+    mstore v2, 0x102030405060708000000000000000000000000000000000000000000000000
+    v3 = memory_object_len memorybytes, v0
+    ret v3
+}
+
+fn @firstWord() -> bytes32 [selector=0x20cb3a4a, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v0, 40
+    v1 = memory_object_data memorybytes, v0
+    mstore v1, 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+    v2 = add v1, 32
+    mstore v2, 0x102030405060708000000000000000000000000000000000000000000000000
+    v3 = add v0, 32
+    v4 = mload v3
+    ret v4
+}

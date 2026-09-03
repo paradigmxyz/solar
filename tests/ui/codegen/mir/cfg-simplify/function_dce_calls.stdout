@@ -11,13 +11,13 @@
       ret 1
   }
   
-  fn @entry() -> u256 {
+  fn @entry() -> u256 [selector=0x00000001] {
     bb0:
       v0 = internal_call @live_helper, 1
       ret v0
   }
   
-  fn @tail_entry() {
+  fn @tail_entry() [selector=0x00000002] {
     bb0:
       tail_call @live_helper
   }

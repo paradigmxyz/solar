@@ -8,10 +8,10 @@
 
 contract R {
     // CHECK: push 0x6279e43c
-    // CHECK: push 32
-    // CHECK-NEXT: sgt
-    // CHECK: jumpi
-    // CHECK-NEXT: push 4
+    // CHECK: push 36
+    // CHECK-NEXT: calldatasize
+    // CHECK-NEXT: lt
+    // CHECK: push 4
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 0
     // CHECK-NEXT: mstore

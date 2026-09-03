@@ -4,6 +4,7 @@
 contract MirAllocOps {
     // CHECK-LABEL: fn @fixedArray{{[( ]}}
     // CHECK: = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    // CHECK: memory_zero {{v[0-9]+}}, 64
     function fixedArray(uint256 value) external pure returns (uint256) {
         uint256[2] memory words;
         words[0] = value;

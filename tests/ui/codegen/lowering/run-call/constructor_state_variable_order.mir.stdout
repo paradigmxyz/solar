@@ -1,0 +1,138 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderBase ===
+@module ConstructorStateOrderBase
+fn @a() -> u256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @b() -> u256 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @c() -> u256 [selector=0xc3da42b8, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    sstore 1, v0 !metadata(storage=slot(1))
+    sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+}
+
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = iszero 3
+    v2 = div v0, 3
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    sstore 2, v0 !metadata(storage=slot(2))
+    ret 23
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_state_variable_order.sol:ConstructorStateOrderDerived ===
+@module ConstructorStateOrderDerived
+fn @d() -> u256 [selector=0x8a054ac2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    ret v0
+}
+
+fn @e() -> u256 [selector=0xffae15ba, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 4 !metadata(storage=slot(4))
+    ret v0
+}
+
+fn @bA() -> u256 [selector=0x56026c37, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 5 !metadata(storage=slot(5))
+    ret v0
+}
+
+fn @bB() -> u256 [selector=0x1706eb89, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 6 !metadata(storage=slot(6))
+    ret v0
+}
+
+fn @bC() -> u256 [selector=0xed73bda9, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 7 !metadata(storage=slot(7))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    sstore 1, v0 !metadata(storage=slot(1))
+    sstore 0, 17 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = internal_call @f, 1, v1
+    sstore 3, v2 !metadata(storage=slot(3))
+    v3 = sload 1 !metadata(storage=slot(1))
+    sstore 4, v3 !metadata(storage=slot(4))
+    v4 = sload 0 !metadata(storage=slot(0))
+    sstore 5, v4 !metadata(storage=slot(5))
+    v5 = sload 1 !metadata(storage=slot(1))
+    sstore 6, v5 !metadata(storage=slot(6))
+    v6 = sload 2 !metadata(storage=slot(2))
+    sstore 7, v6 !metadata(storage=slot(7))
+    jump bb2
+  bb2:
+    stop
+}
+
+fn @a() -> u256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @b() -> u256 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @c() -> u256 [selector=0xc3da42b8, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul arg0, 3
+    v1 = iszero 3
+    v2 = div v0, 3
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    sstore 2, v0 !metadata(storage=slot(2))
+    ret 23
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

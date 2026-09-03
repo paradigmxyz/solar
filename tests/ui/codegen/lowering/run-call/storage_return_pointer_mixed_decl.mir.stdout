@@ -1,0 +1,88 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_return_pointer_mixed_decl.sol:StorageReturnPointerMixedDecl ===
+@module StorageReturnPointerMixedDecl
+fn @g() -> (u256, storageptr, u256) {
+  bb0:
+    sstore 0, 7 !metadata(storage=slot(0))
+    ret 1, 0, 2
+}
+
+fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @g, 3
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = eq v0, 1
+    v7 = iszero v6
+    jumpi v7, bb2, bb1
+  bb1:
+    v8 = sload v3 !metadata(storage=symbolic(v3))
+    v9 = eq v8, 7
+    v10 = iszero v9
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v11 = phi [bb1: v10], [bb2: 1]
+    jumpi v11, bb5, bb4
+  bb4:
+    v12 = eq v5, 2
+    v13 = iszero v12
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v14 = phi [bb4: v13], [bb5: 1]
+    jumpi v14, bb7, bb8
+  bb8:
+    jump bb9
+  bb9:
+    v15 = internal_call @g, 3
+    v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v17 = add v16, 32
+    v18 = mload v17
+    v19 = add v16, 64
+    v20 = mload v19
+    v21 = sload v18 !metadata(storage=symbolic(v18))
+    v22 = eq v21, 7
+    v23 = iszero v22
+    jumpi v23, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    v24 = internal_call @g, 3
+    v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v26 = add v25, 32
+    v27 = mload v26
+    v28 = add v25, 64
+    v29 = mload v28
+    v30 = eq v24, 1
+    v31 = iszero v30
+    jumpi v31, bb13, bb14
+  bb14:
+    jump bb15
+  bb15:
+    v32 = internal_call @g, 3
+    v33 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v34 = add v33, 32
+    v35 = mload v34
+    v36 = add v33, 64
+    v37 = mload v36
+    v38 = eq v37, 2
+    v39 = iszero v38
+    jumpi v39, bb16, bb17
+  bb17:
+    jump bb18
+  bb18:
+    ret 1
+  bb16:
+    ret 0
+  bb13:
+    ret 0
+  bb10:
+    ret 0
+  bb7:
+    ret 0
+}

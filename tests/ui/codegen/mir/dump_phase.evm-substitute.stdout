@@ -23,11 +23,9 @@ bb3 [cold]:
   push 0
   revert
 bb4:
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb6
   jumpi
   jump bb5

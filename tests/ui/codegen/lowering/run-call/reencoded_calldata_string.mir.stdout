@@ -1,0 +1,122 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/reencoded_calldata_string.sol:C ===
+@module C
+fn @f(arg0: calldataslice) -> memorybytes [selector=0x91e145ef, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    jump bb1
+  bb1:
+    v1 = phi [bb0: v0], [bb3: v10]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v3]
+    v4 = phi [bb0: 96], [bb3: v4]
+    v5 = add v3, 256
+    v6 = lt v1, v5
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v11 = slice_ptr v2
+    v12 = slice_len v2
+    v13 = gt v12, 0xffffffffffffffff
+    jumpi v13, bb7, bb8
+  bb8:
+    v14 = calldatasize
+    v15 = sub v14, v12
+    v16 = sgt v11, v15
+    jumpi v16, bb7, bb9
+  bb9:
+    v17 = abi_encode [calldata_bytes], object, args v2
+    v18 = eq v3, v17
+    v19 = iszero v18
+    v20 = eq v19, 0
+    v21 = iszero v20
+    jumpi v21, bb10, bb11
+  bb11:
+    jump bb12
+  bb12:
+    ret v17
+  bb10:
+    revert 0, 0
+  bb7:
+    revert 0, 0
+  bb4:
+    v9 = sub 0, 1
+    mstore v1, v9
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v10 = add v1, 32
+    jump bb1
+}
+
+fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v2, 3
+    v3 = memory_object_data memorybytes, v2
+    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v4 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = call v1, v0, 0, v5, v6, 0, 0
+    jumpi v7, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v8 = returndatasize
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    jumpi v10, bb3, bb4
+  bb4:
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v8
+    v14 = make_returndata_slice 0, v8
+    memory_object_copy_from_slice memorybytes, v13, v14
+    v15 = abi_decode [bytes], v13
+    ret v15
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @encodeDynamic(arg0: calldataslice) -> memorybytes [selector=0x44a76707, pure, abi_params=[bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = abi_encode [calldata_bytes], object, args arg0
+    v2 = eq v0, v1
+    v3 = iszero v2
+    v4 = eq v3, 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v1
+  bb1:
+    revert 0, 0
+}
+
+fn @encodeStatic(arg0: u256) -> memorybytes [selector=0x815736ce, pure, abi_params=[u256], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = abi_encode [word], object, args arg0
+    v2 = eq v0, v1
+    v3 = iszero v2
+    v4 = eq v3, 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret v1
+  bb1:
+    revert 0, 0
+}

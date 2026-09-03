@@ -17,10 +17,12 @@ contract AbiDecodeDynamicArrays {
     }
 
     // ADDA-LABEL: fn @bools
-    // Bulk copy plus a validation loop; dirty words revert.
-    // ADDA: mcopy
-    // ADDA: phi
-    // ADDA: jumpi {{v[0-9]+}}, {{bb[0-9]+}}, bb1
+    // A validation loop on decode (dirty words revert), then the return
+    // encoder canonicalizes each element in place instead of bulk-copying.
+    // ADDA: jumpi
+    // ADDA: iszero
+    // ADDA-NOT: mcopy
+    // ADDA: returndata
     function bools(bytes memory b) public pure returns (bool[] memory) {
         return abi.decode(b, (bool[]));
     }
@@ -28,7 +30,6 @@ contract AbiDecodeDynamicArrays {
     // ADDA-LABEL: fn @strs
     // Element-wise decode: per-element offsets resolve against the array's
     // own data region.
-    // ADDA: phi
     // ADDA: mcopy
     function strs(bytes memory b) public pure returns (string[] memory) {
         return abi.decode(b, (string[]));

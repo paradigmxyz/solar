@@ -32,14 +32,15 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
-    AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, DataId, DataRef,
-    Disambiguator, EffectKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId,
-    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, Module, PackedKind, PackedValue, StorageAlias, StorageField,
-    StorageLayout, StorageLayoutRef, StructField, Terminator, Value, ValueId,
+    AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
+    AbiType, AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
+    AllocationSemantics, BlockId, DataId, DataRef, Disambiguator, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionBuilder, FunctionId, ImmutableId, InstId, InstKind,
+    Instruction, InstructionMetadata, MangledSymbol, MemoryObjectKind, MemoryObjectLayout,
+    MemoryRegion, Module, StorageAlias, StorageField, StorageLayout, StorageLayoutRef, Terminator,
+    Value, ValueId,
 };
-use crate::mir::{MirType, SliceLocation, TypeSize};
+use crate::mir::{AbiWordValidator, MirType, SliceLocation, TypeSize};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -90,8 +91,8 @@ struct Parser<'sess, 'ast> {
     data_sizes: Vec<usize>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
-    /// Aggregate storage layouts interned while parsing instructions.
-    storage_layouts: Vec<StorageLayoutRef>,
+    /// ABI input layouts interned while parsing instructions.
+    abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Number of `>` closers still owed after splitting a `>>`/`>>>` token.
     pending_gt: u32,
 }
@@ -128,7 +129,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             immutable_names: FxHashMap::default(),
             data_sizes: Vec::new(),
             abi_layouts: Vec::new(),
-            storage_layouts: Vec::new(),
+            abi_param_layouts: Vec::new(),
             pending_gt: 0,
         }
     }
@@ -227,8 +228,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.resolve_function_refs(&mut module, function_refs)?;
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
-        module.aggregate_layouts = std::mem::take(&mut self.storage_layouts);
-
+        module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
         Ok(module)
     }
 
@@ -305,12 +305,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             };
             match reference.target {
                 FunctionRefTarget::Instruction(inst) => {
-                    let InstKind::InternalCall { function: target, .. } =
-                        &mut module.functions[owner].inst_mut(inst).kind
+                    let result_ty = module.functions[*function].returns.first().copied();
+                    let instruction = module.functions[owner].inst_mut(inst);
+                    let InstKind::InternalCall { function: target, returns, .. } =
+                        &mut instruction.kind
                     else {
                         unreachable!()
                     };
                     *target = *function;
+                    if *returns > 0 && result_ty.is_some() {
+                        instruction.result_ty = result_ty;
+                    }
                 }
                 FunctionRefTarget::Terminator(block) => {
                     let Some(Terminator::TailCall { function: target, .. }) =
@@ -338,6 +343,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let func_ident = Ident::with_dummy_span(name.symbol);
         let mut func = Function::new(func_ident);
         func.name = name;
+        func.attributes.is_constructor = name.symbol == kw::Constructor;
         let block_remap = {
             let mut builder = FunctionBuilder::new(&mut func);
 
@@ -490,12 +496,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
                 }
+                sym::abi_return_params => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    builder.func_mut().abi_return_params = Some(self.parse_abi_param_layout()?);
+                }
+                sym::abi_params => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
+                }
                 sym::entry => self.parsed_dispatch_entry = true,
                 sym::may_return_memory => {
                     builder.func_mut().attributes.may_return_memory = true;
                 }
+                sym::function_pointer_dispatcher => {
+                    builder.func_mut().attributes.is_function_pointer_dispatcher = true;
+                }
+                kw::Constructor => builder.func_mut().attributes.is_constructor = true,
                 kw::Receive => builder.func_mut().attributes.is_receive = true,
                 kw::Fallback => builder.func_mut().attributes.is_fallback = true,
+                kw::Pure => {
+                    builder.func_mut().attributes.state_mutability = hir::StateMutability::Pure;
+                }
+                kw::View => {
+                    builder.func_mut().attributes.state_mutability = hir::StateMutability::View;
+                }
                 kw::Payable => {
                     builder.func_mut().attributes.state_mutability = hir::StateMutability::Payable;
                 }
@@ -514,6 +538,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_type(&mut self) -> PResult<'sess, MirType> {
         let id = self.parser.parse_ident()?;
+        self.parse_type_from_ident(id)
+    }
+
+    fn parse_type_from_ident(&mut self, id: Symbol) -> PResult<'sess, MirType> {
         let id_str = id.as_str();
         // u8..u256, i8..i256, bytes1..bytes32 — split into prefix + number.
         let ty = if let Some(rest) = id_str.strip_prefix('u') {
@@ -565,7 +593,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         // Integer literal? (decimal or 0x…)
         if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
             let v = self.parser.parse_uint()?;
-            return Ok(builder.imm_u256(v));
+            return Ok(builder.imm(v));
         }
         // Identifier-like — could be argN, vN, true, false.
         let ident = self.parser.parse_ident()?;
@@ -731,11 +759,40 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(layout)
     }
 
+    fn intern_abi_param_layout(&mut self, layout: AbiParamLayout) -> AbiParamLayoutRef {
+        if let Some(existing) = self.abi_param_layouts.iter().find(|item| item.as_ref() == &layout)
+        {
+            return std::sync::Arc::clone(existing);
+        }
+        let layout = std::sync::Arc::new(layout);
+        self.abi_param_layouts.push(std::sync::Arc::clone(&layout));
+        layout
+    }
+
     fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
-            sym::word => AbiType::Word,
-            sym::external_function => AbiType::ExternalFunction,
+            sym::word => {
+                if !self.parser.eat(TokenKind::Lt) {
+                    return Ok(AbiType::Word(None));
+                }
+                let id = self.parser.parse_ident()?;
+                let cleanup = if id == kw::Enum {
+                    let variants = self.parser.parse_uint()?;
+                    let variants = variants.try_into().map_err(|_| {
+                        self.parser.error("ABI enum variant count does not fit in u64")
+                    })?;
+                    AbiWordValidator::EnumRange(variants)
+                } else {
+                    let ty = self.parse_type_from_ident(id)?;
+                    AbiWordValidator::from_mir_type(ty).ok_or_else(|| {
+                        self.parser.error(format!("ABI word type `{ty}` needs no cleanup"))
+                    })?
+                };
+                self.expect_gt()?;
+                AbiType::Word(Some(cleanup))
+            }
+            kw::Function => AbiType::Function,
             sym::memory_bytes => AbiType::Bytes(SliceLocation::Memory),
             sym::calldata_bytes => AbiType::Bytes(SliceLocation::Calldata),
             sym::returndata_bytes => AbiType::Bytes(SliceLocation::Returndata),
@@ -780,21 +837,82 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
-    /// Parses a storage layout: `struct<slot[+offset]:field, ...>` or
-    /// `array<len, field>`. Structurally identical layouts are interned.
-    fn parse_storage_layout(&mut self) -> PResult<'sess, StorageLayoutRef> {
-        let name = self.parser.parse_ident()?;
-        self.parse_storage_layout_named(name)
+    fn parse_abi_param_layout(&mut self) -> PResult<'sess, AbiParamLayout> {
+        self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+        let mut types = Vec::new();
+        if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+            loop {
+                types.push(self.parse_abi_param_type()?);
+                if self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
+                    break;
+                }
+                self.parser.expect(TokenKind::Comma)?;
+            }
+        }
+        Ok(AbiParamLayout::new(types))
     }
 
-    fn parse_storage_layout_named(&mut self, name: Symbol) -> PResult<'sess, StorageLayoutRef> {
+    fn parse_abi_param_type(&mut self) -> PResult<'sess, AbiParamType> {
+        let name = self.parser.parse_ident()?;
+        Ok(match name {
+            kw::Bytes => AbiParamType::Bytes,
+            kw::Enum => {
+                self.parser.expect(TokenKind::Lt)?;
+                let variants =
+                    self.parser.parse_uint()?.try_into().map_err(|_| {
+                        self.parser.error("ABI enum variant count does not fit in u64")
+                    })?;
+                self.parser.expect(TokenKind::Comma)?;
+                let ty_name = self.parser.parse_ident()?;
+                let ty = self.parse_type_from_ident(ty_name)?;
+                self.expect_gt()?;
+                AbiParamType::Enum { ty, variants }
+            }
+            sym::array => {
+                self.parser.expect(TokenKind::Lt)?;
+                let len = if self.parser.eat(TokenKind::Ident(sym::underscore)) {
+                    None
+                } else {
+                    Some(self.parser.parse_uint()?.try_into().map_err(|_| {
+                        self.parser.error("ABI fixed-array length does not fit in u64")
+                    })?)
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let element = Box::new(self.parse_abi_param_type()?);
+                self.expect_gt()?;
+                match len {
+                    Some(len) => AbiParamType::FixedArray { element, len },
+                    None => AbiParamType::DynamicArray(element),
+                }
+            }
+            sym::tuple => {
+                self.parser.expect(TokenKind::Lt)?;
+                let mut fields = Vec::new();
+                if !self.eat_gt() {
+                    loop {
+                        fields.push(self.parse_abi_param_type()?);
+                        if self.eat_gt() {
+                            break;
+                        }
+                        self.parser.expect(TokenKind::Comma)?;
+                    }
+                }
+                AbiParamType::Tuple(fields.into())
+            }
+            _ => AbiParamType::Scalar(self.parse_type_from_ident(name)?),
+        })
+    }
+
+    /// Parses a storage layout: `struct<field, ...>` or `array<len, field>`.
+    fn parse_storage_layout(&mut self) -> PResult<'sess, StorageLayoutRef> {
+        let name = self.parser.parse_ident()?;
         let layout = match name {
             kw::Struct => {
                 self.parser.expect(TokenKind::Lt)?;
                 let mut fields = Vec::new();
                 if !self.eat_gt() {
                     loop {
-                        fields.push(self.parse_struct_field()?);
+                        fields.push(self.parse_storage_field()?);
                         if self.eat_gt() {
                             break;
                         }
@@ -816,69 +934,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             _ => return Err(self.parser.error(format!("unknown storage layout `{name}`"))),
         };
-        if let Some(existing) = self.storage_layouts.iter().find(|item| item.as_ref() == &layout) {
-            return Ok(std::sync::Arc::clone(existing));
-        }
-        let layout = std::sync::Arc::new(layout);
-        self.storage_layouts.push(std::sync::Arc::clone(&layout));
-        Ok(layout)
-    }
-
-    /// Parses a placed struct field: `slot[+offset]:shape`.
-    fn parse_struct_field(&mut self) -> PResult<'sess, StructField> {
-        let slot = self.parser.parse_uint()?;
-        let slot = slot
-            .try_into()
-            .map_err(|_| self.parser.error("storage field slot does not fit in u64"))?;
-        let mut offset = 0u8;
-        if self.parser.eat(TokenKind::BinOp(BinOpToken::Plus)) {
-            let value = self.parser.parse_uint()?;
-            offset = u8::try_from(value)
-                .ok()
-                .filter(|offset| *offset < 32)
-                .ok_or_else(|| self.parser.error("storage field offset must be below 32"))?;
-        }
-        self.parser.expect(TokenKind::Colon)?;
-        let shape = self.parse_storage_field()?;
-        Ok(StructField { slot, offset, shape })
+        Ok(std::sync::Arc::new(layout))
     }
 
     fn parse_storage_field(&mut self) -> PResult<'sess, StorageField> {
-        let name = self.parser.parse_ident()?;
-        if name == sym::word {
+        if self.parser.eat_keyword(sym::word) {
             return Ok(StorageField::Word);
         }
-        if let Some(value) = Self::parse_packed_value(name) {
-            let value = value.map_err(|message| self.parser.error(message))?;
-            return Ok(StorageField::Packed(value));
-        }
-        Ok(StorageField::Aggregate(self.parse_storage_layout_named(name)?))
-    }
-
-    /// Parses a packed-value shape ident: `u<bits>`, `i<bits>`, or `b<bytes>`.
-    /// Returns `None` for idents that are not packed-value shapes.
-    fn parse_packed_value(name: Symbol) -> Option<Result<PackedValue, String>> {
-        let text = name.as_str();
-        let (kind, rest) = match text.split_at_checked(1)? {
-            ("u", rest) => (PackedKind::Unsigned, rest),
-            ("i", rest) => (PackedKind::Signed, rest),
-            ("b", rest) => (PackedKind::HighAligned, rest),
-            _ => return None,
-        };
-        let value: u16 = rest.parse().ok()?;
-        let size = match kind {
-            PackedKind::HighAligned => value,
-            _ => {
-                if !value.is_multiple_of(8) {
-                    return Some(Err(format!("packed bit size `{text}` is not a byte multiple")));
-                }
-                value / 8
-            }
-        };
-        if !(1..=31).contains(&size) {
-            return Some(Err(format!("packed value `{text}` does not fit within one slot")));
-        }
-        Some(Ok(PackedValue { size: size as u8, kind }))
+        Ok(StorageField::Aggregate(self.parse_storage_layout()?))
     }
 
     /// Parses a memory-object layout whose kind identifier `name` has already
@@ -1037,6 +1100,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let size = self.parse_value(builder)?;
                 builder.set_terminator(Terminator::Revert { offset, size });
+                return Ok(());
+            }
+            sym::revert_returndata => {
+                builder.set_terminator(Terminator::RevertReturndata);
                 return Ok(());
             }
             sym::returndata => {
@@ -1252,6 +1319,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_frame => MemoryRegion::InternalFrame,
             sym::unknown => MemoryRegion::Unknown,
             _ => return Err(self.parser.error(format!("unknown memory metadata value `{value}`"))),
+        })
+    }
+
+    fn parse_frame_mode(&mut self) -> PResult<'sess, FrameMode> {
+        let mode = self.parser.parse_ident()?;
+        Ok(match mode {
+            sym::scratch => FrameMode::External,
+            sym::internal_frame => FrameMode::Internal,
+            sym::multi_return => FrameMode::MultiReturn,
+            _ => return Err(self.parser.error(format!("unknown frame mode `{mode}`"))),
+        })
+    }
+
+    fn parse_frame_slot_kind(&mut self) -> PResult<'sess, FrameSlotKind> {
+        let kind = self.parser.parse_ident()?;
+        Ok(match kind {
+            sym::word => FrameSlotKind::Word,
+            kw::Memory => FrameSlotKind::Slice(SliceLocation::Memory),
+            kw::Calldata => FrameSlotKind::Slice(SliceLocation::Calldata),
+            sym::returndata => FrameSlotKind::Slice(SliceLocation::Returndata),
+            _ => return Err(self.parser.error(format!("unknown frame slot kind `{kind}`"))),
         })
     }
 
@@ -1484,15 +1572,179 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let index = self.parse_value(builder)?;
                 (InstKind::MemoryObjectElementAddr { object, layout, index }, Some(MirType::MemPtr))
             }
+            sym::memory_object_load_field => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let field = self
+                    .parser
+                    .parse_uint()?
+                    .try_into()
+                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
+                (
+                    InstKind::MemoryObjectLoadField { object, layout, field },
+                    Some(MirType::uint256()),
+                )
+            }
+            sym::memory_object_store_field => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let field = self
+                    .parser
+                    .parse_uint()?
+                    .try_into()
+                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::MemoryObjectStoreField { object, layout, field, value }, None)
+            }
+            sym::memory_object_load_element => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                (
+                    InstKind::MemoryObjectLoadElement { object, layout, index },
+                    Some(MirType::uint256()),
+                )
+            }
+            sym::memory_object_load_byte => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                if layout != crate::mir::MemoryObjectLayout::Bytes {
+                    return Err(self.parser.error("memory byte load requires a bytes object"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                (InstKind::MemoryObjectLoadByte { object, index }, Some(MirType::uint256()))
+            }
+            sym::memory_object_store_element => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::MemoryObjectStoreElement { object, layout, index, value }, None)
+            }
+            sym::memory_object_store_byte => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                if layout != crate::mir::MemoryObjectLayout::Bytes {
+                    return Err(self.parser.error("memory byte store requires a bytes object"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::MemoryObjectStoreByte { object, index, value }, None)
+            }
+            sym::memory_object_store_word => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                if layout != crate::mir::MemoryObjectLayout::Bytes {
+                    return Err(self.parser.error("memory word store requires a bytes object"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::MemoryObjectStoreWord { object, offset, value }, None)
+            }
+            sym::memory_slice_load_word => {
+                self.parser.expect(TokenKind::Ident(kw::Memory))?;
+                self.parser.expect(TokenKind::Comma)?;
+                let slice = self.parse_value(builder)?;
+                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Memory)) {
+                    return Err(self.parser.error("memory slice load requires a memory slice"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parse_value(builder)?;
+                (InstKind::MemorySliceLoadWord { slice, offset }, Some(MirType::uint256()))
+            }
+            sym::calldata_slice_load_word => {
+                self.parser.expect(TokenKind::Ident(kw::Calldata))?;
+                self.parser.expect(TokenKind::Comma)?;
+                let slice = self.parse_value(builder)?;
+                if builder.func().value_ty(slice) != Some(MirType::Slice(SliceLocation::Calldata)) {
+                    return Err(self.parser.error("calldata slice load requires a calldata slice"));
+                }
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parse_value(builder)?;
+                (InstKind::CalldataSliceLoadWord { slice, offset }, Some(MirType::uint256()))
+            }
+            sym::memory_object_copy_from_slice => {
+                let name = self.parser.parse_ident()?;
+                let kind = self.parse_memory_object_layout(name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let source = self.parse_value(builder)?;
+                (InstKind::MemoryObjectCopyFromSlice { object, kind, source }, None)
+            }
+            sym::memory_object_copy_from_slice_at => {
+                let name = self.parser.parse_ident()?;
+                let kind = self.parse_memory_object_layout(name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let source = self.parse_value(builder)?;
+                (InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source }, None)
+            }
+            sym::memory_object_copy => {
+                let destination_name = self.parser.parse_ident()?;
+                let destination_kind = self.parse_memory_object_layout(destination_name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let destination = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let source_name = self.parser.parse_ident()?;
+                let source_kind = self.parse_memory_object_layout(source_name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let source = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let length = self.parse_value(builder)?;
+                (
+                    InstKind::MemoryObjectCopy {
+                        destination,
+                        destination_kind,
+                        source,
+                        source_kind,
+                        length,
+                    },
+                    None,
+                )
+            }
 
             // Semantic ABI encoding.
             sym::abi_encode => {
                 let layout = self.parse_abi_layout()?;
+                let mut mode = AbiEncodeMode::Slice;
                 let mut selector = None;
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
                     let group = self.parser.parse_ident()?;
                     match group {
+                        sym::object if mode == AbiEncodeMode::Slice => mode = AbiEncodeMode::Bytes,
+                        sym::scratch if mode == AbiEncodeMode::Slice => {
+                            mode = AbiEncodeMode::Scratch
+                        }
                         sym::selector if selector.is_none() => {
                             selector = Some(self.parse_value(builder)?)
                         }
@@ -1518,11 +1770,38 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )));
                 }
                 (
-                    InstKind::AbiEncode { selector, args: args.into(), layout },
-                    Some(MirType::Slice(SliceLocation::Memory)),
+                    InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+                    Some(mode.result_type()),
                 )
             }
-            // Aggregate storage/memory copies with interned layouts.
+            sym::abi_decode => {
+                let layout = self.parse_abi_param_layout()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let data = self.parse_value(builder)?;
+                let data_ty = builder.func().value_ty(data);
+                let pending_call = matches!(
+                    builder.func().value(data),
+                    Value::Inst(inst)
+                        if matches!(builder.func().inst(*inst).kind, InstKind::InternalCall { .. })
+                );
+                if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
+                    && !(data_ty == Some(MirType::MemPtr)
+                        && !layout.types.iter().any(AbiParamType::has_dynamic_child))
+                    && !pending_call
+                {
+                    return Err(self
+                        .parser
+                        .error("ABI decode requires bytes or a static memory pointer"));
+                }
+                let result_ty = layout
+                    .types
+                    .first()
+                    .map(AbiParamType::mir_type)
+                    .ok_or_else(|| self.parser.error("ABI decode requires a result type"))?;
+                let layout = self.intern_abi_param_layout(layout);
+                (InstKind::AbiDecode { data, layout }, Some(result_ty))
+            }
+            // Aggregate storage/memory copies with recursive layouts.
             sym::storage_to_memory => {
                 let layout = self.parse_storage_layout()?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1568,6 +1847,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::slice_ptr => inst!(SlicePtr(a) => MirType::uint256()),
             sym::slice_len => inst!(SliceLen(a) => MirType::uint256()),
             sym::constructor_args_base => unit!(ConstructorArgsBase => MirType::uint256()),
+            sym::constructor_args_end => unit!(ConstructorArgsEnd => MirType::uint256()),
 
             sym::data_copy => {
                 let data = self.parse_data_ref()?;
@@ -1626,6 +1906,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::mapping_slot_calldata => {
                 inst!(MappingSlotCalldata(key, slot) => MirType::bytes32())
             }
+            sym::storage_array_data_slot => {
+                inst!(StorageArrayDataSlot(slot) => MirType::bytes32())
+            }
+            sym::storage_array_element_slot => {
+                let slot = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let element_slots = self.parser.parse_uint()?.try_into().map_err(|_| {
+                    self.parser.error("storage array element stride does not fit in u64")
+                })?;
+                (
+                    InstKind::StorageArrayElementSlot { slot, index, element_slots },
+                    Some(MirType::bytes32()),
+                )
+            }
 
             // Calls and creation.
             kw::Call => struct_inst!(Call {
@@ -1640,6 +1936,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Delegatecall => struct_inst!(DelegateCall {
                 gas, addr, args_offset, args_size, ret_offset, ret_size
             } => MirType::uint256()),
+            kw::Extcall => struct_inst!(ExtCall { addr, args_offset, args_size, value }
+                => MirType::uint256()),
+            kw::Extdelegatecall => struct_inst!(ExtDelegateCall { addr, args_offset, args_size }
+                => MirType::uint256()),
+            kw::Extstaticcall => struct_inst!(ExtStaticCall { addr, args_offset, args_size }
+                => MirType::uint256()),
             sym::internal_call => {
                 let function = self.parse_function_id()?;
                 self.parser.expect(TokenKind::Comma)?;
@@ -1654,6 +1956,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::internal_frame_addr => {
                 let offset = self.parser.parse_uint()?.to::<u64>();
                 (InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
+            }
+            sym::frame_load => {
+                let mode = self.parse_frame_mode()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let kind = self.parse_frame_slot_kind()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parser.parse_uint()?.to::<u64>();
+                (InstKind::FrameLoad { offset, mode, kind }, Some(kind.result_type()))
+            }
+            sym::frame_store => {
+                let mode = self.parse_frame_mode()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let kind = self.parse_frame_slot_kind()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let offset = self.parser.parse_uint()?.to::<u64>();
+                self.parser.expect(TokenKind::Comma)?;
+                let value = self.parse_value(builder)?;
+                (InstKind::FrameStore { offset, mode, kind, value }, None)
             }
             kw::Create => inst!(Create(a, b, c) => MirType::Address),
             kw::Create2 => inst!(Create2(a, b, c, d) => MirType::Address),
@@ -1678,7 +1998,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         break;
                     }
                 }
-                (InstKind::Phi(incoming), Some(MirType::uint256()))
+                let ty = incoming
+                    .iter()
+                    .filter(|(_, value)| !matches!(builder.func().value(*value), Value::Undef(_)))
+                    .find_map(|(_, value)| builder.func().value_ty(*value))
+                    .unwrap_or(MirType::uint256());
+                (InstKind::Phi(incoming), Some(ty))
             }
 
             _ => {

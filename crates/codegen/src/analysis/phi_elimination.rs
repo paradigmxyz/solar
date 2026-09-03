@@ -53,8 +53,6 @@ pub(crate) struct BlockCopies {
 pub(crate) struct PhiEliminationResult {
     /// Copies to insert at each predecessor block.
     pub block_copies: FxHashMap<BlockId, BlockCopies>,
-    /// Phi instructions to remove (block, instruction index).
-    pub phis_to_remove: Vec<(BlockId, usize)>,
 }
 
 /// Phi elimination query.
@@ -67,11 +65,10 @@ impl PhiEliminator {
     #[must_use]
     pub(crate) fn analyze(func: &Function) -> PhiEliminationResult {
         let mut block_copies: FxHashMap<BlockId, BlockCopies> = FxHashMap::default();
-        let mut phis_to_remove = Vec::new();
 
         // Process each block looking for phi instructions
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
 
                 if let InstKind::Phi(incoming) = &inst.kind {
@@ -89,8 +86,6 @@ impl PhiEliminator {
                                 ty,
                             });
                         }
-
-                        phis_to_remove.push((block_id, inst_idx));
                     }
                 }
             }
@@ -102,7 +97,7 @@ impl PhiEliminator {
             sequentialize_copies(&mut copies.copies, &mut temp_counter);
         }
 
-        PhiEliminationResult { block_copies, phis_to_remove }
+        PhiEliminationResult { block_copies }
     }
 }
 

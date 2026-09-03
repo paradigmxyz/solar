@@ -1,12 +1,11 @@
 // === ROOT/tests/ui/codegen/mir/dump_phase.sol:DumpPhase ===
 @module DumpPhase
 @phase evm-shaped
-fn @f() {
+fn @f() [selector=0xb3de648b, pure] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
+    v2 = calldatasize
+    v3 = lt v2, 36
+    jumpi v3, bb1, bb2
   bb2:
     mstore 128, arg0
     returndata 128, 32

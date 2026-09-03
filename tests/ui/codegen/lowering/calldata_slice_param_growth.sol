@@ -1,7 +1,7 @@
 //@ compile-flags: -O gas
-//@ run-call: a(bytes,uint256) 0x0102030405, 7 => 14
-//@ run-call: a(bytes,uint256) 0x01, 3 => 4
-//@ run-call: b(bytes,uint256) 0x010203, 1 => 7
+//@ run-call: a 0x0102030405, 7 => 14
+//@ run-call: a 0x01, 3 => 4
+//@ run-call: b 0x010203, 1 => 7
 
 // A calldata-slice parameter that stays SSA is split into ptr and len physical
 // parameters by slice lowering, widening the signature prefix after the body's

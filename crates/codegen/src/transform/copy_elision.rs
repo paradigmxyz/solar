@@ -14,11 +14,11 @@
 //! that reads it, or an escape into a call/return) keeps every write.
 
 use crate::{
-    analysis::AliasAnalysis,
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, LocationSize},
     mir::{Function, InstId, InstKind, Module, ValueId},
     pass::{MirPass, run_function_pass},
 };
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Copy-elision pass over write-only memory allocations.
 pub(crate) struct CopyElision;
@@ -44,10 +44,17 @@ impl MirPass for CopyElision {
 struct CopyElisionCx {
     /// Number of write-only allocations eliminated.
     eliminated: usize,
+    /// Instruction uses indexed by operand value.
+    uses: FxHashMap<ValueId, Vec<InstId>>,
+    /// Values used by terminators.
+    terminator_uses: FxHashSet<ValueId>,
 }
 
 impl CopyElisionCx {
     fn run(&mut self, func: &mut Function, alias: &AliasAnalysis) -> bool {
+        if func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::MSize)) {
+            return false;
+        }
         let allocs: Vec<ValueId> = func
             .instructions()
             .filter_map(|inst_id| {
@@ -59,117 +66,229 @@ impl CopyElisionCx {
         if allocs.is_empty() {
             return false;
         }
+        let mut changed = false;
+        loop {
+            self.uses.clear();
+            self.terminator_uses.clear();
+            self.index_uses(func);
 
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
-        for object in allocs {
-            if alias.value_escapes(func, object) {
-                continue;
+            let mut dead = FxHashSet::default();
+            for &object in &allocs {
+                if alias.value_escapes(func, object)
+                    || self.allocation_may_be_read(func, alias, object)
+                {
+                    continue;
+                }
+                let Some(writes) = self.write_only_writes(func, object) else { continue };
+                dead.extend(writes);
+                self.eliminated += 1;
             }
-            let Some(writes) = self.write_only_writes(func, object) else { continue };
-            dead.extend(writes);
-            self.eliminated += 1;
+            if dead.is_empty() {
+                break;
+            }
+            for block in func.blocks.iter_mut() {
+                block.instructions.retain(|inst| !dead.contains(inst));
+            }
+            changed = true;
         }
-        if dead.is_empty() {
-            return false;
+        changed
+    }
+
+    fn allocation_may_be_read(
+        &self,
+        func: &Function,
+        alias: &AliasAnalysis,
+        object: ValueId,
+    ) -> bool {
+        let Some(allocation) = alias.bare_memory_location(func, object, LocationSize::Unknown)
+        else {
+            return true;
+        };
+        let reads_allocation = |access: Access| match access {
+            Access::Any(AddressSpace::Memory) => true,
+            Access::Location(Location::Memory(location)) => {
+                alias.memory_alias(allocation, location).may_alias()
+            }
+            _ => false,
+        };
+        func.instructions().any(|inst| {
+            alias.instruction_mod_ref(func, inst).reads().iter().copied().any(reads_allocation)
+        }) || func.blocks.iter().filter_map(|block| block.terminator.as_ref()).any(|terminator| {
+            alias.terminator_mod_ref(func, terminator).reads().iter().copied().any(reads_allocation)
+        })
+    }
+
+    fn index_uses(&mut self, func: &Function) {
+        for inst_id in func.instructions() {
+            for operand in func.inst(inst_id).operands() {
+                self.uses.entry(operand).or_default().push(inst_id);
+            }
         }
-        for block in func.blocks.iter_mut() {
-            block.instructions.retain(|inst| !dead.contains(inst));
+        for block in &func.blocks {
+            if let Some(terminator) = &block.terminator {
+                self.terminator_uses.extend(terminator.operands());
+            }
         }
-        true
     }
 
     /// If every access to the allocation writes it, returns the write
     /// instructions to remove; returns `None` if the allocation is read.
     fn write_only_writes(&self, func: &Function, object: ValueId) -> Option<Vec<InstId>> {
-        // Address values derived from the allocation. The allocation does not
-        // escape, so this stays a small local closure over address arithmetic.
+        // Address values derived from the allocation. Follow only indexed uses
+        // instead of rescanning every instruction for each derived value.
         let mut derived = FxHashSet::default();
         derived.insert(object);
-        loop {
-            let mut changed = false;
-            for inst_id in func.instructions() {
-                let Some(value_id) = func.inst_result_value(inst_id) else { continue };
-                let propagates = match &func.inst(inst_id).kind {
-                    InstKind::Add(a, b) | InstKind::Sub(a, b) => {
-                        derived.contains(a) || derived.contains(b)
+        let mut worklist = vec![object];
+        let mut seen = FxHashSet::default();
+        while let Some(value) = worklist.pop() {
+            for &inst_id in self.uses.get(&value).into_iter().flatten() {
+                if !seen.insert(inst_id) {
+                    continue;
+                }
+                let kind = &func.inst(inst_id).kind;
+                let propagates = match kind {
+                    InstKind::Add(first, second) | InstKind::Sub(first, second) => {
+                        derived.contains(first) || derived.contains(second)
                     }
-                    InstKind::MemoryObjectData(v, _)
-                    | InstKind::MemoryObjectFieldAddr { object: v, .. } => derived.contains(v),
-                    InstKind::MemoryObjectElementAddr { object: v, .. } => derived.contains(v),
+                    InstKind::MemoryObjectData(value, _)
+                    | InstKind::MemoryObjectFieldAddr { object: value, .. }
+                    | InstKind::MemoryObjectElementAddr { object: value, .. } => {
+                        derived.contains(value)
+                    }
                     _ => false,
                 };
-                if propagates && derived.insert(value_id) {
-                    changed = true;
+                if propagates
+                    && let Some(result) = func.inst_result_value(inst_id)
+                    && derived.insert(result)
+                {
+                    worklist.push(result);
                 }
-            }
-            if !changed {
-                break;
             }
         }
 
         let mut writes = Vec::new();
-        for inst_id in func.instructions() {
-            let inst = func.inst(inst_id);
-            match &inst.kind {
-                // Writes to the allocation: the address is a derived value.
-                InstKind::MStore(addr, value) => {
-                    if derived.contains(value) {
-                        return None; // Storing an interior address elsewhere is a read/escape.
-                    }
-                    if derived.contains(addr) {
-                        writes.push(inst_id);
-                    }
+        let mut seen = FxHashSet::default();
+        for value in &derived {
+            for &inst_id in self.uses.get(value).into_iter().flatten() {
+                if !seen.insert(inst_id) {
+                    continue;
                 }
-                InstKind::MStore8(addr, _)
-                | InstKind::MemoryZero(addr, _)
-                | InstKind::SetMemoryObjectLen(addr, _, _) => {
-                    if derived.contains(addr) {
-                        writes.push(inst_id);
+                let inst = func.inst(inst_id);
+                match &inst.kind {
+                    // Writes to the allocation: the address is a derived value.
+                    InstKind::MStore(addr, value) => {
+                        if derived.contains(value) {
+                            return None; // Storing an interior address elsewhere is a read/escape.
+                        }
+                        if derived.contains(addr) {
+                            writes.push(inst_id);
+                        }
                     }
-                }
-                InstKind::CalldataCopy(dest, _, _)
-                | InstKind::DataCopy(_, dest, _)
-                | InstKind::CodeCopy(dest, _, _)
-                | InstKind::ReturnDataCopy(dest, _, _) => {
-                    if derived.contains(dest) {
-                        writes.push(inst_id);
+                    InstKind::MStore8(addr, value) => {
+                        if derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(addr) {
+                            writes.push(inst_id);
+                        }
                     }
-                }
-                InstKind::ExtCodeCopy(_, dest, _, _) => {
-                    if derived.contains(dest) {
-                        writes.push(inst_id);
+                    InstKind::MemoryZero(addr, _) => {
+                        if derived.contains(addr) {
+                            writes.push(inst_id);
+                        }
                     }
-                }
-                InstKind::MCopy(dest, source, _) => {
-                    if derived.contains(source) {
-                        return None; // Read as a copy source.
+                    InstKind::SetMemoryObjectLen(addr, len, _) => {
+                        if derived.contains(len) {
+                            return None;
+                        }
+                        if derived.contains(addr) {
+                            writes.push(inst_id);
+                        }
                     }
-                    if derived.contains(dest) {
-                        writes.push(inst_id);
+                    InstKind::MemoryObjectStoreField { object, value, .. } => {
+                        if derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
                     }
-                }
-                // Reads of the allocation keep every write.
-                InstKind::MLoad(addr) | InstKind::MemoryObjectLen(addr, _) => {
-                    if derived.contains(addr) {
-                        return None;
+                    InstKind::MemoryObjectStoreElement { object, index, value, .. } => {
+                        if derived.contains(index) || derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
                     }
-                }
-                InstKind::Keccak256(offset, _) => {
-                    if derived.contains(offset) {
-                        return None;
+                    InstKind::MemoryObjectStoreByte { object, index, value } => {
+                        if derived.contains(index) || derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
                     }
-                }
-                // Address-derivation instructions are the closure itself.
-                InstKind::Add(..)
-                | InstKind::Sub(..)
-                | InstKind::MemoryObjectData(..)
-                | InstKind::MemoryObjectFieldAddr { .. }
-                | InstKind::MemoryObjectElementAddr { .. }
-                | InstKind::Alloc { .. } => {}
-                // Any other use of a derived address is treated as a read.
-                kind => {
-                    if kind.operands().iter().any(|op| derived.contains(op)) {
-                        return None;
+                    InstKind::MemoryObjectStoreWord { object, offset, value } => {
+                        if derived.contains(offset) || derived.contains(value) {
+                            return None;
+                        }
+                        if derived.contains(object) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MemoryObjectCopy { destination, source, length, .. } => {
+                        if derived.contains(source) || derived.contains(length) {
+                            return None;
+                        }
+                        if derived.contains(destination) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::CalldataCopy(dest, _, _)
+                    | InstKind::DataCopy(_, dest, _)
+                    | InstKind::CodeCopy(dest, _, _)
+                    | InstKind::ReturnDataCopy(dest, _, _) => {
+                        if derived.contains(dest) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::ExtCodeCopy(_, dest, _, _) => {
+                        if derived.contains(dest) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    InstKind::MCopy(dest, source, _) => {
+                        if derived.contains(source) {
+                            return None; // Read as a copy source.
+                        }
+                        if derived.contains(dest) {
+                            writes.push(inst_id);
+                        }
+                    }
+                    // Reads of the allocation keep every write.
+                    InstKind::MLoad(addr) | InstKind::MemoryObjectLen(addr, _) => {
+                        if derived.contains(addr) {
+                            return None;
+                        }
+                    }
+                    InstKind::Keccak256(offset, _) => {
+                        if derived.contains(offset) {
+                            return None;
+                        }
+                    }
+                    // Address-derivation instructions are the closure itself.
+                    InstKind::Add(..)
+                    | InstKind::Sub(..)
+                    | InstKind::MemoryObjectData(..)
+                    | InstKind::MemoryObjectFieldAddr { .. }
+                    | InstKind::MemoryObjectElementAddr { .. }
+                    | InstKind::Alloc { .. } => {}
+                    // Any other use of a derived address is treated as a read.
+                    kind => {
+                        if kind.operands().iter().any(|op| derived.contains(op)) {
+                            return None;
+                        }
                     }
                 }
             }
@@ -177,12 +296,8 @@ impl CopyElisionCx {
 
         // Terminators never read a non-escaping allocation (that would escape),
         // but guard defensively.
-        for block in &func.blocks {
-            if let Some(term) = &block.terminator
-                && term.operands().iter().any(|op| derived.contains(op))
-            {
-                return None;
-            }
+        if self.terminator_uses.iter().any(|value| derived.contains(value)) {
+            return None;
         }
 
         (!writes.is_empty()).then_some(writes)

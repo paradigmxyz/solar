@@ -438,7 +438,7 @@ impl GlobalValueNumberer {
         func: &mut Function,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             Self::apply_replacements(func, block_id, replacements);
         }

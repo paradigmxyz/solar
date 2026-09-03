@@ -1,4 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:DataTypes (runtime) ===
+@module DataTypes_runtime
+bb0:
+  push 0
+  push 0
+  revert
 // === ROOT/tests/ui/codegen/lowering/enum_conversion_qualified.sol:E (runtime) ===
 @module E_runtime
 bb0:
@@ -19,11 +24,9 @@ bb0:
   sub
   push bb4
   jumpi
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb4
   jumpi
   push 3
@@ -48,11 +51,9 @@ bb4 [cold]:
   push 0
   revert
 bb10:
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb4
   jumpi
   push 2

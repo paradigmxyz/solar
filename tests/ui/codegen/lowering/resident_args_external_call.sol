@@ -2,8 +2,8 @@
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
 //@[run] compile-flags: -Ogas
-//@[run] run-call: first 1, 2, 3, 4, 5, 6 => 49
-//@[run] run-call: second 1, 2, 3, 4, 5, 6 => 49
+//@ run-call: first 1, 2, 3, 4, 5, 6 => 49
+//@ run-call: second 1, 2, 3, 4, 5, 6 => 49
 
 contract ResidentArgsExternalCall {
     function first(uint256 a, uint256 b, uint256 c, uint256 d, uint256 e, uint256 f)

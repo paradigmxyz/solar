@@ -1,8 +1,8 @@
 //! MIR module (top-level container).
 
 use super::{
-    AbiLayout, AbiLayoutRef, DataId, DataRef, Disambiguator, Function, FunctionId, ImmutableId,
-    MangledSymbol, MirType, StorageLayout, StorageLayoutRef,
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
+    Function, FunctionId, ImmutableId, MangledSymbol, MirType,
 };
 use alloy_primitives::Bytes;
 use solar_data_structures::{
@@ -25,6 +25,16 @@ pub(crate) struct Immutable {
     pub(crate) variable_id: Option<VariableId>,
 }
 
+/// An unresolved external library address referenced by a MIR module.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LibraryLink {
+    /// Source unit containing the library.
+    pub(crate) source: String,
+    /// Library contract name.
+    pub(crate) name: String,
+    /// Fixed-width address placeholder emitted into bytecode.
+    pub(crate) placeholder: [u8; 20],
+}
 /// One constant byte string and its optional display name.
 #[derive(Clone, Debug)]
 struct Data {
@@ -114,14 +124,16 @@ pub struct Module {
     pub(crate) function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
-    /// Canonical storage layouts referenced by semantic aggregate operations.
-    pub(crate) aggregate_layouts: Vec<StorageLayoutRef>,
+    /// Canonical ABI input layouts referenced by decode instructions.
+    pub(crate) abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
     /// Constant byte strings embedded in generated code.
     data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
     data_index: FxHashMap<Bytes, DataId>,
+    /// Unresolved external library addresses used by this module.
+    library_links: Vec<LibraryLink>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
     /// Whether this is a library (internal-only libraries have no bytecode).
@@ -148,10 +160,11 @@ impl Module {
             dispatch_entry: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
-            aggregate_layouts: Vec::new(),
+            abi_param_layouts: Vec::new(),
             immutables: IndexVec::new(),
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
+            library_links: Vec::new(),
             is_interface: false,
             is_library: false,
             phase: MirPhase::Built,
@@ -232,15 +245,15 @@ impl Module {
         layout
     }
 
-    /// Interns a storage layout and returns its canonical shared reference.
-    pub(crate) fn intern_storage_layout(&mut self, layout: StorageLayout) -> StorageLayoutRef {
+    /// Interns an ABI input layout and returns its canonical shared reference.
+    pub(crate) fn intern_abi_param_layout(&mut self, layout: AbiParamLayout) -> AbiParamLayoutRef {
         if let Some(existing) =
-            self.aggregate_layouts.iter().find(|existing| existing.as_ref() == &layout)
+            self.abi_param_layouts.iter().find(|existing| existing.as_ref() == &layout)
         {
             return Arc::clone(existing);
         }
         let layout = Arc::new(layout);
-        self.aggregate_layouts.push(Arc::clone(&layout));
+        self.abi_param_layouts.push(Arc::clone(&layout));
         layout
     }
 
@@ -258,6 +271,18 @@ impl Module {
     #[must_use]
     pub(crate) fn immutable(&self, id: ImmutableId) -> &Immutable {
         &self.immutables[id]
+    }
+
+    /// Registers an unresolved external library address.
+    pub(crate) fn add_library_link(&mut self, link: LibraryLink) {
+        if !self.library_links.contains(&link) {
+            self.library_links.push(link);
+        }
+    }
+
+    /// Returns unresolved external library addresses used by this module.
+    pub(crate) fn library_links(&self) -> &[LibraryLink] {
+        &self.library_links
     }
 
     /// Returns an immutable declaration if the identifier is allocated.

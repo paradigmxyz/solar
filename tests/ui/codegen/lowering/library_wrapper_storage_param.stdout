@@ -1,4 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:DataTypes (runtime) ===
+@module DataTypes_runtime
+bb0:
+  push 0
+  push 0
+  revert
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
 @module L_runtime
 bb0:
@@ -19,7 +24,7 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb10 [cold]:
+bb9 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -32,11 +37,9 @@ bb10 [cold]:
   push 0
   revert
 bb4:
-  push 4
+  push 68
   calldatasize
-  sub
-  push 64
-  sgt
+  lt
   push bb3
   jumpi
   push 1
@@ -44,33 +47,22 @@ bb4:
   calldataload
   add
   dup 1
-  push 160
-  mstore
   sload
   push 36
   calldataload
   dup 2
   add
-  dup 1
-  push 192
-  mstore
+  swap 1
+  dup 2
   lt
-  push bb10
+  push bb9
   jumpi
-  push 192
-  mload
-  push 160
-  mload
+  dup 2
   sstore
-  push 160
-  mload
   sload
   push 4
   calldataload
   sload
-  dup 1
-  push 160
-  mstore
   push 0
   not
   push 128
@@ -79,34 +71,25 @@ bb4:
   and
   dup 3
   add
-  dup 1
-  push 192
-  mstore
   swap 2
   dup 3
   lt
-  swap 2
-  pop
-  pop
-  push bb10
+  push bb9
   jumpi
-  push 160
-  mload
   push 128
   shr
-  push 192
-  mload
+  push 0
+  not
+  push 128
+  shr
+  and
+  dup 2
   add
-  dup 1
-  push 160
-  mstore
-  push 192
-  mload
-  gt
-  push bb10
+  swap 1
+  dup 2
+  lt
+  push bb9
   jumpi
-  push 160
-  mload
   push 128
   mstore
   push 32

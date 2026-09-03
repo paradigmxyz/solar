@@ -1,0 +1,130 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_storage_packing.sol:InternalFunctionPointerStoragePacking ===
+@module InternalFunctionPointerStoragePacking
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = not 0xffffffffffffffff
+    v2 = and v0, v1
+    v3 = and 2, 0xffffffffffffffff
+    v4 = or v2, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = shl 64, 0xffffffffffffffff
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = not v5
+    v8 = and v6, v7
+    v9 = and 0x1122334455667788, 0xffffffffffffffff
+    v10 = shl 64, v9
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    v12 = lt 0, 4
+    v13 = iszero v12
+    jumpi v13, bb1, bb2
+  bb2:
+    v14 = div 0, 4
+    v15 = add 1, v14
+    v16 = mod 0, 4
+    v17 = mul v16, 8
+    v18 = mul v17, 8
+    v19 = shl v18, 0xffffffffffffffff
+    v20 = sload v15 !metadata(storage=offset(v14, 1))
+    v21 = not v19
+    v22 = and v20, v21
+    v23 = and 2, 0xffffffffffffffff
+    v24 = shl v18, v23
+    v25 = or v22, v24
+    sstore v15, v25 !metadata(storage=offset(v14, 1))
+    v26 = lt 1, 4
+    v27 = iszero v26
+    jumpi v27, bb1, bb3
+  bb3:
+    v28 = div 1, 4
+    v29 = add 1, v28
+    v30 = mod 1, 4
+    v31 = mul v30, 8
+    v32 = mul v31, 8
+    v33 = shl v32, 0xffffffffffffffff
+    v34 = sload v29 !metadata(storage=offset(v28, 1))
+    v35 = not v33
+    v36 = and v34, v35
+    v37 = and 3, 0xffffffffffffffff
+    v38 = shl v32, v37
+    v39 = or v36, v38
+    sstore v29, v39 !metadata(storage=offset(v28, 1))
+    v40 = lt 2, 4
+    v41 = iszero v40
+    jumpi v41, bb1, bb4
+  bb4:
+    v42 = div 2, 4
+    v43 = add 1, v42
+    v44 = mod 2, 4
+    v45 = mul v44, 8
+    v46 = mul v45, 8
+    v47 = shl v46, 0xffffffffffffffff
+    v48 = sload v43 !metadata(storage=offset(v42, 1))
+    v49 = not v47
+    v50 = and v48, v49
+    v51 = and 4, 0xffffffffffffffff
+    v52 = shl v46, v51
+    v53 = or v50, v52
+    sstore v43, v53 !metadata(storage=offset(v42, 1))
+    v54 = lt 3, 4
+    v55 = iszero v54
+    jumpi v55, bb1, bb5
+  bb5:
+    v56 = div 3, 4
+    v57 = add 1, v56
+    v58 = mod 3, 4
+    v59 = mul v58, 8
+    v60 = mul v59, 8
+    v61 = shl v60, 0xffffffffffffffff
+    v62 = sload v57 !metadata(storage=offset(v56, 1))
+    v63 = not v61
+    v64 = and v62, v63
+    v65 = and 5, 0xffffffffffffffff
+    v66 = shl v60, v65
+    v67 = or v64, v66
+    sstore v57, v67 !metadata(storage=offset(v56, 1))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @a() {
+  bb0:
+    stop
+}
+
+fn @b() {
+  bb0:
+    stop
+}
+
+fn @c() {
+  bb0:
+    stop
+}
+
+fn @d() {
+  bb0:
+    stop
+}
+
+fn @high() -> u64 [selector=0x713658f3, view, abi_params=[], abi_returns=[word<u64>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 64, v0
+    ret v1
+}
+
+fn @arrayMatches() [selector=0xa9b873e8, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffff
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = and v2, 0xffffffffffffffff
+    v4 = eq v1, v3
+    mstore 0, v4 !metadata(memory=scratch)
+    returndata 0, 32
+}

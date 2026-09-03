@@ -139,16 +139,18 @@ impl<'gcx> CallGraphBuilder<'gcx> {
     fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> bool {
         let Some(ty) = self.gcx.type_of_expr(callee.id) else { return false };
         match ty.kind {
-            TyKind::Fn(function) if function.is_internal() => {
-                if let Some(function) =
+            TyKind::Fn(function) => {
+                let Some(function_id) =
                     function.function_id.or_else(|| self.gcx.resolved_function(callee))
-                {
-                    let function = self.resolve_call_target(callee, function);
-                    self.enqueue(function);
-                    true
-                } else {
-                    false
+                else {
+                    return false;
+                };
+                if !function.is_internal() {
+                    return false;
                 }
+                let function = self.resolve_call_target(callee, function_id);
+                self.enqueue(function);
+                true
             }
             TyKind::Error(_, error) => {
                 self.graph.errors.insert(error);
@@ -278,8 +280,7 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
-        if let hir::ItemId::Function(function) = modifier.id {
-            let function = self.gcx.resolve_virtual_function(self.contract, function);
+        if let Some(function) = self.gcx.resolve_modifier_target(self.contract, modifier) {
             self.enqueue(function);
         }
         self.walk_modifier(modifier)
@@ -293,10 +294,6 @@ pub(super) fn interface_items(gcx: Gcx<'_>, id: hir::ContractId) -> InterfaceIte
     InterfaceItems { creation, deployed }
 }
 
-pub(super) fn all_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    id: hir::ContractId,
-) -> DenseBitSet<hir::ContractId> {
-    let graph = CallGraphBuilder::build_all(gcx, id);
-    graph.bytecode_dependencies
+pub(super) fn all_items(gcx: Gcx<'_>, id: hir::ContractId) -> ReferencedItems {
+    CallGraphBuilder::build_all(gcx, id)
 }

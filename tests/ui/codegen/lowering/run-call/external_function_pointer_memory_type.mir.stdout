@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_function_pointer_memory_type.sol:ExternalFunctionPointerMemoryType ===
+@module ExternalFunctionPointerMemoryType
+fn @g(arg0: calldataslice) -> bool [selector=0xe6d02096, pure, abi_params=[bytes], abi_returns=[word<bool>]] {
+  bb0:
+    ret 1
+}
+
+fn @main() -> bool [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xe6d02096
+    v3 = and v2, 0xffffffff
+    v4 = shl 224, v3
+    v5 = shr 32, v2
+    v6 = gas
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v7, 10
+    v8 = memory_object_data memorybytes, v7
+    mstore v8, 0x74657374537472696e6700000000000000000000000000000000000000000000
+    v9 = abi_encode [memory_bytes], selector v4, args v7
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = call v6, v5, 0, v10, v11, 0, 32
+    jumpi v12, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v13 = returndatasize
+    v14 = lt v13, 32
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = add 0, 0
+    v16 = mload v15
+    v17 = iszero v16
+    v18 = iszero v17
+    v19 = eq v16, v18
+    v20 = iszero v19
+    jumpi v20, bb3, bb5
+  bb5:
+    v21 = add 0, 0
+    v22 = mload v21
+    ret v22
+  bb3:
+    revert 0, 0
+}

@@ -1,4 +1,4 @@
-//@ run-call: run() => 11
+//@ run-call: run => 11
 
 contract PruneUnusedInternalArgs {
     uint256 public count;

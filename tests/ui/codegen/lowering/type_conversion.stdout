@@ -1,49 +1,46 @@
 // === ROOT/tests/ui/codegen/lowering/type_conversion.sol:TypeConversion ===
 @module TypeConversion
-fn @narrowAddress(arg0: address) -> u16 [abi_returns=[word]] {
+fn @narrowAddress(arg0: address) -> u16 [selector=0xaf290423, pure, abi_params=[address], abi_returns=[word<u16>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = and v6, 0xffff
-    ret v7
-  bb1:
-    revert 0, 0
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v1 = and v0, 0xffff
+    ret v1
 }
 
-fn @narrowUint(arg0: u256) -> u16 [abi_returns=[word]] {
+fn @narrowUint(arg0: u256) -> u16 [selector=0xf6938387, pure, abi_params=[u256], abi_returns=[word<u16>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = and arg0, 0xffff
-    ret v3
-  bb1:
-    revert 0, 0
+    v0 = and arg0, 0xffff
+    ret v0
 }
 
-fn @narrowSigned(arg0: i256) -> i8 [abi_returns=[word]] {
+fn @narrowSigned(arg0: i256) -> i8 [selector=0x195777d9, pure, abi_params=[i256], abi_returns=[word<i8>]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = shl 248, arg0
-    v4 = sar 248, v3
-    ret v4
-  bb1:
-    revert 0, 0
+    v0 = signextend 0, arg0
+    ret v0
+}
+
+fn @widenUnsigned(arg0: u8) -> u256 [selector=0x8db66a41, pure, abi_params=[u8], abi_returns=[word]] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}
+
+fn @widenSigned(arg0: i8) -> i256 [selector=0x697f65b8, pure, abi_params=[i8], abi_returns=[word]] {
+  bb0:
+    v0 = signextend 0, arg0
+    ret v0
+}
+
+fn @reinterpretUnsigned(arg0: i8) -> u8 [selector=0x51282c33, pure, abi_params=[i8], abi_returns=[word<u8>]] {
+  bb0:
+    v0 = signextend 0, arg0
+    v1 = and v0, 255
+    ret v1
+}
+
+fn @reinterpretSigned(arg0: u8) -> i8 [selector=0x55c3e2bc, pure, abi_params=[u8], abi_returns=[word<i8>]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = signextend 0, v0
+    ret v1
 }

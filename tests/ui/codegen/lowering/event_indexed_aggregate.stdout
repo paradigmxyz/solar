@@ -1,0 +1,72 @@
+// === ROOT/tests/ui/codegen/lowering/event_indexed_aggregate.sol:EventIndexedAggregate ===
+@module EventIndexedAggregate
+fn @emitArray(arg0: memoryfixedarray) [selector=0x86cb3475, abi_params=[array<2, u256>], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode [array<2, word>], args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    log2 0, 0, 0x593dc6b174959b601bb79a461ad966793c2efcb91b01656672c2ca58b06730f3, v3
+    stop
+}
+
+fn @emitDynamicArray(arg0: memoryarray) [selector=0xf38510d4, abi_params=[array<_, u256>], abi_returns=[]] {
+  bb0:
+    v0 = memory_object_len memoryarray, arg0
+    v1 = mul v0, 32
+    v2 = iszero 32
+    v3 = div v1, 32
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add 32, v1
+    v8 = lt v7, 32
+    jumpi v8, bb1, bb3
+  bb3:
+    v9 = alloc memorybytes, exact, uninitialized, infallible, v7
+    set_memory_object_len memorybytes, v9, v1
+    v10 = mul v0, 32
+    v11 = iszero 32
+    v12 = div v10, 32
+    v13 = eq v12, v0
+    v14 = or v11, v13
+    v15 = iszero v14
+    jumpi v15, bb1, bb4
+  bb4:
+    v16 = add 0, v10
+    v17 = lt v16, 0
+    jumpi v17, bb1, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v18 = phi [bb5: 0], [bb10: v29]
+    v19 = lt v18, v0
+    jumpi v19, bb7, bb8
+  bb8:
+    v30 = keccak256_bytes v9
+    log2 0, 0, 0x8786d2e40590df58388ef33167c85cc850817db2389c82328af07e1b626441cf, v30
+    stop
+  bb7:
+    v20 = mul v18, 32
+    v21 = iszero 32
+    v22 = div v20, 32
+    v23 = eq v22, v18
+    v24 = or v21, v23
+    v25 = iszero v24
+    jumpi v25, bb1, bb9
+  bb9:
+    v26 = add 0, v20
+    v27 = lt v26, 0
+    jumpi v27, bb1, bb10
+  bb10:
+    v28 = memory_object_load_element memoryarray<1>, arg0, v18
+    memory_object_store_word memorybytes, v9, v26, v28
+    v29 = add v18, 1
+    jump bb6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

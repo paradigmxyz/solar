@@ -1,10 +1,10 @@
 //@ compile-flags: -O none -Zdump=mir
 //@ filecheck:
-//@ normalize-stdout-test: "\n(\n)$" -> "$1"
 
 contract NarrowBitwiseNot {
     // CHECK-LABEL: fn @notUint8{{[( ]}}
-    // CHECK: [[NOT:v[0-9]+]] = not arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 255
+    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 255
     // CHECK-NEXT: ret [[CLEAN]]
     function notUint8(uint8 value) external pure returns (uint8) {
@@ -12,7 +12,8 @@ contract NarrowBitwiseNot {
     }
 
     // CHECK-LABEL: fn @notUint16{{[( ]}}
-    // CHECK: [[NOT:v[0-9]+]] = not arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xffff
+    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 0xffff
     // CHECK-NEXT: ret [[CLEAN]]
     function notUint16(uint16 value) external pure returns (uint16) {
@@ -27,14 +28,16 @@ contract NarrowBitwiseNot {
     }
 
     // CHECK-LABEL: fn @notInt8{{[( ]}}
-    // CHECK: [[NOT:v[0-9]+]] = not arg0
+    // CHECK: [[VALUE:v[0-9]+]] = signextend 0, arg0
+    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
     // CHECK-NEXT: ret [[NOT]]
     function notInt8(int8 value) external pure returns (int8) {
         return ~value;
     }
 
     // CHECK-LABEL: fn @notBytes1{{[( ]}}
-    // CHECK: [[NOT:v[0-9]+]] = not arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 0xff00000000000000000000000000000000000000000000000000000000000000
     // CHECK-NEXT: ret [[CLEAN]]
     function notBytes1(bytes1 value) external pure returns (bytes1) {
@@ -42,7 +45,8 @@ contract NarrowBitwiseNot {
     }
 
     // CHECK-LABEL: fn @notBytes2{{[( ]}}
-    // CHECK: [[NOT:v[0-9]+]] = not arg0
+    // CHECK: [[VALUE:v[0-9]+]] = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    // CHECK: [[NOT:v[0-9]+]] = not [[VALUE]]
     // CHECK-NEXT: [[CLEAN:v[0-9]+]] = and [[NOT]], 0xffff000000000000000000000000000000000000000000000000000000000000
     // CHECK-NEXT: ret [[CLEAN]]
     function notBytes2(bytes2 value) external pure returns (bytes2) {

@@ -1,0 +1,72 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/function_pointer_dirty_bits.sol:FunctionPointerDirtyBits ===
+@module FunctionPointerDirtyBits
+fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @comparison() -> bool [selector=0xaae103ad, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xe2179b8e
+    v3 = sub 0, 1
+    v4 = shl 160, v3
+    v5 = shr 32, v2
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = or v6, v4
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = shl 32, v8
+    v10 = and v2, 0xffffffff
+    v11 = or v9, v10
+    v12 = sub 0, 1
+    v13 = shl 32, v12
+    v14 = and v11, 0xffffffff
+    v15 = or v14, v13
+    v16 = and v15, 0xffffffff
+    v17 = not 0xffffffff
+    v18 = and v11, v17
+    v19 = or v18, v16
+    v20 = address
+    v21 = shl 32, v20
+    v22 = or v21, 0xe2179b8e
+    v23 = eq v22, v19
+    ret v23
+}
+
+fn @abiEncoding() -> bool [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xe2179b8e
+    v3 = sub 0, 1
+    v4 = shl 160, v3
+    v5 = shr 32, v2
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = or v6, v4
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffff
+    v9 = shl 32, v8
+    v10 = and v2, 0xffffffff
+    v11 = or v9, v10
+    v12 = sub 0, 1
+    v13 = shl 32, v12
+    v14 = and v11, 0xffffffff
+    v15 = or v14, v13
+    v16 = and v15, 0xffffffff
+    v17 = not 0xffffffff
+    v18 = and v11, v17
+    v19 = or v18, v16
+    v20 = abi_encode [function], scratch, args v19
+    v21 = slice_ptr v20
+    v22 = slice_len v20
+    v23 = keccak256 v21, v22
+    v24 = address
+    v25 = shl 32, v24
+    v26 = or v25, 0xe2179b8e
+    v27 = abi_encode [function], scratch, args v26
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = keccak256 v28, v29
+    v31 = eq v23, v30
+    ret v31
+}

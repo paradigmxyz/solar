@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/lowering/stack_only_rematerialization.sol:StackOnlyRematerialization ===
+@module StackOnlyRematerialization
+fn @first(arg0: bool) -> u256 [selector=0x6c94fb44, pure, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @storeAtDerivedAddress, 1, 256, arg0
+    ret v0
+}
+
+fn @second(arg0: bool) -> u256 [selector=0xc04a1ee8, pure, abi_params=[bool], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @storeAtDerivedAddress, 1, 288, arg0
+    ret v0
+}
+
+fn @storeAtDerivedAddress(arg0: u256, arg1: bool) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, 32
+    jumpi arg1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 7], [bb2: 8]
+    mstore v0, v1
+    v2 = mload v0
+    ret v2
+}

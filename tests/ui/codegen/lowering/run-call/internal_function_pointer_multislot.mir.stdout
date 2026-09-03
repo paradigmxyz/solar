@@ -1,0 +1,93 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/internal_function_pointer_multislot.sol:InternalFunctionPointerMultislot ===
+@module InternalFunctionPointerMultislot
+fn @m(arg0: function, arg1: function) -> function [pure] {
+  bb0:
+    ret arg0
+}
+
+fn @s(arg0: u256, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @foo() -> u256 [selector=0xc2985578, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 6
+}
+
+fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = address
+    v1 = shl 32, v0
+    v2 = or v1, 0xc2985578
+    v3 = address
+    v4 = shl 32, v3
+    v5 = or v4, 0xc2985578
+    v6 = internal_call @internal_dispatcher_p_function_function_r_function, 1, 1, v2, v5
+    v7 = and v6, 0xffffffff
+    v8 = shl 224, v7
+    v9 = shr 32, v6
+    v10 = gas
+    v11 = abi_encode [], selector v8
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = call v10, v9, 0, v12, v13, 0, 32
+    jumpi v14, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v15 = returndatasize
+    v16 = lt v15, 32
+    jumpi v16, bb3, bb4
+  bb4:
+    v17 = add 0, 0
+    v18 = mload v17
+    v19 = add 0, 0
+    v20 = mload v19
+    v21 = internal_call @internal_dispatcher_p_u256_u256_r_u256, 1, 2, 5, 1
+    v22 = add v20, v21
+    v23 = lt v22, v20
+    jumpi v23, bb5, bb6
+  bb6:
+    ret v22
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @internal_dispatcher_p_function_function_r_function(arg0: function, arg1: function, arg2: function) -> function [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @m, 1, arg1, arg2
+    ret v1
+}
+
+fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u256) -> u256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @s, 1, arg1, arg2
+    ret v1
+}

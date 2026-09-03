@@ -20,6 +20,7 @@ cargo nextest run --workspace          # Run tests (faster than cargo test)
 cargo llvm-cov nextest --workspace     # Test coverage
 cargo uitest                           # Run UI tests
 cargo uibless                          # Update UI test expectations
+cargo t                                # Run all tests with nextest (preferred)
 cargo fmt --all                        # Format
 cargo cl                               # Lint
 cargo run -- file.sol                  # Run compiler
@@ -370,6 +371,13 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 - NEVER use `ref` / `ref mut` in patterns as the first resort. Always prefer borrowing the expression with `&` / `&mut` instead.
 - Avoid specifying type hints in variables unless absolutely necessary (e.g. `HashMap<_, Vec<_>>` for `x.entry(y).or_default().push(z)` where type inference won't work). Rely on the compiler.
 - When type hints are needed, prefer turbofish (`let x = Type::<X, Y>::new()`) over annotation (`let x: Type<X, Y> = Type::new()`).
+
+### IR construction and rewrites
+
+- Add an IR or pseudo-IR comment above lowering code and every transformation or rewrite that writes, moves, or rearranges IR. This includes builder sequences and helper bodies.
+- Put each comment at the narrowest useful scope that emits the described IR: immediately above the relevant match arm, `if` or `else` block, loop, or contiguous builder sequence. Do not collect comments at the top of a large function when separate paths emit the described IR later.
+- Write the comment as IR or concise pseudo-IR in emitted order, with one instruction per line when that makes the sequence easier to follow. Do not prefix it with labels such as `IR`, `pseudo-IR`, or an explanation of what the sequence does.
+- Pseudo-IR comments do not need a full stop.
 
 ## Notes
 

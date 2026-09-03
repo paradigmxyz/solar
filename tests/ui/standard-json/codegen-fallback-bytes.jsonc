@@ -1,0 +1,24 @@
+//@ filecheck:
+// CHECK: "errors": [
+// CHECK: "errorCode": "2264"
+// CHECK: "message": "code generation is experimental"
+// CHECK: "contracts": {
+// CHECK: "Fallback.sol"
+{
+  "language": "Solidity",
+  "sources": {
+    "Fallback.sol": {
+      "content": "contract C { fallback(bytes calldata input) external returns (bytes memory) { return input; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

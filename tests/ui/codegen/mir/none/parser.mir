@@ -113,3 +113,24 @@ fn @constructor() -> u256 {
     v0 = constructor_args_base
     ret v0
 }
+
+// CHECK-LABEL: @returndatasize
+// CHECK: {{^ +}}[[SIZE:v[0-9]+]] = returndatasize
+// CHECK: {{^ +}}ret [[SIZE]]
+fn @returndatasize() -> u256 {
+  bb0:
+    v0 = returndatasize
+    ret v0
+}
+
+// CHECK: {{^ +}}fn @pure() [pure] {
+fn @pure() [pure] {
+  bb0:
+    stop
+}
+
+// CHECK: {{^ +}}fn @view() [view] {
+fn @view() [view] {
+  bb0:
+    stop
+}

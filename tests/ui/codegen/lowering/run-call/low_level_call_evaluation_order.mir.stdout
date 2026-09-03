@@ -1,0 +1,122 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_evaluation_order.sol:LowLevelCallEvaluationOrder ===
+@module LowLevelCallEvaluationOrder
+fn @receiver() -> address {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add v1, 1
+    v8 = lt v7, v1
+    jumpi v8, bb1, bb3
+  bb3:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = address
+    ret v9
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @gasOpt() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add v1, 2
+    v8 = lt v7, v1
+    jumpi v8, bb1, bb3
+  bb3:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = gas
+    ret v9
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @valueOpt() -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add v1, 3
+    v8 = lt v7, v1
+    jumpi v8, bb1, bb3
+  bb3:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @data() -> memorybytes {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add v1, 4
+    v8 = lt v7, v1
+    jumpi v8, bb1, bb3
+  bb3:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v9, 0
+    v10 = memory_object_data memorybytes, v9
+    ret v9
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @receive() [receive, payable] {
+  bb0:
+    stop
+}
+
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @receiver, 1
+    v1 = gas
+    v2 = internal_call @gasOpt, 1
+    v3 = internal_call @valueOpt, 1
+    v4 = internal_call @data, 1
+    v5 = memory_object_data memorybytes, v4
+    v6 = memory_object_len memorybytes, v4
+    v7 = call v2, v0, v3, v5, v6, 0, 0
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = sload 0 !metadata(storage=slot(0))
+    ret v9
+  bb1:
+    revert 0, 0
+}

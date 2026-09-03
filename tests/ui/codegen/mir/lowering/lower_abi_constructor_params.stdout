@@ -1,0 +1,59 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_constructor_params.mir (before lower-abi) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_constructor_params.mir (after lower-abi) ===
+  @module LowerAbiConstructorParams
+- fn @constructor(arg0: memoryfixedarray, arg1: u256) [constructor, abi_params=[array<2, array<2, u256>>, u256]] {
++ @phase abi
++ fn @constructor(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) [constructor] {
+    bb0:
+-     v0 = memory_object_load_element memoryfixedarray<2, 1>, arg0, 1
++     v21 = callvalue
++     jumpi v21, bb11, bb1
++   bb1:
++     v3 = constructor_args_base
++     v4 = constructor_args_end
++     v5 = add v3, 160
++     v6 = gt v5, v4
++     jumpi v6, bb3, bb4
++   bb4:
++     v7 = add v3, 0
++     v8 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
++     jump bb5
++   bb5:
++     v9 = phi [bb4: 0], [bb10: v20]
++     v10 = lt v9, 2
++     jumpi v10, bb6, bb7
++   bb7:
++     jump bb2
++   bb2:
++     v0 = memory_object_load_element memoryfixedarray<2, 1>, v8, 1
+      v1 = memory_object_load_element memoryfixedarray<2, 1>, v0, 0
+-     v2 = add v1, arg1
++     v2 = add v1, arg4
+      mstore 0, v2
+      stop
++   bb6:
++     v11 = mul v9, 64
++     v12 = add v7, v11
++     v13 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
++     jump bb8
++   bb8:
++     v14 = phi [bb6: 0], [bb9: v19]
++     v15 = lt v14, 2
++     jumpi v15, bb9, bb10
++   bb10:
++     memory_object_store_element memoryfixedarray<2, 1>, v8, v9, v13
++     v20 = add v9, 1
++     jump bb5
++   bb9:
++     v16 = mul v14, 32
++     v17 = add v12, v16
++     v18 = mload v17
++     memory_object_store_element memoryfixedarray<2, 1>, v13, v14, v18
++     v19 = add v14, 1
++     jump bb8
++   bb3:
++     revert 0, 0
++   bb11:
++     revert 0, 0
+  }
+  

@@ -6,25 +6,27 @@ use solar_data_structures::newtype_index;
 
 mod types;
 pub(crate) use types::{
-    ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation, TypeSize,
+    FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
+    SliceLocation, TypeSize,
 };
 
 mod abi;
-pub(crate) use abi::{AbiLayout, AbiLayoutRef, AbiType};
+pub(crate) use abi::{
+    AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
+    AbiType, AbiWordValidator,
+};
 
 mod storage;
-pub use storage::{
-    PackedKind, PackedValue, StorageField, StorageLayout, StorageLayoutRef, StructField,
-};
+pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
 
 mod value;
 pub(crate) use value::{Immediate, Value};
 
 mod inst;
 pub(crate) use inst::{
-    AllocationAlignment, AllocationFailure, AllocationInitialization, AllocationKind,
-    AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata, MemoryRegion,
-    StorageAlias,
+    AbiEncodeMode, AllocationAlignment, AllocationFailure, AllocationInitialization,
+    AllocationKind, AllocationSemantics, EffectKind, InstKind, Instruction, InstructionMetadata,
+    MemoryRegion, StorageAlias,
 };
 
 mod block;
@@ -37,10 +39,11 @@ mod function;
 pub(crate) use function::{Function, FunctionAttributes};
 
 mod module;
+pub(crate) use module::LibraryLink;
 pub use module::{MirPhase, Module};
 
 mod builder;
-pub(crate) use builder::FunctionBuilder;
+pub(crate) use builder::{FunctionBuilder, PanicCode, ToUint};
 
 mod display;
 
@@ -227,17 +230,13 @@ mod round_trip {
             let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
             let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
             let gcx = c.gcx();
+            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(
-                    gcx,
-                    id,
-                    &FxHashMap::default(),
-                    gcx.sess.opts.optimization.is_size(),
-                );
+                let module = lower::lower_contract(gcx, id, &empty);
                 let errors_before = gcx.dcx().err_count();
                 super::validate(gcx.dcx(), &module);
                 if gcx.dcx().err_count() != errors_before {
@@ -306,17 +305,13 @@ mod round_trip {
             };
 
             let gcx = c.gcx();
+            let empty = FxHashMap::default();
             for id in gcx.hir.contract_ids() {
                 let contract = gcx.hir.contract(id);
                 if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
                     continue;
                 }
-                let module = lower::lower_contract(
-                    gcx,
-                    id,
-                    &FxHashMap::default(),
-                    gcx.sess.opts.optimization.is_size(),
-                );
+                let module = lower::lower_contract(gcx, id, &empty);
                 if let Err(e) = check_round_trip_module(gcx.sess, &module) {
                     result = Err(format!("contract `{}`: {e}", contract.name));
                     return Ok(());

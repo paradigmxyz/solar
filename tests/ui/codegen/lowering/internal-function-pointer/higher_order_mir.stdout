@@ -1,35 +1,35 @@
 // === ROOT/tests/ui/codegen/lowering/internal-function-pointer/higher_order_mir.sol:HigherOrderFunctionPointer ===
 @module HigherOrderFunctionPointer
-fn @higher0.0() -> u256 [abi_returns=[word]] {
+fn @higher0() -> u256 [selector=0x2762f104, pure, abi_params=[], abi_returns=[word]] {
   bb0:
     ret 2
 }
 
-fn @higher1() -> function {
+fn @higher1() -> function [pure] {
   bb0:
     ret 1
 }
 
-fn @higher2() -> function {
+fn @higher2() -> function [pure] {
   bb0:
     ret 2
 }
 
-fn @higher3() -> function {
+fn @higher3() -> function [pure] {
   bb0:
     ret 3
 }
 
-fn @callReturned() -> u256 [abi_returns=[word]] {
+fn @callReturned() -> u256 [selector=0x0ae2f92f, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @__internal_dispatch_0, 1, 4
-    v1 = internal_call @__internal_dispatch_0, 1, v0
-    v2 = internal_call @__internal_dispatch_0, 1, v1
-    v3 = internal_call @__internal_dispatch_1, 1, v2
+    v0 = internal_call @internal_dispatcher_p_none_r_function, 1, 4
+    v1 = internal_call @internal_dispatcher_p_none_r_function, 1, v0
+    v2 = internal_call @internal_dispatcher_p_none_r_function, 1, v1
+    v3 = internal_call @internal_dispatcher_p_none_r_u256, 1, v2
     ret v3
 }
 
-fn @__internal_dispatch_0(arg0: function) -> function {
+fn @internal_dispatcher_p_none_r_function(arg0: function) -> function [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 2
     jumpi v0, bb1, bb2
@@ -54,7 +54,7 @@ fn @__internal_dispatch_0(arg0: function) -> function {
     ret v1
 }
 
-fn @__internal_dispatch_1(arg0: function) -> u256 {
+fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -63,11 +63,6 @@ fn @__internal_dispatch_1(arg0: function) -> u256 {
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @higher0.7, 1
+    v1 = internal_call @higher0, 1
     ret v1
-}
-
-fn @higher0.7() -> u256 {
-  bb0:
-    ret 2
 }

@@ -174,11 +174,8 @@
 //! planned as loads. They are recomputed only when their complete dependency
 //! tree ends in stable inputs such as arguments, immediates, calldata, and
 //! transaction/block context; constructor-staged immutable loads are memory-backed
-//! and therefore excluded. When another block must reload such a value, the
-//! arithmetic result itself receives a mandatory stable store at its definition
-//! before local planning can consume it. A value used only as a phi-edge source
-//! does not require that mandatory store solely for the edge; a successfully
-//! preserved phi edge carries it on the stack.
+//! and therefore excluded. A successfully preserved phi edge carries its source
+//! on the stack.
 //! `-O none` bypasses the planner and retains the straightforward emission path.
 //!
 //! Active equal immediates are canonicalized immediately before EVM lowering so `DUP` decisions
@@ -223,8 +220,8 @@ pub(crate) use super::op::StackOp;
 pub(crate) use model::{MAX_STACK_ACCESS, MAX_STACK_DEPTH, StackModel};
 pub(crate) use scheduler::{
     OperandCostModel, OperandPlan, ScheduleCost, ScheduledOp, StackScheduler, cross_block_values,
-    is_cheap_recomputable_value, is_cross_block_recomputable_kind, is_rematerializable_leaf,
-    rematerializable_nullary_opcode, rematerializable_nullary_value,
+    is_cross_block_recomputable_kind, is_rematerializable_leaf, rematerializable_nullary_opcode,
+    rematerializable_nullary_value,
 };
 pub(crate) use shuffler::{TargetSlot, lowered_stack_cost, resynthesize_physical_ops};
 pub(crate) use spill::SpillSlot;

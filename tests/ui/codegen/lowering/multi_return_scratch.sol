@@ -15,11 +15,9 @@ contract MultiReturnScratch {
 
     // CHECK-LABEL: fn @assign{{[( ]}}
     // CHECK: internal_call
-    // CHECK: = mload 32
-    // CHECK: = add {{.*}}, 32
-    // CHECK: = mload
-    // CHECK: = add {{.*}}, 64
-    // CHECK: = mload
+    // CHECK: frame_load multi_return, word, 0
+    // CHECK: mload
+    // CHECK: mload
     // CHECK: = mapping_slot
     // CHECK: sstore
     function assign(uint256 key, uint256 seed)
@@ -33,5 +31,12 @@ contract MultiReturnScratch {
         assembly ("memory-safe") {
             afterPtr := mload(0x40)
         }
+    }
+
+    // CHECK-LABEL: fn @ternary{{[( ]}}
+    // CHECK: phi [
+    // CHECK: ret
+    function ternary(bool pick, uint256 x) external pure returns (uint256, uint256) {
+        return pick ? (x, x + 1) : (x + 2, x + 3);
     }
 }

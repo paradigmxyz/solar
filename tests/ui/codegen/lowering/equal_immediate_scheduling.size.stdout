@@ -13,17 +13,15 @@ bb0:
   sub
   push bb3
   jumpi
-  push 4
+  push 36
   calldatasize
-  sub
-  push 32
-  sgt
+  lt
   push bb3
   jumpi
   push 4
   calldataload
   iszero
-  push bb8
+  push bb7
   jumpi
   push 4
   calldataload
@@ -39,7 +37,7 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb8 [cold]:
+bb7 [cold]:
   push 0x4e487b71
   push 224
   shl
@@ -53,7 +51,7 @@ bb8 [cold]:
   revert
 // === ROOT/tests/ui/codegen/lowering/equal_immediate_scheduling.sol:EqualImmediateScheduling (runtime) ===
 CALLVALUE
-PUSH1 0x39 ; bb0
+PUSH1 0x36 ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
@@ -62,19 +60,17 @@ SHR
 DUP1
 PUSH4 0xd9171e32
 SUB
-PUSH1 0x39 ; bb0
+PUSH1 0x36 ; bb0
 JUMPI
-PUSH1 0x04
+PUSH1 0x24
 CALLDATASIZE
-SUB
-PUSH1 0x20
-SGT
-PUSH1 0x39 ; bb0
+LT
+PUSH1 0x36 ; bb0
 JUMPI
 PUSH1 0x04
 CALLDATALOAD
 ISZERO
-PUSH1 0x3d ; bb1
+PUSH1 0x3a ; bb1
 JUMPI
 PUSH1 0x04
 CALLDATALOAD

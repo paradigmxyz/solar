@@ -25,8 +25,6 @@ bb5:
   jumpi
   pop
   push 107
-  jump bb30
-bb30:
   push 0
   mstore
   push 32
@@ -40,7 +38,11 @@ bb7:
   jumpi
   pop
   push 106
-  jump bb30
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb9:
   dup 1
   push 48
@@ -49,7 +51,11 @@ bb9:
   jumpi
   pop
   push 105
-  jump bb30
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb11:
   dup 1
   push 40
@@ -58,7 +64,11 @@ bb11:
   jumpi
   pop
   push 104
-  jump bb30
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb13:
   dup 1
   push 32
@@ -67,7 +77,11 @@ bb13:
   jumpi
   pop
   push 103
-  jump bb30
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb15:
   dup 1
   push 24
@@ -76,7 +90,11 @@ bb15:
   jumpi
   pop
   push 102
-  jump bb30
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb17:
   dup 1
   push 16
@@ -85,7 +103,11 @@ bb17:
   jumpi
   pop
   push 101
-  jump bb30
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 bb19:
   dup 1
   push 8
@@ -94,7 +116,11 @@ bb19:
   jumpi
   pop
   push 100
-  jump bb30
+  push 0
+  mstore
+  push 32
+  push 0
+  return
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
 PUSH1 0x1e ; bb0
@@ -109,7 +135,7 @@ DUP2
 MOD
 PUSH1 0x17
 ADD
-PUSH9 0x1e223442505e6c7a88
+PUSH9 0x1e2233445566778899
 SWAP1
 BYTE
 JUMP ; unknown
@@ -127,14 +153,12 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x6b
-; bb2
-JUMPDEST
 PUSH0
 MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb3
+; bb2
 JUMPDEST
 DUP1
 PUSH1 0x38
@@ -143,9 +167,12 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x6a
-PUSH1 0x2d ; bb2
-JUMP
-; bb4
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb3
 JUMPDEST
 DUP1
 PUSH1 0x30
@@ -154,9 +181,12 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x69
-PUSH1 0x2d ; bb2
-JUMP
-; bb5
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb4
 JUMPDEST
 DUP1
 PUSH1 0x28
@@ -165,9 +195,12 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x68
-PUSH1 0x2d ; bb2
-JUMP
-; bb6
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb5
 JUMPDEST
 DUP1
 PUSH1 0x20
@@ -176,9 +209,12 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x67
-PUSH1 0x2d ; bb2
-JUMP
-; bb7
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb6
 JUMPDEST
 DUP1
 PUSH1 0x18
@@ -187,9 +223,12 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x66
-PUSH1 0x2d ; bb2
-JUMP
-; bb8
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb7
 JUMPDEST
 DUP1
 PUSH1 0x10
@@ -198,9 +237,12 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x65
-PUSH1 0x2d ; bb2
-JUMP
-; bb9
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb8
 JUMPDEST
 DUP1
 PUSH1 0x08
@@ -209,5 +251,8 @@ PUSH1 0x1e ; bb0
 JUMPI
 POP
 PUSH1 0x64
-PUSH1 0x2d ; bb2
-JUMP
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN

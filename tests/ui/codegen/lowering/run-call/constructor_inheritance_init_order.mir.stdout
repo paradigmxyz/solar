@@ -1,0 +1,73 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderBase ===
+@module ConstructorInitOrderBase
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    stop
+}
+
+fn @f() -> u256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:ConstructorInitOrderDerived ===
+@module ConstructorInitOrderDerived
+fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @f() -> u256 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    v0 = internal_call @f, 1
+    sstore 1, v0 !metadata(storage=slot(1))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorBase ===
+@module NoCtorBase
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_inheritance_init_order.sol:NoCtorDerived ===
+@module NoCtorDerived
+fn @y() -> u256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    sstore 1, v0 !metadata(storage=slot(1))
+    stop
+}

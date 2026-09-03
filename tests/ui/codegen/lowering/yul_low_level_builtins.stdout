@@ -1,96 +1,49 @@
 // === ROOT/tests/ui/codegen/lowering/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
 @module YulLowLevelBuiltins
-fn @leadingZeros(arg0: u256) -> u256 [abi_returns=[word]] {
+fn @yulStringLiteral() -> u256 [selector=0x6756b569, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    mstore 128, 0
-    v3 = clz arg0
-    mstore 128, v3
-    v4 = mload 128
-    ret v4
-  bb1:
-    revert 0, 0
+    mstore 0, 0x736f6c6172000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    v0 = mload 0 !metadata(memory=scratch)
+    ret v0
 }
 
-fn @callCode(arg0: address) -> u256 [abi_returns=[word]] {
+fn @leadingZeros(arg0: u256) -> u256 [selector=0x8d9d94e2, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 32
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    mstore 128, 0
-    v6 = gas
-    v7 = callcode v6, arg0, 0, 0, 0, 0, 0
-    mstore 128, v7
-    v8 = mload 128
-    ret v8
-  bb1:
-    revert 0, 0
+    v0 = clz arg0
+    ret v0
 }
 
-fn @safeCall(arg0: address, arg1: bytes4) -> bool [abi_returns=[word]] {
+fn @callCode(arg0: address) -> u256 [selector=0xc66764e1, abi_params=[address], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 4
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
-    v6 = calldataload 36
-    v7 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v8 = eq v6, v7
-    jumpi v8, bb6, bb5
-  bb5:
-    revert 0, 0
-  bb6:
-    mstore 128, 0
-    v9 = mload 64 !metadata(memory=scratch)
+    v0 = gas
+    v1 = callcode v0, arg0, 0, 0, 0, 0, 0
+    ret v1
+}
+
+fn @safeCall(arg0: address, arg1: bytes4) -> bool [selector=0x1dee2645, abi_params=[address, bytes4], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    v10 = gas
-    v11 = call v10, arg0, 0, 0, 4, 0, 32
-    mstore 128, v11
-    v12 = mload 0 !metadata(memory=scratch)
-    v13 = eq v12, 1
-    v14 = mload 128
-    v15 = and v14, v13
-    v16 = iszero v15
-    v17 = eq v16, 0
-    v18 = iszero v17
-    jumpi v18, bb7, bb8
-  bb8:
-    v21 = extcodesize arg0
-    v22 = gt v21, 0
-    v23 = mload 128
-    v24 = and v23, v22
-    mstore 128, v24
-    mstore 64, v9 !metadata(memory=scratch)
-    v25 = mload 128
-    v26 = iszero v25
-    v27 = iszero v26
-    ret v27
-  bb7:
-    v19 = returndatasize
-    returndatacopy v9, 0, v19
-    v20 = returndatasize
-    revert v9, v20
+    v1 = gas
+    v2 = call v1, arg0, 0, 0, 4, 0, 32
+    v3 = mload 0 !metadata(memory=scratch)
+    v4 = eq v3, 1
+    v5 = and v2, v4
+    v6 = iszero v5
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v11 = extcodesize arg0
+    v12 = gt v11, 0
+    v13 = and v2, v12
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v13
   bb1:
-    revert 0, 0
+    v9 = returndatasize
+    returndatacopy v0, 0, v9
+    v10 = returndatasize
+    revert v0, v10
 }

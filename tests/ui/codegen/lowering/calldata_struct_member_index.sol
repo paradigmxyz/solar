@@ -6,9 +6,8 @@
 // element's head size and rebuilds it; only a word element sits inline in one
 // slot and loads directly.
 //
-// An array member of a calldata struct is rebuilt into its ordinary memory
-// representation. Its element slots hold pointers to rebuilt structs, so
-// indexing reuses the copy instead of decoding the same calldata again.
+// Struct members stay in calldata. Indexing computes the ABI head offset and
+// decodes the selected element without copying the whole member.
 // Verified against solc on anvil.
 
 struct Item {
@@ -33,10 +32,10 @@ contract CalldataStructMemberIndex {
         return items[i].amount;
     }
 
-    // The member uses the dynamic-memory-array layout and loads a struct pointer.
+    // The member uses its four-word ABI head stride.
     // CDSMI-LABEL: fn @member
-    // CDSMI: mul arg1, 32
-    // CDSMI: mload
+    // CDSMI: shl 7, arg1
+    // CDSMI: calldataload
     function member(Params calldata p, uint256 i) external pure returns (uint256) {
         return p.items[i].amount;
     }

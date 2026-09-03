@@ -1,0 +1,56 @@
+// === ROOT/tests/ui/codegen/lowering/yul_leave.sol:YulLeave ===
+@module YulLeave
+fn @simple() -> u256 [selector=0xdf201a46, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @value.4, 1
+    ret v0
+}
+
+fn @conditional(arg0: u256) -> u256 [selector=0xd28ac8d6, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @value.5, 1, arg0
+    ret v0
+}
+
+fn @multiple() -> (u256, u256) [selector=0x437a8ae6, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @values, 2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    ret v0, v3
+}
+
+fn @fallthrough() -> u256 [selector=0xb3afd11d, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @value.7, 1
+    ret v0
+}
+
+fn @value.4() -> u256 {
+  bb0:
+    ret 2
+}
+
+fn @value.5(arg0: u256) -> u256 {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    ret 9
+  bb1:
+    ret 2
+}
+
+fn @values() -> (u256, u256) {
+  bb0:
+    ret 2, 3
+}
+
+fn @value.7() -> u256 {
+  bb0:
+    ret 9
+}

@@ -1,73 +1,56 @@
 // === ROOT/tests/ui/codegen/lowering/storage_slots_beyond_u64.sol:StorageSlotsBeyondU64 ===
 @module StorageSlotsBeyondU64
-fn @roundTrip(arg0: u256, arg1: u8, arg2: u256) -> u256 [abi_returns=[word]] {
+fn @roundTrip(arg0: u256, arg1: u8, arg2: u256) -> u256 [selector=0xfaa172f5, abi_params=[u256, u8, u256], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 96
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = calldataload 36
-    v4 = and v3, 255
-    v5 = eq v3, v4
-    jumpi v5, bb4, bb3
-  bb3:
-    revert 0, 0
-  bb4:
     sstore 0, 7 !metadata(storage=slot(0))
-    v6 = lt arg0, 0xffffffffffffffff
-    jumpi v6, bb6, bb5
-  bb5:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb6:
-    v7 = div arg0, 32
-    v8 = add 1, v7
-    v9 = mod arg0, 32
-    v10 = mul v9, 8
-    v11 = sload v8 !metadata(storage=offset(v7, 1))
-    v12 = shl v10, 255
-    v13 = not v12
-    v14 = and v11, v13
-    v15 = and arg1, 255
-    v16 = shl v10, v15
-    v17 = or v14, v16
-    sstore v8, v17 !metadata(storage=offset(v7, 1))
+    v0 = lt arg0, 0xffffffffffffffff
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = div arg0, 32
+    v3 = add 1, v2
+    v4 = mod arg0, 32
+    v5 = mul v4, 1
+    v6 = and arg1, 255
+    v7 = mul v5, 8
+    v8 = shl v7, 255
+    v9 = sload v3 !metadata(storage=offset(v2, 1))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = and v6, 255
+    v13 = shl v7, v12
+    v14 = or v11, v13
+    sstore v3, v14 !metadata(storage=offset(v2, 1))
     sstore 0x10800000000000000, arg2 !metadata(storage=slot(0x10800000000000000))
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = lt arg0, 0xffffffffffffffff
-    jumpi v19, bb8, bb7
-  bb7:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 50 !metadata(memory=scratch)
-    revert 0, 36
-  bb8:
-    v20 = div arg0, 32
-    v21 = add 1, v20
-    v22 = mod arg0, 32
-    v23 = mul v22, 8
-    v24 = sload v21 !metadata(storage=offset(v20, 1))
-    v25 = shr v23, v24
-    v26 = and v25, 255
-    v27 = add v18, v26
-    v28 = lt v27, v18
-    jumpi v28, bb9, bb10
-  bb10:
-    v29 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
-    v30 = add v27, v29
-    v31 = lt v30, v27
-    jumpi v31, bb11, bb12
-  bb12:
-    ret v30
-  bb11:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-  bb9:
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = lt arg0, 0xffffffffffffffff
+    v17 = iszero v16
+    jumpi v17, bb1, bb3
+  bb3:
+    v18 = div arg0, 32
+    v19 = add 1, v18
+    v20 = mod arg0, 32
+    v21 = mul v20, 1
+    v22 = sload v19 !metadata(storage=offset(v18, 1))
+    v23 = mul v21, 8
+    v24 = shr v23, v22
+    v25 = and v24, 255
+    v26 = add v15, v25
+    v27 = lt v26, v15
+    jumpi v27, bb4, bb5
+  bb5:
+    v28 = sload 0x10800000000000000 !metadata(storage=slot(0x10800000000000000))
+    v29 = add v26, v28
+    v30 = lt v29, v26
+    jumpi v30, bb4, bb6
+  bb6:
+    ret v29
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    revert 0, 0
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
 }

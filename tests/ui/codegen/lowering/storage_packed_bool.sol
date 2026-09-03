@@ -15,7 +15,8 @@ contract PackedBool {
 
     // CHECK-LABEL: fn @set{{[( ]}}
     // CHECK: [[WORD:v[0-9]+]] = sload 0
-    // CHECK: and [[WORD]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    // CHECK: {{v[0-9]+}} = not 255
+    // CHECK: and [[WORD]], {{v[0-9]+}}
     // CHECK: sstore 0,
     // CHECK: {{v[0-9]+}} = sload 0
     // CHECK: shl 8,
@@ -30,7 +31,9 @@ contract PackedBool {
     // CHECK: [[A:v[0-9]+]] = and [[WORD]], 255
     // CHECK: jumpi [[A]],
     // CHECK: {{v[0-9]+}} = sload 0
-    // CHECK: phi [bb0: 0],
+    // CHECK: {{v[0-9]+}} = shr 8,
+    // CHECK: {{v[0-9]+}} = and {{v[0-9]+}}, 255
+    // CHECK: phi
     function both() external view returns (bool) {
         return a && b;
     }

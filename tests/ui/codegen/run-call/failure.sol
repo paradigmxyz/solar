@@ -1,5 +1,5 @@
-//@ run-call-fail: empty()
-//@ run-call-fail: panic() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000001
+//@ run-call-fail: empty
+//@ run-call-fail: panic => Panic(1)
 
 contract RunCallFail {
     function empty() external pure {

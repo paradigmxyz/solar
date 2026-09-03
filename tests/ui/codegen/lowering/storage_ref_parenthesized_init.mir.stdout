@@ -1,24 +1,18 @@
 // === ROOT/tests/ui/codegen/lowering/storage_ref_parenthesized_init.sol:StorageRefParenthesizedInit ===
 @module StorageRefParenthesizedInit
-fn @put(arg0: bytes32, arg1: u256) -> u256 [abi_returns=[word]] {
+fn @put(arg0: bytes32, arg1: u256) -> u256 [selector=0xda4a9842, abi_params=[bytes32, u256], abi_returns=[word]] {
   bb0:
-    v0 = calldatasize
-    v1 = sub v0, 4
-    v2 = slt v1, 64
-    jumpi v2, bb1, bb2
-  bb2:
-    v3 = mapping_slot arg0, 0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v6 = and 1, 255
-    v7 = or v5, v6
-    sstore v3, v7 !metadata(storage=symbolic(v3))
-    v8 = add v3, 1
-    sstore v8, arg1 !metadata(storage=offset(v3, 1))
-    v9 = mapping_slot arg0, 0
-    v10 = add v9, 1
-    v11 = sload v10 !metadata(storage=offset(v9, 1))
-    ret v11
-  bb1:
-    revert 0, 0
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = and 1, 255
+    v5 = or v3, v4
+    sstore v0, v5 !metadata(storage=symbolic(v0))
+    v6 = add v0, 1
+    sstore v6, arg1 !metadata(storage=offset(v0, 1))
+    v7 = mapping_slot arg0, 0
+    v8 = add v7, 1
+    v9 = sload v8 !metadata(storage=offset(v7, 1))
+    ret v9
 }

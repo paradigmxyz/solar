@@ -1,0 +1,93 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_boundary_array_partial_assignment.sol:StorageBoundaryArrayPartialAssignment ===
+@module StorageBoundaryArrayPartialAssignment
+fn @getArray() -> storageptr [pure] {
+  bb0:
+    v0 = sub 0, 5
+    ret v0
+}
+
+fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @getArray, 1
+    v1 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    memory_object_store_element memoryfixedarray<3, 1>, v1, 0, 11
+    memory_object_store_element memoryfixedarray<3, 1>, v1, 1, 12
+    memory_object_store_element memoryfixedarray<3, 1>, v1, 2, 13
+    v2 = lt 0, 1
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = mul 0, 10
+    v5 = add v0, v4
+    jump bb3
+  bb3:
+    v6 = phi [bb2: 0], [bb8: v11]
+    v7 = lt v6, 10
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb9
+  bb9:
+    v12 = phi [bb5: 0], [bb20: v30]
+    v13 = phi [bb5: 0], [bb20: v28]
+    v14 = phi [bb5: v0], [bb20: v14]
+    v15 = lt 0, 1
+    v16 = iszero v15
+    jumpi v16, bb1, bb12
+  bb12:
+    v17 = mul 0, 10
+    v18 = add v14, v17
+    v19 = lt v12, 10
+    jumpi v19, bb13, bb14
+  bb14:
+    jump bb10
+  bb10:
+    ret v13
+  bb13:
+    v20 = lt 0, 1
+    v21 = iszero v20
+    jumpi v21, bb1, bb16
+  bb16:
+    v22 = mul 0, 10
+    v23 = add v14, v22
+    v24 = lt v12, 10
+    v25 = iszero v24
+    jumpi v25, bb1, bb17
+  bb17:
+    v26 = add v23, v12
+    v27 = sload v26 !metadata(storage=symbolic(v26))
+    v28 = add v13, v27
+    v29 = lt v28, v13
+    jumpi v29, bb18, bb19
+  bb19:
+    jump bb15
+  bb15:
+    jump bb11
+  bb11:
+    v30 = add v12, 1
+    v31 = lt v30, v12
+    jumpi v31, bb18, bb20
+  bb20:
+    jump bb9
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v8 = add v5, v6
+    v9 = lt v6, 3
+    jumpi v9, bb6, bb7
+  bb7:
+    sstore v8, 0 !metadata(storage=symbolic(v8))
+    jump bb8
+  bb6:
+    v10 = memory_object_load_element memoryfixedarray<3, 1>, v1, v6
+    sstore v8, v10 !metadata(storage=symbolic(v8))
+    jump bb8
+  bb8:
+    v11 = add v6, 1
+    jump bb3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

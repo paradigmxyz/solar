@@ -39,6 +39,7 @@ pub use crate::pass_manager::{MirPass, pipeline_label, run_passes, run_passes_no
 /// All known MIR passes exposed by `-Zmir-pipeline`.
 pub static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::Inline,
+    &inline::InlineConstantLeaves,
     &inline::InlineTinyLeaves,
     &inline::SpecializeFunctionPointers,
     &outline_reverts::OutlineReverts,
@@ -71,12 +72,13 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &adce::Adce,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
+    &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
-    &lower_mapping_slots::LowerMappingSlots,
     &lower_mcopy::LowerMCopy,
     &lower_abi_encode::LowerAbiEncode,
     &lower_aggregates::LowerAggregates,
+    &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
     &lower_slices::LowerSlices,
     &lower_alloc::LowerAlloc,
@@ -90,6 +92,12 @@ pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
 }
 
 struct SizeOnly<P>(P);
+
+impl<P> SizeOnly<P> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
+    }
+}
 
 impl<P: MirPass> MirPass for SizeOnly<P> {
     fn name(&self) -> &'static str {
@@ -116,6 +124,12 @@ impl<P: MirPass> MirPass for SizeOnly<P> {
 
 struct GasOnly<P>(P);
 
+impl<P> GasOnly<P> {
+    const fn new(pass: P) -> Self {
+        Self(pass)
+    }
+}
+
 impl<P: MirPass> MirPass for GasOnly<P> {
     fn name(&self) -> &'static str {
         self.0.name()
@@ -141,20 +155,18 @@ impl<P: MirPass> MirPass for GasOnly<P> {
 
 /// The canonical MIR pipeline used by EVM codegen.
 pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
-    // MIR inlining remains available as an ad-hoc pass, but static internal
+    // Clone one constant call to a shared pure leaf so scalar passes can fold it.
+    &GasOnly::new(inline::InlineConstantLeaves),
+    // Broad MIR inlining remains available as an ad-hoc pass, but static internal
     // frames make calls cheap enough that the measured candidates regress gas.
     &cfg_simplify::FunctionDce,
     // Early frame scalarization improves size but can increase hot-path gas.
-    &SizeOnly(cfg_simplify::CfgSimplify),
-    &SizeOnly(frame_promotion::FrameSlotPromotion),
-    &SizeOnly(sroa::Sroa),
+    &SizeOnly::new(cfg_simplify::CfgSimplify),
+    &SizeOnly::new(frame_promotion::FrameSlotPromotion),
+    &SizeOnly::new(sroa::Sroa),
     &sccp::Sccp,
     &pure_eval::PureEval,
     &inst_simplify::InstSimplify,
-    &cse::Cse,
-    // Reuse mapping slots before their scratch-memory expansion can obscure
-    // the semantic expression from the remaining optimization passes.
-    &lower_mapping_slots::LowerMappingSlots,
     &gvn::Gvn,
     &pre::Pre,
     &storage_load_cse::StorageLoadCse,
@@ -184,13 +196,12 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &cfg_simplify::CfgSimplify,
     // Trivial leaf helpers cost less to duplicate than even the static internal-call protocol.
     // Keep this separate from general inlining, whose larger candidates regress measured gas.
-    &GasOnly(inline::InlineTinyLeaves),
+    &GasOnly::new(inline::InlineTinyLeaves),
     &inline::SpecializeFunctionPointers,
     &function_compaction::DeadArgElim,
     &cfg_simplify::FunctionDce,
     &sccp::Sccp,
     &inst_simplify::InstSimplify,
-    &cse::Cse,
     &gvn::Gvn,
     &check_elim::CheckElim,
     &jump_threading::JumpThreading,
@@ -204,28 +215,39 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     // tail-call edges as MIR. Each pass bails without advancing the phase
     // when the module is outside its scope.
     &lower_abi::LowerAbi,
+    // ABI lowering leaves tiny canonical-word helpers after the earlier
+    // inlining pass; expand those leaves before encoding wrappers.
+    &GasOnly::new(inline::InlineTinyLeaves),
+    &SizeOnly::new(inline::InlineTinyLeaves),
+    &cfg_simplify::FunctionDce,
     &function_compaction::DeadArgElim,
     &dce::Dce,
     &function_compaction::MergeEquivalentFunctions,
     &cfg_simplify::FunctionDce,
     &static_alloc::DeferAlloc,
     &lower_abi_encode::LowerAbiEncode,
-    // Encoder helpers are synthesized after the main optimization pipeline. Promote their loop
-    // cursors before aggregate and memory lowering so they receive the same SSA treatment as
-    // source-level internal functions.
-    &frame_promotion::FrameSlotPromotion,
     &lower_aggregates::LowerAggregates,
     &inst_simplify::InstSimplify,
     &cfg_simplify::CfgSimplify,
     &memory_dse::MemoryDse,
-    // Aggregate and ABI-helper lowering expose repeated address calculations and loads. Run CSE
-    // for both optimized objectives; the backend's objective-aware stack scheduler decides whether
-    // retaining the resulting value is cheaper than rematerializing it.
-    &cse::Cse,
+    // Late CSE reduces runtime gas after aggregate lowering, but can grow
+    // bytecode through longer live ranges, so keep it out of `-Osize`.
+    &GasOnly::new(cse::Cse),
     &dce::Dce,
-    &lower_slices::LowerSlices,
     &lower_dispatch::LowerDispatch,
+    &lower_frame_slots::LowerFrameSlots,
+    // Expand semantic mapping locations after ABI, dispatch, and frame
+    // lowering, while keeping variable-size hash objects ahead of the memory
+    // boundary.
+    &lower_mapping_slots::LowerMappingSlots,
     &lower_memory_objects::LowerMemoryObjects,
+    &GasOnly::new(cse::Cse),
+    &SizeOnly::new(cse::Cse),
+    // Revisit allocations after semantic memory accesses become bounded raw
+    // operations, so fixed-size hash buffers can use backend-known static
+    // regions.
+    &static_alloc::DeferAlloc,
+    &lower_slices::LowerSlices,
     &lower_immutables::LowerImmutables,
     // Fuse straight-line constant-size allocations before their free-memory
     // pointer traffic is materialized; pointer values are preserved exactly.
@@ -382,11 +404,6 @@ impl ModuleAnalyses {
     /// Provides module call summaries to subsequent pass runs.
     pub(crate) fn set_call_summaries(&mut self, summaries: Arc<MemoryCallSummaries>) {
         self.call_summaries = Some(summaries);
-    }
-
-    /// Withdraws module call summaries after the consuming pass completes.
-    pub(crate) fn clear_call_summaries(&mut self) {
-        self.call_summaries = None;
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {

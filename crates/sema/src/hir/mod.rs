@@ -1483,7 +1483,7 @@ pub enum StmtKind<'hir> {
     Continue,
 
     /// A loop statement. This is desugared from all `for`, `while`, and `do while` statements.
-    Loop(Block<'hir>, LoopSource),
+    Loop(Block<'hir>, LoopSource<'hir>),
 
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
     If(&'hir Expr<'hir>, &'hir Stmt<'hir>, Option<&'hir Stmt<'hir>>),
@@ -1556,23 +1556,21 @@ pub struct TryCatchClause<'hir> {
 }
 
 /// The loop type that yielded an [`StmtKind::Loop`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LoopSource {
+#[derive(Clone, Copy, Debug)]
+pub enum LoopSource<'hir> {
     /// A `for (...) { ... }` loop.
-    For,
-    /// A `for (...) { ... }` loop with a non-empty update block.
-    ForWithUpdate,
+    For { update: Option<&'hir Stmt<'hir>> },
     /// A `while (...) { ... }` loop.
     While,
     /// A `do { ... } while (...);` loop.
     DoWhile,
 }
 
-impl LoopSource {
+impl LoopSource<'_> {
     /// Returns the name of the loop source.
     pub fn name(self) -> &'static str {
         match self {
-            Self::For | Self::ForWithUpdate => "for",
+            Self::For { .. } => "for",
             Self::While => "while",
             Self::DoWhile => "do while",
         }
@@ -2208,8 +2206,8 @@ mod tests {
         assert_size::<ExprKind<'_>>(str!["48"]);
         assert_size::<Expr<'_>>(str!["64"]);
 
-        assert_size::<StmtKind<'_>>(str!["32"]);
-        assert_size::<Stmt<'_>>(str!["40"]);
+        assert_size::<StmtKind<'_>>(str!["40"]);
+        assert_size::<Stmt<'_>>(str!["48"]);
         assert_size::<Block<'_>>(str!["24"]);
     }
 }

@@ -3,8 +3,8 @@
 //! Includes DOT format CFG generation for visualization.
 
 use super::{
-    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
-    MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, InstId,
+    InstKind, Instruction, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::analysis::CfgInfo;
 use arrayvec::ArrayVec;
@@ -137,6 +137,7 @@ pub(crate) fn display_function_dot<'a>(
                 }
                 Terminator::Return { .. }
                 | Terminator::Revert { .. }
+                | Terminator::RevertReturndata
                 | Terminator::ReturnData { .. }
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
@@ -282,14 +283,45 @@ pub(crate) fn display_function_text<'a>(
 fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let mut first = true;
+        if let Some(selector) = func.selector {
+            write_function_attribute(
+                f,
+                &mut first,
+                format_args!("selector=0x{:08x}", u32::from_be_bytes(selector)),
+            )?;
+        }
+        if func.attributes.is_constructor {
+            write_function_attribute(f, &mut first, "constructor")?;
+        }
         if is_dispatch_entry {
             write_function_attribute(f, &mut first, "entry")?;
         }
         if func.attributes.may_return_memory {
             write_function_attribute(f, &mut first, "may_return_memory")?;
         }
+        if func.attributes.is_function_pointer_dispatcher {
+            write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
+        }
+        if func.attributes.is_receive {
+            write_function_attribute(f, &mut first, "receive")?;
+        }
+        if func.attributes.is_fallback {
+            write_function_attribute(f, &mut first, "fallback")?;
+        }
+        match func.attributes.state_mutability {
+            hir::StateMutability::Pure => write_function_attribute(f, &mut first, "pure")?,
+            hir::StateMutability::View => write_function_attribute(f, &mut first, "view")?,
+            hir::StateMutability::Payable => write_function_attribute(f, &mut first, "payable")?,
+            hir::StateMutability::NonPayable => {}
+        }
+        if let Some(layout) = &func.abi_params {
+            write_function_attribute(f, &mut first, format_args!("abi_params={layout}"))?;
+        }
         if let Some(layout) = &func.abi_returns {
             write_function_attribute(f, &mut first, format_args!("abi_returns={layout}"))?;
+        }
+        if let Some(layout) = &func.abi_return_params {
+            write_function_attribute(f, &mut first, format_args!("abi_return_params={layout}"))?;
         }
         if !first {
             f.write_str("]")?;
@@ -393,6 +425,92 @@ fn display_inst_kind<'a>(
             display_val(*object, func),
             display_val(*index, func)
         ),
+        InstKind::MemoryObjectLoadField { object, layout, field } => {
+            write!(f, "memory_object_load_field {layout}, {}, {field}", display_val(*object, func))
+        }
+        InstKind::MemoryObjectStoreField { object, layout, field, value } => write!(
+            f,
+            "memory_object_store_field {layout}, {}, {field}, {}",
+            display_val(*object, func),
+            display_val(*value, func)
+        ),
+        InstKind::MemoryObjectLoadElement { object, layout, index } => write!(
+            f,
+            "memory_object_load_element {layout}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func)
+        ),
+        InstKind::MemoryObjectLoadByte { object, index } => write!(
+            f,
+            "memory_object_load_byte memorybytes, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func)
+        ),
+        InstKind::MemoryObjectStoreElement { object, layout, index, value } => write!(
+            f,
+            "memory_object_store_element {layout}, {}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func),
+            display_val(*value, func)
+        ),
+        InstKind::MemoryObjectStoreByte { object, index, value } => write!(
+            f,
+            "memory_object_store_byte memorybytes, {}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func),
+            display_val(*value, func)
+        ),
+        InstKind::MemoryObjectStoreWord { object, offset, value } => write!(
+            f,
+            "memory_object_store_word memorybytes, {}, {}, {}",
+            display_val(*object, func),
+            display_val(*offset, func),
+            display_val(*value, func)
+        ),
+        InstKind::MemorySliceLoadWord { slice, offset } => write!(
+            f,
+            "memory_slice_load_word memory, {}, {}",
+            display_val(*slice, func),
+            display_val(*offset, func)
+        ),
+        InstKind::CalldataSliceLoadWord { slice, offset } => write!(
+            f,
+            "calldata_slice_load_word calldata, {}, {}",
+            display_val(*slice, func),
+            display_val(*offset, func)
+        ),
+        InstKind::MemoryObjectCopyFromSlice { object, kind, source } => write!(
+            f,
+            "memory_object_copy_from_slice {kind}, {}, {}",
+            display_val(*object, func),
+            display_val(*source, func)
+        ),
+        InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source } => write!(
+            f,
+            "memory_object_copy_from_slice_at {kind}, {}, {}, {}",
+            display_val(*object, func),
+            display_val(*offset, func),
+            display_val(*source, func)
+        ),
+        InstKind::MemoryObjectCopy {
+            destination,
+            destination_kind,
+            source,
+            source_kind,
+            length,
+        } => write!(
+            f,
+            "memory_object_copy {destination_kind}, {}, {source_kind}, {}, {}",
+            display_val(*destination, func),
+            display_val(*source, func),
+            display_val(*length, func)
+        ),
+        InstKind::StorageArrayElementSlot { slot, index, element_slots } => write!(
+            f,
+            "storage_array_element_slot {}, {}, {element_slots}",
+            display_val(*slot, func),
+            display_val(*index, func)
+        ),
         InstKind::MemoryObjectLen(object, kind) => {
             write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
         }
@@ -405,8 +523,13 @@ fn display_inst_kind<'a>(
         InstKind::MemoryObjectData(object, kind) => {
             write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
-        InstKind::AbiEncode { selector, args, layout } => {
+        InstKind::AbiEncode { mode, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
+            match mode {
+                super::AbiEncodeMode::Slice => {}
+                super::AbiEncodeMode::Bytes => write!(f, ", object")?,
+                super::AbiEncodeMode::Scratch => write!(f, ", scratch")?,
+            }
             if let Some(selector) = selector {
                 write!(f, ", selector {}", display_val(*selector, func))?;
             }
@@ -415,6 +538,9 @@ fn display_inst_kind<'a>(
                 write!(f, "{}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
             }
             Ok(())
+        }
+        InstKind::AbiDecode { data, layout } => {
+            write!(f, "abi_decode {layout}, {}", display_val(*data, func))
         }
         InstKind::StorageToMemory { storage, memory, layout } => write!(
             f,
@@ -439,6 +565,21 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         InstKind::InternalFrameAddr(offset) => write!(f, "internal_frame_addr {offset}"),
+        InstKind::FrameLoad { offset, mode, kind } => {
+            write!(
+                f,
+                "frame_load {}, {}, {offset}",
+                display_frame_mode(*mode),
+                display_frame_kind(*kind)
+            )
+        }
+        InstKind::FrameStore { offset, mode, kind, value } => write!(
+            f,
+            "frame_store {}, {}, {offset}, {}",
+            display_frame_mode(*mode),
+            display_frame_kind(*kind),
+            display_val(*value, func)
+        ),
         InstKind::Phi(args) => {
             write!(f, "phi")?;
             if !args.is_empty() {
@@ -453,6 +594,21 @@ fn display_inst_kind<'a>(
             Ok(())
         }
         _ => display_inst_operands(f, kind, func),
+    })
+}
+
+fn display_frame_mode(mode: FrameMode) -> &'static str {
+    match mode {
+        FrameMode::External => "scratch",
+        FrameMode::Internal => "internal_frame",
+        FrameMode::MultiReturn => "multi_return",
+    }
+}
+
+fn display_frame_kind(kind: FrameSlotKind) -> impl fmt::Display {
+    fmt::from_fn(move |f| match kind {
+        FrameSlotKind::Word => f.write_str("word"),
+        FrameSlotKind::Slice(location) => write!(f, "{location}"),
     })
 }
 
@@ -656,6 +812,7 @@ fn display_terminator<'a>(
         Terminator::Revert { offset, size } => {
             write!(f, "revert {}, {}", display_val(*offset, func), display_val(*size, func))
         }
+        Terminator::RevertReturndata => write!(f, "revert_returndata"),
         Terminator::ReturnData { offset, size } => {
             write!(f, "returndata {}, {}", display_val(*offset, func), display_val(*size, func))
         }

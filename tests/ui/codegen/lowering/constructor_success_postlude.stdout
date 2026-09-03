@@ -2,14 +2,14 @@
 // === ConstructorSuccessPostlude_deployment ===
 @module ConstructorSuccessPostlude_deployment
 bb0:
-  push 55
+  push 77
   codesize
   sub
   dup 1
-  push 55
-  push 192
+  push 77
+  push 224
   codecopy
-  push 192
+  push 224
   add
   push 31
   add
@@ -18,26 +18,42 @@ bb0:
   and
   push 64
   mstore
-  push 192
-  mload
-  dup 1
-  iszero
-  iszero
-  sub
-  push bb3
+  callvalue
+  push bb5
   jumpi
+  push 224
+  dup 1
   push 192
+  mstore
+  dup 1
+  push 77
+  codesize
+  sub
+  add
+  push 32
+  dup 3
+  add
+  gt
+  push bb5
+  jumpi
   mload
-  push bb3
+  push 2
+  gt
+  iszero
+  push bb5
+  jumpi
+  push 224
+  mload
+  push bb5
   jumpi
   push 3
   dup 1
-  push 52
+  push 74
   push 0
   codecopy
   push 0
   return
-bb3 [cold]:
+bb5 [cold]:
   push 0
   push 0
   revert

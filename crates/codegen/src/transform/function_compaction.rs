@@ -294,7 +294,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
         }
     }
 
-    let function_ids = module.functions.indices().collect::<Vec<_>>();
+    let function_ids = module.functions.indices();
     for func_id in function_ids {
         if live[func_id].count() == live[func_id].domain_size() {
             continue;
@@ -838,6 +838,8 @@ fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
         && lhs.attributes.is_fallback == rhs.attributes.is_fallback
         && lhs.attributes.is_receive == rhs.attributes.is_receive
         && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
+        && lhs.attributes.is_function_pointer_dispatcher
+            == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline
 }
 

@@ -389,6 +389,7 @@ impl MemoryStoreEliminator {
                     | InstKind::SetMemoryObjectLen(_, _, _)
                     | InstKind::StorageToMemory { .. }
                     | InstKind::AbiEncode { .. }
+                    | InstKind::AbiDecode { .. }
             )
         });
         if !has_memory_writes {
@@ -406,7 +407,7 @@ impl MemoryStoreEliminator {
         self.alias().clear_cached_addresses();
         self.remove_unused_internal_frame_stores(func);
 
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         let has_precise_reads = func
             .instructions()
             .any(|inst_id| Self::constant_range_read(&func.inst(inst_id).kind).is_some());
@@ -456,8 +457,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        if block_ids.is_empty() {
+        if func.blocks.is_empty() {
             return;
         }
 
@@ -492,7 +492,7 @@ impl MemoryStoreEliminator {
 
         // Collect dead stores using the stabilized live-out of each block.
         let mut dead = DenseBitSet::new_empty(func.num_insts());
-        for &block_id in &block_ids {
+        for block_id in func.blocks.indices() {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
             self.transfer_block(func, block_id, out, &mut collector);
@@ -587,6 +587,7 @@ impl MemoryStoreEliminator {
             // successors already contribute liveness via `live_out`.
             Some(Terminator::Return { .. })
             | Some(Terminator::TailCall { .. })
+            | Some(Terminator::RevertReturndata)
             | Some(Terminator::Stop)
             | Some(Terminator::Invalid)
             | Some(Terminator::SelfDestruct { .. }) => live = MemLive::All,
@@ -715,7 +716,7 @@ impl MemoryStoreEliminator {
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.num_insts());
 
-        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let block_ids = func.blocks.indices();
         for block_id in block_ids {
             let insts = func.blocks[block_id].instructions.clone();
             for (index, window) in insts.windows(2).enumerate() {
@@ -839,9 +840,10 @@ impl MemoryStoreEliminator {
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
-                InstKind::SetFmp(_) | InstKind::Alloc { .. } | InstKind::AbiEncode { .. } => {
-                    memory_writes += 1
-                }
+                InstKind::SetFmp(_)
+                | InstKind::Alloc { .. }
+                | InstKind::AbiEncode { .. }
+                | InstKind::AbiDecode { .. } => memory_writes += 1,
                 InstKind::MLoad(_) | InstKind::MemoryObjectLen(_, _) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ if self
@@ -943,15 +945,14 @@ impl MemoryStoreEliminator {
                         *size,
                     );
                 }
-                // A call copies only `min(ret_size, returndatasize())` bytes
-                // into its output range. In particular, a failed call with no
-                // revert data leaves the entire range untouched, so it is not
-                // a must-write and cannot make an earlier store dead. Its
-                // input range is still observed before the optional copy.
                 InstKind::Call { args_offset, args_size, .. }
                 | InstKind::CallCode { args_offset, args_size, .. }
                 | InstKind::StaticCall { args_offset, args_size, .. }
                 | InstKind::DelegateCall { args_offset, args_size, .. } => {
+                    // A call reads its whole input, but it only copies
+                    // `min(ret_size, returndatasize())` bytes into the output
+                    // area. The rest remains unchanged, so the output cannot
+                    // prove that an earlier store is dead.
                     self.retain_overwritten_disjoint_from_read(
                         func,
                         &mut scratch.overwritten,
@@ -1662,6 +1663,11 @@ impl MemoryStoreEliminator {
                 Access::Location(Location::Memory(location)) => {
                     if let Some(offset) = location.address.as_internal_frame_offset() {
                         reads.push((offset, location.size.as_const()?));
+                    } else if matches!(
+                        location.address.region,
+                        MemoryRegion::InternalFrame | MemoryRegion::Unknown
+                    ) {
+                        return None;
                     }
                 }
                 Access::Location(Location::Storage(_))

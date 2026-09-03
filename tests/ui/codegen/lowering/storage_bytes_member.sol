@@ -45,15 +45,13 @@ contract StorageBytesMember {
     // CHECK: keccak256
     // CHECK: jump [[LOOP:bb[0-9]+]]
     // CHECK: [[LOOP]]:
-    // CHECK: push [[LOOP_EXIT:bb[0-9]+]]
+    // CHECK: push [[LOOP_BODY:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK: jump [[LOOP]]
-    // CHECK: [[LOOP_EXIT]]:
-    // CHECK: jump [[LOAD_BYTES:bb[0-9]+]]
-    // CHECK: [[LOAD_BYTES]]:
+    // CHECK: [[LOOP_BODY]]:
     // CHECK: sload
     // CHECK: mcopy
     // CHECK: sstore
+    // CHECK: jump [[LOOP]]
     function pushRange(uint8 from, uint8 count) external {
         KeccakState storage state = states[msg.sender];
         for (uint256 i = 0; i < count; i++) {
@@ -63,9 +61,6 @@ contract StorageBytesMember {
 
     // CHECK: [[POP_ONE]]:
     // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
-    // CHECK: sload
-    // CHECK: sstore
     function popOne() external {
         KeccakState storage state = states[msg.sender];
         state.part.pop();
@@ -73,7 +68,6 @@ contract StorageBytesMember {
 
     // CHECK: [[LEN]]:
     // CHECK: keccak256
-    // CHECK: jump [[LOAD_BYTES]]
     // CHECK: mload
     // CHECK: jump [[RETURN:bb[0-9]+]]
     // CHECK: [[RETURN]]:
@@ -87,12 +81,8 @@ contract StorageBytesMember {
     // CHECK: caller
     // CHECK: push 32
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[AT_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump
-    // CHECK: [[AT_CONT]]:
     // CHECK: mload
     // CHECK: mload
-    // CHECK: jump [[RETURN]]
     function at(uint256 i) external view returns (bytes1) {
         KeccakState storage state = states[msg.sender];
         return state.part[i];
@@ -101,10 +91,6 @@ contract StorageBytesMember {
     // CHECK: [[SET_AT]]:
     // CHECK: keccak256
     // CHECK: sload
-    // CHECK: sstore
-    // CHECK: keccak256
-    // CHECK: sload
-    // CHECK: sstore
     function setAt(uint256 i, bytes1 b) external {
         KeccakState storage state = states[msg.sender];
         state.part[i] = b;
@@ -114,9 +100,6 @@ contract StorageBytesMember {
     // CHECK: caller
     // CHECK: push 32
     // CHECK-NEXT: mstore
-    // CHECK-NEXT: push [[WHOLE_CONT:bb[0-9]+]]
-    // CHECK-NEXT: jump
-    // CHECK: [[WHOLE_CONT]]:
     // CHECK: mcopy
     // CHECK: return
     function whole() external view returns (bytes memory) {

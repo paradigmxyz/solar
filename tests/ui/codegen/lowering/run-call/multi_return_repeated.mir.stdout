@@ -1,0 +1,63 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeatedLib ===
+@module MultiReturnRepeatedLib
+
+// === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeated ===
+@module MultiReturnRepeated
+fn @test() -> u256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @sort, 2, 2, 1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = internal_call @sort, 2, 4, 3
+    v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v6 = add v5, 32
+    v7 = mload v6
+    v8 = eq v0, 1
+    jumpi v8, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v9 = eq v3, 2
+    jump bb3
+  bb3:
+    v10 = phi [bb1: v9], [bb2: 0]
+    jumpi v10, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v11 = eq v4, 3
+    jump bb6
+  bb6:
+    v12 = phi [bb4: v11], [bb5: 0]
+    jumpi v12, bb7, bb8
+  bb8:
+    jump bb9
+  bb7:
+    v13 = eq v7, 4
+    jump bb9
+  bb9:
+    v14 = phi [bb7: v13], [bb8: 0]
+    jumpi v14, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    jump bb12
+  bb12:
+    v15 = phi [bb10: 1], [bb11: 0]
+    ret v15
+}
+
+fn @sort(arg0: u256, arg1: u256) -> (u256, u256) [pure] {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg0], [bb2: arg1]
+    v2 = phi [bb1: arg1], [bb2: arg0]
+    ret v1, v2
+}

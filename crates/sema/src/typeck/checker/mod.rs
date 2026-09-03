@@ -791,6 +791,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
         // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        let expr = expr.peel_parens();
         if let hir::ExprKind::Tuple(components) = &expr.kind {
             if components.is_empty() {
                 self.dcx().emit_err(expr.span, "empty tuple on the left hand side");
@@ -822,6 +823,19 @@ impl<'gcx> TypeChecker<'gcx> {
         lhs_ty: Ty<'gcx>,
         rhs: &'gcx hir::Expr<'gcx>,
     ) {
+        let rhs_ty = self.check_expr(rhs);
+        self.check_tuple_assign_rhs_components(lhs, lhs_ty, rhs, rhs_ty);
+    }
+
+    fn check_tuple_assign_rhs_components(
+        &mut self,
+        lhs: &'gcx hir::Expr<'gcx>,
+        lhs_ty: Ty<'gcx>,
+        rhs: &'gcx hir::Expr<'gcx>,
+        rhs_ty: Ty<'gcx>,
+    ) {
+        let lhs = lhs.peel_parens();
+        let rhs = rhs.peel_parens();
         let hir::ExprKind::Tuple(lhs_components) = &lhs.kind else { return };
         let lhs_types = if let TyKind::Tuple(types) = lhs_ty.kind {
             types
@@ -829,7 +843,6 @@ impl<'gcx> TypeChecker<'gcx> {
             std::slice::from_ref(&lhs_ty)
         };
 
-        let rhs_ty = self.check_expr(rhs);
         let rhs_types = if let TyKind::Tuple(types) = rhs_ty.kind {
             types
         } else {
@@ -863,11 +876,24 @@ impl<'gcx> TypeChecker<'gcx> {
         for (i, (&lhs_component, &lhs_component_ty)) in
             lhs_components.iter().zip(lhs_types).enumerate()
         {
-            if let Some(lhs_component) = lhs_component
-                && let Some(rhs_component) = rhs_components.and_then(|components| components[i])
-                && !self.can_assign_storage_copy(lhs_component, rhs_types[i], lhs_component_ty)
-            {
-                let _ = self.check_expected(rhs_component, rhs_types[i], lhs_component_ty);
+            let Some(lhs_component) = lhs_component else { continue };
+            let rhs_component = rhs_components
+                .and_then(|components| components.get(i).copied().flatten())
+                .unwrap_or(rhs);
+            let rhs_component_ty = rhs_types[i];
+            if matches!(lhs_component.peel_parens().kind, hir::ExprKind::Tuple(_)) {
+                self.check_tuple_assign_rhs_components(
+                    lhs_component,
+                    lhs_component_ty,
+                    rhs_component,
+                    rhs_component_ty,
+                );
+            } else if !self.can_assign_storage_copy(
+                lhs_component,
+                rhs_component_ty,
+                lhs_component_ty,
+            ) {
+                let _ = self.check_expected(rhs_component, rhs_component_ty, lhs_component_ty);
             }
         }
     }

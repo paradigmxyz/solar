@@ -1,15 +1,39 @@
 - // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (before lower-abi) ===
 + // === ROOT/tests/ui/codegen/mir/lowering/lower_abi_multi_return.mir (after lower-abi) ===
   @module LowerAbiMultiReturn
-- fn @pair(arg0: u256) -> (u256, u256) [abi_returns=[word, word]] {
 + @phase abi
-+ fn @pair() {
+  immutables:
+    owner: address
+  
+- fn @pair(arg0: u256) -> (u256, u256) [selector=0x1f6a26ff, abi_returns=[word, word]] {
++ fn @pair() [selector=0x1f6a26ff] {
     bb0:
++     v1 = calldatasize
++     v2 = lt v1, 36
++     jumpi v2, bb2, bb3
++   bb3:
++     jump bb1
++   bb1:
       v0 = add arg0, 1
 -     ret arg0, v0
 +     mstore 128, arg0
++     v3 = add 128, 32
++     mstore v3, v0
++     v4 = add v3, 32
++     v5 = sub v4, 128
++     returndata 128, v5
++   bb2:
++     revert 0, 0
+  }
+  
+- fn @owner() -> address [selector=0x8da5cb5b, abi_returns=[word], abi_return_params=[address]] {
++ fn @owner() [selector=0x8da5cb5b] {
+    bb0:
+      v0 = loadimmutable owner
+-     ret v0
++     mstore 128, v0
 +     v1 = add 128, 32
-+     mstore v1, v0
-+     returndata 128, 64
++     v2 = sub v1, 128
++     returndata 128, v2
   }
   

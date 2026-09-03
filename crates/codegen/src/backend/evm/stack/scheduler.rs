@@ -39,11 +39,9 @@
 //! Non-recomputable live-ins may load a `reloadable` slot before its defining block has been
 //! emitted because that block still stores the value first at runtime. An unstored cheap arithmetic
 //! live-in is never exposed to this planner as a spill load. The fallback may recompute it when its
-//! complete dependency tree ends in stable arguments, calldata, or transaction/block context;
-//! otherwise it receives its own mandatory store when another block must reload it.
+//! complete dependency tree ends in stable arguments, calldata, or transaction/block context.
 //! Constructor-staged immutable loads remain excluded because they are memory-backed until
-//! deployment finishes. A value used only as a phi-edge source does not require a mandatory store
-//! solely for that edge; a successfully preserved phi edge carries it on the stack.
+//! deployment finishes. A successfully preserved phi edge carries its source on the stack.
 //! Free-memory-pointer loads are stored at their definitions because the pointer may move before a
 //! later use. Gas and unoptimized lowering give only cross-block values stable slots and reuse
 //! block-local slots after emission. Size lowering keeps every free-memory-pointer slot stable
@@ -171,12 +169,6 @@ const fn is_cheap_recomputable_kind(kind: &InstKind) -> bool {
             | InstKind::Sar(_, _)
             | InstKind::ConstructorArgsBase
     )
-}
-
-/// Returns whether an instruction result is cheap enough to rebuild from its operands.
-pub(crate) fn is_cheap_recomputable_value(func: &Function, value: ValueId) -> bool {
-    let Value::Inst(inst_id) = func.value(value) else { return false };
-    is_cheap_recomputable_kind(&func.inst(*inst_id).kind)
 }
 
 /// Returns whether an instruction result can be rebuilt across basic blocks.
@@ -3511,8 +3503,8 @@ mod tests {
         let mut func = Function::new(Ident::DUMMY);
         let (first, penultimate) = {
             let mut builder = FunctionBuilder::new(&mut func);
-            let zero = builder.imm_u64(0);
-            let one = builder.imm_u64(1);
+            let zero = builder.imm(0);
+            let one = builder.imm(1);
             for _ in 0..BIG_BLOCK_INSTRUCTIONS {
                 builder.add(zero, one);
             }

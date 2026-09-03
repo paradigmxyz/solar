@@ -282,7 +282,7 @@ impl StorageScalarPromoter {
     fn exit_rolls_back(&self, func: &Function, exit: BlockId) -> bool {
         matches!(
             func.blocks[exit].terminator,
-            Some(Terminator::Revert { .. } | Terminator::Invalid)
+            Some(Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid)
         )
     }
 
@@ -297,6 +297,9 @@ impl StorageScalarPromoter {
                     | InstKind::CallCode { .. }
                     | InstKind::StaticCall { .. }
                     | InstKind::DelegateCall { .. }
+                    | InstKind::ExtCall { .. }
+                    | InstKind::ExtDelegateCall { .. }
+                    | InstKind::ExtStaticCall { .. }
                     | InstKind::InternalCall { .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _)
@@ -323,6 +326,7 @@ impl StorageScalarPromoter {
                 Some(
                     Terminator::Return { .. }
                         | Terminator::Revert { .. }
+                        | Terminator::RevertReturndata
                         | Terminator::ReturnData { .. }
                         | Terminator::Stop
                         | Terminator::SelfDestruct { .. }
@@ -341,6 +345,9 @@ impl StorageScalarPromoter {
                     | InstKind::CallCode { .. }
                     | InstKind::StaticCall { .. }
                     | InstKind::DelegateCall { .. }
+                    | InstKind::ExtCall { .. }
+                    | InstKind::ExtDelegateCall { .. }
+                    | InstKind::ExtStaticCall { .. }
                     | InstKind::InternalCall { .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _)

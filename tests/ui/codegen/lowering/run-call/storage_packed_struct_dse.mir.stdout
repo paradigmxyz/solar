@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_struct_dse.sol:PackedStructDse ===
+@module PackedStructDse
+fn @preservesRawNeighbors() -> bool [selector=0x56c38e53, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = not 0
+    sstore 0, v0 !metadata(storage=slot(0))
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 255
+    v3 = and v1, v2
+    v4 = and 1, 255
+    v5 = or v3, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = and v6, 255
+    v8 = eq v7, 1
+    jumpi v8, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v9 = shr 8, v6
+    v10 = eq v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jump bb3
+  bb3:
+    v11 = phi [bb1: v10], [bb2: 0]
+    ret v11
+}

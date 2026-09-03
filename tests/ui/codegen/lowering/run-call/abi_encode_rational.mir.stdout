@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_rational.sol:AbiEncodeRational ===
+@module AbiEncodeRational
+fn @encode() -> memorybytes [selector=0xbd14598f, pure, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = sub 0, 2
+    v1 = abi_encode [word, word], object, args 1, v0
+    ret v1
+}

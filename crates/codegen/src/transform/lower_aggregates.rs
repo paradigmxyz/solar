@@ -2,14 +2,12 @@
 
 use crate::{
     mir::{
-        Function, FunctionBuilder, InstKind, Module, PackedValue, StorageField, StorageLayout,
-        ValueId,
+        Function, FunctionBuilder, InstKind, MemoryObjectLayout, Module, StorageField,
+        StorageLayout, ValueId,
     },
     pass::MirPass,
 };
-use alloy_primitives::U256;
 use solar_sema::Gcx;
-use std::sync::Arc;
 
 /// Lowers aggregate copies and clears after the main optimization pipeline.
 pub(crate) struct LowerAggregates;
@@ -37,10 +35,46 @@ impl MirPass for LowerAggregates {
     }
 }
 
-enum AggregateOp {
-    StorageToMemory { storage: ValueId, memory: ValueId, layout: Arc<StorageLayout> },
-    MemoryToStorage { memory: ValueId, storage: ValueId, layout: Arc<StorageLayout> },
-    ClearStorage { storage: ValueId, layout: Arc<StorageLayout> },
+#[derive(Clone, Copy)]
+enum MemoryObjectAccess {
+    Field { object: ValueId, layout: MemoryObjectLayout, field: u64 },
+    Element { object: ValueId, layout: MemoryObjectLayout, index: ValueId },
+}
+
+fn store_memory_object_word(
+    builder: &mut FunctionBuilder<'_>,
+    destination: MemoryObjectAccess,
+    value: ValueId,
+) {
+    match destination {
+        MemoryObjectAccess::Field { object, layout, field } => {
+            builder.memory_object_store_field(object, layout, field, value)
+        }
+        MemoryObjectAccess::Element { object, layout, index } => {
+            builder.memory_object_store_element(object, layout, index, value)
+        }
+    }
+}
+
+fn load_memory_object_word(
+    builder: &mut FunctionBuilder<'_>,
+    source: MemoryObjectAccess,
+) -> ValueId {
+    match source {
+        MemoryObjectAccess::Field { object, layout, field } => {
+            builder.memory_object_load_field(object, layout, field)
+        }
+        MemoryObjectAccess::Element { object, layout, index } => {
+            builder.memory_object_load_element(object, layout, index)
+        }
+    }
+}
+
+fn memory_object_layout(layout: &StorageLayout) -> MemoryObjectLayout {
+    match layout {
+        StorageLayout::Struct(fields) => MemoryObjectLayout::structure(fields.len() as u64),
+        StorageLayout::Array { len, .. } => MemoryObjectLayout::word_fixed_array(*len),
+    }
 }
 
 fn lower_function(func: &mut Function) -> bool {
@@ -56,46 +90,35 @@ fn lower_function(func: &mut Function) -> bool {
         return false;
     }
 
-    let blocks: Vec<_> = func.blocks.indices().collect();
+    let blocks = func.blocks.indices();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
+        let terminator = func.blocks[block].terminator.take();
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         for inst in instructions {
-            let op = match &builder.func().inst(inst).kind {
+            match &builder.func().inst(inst).kind {
                 InstKind::StorageToMemory { storage, memory, layout } => {
-                    Some(AggregateOp::StorageToMemory {
-                        storage: *storage,
-                        memory: *memory,
-                        layout: Arc::clone(layout),
-                    })
-                }
-                InstKind::MemoryToStorage { memory, storage, layout } => {
-                    Some(AggregateOp::MemoryToStorage {
-                        memory: *memory,
-                        storage: *storage,
-                        layout: Arc::clone(layout),
-                    })
-                }
-                InstKind::ClearStorage { storage, layout } => Some(AggregateOp::ClearStorage {
-                    storage: *storage,
-                    layout: Arc::clone(layout),
-                }),
-                _ => None,
-            };
-            match op {
-                Some(AggregateOp::StorageToMemory { storage, memory, layout }) => {
+                    let (storage, memory, layout) = (*storage, *memory, layout.clone());
                     lower_storage_to_memory(&mut builder, &layout, storage, memory);
                 }
-                Some(AggregateOp::MemoryToStorage { memory, storage, layout }) => {
+                InstKind::MemoryToStorage { memory, storage, layout } => {
+                    let (memory, storage, layout) = (*memory, *storage, layout.clone());
                     lower_memory_to_storage(&mut builder, &layout, memory, storage);
                 }
-                Some(AggregateOp::ClearStorage { storage, layout }) => {
+                InstKind::ClearStorage { storage, layout } => {
+                    let (storage, layout) = (*storage, layout.clone());
                     lower_clear_storage(&mut builder, &layout, storage);
                 }
-                None => builder.func_mut().blocks[block].instructions.push(inst),
+                _ => {
+                    let current = builder.current_block();
+                    builder.func_mut().blocks[current].instructions.push(inst);
+                    continue;
+                }
             }
         }
+        let current = builder.current_block();
+        builder.func_mut().blocks[current].terminator = terminator;
     }
     true
 }
@@ -106,106 +129,76 @@ fn lower_storage_to_memory(
     storage: ValueId,
     memory: ValueId,
 ) {
+    visit_storage_fields(builder, layout, storage, memory, |builder, field, slot, destination| {
+        lower_storage_field_to_memory(builder, field, slot, destination);
+    });
+}
+
+fn visit_storage_fields(
+    builder: &mut FunctionBuilder<'_>,
+    layout: &StorageLayout,
+    storage: ValueId,
+    memory: ValueId,
+    mut visit: impl FnMut(&mut FunctionBuilder<'_>, &StorageField, ValueId, MemoryObjectAccess),
+) {
+    let memory_layout = memory_object_layout(layout);
     match layout {
         StorageLayout::Struct(fields) => {
-            // Packed neighbors share a slot; fields are in placement order, so
-            // one cached load serves every extraction from the same slot.
-            let mut loaded: Option<(u64, ValueId)> = None;
+            let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
-                let dest = builder.memory_object_field_addr(
-                    memory,
-                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
-                    index as u64,
+                let slot = builder.add_u64_offset(storage, storage_offset);
+                visit(
+                    builder,
+                    field,
+                    slot,
+                    MemoryObjectAccess::Field {
+                        object: memory,
+                        layout: memory_layout,
+                        field: index as u64,
+                    },
                 );
-                match &field.shape {
-                    StorageField::Word => {
-                        let slot = offset_value(builder, storage, field.slot);
-                        let value = builder.sload(slot);
-                        builder.mstore(dest, value);
-                    }
-                    StorageField::Packed(value) => {
-                        let word = match loaded {
-                            Some((slot, word)) if slot == field.slot => word,
-                            _ => {
-                                let slot = offset_value(builder, storage, field.slot);
-                                let word = builder.sload(slot);
-                                loaded = Some((field.slot, word));
-                                word
-                            }
-                        };
-                        let extracted = builder.extract_packed(word, *value, field.offset);
-                        builder.mstore(dest, extracted);
-                    }
-                    StorageField::Aggregate(nested) => {
-                        let slot = offset_value(builder, storage, field.slot);
-                        lower_nested_storage_to_memory(builder, nested, slot, dest);
-                    }
-                }
+                storage_offset += field.storage_slots();
             }
         }
-        StorageLayout::Array { element, len } => match element {
-            StorageField::Packed(value) => {
-                let per_slot = u64::from(value.per_slot());
-                let mut loaded: Option<(u64, ValueId)> = None;
-                for index in 0..*len {
-                    let dest = array_element_addr(builder, memory, *len, index);
-                    let slot_offset = index / per_slot;
-                    let byte_offset = ((index % per_slot) * u64::from(value.size)) as u8;
-                    let word = match loaded {
-                        Some((slot, word)) if slot == slot_offset => word,
-                        _ => {
-                            let slot = offset_value(builder, storage, slot_offset);
-                            let word = builder.sload(slot);
-                            loaded = Some((slot_offset, word));
-                            word
-                        }
-                    };
-                    let extracted = builder.extract_packed(word, *value, byte_offset);
-                    builder.mstore(dest, extracted);
-                }
-            }
-            _ => {
-                let stride = element.storage_slots();
-                for index in 0..*len {
-                    let dest = array_element_addr(builder, memory, *len, index);
-                    let slot = offset_value(builder, storage, index * stride);
-                    match element {
-                        StorageField::Word => {
-                            let value = builder.sload(slot);
-                            builder.mstore(dest, value);
-                        }
-                        StorageField::Aggregate(nested) => {
-                            lower_nested_storage_to_memory(builder, nested, slot, dest);
-                        }
-                        StorageField::Packed(_) => unreachable!(),
-                    }
-                }
-            }
-        },
+        StorageLayout::Array { element, len } => {
+            let length = builder.imm(*len);
+            let stride = builder.imm(element.storage_slots());
+            builder.counted_loop(length, |builder, index| {
+                let offset = builder.mul(index, stride);
+                let slot = builder.add(storage, offset);
+                visit(
+                    builder,
+                    element,
+                    slot,
+                    MemoryObjectAccess::Element { object: memory, layout: memory_layout, index },
+                );
+            });
+        }
     }
 }
 
-/// Allocates a nested memory object, fills it from storage, and stores its
-/// pointer into the parent word at `dest`.
-fn lower_nested_storage_to_memory(
+fn lower_storage_field_to_memory(
     builder: &mut FunctionBuilder<'_>,
-    layout: &Arc<StorageLayout>,
+    field: &StorageField,
     slot: ValueId,
-    dest: ValueId,
+    dest: MemoryObjectAccess,
 ) {
-    let size = builder.imm_u64(layout.memory_words() * 32);
-    let object_layout = match layout.as_ref() {
-        StorageLayout::Struct(fields) => {
-            crate::mir::MemoryObjectLayout::Struct { fields: fields.len() as u64 }
+    match field {
+        StorageField::Word => {
+            let value = builder.sload(slot);
+            store_memory_object_word(builder, dest, value);
         }
-        StorageLayout::Array { len, .. } => {
-            crate::mir::MemoryObjectLayout::FixedArray { len: *len, element_words: 1 }
+        StorageField::Aggregate(layout) => {
+            let size = builder.imm(layout.memory_words() * 32);
+            let nested = builder.alloc_object(
+                size,
+                memory_object_layout(layout),
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
+            lower_storage_to_memory(builder, layout, slot, nested);
+            store_memory_object_word(builder, dest, nested);
         }
-    };
-    let nested =
-        builder.alloc_object(size, object_layout, crate::mir::AllocationSemantics::INTERNAL);
-    lower_storage_to_memory(builder, layout, slot, nested);
-    builder.mstore(dest, nested);
+    }
 }
 
 fn lower_memory_to_storage(
@@ -214,175 +207,24 @@ fn lower_memory_to_storage(
     memory: ValueId,
     storage: ValueId,
 ) {
-    match layout {
-        StorageLayout::Struct(fields) => {
-            let mut index = 0;
-            while index < fields.len() {
-                let field = &fields[index];
-                match &field.shape {
-                    StorageField::Word => {
-                        let source = struct_field_addr(builder, memory, fields.len(), index);
-                        let value = builder.mload(source);
-                        let slot = offset_value(builder, storage, field.slot);
-                        builder.sstore(slot, value);
-                        index += 1;
-                    }
-                    StorageField::Aggregate(nested) => {
-                        let source = struct_field_addr(builder, memory, fields.len(), index);
-                        let pointer = builder.mload(source);
-                        let slot = offset_value(builder, storage, field.slot);
-                        lower_memory_to_storage(builder, nested, pointer, slot);
-                        index += 1;
-                    }
-                    StorageField::Packed(_) => {
-                        let group_len = fields[index..]
-                            .iter()
-                            .take_while(|other| {
-                                other.slot == field.slot
-                                    && matches!(other.shape, StorageField::Packed(_))
-                            })
-                            .count();
-                        let sources = (index..index + group_len)
-                            .map(|i| struct_field_addr(builder, memory, fields.len(), i))
-                            .collect::<Vec<_>>();
-                        let group = &fields[index..index + group_len];
-                        // A struct copy updates members like member assignments
-                        // do: bytes of the slot outside the members survive.
-                        store_packed_group(
-                            builder,
-                            storage,
-                            field.slot,
-                            group.iter().map(|f| (f.offset, packed(&f.shape))),
-                            &sources,
-                            true,
-                        );
-                        index += group_len;
-                    }
-                }
-            }
-        }
-        StorageLayout::Array { element, len } => match element {
-            StorageField::Packed(value) => {
-                let per_slot = u64::from(value.per_slot());
-                let mut index = 0u64;
-                while index < *len {
-                    let slot_offset = index / per_slot;
-                    let group_len = per_slot.min(*len - index);
-                    let sources = (index..index + group_len)
-                        .map(|i| array_element_addr(builder, memory, *len, i))
-                        .collect::<Vec<_>>();
-                    let placements = (0..group_len)
-                        .map(|i| ((i * u64::from(value.size)) as u8, *value))
-                        .collect::<Vec<_>>();
-                    // An array copy rebuilds each data slot from its elements,
-                    // zero-filling bytes past the packed elements like solc.
-                    store_packed_group(
-                        builder,
-                        storage,
-                        slot_offset,
-                        placements.iter().copied(),
-                        &sources,
-                        false,
-                    );
-                    index += group_len;
-                }
-            }
-            _ => {
-                let stride = element.storage_slots();
-                for index in 0..*len {
-                    let source = array_element_addr(builder, memory, *len, index);
-                    let slot = offset_value(builder, storage, index * stride);
-                    match element {
-                        StorageField::Word => {
-                            let value = builder.mload(source);
-                            builder.sstore(slot, value);
-                        }
-                        StorageField::Aggregate(nested) => {
-                            let pointer = builder.mload(source);
-                            lower_memory_to_storage(builder, nested, pointer, slot);
-                        }
-                        StorageField::Packed(_) => unreachable!(),
-                    }
-                }
-            }
-        },
-    }
+    visit_storage_fields(builder, layout, storage, memory, |builder, field, slot, source| {
+        lower_memory_field_to_storage(builder, field, source, slot);
+    });
 }
 
-fn packed(shape: &StorageField) -> PackedValue {
-    match shape {
-        StorageField::Packed(value) => *value,
-        _ => unreachable!("packed group contains a non-packed field"),
-    }
-}
-
-/// Composes one storage slot from packed member values loaded from memory and
-/// stores it. `preserve` keeps slot bytes not covered by any member; without
-/// it uncovered bytes are zero-filled.
-fn store_packed_group(
+fn lower_memory_field_to_storage(
     builder: &mut FunctionBuilder<'_>,
-    storage: ValueId,
-    slot_offset: u64,
-    placements: impl Iterator<Item = (u8, PackedValue)> + Clone,
-    sources: &[ValueId],
-    preserve: bool,
+    field: &StorageField,
+    source: MemoryObjectAccess,
+    slot: ValueId,
 ) {
-    let mut covered = U256::ZERO;
-    for (offset, value) in placements.clone() {
-        covered |= value.mask() << (usize::from(offset) * 8);
+    let value = load_memory_object_word(builder, source);
+    match field {
+        StorageField::Word => builder.sstore(slot, value),
+        StorageField::Aggregate(layout) => {
+            lower_memory_to_storage(builder, layout, value, slot);
+        }
     }
-    let slot = offset_value(builder, storage, slot_offset);
-    let mut acc = if !preserve || covered == U256::MAX {
-        None
-    } else {
-        let word = builder.sload(slot);
-        let keep = builder.imm_u256(!covered);
-        Some(builder.and(word, keep))
-    };
-    for ((offset, value), &source) in placements.zip(sources) {
-        let loaded = builder.mload(source);
-        let prepared = builder.prepare_packed(loaded, value);
-        let shifted = if offset == 0 {
-            prepared
-        } else {
-            let shift = builder.imm_u64(u64::from(offset) * 8);
-            builder.shl(shift, prepared)
-        };
-        acc = Some(match acc {
-            Some(acc) => builder.or(acc, shifted),
-            None => shifted,
-        });
-    }
-    if let Some(acc) = acc {
-        builder.sstore(slot, acc);
-    }
-}
-
-fn struct_field_addr(
-    builder: &mut FunctionBuilder<'_>,
-    memory: ValueId,
-    fields: usize,
-    index: usize,
-) -> ValueId {
-    builder.memory_object_field_addr(
-        memory,
-        crate::mir::MemoryObjectLayout::structure(fields as u64),
-        index as u64,
-    )
-}
-
-fn array_element_addr(
-    builder: &mut FunctionBuilder<'_>,
-    memory: ValueId,
-    len: u64,
-    index: u64,
-) -> ValueId {
-    let index_value = builder.imm_u64(index);
-    builder.memory_object_element_addr(
-        memory,
-        crate::mir::MemoryObjectLayout::word_fixed_array(len),
-        index_value,
-    )
 }
 
 fn lower_clear_storage(
@@ -390,18 +232,10 @@ fn lower_clear_storage(
     layout: &StorageLayout,
     storage: ValueId,
 ) {
-    let zero = builder.imm_u64(0);
-    for offset in 0..layout.storage_slots() {
-        let slot = offset_value(builder, storage, offset);
+    let zero = builder.imm(0);
+    let slots = builder.imm(layout.storage_slots());
+    builder.counted_loop(slots, |builder, offset| {
+        let slot = builder.add(storage, offset);
         builder.sstore(slot, zero);
-    }
-}
-
-fn offset_value(builder: &mut FunctionBuilder<'_>, base: ValueId, offset: u64) -> ValueId {
-    if offset == 0 {
-        base
-    } else {
-        let offset = builder.imm_u64(offset);
-        builder.add(base, offset)
-    }
+    });
 }

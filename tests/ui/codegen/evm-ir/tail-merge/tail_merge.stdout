@@ -70,7 +70,7 @@
     jump bb10
   bb10:
     stop
-  bb11:
+  bb13 [cold]:
     push 1
     push 2
     push 3
@@ -78,12 +78,28 @@
 -   pop
 -   pop
 -   stop
-+   jump bb13
-  bb12:
++   jump bb15
+  bb14 [cold]:
     push 4
     push 5
     push 6
-+   jump bb13
+-   exchange 1, 2
+-   pop
+-   pop
+-   stop
++   jump bb15
+  bb11:
+    push 11
+    push 1
+    push 2
+    push 0
+    stop
+  bb12:
+    push 12
+    push 1
+    push 2
+    push 0
++   stop
 + bb4:
 +   push 33
 +   push 44
@@ -98,9 +114,9 @@
 +   push 444
 +   push 555
 +   revert
-+ bb13:
-    exchange 1, 2
-    pop
-    pop
++ bb15 [cold]:
++   exchange 1, 2
++   pop
++   pop
     stop
   

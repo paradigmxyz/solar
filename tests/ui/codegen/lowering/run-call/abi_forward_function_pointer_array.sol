@@ -1,0 +1,15 @@
+//@ filecheck:
+// CHECK: @module
+//@ codegen-matrix: standard
+//@ run-call: forward [0x303132333435363738393031323334353637383961626364] => true
+//@ run-call-fail: 0xf848716a000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000013031323334353637383930313233343536373839616263645800000000000000
+
+contract AbiForwardFunctionPointerArray {
+    function forward(function() external[] calldata pointers) external view returns (bool) {
+        return this.accept(pointers);
+    }
+
+    function accept(function() external[] calldata pointers) external pure returns (bool) {
+        return pointers.length == 1;
+    }
+}

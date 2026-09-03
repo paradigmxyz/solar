@@ -1,0 +1,71 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_multiple_invocations.sol:ModifierMultipleInvocations ===
+@module ModifierMultipleInvocations
+fn @f(arg0: u256) -> u256 [selector=0xb3de648b, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 2
+    v2 = lt v1, v0
+    jumpi v2, bb2, bb3
+  bb3:
+    sstore 0, v1 !metadata(storage=slot(0))
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = add v3, 5
+    v5 = lt v4, v3
+    jumpi v5, bb2, bb5
+  bb5:
+    sstore 0, v4 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = add v6, arg0
+    v8 = lt v7, v6
+    jumpi v8, bb2, bb7
+  bb7:
+    sstore 0, v7 !metadata(storage=slot(0))
+    v9 = sload 0 !metadata(storage=slot(0))
+    jump bb8
+  bb8:
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = sub v10, arg0
+    v12 = lt v10, arg0
+    jumpi v12, bb2, bb9
+  bb9:
+    sstore 0, v11 !metadata(storage=slot(0))
+    v13 = eq arg0, arg0
+    v14 = iszero v13
+    jumpi v14, bb10, bb11
+  bb11:
+    jump bb6
+  bb6:
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = sub v15, 5
+    v17 = lt v15, 5
+    jumpi v17, bb2, bb12
+  bb12:
+    sstore 0, v16 !metadata(storage=slot(0))
+    v18 = eq 5, 5
+    v19 = iszero v18
+    jumpi v19, bb10, bb13
+  bb13:
+    jump bb4
+  bb4:
+    v20 = sload 0 !metadata(storage=slot(0))
+    v21 = sub v20, 2
+    v22 = lt v20, 2
+    jumpi v22, bb2, bb14
+  bb14:
+    sstore 0, v21 !metadata(storage=slot(0))
+    v23 = eq 2, 2
+    v24 = iszero v23
+    jumpi v24, bb10, bb15
+  bb15:
+    jump bb1
+  bb1:
+    ret v9
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 1 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

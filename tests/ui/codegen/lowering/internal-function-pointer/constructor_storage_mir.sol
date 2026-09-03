@@ -22,8 +22,8 @@ contract ConstructorStoredFunctionPointer {
     // CHECK-LABEL: fn @callStoredOnly(
     // CHECK: [[WORD:v[0-9]+]] = sload 0
     // CHECK: [[STORED_ONLY:v[0-9]+]] = and [[WORD]], 0xffffffffffffffff
-    // CHECK: internal_call @__internal_dispatch_0, 1, [[STORED_ONLY]]
-    // CHECK-LABEL: fn @__internal_dispatch_0(
+    // CHECK: internal_call @internal_dispatcher_p_none_r_u256, 1, [[STORED_ONLY]]
+    // CHECK-LABEL: fn @internal_dispatcher_p_none_r_u256(
     // CHECK: eq arg0, [[ONLY_STORED]]
     // CHECK: internal_call @onlyStored, 1
     function callStoredOnly() public returns (uint256) {

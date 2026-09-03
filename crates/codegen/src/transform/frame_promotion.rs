@@ -478,6 +478,17 @@ impl FrameSlotPromoter {
                     slot_offset,
                 )
             }
+            InstKind::ExtCall { args_offset, args_size, .. }
+            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
+            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
+                Self::internal_frame_range_may_overlap(
+                    func,
+                    aa,
+                    args_offset,
+                    func.value_u64(args_size),
+                    slot_offset,
+                )
+            }
             InstKind::Add(a, b) => {
                 let exact_frame_addr = Self::internal_frame_add_offset(func, aa, a, b, 0)
                     .or_else(|| Self::internal_frame_add_offset(func, aa, b, a, 0))
@@ -572,6 +583,17 @@ impl FrameSlotPromoter {
                     slot_addr,
                 )
             }
+            InstKind::ExtCall { args_offset, args_size, .. }
+            | InstKind::ExtDelegateCall { args_offset, args_size, .. }
+            | InstKind::ExtStaticCall { args_offset, args_size, .. } => {
+                Self::external_range_reaches_slot(
+                    func,
+                    aa,
+                    args_offset,
+                    func.value_u64(args_size),
+                    slot_addr,
+                )
+            }
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
                 Self::external_range_reaches_slot(func, aa, offset, func.value_u64(size), slot_addr)
             }
@@ -579,9 +601,10 @@ impl FrameSlotPromoter {
             // pointer and stage data in scratch or heap memory; they never
             // reference a caller's compiler-owned absolute local slots.
             InstKind::InternalCall { .. } => false,
-            InstKind::MappingSlotMemory(_, _) | InstKind::AbiEncode { .. } | InstKind::MSize => {
-                true
-            }
+            InstKind::MappingSlotMemory(_, _)
+            | InstKind::AbiEncode { .. }
+            | InstKind::AbiDecode { .. }
+            | InstKind::MSize => true,
             _ => false,
         }
     }
@@ -638,6 +661,7 @@ impl FrameSlotPromoter {
             | Terminator::Branch { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
+            | Terminator::RevertReturndata
             | Terminator::Stop
             | Terminator::Invalid
             | Terminator::TailCall { .. }

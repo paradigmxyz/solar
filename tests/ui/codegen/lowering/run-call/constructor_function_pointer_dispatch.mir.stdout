@@ -1,0 +1,92 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_function_pointer_dispatch.sol:ConstructorFunctionPointerDispatch ===
+@module ConstructorFunctionPointerDispatch
+fn @constructor() [constructor] {
+  bb0:
+    internal_call @internal_dispatcher_p_bytes6_r_none, 0, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
+    internal_call @applyShift, 0, 4, 3
+    stop
+}
+
+fn @getName() -> bytes6 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes6>]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffff
+    v2 = shl 208, v1
+    ret v2
+}
+
+fn @leftByteShift(arg0: bytes6, arg1: u256) -> bytes6 [selector=0x49858898, pure, abi_params=[bytes6, u256], abi_returns=[word<bytes6>]] {
+  bb0:
+    v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    v1 = mul arg1, 8
+    v2 = iszero 8
+    v3 = div v1, 8
+    v4 = eq v3, arg1
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = shl v1, v0
+    v8 = and v7, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    ret v8
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @applyShift(arg0: function, arg1: u256) {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffff
+    v2 = shl 208, v1
+    v3 = internal_call @internal_dispatcher_p_bytes6_u256_r_bytes6, 1, arg0, v2, arg1
+    v4 = and v3, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = not 0xffffffffffff
+    v7 = and v5, v6
+    v8 = shr 208, v4
+    v9 = and v8, 0xffffffffffff
+    v10 = or v7, v9
+    sstore 0, v10 !metadata(storage=slot(0))
+    stop
+}
+
+fn @setName(arg0: bytes6) {
+  bb0:
+    v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = not 0xffffffffffff
+    v3 = and v1, v2
+    v4 = shr 208, v0
+    v5 = and v4, 0xffffffffffff
+    v6 = or v3, v5
+    sstore 0, v6 !metadata(storage=slot(0))
+    stop
+}
+
+fn @internal_dispatcher_p_bytes6_r_none(arg0: function, arg1: bytes6) [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 3
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    internal_call @setName, 0, arg1
+    ret
+}
+
+fn @internal_dispatcher_p_bytes6_u256_r_bytes6(arg0: function, arg1: bytes6, arg2: u256) -> bytes6 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 4
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @leftByteShift, 1, arg1, arg2
+    ret v1
+}

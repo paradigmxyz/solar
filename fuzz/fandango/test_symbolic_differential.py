@@ -41,7 +41,6 @@ def _forge_report(
     *,
     replay: str = "not_required",
     max_dynamic_length: int = 256,
-    prefix_status: str | None = None,
 ) -> dict[str, object]:
     symbolic_result: dict[str, object] = {
         "status": status,
@@ -79,8 +78,6 @@ def _forge_report(
             "symbolic": symbolic_result,
         }
     }
-    if prefix_status is not None:
-        test_results["testPrefixDifferential()"] = {"status": prefix_status}
     return {
         "test/SymbolicDifferential.t.sol:SymbolicDifferentialTest": {
             "test_results": test_results
@@ -210,30 +207,6 @@ class ResultClassificationTests(unittest.TestCase):
                 "0xb3de648b",
             )
 
-    def test_classifies_concrete_prefix_mismatch(self) -> None:
-        self.assertEqual(
-            symbolic._classify(
-                _forge_report("pass", prefix_status="Success"),
-                "0xb3de648b",
-                prefix_enabled=True,
-            ),
-            {"status": "bounded_agreement"},
-        )
-        self.assertEqual(
-            symbolic._classify(
-                _forge_report("pass", prefix_status="Failure"),
-                "0xb3de648b",
-                prefix_enabled=True,
-            ),
-            {"status": "mismatch", "counterexample": {"stage": "prefix"}},
-        )
-        with self.assertRaisesRegex(ValueError, "concrete prefix result"):
-            symbolic._classify(
-                _forge_report("pass"),
-                "0xb3de648b",
-                prefix_enabled=True,
-            )
-
     def test_bounded_agreement_requires_the_requested_forge_bounds(self) -> None:
         expected = {
             "solver_timeout_seconds": 5,
@@ -285,15 +258,16 @@ class ProjectGenerationTests(unittest.TestCase):
         self.assertIn("60006000f3", test_source)
         self.assertIn("60016000f3", test_source)
         self.assertNotIn("RuntimeRouter", test_source)
-        self.assertIn("vm.etch(TARGET, SOLC_CODE)", test_source)
-        self.assertIn("TARGET.staticcall", test_source)
-        self.assertIn("vm.revertToStateAndDelete(snapshot)", test_source)
+        self.assertIn("solcTarget = _deploy(SOLC_CODE)", test_source)
+        self.assertIn("solcTarget.staticcall", test_source)
+        self.assertIn("solarTarget.staticcall", test_source)
+        self.assertIn("target := create", test_source)
         self.assertNotIn("recordLogs", test_source)
         self.assertNotIn("vm.store", test_source)
         self.assertIn('evm_version = "osaka"', config)
         self.assertIn("max_dynamic_length = 256", config)
 
-    def test_stateful_harness_compares_logs_and_written_storage(self) -> None:
+    def test_stateful_harness_compares_single_call_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = pathlib.Path(tmp)
             symbolic._write_project(
@@ -312,15 +286,16 @@ class ProjectGenerationTests(unittest.TestCase):
             test_source = (project / "test" / "SymbolicDifferential.t.sol").read_text()
             config = (project / "foundry.toml").read_text()
 
-        self.assertIn("vm.recordLogs()", test_source)
         self.assertNotIn("RuntimeRouter", test_source)
-        self.assertIn("vm.etch(TARGET, SOLC_CODE)", test_source)
-        self.assertIn("vm.accesses(TARGET)", test_source)
-        self.assertIn("vm.revertToStateAndDelete(snapshot)", test_source)
-        self.assertIn("vm.load(STATE_MIRROR", test_source)
+        self.assertIn("solcTarget.call", test_source)
+        self.assertIn("solarTarget.call", test_source)
+        self.assertIn("target := create", test_source)
+        self.assertNotIn("vm.etch", test_source)
+        self.assertNotIn("vm.record", test_source)
+        self.assertNotIn("vm.store", test_source)
         self.assertIn('storage_layout = "zero_init"', config)
 
-    def test_prefix_state_is_prepared_before_symbolic_execution(self) -> None:
+    def test_prefix_state_is_prepared_before_symbolic_comparison(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = pathlib.Path(tmp)
             symbolic._write_project(
@@ -341,7 +316,6 @@ class ProjectGenerationTests(unittest.TestCase):
                 project / "test" / "SymbolicDifferential.t.sol"
             ).read_text()
 
-        setup_start = test_source.index("function setUp()")
         symbolic_start = test_source.index("function checkSymbolicDifferential")
         self.assertEqual(test_source.count('hex"12345678"'), 2)
         self.assertEqual(test_source.count('hex""'), 2)
@@ -354,25 +328,25 @@ class ProjectGenerationTests(unittest.TestCase):
             < second_prefix_a
             < first_prefix_b
             < second_prefix_b
-            < symbolic_start
         )
-        self.assertNotIn('hex"12345678"', test_source[symbolic_start:])
-        self.assertIn("function testPrefixDifferential()", test_source)
-        self.assertIn("_rememberPrefixSlot(slot)", test_source)
-        self.assertIn(
-            "vm.store(TARGET, slot, vm.load(TARGET, slot))",
-            test_source,
-        )
-        self.assertLess(
-            test_source.index("vm.store(TARGET, slot, vm.load(TARGET, slot))"),
-            test_source.index("uint256 snapshot", symbolic_start),
+        self.assertGreater(first_prefix_a, symbolic_start)
+        self.assertIn("assert(prefixResults[0]", test_source)
+        self.assertEqual(
+            test_source.count("solcTarget.staticcall{gas: CALL_GAS}(callData)"),
+            1,
         )
         self.assertEqual(
-            test_source.count("TARGET.staticcall{gas: CALL_GAS}(callData)"),
-            2,
+            test_source.count("solarTarget.staticcall{gas: CALL_GAS}(callData)"),
+            1,
         )
-        self.assertNotIn("vm.record();", test_source[symbolic_start:])
-        self.assertLess(setup_start, symbolic_start)
+        self.assertNotIn("vm.etch", test_source)
+        self.assertNotIn("vm.record", test_source)
+        self.assertNotIn("vm.store", test_source)
+        self.assertNotIn("uint256 snapshot", test_source)
+        self.assertLess(
+            second_prefix_b,
+            test_source.index("solcTarget.staticcall", symbolic_start),
+        )
 
 
 class CommandTests(unittest.TestCase):

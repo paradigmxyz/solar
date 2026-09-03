@@ -1,0 +1,116 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modifier_stacked_return.sol:ModifierStackedReturn ===
+@module ModifierStackedReturn
+fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb2
+  bb2:
+    v0 = phi [bb0: 0]
+    v1 = phi [bb0: 0]
+    v2 = lt v1, 10
+    jumpi v2, bb5, bb6
+  bb6:
+    jump bb3
+  bb3:
+    jump bb1
+  bb5:
+    jump bb9
+  bb9:
+    v3 = phi [bb5: 0]
+    v4 = phi [bb5: 0]
+    v5 = lt v4, 10
+    jumpi v5, bb12, bb13
+  bb13:
+    jump bb10
+  bb10:
+    jump bb8
+  bb12:
+    jump bb16
+  bb16:
+    v6 = phi [bb12: 0]
+    v7 = phi [bb12: 0]
+    v8 = lt v7, 10
+    jumpi v8, bb19, bb20
+  bb20:
+    jump bb17
+  bb17:
+    jump bb15
+  bb19:
+    jump bb23
+  bb23:
+    v9 = phi [bb19: 0]
+    v10 = phi [bb19: 0]
+    v11 = phi [bb19: v7]
+    v12 = lt v10, 10
+    jumpi v12, bb26, bb27
+  bb27:
+    jump bb24
+  bb24:
+    jump bb22
+  bb26:
+    v13 = sload 0 !metadata(storage=slot(0))
+    v14 = add v13, 1
+    v15 = lt v14, v13
+    jumpi v15, bb29, bb30
+  bb30:
+    sstore 0, v14 !metadata(storage=slot(0))
+    jump bb22
+  bb22:
+    v16 = phi [bb30: 42], [bb24: v9]
+    v17 = sload 0 !metadata(storage=slot(0))
+    v18 = add v17, 1
+    v19 = lt v18, v17
+    jumpi v19, bb29, bb31
+  bb31:
+    sstore 0, v18 !metadata(storage=slot(0))
+    jump bb15
+  bb15:
+    v20 = phi [bb31: v16], [bb17: v6]
+    v21 = phi [bb31: v11], [bb17: v4]
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = add v22, 1
+    v24 = lt v23, v22
+    jumpi v24, bb29, bb32
+  bb32:
+    sstore 0, v23 !metadata(storage=slot(0))
+    jump bb8
+  bb8:
+    v25 = phi [bb32: v20], [bb10: v3]
+    v26 = phi [bb32: v21], [bb10: v1]
+    v27 = sload 0 !metadata(storage=slot(0))
+    v28 = add v27, 1
+    v29 = lt v28, v27
+    jumpi v29, bb29, bb33
+  bb33:
+    sstore 0, v28 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    v30 = phi [bb33: v25], [bb3: v0]
+    ret v30
+  bb29:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    invalid
+  bb7:
+    invalid
+  bb11:
+    invalid
+  bb14:
+    invalid
+  bb18:
+    invalid
+  bb21:
+    invalid
+  bb25:
+    invalid
+  bb28:
+    invalid
+}
+
+fn @fAndRead() -> u256 [selector=0x4e03d23b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @f, 1
+    v1 = sload 0 !metadata(storage=slot(0))
+    ret v1
+}

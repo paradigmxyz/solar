@@ -1,0 +1,457 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/memory_struct_assembly_list.sol:MemoryStructAssemblyList ===
+@module MemoryStructAssemblyList
+fn @empty() -> memorystruct [pure] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 0
+    ret v0
+}
+
+fn @append.1(arg0: memorystruct, arg1: u256) -> memorystruct [pure] {
+  bb0:
+    v0 = shl 48, arg1
+    v1 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v1, 0, 0
+    memory_object_store_field memorystruct<1>, v1, 0, v0
+    internal_call @updateTail, 0, arg0, v1
+    ret arg0
+}
+
+fn @append.2(arg0: memorystruct, arg1: memorystruct) -> memorystruct [pure] {
+  bb0:
+    v0 = shl 8, arg1
+    v1 = or 3, v0
+    v2 = shl 40, v1
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v3, 0, 0
+    mstore v3, v2
+    internal_call @updateTail, 0, arg0, v3
+    ret arg0
+}
+
+fn @dirtyFreeMemory() [view] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = gas
+    v2 = caller
+    v3 = add v2, v1
+    mstore v0, v3
+    v4 = not 0
+    v5 = add v0, 32
+    mstore v5, v4
+    stop
+}
+
+fn @defaultLocal() -> bool [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 0
+    internal_call @dirtyFreeMemory, 0
+    v1 = mload v0
+    v2 = iszero v1
+    ret v2
+}
+
+fn @defaultReturn() -> bool [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    internal_call @dirtyFreeMemory, 0
+    v0 = internal_call @empty, 1
+    v1 = mload v0
+    v2 = iszero v1
+    ret v2
+}
+
+fn @firstAppend() -> bool [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 0
+    internal_call @dirtyFreeMemory, 0
+    v1 = internal_call @append.1, 1, v0, 7
+    v2 = mload v1
+    v3 = and v2, 0xffffffffff
+    v4 = shr 40, v2
+    v5 = mload v3
+    v6 = shr 48, v5
+    v7 = eq v6, 7
+    v8 = iszero v3
+    v9 = iszero v8
+    v10 = eq v3, v4
+    v11 = and v10, v9
+    v12 = and v11, v7
+    ret v12
+}
+
+fn @secondAppend() -> bool [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 0
+    internal_call @dirtyFreeMemory, 0
+    v1 = internal_call @append.1, 1, v0, 7
+    v2 = internal_call @append.1, 1, v1, 9
+    v3 = mload v2
+    v4 = and v3, 0xffffffffff
+    v5 = shr 40, v3
+    v6 = mload v5
+    v7 = shr 48, v6
+    v8 = eq v7, 9
+    v9 = mload v4
+    v10 = and v9, 0xffffffffff
+    v11 = eq v10, v5
+    v12 = and v11, v8
+    ret v12
+}
+
+fn @recursiveYul(arg0: u256) -> (u256, bytes1) [selector=0x2aa1bcc4, pure, abi_params=[u256], abi_returns=[word, word<bytes1>]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = internal_call @encode, 1, arg0, v0
+    v2 = sub v1, v0
+    v3 = mload v0
+    ret v2, v3
+}
+
+fn @nestedListEncoding() -> (u256, bytes32) [selector=0xb61d93a1, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 0
+    v1 = internal_call @empty, 1
+    v2 = internal_call @append.2, 1, v0, v1
+    v3 = internal_call @empty, 1
+    v4 = internal_call @empty, 1
+    v5 = internal_call @append.2, 1, v3, v4
+    v6 = internal_call @append.2, 1, v2, v5
+    v7 = internal_call @empty, 1
+    v8 = internal_call @empty, 1
+    v9 = internal_call @append.2, 1, v7, v8
+    v10 = internal_call @empty, 1
+    v11 = internal_call @empty, 1
+    v12 = internal_call @append.2, 1, v10, v11
+    v13 = internal_call @append.2, 1, v9, v12
+    v14 = internal_call @append.2, 1, v6, v13
+    v15 = mload 64 !metadata(memory=scratch)
+    v16 = internal_call @encodeList, 1, v14, v15
+    v17 = sub v16, v15
+    v18 = mload v15
+    ret v17, v18
+}
+
+fn @updateTail(arg0: memorystruct, arg1: memorystruct) [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = mload arg0
+    v2 = shr v1, arg1
+    v3 = or v2, v0
+    v4 = shr 40, v3
+    v5 = xor v4, arg1
+    v6 = shl 40, v5
+    v7 = xor v6, v3
+    mstore arg0, v7
+    v8 = mload v4
+    v9 = or v8, arg1
+    mstore v4, v9
+    stop
+}
+
+fn @encode(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = iszero arg0
+    v1 = eq v0, 0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v4 = add arg1, 1
+    v5 = sub arg0, 1
+    v6 = internal_call @encode, 1, v5, v4
+    v7 = add 192, arg0
+    mstore8 arg1, v7
+    ret v6
+  bb1:
+    mstore8 arg1, 192
+    v3 = add arg1, 1
+    ret v3
+}
+
+fn @encodeUint(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg1, 1
+    v1 = gt arg0, 127
+    v2 = iszero v1
+    v3 = eq v2, 0
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v8 = lt 0xffffffffffffffffffffffffffffffff, arg0
+    v9 = shl 7, v8
+    v10 = shr v9, arg0
+    v11 = lt 0xffffffffffffffff, v10
+    v12 = shl 6, v11
+    v13 = or v9, v12
+    v14 = shr v13, arg0
+    v15 = lt 0xffffffff, v14
+    v16 = shl 5, v15
+    v17 = or v13, v16
+    v18 = shr v17, arg0
+    v19 = lt 0xffff, v18
+    v20 = shl 4, v19
+    v21 = or v17, v20
+    v22 = shr v21, arg0
+    v23 = lt 255, v22
+    v24 = shr 3, v21
+    v25 = or v24, v23
+    v26 = add v25, 129
+    mstore8 arg1, v26
+    mstore 0, arg0 !metadata(memory=scratch)
+    v27 = xor 31, v25
+    v28 = mload v27
+    mstore v0, v28
+    v29 = add 1, v25
+    v30 = add v29, v0
+    ret v30
+  bb1:
+    v5 = iszero arg0
+    v6 = shl 7, v5
+    v7 = or v6, arg0
+    mstore8 arg1, v7
+    ret v0
+}
+
+fn @encodeAddress(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg1, 21
+    v1 = shl 88, arg0
+    mstore arg1, v1
+    mstore8 arg1, 148
+    ret v0
+}
+
+fn @encodeBytes(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0:
+    v0 = add arg1, 1
+    v1 = mload arg0
+    v2 = gt v1, 55
+    v3 = iszero v2
+    v4 = eq v3, 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v20 = shr 32, v1
+    v21 = returndatasize
+    v22 = returndatasize
+    returndatacopy v22, v21, v20
+    v23 = lt 0xffffff, v1
+    v24 = lt 0xffff, v1
+    v25 = add v24, v23
+    v26 = lt 255, v1
+    v27 = add v26, v25
+    v28 = add 1, v27
+    v29 = add arg2, 55
+    v30 = add v28, v29
+    v31 = shl 248, v30
+    mstore arg1, v31
+    v32 = add v28, v0
+    v33 = add v32, v1
+    v34 = add 32, arg0
+    v35 = sub v34, v32
+    jump bb7
+  bb7:
+    v36 = phi [bb3: v1], [bb11: v36]
+    v37 = phi [bb3: v35], [bb11: v37]
+    v38 = phi [bb3: arg1], [bb11: v38]
+    v39 = phi [bb3: arg2], [bb11: v39]
+    v40 = phi [bb3: v28], [bb11: v40]
+    v41 = phi [bb3: v33], [bb11: v41]
+    v42 = phi [bb3: v32], [bb11: v48]
+    v43 = phi [bb3: arg0], [bb11: v43]
+    v44 = eq 1, 0
+    v45 = iszero v44
+    jumpi v45, bb9, bb10
+  bb10:
+    jump bb8
+  bb9:
+    v46 = add v37, v42
+    v47 = mload v46
+    mstore v42, v47
+    v48 = add v42, 32
+    v49 = lt v48, v41
+    v50 = iszero v49
+    v51 = eq v50, 0
+    v52 = iszero v51
+    jumpi v52, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    jump bb11
+  bb11:
+    jump bb7
+  bb12:
+    jump bb8
+  bb8:
+    v53 = phi [bb12: v48], [bb10: v42]
+    v54 = shl 3, v40
+    v55 = sub 248, v54
+    v56 = shl v55, v36
+    v57 = mload v38
+    v58 = or v57, v56
+    mstore v38, v58
+    ret v41
+  bb1:
+    v6 = add 32, arg0
+    v7 = mload v6
+    v8 = byte 0, v7
+    v9 = lt v8, 128
+    v10 = eq 1, v1
+    v11 = and v10, v9
+    v12 = iszero v11
+    v13 = eq v12, 0
+    v14 = iszero v13
+    jumpi v14, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    mstore arg1, v7
+    ret v0
+  bb4:
+    v15 = add v1, arg2
+    mstore8 arg1, v15
+    v16 = add 64, arg0
+    v17 = mload v16
+    v18 = add 33, arg1
+    mstore v18, v17
+    mstore v0, v7
+    v19 = add v1, v0
+    ret v19
+}
+
+fn @encodeList(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = mload arg0
+    v1 = iszero v0
+    v2 = eq v1, 0
+    v3 = iszero v2
+    jumpi v3, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v5 = add arg1, 32
+    jump bb4
+  bb4:
+    v6 = phi [bb3: arg1], [bb8: v6], [bb15: v6], [bb17: v6], [bb18: v6], [bb21: v6]
+    v7 = phi [bb3: v5], [bb8: v48], [bb15: v29], [bb17: v33], [bb18: v39], [bb21: v45]
+    v8 = phi [bb3: arg0], [bb8: v8], [bb15: v8], [bb17: v8], [bb18: v8], [bb21: v8]
+    v9 = phi [bb3: 0], [bb8: v9], [bb15: v9], [bb17: v9], [bb18: v9], [bb21: v9]
+    v10 = phi [bb3: arg0], [bb8: v14], [bb15: v14], [bb17: v14], [bb18: v14], [bb21: v14]
+    v11 = eq 1, 0
+    v12 = iszero v11
+    jumpi v12, bb6, bb7
+  bb7:
+    jump bb5
+  bb6:
+    v13 = mload v10
+    v14 = and v13, 0xffffffffff
+    v15 = iszero v14
+    v16 = eq v15, 0
+    v17 = iszero v16
+    jumpi v17, bb9, bb10
+  bb10:
+    jump bb11
+  bb11:
+    v18 = mload v14
+    v19 = byte 26, v18
+    v20 = gt v19, 1
+    v21 = iszero v20
+    v22 = eq v21, 0
+    v23 = iszero v22
+    jumpi v23, bb12, bb13
+  bb13:
+    jump bb14
+  bb14:
+    v34 = eq v19, 2
+    v35 = eq v34, 0
+    v36 = iszero v35
+    jumpi v36, bb18, bb19
+  bb19:
+    jump bb20
+  bb20:
+    v40 = eq v19, 3
+    v41 = eq v40, 0
+    v42 = iszero v41
+    jumpi v42, bb21, bb22
+  bb22:
+    jump bb23
+  bb23:
+    v46 = mload v14
+    v47 = shr 48, v46
+    v48 = internal_call @encodeAddress, 1, v47, v7
+    jump bb8
+  bb8:
+    jump bb4
+  bb21:
+    v43 = mload v14
+    v44 = shr 48, v43
+    v45 = internal_call @encodeList, 1, v44, v7
+    jump bb4
+  bb18:
+    v37 = mload v14
+    v38 = shr 48, v37
+    v39 = internal_call @encodeBytes, 1, v38, v7, 128
+    jump bb4
+  bb12:
+    v24 = iszero v19
+    v25 = eq v24, 0
+    v26 = iszero v25
+    jumpi v26, bb15, bb16
+  bb16:
+    jump bb17
+  bb17:
+    v30 = mload v14
+    v31 = shr 48, v30
+    v32 = mload v31
+    v33 = internal_call @encodeUint, 1, v32, v7
+    jump bb4
+  bb15:
+    v27 = mload v14
+    v28 = shr 48, v27
+    v29 = internal_call @encodeUint, 1, v28, v7
+    jump bb4
+  bb9:
+    jump bb5
+  bb5:
+    v49 = phi [bb9: v14], [bb7: v10]
+    v50 = add v6, 32
+    v51 = sub v7, v50
+    v52 = gt v51, 55
+    v53 = iszero v52
+    v54 = eq v53, 0
+    v55 = iszero v54
+    jumpi v55, bb24, bb25
+  bb25:
+    jump bb26
+  bb26:
+    mstore v6, v51
+    v65 = internal_call @encodeBytes, 1, v6, v6, 192
+    ret v65
+  bb24:
+    v56 = add v51, 192
+    mstore8 v6, v56
+    v57 = add v6, 32
+    v58 = mload v57
+    v59 = add v6, 1
+    mstore v59, v58
+    v60 = add v6, 64
+    v61 = mload v60
+    v62 = add v6, 33
+    mstore v62, v61
+    v63 = add v6, 1
+    v64 = add v51, v63
+    ret v64
+  bb1:
+    mstore8 arg1, 192
+    v4 = add arg1, 1
+    ret v4
+}

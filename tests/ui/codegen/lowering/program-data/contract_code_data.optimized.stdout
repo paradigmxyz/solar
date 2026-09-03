@@ -50,7 +50,7 @@ bb6:
   dup 2
   add
   dup 1
-  push 192
+  push 160
   mstore
   push 128
   push_data literal_0
@@ -69,8 +69,14 @@ bb6:
   sub
   dup 3
   mstore
-  swap 3
+  dup 4
+  iszero
+  iszero
+  swap 4
   mload
+  swap 1
+  swap 4
+  mul
   dup 1
   push 128
   mstore
@@ -86,12 +92,12 @@ bb6:
   not
   and
   dup 1
-  push 224
+  push 192
   mstore
   push 64
   dup 4
   add
-  push 160
+  push 224
   mstore
   swap 2
   pop
@@ -101,10 +107,10 @@ bb6:
   jumpi
   push 0
   push 32
-  push 224
+  push 192
   mload
   sub
-  push 160
+  push 224
   mload
   add
   mstore
@@ -112,16 +118,18 @@ bb6:
 bb8:
   push 224
   mload
-  push 160
+  push 192
   mload
+  dup 2
   add
   push 128
   mload
-  push 192
-  mload
   push 160
   mload
+  dup 4
   mcopy
+  swap 1
+  pop
   push 256
   mload
   swap 1
@@ -134,9 +142,6 @@ bb8:
   and
   push 64
   mload
-  dup 1
-  push 288
-  mstore
   swap 1
   dup 2
   add
@@ -167,7 +172,7 @@ bb0:
   sub
   push bb4
   jumpi
-  push 288
+  push 256
   dup 1
   push 64
   mstore
@@ -179,11 +184,10 @@ bb0:
   add
   push 64
   mstore
-  push 336
+  push 346
   dup 2
   mstore
   push 32
-  dup 2
   add
   push 320
   dup 2
@@ -191,23 +195,14 @@ bb0:
   push 0
   swap 1
   mstore
-  push 336
+  push 346
   push_data CodeTarget_initcode_0
   dup 3
   codecopy
-  pop
-  push 0
-  push 128
-  mstore
-  dup 1
-  mload
+  push 346
   swap 1
-  push 32
-  add
   push 0
   create
-  push 128
-  mstore
   push 64
   mload
   dup 1
@@ -223,29 +218,17 @@ bb0:
   shl
   dup 2
   mstore
-  push 128
-  mload
-  push 0
-  not
-  push 96
-  shr
-  and
-  gas
-  dup 1
-  push 224
-  mstore
   dup 2
-  push 256
+  push 224
   mstore
   push 32
   push 0
   push 4
+  dup 4
   dup 6
-  dup 6
-  dup 6
+  gas
   staticcall
-  swap 3
-  pop
+  swap 2
   pop
   pop
   iszero
@@ -278,43 +261,44 @@ bb8 [cold]:
   push 0
   revert
 bb10:
-  push 224
-  dup 1
+  push 256
   push 64
   mstore
-  dup 1
-  push 192
+  push 0
+  push 160
   mstore
-  push 336
-  push_data CodeTarget_initcode_0
-  dup 3
-  codecopy
+  push 64
+  mload
+  dup 1
+  push 224
+  mstore
   push 352
   dup 2
   add
   push 64
   mstore
-  push 336
+  push 346
+  push_data CodeTarget_initcode_0
+  dup 3
+  codecopy
+  push 346
   swap 1
   push 0
   create
   dup 1
-  push 160
+  push 192
   mstore
   iszero
   push bb8
   jumpi
   push 64
   mload
-  dup 1
-  push 192
-  mstore
   push 384
   dup 2
   add
   push 64
   mstore
-  push 326
+  push 328
   dup 2
   mstore
   push 32
@@ -326,21 +310,18 @@ bb10:
   push 0
   swap 1
   mstore
-  push 326
-  push_data CodeTarget_initcode_0+10
+  push 328
+  push_data CodeTarget_initcode_0+18
   dup 3
   codecopy
-  pop
-  dup 1
+  swap 1
   mload
   swap 1
-  push 32
-  add
   keccak256
-  push 160
+  push 192
   mload
   extcodehash
   eq
   jump bb11
 
-@data CodeTarget_initcode_0 hex"61014680600a5f395ff334601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060c052608060c68239604051806101005260208101818103825292518060805283529150601f60805101601f19168060e0526040830160a052915050156095575f602060e0510360a05101525b60e05160a0510160805160c05160a0515e610100519003601f8101601f191660405180610120529081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+@data CodeTarget_initcode_0 hex"34600e576101488060125f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602c575b5f5ffd5b600760805260206080f35b61014080604052806101205260a0810160405260808152602081018060a052608060c88239604051806101005260208101818103825283151593519093028060805283529150601f60805101601f19168060c0526040830160e05291505015609b575f602060c0510360e05101525b60e05160c051810160805160a051835e9050610100519003601f8101601f19166040519081016040528181f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"

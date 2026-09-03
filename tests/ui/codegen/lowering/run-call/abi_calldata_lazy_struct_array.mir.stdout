@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_lazy_struct_array.sol:AbiCalldataLazyStructArray ===
+@module AbiCalldataLazyStructArray
+fn @read(arg0: calldataslice) -> u256 [selector=0x7bb08336, pure, abi_params=[array<2, tuple<bytes, bytes>>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = lt 0, v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = slice_ptr arg0
+    v4 = add v3, 0
+    v5 = calldatasize
+    v6 = sub v5, v4
+    v7 = slt v6, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = calldataload v4
+    v9 = add v3, v8
+    v10 = calldatasize
+    v11 = sub v10, v3
+    v12 = sub v11, 63
+    v13 = slt v8, v12
+    v14 = iszero v13
+    jumpi v14, bb3, bb5
+  bb5:
+    v15 = make_calldata_slice v9, 32
+    v16 = slice_ptr v15
+    v17 = add v16, 0
+    v18 = calldatasize
+    v19 = sub v18, v17
+    v20 = slt v19, 32
+    jumpi v20, bb3, bb6
+  bb6:
+    v21 = calldataload v17
+    v22 = add v16, v21
+    v23 = calldatasize
+    v24 = sub v23, v16
+    v25 = sub v24, 31
+    v26 = slt v21, v25
+    v27 = iszero v26
+    jumpi v27, bb3, bb7
+  bb7:
+    v28 = calldataload v22
+    v29 = gt v28, 0xffffffffffffffff
+    jumpi v29, bb3, bb8
+  bb8:
+    v30 = mul v28, 1
+    v31 = add v22, 32
+    v32 = calldatasize
+    v33 = sub v32, v30
+    v34 = sgt v31, v33
+    jumpi v34, bb3, bb9
+  bb9:
+    v35 = add v22, 32
+    v36 = make_calldata_slice v35, v28
+    v37 = slice_len v36
+    ret v37
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

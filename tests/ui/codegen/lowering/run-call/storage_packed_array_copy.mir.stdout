@@ -1,0 +1,243 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_packed_array_copy.sol:StoragePackedArrayCopy ===
+@module StoragePackedArrayCopy
+fn @constructor() [constructor] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb10: v19]
+    v1 = lt v0, 9
+    jumpi v1, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    v21 = shl 192, 2
+    v22 = lt 8, 10
+    v23 = iszero v22
+    jumpi v23, bb7, bb11
+  bb11:
+    v24 = div 8, 1
+    v25 = add 3, v24
+    v26 = mod 8, 1
+    v27 = mul v26, 17
+    v28 = mul v27, 8
+    v29 = shl v28, 0xffffffffffffffffffffffffffffffffff
+    v30 = sload v25 !metadata(storage=offset(v24, 3))
+    v31 = not v29
+    v32 = and v30, v31
+    v33 = shr 120, v21
+    v34 = and v33, 0xffffffffffffffffffffffffffffffffff
+    v35 = shl v28, v34
+    v36 = or v32, v35
+    sstore v25, v36 !metadata(storage=offset(v24, 3))
+    v37 = shl 192, 2
+    v38 = lt 9, 10
+    v39 = iszero v38
+    jumpi v39, bb7, bb12
+  bb12:
+    v40 = div 9, 1
+    v41 = add 3, v40
+    v42 = mod 9, 1
+    v43 = mul v42, 17
+    v44 = mul v43, 8
+    v45 = shl v44, 0xffffffffffffffffffffffffffffffffff
+    v46 = sload v41 !metadata(storage=offset(v40, 3))
+    v47 = not v45
+    v48 = and v46, v47
+    v49 = shr 120, v37
+    v50 = and v49, 0xffffffffffffffffffffffffffffffffff
+    v51 = shl v44, v50
+    v52 = or v48, v51
+    sstore v41, v52 !metadata(storage=offset(v40, 3))
+    stop
+  bb4:
+    v2 = and v0, 0xffffffffffffffff
+    v3 = shl 192, v2
+    v4 = lt v0, 9
+    v5 = iszero v4
+    jumpi v5, bb7, bb8
+  bb8:
+    v6 = div v0, 4
+    v7 = add 0, v6
+    v8 = mod v0, 4
+    v9 = mul v8, 8
+    v10 = mul v9, 8
+    v11 = shl v10, 0xffffffffffffffff
+    v12 = sload v7 !metadata(storage=symbolic(v6))
+    v13 = not v11
+    v14 = and v12, v13
+    v15 = shr 192, v3
+    v16 = and v15, 0xffffffffffffffff
+    v17 = shl v10, v16
+    v18 = or v14, v17
+    sstore v7, v18 !metadata(storage=symbolic(v6))
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v19 = add v0, 1
+    v20 = lt v19, v0
+    jumpi v20, bb9, bb10
+  bb10:
+    jump bb1
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memoryfixedarray<9, 1>, exact, uninitialized, panic, 288
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v13]
+    v2 = lt v1, 9
+    jumpi v2, bb2, bb3
+  bb3:
+    jump bb4
+  bb4:
+    v14 = phi [bb3: 0], [bb9: v40]
+    v15 = lt v14, 10
+    jumpi v15, bb5, bb6
+  bb6:
+    jump bb10
+  bb10:
+    v41 = phi [bb6: 0], [bb20: v57]
+    v42 = phi [bb6: 0], [bb20: v59]
+    v43 = phi [bb6: 0], [bb20: v43]
+    v44 = lt v42, 9
+    jumpi v44, bb13, bb14
+  bb14:
+    jump bb11
+  bb11:
+    jump bb21
+  bb21:
+    v61 = phi [bb11: v41], [bb29: v61]
+    v62 = phi [bb11: v42], [bb29: v62]
+    v63 = phi [bb11: v43], [bb29: v79]
+    v64 = phi [bb11: 0], [bb29: v81]
+    v65 = lt v64, 10
+    jumpi v65, bb24, bb25
+  bb25:
+    jump bb22
+  bb22:
+    ret v61, v63
+  bb24:
+    v66 = lt v64, 10
+    v67 = iszero v66
+    jumpi v67, bb16, bb27
+  bb27:
+    v68 = div v64, 1
+    v69 = add 3, v68
+    v70 = mod v64, 1
+    v71 = mul v70, 17
+    v72 = sload v69 !metadata(storage=offset(v68, 3))
+    v73 = mul v71, 8
+    v74 = shr v73, v72
+    v75 = and v74, 0xffffffffffffffffffffffffffffffffff
+    v76 = shl 120, v75
+    v77 = and v76, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v78 = shr 192, v77
+    v79 = add v63, v78
+    v80 = lt v79, v63
+    jumpi v80, bb18, bb28
+  bb28:
+    jump bb26
+  bb26:
+    jump bb23
+  bb23:
+    v81 = add v64, 1
+    v82 = lt v81, v64
+    jumpi v82, bb18, bb29
+  bb29:
+    jump bb21
+  bb13:
+    v45 = lt v42, 9
+    v46 = iszero v45
+    jumpi v46, bb16, bb17
+  bb17:
+    v47 = div v42, 4
+    v48 = add 0, v47
+    v49 = mod v42, 4
+    v50 = mul v49, 8
+    v51 = sload v48 !metadata(storage=symbolic(v47))
+    v52 = mul v50, 8
+    v53 = shr v52, v51
+    v54 = and v53, 0xffffffffffffffff
+    v55 = shl 192, v54
+    v56 = shr 192, v55
+    v57 = add v41, v56
+    v58 = lt v57, v41
+    jumpi v58, bb18, bb19
+  bb19:
+    jump bb15
+  bb15:
+    jump bb12
+  bb12:
+    v59 = add v42, 1
+    v60 = lt v59, v42
+    jumpi v60, bb18, bb20
+  bb20:
+    jump bb10
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v16 = div v14, 1
+    v17 = add 3, v16
+    v18 = mod v14, 1
+    v19 = mul v18, 17
+    v20 = lt v14, 9
+    jumpi v20, bb7, bb8
+  bb8:
+    v31 = mul v19, 8
+    v32 = shl v31, 0xffffffffffffffffffffffffffffffffff
+    v33 = sload v17 !metadata(storage=offset(v16, 3))
+    v34 = not v32
+    v35 = and v33, v34
+    v36 = shr 120, 0
+    v37 = and v36, 0xffffffffffffffffffffffffffffffffff
+    v38 = shl v31, v37
+    v39 = or v35, v38
+    sstore v17, v39 !metadata(storage=offset(v16, 3))
+    jump bb9
+  bb7:
+    v21 = memory_object_load_element memoryfixedarray<9, 1>, v0, v14
+    v22 = mul v19, 8
+    v23 = shl v22, 0xffffffffffffffffffffffffffffffffff
+    v24 = sload v17 !metadata(storage=offset(v16, 3))
+    v25 = not v23
+    v26 = and v24, v25
+    v27 = shr 120, v21
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffff
+    v29 = shl v22, v28
+    v30 = or v26, v29
+    sstore v17, v30 !metadata(storage=offset(v16, 3))
+    jump bb9
+  bb9:
+    v40 = add v14, 1
+    jump bb4
+  bb2:
+    v3 = div v1, 4
+    v4 = add 0, v3
+    v5 = mod v1, 4
+    v6 = mul v5, 8
+    v7 = sload v4 !metadata(storage=symbolic(v3))
+    v8 = mul v6, 8
+    v9 = shr v8, v7
+    v10 = and v9, 0xffffffffffffffff
+    v11 = shl 192, v10
+    v12 = and v11, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    memory_object_store_element memoryfixedarray<9, 1>, v0, v1, v12
+    v13 = add v1, 1
+    jump bb1
+}

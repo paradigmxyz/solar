@@ -1,0 +1,99 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_calldata_offset_wrap.sol:AbiCalldataOffsetWrap ===
+@module AbiCalldataOffsetWrap
+fn @f(arg0: calldataslice) -> (u256, u256, u256) [selector=0xc26b6b9a, pure, abi_params=[array<_, array<_, u256>>], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = slice_len arg0
+    v1 = gt v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v2 = slice_len arg0
+    v3 = lt 0, v2
+    v4 = iszero v3
+    jumpi v4, bb4, bb5
+  bb5:
+    v5 = slice_ptr arg0
+    v6 = add v5, 0
+    v7 = calldatasize
+    v8 = sub v7, v6
+    v9 = slt v8, 32
+    jumpi v9, bb6, bb7
+  bb7:
+    v10 = calldataload v6
+    v11 = add v5, v10
+    v12 = calldatasize
+    v13 = sub v12, v5
+    v14 = sub v13, 31
+    v15 = slt v10, v14
+    v16 = iszero v15
+    jumpi v16, bb6, bb8
+  bb8:
+    v17 = calldataload v11
+    v18 = gt v17, 0xffffffffffffffff
+    jumpi v18, bb6, bb9
+  bb9:
+    v19 = mul v17, 32
+    v20 = add v11, 32
+    v21 = calldatasize
+    v22 = sub v21, v19
+    v23 = sgt v20, v22
+    jumpi v23, bb6, bb10
+  bb10:
+    v24 = add v11, 32
+    v25 = make_calldata_slice v24, v17
+    v26 = slice_len v25
+    jump bb3
+  bb3:
+    v27 = phi [bb10: v26], [bb2: 0]
+    v28 = gt v0, 1
+    jumpi v28, bb11, bb12
+  bb12:
+    jump bb13
+  bb11:
+    v29 = slice_len arg0
+    v30 = lt 1, v29
+    v31 = iszero v30
+    jumpi v31, bb4, bb14
+  bb14:
+    v32 = slice_ptr arg0
+    v33 = add v32, 32
+    v34 = calldatasize
+    v35 = sub v34, v33
+    v36 = slt v35, 32
+    jumpi v36, bb6, bb15
+  bb15:
+    v37 = calldataload v33
+    v38 = add v32, v37
+    v39 = calldatasize
+    v40 = sub v39, v32
+    v41 = sub v40, 31
+    v42 = slt v37, v41
+    v43 = iszero v42
+    jumpi v43, bb6, bb16
+  bb16:
+    v44 = calldataload v38
+    v45 = gt v44, 0xffffffffffffffff
+    jumpi v45, bb6, bb17
+  bb17:
+    v46 = mul v44, 32
+    v47 = add v38, 32
+    v48 = calldatasize
+    v49 = sub v48, v46
+    v50 = sgt v47, v49
+    jumpi v50, bb6, bb18
+  bb18:
+    v51 = add v38, 32
+    v52 = make_calldata_slice v51, v44
+    v53 = slice_len v52
+    jump bb13
+  bb13:
+    v54 = phi [bb18: v53], [bb12: 0]
+    ret v0, v27, v54
+  bb6:
+    revert 0, 0
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}

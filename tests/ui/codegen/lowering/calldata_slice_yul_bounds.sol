@@ -17,7 +17,7 @@ contract CalldataSliceYulBounds {
     // `_empty` inlines because it returns a slice; `_sink` remains an ordinary
     // MIR call.
     // CHECK-LABEL: fn @emptyLen{{[( ]}}
-    // CHECK: make_calldata_slice
+    // CHECK: internal_call @_empty
     // CHECK: internal_call @_sink
     function emptyLen() external pure returns (uint256) {
         return _sink(_empty());
@@ -45,12 +45,11 @@ contract CalldataSliceYulBounds {
         return y.length;
     }
 
-    // A slice reassigned only inside a branch must merge through its two-word
-    // slot, so the untaken path keeps the original length. A bare SSA update
-    // would leak the branch value; the slot store/load is the branch merge.
+    // A slice reassigned only inside a branch merges through one SSA phi, so
+    // the untaken path keeps the original length.
     // CHECK-LABEL: fn @conditional{{[( ]}}
-    // CHECK: mstore
-    // CHECK: mload
+    // CHECK: phi [
+    // CHECK: slice_len
     function conditional(bytes calldata x) external pure returns (uint256) {
         bytes calldata y = x;
         if (x.length > 32) {

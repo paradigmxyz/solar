@@ -1,4 +1,4 @@
-//@ run-call: B::f() => 42
+//@ run-call: B::f => 42
 // ported-from: test/libsolidity/semanticTests/functionCall/inheritance/super_skip_unimplemented_in_abstract_contract.sol
 
 contract A {

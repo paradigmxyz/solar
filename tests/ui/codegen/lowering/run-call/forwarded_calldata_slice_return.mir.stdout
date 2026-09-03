@@ -1,0 +1,340 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/forwarded_calldata_slice_return.sol:ForwardedCalldataSliceReturn ===
+@module ForwardedCalldataSliceReturn
+fn @singleSliceLength(arg0: calldataslice) -> u256 [selector=0xee1d4083, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @_identity, 1, arg0
+    v1 = slice_len v0
+    ret v1
+}
+
+fn @pointerSliceLength(arg0: calldataslice) -> u256 [selector=0xc1a12f27, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @internal_dispatcher_p_calldataslice_r_calldataslice, 1, 8, arg0
+    v1 = slice_len v0
+    ret v1
+}
+
+fn @arraySliceLength(arg0: calldataslice) -> u256 [selector=0x676805be, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @_identityArray, 1, arg0
+    v1 = slice_len v0
+    ret v1
+}
+
+fn @delegate(arg0: calldataslice) -> (address, memorybytes) [selector=0x0ccfac9e, pure, abi_params=[bytes], abi_returns=[word<u160>, memory_bytes]] {
+  bb0:
+    v0 = internal_call @_delegate, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = make_calldata_slice v3, v5
+    v7 = slice_len v6
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    jumpi v9, bb1, bb2
+  bb2:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    v13 = slice_ptr v6
+    v14 = slice_len v6
+    v15 = gt v14, 0xffffffffffffffff
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = calldatasize
+    v17 = sub v16, v14
+    v18 = sgt v13, v17
+    jumpi v18, bb3, bb5
+  bb5:
+    memory_object_copy_from_slice memorybytes, v12, v6
+    ret v0, v12
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @single(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xd61d3fe8, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes]] {
+  bb0:
+    v0 = internal_call @_single, 3, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = add v1, 96
+    v7 = mload v6
+    v8 = make_calldata_slice v5, v7
+    v9 = slice_len v8
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb1, bb2
+  bb2:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = slice_ptr v8
+    v16 = slice_len v8
+    v17 = gt v16, 0xffffffffffffffff
+    jumpi v17, bb3, bb4
+  bb4:
+    v18 = calldatasize
+    v19 = sub v18, v16
+    v20 = sgt v15, v19
+    jumpi v20, bb3, bb5
+  bb5:
+    memory_object_copy_from_slice memorybytes, v14, v8
+    ret v0, v3, v14
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @nested(arg0: calldataslice) -> (address, u256, memorybytes) [selector=0xb26b18a9, pure, abi_params=[bytes], abi_returns=[word<u160>, word, memory_bytes]] {
+  bb0:
+    v0 = internal_call @_nested, 3, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = add v1, 96
+    v7 = mload v6
+    v8 = make_calldata_slice v5, v7
+    v9 = slice_len v8
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb1, bb2
+  bb2:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = slice_ptr v8
+    v16 = slice_len v8
+    v17 = gt v16, 0xffffffffffffffff
+    jumpi v17, bb3, bb4
+  bb4:
+    v18 = calldatasize
+    v19 = sub v18, v16
+    v20 = sgt v15, v19
+    jumpi v20, bb3, bb5
+  bb5:
+    memory_object_copy_from_slice memorybytes, v14, v8
+    ret v0, v3, v14
+  bb3:
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @_nested(arg0: calldataslice) -> (address, u256, calldataslice) [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    v1 = internal_call @_single, 3, arg0
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = add v2, 64
+    v6 = mload v5
+    v7 = add v2, 96
+    v8 = mload v7
+    v9 = make_calldata_slice v6, v8
+    ret v1, v4, v9
+}
+
+fn @_identity(arg0: calldataslice) -> calldataslice [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @_identityArray(arg0: calldataslice) -> calldataslice [pure] {
+  bb0:
+    v0 = make_calldata_slice 0, 0
+    ret arg0
+}
+
+fn @nestedSlices(arg0: calldataslice) -> (u256, address) [selector=0xb12341a6, pure, abi_params=[bytes], abi_returns=[word, word<u160>]] {
+  bb0:
+    v0 = internal_call @_parseSlices, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    ret v0, v3
+}
+
+fn @_parseSlices(arg0: calldataslice) -> (u256, address) [pure] {
+  bb0:
+    v0 = internal_call @_tryParseSlices, 3, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = iszero v0
+    jumpi v6, bb1, bb2
+  bb2:
+    ret v3, v5
+  bb1:
+    revert 0, 0
+}
+
+fn @_tryParseSlices(arg0: calldataslice) -> (bool, u256, address) [pure] {
+  bb0:
+    v0 = internal_call @_splitSlices, 4, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = memory_object_load_element memoryfixedarray<4, 1>, v1, 2
+    v5 = memory_object_load_element memoryfixedarray<4, 1>, v1, 3
+    v6 = memory_object_len memorybytes, v4
+    v7 = lt 0, v6
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = memory_object_load_byte memorybytes, v4, 0
+    v10 = shl 248, v9
+    v11 = shr 248, v10
+    v12 = add v5, 32
+    v13 = mload v12
+    v14 = shr 96, v13
+    ret v0, v11, v14
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @_splitSlices(arg0: calldataslice) -> (bool, bytes2, memorybytes, memorybytes) [pure] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = gt 1, v1
+    v3 = lt 1, 0
+    v4 = or v2, v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = sub 1, 0
+    v6 = add v0, 0
+    v7 = make_calldata_slice v6, v5
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = gt v9, 0xffffffffffffffff
+    jumpi v10, bb1, bb3
+  bb3:
+    v11 = calldatasize
+    v12 = sub v11, v9
+    v13 = sgt v8, v12
+    jumpi v13, bb1, bb4
+  bb4:
+    v14 = slice_len v7
+    v15 = add v14, 63
+    v16 = lt v15, v14
+    jumpi v16, bb5, bb6
+  bb6:
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
+    set_memory_object_len memorybytes, v19, v14
+    memory_object_copy_from_slice memorybytes, v19, v7
+    v20 = slice_ptr arg0
+    v21 = slice_len arg0
+    v22 = gt v21, v21
+    v23 = lt v21, 1
+    v24 = or v22, v23
+    jumpi v24, bb1, bb7
+  bb7:
+    v25 = sub v21, 1
+    v26 = add v20, 1
+    v27 = make_calldata_slice v26, v25
+    v28 = slice_ptr v27
+    v29 = slice_len v27
+    v30 = gt v29, 0xffffffffffffffff
+    jumpi v30, bb1, bb8
+  bb8:
+    v31 = calldatasize
+    v32 = sub v31, v29
+    v33 = sgt v28, v32
+    jumpi v33, bb1, bb9
+  bb9:
+    v34 = slice_len v27
+    v35 = add v34, 63
+    v36 = lt v35, v34
+    jumpi v36, bb5, bb10
+  bb10:
+    v37 = not 31
+    v38 = and v35, v37
+    v39 = alloc memorybytes, exact, uninitialized, infallible, v38
+    set_memory_object_len memorybytes, v39, v34
+    memory_object_copy_from_slice memorybytes, v39, v27
+    ret 1, 0, v19, v39
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @_delegate(arg0: calldataslice) -> (address, calldataslice) [pure] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = calldataload v0
+    v2 = shr 96, v1
+    v3 = slice_ptr arg0
+    v4 = add v3, 20
+    v5 = make_calldata_slice 0, 0
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = make_calldata_slice v4, v7
+    v9 = slice_len arg0
+    v10 = sub v9, 20
+    v11 = slice_ptr v8
+    v12 = slice_len v8
+    v13 = make_calldata_slice v11, v10
+    ret v2, v13
+}
+
+fn @_single(arg0: calldataslice) -> (address, u256, calldataslice) [pure] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = calldataload v0
+    v2 = shr 96, v1
+    v3 = slice_ptr arg0
+    v4 = add v3, 20
+    v5 = make_calldata_slice 0, 0
+    v6 = slice_ptr v5
+    v7 = slice_len v5
+    v8 = make_calldata_slice v4, v7
+    v9 = slice_len arg0
+    v10 = sub v9, 20
+    v11 = slice_ptr v8
+    v12 = slice_len v8
+    v13 = make_calldata_slice v11, v10
+    ret v2, 7, v13
+}
+
+fn @internal_dispatcher_p_calldataslice_r_calldataslice(arg0: function, arg1: calldataslice) -> calldataslice [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 8
+    jumpi v0, bb1, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 81 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    v1 = internal_call @_identity, 1, arg1
+    ret v1
+}

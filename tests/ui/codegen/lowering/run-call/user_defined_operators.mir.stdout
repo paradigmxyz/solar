@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/user_defined_operators.sol:UserDefinedOperators ===
+@module UserDefinedOperators
+fn @add_(arg0: u256, arg1: u256) -> u256 [selector=0xd1cbf1c5, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @add, 1, arg0, arg1
+    ret v0
+}
+
+fn @mul_(arg0: u256, arg1: u256) -> u256 [selector=0xc42e9208, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @mul, 1, arg0, arg1
+    ret v0
+}
+
+fn @eq_(arg0: u256, arg1: u256) -> bool [selector=0xd8a1aad7, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = internal_call @eq, 1, arg0, arg1
+    ret v0
+}
+
+fn @add(arg0: u256, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @mul(arg0: u256, arg1: u256) -> u256 [pure] {
+  bb0:
+    v0 = mul arg0, arg1
+    v1 = iszero arg1
+    v2 = div v0, arg1
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @eq(arg0: u256, arg1: u256) -> bool [pure] {
+  bb0:
+    v0 = eq arg0, arg1
+    ret v0
+}

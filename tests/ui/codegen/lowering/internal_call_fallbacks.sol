@@ -1,7 +1,7 @@
 //@ revisions: mir runtime
 //@[mir] compile-flags: -O none -Zdump=mir
 //@[mir] filecheck:
-//@[runtime] run-call: callEntry(uint256) 41 => 42
+//@ run-call: callEntry 41 => 42
 
 contract InternalCallFallbacks {
     // CHECK-LABEL: fn @recurse{{[( ]}}
@@ -26,7 +26,9 @@ contract InternalCallFallbacks {
 
     // CHECK-LABEL: fn @multi{{[( ]}}
     // CHECK: internal_call @pair, 2, arg0
-    // CHECK: mload 32
+    // CHECK: frame_load multi_return, word, 0
+    // CHECK: [[PTR:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // CHECK: mload [[PTR]]
     // CHECK: ret {{v[0-9]+}}, {{v[0-9]+}}
     function multi(uint256 x) public pure returns (uint256, uint256) {
         return pair(x);
