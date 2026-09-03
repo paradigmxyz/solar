@@ -4316,9 +4316,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             let Some(operand) = inaccessible else { break };
-            let depth = self.scheduler.stack.find(operand).unwrap_or_else(|| {
-                panic!("stack-only CALL operand {operand:?} was lost before its use")
-            });
+            let Some(depth) = self.scheduler.stack.find(operand) else {
+                if self.recover_lost_internal_stack_value(operand) {
+                    return;
+                }
+                panic!("stack-only CALL operand {operand:?} was lost before its use");
+            };
             assert!(depth < stack_access_limit, "stack-only CALL operand exceeded DUP reach");
             self.emit_stack_op(StackOp::Dup((depth + 1) as u8));
         }
