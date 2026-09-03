@@ -31,7 +31,7 @@ async function runs(repository, runId, limit) {
       '--repo',
       repository,
       '--json',
-      'databaseId,headSha,headBranch,createdAt,conclusion,name,displayTitle',
+      'databaseId,event,headSha,headBranch,createdAt,conclusion,name,displayTitle',
     ])
     return [JSON.parse(stdout)]
   }
@@ -47,11 +47,20 @@ async function runs(repository, runId, limit) {
       '--limit',
       limit,
       '--json',
-      'databaseId,headSha,headBranch,createdAt,conclusion,name,displayTitle',
+      'databaseId,event,headSha,headBranch,createdAt,conclusion,name,displayTitle',
     ],
     { maxBuffer },
   )
   return JSON.parse(stdout)
+}
+
+function trustedRun(run) {
+  return (
+    run.conclusion === 'success' &&
+    run.event === 'push' &&
+    run.headBranch === 'main' &&
+    /^[0-9a-f]{40}$/.test(run.headSha)
+  )
 }
 
 async function importedRuns() {
@@ -63,7 +72,7 @@ async function importedRuns() {
 }
 
 async function refreshMetadata(run) {
-  if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
+  if (!trustedRun(run)) return false
   const [stored] = await select(
     `SELECT workflow_run_id, commit, branch, pr, started_at, workflow_name, source_schema, raw_results
      FROM runs FINAL WHERE workflow_run_id = ${run.databaseId} LIMIT 1`,
@@ -123,34 +132,22 @@ function runDocument(run, pull, sourceSchema, rawResults) {
 }
 
 async function ingest(repository, run, refresh, knownRuns) {
-  if (run.conclusion !== 'success' || !/^[0-9a-f]{40}$/.test(run.headSha)) return false
+  if (!trustedRun(run)) return false
   if (!refresh && knownRuns.has(run.databaseId)) return false
   const pull = await pullRequest(repository, run.headSha)
   const directory = await mkdtemp(join(tmpdir(), 'solar-web-'))
   try {
-    try {
-      await exec('gh', [
-        'run',
-        'download',
-        String(run.databaseId),
-        '--repo',
-        repository,
-        '--name',
-        'codegen-runtime-results',
-        '--dir',
-        directory,
-      ])
-    } catch {
-      await exec('gh', [
-        'run',
-        'download',
-        String(run.databaseId),
-        '--repo',
-        repository,
-        '--dir',
-        directory,
-      ])
-    }
+    await exec('gh', [
+      'run',
+      'download',
+      String(run.databaseId),
+      '--repo',
+      repository,
+      '--name',
+      'codegen-runtime-results',
+      '--dir',
+      directory,
+    ])
     const paths = await artifactPaths(directory)
     await exec('node', [
       resolve('scripts/ingest-run.mjs'),
@@ -195,9 +192,9 @@ const options = args()
 const repository = options.repo || process.env.GITHUB_REPOSITORY || 'paradigmxyz/solar'
 const limit = options.limit || '10000'
 const available = await runs(repository, options['workflow-run'], limit)
-const concurrency = Number(options.concurrency || '8')
-if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 16)
-  throw new Error('Concurrency must be an integer from 1 to 16')
+const concurrency = Number(options.concurrency || '2')
+if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 4)
+  throw new Error('Concurrency must be an integer from 1 to 4')
 const knownRuns = await importedRuns()
 console.log(`Scanning ${available.length} GitHub Actions runs with ${concurrency} workers`)
 let count = 0

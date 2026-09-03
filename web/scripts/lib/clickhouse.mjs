@@ -22,6 +22,8 @@ function headers({ user, password }, contentType = 'text/plain; charset=utf-8') 
   }
 }
 
+const maxInsertBytes = 64 * 1024 * 1024
+
 async function request(query, body = query, useDatabase = true) {
   const settings = config()
   const url = new URL(settings.url)
@@ -41,8 +43,23 @@ export async function execute(query, useDatabase = true) {
 
 export async function insert(table, rows) {
   if (!rows.length) return
-  const body = `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`
-  await request(`INSERT INTO ${table} FORMAT JSONEachRow`, body)
+  const query = `INSERT INTO ${table} FORMAT JSONEachRow`
+  let lines = []
+  let bytes = 0
+  for (const row of rows) {
+    const line = JSON.stringify(row)
+    const lineBytes = Buffer.byteLength(line) + 1
+    if (lineBytes > maxInsertBytes)
+      throw new Error(`Row exceeds ${maxInsertBytes / 1024 / 1024} MiB`)
+    if (bytes && bytes + lineBytes > maxInsertBytes) {
+      await request(query, `${lines.join('\n')}\n`)
+      lines = []
+      bytes = 0
+    }
+    lines.push(line)
+    bytes += lineBytes
+  }
+  if (lines.length) await request(query, `${lines.join('\n')}\n`)
 }
 
 export async function select(query) {
