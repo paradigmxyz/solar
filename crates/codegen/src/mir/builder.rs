@@ -125,22 +125,6 @@ impl<'a> FunctionBuilder<'a> {
         }
     }
 
-    /// Creates a builder that reuses blocks from an earlier builder for the same function.
-    pub(crate) fn with_revert_blocks(func: &'a mut Function, revert_blocks: RevertBlocks) -> Self {
-        Self {
-            func,
-            current_block: BlockId::ENTRY,
-            revert_blocks,
-            current_source_span: Span::DUMMY,
-            current_modifier_depth: 0,
-        }
-    }
-
-    /// Returns the function-local revert block cache.
-    pub(crate) fn into_revert_blocks(self) -> RevertBlocks {
-        self.revert_blocks
-    }
-
     /// Replaces the source span attached to newly emitted instructions.
     pub(crate) fn replace_source_span(&mut self, span: Span) -> Span {
         std::mem::replace(&mut self.current_source_span, span)
