@@ -358,8 +358,6 @@ pub(crate) struct FunctionAnalyses {
     pub(crate) alias: Rc<AliasAnalysis>,
     /// Shared CFG snapshot; RPO, dominators, and reachability build lazily.
     pub(crate) cfg: Rc<CfgInfo>,
-    /// Module call summaries for passes that consume them.
-    pub(crate) call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
 /// Cached per-function analyses shared by every pass in one pipeline run.
@@ -370,16 +368,24 @@ pub struct ModuleAnalyses {
     cfg: FxHashMap<FunctionId, Rc<CfgInfo>>,
     call_summaries: Option<Arc<MemoryCallSummaries>>,
     preserved_by_pass: bool,
+    call_summaries_preserved: bool,
 }
 
 impl ModuleAnalyses {
     pub(crate) fn begin_pass(&mut self) {
         self.preserved_by_pass = false;
+        self.call_summaries_preserved = false;
     }
 
     pub(crate) fn finish_pass(&mut self, changed: bool) {
-        if changed && !self.preserved_by_pass {
+        if !changed {
+            return;
+        }
+        if !self.preserved_by_pass {
             self.invalidate_all();
+        }
+        if !self.call_summaries_preserved {
+            self.call_summaries = None;
         }
     }
 
@@ -394,16 +400,20 @@ impl ModuleAnalyses {
     }
 
     fn bundle(&mut self, func_id: FunctionId, func: &Function) -> FunctionAnalyses {
-        FunctionAnalyses {
-            alias: self.alias(func_id),
-            cfg: self.cfg(func_id, func),
-            call_summaries: self.call_summaries.clone(),
-        }
+        FunctionAnalyses { alias: self.alias(func_id), cfg: self.cfg(func_id, func) }
     }
 
-    /// Provides module call summaries to subsequent pass runs.
-    pub(crate) fn set_call_summaries(&mut self, summaries: Arc<MemoryCallSummaries>) {
-        self.call_summaries = Some(summaries);
+    /// Returns the module call summaries, computing them on first use. A pass that changes
+    /// the module drops them unless it calls [`Self::preserve_call_summaries`].
+    pub(crate) fn call_summaries(&mut self, module: &Module) -> Arc<MemoryCallSummaries> {
+        Arc::clone(
+            self.call_summaries.get_or_insert_with(|| Arc::new(MemoryCallSummaries::new(module))),
+        )
+    }
+
+    /// Declares that the running pass leaves the module call summaries valid.
+    pub(crate) fn preserve_call_summaries(&mut self) {
+        self.call_summaries_preserved = true;
     }
 
     fn retain(&mut self, func_id: FunctionId, keep_alias: bool, keep_cfg: bool) {
@@ -422,7 +432,6 @@ impl ModuleAnalyses {
     fn invalidate_all(&mut self) {
         self.alias.clear();
         self.cfg.clear();
-        self.call_summaries = None;
     }
 }
 

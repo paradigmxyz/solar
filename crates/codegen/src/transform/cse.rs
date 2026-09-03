@@ -68,7 +68,7 @@ impl MirPass for Cse {
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        analyses.set_call_summaries(Arc::new(MemoryCallSummaries::new(module)));
+        let summaries = analyses.call_summaries(module);
         let changed = run_function_pass(module, analyses, |func, analyses| {
             if func
                 .instructions()
@@ -78,17 +78,14 @@ impl MirPass for Cse {
             {
                 return false;
             }
-            let mut eliminator = match &analyses.call_summaries {
-                Some(summaries) => {
-                    CommonSubexprEliminator::with_call_summaries(Arc::clone(summaries))
-                }
-                None => CommonSubexprEliminator::default(),
-            };
+            let mut eliminator =
+                CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries));
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run_to_fixpoint(func) != 0
         });
         // CSE removes only side-effect-free instructions, so these summaries remain valid for
         // the following allocation pass and avoid recomputing the module call graph.
+        analyses.preserve_call_summaries();
         changed
     }
 }
