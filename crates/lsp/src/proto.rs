@@ -11,7 +11,7 @@ use solar_config::version::SHORT_VERSION;
 use solar_interface::{
     CharPos, SourceMap, Span,
     diagnostics::{Diag, Level},
-    source_map::SpanLoc,
+    source_map::SourceFile,
 };
 
 #[derive(Debug)]
@@ -317,22 +317,46 @@ fn diagnostic_data(
 }
 
 pub(crate) fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
-    let (file, SpanLoc { lo, hi }) = source_map.span_to_location_info(span);
-    let file = file?;
+    if source_map.is_empty() || span.is_dummy() {
+        return None;
+    }
+
+    let file = source_map.lookup_source_file(span.lo());
+    let hi_file = source_map.lookup_source_file(span.hi());
+    if file.start_pos != hi_file.start_pos {
+        return None;
+    }
+    let lo = file.lookup_file_pos(file.relative_position(span.lo()));
+    let hi = file.lookup_file_pos(file.relative_position(span.hi()));
 
     Some(lsp_types::Location {
         uri: lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok()?,
         range: lsp_types::Range {
-            start: lsp_types::Position {
-                line: lo.line as u32 - 1,
-                character: utf16_column(lo.col, file.get_line(lo.line - 1)?),
-            },
-            end: lsp_types::Position {
-                line: hi.line as u32 - 1,
-                character: utf16_column(hi.col, file.get_line(hi.line - 1)?),
-            },
+            start: lsp_position(&file, lo.0, lo.1)?,
+            end: lsp_position(&file, hi.0, hi.1)?,
         },
     })
+}
+
+fn lsp_position(file: &SourceFile, line: usize, column: CharPos) -> Option<lsp_types::Position> {
+    let line_index = line.checked_sub(1)?;
+    let character = if file.multibyte_chars.is_empty() {
+        // Keep the old `get_line` behavior without scanning the line: a line's `lines` entry
+        // includes the following `\n`, while LSP ranges stop before that terminator. A CRLF line
+        // deliberately retains its `\r`, matching `get_line` and the previous conversion.
+        let start = file.lines().get(line_index)?.to_usize();
+        let mut end = file
+            .lines()
+            .get(line_index + 1)
+            .map_or_else(|| file.source_len.to_usize(), |pos| pos.to_usize());
+        if end > start && file.src.as_bytes().get(end - 1) == Some(&b'\n') {
+            end -= 1;
+        }
+        u32::try_from(column.to_usize().min(end.saturating_sub(start))).ok()?
+    } else {
+        utf16_column(column, file.get_line(line_index)?)
+    };
+    Some(lsp_types::Position::new(u32::try_from(line_index).ok()?, character))
 }
 
 /// Takes a UTF8 string slice and a UTF8 character position (relative to the line start), and
@@ -509,6 +533,61 @@ mod tests {
                 ]
             }])
         );
+    }
+
+    #[test]
+    fn span_to_location_uses_utf16_columns() {
+        let source = "a😀中value\n";
+        let source_map = SourceMap::empty();
+        let file = source_map
+            .new_source_file(std::env::temp_dir().join("Utf16Location.sol"), source)
+            .unwrap();
+        let start = source.find("value").unwrap();
+        let span = Span::new(
+            file.start_pos + BytePos::from_usize(start),
+            file.start_pos + BytePos::from_usize(start + "value".len()),
+        );
+
+        let location = super::span_to_location(&source_map, span).unwrap();
+
+        assert_eq!(location.range, Range::new(Position::new(0, 4), Position::new(0, 9)));
+    }
+
+    #[test]
+    fn span_to_location_clamps_ascii_line_terminators() {
+        for (source, end_character) in [("value\n", 5), ("value\r\n", 6), ("value", 5)] {
+            let source_map = SourceMap::empty();
+            let file = source_map
+                .new_source_file(std::env::temp_dir().join("AsciiLocation.sol"), source)
+                .unwrap();
+            let location = super::span_to_location(
+                &source_map,
+                Span::new(file.start_pos, file.end_position()),
+            )
+            .unwrap();
+
+            assert_eq!(
+                location.range,
+                Range::new(Position::new(0, 0), Position::new(0, end_character))
+            );
+        }
+    }
+
+    #[test]
+    fn span_to_location_rejects_empty_dummy_and_cross_file_spans() {
+        let empty = SourceMap::empty();
+        assert!(super::span_to_location(&empty, Span::DUMMY).is_none());
+
+        let source_map = SourceMap::empty();
+        let first = source_map
+            .new_source_file(std::env::temp_dir().join("FirstLocation.sol"), "first")
+            .unwrap();
+        let second = source_map
+            .new_source_file(std::env::temp_dir().join("SecondLocation.sol"), "second")
+            .unwrap();
+        let cross_file = Span::new(first.start_pos, second.start_pos);
+
+        assert!(super::span_to_location(&source_map, cross_file).is_none());
     }
 
     #[test]

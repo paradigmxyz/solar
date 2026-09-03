@@ -321,9 +321,8 @@ impl SourceFile {
         CharPos(bpos.to_usize() - total_extra_bytes as usize)
     }
 
-    /// Looks up the file's (1-based) line number and (0-based `CharPos`) column offset, for a
-    /// given `RelativeBytePos`.
-    fn lookup_file_pos(&self, pos: RelativeBytePos) -> (usize, CharPos) {
+    /// Returns the file's 1-based line number and 0-based character column for `pos`.
+    pub fn lookup_file_pos(&self, pos: RelativeBytePos) -> (usize, CharPos) {
         let chpos = self.bytepos_to_file_charpos(pos);
         match self.lookup_line(pos) {
             Some(a) => {
