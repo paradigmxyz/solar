@@ -13,19 +13,17 @@ contract SpillStoreUnloaded {
     // CHECK-NEXT: swap 1
     // CHECK-NEXT: jump [[JOIN:bb[0-9]+]]
     // CHECK: [[JOIN]]:
-    // CHECK-NEXT: push 192
+    // CHECK-NEXT: push 160
     // CHECK-NEXT: mload
     // CHECK-NEXT: add
-    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: swap 1
+    // CHECK-NEXT: pop
     // CHECK-NEXT: push 160
-    // CHECK-NEXT: mstore
-    // CHECK: push 192
     // CHECK-NEXT: mload
-    // CHECK-NEXT: gt
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: lt
     // CHECK-NEXT: push [[OVERFLOW:bb[0-9]+]]
     // CHECK-NEXT: jumpi
-    // CHECK-NEXT: push 160
-    // CHECK-NEXT: mload
     // CHECK-NEXT: push 128
     // CHECK-NEXT: mstore
     // CHECK-NEXT: push 32

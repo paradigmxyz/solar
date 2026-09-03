@@ -45,7 +45,7 @@ bb4:
   dup 2
   mul
   dup 1
-  push 192
+  push 160
   mstore
   dup 3
   iszero
@@ -68,21 +68,17 @@ bb4:
   swap 1
   jump bb9
 bb9:
-  push 192
+  push 160
   mload
   add
-  dup 1
-  push 160
-  mstore
   swap 1
   pop
-  push 192
-  mload
-  gt
-  push bb7
-  jumpi
   push 160
   mload
+  dup 2
+  lt
+  push bb7
+  jumpi
   push 128
   mstore
   push 32

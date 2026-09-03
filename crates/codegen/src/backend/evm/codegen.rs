@@ -132,6 +132,13 @@ struct StackArgUseInfo {
     first_entry_call: Option<usize>,
 }
 
+#[derive(Clone)]
+struct SpillStore {
+    slot: SpillSlot,
+    block: ir::BlockId,
+    range: std::ops::Range<usize>,
+}
+
 impl LazyStackArgPlan {
     fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
         self.args.iter().map(|&(_, value)| value)
@@ -1092,6 +1099,9 @@ pub struct EvmCodegen<'gcx> {
     /// Multi-return protocol instructions satisfied directly from adopted
     /// stack-return words; the emission loop skips them.
     elided_insts: FxHashSet<InstId>,
+    spill_stores: Vec<SpillStore>,
+    spill_loads: Vec<(SpillSlot, ir::BlockId, usize)>,
+    function_ir_block_start: usize,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
     /// across one are kept stack-resident instead of reloaded from the
@@ -1177,6 +1187,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_phi_sources: FxHashMap::default(),
             spill_available: None,
             elided_insts: FxHashSet::default(),
+            spill_stores: Vec::new(),
+            spill_loads: Vec::new(),
+            function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
             global_stack_active: false,
@@ -2711,6 +2724,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Reset scheduler
         self.scheduler.reset();
         self.spill_addr_consts.clear();
+        self.spill_stores.clear();
+        self.spill_loads.clear();
+        self.function_ir_block_start = self.asm.block_count();
 
         // Cross-block rematerialization is selected during spill preallocation. Record every
         // argument without a frame home before that analysis so an expression depending on one is
@@ -3144,6 +3160,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             peak = peak.max(mask.count());
         }
         self.function_stack_peaks.insert(func_id, peak);
+        self.remove_dead_spill_stores();
         self.assign_ranked_spill_addrs(func_id);
     }
 
@@ -4469,10 +4486,120 @@ impl<'gcx> EvmCodegen<'gcx> {
         // We need to DUP (not just use ensure_on_top) because:
         // 1. If value is on top, ensure_on_top does nothing but we need a copy
         // 2. MSTORE will consume the value, and we want to preserve the original
+        let (block, start) = self.asm.next_instruction_position();
         let dup_n = (depth + 1) as u8;
         self.emit_stack_op(StackOp::Dup(dup_n));
 
         self.store_stack_top_to_spill(func, val, slot);
+        let (end_block, end) = self.asm.next_instruction_position();
+        if end_block == block {
+            self.spill_stores.push(SpillStore { slot, block, range: start..end });
+        }
+    }
+
+    fn remove_dead_spill_stores(&mut self) {
+        enum Event {
+            Store(usize),
+            Load(SpillSlot),
+        }
+
+        if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None) {
+            return;
+        }
+
+        // A spill store is dead when every path either overwrites its slot before a reload or
+        // leaves the function. The scheduler keeps these stores while forming blocks, then drops
+        // them after their final control flow is known.
+        let stores = std::mem::take(&mut self.spill_stores);
+        let loads = std::mem::take(&mut self.spill_loads);
+        if stores.is_empty() {
+            return;
+        }
+
+        let mut events = FxHashMap::<ir::BlockId, Vec<(usize, Event)>>::default();
+        for (index, store) in stores.iter().enumerate() {
+            events.entry(store.block).or_default().push((store.range.start, Event::Store(index)));
+        }
+        for (slot, block, index) in loads {
+            events.entry(block).or_default().push((index, Event::Load(slot)));
+        }
+        for events in events.values_mut() {
+            events.sort_unstable_by_key(|&(index, _)| index);
+        }
+
+        let range = self.function_ir_block_start..self.asm.block_count();
+        let mut successors = FxHashMap::<ir::BlockId, Vec<ir::BlockId>>::default();
+        for (source, target) in self.asm.dataflow_edges(range.clone()) {
+            successors.entry(source).or_default().push(target);
+        }
+        let blocks = range.map(ir::BlockId::from_usize).collect::<Vec<_>>();
+        let mut live_in = FxHashMap::<ir::BlockId, FxHashSet<SpillSlot>>::default();
+        loop {
+            let mut changed = false;
+            for &block in blocks.iter().rev() {
+                let mut live = successors
+                    .get(&block)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|successor| live_in.get(successor))
+                    .flatten()
+                    .copied()
+                    .collect::<FxHashSet<_>>();
+                for (_, event) in events.get(&block).into_iter().flatten().rev() {
+                    match event {
+                        Event::Store(index) => {
+                            live.remove(&stores[*index].slot);
+                        }
+                        Event::Load(slot) => {
+                            live.insert(*slot);
+                        }
+                    }
+                }
+                if live_in.get(&block) != Some(&live) {
+                    live_in.insert(block, live);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        let mut dead = FxHashSet::default();
+        for &block in &blocks {
+            let mut live = successors
+                .get(&block)
+                .into_iter()
+                .flatten()
+                .filter_map(|successor| live_in.get(successor))
+                .flatten()
+                .copied()
+                .collect::<FxHashSet<_>>();
+            for (_, event) in events.get(&block).into_iter().flatten().rev() {
+                match event {
+                    Event::Store(index) if !live.remove(&stores[*index].slot) => {
+                        dead.insert(*index);
+                    }
+                    Event::Store(_) => {}
+                    Event::Load(slot) => {
+                        live.insert(*slot);
+                    }
+                }
+            }
+        }
+        let mut removals = dead
+            .into_iter()
+            .map(|index| &stores[index])
+            .map(|store| {
+                if let Some((_, references)) =
+                    self.spill_addr_consts.get_mut(&u64::from(store.slot.offset))
+                {
+                    *references = references.saturating_sub(1);
+                }
+                (store.block, store.range.clone())
+            })
+            .collect::<Vec<_>>();
+        self.asm.remove_instructions(&mut removals);
     }
 
     fn spill_deep_stack_value(
@@ -6702,8 +6829,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             crate::mir::Value::Inst(_) => {
                 let slot = spill_slot.expect("computed stack argument has a validated spill slot");
-                self.emit_spill_slot_addr(func, slot);
-                self.asm.emit_op(op::MLOAD);
+                self.emit_spill_load(func, slot);
             }
             other => unreachable!("stack-arg mask admitted an unsupported value: {other:?}"),
         }
@@ -8050,6 +8176,13 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    fn emit_spill_load(&mut self, func: &Function, slot: SpillSlot) {
+        let (block, index) = self.asm.next_instruction_position();
+        self.spill_loads.push((slot, block, index));
+        self.emit_spill_slot_addr_untracked(func, slot);
+        self.asm.emit_op(op::MLOAD);
+    }
+
     fn internal_spill_slot_offset(&self, func: &Function, slot: SpillSlot) -> u64 {
         EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
             + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
@@ -9242,8 +9375,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
                 ScheduledOp::LoadSpill(slot) => {
                     // PUSH slot_offset, MLOAD
-                    self.emit_spill_slot_addr_untracked(func, slot);
-                    self.asm.emit_op(op::MLOAD);
+                    self.emit_spill_load(func, slot);
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
@@ -10611,6 +10743,24 @@ mod tests {
             codegen.emit_push_label(label);
 
             assert_eq!(codegen.scheduler.stack.max_depth(), MAX_STACK_DEPTH + 1);
+        });
+    }
+
+    #[test]
+    fn removing_instructions_keeps_label_relocations() {
+        with_codegen(CompileOpts::default(), |mut codegen| {
+            let label = codegen.asm.new_label();
+            let (block, start) = codegen.asm.next_instruction_position();
+            codegen.asm.emit_op(op::ADD);
+            codegen.emit_push_label(label);
+            codegen.asm.remove_instructions(&mut [(block, start..start + 1)]);
+            codegen.asm.define_label(label);
+
+            let (module, _) = codegen.asm.finish_evm_ir().unwrap();
+            assert_eq!(
+                module.blocks[ir::BlockId::ENTRY].instructions[0].pushed_block(),
+                Some(ir::BlockId::from_usize(1))
+            );
         });
     }
 
