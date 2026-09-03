@@ -552,6 +552,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.validate_enum_value(self.cx.gcx.hir.enumm(id).variants.len() as u64, value);
     }
 
+    /// Asserts that type checking registered a type for an operator expression.
+    ///
+    /// `binary` and `unary` derive the [`ArithmeticKind`] from this type, and a missing type
+    /// silently drops the overflow check instead of wrapping or panicking, so the type must be
+    /// present whenever the expression is well-formed.
+    #[track_caller]
+    fn assert_operand_ty_registered(&self, expr: &hir::Expr<'_>) {
+        debug_assert!(
+            self.cx.gcx.type_of_expr(expr.id).is_some() || self.cx.gcx.dcx().has_errors().is_err(),
+            "operator expression has no registered type: {:?}",
+            expr.span
+        );
+    }
+
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
@@ -594,6 +608,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             ExprKind::Binary(lhs, op, rhs) => {
+                self.assert_operand_ty_registered(expr);
                 if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
@@ -683,6 +698,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.imm(U256::ZERO))
             }
             ExprKind::Unary(op, value) => {
+                self.assert_operand_ty_registered(expr);
                 if matches!(
                     op.kind,
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
