@@ -367,16 +367,19 @@ impl<'gcx> ResolveContext<'gcx> {
             self.hir.functions[id].overrides =
                 self.lower_overrides(ast_func.header.override_.as_ref(), func.contract);
 
-            self.hir.functions[id].parameters = self.lower_variables(
+            let implemented = ast_func.body.is_some();
+            self.hir.functions[id].parameters = self.lower_function_variables(
                 *ast_func.header.parameters,
-                Some(hir::ItemId::Function(id)),
+                id,
                 hir::VarKind::FunctionParam,
+                implemented,
             );
 
-            self.hir.functions[id].returns = self.lower_variables(
+            self.hir.functions[id].returns = self.lower_function_variables(
                 ast_func.header.returns(),
-                Some(hir::ItemId::Function(id)),
+                id,
                 hir::VarKind::FunctionReturn,
+                implemented,
             );
 
             self.hir.functions[id].modifiers = {
@@ -1605,12 +1608,54 @@ impl<'gcx> ResolveContext<'gcx> {
         })
     }
 
+    /// Lowers a list of variables whose names are not visible to unqualified name resolution:
+    /// struct fields, event and error parameters, and function type parameters and returns.
+    ///
+    /// Every type is lowered before any name is declared, so a name cannot shadow a type used by
+    /// a sibling's type.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/ast/AST.cpp#L727-L736>
     fn lower_variables(
         &mut self,
         vars: &[ast::VariableDefinition<'_>],
         parent: Option<hir::ItemId>,
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
+        debug_assert!(
+            !matches!(kind, hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn),
+            "function parameters must go through `lower_function_variables`"
+        );
+        let ids: &'gcx [hir::VariableId] = self.arena.alloc_slice_fill_iter(
+            vars.iter().map(|var| self.lower_variable_undeclared(var, parent, kind)),
+        );
+        for &id in ids {
+            let _ = self.declare_variable(id);
+        }
+        ids
+    }
+
+    /// Lowers the parameters or returns of a function.
+    ///
+    /// Unlike [`Self::lower_variables`], the names of an implemented function's parameters are
+    /// visible to unqualified name resolution, so they are declared as the list is lowered and
+    /// can shadow a type used by a later sibling's type.
+    fn lower_function_variables(
+        &mut self,
+        vars: &[ast::VariableDefinition<'_>],
+        id: hir::FunctionId,
+        kind: hir::VarKind,
+        implemented: bool,
+    ) -> &'gcx [hir::VariableId] {
+        let parent = Some(hir::ItemId::Function(id));
+        if !implemented {
+            let ids: &'gcx [hir::VariableId] = self.arena.alloc_slice_fill_iter(
+                vars.iter().map(|var| self.lower_variable_undeclared(var, parent, kind)),
+            );
+            for &id in ids {
+                let _ = self.declare_variable(id);
+            }
+            return ids;
+        }
         self.arena
             .alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, parent, kind).0))
     }
@@ -1622,6 +1667,18 @@ impl<'gcx> ResolveContext<'gcx> {
         parent: Option<hir::ItemId>,
         kind: hir::VarKind,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
+        let id = self.lower_variable_undeclared(var, parent, kind);
+        let guar = self.declare_variable(id);
+        (id, guar)
+    }
+
+    /// Lowers `var` to HIR without declaring it in the current scope.
+    fn lower_variable_undeclared(
+        &mut self,
+        var: &ast::VariableDefinition<'_>,
+        parent: Option<hir::ItemId>,
+        kind: hir::VarKind,
+    ) -> hir::VariableId {
         let id = super::lower::lower_variable_partial(
             &mut self.lcx.hir,
             var,
@@ -1633,12 +1690,14 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
-        let mut guar = Ok(());
-        if let Some(name) = var.name {
-            let res = Res::Item(hir::ItemId::Variable(id));
-            guar = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        }
-        (id, guar)
+        id
+    }
+
+    /// Declares the variable in the current scope, if it is named.
+    fn declare_variable(&mut self, id: hir::VariableId) -> Result<(), ErrorGuaranteed> {
+        let Some(name) = self.hir.variables[id].name else { return Ok(()) };
+        let res = Res::Item(hir::ItemId::Variable(id));
+        self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
     }
 
     /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.

@@ -1,0 +1,38 @@
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function (StructType memory StructType) external ext1;
+   ╰╴                                ━━━━━━━━━━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function (EnumType EnumType) external ext2;
+   ╰╴                       ━━━━━━━━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function (EnumType StructType, StructType memory EnumType) external ext3;
+   ╰╴                       ━━━━━━━━━━
+
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function (EnumType StructType, StructType memory EnumType) external ext3;
+   ╰╴                                                     ━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function implemented(EnumType StructType, StructType memory EnumType) external {}
+   ╰╴                                              ━━━━━━━━━━
+
+error: name has to refer to a valid user-defined type
+   ╭▸ ROOT/tests/ui/resolve/param_name_shadowing_type.sol:LL:CC
+   │
+LL │     function implementedReturns() external returns (EnumType StructType, StructType memory EnumType) {}
+   ╰╴                                                                         ━━━━━━━━━━
+
+error: aborting due to 2 previous errors; 4 warnings emitted
+
