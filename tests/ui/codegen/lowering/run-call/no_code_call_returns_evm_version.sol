@@ -1,6 +1,7 @@
-//@ revisions: homestead spuriousDragon byzantium osaka
+//@ revisions: homestead tangerineWhistle spuriousDragon byzantium osaka
 //@[homestead] compile-flags: -O none --evm-version homestead -Zdump=mir
 //@[homestead] filecheck: --check-prefix=HOMESTEAD
+//@[tangerineWhistle] compile-flags: -O none --evm-version tangerineWhistle
 //@[spuriousDragon] compile-flags: -O none --evm-version spuriousDragon
 //@[byzantium] compile-flags: -O none --evm-version byzantium
 //@[osaka] compile-flags: -O none --evm-version osaka -Zdump=mir
@@ -13,8 +14,8 @@
 //@ run-call-fail: NoCodeReturnCalls::pointerNoReturn => 0x
 // Before Tangerine Whistle a call cannot request all the remaining gas, so the
 // succeeding cases skip the homestead revision.
-//@[spuriousDragon,byzantium,osaka] run-call: NoCodeReturnCalls::live => 42
-//@[spuriousDragon,byzantium,osaka] run-call: NoCodeReturnCalls::liveAggregate => 1, 2
+//@[tangerineWhistle,spuriousDragon,byzantium,osaka] run-call: NoCodeReturnCalls::live => 42
+//@[tangerineWhistle,spuriousDragon,byzantium,osaka] run-call: NoCodeReturnCalls::liveAggregate => 1, 2
 
 interface NoCodeTarget {
     function value() external returns (uint256);
