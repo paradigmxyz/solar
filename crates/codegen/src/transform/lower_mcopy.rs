@@ -1,11 +1,8 @@
 //! Lower `mcopy` for EVM versions that predate Cancun.
 
 use crate::{
-    backend::evm::op,
     memory::EvmMemoryLayout,
-    mir::{
-        BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module, Value,
-    },
+    mir::{BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module},
     pass::MirPass,
     target::{Cost, Target},
     transform::utils::redirect_successor_predecessors,
@@ -92,7 +89,7 @@ fn shared_copy_helper(target: Target, sites: usize) -> Option<Function> {
         builder.ret([]);
     }
     let params = function.params.len();
-    let body = code_cost(target, &function);
+    let body = target.code_estimate(&function);
     let sites = u32::try_from(sites).unwrap_or(u32::MAX);
     // The loop itself runs in both shapes; the call protocol is the price of sharing it, and
     // the copies of the loop are the price of expanding it.
@@ -103,34 +100,6 @@ fn shared_copy_helper(target: Target, sites: usize) -> Option<Function> {
     let shared = Cost::new(0, body.bytes).plus(ret).plus(call.times(sites));
     let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
     target.cmp(shared, expanded).is_lt().then_some(function)
-}
-
-/// Estimated code of a function body: every operation with the pushes of its immediates,
-/// and a pushed label with a jump and a landing per edge.
-fn code_cost(target: Target, func: &Function) -> Cost {
-    let mut cost = Cost::ZERO;
-    for block in &func.blocks {
-        for &inst in &block.instructions {
-            let kind = &func.inst(inst).kind;
-            let immediate = |value| match func.value(value) {
-                Value::Immediate(immediate) => immediate.as_u256(),
-                _ => None,
-            };
-            cost += target.op(&kind.op(), immediate);
-            for operand in kind.operands() {
-                if let Some(value) = immediate(operand) {
-                    cost += target.push(value);
-                }
-            }
-        }
-        let edges = block.terminator.as_ref().map_or(0, |terminator| terminator.successors().len());
-        for _ in 0..edges {
-            cost += target.opcode(op::PUSH2);
-            cost += target.opcode(op::JUMPI);
-            cost += target.opcode(op::JUMPDEST);
-        }
-    }
-    cost
 }
 
 fn lower_function(func: &mut Function, helper: Option<FunctionId>) -> bool {

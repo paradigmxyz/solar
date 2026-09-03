@@ -1058,6 +1058,7 @@ symbols! {
         encodeWithSelector,
         encodeWithSignature,
         encode_abi_array,
+        encode_abi_tuple,
         entry,
         environment_read,
         erc7201,
