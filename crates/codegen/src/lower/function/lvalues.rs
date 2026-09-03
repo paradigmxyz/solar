@@ -97,8 +97,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.builder.memory_object_load_element(object, layout, index);
                 Some(self.normalize_memory_scalar(ty, value))
             }
-            LValuePlace::MemoryByte { object, index, ty }
-            | LValuePlace::StorageBytePush { object, index, ty, .. } => {
+            LValuePlace::MemoryByte { object, index, ty } => {
                 let value = self.builder.memory_object_load_byte(object, index);
                 Some(self.normalize_byte_type(ty, value))
             }
@@ -141,10 +140,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.store_byte(object, index, value);
                 Some(())
             }
-            LValuePlace::StorageBytePush { slot, object, index, .. } => {
-                self.store_byte(object, index, value);
-                self.store_storage_bytes(slot, object)
-            }
         }
     }
 
@@ -171,15 +166,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(access) = self.storage_access(receiver) else {
                 return self.cx.report_unsupported(receiver.span, "storage access");
             };
-            let (object, index) = self.grow_storage_bytes(access.slot);
+            let access = self.grow_storage_bytes(access.slot);
             let ty = self.type_of_expr_or_variable(expr)?;
-            return Some(LValuePlace::StorageBytePush {
-                slot: access.slot,
-                object,
-                index,
-                ty,
-                span: expr.span,
-            });
+            return Some(LValuePlace::Storage { ty, access, span: expr.span });
         }
 
         let ExprKind::Index(receiver, Some(index)) = &expr.kind else { return None };
