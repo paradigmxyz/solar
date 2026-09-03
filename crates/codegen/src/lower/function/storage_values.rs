@@ -1236,6 +1236,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         slot: ValueId,
         index: ValueId,
     ) -> StorageAccess {
+        // length = extract_length(sload(slot))
+        // bounds_check(index, length)
         let (_, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
         self.builder.bounds_check(index, length);
 
