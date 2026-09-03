@@ -14,7 +14,7 @@ use crate::{
         MirType, Module, Terminator, Value, ValueId,
     },
     pass::MirPass,
-    target::Target,
+    target::{Cost, Target},
 };
 use smallvec::SmallVec;
 use solar_ast::StateMutability;
@@ -216,7 +216,6 @@ struct MirInlineSummary {
     return_count: usize,
     param_count: usize,
     estimated_code_size: usize,
-    estimated_runtime_gas: u64,
     internal_frame_size: u64,
     has_internal_call: bool,
     has_phi: bool,
@@ -603,6 +602,7 @@ struct CallSite {
 }
 
 fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInlineSummary {
+    let target = Target::new(gcx);
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
         param_count: func.params.len(),
@@ -633,8 +633,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             let kind = &func.inst(inst_id).kind;
             let (inst_cost, instructions) = estimate_inst_cost(gcx, module, kind);
             summary.instruction_count += instructions;
-            summary.estimated_code_size += inst_cost.code_size;
-            summary.estimated_runtime_gas += inst_cost.runtime_gas;
+            summary.estimated_code_size += inst_cost.bytes as usize;
             match kind {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
@@ -668,19 +667,16 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
         match block.terminator.as_ref() {
             Some(term @ Terminator::Return { .. }) => {
                 summary.return_count += 1;
-                let term_cost = estimate_terminator_cost(term);
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
             }
             Some(term @ Terminator::Revert { .. }) => {
-                let term_cost = estimate_terminator_cost(term);
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
             }
             Some(term @ Terminator::RevertReturndata) => {
-                let term_cost = estimate_terminator_cost(term);
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, term).bytes as usize;
             }
             // A void internal function returns via `Stop` (the backend lowers it
             // to an internal return). Treat it as a return point so void callees
@@ -692,9 +688,9 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             | Some(Terminator::Branch { .. })
             | Some(Terminator::Switch { .. }) => {
                 summary.has_control_flow = true;
-                let term_cost = estimate_terminator_cost(block.terminator.as_ref().unwrap());
-                summary.estimated_code_size += term_cost.code_size;
-                summary.estimated_runtime_gas += term_cost.runtime_gas;
+                summary.estimated_code_size +=
+                    estimate_terminator_cost(target, block.terminator.as_ref().unwrap()).bytes
+                        as usize;
             }
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
@@ -782,81 +778,126 @@ fn abi_layout_has_loops(layout: &AbiLayout) -> bool {
     layout.types.iter().any(AbiType::is_dynamic)
 }
 
-#[derive(Clone, Copy, Debug)]
-struct MirCost {
-    runtime_gas: u64,
-    code_size: usize,
-}
-
-fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
-    // An operation with one opcode costs what the target schedule says; the arms below
-    // estimate the code the memory, ABI, and storage lowerings expand the others into.
+/// Estimated code of an operation the later lowerings expand, as the opcode sequence they
+/// emit priced by the target, with the number of MIR instructions the expansion produces.
+/// An operation that lowers to one opcode is priced by the target directly; immediates are
+/// left out throughout, as they are for those.
+fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, usize) {
+    let target = Target::new(gcx);
+    let seq =
+        |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
     if select::opcode_lowering(&kind.op()).is_some()
         && !matches!(kind, InstKind::InternalCall { .. } | InstKind::LoadImmutable(_))
     {
-        let cost = Target::new(gcx).op(&kind.op(), |_| None);
-        return (MirCost { runtime_gas: u64::from(cost.gas), code_size: cost.bytes as usize }, 1);
+        return (target.op(&kind.op(), |_| None), 1);
     }
-    let (runtime_gas, code_size) = match kind {
-        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
+    let code = match kind {
+        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
-                (0, 0)
+                Cost::ZERO
             } else {
-                (3, 1)
+                seq(&[op::ADD])
             }
         }
         InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (0, 0) } else { (3, 1) }
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
+                Cost::ZERO
+            } else {
+                seq(&[op::ADD])
+            }
         }
         InstKind::MemoryObjectElementAddr { layout, .. } => {
-            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
-            (8 + base_cost * 3, 2 + base_cost as usize)
+            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
+            seq(&[op::MUL, op::ADD]).plus(if base { seq(&[op::ADD]) } else { Cost::ZERO })
         }
-        InstKind::MemoryObjectLoadField { layout, field, .. }
-        | InstKind::MemoryObjectStoreField { layout, field, .. } => {
-            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (3, 1) } else { (6, 2) }
+        InstKind::MemoryObjectLoadField { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
+                seq(&[op::MLOAD])
+            } else {
+                seq(&[op::ADD, op::MLOAD])
+            }
         }
-        InstKind::MemoryObjectLoadElement { layout, .. }
-        | InstKind::MemoryObjectStoreElement { layout, .. } => {
-            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
-            (11 + base_cost * 3, 3 + base_cost as usize)
+        InstKind::MemoryObjectStoreField { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) {
+                seq(&[op::MSTORE])
+            } else {
+                seq(&[op::ADD, op::MSTORE])
+            }
         }
-        InstKind::MemoryObjectLoadByte { .. } => (8, 2),
-        InstKind::MemoryObjectStoreByte { .. } => (8, 2),
-        InstKind::MemoryObjectStoreWord { .. } => (8, 2),
-        InstKind::MemorySliceLoadWord { .. } => (6, 1),
-        InstKind::CalldataSliceLoadWord { .. } => (6, 1),
-        InstKind::MemoryObjectCopyFromSlice { .. } => (12, 1),
-        InstKind::MemoryObjectCopyFromSliceAt { .. } => (12, 1),
-        InstKind::MemoryObjectCopy { .. } => (12, 1),
-        InstKind::MemoryObjectLen(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => (3, 1),
-        InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
-        InstKind::Alloc { .. } => (9, 3),
-        InstKind::AbiEncode { args, layout, .. } => {
-            let words = layout.head_size() / 32;
-            (30 + words * 12, 8 + args.len() * 3 + abi_layout_expansion(layout))
+        InstKind::MemoryObjectLoadElement { layout, .. } => {
+            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
+            seq(&[op::MUL, op::ADD, op::MLOAD]).plus(if base {
+                seq(&[op::ADD])
+            } else {
+                Cost::ZERO
+            })
         }
-        InstKind::AbiDecode { layout, .. } => {
-            let words = layout.checked_head_size().expect("ABI head size exceeds u64 range") / 32;
-            (30 + words * 12, 8 + layout.types.len() * 3)
+        InstKind::MemoryObjectStoreElement { layout, .. } => {
+            let base = EvmMemoryLayout::object_data_offset(layout.kind()) != 0;
+            seq(&[op::MUL, op::ADD, op::MSTORE]).plus(if base {
+                seq(&[op::ADD])
+            } else {
+                Cost::ZERO
+            })
         }
-        InstKind::StorageToMemory { layout, .. } => {
-            let slots = layout.storage_slots();
-            (slots * 103, slots as usize * 2)
+        InstKind::MemoryObjectLoadByte { .. } => seq(&[op::MLOAD, op::BYTE]),
+        InstKind::MemoryObjectStoreByte { .. } => seq(&[op::ADD, op::MSTORE8]),
+        InstKind::MemoryObjectStoreWord { .. } => seq(&[op::ADD, op::MSTORE]),
+        InstKind::MemorySliceLoadWord { .. } => seq(&[op::MLOAD]),
+        InstKind::CalldataSliceLoadWord { .. } => seq(&[op::CALLDATALOAD]),
+        InstKind::MemoryObjectCopyFromSlice { .. }
+        | InstKind::MemoryObjectCopyFromSliceAt { .. }
+        | InstKind::MemoryObjectCopy { .. } => seq(&[op::MCOPY]),
+        InstKind::MemoryObjectLen(_, _) | InstKind::Fmp | InstKind::FrameLoad { .. } => {
+            seq(&[op::MLOAD])
         }
+        InstKind::SetMemoryObjectLen(_, _, _)
+        | InstKind::SetFmp(_)
+        | InstKind::FrameStore { .. } => seq(&[op::MSTORE]),
+        // Bump the free-memory pointer past the allocation.
+        InstKind::Alloc { .. } => seq(&[op::MLOAD, op::ADD, op::MSTORE]),
+        // Reserve the buffer, store the selector, produce the slice, store every argument's
+        // head, and expand every dynamic value.
+        InstKind::AbiEncode { args, layout, .. } => seq(&[
+            op::MLOAD,
+            op::ADD,
+            op::MSTORE,
+            op::MSTORE,
+            op::DUP1,
+            op::DUP2,
+            op::SWAP1,
+            op::SWAP2,
+        ])
+        .plus(seq(&[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
+        .plus(seq(&[op::DUP1]).times(abi_layout_expansion(layout) as u32)),
+        // Check the calldata bound, then load and validate every head word.
+        InstKind::AbiDecode { layout, .. } => seq(&[
+            op::CALLDATASIZE,
+            op::SUB,
+            op::LT,
+            op::JUMPI,
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::SWAP1,
+        ])
+        .plus(seq(&[op::CALLDATALOAD, op::DUP1, op::MSTORE]).times(layout.types.len() as u32)),
+        InstKind::StorageToMemory { layout, .. } => seq(&[op::SLOAD, op::MSTORE])
+            .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX)),
         InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
-            let slots = layout.storage_slots();
-            (slots * 5_000, slots as usize * 2)
+            seq(&[op::MLOAD, op::SSTORE])
+                .times(u32::try_from(layout.storage_slots()).unwrap_or(u32::MAX))
         }
-        InstKind::FrameLoad { .. } | InstKind::FrameStore { .. } => (3, 1),
-        InstKind::StoreImmutable(..) => (6, 4),
-        InstKind::DataCopy(..) => (12, 1),
-        InstKind::MemoryZero(..) => (15, 2),
-        InstKind::ConstructorArgsBase => (3, 3),
-        InstKind::ConstructorArgsEnd => (9, 8),
-        InstKind::InternalFrameAddr(_) => (6, 3),
-        // Typed PUSH<N> placeholder patched at deploy time.
+        // A pushed offset into the immutables area and the store.
+        InstKind::StoreImmutable(..) => seq(&[op::PUSH2, op::MSTORE]),
+        InstKind::DataCopy(..) => seq(&[op::CODECOPY]),
+        // Zero by copying from beyond the end of calldata.
+        InstKind::MemoryZero(..) => seq(&[op::CALLDATASIZE, op::CALLDATACOPY]),
+        InstKind::ConstructorArgsBase => seq(&[op::PUSH2]),
+        InstKind::ConstructorArgsEnd => seq(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE]),
+        InstKind::InternalFrameAddr(_) => seq(&[op::PUSH1, op::ADD]),
+        // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
         InstKind::LoadImmutable(id) => {
             let ty = module.immutable_type(*id);
             let encoding = ty.immutable_encoding().expect("validated immutable declaration");
@@ -865,25 +906,50 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
                 gcx.sess.opts.optimization,
                 gcx.sess.opts.evm_version.has_bitwise_shifting(),
             );
-            let width = usize::from(type_size.bytes());
-            if width == 32 {
-                (3, 33)
+            let push = op::PUSH1 + (type_size.bytes() - 1);
+            if type_size.bytes() == 32 {
+                seq(&[push])
             } else {
                 match encoding {
-                    ImmutableEncoding::Unsigned(_) => (3, width + 1),
-                    ImmutableEncoding::Signed(_) => (11, width + 4),
-                    ImmutableEncoding::LeftAligned(_) => (9, width + 4),
+                    ImmutableEncoding::Unsigned(_) => seq(&[push]),
+                    ImmutableEncoding::Signed(_) => seq(&[push, op::PUSH1, op::SIGNEXTEND]),
+                    ImmutableEncoding::LeftAligned(_) => seq(&[push, op::PUSH1, op::SHL]),
                 }
             }
         }
         // Expands to length load + data pointer + physical keccak.
-        InstKind::Keccak256Bytes(_) => (36, 5),
-        InstKind::MappingSlot(..) => (36, 3),
-        InstKind::MappingSlotMemory(..) => (60, 8),
-        InstKind::MappingSlotCalldata(..) => (63, 9),
-        InstKind::StorageArrayDataSlot(..) => (36, 3),
+        InstKind::Keccak256Bytes(_) => {
+            seq(&[op::DUP1, op::MLOAD, op::SWAP1, op::ADD, op::KECCAK256])
+        }
+        InstKind::MappingSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
+        InstKind::MappingSlotMemory(..) => seq(&[
+            op::MLOAD,
+            op::ADD,
+            op::MSTORE,
+            op::MLOAD,
+            op::ADD,
+            op::MSTORE,
+            op::ADD,
+            op::KECCAK256,
+        ]),
+        InstKind::MappingSlotCalldata(..) => seq(&[
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::CALLDATALOAD,
+            op::ADD,
+            op::MSTORE,
+            op::ADD,
+            op::ADD,
+            op::KECCAK256,
+        ]),
+        InstKind::StorageArrayDataSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
         InstKind::StorageArrayElementSlot { element_slots, .. } => {
-            (36 + u64::from(*element_slots > 1) * 5, 4)
+            seq(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD]).plus(if *element_slots > 1 {
+                seq(&[op::MUL])
+            } else {
+                Cost::ZERO
+            })
         }
         // External calls lower to a sequence around the call opcode; the call itself
         // dominates, at the schedule's cold price.
@@ -893,16 +959,16 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::DelegateCall { .. }
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
-        | InstKind::ExtStaticCall { .. } => (u64::from(Target::new(gcx).opcode_gas(op::CALL)), 1),
+        | InstKind::ExtStaticCall { .. } => seq(&[op::CALL]),
         InstKind::InternalCall { args, returns, .. } => {
-            let returns = *returns as usize;
-            (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
+            target.internal_call(args.len(), *returns as usize, 0)
         }
-        InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
+        // A phi or a select is a stack move at the join.
+        InstKind::Phi(_) | InstKind::Select(..) => seq(&[op::DUP1]),
         // Every other operation lowers to one opcode and was priced above.
         _ => {
             debug_assert!(false, "operation without a single opcode is not priced: {kind}");
-            (3, 1)
+            seq(&[op::ADD])
         }
     };
     let instructions = match kind {
@@ -913,24 +979,33 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
         _ => 1,
     };
-    (MirCost { runtime_gas, code_size }, instructions)
+    (code, instructions)
 }
 
-fn estimate_terminator_cost(term: &Terminator) -> MirCost {
-    let (runtime_gas, code_size) = match term {
-        Terminator::Jump(_) => (8, 3),
-        Terminator::Branch { .. } => (13, 4),
-        Terminator::Switch { cases, .. } => (13 + (cases.len() as u64) * 10, 4 + cases.len() * 4),
-        Terminator::Return { values } => (20 + (values.len() as u64) * 12, 8),
-        Terminator::Revert { .. }
-        | Terminator::RevertReturndata
-        | Terminator::ReturnData { .. } => (20, 4),
-        Terminator::Stop => (0, 1),
-        Terminator::SelfDestruct { .. } => (5_000, 1),
-        Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
-        Terminator::Invalid => (0, 1),
-    };
-    MirCost { runtime_gas, code_size }
+/// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
+fn estimate_terminator_cost(target: Target, term: &Terminator) -> Cost {
+    let seq =
+        |codes: &[u8]| codes.iter().map(|&code| target.opcode(code)).fold(Cost::ZERO, Cost::plus);
+    match term {
+        Terminator::Jump(_) => seq(&[op::PUSH2, op::JUMP]),
+        Terminator::Branch { .. } => seq(&[op::PUSH2, op::JUMPI]),
+        // The dispatch on the value, then a compare and a jump per case.
+        Terminator::Switch { cases, .. } => seq(&[op::PUSH2, op::JUMPI])
+            .plus(seq(&[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
+        // The values are staged by the instructions above; the return is the protocol's jump.
+        Terminator::Return { .. } => target.internal_return(0, 0),
+        Terminator::Revert { .. } | Terminator::RevertReturndata => {
+            seq(&[op::PUSH1, op::DUP1, op::REVERT])
+        }
+        Terminator::ReturnData { .. } => seq(&[op::PUSH1, op::DUP1, op::RETURN]),
+        Terminator::Stop => seq(&[op::STOP]),
+        Terminator::SelfDestruct { .. } => seq(&[op::SELFDESTRUCT]),
+        // A jump with every argument staged.
+        Terminator::TailCall { args, .. } => {
+            seq(&[op::PUSH2, op::JUMP]).plus(seq(&[op::DUP1]).times(args.len() as u32))
+        }
+        Terminator::Invalid => seq(&[op::INVALID]),
+    }
 }
 
 fn estimated_internal_call_savings(
