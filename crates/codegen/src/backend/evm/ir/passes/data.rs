@@ -204,7 +204,7 @@ fn materialize_data(gcx: Gcx<'_>, module: &mut Module, groups: RewriteGroups) ->
         }
 
         let size = data.len();
-        let data_ref = pool.intern(module, data.clone(), placement);
+        let data_ref = pool.intern(module, data, placement);
         prepare_rewrites(&mut prepared, rewrites, data_ref, size);
         for (index, offset) in absorbed.into_iter().rev() {
             let (contained, rewrites) = rejected.swap_remove(index);
