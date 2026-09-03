@@ -2742,8 +2742,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         for (arg_expr, expected_arg_ty) in
                             modifier.args.exprs().zip(ctor_param_types.iter())
                         {
+                            // Register the argument's own type, not just the types
+                            // of its subexpressions: codegen reads it to select
+                            // checked arithmetic and other type-directed lowering.
                             let actual_arg_ty = self.with_construction_context(|this| {
-                                this.check_expr_kind(arg_expr, Some(*expected_arg_ty))
+                                this.check_expr_with_noexpect(arg_expr, Some(*expected_arg_ty))
                             });
                             let _ = self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
                         }
