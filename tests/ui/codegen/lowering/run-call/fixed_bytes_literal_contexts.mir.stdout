@@ -145,65 +145,47 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v88 = eq v83, v87
     jumpi v88, bb1, bb19
   bb19:
-    v89 = add v86, 31
-    v90 = div v89, 32
-    v91 = add v86, 63
-    v92 = lt v91, v86
-    jumpi v92, bb3, bb20
-  bb20:
-    v93 = not 31
-    v94 = and v91, v93
-    v95 = alloc memorybytes, exact, uninitialized, panic, v94
-    set_memory_object_len memorybytes, v95, v86
-    jumpi v83, bb22, bb21
+    v89 = lt 0, v86
+    v90 = iszero v89
+    jumpi v90, bb20, bb21
   bb21:
-    v96 = and v81, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v95, 0, v96
-    jump bb23
+    jumpi v83, bb22, bb23
+  bb23:
+    jump bb24
   bb22:
-    v97 = storage_array_data_slot 1
+    v91 = storage_array_data_slot 1
+    v92 = shr 5, 0
+    v93 = add v91, v92
     jump bb24
   bb24:
-    v98 = phi [bb22: 0], [bb25: v103]
-    v99 = lt v98, v90
-    jumpi v99, bb25, bb26
-  bb26:
-    jump bb23
-  bb23:
-    v104 = memory_object_len memorybytes, v95
-    v105 = lt 0, v104
-    v106 = iszero v105
-    jumpi v106, bb27, bb28
-  bb28:
-    v107 = memory_object_load_byte memorybytes, v95, 0
-    v108 = shl 248, v107
-    v109 = sload 2 !metadata(storage=slot(2))
-    v110 = lt 0, v109
-    v111 = iszero v110
-    jumpi v111, bb27, bb29
-  bb29:
-    v112 = storage_array_data_slot 2
-    v113 = div 0, 32
-    v114 = add v112, v113
-    v115 = mod 0, 32
-    v116 = mul v115, 1
-    v117 = sload v114 !metadata(storage=symbolic(v114))
-    v118 = mul v116, 8
-    v119 = shr v118, v117
-    v120 = and v119, 255
-    v121 = shl 248, v120
-    ret v55, v58, v59, v60, v62, v64, v80, v108, v121
-  bb27:
+    v94 = phi [bb22: v93], [bb23: 1]
+    v95 = and 0, 31
+    v96 = sub 31, v95
+    v97 = sload v94 !metadata(storage=symbolic(v94))
+    v98 = mul v96, 8
+    v99 = shr v98, v97
+    v100 = and v99, 255
+    v101 = shl 248, v100
+    v102 = sload 2 !metadata(storage=slot(2))
+    v103 = lt 0, v102
+    v104 = iszero v103
+    jumpi v104, bb20, bb25
+  bb25:
+    v105 = storage_array_data_slot 2
+    v106 = div 0, 32
+    v107 = add v105, v106
+    v108 = mod 0, 32
+    v109 = mul v108, 1
+    v110 = sload v107 !metadata(storage=symbolic(v107))
+    v111 = mul v109, 8
+    v112 = shr v111, v110
+    v113 = and v112, 255
+    v114 = shl 248, v113
+    ret v55, v58, v59, v60, v62, v64, v80, v101, v114
+  bb20:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb25:
-    v100 = add v97, v98
-    v101 = sload v100 !metadata(storage=symbolic(v100))
-    v102 = mul v98, 32
-    memory_object_store_word memorybytes, v95, v102, v101
-    v103 = add v98, 1
-    jump bb24
   bb16:
     revert 0, 0
   bb9:

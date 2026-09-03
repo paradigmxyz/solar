@@ -47,40 +47,7 @@ fn @access() -> (u256, u256, u256) [selector=0x71907f17, abi_params=[], abi_retu
     v30 = eq v25, v29
     jumpi v30, bb9, bb10
   bb10:
-    v31 = add v28, 31
-    v32 = div v31, 32
-    v33 = add v28, 63
-    v34 = lt v33, v28
-    jumpi v34, bb1, bb11
-  bb11:
-    v35 = not 31
-    v36 = and v33, v35
-    v37 = alloc memorybytes, exact, uninitialized, panic, v36
-    set_memory_object_len memorybytes, v37, v28
-    jumpi v25, bb13, bb12
-  bb12:
-    v38 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v37, 0, v38
-    jump bb14
-  bb13:
-    v39 = storage_array_data_slot 1
-    jump bb15
-  bb15:
-    v40 = phi [bb13: 0], [bb16: v45]
-    v41 = lt v40, v32
-    jumpi v41, bb16, bb17
-  bb17:
-    jump bb14
-  bb14:
-    v46 = memory_object_len memorybytes, v37
-    ret v10, v22, v46
-  bb16:
-    v42 = add v39, v40
-    v43 = sload v42 !metadata(storage=symbolic(v42))
-    v44 = mul v40, 32
-    memory_object_store_word memorybytes, v37, v44, v43
-    v45 = add v40, 1
-    jump bb15
+    ret v10, v22, v28
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
