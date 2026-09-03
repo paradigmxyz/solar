@@ -46,6 +46,7 @@ function fileCounts(
 export function FileViewer({ base, head, benchmark, theme }: Props) {
   const params = new URLSearchParams(window.location.search)
   const [runs, setRuns] = useState<[RunDocument, RunDocument] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [activeBenchmark, setActiveBenchmark] = useState(benchmark)
   const [against, setAgainst] = useState<'base' | 'solc'>(
     params.get('against') === 'solc' ? 'solc' : 'base',
@@ -54,9 +55,11 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
   const [counts, setCounts] = useState<Record<string, Counts>>({})
 
   useEffect(() => {
-    Promise.all([loadRun(base), loadRun(head)])
-      .then(setRuns)
-      .catch(() => setRuns(null))
+    setRuns(null)
+    setLoadError(null)
+    Promise.all([loadRun(base), loadRun(head)]).then(setRuns, () => {
+      setLoadError('These benchmark runs are not published yet.')
+    })
   }, [base, head])
   useEffect(() => {
     setActiveBenchmark(benchmark)
@@ -169,7 +172,9 @@ export function FileViewer({ base, head, benchmark, theme }: Props) {
   }
   return (
     <main className="file-viewer">
-      {!runs ? (
+      {loadError ? (
+        <p className="error">{loadError}</p>
+      ) : !runs ? (
         <p className="empty">Loading files…</p>
       ) : !files.length ? (
         <p className="empty">No files were published for this benchmark run.</p>
