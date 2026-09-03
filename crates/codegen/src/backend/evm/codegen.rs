@@ -4550,7 +4550,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         else {
             return Vec::new();
         };
-        if carried.len() > STACK_PHI_LAYOUT_LIMIT {
+        if carried.len() > MAX_STACK_ACCESS {
             return Vec::new();
         }
 
