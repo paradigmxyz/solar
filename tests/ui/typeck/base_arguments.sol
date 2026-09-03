@@ -23,3 +23,10 @@ contract Named2 is NamedBase {
 contract Named3 is NamedBase({nope: 1, b: 2}) { } //~ ERROR: named argument `nope` does not match function declaration
 contract Named4 is NamedBase({a: 1, a: 2}) { } //~ ERROR: duplicate named argument `a`
 contract Named5 is NamedBase({a: 1}) { } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
+
+contract NoCtorBase {
+    uint256 x;
+}
+contract NoCtor1 is NoCtorBase() { }
+contract NoCtor2 is NoCtorBase(1) { } //~ ERROR: wrong number of arguments for base constructor: expected 0, found 1
+contract NoCtor3 is NoCtorBase { constructor() NoCtorBase(2) {} } //~ ERROR: wrong number of arguments for base constructor: expected 0, found 1

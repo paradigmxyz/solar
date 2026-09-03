@@ -40,5 +40,17 @@ error: wrong number of arguments for base constructor: expected 2, found 1
 LL │ contract Named5 is NamedBase({a: 1}) { }
    ╰╴                   ━━━━━━━━━━━━━━━━━
 
-error: aborting due to 7 previous errors
+error: wrong number of arguments for base constructor: expected 0, found 1
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract NoCtor2 is NoCtorBase(1) { }
+   ╰╴                    ━━━━━━━━━━━━━
+
+error: wrong number of arguments for base constructor: expected 0, found 1
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract NoCtor3 is NoCtorBase { constructor() NoCtorBase(2) {} }
+   ╰╴                                               ━━━━━━━━━━━━━
+
+error: aborting due to 9 previous errors
 
