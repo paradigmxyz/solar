@@ -4046,16 +4046,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let max_depth = self.scheduler.stack.max_depth();
                     self.scheduler.stack = entry_stack;
                     self.scheduler.stack.inherit_max_depth(max_depth);
-                    self.invalidate_carried_phi_spills(func);
                     // Live-ins not on the carried stack still arrive in memory.
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else if let Some(entry) = stack_phi_plan.entries.get(&block_id) {
                     self.set_stack_to_values(entry);
-                    self.invalidate_carried_phi_spills(func);
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else if let Some(entry) = global_stack_plan.entry(block_id) {
                     self.set_stack_to_values(entry);
-                    self.invalidate_carried_phi_spills(func);
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else {
                     self.scheduler.clear_stack();
@@ -4084,6 +4081,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             self.spill_available = avail_in;
+            self.invalidate_carried_phi_spills(func, block_id);
             if block_id == BlockId::ENTRY
                 && let Some(values) =
                     self.resident_stack_args(func_id).map(|values| values.to_vec())
@@ -5673,19 +5671,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         None
     }
 
-    /// Invalidates the spill bookkeeping of every phi result on a stack
-    /// restored from a carried edge. A loop-carried phi is redefined on every
-    /// re-entry without a store, so a slot stored during an earlier iteration
-    /// holds a stale definition: an exit-path use must spill the carried copy
-    /// again before anything reloads the slot. Other carried values are
-    /// immutable SSA definitions whose stored slots stay current, and
-    /// invalidating those would force later paths to recompute
-    /// memory-dependent definitions whose operands may have changed.
-    fn invalidate_carried_phi_spills(&mut self, func: &Function) {
+    /// A phi defined in this block is a new loop iteration's value. A phi
+    /// defined elsewhere retains its spill only when every incoming path has
+    /// already established it.
+    fn invalidate_carried_phi_spills(&mut self, func: &Function, block_id: BlockId) {
         let carried: Vec<ValueId> = self.scheduler.stack.iter().flatten().collect();
         for value in carried {
             if let crate::mir::Value::Inst(inst_id) = func.value(value)
                 && matches!(func.inst(*inst_id).kind, InstKind::Phi(_))
+                && (func.blocks[block_id].instructions.contains(inst_id)
+                    || self
+                        .spill_available
+                        .as_ref()
+                        .is_none_or(|available| !available.contains(&value)))
             {
                 self.scheduler.spills.invalidate_stored(value);
             }
