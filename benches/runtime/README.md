@@ -15,6 +15,11 @@ Pass `--evm-version VERSION` to replace every archived Standard JSON target and 
 corpus against one EVM version. Use `--solar-only` when the selected target is not supported by the
 installed solc. When available, solc still provides helper contracts for cold-path runtime checks.
 
+Pass `--optimizer-runs N` to replace every case's `optimizer.runs`. We optimize for size below
+200 runs and for gas from 200 up, so `--optimizer-runs 1` turns the same corpus into a size
+benchmark. The override applies to every selected compiler, and runtime checks and gas calls
+still run against the size-optimized code when `--gas` is given.
+
 The default runs only our compiler. Pass `--solc PATH` to record a two-compiler baseline.
 Pass `--solx PATH` to include [solx](https://github.com/NomicFoundation/solx) as a separate compiler,
 with its own compilation, gas, runtime checks, and artifacts. CI pins solx 0.1.8 and installs and
@@ -23,10 +28,9 @@ Reference compiler failures remain in the raw results but do not produce report 
 trigger PR comments. Failures from our compiler and result mismatches involving it still do.
 
 Use `--solar-only` to skip solc and solx benchmark compilation even when `--solc PATH` supplies a binary
-for reference validation or helper contracts. The default skips the
-reference solc compile for each case while retaining Solar compilation, gas measurements, and
-runtime failure checks. A one-compiler run cannot make differential runtime claims, so successful
-runtime comparisons are marked as skipped unless a matching reference result is supplied.
+for reference validation or helper contracts. A one-compiler run retains compilation, gas
+measurements, and runtime failure checks, but cannot make differential runtime claims, so
+successful runtime comparisons are marked as skipped unless a matching reference result is supplied.
 
 Pass `--reference-results PATH` to reuse matching solc and solx results from a prior
 run. The benchmark copies reference compile, gas, and runtime data only when the input fingerprint
