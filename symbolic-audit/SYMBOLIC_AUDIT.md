@@ -1540,10 +1540,51 @@ The scripts were first written as scratch tooling under `target/symaudit/`;
 the versions in `symbolic-audit/tools/` are the ones used from finding 27
 on and are runnable from there (`python3 symbolic-audit/tools/statediff.py`).
 
-Findings 23 to 31 came from this phase: the stateful sweep over
+Findings 23 to 35 came from this phase: the stateful sweep over
 `semanticTests/` at osaka found 23 to 25, the per-EVM-version sweeps found
-26 to 28, and the fix for 27 turned up 29 to 31. The lane table follows
-once the per-version sweeps have been rerun on the fixed compiler.
+26 to 28, 32, and 34, the fix and review of 27 turned up 29 to 31 and 33,
+and re-probing the item-22 review notes gave 35.
+
+Per-EVM-version stateful lanes over `semanticTests/` on `49cf1b51d`
+(findings 23 to 27 fixed), 20 random calls in two sequences per
+deployable contract, 20M gas per call, constructor arguments from the
+tests' expectation lines. "Contracts" counts deployments compared; files
+that need linking, another EVM version, legacy codegen, or observe their
+own address, code, or value are skipped up front (582 of 1670 files at
+osaka). Every mismatch is classified:
+
+| EVM version | Contracts | Agree | Mismatch | Error | Calls compared | Mismatch classes |
+|------|------|------|------|------|------|------|
+| homestead | 1104 | 1083 | 11 | 10 | 43 351 | 9 fnptr, 1 f32, 1 stack depth |
+| tangerineWhistle | 1107 | 1087 | 10 | 10 | 43 509 | 9 fnptr, 1 f32 |
+| spuriousDragon | 1107 | 1087 | 10 | 10 | 43 509 | 9 fnptr, 1 f32 |
+| byzantium | 1112 | 1088 | 14 | 10 | 43 672 | 9 fnptr, 2 f28, 1 f32, 2 gas cap |
+| constantinople | 1117 | 1099 | 14 | 4 | 44 112 | 9 fnptr, 2 f28, 1 f32, 2 gas cap |
+| petersburg | 1120 | 1100 | 16 | 4 | 44 226 | 9 fnptr, 2 f28, 1 f32, 4 gas cap |
+| istanbul | 1120 | 1102 | 14 | 4 | 44 241 | 9 fnptr, 1 f28, 1 f32, 3 gas cap |
+| berlin | 1120 | 1105 | 11 | 4 | 44 266 | 9 fnptr, 1 f32, 1 gas cap |
+| london | 1120 | 1105 | 11 | 4 | 44 266 | 9 fnptr, 1 f32, 1 gas cap |
+| paris | 1120 | 1105 | 11 | 4 | 44 266 | 9 fnptr, 1 f32, 1 gas cap |
+| shanghai | 1121 | 1106 | 11 | 4 | 44 306 | 9 fnptr, 1 f32, 1 gas cap |
+| cancun | 1161 | 1145 | 12 | 4 | 45 875 | 9 fnptr, 1 mcopy, 1 f32, 1 gas cap |
+| prague | 1161 | 1145 | 12 | 4 | 45 875 | 9 fnptr, 1 mcopy, 1 f32, 1 gas cap |
+| osaka | 1161 | 1145 | 12 | 4 | 45 875 | 9 fnptr, 1 mcopy, 1 f32, 1 gas cap |
+
+Classes: "fnptr" is the internal-function-pointer-IDs-in-storage non-bug
+(the nine `store_function_in_constructor`-style tests, storage differs by
+the pointer ID only); "mcopy" is `inlineAssembly/mcopy.sol`, memory-unsafe
+assembly assuming solc's layout; "stack depth" is
+`operators/userDefined/recursive_operator.sol`, where solc's recursion hits
+the 1024-slot stack first; "f28" and "f32" are findings 28 and 32 running
+out of the 20M call gas on our side; "gas cap" is the reverse boundary
+effect, a call that solc could not finish in 20M gas while ours did
+(`array_storage_*` loops of `push()`), all agreeing with a 500M cap at
+ratios 0.97 to 1.0. Errors: 3 support gaps per lane (a storage array
+with a keccak-derived length, `uint8[erc7201("example.main")]`, rejected
+as too large for codegen; a rational literal expression; and a bare
+`abi.encode;` expression statement), 1 constructor expectation line the
+runner cannot encode, and the 6 recursion tests of finding 34 before
+constantinople. Nothing else differed.
 
 ## Value-cleanup probe set
 
