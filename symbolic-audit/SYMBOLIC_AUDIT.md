@@ -898,7 +898,11 @@ modifier arguments use. The contract lowering also no longer replaces a
 failed function with `invalid` unless a diagnostic was emitted, closing the
 silent-`INVALID` class of finding 8 for good. Re-verified on `5967d1929`
 with the stateful harness: `C` and `D` deploy and `getM(1, 5)` returns 16
-on both compilers.
+on both compilers. The review (`4e946a961`) probed name collisions between
+base parameters and derived state, diamonds, forwarding, runtime-indexed
+and ternary storage arguments, and argument evaluation order against solc,
+all agreeing, and stopped the new bail-out diagnostic from cascading after
+an unrelated type error.
 
 ### 25. Five valid programs from the solc semantic tests are rejected by the type checker
 
