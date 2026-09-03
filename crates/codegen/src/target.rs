@@ -8,8 +8,10 @@
 //! own constants, so a schedule change or a new EVM version lands here once.
 //!
 //! Gas is the amount charged before dynamic components such as memory
-//! expansion, copied words, or account warmth; account and storage accesses
-//! are priced cold. The model ranks alternatives, it never bills an execution.
+//! expansion or copied words. Account and storage accesses are priced cold
+//! unless a query asks for the warm price of a slot or account the
+//! transaction already touched. The model ranks alternatives, it never bills
+//! an execution.
 
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
@@ -70,11 +72,39 @@ pub(crate) enum GasTier {
     Fixed(u32),
 }
 
+/// Whether an account or storage slot was already touched in the transaction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Warmth {
+    /// The first access in the transaction, at the full price.
+    Cold,
+    /// An access after an earlier one, at the reduced price EIP-2929 charges;
+    /// earlier schedules do not distinguish the two.
+    Warm,
+}
+
 impl GasTier {
     /// Gas charged by one copy opcode per copied word.
     pub(crate) const COPY_WORD_GAS: u32 = 3;
     /// Gas of a warm account or storage access under EIP-2929.
     pub(crate) const WARM_ACCESS_GAS: u32 = 100;
+    /// The surcharge EIP-2929 adds to a storage write of a cold slot.
+    const COLD_SLOAD_GAS: u32 = 2100;
+
+    /// Gas charged on `evm_version` before dynamic components for an access of
+    /// the given warmth. Warmth only reprices account and storage accesses,
+    /// and only since Berlin.
+    pub(crate) const fn gas_at(self, evm_version: EvmVersion, warmth: Warmth) -> u32 {
+        if !matches!(warmth, Warmth::Warm) || !since(evm_version, EvmVersion::Berlin) {
+            return self.gas(evm_version);
+        }
+        match self {
+            Self::Balance | Self::ExtCode | Self::ExtCodeHash | Self::SLoad | Self::Call => {
+                Self::WARM_ACCESS_GAS
+            }
+            Self::SStore => self.gas(evm_version) - Self::COLD_SLOAD_GAS,
+            _ => self.gas(evm_version),
+        }
+    }
 
     /// Gas charged on `evm_version` before dynamic components.
     pub(crate) const fn gas(self, evm_version: EvmVersion) -> u32 {
@@ -322,7 +352,13 @@ impl Target {
 
     /// Static gas of one opcode; unknown opcodes are free.
     pub(crate) fn opcode_gas(self, opcode: u8) -> u32 {
-        op::definition(opcode).map_or(0, |def| def.gas.gas(self.evm_version))
+        self.opcode_gas_at(opcode, Warmth::Cold)
+    }
+
+    /// Static gas of one opcode touching an account or slot of the given
+    /// warmth; unknown opcodes are free.
+    pub(crate) fn opcode_gas_at(self, opcode: u8, warmth: Warmth) -> u32 {
+        op::definition(opcode).map_or(0, |def| def.gas.gas_at(self.evm_version, warmth))
     }
 
     /// Cost of one opcode with its immediate, before dynamic components.
@@ -349,6 +385,17 @@ impl Target {
     /// for operations the backend expands by hand, plus its dynamic work sized
     /// from the immediate operands `immediate` resolves, or one unit otherwise.
     pub(crate) fn op(self, op: &Op, immediate: impl Fn(ValueId) -> Option<U256>) -> Cost {
+        self.op_at(op, immediate, Warmth::Cold)
+    }
+
+    /// Cost of one operation whose account or storage access has the given
+    /// warmth, with dynamic work sized from immediate operands.
+    pub(crate) fn op_at(
+        self,
+        op: &Op,
+        immediate: impl Fn(ValueId) -> Option<U256>,
+        warmth: Warmth,
+    ) -> Cost {
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1);
         };
@@ -361,7 +408,7 @@ impl Target {
         });
         let dynamic =
             tier.dynamic_gas(self.evm_version).saturating_mul(tier.dynamic_units(&arguments));
-        Cost::new(tier.gas(self.evm_version).saturating_add(dynamic), 1)
+        Cost::new(tier.gas_at(self.evm_version, warmth).saturating_add(dynamic), 1)
     }
 
     /// Gas of copying one more word with a copy opcode.
@@ -414,6 +461,8 @@ impl Target {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mir::{Function, Immediate, Value};
+    use solar_interface::Ident;
 
     #[test]
     fn schedule_is_monotonic_and_fixed_tiers_agree() {
@@ -433,6 +482,31 @@ mod tests {
         for tier in [GasTier::Base, GasTier::VeryLow, GasTier::Mid, GasTier::High] {
             assert_eq!(tier.fixed_gas(), tier.gas(EvmVersion::Amsterdam));
         }
+    }
+
+    #[test]
+    fn warm_accesses_are_repriced_since_berlin() {
+        for tier in [GasTier::Balance, GasTier::ExtCode, GasTier::ExtCodeHash, GasTier::SLoad] {
+            assert_eq!(tier.gas_at(EvmVersion::Berlin, Warmth::Warm), GasTier::WARM_ACCESS_GAS);
+            assert_eq!(tier.gas_at(EvmVersion::Osaka, Warmth::Warm), GasTier::WARM_ACCESS_GAS);
+            assert_eq!(
+                tier.gas_at(EvmVersion::Istanbul, Warmth::Warm),
+                tier.gas(EvmVersion::Istanbul)
+            );
+            assert_eq!(tier.gas_at(EvmVersion::Osaka, Warmth::Cold), tier.gas(EvmVersion::Osaka));
+        }
+        assert_eq!(GasTier::Call.gas_at(EvmVersion::Osaka, Warmth::Warm), 100);
+        assert_eq!(GasTier::SStore.gas_at(EvmVersion::Osaka, Warmth::Warm), 2900);
+        assert_eq!(GasTier::SStore.gas_at(EvmVersion::Istanbul, Warmth::Warm), 5000);
+        assert_eq!(GasTier::VeryLow.gas_at(EvmVersion::Osaka, Warmth::Warm), 3);
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        assert_eq!(target.opcode_gas_at(op::SLOAD, Warmth::Warm), 100);
+        assert_eq!(target.opcode_gas_at(op::SLOAD, Warmth::Cold), 2100);
+        let mut function = Function::new(Ident::DUMMY);
+        let slot = function.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
+        let load = InstKind::SLoad(slot).op();
+        assert_eq!(target.op_at(&load, |_| None, Warmth::Warm), Cost::new(100, 1));
+        assert_eq!(target.op(&load, |_| None), Cost::new(2100, 1));
     }
 
     #[test]
