@@ -399,7 +399,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let input_size = self.builder.slice_len(encoded);
             let ret_offset = zero;
             let ret_size = self.builder.imm(0);
-            let check_code = target.return_types.is_empty()
+            let check_code = self.needs_code_check(target.return_types.len())
                 && match target.callee {
                     TryCallee::Member { receiver, .. } => {
                         self.builder.func().attributes.is_constructor
