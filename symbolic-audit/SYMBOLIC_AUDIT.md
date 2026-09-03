@@ -81,6 +81,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/storage_bytes_index_gas.sol`; fixed in `92a20464d`)
 - [ ] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
       (`symbolic-audit/external_call_prebyzantium.sol`)
+- [ ] 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value, so loops of them are quadratic in gas
+      (`symbolic-audit/storage_bytes_push_gas.sol`)
 
 ## Findings
 
@@ -1041,6 +1043,37 @@ Calls without return values keep the `extcodesize` check on both compilers.
 
 Severity: miscompile for the three pre-byzantium targets. A call to a
 non-existent contract that returns a value silently succeeds.
+
+### 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value
+
+File: `symbolic-audit/storage_bytes_push_gas.sol`
+Source: `semanticTests/array/push/push_no_args_bytes.sol` (`g(811)` ran out
+of the harness's 20M gas in solar at byzantium while solc used 9.6M) and
+`events/event_indexed_string.sol`. Found by the per-EVM-version stateful
+sweeps; the divergence is gas only, both agree with a 500M cap.
+
+Measured at `-Ogas`, osaka, against solc 0.8.36 via-IR:
+
+| Call | solc gas | solar gas | ratio |
+|------|------|------|------|
+| `pushArg(40)`, `a.push(bytes1(i))` 40 times from empty | 113 422 | 150 450 | 1.33 |
+| `pushArg(300)` | 534 369 | 1 599 173 | 2.99 |
+| `pushNoArg(300)`, `a.push()` | 274 901 | 1 223 125 | 4.45 |
+| `pushNoArgAssign(300)`, `a.push() = bytes1(i)` | 575 879 | 1 434 125 | 2.49 |
+| `popAll()` over 300 bytes | 325 635 | 1 542 326 | 4.74 |
+| `pushU8(300)` on `uint8[]` | 448 313 | 444 650 | 0.99 |
+
+The MIR for `pushArg` calls `internal_call @store_storage_bytes` per
+iteration: each `push` loads the current value, appends in memory, and
+stores the whole value back, so a loop of n pushes moves O(n^2) storage
+words. solc appends in place: it reads the header, and for a long value
+writes only the last data word and the header, with the short-to-long
+transition handled once at 32 bytes. `pop` behaves the same way. This is
+the sibling of finding 26, whose fix deliberately left `push` and `pop`
+alone.
+
+Severity: gas. Correct results, but 2.5x to 4.7x the gas of solc on
+`bytes` growth and shrink loops.
 
 ## solc-side observations
 
