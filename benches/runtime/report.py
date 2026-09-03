@@ -17,6 +17,9 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
+
+PERF_SITE_URL = "https://paradigmxyz.github.io/solar/"
 
 
 def normalize_timings(timings: Any) -> dict[str, int | float]:
@@ -350,6 +353,21 @@ def markdown_cell(value: Any) -> str:
     return str(value).replace("|", "\\|").replace("\n", "<br>")
 
 
+def perf_link(
+    label: str, benchmark: str | None = None, section: str = "benchmarks"
+) -> str:
+    base = os.environ.get("BENCHMARK_BASE_SHA")
+    head = os.environ.get("BENCHMARK_PR_HEAD_SHA")
+    if not base or not head:
+        return label
+    query = {"base": base, "head": head}
+    if benchmark is not None:
+        query["benchmark"] = benchmark
+        section = "artifacts"
+    site = os.environ.get("BENCHMARK_SITE_URL") or PERF_SITE_URL
+    return f"[{label}]({site}?{urlencode(query)}#{section})"
+
+
 def compiler_data(result: dict[str, Any], compiler: str) -> dict[str, Any]:
     data = result.get("compilers") or {}
     value = data.get(compiler)
@@ -550,7 +568,7 @@ def metric_rows(
             "| "
             + " | ".join(
                 [
-                    markdown_cell(test_id),
+                    perf_link(markdown_cell(test_id), test_id),
                     fmt_value_with_lower_is_better_delta(
                         solar_gas, solar_gas, base_solar_gas
                     ),
@@ -603,7 +621,7 @@ def memory_benchmark_rows(results: list[dict[str, Any]]) -> list[str]:
         test_id = str(result.get("test_id", "<unknown>"))
         values = {compiler_id: peak_rss(result, compiler_id) for compiler_id in ids}
         cells = [
-            markdown_cell(test_id),
+            perf_link(markdown_cell(test_id), test_id),
             *(fmt_bytes(values[compiler_id]) for compiler_id in ids),
         ]
         if "solar" in values and "solc" in values:
@@ -657,7 +675,7 @@ def compile_time_rows(
             "| "
             + " | ".join(
                 [
-                    markdown_cell(test_id),
+                    perf_link(markdown_cell(test_id), test_id),
                     (
                         f"{fmt_duration(solar_time)} "
                         f"({fmt_pct_change_lower_is_better(solar_time, base_solar_time)})"
@@ -715,7 +733,7 @@ def report_section(
     baseline_results: list[dict[str, Any]],
     baseline_ref: str = "main",
 ) -> str:
-    lines = [f"## {title}", ""]
+    lines = [f"## {perf_link(title)}", ""]
     if not results:
         lines.extend(["No benchmark results were produced.", ""])
         return "\n".join(lines)
@@ -742,7 +760,7 @@ def report_section(
     if deployment:
         lines.extend(
             [
-                "### Deployment",
+                f"### {perf_link('Deployment')}",
                 "",
                 f"| bench | gas (vs {baseline_label}) | solc | size (vs {baseline_label}) | solc |",
                 "| ----- | ------------- | ---- | -------------- | ---- |",

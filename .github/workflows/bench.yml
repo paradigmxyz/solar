@@ -149,14 +149,14 @@ jobs:
           fi
 
           for run_id in $run_ids; do
-            for artifact in codegen-runtime-baseline codegen-runtime-results; do
+            for artifact in codegen-runtime-results; do
               download_dir="$RUNNER_TEMP/codegen-baseline-$run_id-$artifact"
               mkdir -p "$download_dir"
               if gh run download "$run_id" \
                 --name "$artifact" \
                 --dir "$download_dir" \
-                2>/dev/null && [[ -f "$download_dir/results.json" ]]; then
-                cp "$download_dir/results.json" target/codegen-bench/baseline/results.json
+                2>/dev/null && [[ -f "$download_dir/results.json" && -d "$download_dir/artifacts" ]]; then
+                cp -R "$download_dir"/. target/codegen-bench/baseline/
                 echo "found=true" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
@@ -194,6 +194,7 @@ jobs:
             --gas-profile hot \
             --start-anvil \
             --allow-failures \
+            --artifacts target/codegen-bench/baseline/artifacts \
             --output target/codegen-bench/baseline/results.json; then
             echo "::warning::Exact-base codegen benchmark failed to complete"
           fi
@@ -214,6 +215,7 @@ jobs:
             --gas-profile hot
             --start-anvil
             --allow-failures
+            --artifacts target/codegen-bench/artifacts
             --output target/codegen-bench/results.json
           )
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" && \
@@ -232,6 +234,7 @@ jobs:
         if: always()
         env:
           BENCHMARK_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BENCHMARK_BASE_SHA: ${{ steps.baseline.outputs.sha }}
           BENCHMARK_PR_NUMBER: ${{ github.event.pull_request.number }}
           BENCHMARK_BASE_REF: ${{ env.BASE_BRANCH }}
         run: |

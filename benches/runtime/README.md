@@ -24,6 +24,12 @@ run. The benchmark copies solc compile, gas, and runtime data only when the inpu
 matches, then performs the normal cross-compiler runtime checks. PR CI uses the exact-base result
 as the reference, so solc runs on the base revision instead of repeating unchanged work on the PR.
 
+Pass `--artifacts PATH` to write a file tree for each runtime case and compiler. This extra compile
+runs outside the timed samples. Solar emits MIR, creation and runtime EVM IR, disassembly, bytecode,
+and raw Standard JSON input and output. Solc emits optimized Yul IR where available, disassembly,
+bytecode, and raw Standard JSON input and output. When `--reference-results` points to a result next
+to an `artifacts` directory, the matching solc files are copied into the new run.
+
 The workload definitions and helper fixtures were imported from
 [`walnuthq/solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks)
 at commit `01209d2b8ac81645b92e3ef801b5bcdfd61bfd69`. The combined profile still contains each contract

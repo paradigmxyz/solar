@@ -56,6 +56,78 @@ CAST_READ_TIMEOUT = 10
 CAST_RPC_TIMEOUT = 10
 CAST_GAS_LIMIT = "80000000"
 RUNTIME_FIXTURES = ROOT / "fixtures/runtime/RuntimeFixtures.sol"
+ARTIFACT_DUMP_KINDS = (
+    "mir",
+    "evm-ir",
+    "evm-ir-runtime",
+    "disasm-deploy",
+    "disasm-runtime",
+)
+
+EVM_OPCODES = {
+    0x00: "STOP", 0x01: "ADD", 0x02: "MUL", 0x03: "SUB", 0x04: "DIV", 0x05: "SDIV",
+    0x06: "MOD", 0x07: "SMOD", 0x08: "ADDMOD", 0x09: "MULMOD", 0x0A: "EXP", 0x0B: "SIGNEXTEND",
+    0x10: "LT", 0x11: "GT", 0x12: "SLT", 0x13: "SGT", 0x14: "EQ", 0x15: "ISZERO",
+    0x16: "AND", 0x17: "OR", 0x18: "XOR", 0x19: "NOT", 0x1A: "BYTE", 0x1B: "SHL", 0x1C: "SHR", 0x1D: "SAR",
+    0x20: "KECCAK256",
+    0x30: "ADDRESS", 0x31: "BALANCE", 0x32: "ORIGIN", 0x33: "CALLER", 0x34: "CALLVALUE", 0x35: "CALLDATALOAD",
+    0x36: "CALLDATASIZE", 0x37: "CALLDATACOPY", 0x38: "CODESIZE", 0x39: "CODECOPY", 0x3A: "GASPRICE",
+    0x3B: "EXTCODESIZE", 0x3C: "EXTCODECOPY", 0x3D: "RETURNDATASIZE", 0x3E: "RETURNDATACOPY", 0x3F: "EXTCODEHASH",
+    0x40: "BLOCKHASH", 0x41: "COINBASE", 0x42: "TIMESTAMP", 0x43: "NUMBER", 0x44: "PREVRANDAO", 0x45: "GASLIMIT",
+    0x46: "CHAINID", 0x47: "SELFBALANCE", 0x48: "BASEFEE", 0x49: "BLOBHASH", 0x4A: "BLOBBASEFEE",
+    0x50: "POP", 0x51: "MLOAD", 0x52: "MSTORE", 0x53: "MSTORE8", 0x54: "SLOAD", 0x55: "SSTORE",
+    0x56: "JUMP", 0x57: "JUMPI", 0x58: "PC", 0x59: "MSIZE", 0x5A: "GAS", 0x5B: "JUMPDEST", 0x5C: "TLOAD", 0x5D: "TSTORE", 0x5E: "MCOPY", 0x5F: "PUSH0",
+    0xF0: "CREATE", 0xF1: "CALL", 0xF2: "CALLCODE", 0xF3: "RETURN", 0xF4: "DELEGATECALL", 0xF5: "CREATE2", 0xFA: "STATICCALL", 0xFD: "REVERT", 0xFE: "INVALID", 0xFF: "SELFDESTRUCT",
+}
+
+
+def disassemble_evm(bytecode: bytes) -> str:
+    """Format EVM bytecode like Solar's disassembly dump."""
+    instructions: list[tuple[int, str, bytes]] = []
+    offset = 0
+    while offset < len(bytecode):
+        opcode = bytecode[offset]
+        width = opcode - 0x5F if 0x60 <= opcode <= 0x7F else 0
+        data = bytecode[offset + 1 : offset + 1 + width]
+        if width:
+            name = f"PUSH{width}"
+        elif 0x80 <= opcode <= 0x8F:
+            name = f"DUP{opcode - 0x7F}"
+        elif 0x90 <= opcode <= 0x9F:
+            name = f"SWAP{opcode - 0x8F}"
+        elif 0xA0 <= opcode <= 0xA4:
+            name = f"LOG{opcode - 0xA0}"
+        else:
+            name = EVM_OPCODES.get(opcode, f"UNKNOWN 0x{opcode:02x}")
+        instructions.append((offset, name, data))
+        offset += 1 + width
+
+    jumpdests = {offset for offset, name, _ in instructions if name == "JUMPDEST"}
+    targets = set()
+    for index, (_, name, _) in enumerate(instructions):
+        if name in {"JUMP", "JUMPI"} and index:
+            _, previous, data = instructions[index - 1]
+            if previous.startswith("PUSH") and data:
+                target = int.from_bytes(data, "big")
+                if target in jumpdests:
+                    targets.add(target)
+    labels = {offset: index for index, offset in enumerate(sorted(targets))}
+
+    output = []
+    for index, (offset, name, data) in enumerate(instructions):
+        if name == "JUMPDEST" and offset in labels:
+            output.append(f"; bb{labels[offset]}")
+        line = name
+        if data:
+            line += f" 0x{data.hex()}"
+        if name.startswith("PUSH") and index + 1 < len(instructions):
+            if instructions[index + 1][1] in {"JUMP", "JUMPI"}:
+                target = int.from_bytes(data, "big") if data else 0
+                line += f" ; bb{labels[target]}" if target in labels else " ; unknown"
+        elif name in {"JUMP", "JUMPI"} and (not index or not instructions[index - 1][1].startswith("PUSH")):
+            line += " ; unknown"
+        output.append(line)
+    return "\n".join(output) + "\n"
 
 RESET = "\033[0m"
 YELLOW = "\033[33m"
@@ -242,6 +314,134 @@ def compiler_input(
         timeout = 120
     input_text = with_evm_version(input_text, evm_version)
     return input_text, timeout, hashlib.sha256(input_text.encode()).hexdigest()
+
+
+def artifact_compiler_input(input_text: str, test_case: TestCase, kind: str) -> str:
+    payload = json.loads(input_text)
+    source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
+    outputs = [
+        "abi",
+        "evm.bytecode.object",
+        "evm.deployedBytecode.object",
+    ]
+    if kind == "solc":
+        outputs.append("irOptimized")
+    payload.setdefault("settings", {})["outputSelection"] = {
+        source: {test_case.contract_name: outputs}
+    }
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def split_solar_artifact_output(
+    stdout: str, contract_path: str
+) -> tuple[dict[str, str], str]:
+    marker = "\n{"
+    json_start = stdout.rfind(marker)
+    if json_start < 0 and stdout.startswith("{"):
+        return {}, stdout
+    if json_start < 0:
+        raise ValueError("Solar artifact output did not contain Standard JSON")
+
+    dump = stdout[:json_start].strip()
+    output = stdout[json_start + 1 :]
+    escaped = re.escape(contract_path)
+    headings = list(
+        re.finditer(
+            rf"^// === {escaped}(?: \((creation|runtime|deployment)\))? ===$",
+            dump,
+            re.MULTILINE,
+        )
+    )
+    names = (
+        "mir.mir",
+        "creation.evmir",
+        "runtime.evmir",
+        "creation.disasm",
+        "runtime.disasm",
+    )
+    if len(headings) != len(names):
+        raise ValueError(
+            f"expected {len(names)} Solar artifact sections, found {len(headings)}"
+        )
+    artifacts = {}
+    following = [*headings[1:], None]
+    for name, match, next_match in zip(names, headings, following, strict=True):
+        end = next_match.start() if next_match else len(dump)
+        artifacts[name] = dump[match.end() : end].strip() + "\n"
+    return artifacts, output
+
+
+def selected_contract_output(
+    output: dict[str, object], test_case: TestCase
+) -> dict[str, object]:
+    contracts = output.get("contracts") or {}
+    for source_contracts in contracts.values():
+        if test_case.contract_name in source_contracts:
+            return source_contracts[test_case.contract_name]
+    return {}
+
+
+def write_artifacts(
+    root: Path,
+    spec: CompilerSpec,
+    test_case: TestCase,
+    prepared_input: tuple[str, int, str],
+) -> str:
+    if test_case.whole_project:
+        return ""
+    input_text, timeout, _ = prepared_input
+    input_text = artifact_compiler_input(input_text, test_case, spec.kind)
+    output_dir = root / test_case.test_id / spec.compiler_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "input.json").write_text(input_text + "\n")
+
+    cmd = [str(spec.path), "--standard-json"]
+    source = test_case.source_name or test_case.source or f"{test_case.test_id}.sol"
+    contract_path = f"{source}:{test_case.contract_name}"
+    if spec.kind == "solar":
+        kinds = ",".join(ARTIFACT_DUMP_KINDS)
+        cmd.extend(["--color", "never", f"-Zdump={kinds}={contract_path}"])
+    proc = run(cmd, input_text=input_text, timeout=timeout)
+    if proc.returncode != 0:
+        return (proc.stderr or proc.stdout or "artifact compiler failed")[:1000]
+
+    extra = {}
+    raw_output = proc.stdout
+    if spec.kind == "solar":
+        try:
+            extra, raw_output = split_solar_artifact_output(proc.stdout, contract_path)
+        except ValueError as error:
+            return str(error)
+    (output_dir / "output.json").write_text(raw_output.rstrip() + "\n")
+    for name, contents in extra.items():
+        (output_dir / name).write_text(contents)
+
+    try:
+        contract = selected_contract_output(json.loads(raw_output), test_case)
+    except json.JSONDecodeError as error:
+        return f"invalid artifact compiler output: {error}"
+    evm = contract.get("evm") or {}
+    bytecodes: dict[str, bytes] = {}
+    for prefix, key in (("creation", "bytecode"), ("runtime", "deployedBytecode")):
+        bytecode = evm.get(key) or {}
+        if object_hex := bytecode.get("object"):
+            try:
+                bytes_ = bytes.fromhex(str(object_hex).removeprefix("0x"))
+            except ValueError as error:
+                return f"invalid {prefix} bytecode: {error}"
+            bytecodes[prefix] = bytes_
+            (output_dir / f"{prefix}.hex").write_text(str(object_hex) + "\n")
+    if spec.kind == "solc":
+        runtime = bytecodes.get("runtime", b"")
+        creation = bytecodes.get("creation", b"")
+        if creation:
+            deployment = creation.removesuffix(runtime) if runtime else creation
+            (output_dir / "creation.disasm").write_text(disassemble_evm(deployment))
+        if runtime:
+            (output_dir / "runtime.disasm").write_text(disassemble_evm(runtime))
+    if spec.kind == "solc" and (ir := contract.get("irOptimized")):
+        (output_dir / "optimized-ir.yul").write_text(str(ir).rstrip() + "\n")
+    return ""
 
 
 def project_standard_json_input(
@@ -1358,6 +1558,7 @@ def run_test_case(
     evm_version: str | None = None,
     reference_solc_path: Path | None = None,
     repeat_long_compiles: bool = False,
+    artifact_root: Path | None = None,
 ) -> dict[str, object]:
     entry: dict[str, object] = {
         "test_id": test_case.test_id,
@@ -1391,6 +1592,17 @@ def run_test_case(
         compiler_entry.pop("bytecode", None)
         compiler_entry.pop("runtime_bytecode", None)
         entry["compilers"][spec.compiler_id] = compiler_entry
+
+        if artifact_root is not None and prepared_input is not None:
+            artifact_error = write_artifacts(
+                artifact_root, spec, test_case, prepared_input
+            )
+            if artifact_error:
+                compiler_entry["artifact_error"] = artifact_error
+                verbose_log(
+                    verbose,
+                    f"[{test_case.test_id}] {spec.compiler_id} artifact capture failed: {artifact_error}",
+                )
 
         if test_case.whole_project:
             continue
@@ -1624,6 +1836,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--output", help="Output JSON path")
     parser.add_argument(
+        "--artifacts",
+        type=Path,
+        help="Write per-benchmark compiler inputs, outputs, IR, disassembly, and bytecode",
+    )
+    parser.add_argument(
         "--verbose", action="store_true", help="Print compiler errors for failed rows"
     )
     parser.add_argument(
@@ -1828,6 +2045,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.evm_version,
                     solc,
                     args.repeat_long_compiles,
+                    args.artifacts,
                 )
             except Exception as exc:
                 print(
@@ -1839,6 +2057,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 result = failed_test_result(test, specs, args.gas_profile, exc)
             if reference_solc_spec:
                 if merge_reference_compiler(result, reference_results, "solc"):
+                    if (
+                        args.artifacts is not None
+                        and args.reference_results is not None
+                    ):
+                        source = (
+                            args.reference_results.parent
+                            / "artifacts"
+                            / test.test_id
+                            / "solc"
+                        )
+                        if source.is_dir():
+                            shutil.copytree(
+                                source,
+                                args.artifacts / test.test_id / "solc",
+                                dirs_exist_ok=True,
+                            )
                     if args.gas:
                         compare_runtime_results(result, (reference_solc_spec, *specs))
                 else:
