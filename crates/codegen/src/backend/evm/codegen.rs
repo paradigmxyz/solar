@@ -3236,20 +3236,47 @@ impl<'gcx> EvmCodegen<'gcx> {
             return Vec::new();
         }
 
+        let mut preserved = Vec::with_capacity(2);
         for target in targets {
-            if target == block_id
-                || func.blocks[target].predecessors.as_slice() != [block_id]
-                || block_pos.get(&target).copied() <= Some(pos)
-                || func.blocks[target]
-                    .instructions
-                    .iter()
-                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
-            {
+            if target == block_id {
                 return Vec::new();
             }
+            let has_phi = func.blocks[target]
+                .instructions
+                .iter()
+                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
+            if func.blocks[target].predecessors.as_slice() == [block_id]
+                && block_pos.get(&target).copied() > Some(pos)
+                && !has_phi
+            {
+                preserved.push(target);
+                continue;
+            }
+            if !has_phi && self.is_junk_tolerant_terminal(func, liveness, target) {
+                continue;
+            }
+            return Vec::new();
         }
 
-        targets.into()
+        preserved
+    }
+
+    fn is_junk_tolerant_terminal(
+        &self,
+        func: &Function,
+        liveness: &Liveness,
+        block: BlockId,
+    ) -> bool {
+        liveness.live_in(block).iter().all(|value| matches!(func.value(value), Value::Immediate(_)))
+            && match func.blocks[block].terminator {
+                Some(
+                    Terminator::Revert { .. } | Terminator::RevertReturndata | Terminator::Invalid,
+                ) => true,
+                Some(Terminator::TailCall { function, .. }) => {
+                    self.cold_functions.contains(function)
+                }
+                _ => false,
+            }
     }
 
     /// Finds functions whose reachable exits all abort, including chains of
