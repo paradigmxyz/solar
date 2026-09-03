@@ -1111,9 +1111,10 @@ impl<'gcx> Ty<'gcx> {
             TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
             TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
-            // TODO: basetype.is_dynamically_encoded
             TyKind::Slice(ty)
-                if ty.data_stored_in(DataLocation::Calldata) && ty.is_dynamically_sized() =>
+                if ty.data_stored_in(DataLocation::Calldata)
+                    && ty.peel_refs().is_dynamically_sized()
+                    && !ty.base_type(gcx).is_some_and(|base| base.is_dynamically_encoded(gcx)) =>
             {
                 ty
             }
