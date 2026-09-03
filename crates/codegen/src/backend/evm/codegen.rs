@@ -140,6 +140,11 @@ struct SpillStore {
     range: std::ops::Range<usize>,
 }
 
+/// A single-use call gas operand rebuilt at the call site.
+struct LateGasOperand {
+    subtracted: Option<U256>,
+}
+
 impl LazyStackArgPlan {
     fn values(&self) -> impl Iterator<Item = ValueId> + '_ {
         self.args.iter().map(|&(_, value)| value)
@@ -2357,6 +2362,7 @@ pub struct EvmCodegen<'gcx> {
     /// Multi-return protocol instructions satisfied directly from adopted
     /// stack-return words; the emission loop skips them.
     elided_insts: FxHashSet<InstId>,
+    late_gas_operands: FxHashMap<ValueId, LateGasOperand>,
     spill_stores: Vec<SpillStore>,
     spill_loads: Vec<(SpillSlot, ir::BlockId, usize)>,
     early_spill_removals: Vec<(ir::BlockId, std::ops::Range<usize>)>,
@@ -2446,6 +2452,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             stack_phi_sources: FxHashMap::default(),
             spill_available: None,
             elided_insts: FxHashSet::default(),
+            late_gas_operands: FxHashMap::default(),
             spill_stores: Vec::new(),
             spill_loads: Vec::new(),
             early_spill_removals: Vec::new(),
@@ -2507,6 +2514,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.stack_phi_sources.clear();
         self.spill_available = None;
         self.elided_insts.clear();
+        self.late_gas_operands.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
@@ -3810,6 +3818,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Eliminate phis.
         self.block_copies.clear();
         self.elided_insts.clear();
+        self.collect_late_gas_operands(func);
         let phi_result = PhiEliminator::analyze(func);
         let has_phis = !phi_result.block_copies.is_empty();
         for (block_id, copies) in phi_result.block_copies {
@@ -6476,7 +6485,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *value);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
 
                 // CALL consumes 7 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
@@ -6511,7 +6520,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *value);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
 
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::CALLCODE, StackEffect { pops: 7, pushes: 1 }, push);
@@ -6535,7 +6544,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_size);
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
                 // STATICCALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::STATICCALL, StackEffect { pops: 6, pushes: 1 }, push);
@@ -6559,7 +6568,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value_fresh(func, *args_size);
                 self.emit_value_fresh(func, *args_offset);
                 self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_gas_operand(func, *gas);
                 // DELEGATECALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(
@@ -10940,6 +10949,77 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Emits a value fresh, without trying to DUP from the stack.
     /// This is used for CALL operands where we need to guarantee correct values
     /// regardless of scheduler stack tracking state.
+    fn collect_late_gas_operands(&mut self, func: &Function) {
+        self.late_gas_operands.clear();
+
+        let mut use_counts = index_vec![0u32; func.num_values()];
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                for operand in func.inst(inst_id).kind.operands() {
+                    use_counts[operand] += 1;
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    use_counts[operand] += 1;
+                }
+            }
+        }
+
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                let gas = match func.inst(inst_id).kind {
+                    InstKind::Call { gas, .. }
+                    | InstKind::CallCode { gas, .. }
+                    | InstKind::StaticCall { gas, .. }
+                    | InstKind::DelegateCall { gas, .. } => gas,
+                    _ => continue,
+                };
+                if use_counts[gas] != 1 {
+                    continue;
+                }
+                let Value::Inst(operand) = func.value(gas) else { continue };
+                let (reading, subtracted) = match func.inst(*operand).kind {
+                    InstKind::Gas => (*operand, None),
+                    InstKind::Sub(lhs, rhs) => {
+                        let Value::Inst(reading) = func.value(lhs) else { continue };
+                        let Value::Immediate(imm) = func.value(rhs) else { continue };
+                        let Some(subtracted) = imm.as_u256() else { continue };
+                        if !matches!(func.inst(*reading).kind, InstKind::Gas)
+                            || use_counts[lhs] != 1
+                        {
+                            continue;
+                        }
+                        (*reading, Some(subtracted))
+                    }
+                    _ => continue,
+                };
+                if !block.instructions.contains(&reading) || !block.instructions.contains(operand) {
+                    continue;
+                }
+                self.elided_insts.insert(reading);
+                self.elided_insts.insert(*operand);
+                self.late_gas_operands.insert(gas, LateGasOperand { subtracted });
+            }
+        }
+    }
+
+    fn emit_gas_operand(&mut self, func: &Function, gas: ValueId) {
+        let Some(late) = self.late_gas_operands.get(&gas) else {
+            self.emit_value_fresh(func, gas);
+            return;
+        };
+
+        if let Some(subtracted) = late.subtracted {
+            self.asm.emit_push(subtracted);
+            self.asm.emit_op(op::GAS);
+            self.asm.emit_op(op::SUB);
+        } else {
+            self.asm.emit_op(op::GAS);
+        }
+        self.scheduler.stack.push(gas);
+    }
+
     fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
         if let Some(op) = Self::always_rematerializable_op(func, val) {
             self.emit_fresh_scheduled_value(func, val, ScheduledOp::RematerializeNullary(op));
