@@ -79,10 +79,20 @@ and describe behavior that no longer differs.
       (see the item; the repros are the upstream test files; fixed in `b8b912c89`, `d37f90e4f`, `32a1778b9`, `b36cba5e5`, `af388943c`, and `40d523c80` for the transient gap)
 - [x] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
       (`symbolic-audit/storage_bytes_index_gas.sol`; fixed in `92a20464d`)
-- [ ] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
-      (`symbolic-audit/external_call_prebyzantium.sol`)
+- [x] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
+      (`symbolic-audit/external_call_prebyzantium.sol`; fixed in `49cf1b51d`, tests in `46b9d61f8`)
 - [ ] 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value, so loops of them are quadratic in gas
       (`symbolic-audit/storage_bytes_push_gas.sol`)
+- [ ] 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects, so every external call runs out of gas
+      (`symbolic-audit/external_call_gas_prebyzantium.sol`)
+- [ ] 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium because the catch path emits `RETURNDATACOPY`
+      (`symbolic-audit/try_catch_prebyzantium.sol`)
+- [ ] 31. External library calls with return values are rejected before byzantium instead of using a static output buffer
+      (`symbolic-audit/library_call_prebyzantium.sol`)
+- [ ] 32. Loop-carried values round-trip through memory frame slots on every iteration, so tight loops cost 1.25x to 1.7x solc
+      (`symbolic-audit/loop_carried_frame_slots.sol`)
+- [ ] 33. `this.f()` in an internal function reached from the constructor skips the `extcodesize` guard, so deployment succeeds where solc reverts
+      (`symbolic-audit/this_call_from_constructor_helper.sol`)
 
 ## Findings
 
@@ -1044,6 +1054,33 @@ Calls without return values keep the `extcodesize` check on both compilers.
 Severity: miscompile for the three pre-byzantium targets. A call to a
 non-existent contract that returns a value silently succeeds.
 
+Cause and fix (`49cf1b51d`): the call lowering emitted the `extcodesize`
+guard only when the call had no return values, at every EVM version,
+while solc's condition is `encodedHeadSize == 0 || !supportsReturndata()`
+(`checkExtcodesize` in `IRGeneratorForStatements.cpp`). The fix adds
+`needs_code_check(returns) = returns == 0 || !supports_returndata()` at the
+four call sites (direct call, external function pointer, library
+delegatecall, `try`). The same commit also fixes a second pre-byzantium
+defect it exposed: the short-return-data check compared the expected size
+against a constant zero `RETURNDATASIZE`, so any call returning a static
+aggregate reverted unconditionally at homestead; the comparison is now
+skipped where `RETURNDATASIZE` does not exist and the returned words are
+validated at every version. Re-verified with the stateful harness: the
+repro agrees at homestead, tangerineWhistle, spuriousDragon, byzantium, and
+osaka, also with `--no-optimize`; before the fix the same command reported
+`callRet(address(0))` as success on our side and failure on solc's. The
+review (`46b9d61f8`) diffed guard presence against solc over ten call
+shapes at ten EVM versions with every cell agreeing, probed live callees
+returning one, two, aggregate, struct, view, and dirty-word results at
+homestead and osaka, and pinned the guard with FileCheck lines in
+`external_view_call_evm_version.sol` and a `tangerineWhistle` revision of
+the new run-call test. It left one pre-byzantium difference alone: when a
+live callee returns fewer words than declared, both compilers read stale
+bytes from the call's output area, and the bytes differ because the memory
+layouts differ (solc reuses the input buffer, we use scratch); that is
+undefined on both sides and unobservable from byzantium on. It also found
+finding 33.
+
 ### 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value
 
 File: `symbolic-audit/storage_bytes_push_gas.sol`
@@ -1074,6 +1111,183 @@ alone.
 
 Severity: gas. Correct results, but 2.5x to 4.7x the gas of solc on
 `bytes` growth and shrink loops.
+
+### 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects
+
+File: `symbolic-audit/external_call_gas_prebyzantium.sol`
+Found by the agent fixing finding 27, which ran the new UI test on a
+homestead EVM; the stateful harness cannot see it because pre-byzantium
+targets run on an osaka EVM there. Reproduced with
+`target/symaudit/prebyz_gas.py`, which compiles the caller with both
+compilers at homestead and runs it on a forge EVM at homestead from a test
+contract that uses only assembly calls with a static output buffer.
+
+```solidity
+contract Callee { function f() external returns (uint256) { return 42; } }
+contract R { function callRet(address a) external returns (uint256) { return I(a).f(); } }
+```
+
+| Call on a homestead EVM, `Callee` deployed | solc | solar |
+|------|------|------|
+| `callRet(callee)` with 100 000 gas | returns `42`, 23 765 gas | fails, all 100 000 gas consumed |
+| `callRet(callee)` with 1 000 000 gas | returns `42`, 23 755 gas | fails, all 1 000 000 gas consumed |
+| `callNoRet(callee)`, no return values | returns `1`, 23 562 gas | fails, all gas consumed |
+| `callValue(callee)`, `{value: 0}` on a payable target | returns `1`, 23 763 gas | fails, all gas consumed |
+| the same three at tangerineWhistle | agree | agree |
+
+Before EIP-150 (tangerineWhistle) a `CALL` whose gas argument exceeds the
+gas remaining is an exception, not a capped forward. solc therefore emits
+`sub(gas(), 40 + 10 [+ 9000 with value] [+ 25000 without the extcodesize
+check])` as the call gas whenever `canOverchargeGasForCall()` is false, and
+`gas()` from tangerineWhistle on (`IRGeneratorForStatements.cpp`,
+`appendExternalFunctionCall`; the homestead runtime shows `PUSH1 0x31 NOT
+GAS ADD CALL`). It also touches the end of the output area before the
+call so the memory expansion is not charged inside the gas computation.
+Our lowering emits `GAS` directly as the call gas at every version, so on a
+homestead EVM every external call without an explicit `{gas: ...}` fails.
+Only homestead is affected; the stateful harness's osaka EVM applies the
+63/64 rule and hides it.
+
+Severity: miscompile for the homestead target. Every external call fails.
+
+### 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium
+
+File: `symbolic-audit/try_catch_prebyzantium.sol`
+Found while fixing finding 27.
+
+```solidity
+try I(a).f() returns (uint256 v) { r = v; } catch { r = 7; }
+```
+
+| Input at homestead, tangerineWhistle, spuriousDragon | solc | solar |
+|------|------|------|
+| bare `catch { }` after a call with return values | compiles | `EVM IR verification failed: block 0: opcode `returndatacopy` is unavailable for `homestead` EVM` (twice) |
+| bare `catch { }` after a call without return values | compiles | same error |
+| `catch Error(string memory)`, `catch Panic(uint256)`, `catch (bytes memory)` | error `This catch clause type cannot be used on the selected EVM version (homestead). You need at least a Byzantium-compatible EVM or use `catch { ... }`.` | error `typed catch clause requires Byzantium-compatible EVM` plus a codegen error `cannot bind try/catch returndata before Byzantium` |
+| the same at byzantium | compiles | compiles |
+
+solc's type checker only rejects the typed catch clauses before byzantium
+(`TypeChecker.cpp`, `visit(TryStatement)`), and its codegen for a bare
+`catch` needs no return data. Our `try` lowering always emits the
+`RETURNDATACOPY` that fills the catch clause's low-level data, even when no
+clause binds it, and the backend's EVM IR verifier then rejects the
+function. The diagnostic has no source location and reports an internal
+verification failure for a valid program.
+
+Severity: valid program rejected, with an internal error as the message.
+
+### 31. External library calls with return values are rejected before byzantium
+
+File: `symbolic-audit/library_call_prebyzantium.sol`
+Found while fixing finding 27.
+
+```solidity
+library L { function dbl(uint256 x) external pure returns (uint256) { return 2 * x; } }
+contract C { function viaLib(uint256 x) external pure returns (uint256) { return L.dbl(x); } }
+```
+
+| Input at homestead | solc | solar |
+|------|------|------|
+| `L.dbl(x)` returning `uint256` | compiles | error `codegen cannot decode linked library returndata before Byzantium` |
+| `L.pair(x)` returning `(uint256, uint256)` | compiles | same error |
+| `L.noret(x)`, no return values | compiles | compiles |
+| the same at byzantium | compiles | compiles |
+
+solc's homestead IR for the call is `delegatecall(add(gas(), not(49)),
+addr, in, 36, out, 32)` for one return word and `..., out, 64)` for two:
+the static return size is passed as the output size and the words are read
+back from that buffer; there is no `RETURNDATASIZE` involved. Our
+`lower_library_call` always decodes return data and bails with a diagnostic
+when the EVM version has none, so any contract that calls a linked library
+function with a return value cannot be compiled for the three pre-byzantium
+targets.
+
+Severity: valid program rejected.
+
+### 32. Loop-carried values round-trip through memory frame slots on every iteration
+
+File: `symbolic-audit/loop_carried_frame_slots.sol`
+Source: `semanticTests/inlineAssembly/inline_assembly_for.sol`, whose
+`f(304385)` (a Yul factorial loop) ran out of the stateful harness's 20M
+gas on our side at osaka while solc used 15.5M. Found by the rerun of the
+osaka stateful sweep on `49cf1b51d`; with a 500M cap both agree, so the
+divergence is gas only.
+
+```solidity
+function solidityLoop(uint256 a) external pure returns (uint256 b) {
+    b = 1;
+    unchecked { for (uint256 i = a; i > 0; i--) { b *= i; } }
+}
+```
+
+Measured at `-Ogas`, osaka, 100 000 iterations:
+
+| Call | solc gas | solar gas | ratio |
+|------|------|------|------|
+| `solidityLoop(100000)`, the loop above | 5 122 122 | 6 422 025 | 1.25 |
+| `solidityCall(100000)`, the same loop in an internal function | 5 122 103 | 8 822 055 | 1.72 |
+| `yulTopLevel(100000)`, the loop in inline assembly | 5 122 027 | 7 621 989 | 1.49 |
+| `yulFunction(100000)`, the loop in a Yul function | 5 122 057 | 7 722 044 | 1.51 |
+| `yulFunctionNoLoop(12345)`, a Yul function without a loop | 22 138 | 22 127 | 1.00 |
+
+The optimized MIR is ideal, two `phi`s in the loop header:
+
+```
+bb1:
+  v0 = phi [bb5: 1], [bb3: v4]
+  v1 = phi [bb5: arg0], [bb3: v5]
+  jumpi v1, bb3, bb2
+bb3:
+  v4 = mul v0, v1
+  v5 = sub v1, 1
+  jump bb1
+```
+
+but the runtime EVM IR materializes both phis in memory frame slots: the
+header block stores them (`push 160 mstore`, `push 192 mstore`) and the
+body reloads them (`push 192 mload`, `push 160 mload`) on every iteration,
+about 30 gas per iteration on top of solc's 51. solc keeps both values on
+the stack and the loop body is `swap2 dup3 mul swap2 push0 not add dup1
+jump`. The internal-function shape pays more because the call frame adds
+its own loads and stores.
+
+Severity: gas. Correct results, but every loop whose body is small relative
+to two memory round trips per carried value costs 1.25x to 1.7x solc, and
+loops are where users spend gas deliberately.
+
+### 33. `this.f()` in an internal function reached from the constructor skips the `extcodesize` guard
+
+File: `symbolic-audit/this_call_from_constructor_helper.sol`
+Found by the review of finding 27's fix (`46b9d61f8`).
+
+```solidity
+contract R {
+    uint256 public seen;
+    constructor() { helper(); }
+    function helper() internal { this.setIt(); }
+    function setIt() external { seen = seen + 1; }
+}
+```
+
+| Deployment | solc | solar |
+|------|------|------|
+| `R()`, `this.setIt()` in a helper the constructor calls | reverts (no code at `this` yet) | deploys, `seen() == 0` |
+| `Direct()`, `this.setIt()` directly in the constructor | reverts | reverts |
+| `ViaModifier()`, `this.setIt()` in a constructor modifier | reverts | reverts |
+| `Derived()`, `this.setIt()` in a base constructor | reverts | reverts |
+| `Runtime.viaHelper()`, the same helper at runtime | `seen() == 1` | `seen() == 1` |
+| all of the above at homestead | same | same |
+
+Both compilers skip the `extcodesize` guard for `this.f()` in runtime code,
+where the contract's own code is known to exist. solc keeps the guard in
+creation code (the constructor and everything it calls). Our lowering
+disables the bypass only when the *current* MIR function is the
+constructor, so an internal helper compiled into the creation object still
+skips the guard, the `CALL` to the code-less address succeeds with no
+effect, and the deployment goes through where solc's reverts.
+
+Severity: miscompile at every EVM version. A deployment that solc rejects
+succeeds silently with the call dropped.
 
 ## solc-side observations
 
@@ -1226,6 +1440,34 @@ agrees), the `memPtrAfter*` functions return free-memory-pointer deltas, and
 `RLP.decodeList` returns `Memory.Slice` values that pack a memory pointer
 into their low 128 bits (solc `0xa1`, solar `0x541`; the length half agrees).
 
+### Fifth session (2026-09-03, stateful)
+
+The symbolic tool never runs constructors, never sends value, and compares
+one call at a time, so this phase adds a stateful differential,
+`symbolic-audit/tools/statediff.py`. It compiles one contract with both
+compilers through Standard JSON (via-IR for solc), deploys both creation
+codes from a generated Foundry test with the same constructor arguments,
+runs randomized or `--fixed` call sequences against both deployments, and
+after every call compares success, return data, logs, and a snapshot of
+every storage slot either side has written so far, with both deployment
+addresses normalized. Targets compiled for a pre-byzantium EVM run on an
+osaka EVM with revert data ignored, because the test contract itself needs
+`RETURNDATASIZE`; `tools/prebyz_gas.py` covers the real homestead EVM with
+a test contract that uses only assembly calls (finding 29).
+`tools/sdcampaign.py` sweeps directories of files, taking constructor
+arguments from the solc semantic tests' `// constructor():` expectation
+lines, skipping files that need linking, legacy codegen, or another EVM
+version, and flagging files that observe their own address, code, or
+value (`self`) so that `self=False` mismatches are the triage candidates.
+The scripts were first written as scratch tooling under `target/symaudit/`;
+the versions in `symbolic-audit/tools/` are the ones used from finding 27
+on and are runnable from there (`python3 symbolic-audit/tools/statediff.py`).
+
+Findings 23 to 31 came from this phase: the stateful sweep over
+`semanticTests/` at osaka found 23 to 25, the per-EVM-version sweeps found
+26 to 28, and the fix for 27 turned up 29 to 31. The lane table follows
+once the per-version sweeps have been rerun on the fixed compiler.
+
 ## Value-cleanup probe set
 
 `symbolic-audit/probes/` holds the probe contracts behind findings 10 to 13.
@@ -1278,6 +1520,15 @@ compilers are allowed to differ.
   Assembly reads of dirty locals are implementation-defined. A probe that
   OR-ed a symbolic word into `f.address` before `f == g` differed only because
   the two deployment addresses have different low bits.
+- Pre-byzantium builds fail differently on a later EVM. solc emits `REVERT`
+  at every EVM version, including homestead where the opcode does not exist
+  and behaves as an invalid instruction (the homestead runtime of
+  `external_call_prebyzantium.sol` contains 25 `REVERT`s); we emit `INVALID`
+  there. On the target chain both consume all gas and return nothing. On the
+  stateful harness's osaka EVM, which the pre-byzantium lanes run on, solc's
+  code reverts cheaply with data while ours burns the whole call gas, so
+  those lanes ignore revert data and the gas of failing calls. Nothing to
+  fix: matching solc would only make the mis-targeted case cheaper.
 
 ## Campaign statistics
 
