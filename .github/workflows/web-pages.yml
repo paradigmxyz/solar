@@ -92,7 +92,9 @@ jobs:
         if: steps.data.outcome == 'success' && steps.history.outcome == 'success'
         run: |
           mkdir -p source/web/public/data
-          cp published/data/index.json source/web/public/data/index.json
+          if [[ -f published/data/index.json ]]; then
+            cp published/data/index.json source/web/public/data/index.json
+          fi
 
       - name: Import benchmark run
         if: steps.data.outcome == 'success'
