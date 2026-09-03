@@ -43,6 +43,12 @@ error: failed to evaluate constant: arithmetic overflow
 LL │     function d4(uint[1 << 4294967295] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
+error: array length cannot be negative
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d7(uint[signedNegTwo] memory) public {}
+   ╰╴                     ━━━━━━━━━━━━
+
 error: failed to evaluate constant: recursion limit reached
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
@@ -126,12 +132,6 @@ error: array length cannot be negative
    │
 LL │     uint[bigLiteral + 1] public tooBig1;
    ╰╴         ━━━━━━━━━━━━━━
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
-   │
-LL │     function d(uint[0 - 1] memory) public {}
-   ╰╴                    ━━━━━ expected `uint256`, found `int_literal[1]`
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC

@@ -16,6 +16,9 @@ contract C {
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: array length cannot be negative
 
+    int constant signedTwo = 7 / 3;
+    int constant signedNegTwo = (-7) / 3;
+
     uint private stateVar = 69;
     uint public stateVarPublic = 420;
 
@@ -26,10 +29,12 @@ contract C {
     function b(uint[x] memory) public {}
     function c(uint[x * 2] memory) public {}
     function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
-    //~^ ERROR: mismatched types
     function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: array length cannot be negative
     function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d5(uint[signedTwo] memory) public {}
+    function d6(uint[-signedNegTwo] memory) public {}
+    function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
     function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
     function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
 
