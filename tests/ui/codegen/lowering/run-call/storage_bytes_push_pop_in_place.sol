@@ -61,6 +61,12 @@
 //@ run-call: pushPopWords 2 => 1, 1
 //@ run-call: pushPopWords 33 => 32, 32
 //@ run-call: pushPopWords 34 => 33, 33
+//@ run-call: pushZeroRead 0 => 0xff, 0xff00000000000000000000000000000000000000000000000000000000000002
+//@ run-call: pushZeroRead 5 => 0xff, 0xffffffffffff000000000000000000000000000000000000000000000000000c
+//@ run-call: pushZeroRead 30 => 0xff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff3e
+//@ run-call: pushZeroRead 31 => 0x00, 0x0000000000000000000000000000000000000000000000000000000000000041
+//@ run-call: pushZeroReadLong 0 => 0xff, 0x0000000000000000000000000000000000000000000000000000000000000043, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: pushZeroReadLong 31 => 0xff, 0x0000000000000000000000000000000000000000000000000000000000000081, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 // `push`, `push()`, and `pop` on a storage `bytes` or `string` update the value
 // in place, so they follow Solidity's short/long layout: a short value keeps
@@ -206,6 +212,41 @@ contract StorageBytesPushPop {
         }
         target.pop();
         return target;
+    }
+
+    // `push()` yields the appended element, and like solc it leaves whatever
+    // that element already held; only inline assembly can leave it dirty, so
+    // reading the call's value must load the byte instead of assuming zero.
+    // The short cases also cover the 31-byte transition, whose appended byte is
+    // the one the header rewrite clears.
+    function pushZeroRead(uint256 len) external returns (bytes1 got, bytes32 header) {
+        assembly {
+            sstore(data.slot, or(not(0xff), mul(mod(len, 32), 2)))
+        }
+        got = data.push();
+        assembly {
+            header := sload(data.slot)
+        }
+    }
+
+    function pushZeroReadLong(uint256 n)
+        external
+        returns (bytes1 got, bytes32 header, bytes32 word)
+    {
+        assembly {
+            sstore(data.slot, add(mul(add(mod(n, 32), 32), 2), 1))
+            mstore(0, data.slot)
+            let start := keccak256(0, 32)
+            sstore(start, not(0))
+            sstore(add(start, 1), not(0))
+            sstore(add(start, 2), not(0))
+        }
+        got = data.push();
+        assembly {
+            mstore(0, data.slot)
+            header := sload(data.slot)
+            word := sload(add(keccak256(0, 32), 1))
+        }
     }
 
     // A packed `uint8[]` keeps the plain dynamic-array lowering.

@@ -15,6 +15,17 @@
 //@ run-call-fail: invalidLongIndexDelete => Panic(0x22)
 //@ run-call-fail: encodingCheckedBeforeBounds => Panic(0x22)
 //@ run-call-fail: encodingCheckedBeforeBoundsWrite => Panic(0x22)
+//@ run-call-fail: invalidShortPush => Panic(0x22)
+//@ run-call-fail: invalidLongPush => Panic(0x22)
+//@ run-call-fail: invalidShortPushZero => Panic(0x22)
+//@ run-call-fail: invalidLongPushZero => Panic(0x22)
+//@ run-call-fail: invalidShortPushAssign => Panic(0x22)
+//@ run-call-fail: invalidLongPushAssign => Panic(0x22)
+//@ run-call-fail: invalidShortPop => Panic(0x22)
+//@ run-call-fail: invalidLongPop => Panic(0x22)
+//@ run-call: pushAtMaxLength => 36893488147419103233
+//@ run-call-fail: pushPastMaxLength => Panic(0x41)
+//@ run-call-fail: pushZeroPastMaxLength => Panic(0x41)
 
 contract StorageBytesValidation {
     bytes private data;
@@ -119,5 +130,89 @@ contract StorageBytesValidation {
             sstore(data.slot, 0x21)
         }
         data[100] = 0x01;
+    }
+
+    // `push`, `push()`, and `pop` decode the same header, so an invalid
+    // encoding stops them before they touch the value.
+    function invalidShortPush() external {
+        assembly {
+            sstore(data.slot, 0x40)
+        }
+        data.push(0x01);
+    }
+
+    function invalidLongPush() external {
+        assembly {
+            sstore(data.slot, 0x21)
+        }
+        data.push(0x01);
+    }
+
+    function invalidShortPushZero() external {
+        assembly {
+            sstore(data.slot, 0x40)
+        }
+        data.push();
+    }
+
+    function invalidLongPushZero() external {
+        assembly {
+            sstore(data.slot, 0x21)
+        }
+        data.push();
+    }
+
+    function invalidShortPushAssign() external {
+        assembly {
+            sstore(data.slot, 0x40)
+        }
+        data.push() = 0x01;
+    }
+
+    function invalidLongPushAssign() external {
+        assembly {
+            sstore(data.slot, 0x21)
+        }
+        data.push() = 0x01;
+    }
+
+    function invalidShortPop() external {
+        assembly {
+            sstore(data.slot, 0x40)
+        }
+        data.pop();
+    }
+
+    function invalidLongPop() external {
+        assembly {
+            sstore(data.slot, 0x21)
+        }
+        data.pop();
+    }
+
+    // A push that lands exactly on 2**64 bytes is still allowed; going past it
+    // panics, for both push forms.
+    function pushAtMaxLength() external returns (uint256 header) {
+        assembly {
+            sstore(data.slot, add(mul(sub(shl(64, 1), 1), 2), 1))
+        }
+        data.push(0x01);
+        assembly {
+            header := sload(data.slot)
+        }
+    }
+
+    function pushPastMaxLength() external {
+        assembly {
+            sstore(data.slot, add(mul(shl(64, 1), 2), 1))
+        }
+        data.push(0x01);
+    }
+
+    function pushZeroPastMaxLength() external {
+        assembly {
+            sstore(data.slot, add(mul(shl(64, 1), 2), 1))
+        }
+        data.push();
     }
 }
