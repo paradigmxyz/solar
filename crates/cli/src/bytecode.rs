@@ -3,7 +3,6 @@ use serde::{Serialize, Serializer};
 use solar_codegen::LibraryReference;
 use std::fmt;
 
-const BYTECODE_CHUNK_LEN: usize = 512;
 const PLACEHOLDER_BYTE_LEN: usize = 20;
 
 /// Bytecode serialized as hex with textual placeholders for unresolved libraries.
@@ -28,11 +27,15 @@ impl fmt::Display for MaybeHexBytecode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut start = 0;
         for placeholder in &self.0.placeholders {
-            write_hex(f, &self.0.bytecode[start..placeholder.start])?;
+            write!(
+                f,
+                "{}",
+                alloy_primitives::hex::display(&self.0.bytecode[start..placeholder.start])
+            )?;
             f.write_str(str::from_utf8(&placeholder.text).map_err(|_| fmt::Error)?)?;
             start = placeholder.start + PLACEHOLDER_BYTE_LEN;
         }
-        write_hex(f, &self.0.bytecode[start..])
+        write!(f, "{}", alloy_primitives::hex::display(&self.0.bytecode[start..]))
     }
 }
 
@@ -65,14 +68,4 @@ impl Placeholder {
         text[37..].copy_from_slice(b"$__");
         Self { start: reference.start, text }
     }
-}
-
-fn write_hex(f: &mut fmt::Formatter<'_>, bytes: &[u8]) -> fmt::Result {
-    let mut buffer = [0; BYTECODE_CHUNK_LEN * 2];
-    for chunk in bytes.chunks(BYTECODE_CHUNK_LEN) {
-        let encoded = alloy_primitives::hex::encode_to_str(chunk, &mut buffer[..chunk.len() * 2])
-            .map_err(|_| fmt::Error)?;
-        f.write_str(encoded)?;
-    }
-    Ok(())
 }
