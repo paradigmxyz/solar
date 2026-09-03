@@ -77,7 +77,7 @@ bb3:
   swap 1
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Elide a permutation that only moves the omitted original.
@@ -104,7 +104,7 @@ bb5:
   push bb6
   jumpi
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 bb6:
@@ -137,7 +137,7 @@ bb8:
   pop
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Prefer removing an immediately discarded copy over rotating three results.
@@ -157,7 +157,7 @@ bb9:
   pop
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Remove an unused non-top stack copy and its cleanup permutation.
@@ -171,7 +171,7 @@ bb10:
   swap 1
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Adjust a deeper read across the omitted original.
@@ -191,7 +191,7 @@ bb11:
   pop
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Keep a copy when an ordinary operation consumes both occurrences.
@@ -203,7 +203,7 @@ bb12:
   dup 1
   add
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Reject a rotation that saves no size and increases gas.
@@ -222,7 +222,7 @@ bb13:
   pop
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Keep a deeper copy when it is consumed as an operand.
@@ -236,7 +236,7 @@ bb14:
   add
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // Track an omitted copy through logical extended stack operations.
@@ -248,7 +248,7 @@ bb15:
   dup 2
   pop
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb16:
@@ -260,7 +260,7 @@ bb16:
   dup 1
   swap 1
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop
 
 // COMMON-LABEL: {{^[ +].*}}bb17:
@@ -274,5 +274,5 @@ bb17:
   dup 1
   exchange 1, 2
   pop
-  op_0c !meta(stack=0->0)
+  op_0c !metadata(stack=0->0)
   stop

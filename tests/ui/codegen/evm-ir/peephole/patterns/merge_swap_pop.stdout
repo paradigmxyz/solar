@@ -90,7 +90,7 @@
     mstore
     stop
   bb6:
-    callf !meta(stack=0->18)
+    callf !metadata(stack=0->18)
     swap 16
     pop
     pop

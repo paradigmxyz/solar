@@ -7,11 +7,11 @@
 // CHECK: {{^[ +].*}}add !metadata(spans=[21..24, 25..28])
 // CHECK: {{^[ +].*}}jumpi bb1, bb2 !metadata(span=30..40)
 bb0 [invoke=entry@1..40]:
-  push 1 !meta(span=1 .. 5)
+  push 1 !metadata(span=1 .. 5)
   op_0c !metadata(stack=0->0, span=8..13)
   push 2
   add !metadata(spans=[21..24, 25..28])
-  jumpi bb1, bb2 !meta(span=30..40)
+  jumpi bb1, bb2 !metadata(span=30..40)
 
 // CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}stop !metadata(span=41..45, exit=return)
@@ -23,4 +23,4 @@ bb1:
 bb2:
   push 0
   dup 1
-  revert !meta(span=46..52, exit=revert)
+  revert !metadata(span=46..52, exit=revert)

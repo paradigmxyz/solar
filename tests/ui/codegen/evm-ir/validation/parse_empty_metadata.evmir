@@ -3,4 +3,4 @@
 /// Block docs.
 bb0:
   push 1
-  add !meta(foo= ) //~ ERROR: expected metadata value
+  add !metadata(foo= ) //~ ERROR: expected metadata value

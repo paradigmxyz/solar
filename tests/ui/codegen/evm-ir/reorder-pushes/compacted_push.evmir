@@ -8,10 +8,10 @@
 @module CompactedPush
 
 bb0:
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
-  callf !meta(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
+  callf !metadata(stack=0->255)
   push 0
   push 0
   push bb1
@@ -49,7 +49,7 @@ bb1:
 // EXPLICIT-NOT: swap 1
 // EXPLICIT: sub
 bb2:
-  callf !meta(stack=0->3)
+  callf !metadata(stack=0->3)
   pop
   pop
   pop
