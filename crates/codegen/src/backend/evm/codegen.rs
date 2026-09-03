@@ -10828,6 +10828,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
         for &value in operands {
+            // A shallow reload can serve the next instruction through one DUP. Keeping a deeper
+            // reload can cost more in shuffles than its later memory load.
+            let used_by_next_instruction = scheduler.stack.depth() <= 1
+                && func.blocks[block].instructions[inst_idx + 1..]
+                    .first()
+                    .is_some_and(|&inst| func.inst(inst).kind.operands().contains(&value));
             let alias_is_live = self
                 .global_stack_aliases
                 .get(&value)
@@ -10840,7 +10846,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !preserved.contains(&value)
                 && (!liveness.is_dead_after(value, block, inst_idx) || alias_is_live)
                 && (!rematerializable || carried_arg_is_live)
-                && (scheduler.reloadable_spill(value).is_none() || scheduler.stack.contains(value))
+                && (scheduler.reloadable_spill(value).is_none()
+                    || scheduler.stack.contains(value)
+                    || used_by_next_instruction)
             {
                 preserved.push(value);
             }
