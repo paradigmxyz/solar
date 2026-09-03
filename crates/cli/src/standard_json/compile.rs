@@ -272,8 +272,8 @@ fn compile(
                 }
 
                 let gcx = compiler.gcx();
-                let bytecode_contracts = requested_bytecode_contracts(gcx, &output_selection);
-                let debug_info_contracts = requested_debug_info_contracts(gcx, &output_selection);
+                let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
+                let debug_info_contracts = requested_debug_info_contracts(gcx, output_selection);
                 let needs_metadata = output_selection.requests_metadata()
                     || metadata.append_cbor && !bytecode_contracts.is_empty();
                 let contract_metadata = needs_metadata.then(|| Metadata::new(gcx, &settings));
@@ -281,7 +281,7 @@ fn compile(
                 let source_map_outputs = OutputSelectionFlags::BYTECODE_SOURCE_MAP
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP;
                 let source_map_encoder =
-                    contract_output_requested(gcx, &output_selection, source_map_outputs)
+                    contract_output_requested(gcx, output_selection, source_map_outputs)
                         .then(|| crate::source_map::SourceMapEncoder::new(gcx));
                 crate::commands::compile::warn_experimental_codegen(
                     gcx.sess,
@@ -304,7 +304,7 @@ fn compile(
                 let ethdebug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
                 let compilation_requested = !global_ethdebug.is_empty()
-                    || contract_output_requested(gcx, &output_selection, ethdebug_outputs);
+                    || contract_output_requested(gcx, output_selection, ethdebug_outputs);
                 let compilation = compilation_requested.then(|| make_ethdebug_compilation(gcx));
                 let compilation_id = compilation.as_ref().map(ethdebug_compilation_id);
 
