@@ -77,9 +77,6 @@ jobs:
         with:
           cache-on-failure: true
           cache-targets: false
-          # Avoid restoring cached rustup proxy symlinks over the runner toolchain on macOS.
-          cache-bin: ${{ matrix.os != 'macos-latest' }}
-          prefix-key: ${{ matrix.os == 'macos-latest' && 'v1-rust' || 'v0-rust' }}
       - name: build
         run: cargo build
       - name: symbolic differential unit tests
