@@ -12,14 +12,14 @@ const configuredRoot = configuredApi
   ? `${configuredApi.replace(/\/$/, '')}/api/data/`
   : configuredDataRoot
 const normalizeRoot = (root: string) => (root.endsWith('/') ? root : `${root}/`)
-let activeRoot = normalizeRoot(configuredRoot || (import.meta.env.DEV ? githubRoot : localRoot))
-let rootResolved = Boolean(configuredDataRoot) || !import.meta.env.DEV
+let activeRoot = normalizeRoot(configuredRoot || (import.meta.env.DEV ? localRoot : githubRoot))
+let rootResolved = Boolean(configuredRoot)
 let indexPromise: Promise<RunIndex> | null = null
 
 function fallbackRoots(root: string) {
   if (configuredDataRoot) return [root]
   if (configuredApi) return [...new Set([root, localRoot, githubRoot])]
-  return import.meta.env.DEV ? [localRoot, githubRoot] : [root]
+  return import.meta.env.DEV ? [root, githubRoot] : [root]
 }
 
 async function getJson<T>(root: string, path: string, fresh = false): Promise<T> {
@@ -60,8 +60,16 @@ async function dataRoot() {
   return activeRoot
 }
 
+async function resolveCommit(commit: string) {
+  if (commit.length === 40) return commit
+  const prefix = commit.toLowerCase()
+  const matches = (await loadIndex()).runs.filter((run) => run.commit.startsWith(prefix))
+  return matches.length === 1 ? matches[0].commit : commit
+}
+
 export async function loadRun(commit: string) {
-  return getJson<RunDocument>(await dataRoot(), `runs/${encodeURIComponent(commit)}/run.json`)
+  const resolved = await resolveCommit(commit)
+  return getJson<RunDocument>(await dataRoot(), `runs/${encodeURIComponent(resolved)}/run.json`)
 }
 
 export async function loadArtifact(
@@ -70,7 +78,8 @@ export async function loadArtifact(
   compiler: string,
   storagePath: string,
 ): Promise<string | null> {
-  const parts = [commit, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
+  const resolved = await resolveCommit(commit)
+  const parts = [resolved, benchmark, compiler, ...storagePath.split('/')].map(encodeURIComponent)
   const root = await dataRoot()
   const roots = fallbackRoots(root)
   for (const candidate of roots) {

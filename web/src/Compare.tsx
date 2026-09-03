@@ -54,6 +54,7 @@ export function Compare({ base, head }: Props) {
   const initial = new URLSearchParams(window.location.search)
   const initialMetric = initial.get('metric')
   const [runs, setRuns] = useState<[RunDocument, RunDocument] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [metric, setMetric] = useState(
     initialMetric && initialMetric in metrics ? initialMetric : 'runtimeGas',
@@ -61,9 +62,11 @@ export function Compare({ base, head }: Props) {
   const [expanded, setExpanded] = useState(initial.get('benchmark') ?? '')
 
   useEffect(() => {
-    Promise.all([loadRun(base), loadRun(head)])
-      .then(setRuns)
-      .catch(() => setRuns(null))
+    setRuns(null)
+    setLoadError(null)
+    Promise.all([loadRun(base), loadRun(head)]).then(setRuns, () => {
+      setLoadError('These benchmark runs are not published yet.')
+    })
   }, [base, head])
 
   const rows = useMemo(() => {
@@ -87,6 +90,12 @@ export function Compare({ base, head }: Props) {
     history.replaceState(null, '', url)
   }
 
+  if (loadError)
+    return (
+      <main className="compare-page">
+        <p className="error">{loadError}</p>
+      </main>
+    )
   if (!runs)
     return (
       <main className="compare-page">

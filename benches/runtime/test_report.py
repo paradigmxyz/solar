@@ -28,8 +28,8 @@ class ReportFormattingTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
-                "BENCHMARK_BASE_SHA": "base",
-                "BENCHMARK_PR_HEAD_SHA": "head",
+                "BENCHMARK_BASE_SHA": "0123456789abcdef",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
                 "BENCHMARK_SITE_URL": "https://example.test/",
             },
         ):
@@ -37,7 +37,7 @@ class ReportFormattingTests(unittest.TestCase):
 
         self.assertEqual(
             link,
-            "[factorial](https://example.test/?base=base&head=head&benchmark=factorial#artifacts)",
+            "[factorial](https://example.test/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
         )
 
     def test_unchanged_report_has_note(self):
