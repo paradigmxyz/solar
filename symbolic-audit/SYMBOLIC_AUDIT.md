@@ -97,6 +97,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/recursion_preconstantinople.sol`)
 - [ ] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
       (`symbolic-audit/interface_free_function_checks.sol`)
+- [ ] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
+      (`symbolic-audit/loop_tuple_assign_miscompile.sol`)
 
 ## Findings
 
@@ -1365,6 +1367,48 @@ library and `payable` checks fixed in items 21 and 22. Not codegen
 divergences: solar accepts programs solc refuses.
 
 Severity: missing diagnostics.
+
+### 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value
+
+File: `symbolic-audit/loop_tuple_assign_miscompile.sol`
+Source: `symbolic-audit/probes/stack_pressure.sol`, `f2` and `f12`.
+Found by the byzantium symbolic probe lane on `49cf1b51d`; the same
+functions agreed under `-Ogas`, `-Onone`, and `-Osize` in the third
+session (`e6db78e6b`) and in the fourth-session probe lanes
+(`e9ca037d5`), so this is a regression from one of the codegen fixes that
+landed between `e9ca037d5` and `49cf1b51d`.
+
+```solidity
+if (v2 & 1 == 1) { v7 = (v6 * v4); } else { v2 = k(v6); }
+for (uint256 i = 0; i < (v4 & 3); i++) { (v3, v2) = h(v1, v2); }
+return (v0 * 1) ^ (v1 * 2) ^ (v2 * 3) ^ (v3 * 4) ^ (v4 * 5) ^ (v5 * 6) ^ (v6 * 7) ^ (v7 * 8);
+```
+
+| Call | solc | solar `-Ogas` | solar `-Onone`, `-Osize` |
+|------|------|------|------|
+| `f2(0, 1, 0)` | `0xff..e326ec342f968e7d18` | `0xff..e326ec342f968e7d17` | agree |
+| `f2Inline(0, 1, 0)`, tuple written inline instead of through `h` | `0xff..968e7d18` | `0xff..968e7d17` | agree |
+| `f2(3, 5, 7)`, `f2(1, 0, 2)`, `f2(0, 0, 0)` | agree | agree | agree |
+| `stack_pressure.sol` `f2(0, 1, 0)` (loop body also updates `v6`) | `0x1cd913cbd0697182d6` | `0x1cd913cbd0697182d9` | agree |
+| `stack_pressure.sol` `f12(1, 0, 0)` | `0x6560d37a9f3396e3252` | `0x4f0b3eacafcd851e80` | agree |
+| the same at byzantium and constantinople | same | same | same |
+
+Only the `else` path (`v2 = k(v6)`, taken when `b + 3` is even) is wrong,
+and only when the loop body assigns a tuple; the loop bound must be
+runtime (`v4 & 3`; a constant `3` agrees), the `if`/`else` must be present,
+and the return must combine all eight values (returning `v2 ^ (v3 * 4)` or
+`v6` alone agrees), so the defect needs stack pressure across the branch
+and the loop. `-Zevm-ir-pipeline=none` still differs, so the EVM IR
+passes are not involved; the optimized MIR of `f2` is semantically
+correct (the tuple goes through a static memory temporary at 160 and both
+components flow into the loop phis), so the defect is in MIR-to-EVM
+lowering under an `-Ogas`-only MIR shape, the same area as findings 7 and
+15. In the EVM IR the `else` block spills four values to frame slots 192,
+224, 256, and 288 before joining the loop header while the `if` block
+does not, and the loop body writes the tuple temporary at 160.
+
+Severity: miscompile (wrong return value) at the default optimization
+level, with no assembly involved. Highest priority of the open items.
 
 ## solc-side observations
 
