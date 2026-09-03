@@ -943,7 +943,15 @@ sibling parameters, matching solc's `isVisibleAsUnqualifiedName`
 options are evaluated for side effects and discarded (`af388943c`); and
 reference types in transient storage are rejected with solc's error 1834
 (`40d523c80`). All five upstream tests compile on `40d523c80`, and the
-transient probe reports error 1834.
+transient probe reports error 1834. The review ran about 70 accept/reject
+probes against solc and fixed four more gaps it turned up: slicing a
+static calldata array was accepted (`5a249c59b`), the name-hiding change
+had made bodiless-modifier and `try` clause parameters invisible
+(`bcb1d1247`), an implemented function's parameter name did not shadow its
+own type as it does in solc (`8ee9a58c0`), and `this.g{gas: 5};` as a bare
+statement was rejected (`cb8683cf5`). It documented the one remaining
+divergence in this area, nested array literals assigned to a wider memory
+array, as `TYPECK-003` in `docs/SOLC_DIVERGENCE.md`.
 
 ### 26. Indexing a storage `bytes` loads the whole array into memory
 
