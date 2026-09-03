@@ -314,7 +314,6 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-    StorageBytePush { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx>, span: Span },
 }
 
 #[derive(Clone, Copy)]

@@ -8,7 +8,8 @@
 // member call"), element read/write, `.length`, and using the field as a
 // value (which materializes a `[length][data...]` memory copy — previously
 // the raw slot word was handed out as if it were a memory pointer). Element
-// access and `.length` read the header slot directly instead of copying.
+// access and `.length` read the header slot directly instead of copying, and
+// `push`/`pop` update the value in place.
 // Runtime behavior is verified equal to solc 0.8.30 separately, across the
 // 31/32-byte short/long form boundary (nitro-contracts HashProofHelper).
 
@@ -50,7 +51,7 @@ contract StorageBytesMember {
     // CHECK-NEXT: jumpi
     // CHECK: [[LOOP_BODY]]:
     // CHECK: sload
-    // CHECK: mcopy
+    // CHECK-NOT: mcopy
     // CHECK: sstore
     // CHECK: jump [[LOOP]]
     function pushRange(uint8 from, uint8 count) external {

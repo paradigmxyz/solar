@@ -306,9 +306,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     rhs => {
                         let place = self.resolve_lvalue_place(element)?;
-                        if let LValuePlace::StorageBytePush { slot, object, .. } = &place {
-                            self.store_storage_bytes(*slot, *object)?;
-                        }
                         PreparedTupleAssignment::Value { place, rhs }
                     }
                 })
@@ -323,13 +320,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         for assignment in assignments.into_iter().rev() {
             match assignment {
-                PreparedTupleAssignment::Value { mut place, rhs } => {
-                    if let LValuePlace::StorageBytePush { slot, index, ty, span, .. } = place {
-                        // Preparation grew the value and stored it back. Write the byte through
-                        // its storage word so aliased byte targets do not restore a stale copy.
-                        let access = self.storage_bytes_byte_access(slot, index);
-                        place = LValuePlace::Storage { ty, access, span };
-                    }
+                PreparedTupleAssignment::Value { place, rhs } => {
                     let (value, source_ty) = match rhs {
                         TupleAssignmentRhs::Materialized { value, source_ty, .. } => {
                             (value, source_ty)
