@@ -1,6 +1,4 @@
-CREATE DATABASE IF NOT EXISTS solar_perf;
-
-CREATE TABLE IF NOT EXISTS solar_perf.runs (
+CREATE TABLE IF NOT EXISTS runs (
   workflow_run_id UInt64,
   commit FixedString(40),
   branch Nullable(String),
@@ -14,9 +12,9 @@ CREATE TABLE IF NOT EXISTS solar_perf.runs (
 ) ENGINE = ReplacingMergeTree(imported_at)
 ORDER BY workflow_run_id;
 
-ALTER TABLE solar_perf.runs ADD COLUMN IF NOT EXISTS title Nullable(String) AFTER pr;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS title Nullable(String) AFTER pr;
 
-CREATE TABLE IF NOT EXISTS solar_perf.benchmark_results (
+CREATE TABLE IF NOT EXISTS benchmark_results (
   workflow_run_id UInt64,
   commit FixedString(40),
   test_id LowCardinality(String),
@@ -35,7 +33,7 @@ CREATE TABLE IF NOT EXISTS solar_perf.benchmark_results (
 PARTITION BY toYYYYMM(imported_at)
 ORDER BY (workflow_run_id, test_id, compiler);
 
-CREATE TABLE IF NOT EXISTS solar_perf.artifact_files (
+CREATE TABLE IF NOT EXISTS artifact_files (
   workflow_run_id UInt64,
   commit FixedString(40),
   test_id LowCardinality(String),

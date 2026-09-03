@@ -3,10 +3,16 @@ function config() {
   if (!host) throw new Error('Missing CLICKHOUSE_HOST')
   return {
     url: host.startsWith('http://') || host.startsWith('https://') ? host : `https://${host}`,
-    database: process.env.CLICKHOUSE_DATABASE || 'solar_perf',
+    database: database(),
     user: process.env.CLICKHOUSE_USER || 'default',
     password: process.env.CLICKHOUSE_PASSWORD || '',
   }
+}
+
+export function database() {
+  const name = process.env.CLICKHOUSE_DATABASE || 'solar_perf'
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error('Invalid CLICKHOUSE_DATABASE')
+  return name
 }
 
 function headers({ user, password }, contentType = 'text/plain; charset=utf-8') {
@@ -16,10 +22,10 @@ function headers({ user, password }, contentType = 'text/plain; charset=utf-8') 
   }
 }
 
-async function request(query, body = query) {
+async function request(query, body = query, useDatabase = true) {
   const settings = config()
   const url = new URL(settings.url)
-  url.searchParams.set('database', settings.database)
+  if (useDatabase) url.searchParams.set('database', settings.database)
   const response = await fetch(url, {
     method: 'POST',
     headers: headers(settings),
@@ -29,8 +35,8 @@ async function request(query, body = query) {
   throw new Error(`ClickHouse request failed (${response.status}): ${await response.text()}`)
 }
 
-export async function execute(query) {
-  await request(query)
+export async function execute(query, useDatabase = true) {
+  await request(query, query, useDatabase)
 }
 
 export async function insert(table, rows) {
