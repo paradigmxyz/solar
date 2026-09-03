@@ -10,7 +10,7 @@ args = sys.argv[1:]
 extra = []
 while args and args[0].startswith("--"):
     extra.append(args.pop(0))
-    if extra[-1] == "--optimizer-runs": extra.append(args.pop(0))
+    if extra[-1] in ("--optimizer-runs", "--project-root", "--solar", "--evm-version"): extra.append(args.pop(0))
 src, contract, sig, *groups = args
 # Build a project once via solsymdiff (any function works; it just compiles both).
 r = subprocess.run([sys.executable, str(ROOT/"fuzz/bin/solsymdiff"), "--source", src, "--contract", contract,
