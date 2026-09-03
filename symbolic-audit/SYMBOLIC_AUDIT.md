@@ -71,6 +71,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/payable_library_function.sol`; fixed in `3312f3346`)
 - [x] 22. Five more declaration checks solc applies to libraries and `payable` are missing
       (`symbolic-audit/library_declaration_checks.sol`; fixed in `96551139a`)
+- [ ] 23. Checked arithmetic in a base-constructor argument is lowered unchecked
+      (`symbolic-audit/base_constructor_arg_overflow.sol`)
 
 ## Findings
 
@@ -800,6 +802,34 @@ function), 1560 (interface function visibility), and warning 5815 are not
 emitted; and the `Contract::functions()` doc comment in
 `crates/sema/src/hir/mod.rs` says it excludes the constructor and fallback
 while the lowering pushes every function into `items`.
+
+### 23. Checked arithmetic in a base-constructor argument is lowered unchecked
+
+File: `symbolic-audit/base_constructor_arg_overflow.sol`
+Found on `023e758e4` by the new stateful Foundry differential
+(`symbolic-audit/tools/statediff.py`), which deploys both compilers'
+creation code with the same constructor arguments; the symbolic tool never
+runs constructors, so this path was unexplored.
+
+```solidity
+contract Base { uint256 public x; constructor(uint256 v) { x = v; } }
+contract BaseArgAdd is Base { constructor(uint256 v) Base(v + 1) {} }
+```
+
+| Deployment | solc | solar |
+|------|------|-------|
+| `BaseArgAdd(2**256 - 1)` | reverts `Panic(0x11)` | deploys, `x() == 0` |
+| `BaseArgMul(2**255)` with `Base(v * 2)` | reverts `Panic(0x11)` | deploys, `x() == 0` |
+| `Base(bump(v))` with the add inside `bump` | reverts | reverts |
+| `x = v + 1` in the constructor body | reverts | reverts |
+| modifier argument `m(v + 1)` on a constructor | reverts | reverts |
+
+The constructor MIR shows the argument as a plain `add arg0, 1` followed by
+the `sstore`, with none of the overflow check that the same expression gets
+in a function body. Only expressions written directly in the inheritance
+specifier's argument list are affected.
+
+Severity: miscompile. A checked operation silently wraps.
 
 ## solc-side observations
 
