@@ -93,6 +93,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/loop_carried_frame_slots.sol`)
 - [ ] 33. `this.f()` in an internal function reached from the constructor skips the `extcodesize` guard, so deployment succeeds where solc reverts
       (`symbolic-audit/this_call_from_constructor_helper.sol`)
+- [ ] 34. Any recursive internal function is rejected before constantinople by the post-legalization stack verifier
+      (`symbolic-audit/recursion_preconstantinople.sol`)
 
 ## Findings
 
@@ -1288,6 +1290,54 @@ effect, and the deployment goes through where solc's reverts.
 
 Severity: miscompile at every EVM version. A deployment that solc rejects
 succeeds silently with the call dropped.
+
+### 34. Any recursive internal function is rejected before constantinople
+
+File: `symbolic-audit/recursion_preconstantinople.sol`
+Sources: `semanticTests/freeFunctions/recursion.sol`,
+`freeFunctions/free_namesake_contract_function.sol`,
+`inlineAssembly/inline_assembly_recursion.sol`,
+`modifiers/modifer_recursive.sol`, `structs/recursive_struct_2.sol`,
+`structs/conversion/recursive_storage_memory.sol`. Found by the homestead
+and tangerineWhistle stateful sweeps on `49cf1b51d`: all six compile at
+osaka and fail to compile at the older versions.
+
+```solidity
+function f(uint256 n) internal pure returns (uint256) {
+    if (n == 0) return 1;
+    return f(n - 1) + 1;
+}
+```
+
+| Input | solc | solar |
+|------|------|------|
+| the file above at homestead, tangerineWhistle, spuriousDragon, byzantium | compiles | error `EVM IR verification failed: block 6: `push` grows the stack to 1025 words, exceeding the limit of 1024` |
+| the same at constantinople and every later version | compiles | compiles |
+| the same at `-Onone`, byzantium | compiles | same error, twice |
+| the six upstream tests at byzantium | compile | same error |
+| a non-recursive function using `/ 2` and `& 1` at byzantium | compiles | compiles |
+| the recursive function next to a second, larger one, byzantium, `-Ogas` | compiles | compiles (`-Onone` still fails) |
+
+The last row shows the check depends on what else the pipeline did to the
+module, so which recursive programs are rejected varies with the
+optimization level and the surrounding code.
+
+The cause is in the backend's EVM IR verifier, not in lowering.
+`verify_after_legalization` (`crates/codegen/src/backend/evm/ir/verify.rs`)
+runs the full stack-operation check `verify_module` only when the target has
+no `SHL`/`SHR`/`SAR`, that is, only after `legalize-shifts` has rewritten
+the module for a pre-constantinople EVM. `verify_stack_ops` walks the CFG
+from the entry with a concrete stack depth and re-queues a block whenever
+it is reached at a depth not seen before (`alternate_depths`). An internal
+recursive call is a jump back to the callee's entry with the return
+address and arguments pushed, so the callee's entry is reached at a
+strictly larger depth on every round; the walk never converges and stops
+only when the depth passes 1024, which it reports as a program error. From
+constantinople on the check is skipped, so the same program compiles. The
+`-Zvalidate-ir=false` flag does not disable this check.
+
+Severity: valid programs rejected for the four oldest EVM versions, with
+an internal verification failure as the diagnostic.
 
 ## solc-side observations
 
