@@ -75,8 +75,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/base_constructor_arg_overflow.sol`; fixed in `fadddd133`, hardened in `9c9bfbcc0`)
 - [x] 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
       (`symbolic-audit/base_constructor_storage_arg.sol`; fixed in `5967d1929`)
-- [ ] 25. Five valid programs from the solc semantic tests are rejected by the type checker
-      (see the item; the repros are the upstream test files)
+- [x] 25. Five valid programs from the solc semantic tests are rejected by the type checker
+      (see the item; the repros are the upstream test files; fixed in `b8b912c89`, `d37f90e4f`, `32a1778b9`, `b36cba5e5`, `af388943c`, and `40d523c80` for the transient gap)
 - [x] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
       (`symbolic-audit/storage_bytes_index_gas.sol`; fixed in `92a20464d`)
 - [ ] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
@@ -931,6 +931,19 @@ finding 26 review).
 errors.
 
 Severity: valid programs rejected.
+
+Fixes, one commit each: `push` of an array literal into a storage array
+uses solc's relaxed storage-copy conversion and nested literals receive the
+expected element type (`b8b912c89`); calldata slices mobilize to memory
+arrays in array literals (`d37f90e4f`); array lengths accept any integer
+constant and leave the value checks to the evaluator (`32a1778b9`); error,
+event, and bodiless-function parameter names no longer shadow the types of
+sibling parameters, matching solc's `isVisibleAsUnqualifiedName`
+(`b36cba5e5`); call options before a member access are a HIR node whose
+options are evaluated for side effects and discarded (`af388943c`); and
+reference types in transient storage are rejected with solc's error 1834
+(`40d523c80`). All five upstream tests compile on `40d523c80`, and the
+transient probe reports error 1834.
 
 ### 26. Indexing a storage `bytes` loads the whole array into memory
 
