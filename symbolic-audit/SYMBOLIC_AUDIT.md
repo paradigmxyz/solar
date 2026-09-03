@@ -71,8 +71,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/payable_library_function.sol`; fixed in `3312f3346`)
 - [x] 22. Five more declaration checks solc applies to libraries and `payable` are missing
       (`symbolic-audit/library_declaration_checks.sol`; fixed in `96551139a`)
-- [ ] 23. Checked arithmetic in a base-constructor argument is lowered unchecked
-      (`symbolic-audit/base_constructor_arg_overflow.sol`)
+- [x] 23. Checked arithmetic in a base-constructor argument is lowered unchecked
+      (`symbolic-audit/base_constructor_arg_overflow.sol`; fixed in `fadddd133`, hardened in `9c9bfbcc0`)
 - [ ] 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
       (`symbolic-audit/base_constructor_storage_arg.sol`)
 - [ ] 25. Five valid programs from the solc semantic tests are rejected by the type checker
@@ -834,6 +834,24 @@ in a function body. Only expressions written directly in the inheritance
 specifier's argument list are affected.
 
 Severity: miscompile. A checked operation silently wraps.
+
+Cause and fix (`fadddd133`): the type checker validated base-constructor
+arguments with the inner routine that computes a type without registering
+it, so the outermost argument expression had no entry in the expression
+type table. Codegen's binary and unary lowering reads that table to choose
+the checked-arithmetic kind and, on a missing entry, emitted the raw opcode.
+The fix routes the arguments through the registering entry point. The
+review (`9c9bfbcc0`) adds an assertion in codegen that every binary and
+unary operand has a registered type, so a missing type is an ICE rather
+than a silent unchecked operation; it fires nowhere across the UI suite, the
+Foundry projects, the solc test modes, or the sweeps. The review also found
+and fixed three adjacent defects in the same checker routine: named
+base-constructor arguments were paired positionally (`b824ac478`), arguments
+to a base with no constructor were accepted (`f028879d3`), and the new UI
+test gained subtraction, exponentiation, and an unchecked-shift case
+(`f8c4c1a6e`). Re-verified on `f028879d3` with the stateful harness: both
+overflow deployments revert on both compilers and the in-range deployments
+agree.
 
 ### 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
 
