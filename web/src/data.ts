@@ -12,14 +12,14 @@ const configuredRoot = configuredApi
   ? `${configuredApi.replace(/\/$/, '')}/api/data/`
   : configuredDataRoot
 const normalizeRoot = (root: string) => (root.endsWith('/') ? root : `${root}/`)
-let activeRoot = normalizeRoot(configuredRoot || (import.meta.env.DEV ? githubRoot : localRoot))
-let rootResolved = Boolean(configuredDataRoot) || !import.meta.env.DEV
+let activeRoot = normalizeRoot(configuredRoot || (import.meta.env.DEV ? localRoot : githubRoot))
+let rootResolved = Boolean(configuredRoot)
 let indexPromise: Promise<RunIndex> | null = null
 
 function fallbackRoots(root: string) {
   if (configuredDataRoot) return [root]
   if (configuredApi) return [...new Set([root, localRoot, githubRoot])]
-  return import.meta.env.DEV ? [localRoot, githubRoot] : [root]
+  return import.meta.env.DEV ? [root, githubRoot] : [root]
 }
 
 async function getJson<T>(root: string, path: string, fresh = false): Promise<T> {

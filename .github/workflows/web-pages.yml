@@ -8,22 +8,18 @@ on:
     paths:
       - web/**
       - .github/workflows/web-pages.yml
-  pull_request:
-    branches: [main]
-    paths:
-      - web/**
-      - .github/workflows/web-pages.yml
-  workflow_run:
-    workflows: [Benchmark]
-    types: [completed]
 
 jobs:
-  check:
-    if: github.event_name != 'workflow_run'
+  deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: voidzero-dev/setup-vp@0cffb0a1ac50daa1541b57d1eb7c843f479522e1 # v1.18.0
@@ -43,160 +39,12 @@ jobs:
       - name: Build website
         working-directory: web
         run: vp build
-
-  publish:
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.head_branch == 'main'
-    concurrency:
-      group: web-pages
-      cancel-in-progress: false
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: write
-      id-token: write
-      pages: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Checkout trusted site source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: main
-          path: source
-
-      - name: Checkout published history
-        id: history
-        continue-on-error: true
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: gh-pages
-          path: published
-
-      - name: Download benchmark data
-        id: data
-        if: github.event_name == 'workflow_run'
-        continue-on-error: true
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: codegen-runtime-results
-          path: incoming
-          github-token: ${{ github.token }}
-          run-id: ${{ github.event.workflow_run.id }}
-
-      - name: Restore run index
-        if: steps.data.outcome == 'success' && steps.history.outcome == 'success'
-        run: |
-          mkdir -p source/web/public/data
-          if [[ -f published/data/index.json ]]; then
-            cp published/data/index.json source/web/public/data/index.json
-          fi
-
-      - name: Import benchmark run
-        if: steps.data.outcome == 'success'
-        working-directory: source/web
-        env:
-          BASE_COMMIT: ${{ github.event.workflow_run.pull_requests[0].base.sha }}
-          BASE_BRANCH: ${{ github.event.workflow_run.pull_requests[0].base.ref }}
-          HEAD_COMMIT: ${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.workflow_run.head_sha }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.pull_requests[0].head.ref || github.event.workflow_run.head_branch }}
-          CREATED_AT: ${{ github.event.workflow_run.created_at }}
-          PR: ${{ github.event.workflow_run.pull_requests[0].number }}
-        run: |
-          if [[ -n "$BASE_COMMIT" && -f ../../incoming/baseline/results.json ]] && \
-            ! node -e 'const fs=require("fs"); const index=JSON.parse(fs.readFileSync(process.argv[1])); process.exit(index.runs.some(run => run.commit === process.argv[2]) ? 0 : 1)' public/data/index.json "$BASE_COMMIT"; then
-            node scripts/import-run.mjs \
-              --results ../../incoming/baseline/results.json \
-              --artifacts ../../incoming/baseline/artifacts \
-              --output public/data \
-              --commit "$BASE_COMMIT" \
-              --branch "$BASE_BRANCH" \
-              --timestamp "$CREATED_AT"
-          fi
-          args=(
-            --results ../../incoming/results.json
-            --artifacts ../../incoming/artifacts
-            --output public/data
-            --commit "$HEAD_COMMIT"
-            --branch "$HEAD_BRANCH"
-            --timestamp "$CREATED_AT"
-          )
-          if [[ -n "$PR" ]]; then args+=(--pr "$PR"); fi
-          node scripts/import-run.mjs "${args[@]}"
-
-      - uses: voidzero-dev/setup-vp@0cffb0a1ac50daa1541b57d1eb7c843f479522e1 # v1.18.0
-        if: steps.data.outcome == 'success'
-        with:
-          cache: true
-          node-version: '24'
-          working-directory: source/web
-
-      - name: Check website
-        if: steps.data.outcome == 'success'
-        working-directory: source/web
-        run: vp check
-
-      - name: Test website
-        if: steps.data.outcome == 'success'
-        working-directory: source/web
-        run: vp test --run
-
-      - name: Check website Worker
-        if: steps.data.outcome == 'success'
-        working-directory: source/web
-        run: vp run worker:check
-
-      - name: Build site
-        if: steps.data.outcome == 'success'
-        working-directory: source/web
-        run: vp build
-
-      - name: Prepare first publication
-        if: steps.data.outcome == 'success' && steps.history.outcome != 'success'
-        run: |
-          mkdir -p published
-          git -C published init
-          git -C published checkout -b gh-pages
-          remote="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-          if git -C published remote get-url origin >/dev/null 2>&1; then
-            git -C published remote set-url origin "$remote"
-          else
-            git -C published remote add origin "$remote"
-          fi
-
-      - name: Publish site
-        if: steps.data.outcome == 'success'
-        env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          git -C published rm -r --ignore-unmatch assets index.html
-          cp -R source/web/dist/. published/
-          if [[ -f published/data/index.json ]]; then
-            node source/web/scripts/prune-runs.mjs published/data
-          fi
-          touch published/.nojekyll
-          git -C published config user.name github-actions[bot]
-          git -C published config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git -C published add .
-          if git -C published diff --cached --quiet; then exit 0; fi
-          git -C published commit -m "chore: publish ${HEAD_SHA::8}"
-          git -C published push origin gh-pages
-
       - name: Configure GitHub Pages
-        if: steps.data.outcome == 'success'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
       - name: Upload GitHub Pages artifact
-        if: steps.data.outcome == 'success'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: published
-
+          path: web/dist
       - name: Deploy GitHub Pages
-        if: steps.data.outcome == 'success'
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
