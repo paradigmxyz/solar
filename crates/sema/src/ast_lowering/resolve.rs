@@ -307,7 +307,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
             init_cx!(strukt);
-            self.hir.structs[id].fields = self.lower_variables(
+            self.hir.structs[id].fields = self.lower_variables_hidden(
                 ast_struct.fields,
                 Some(hir::ItemId::Struct(id)),
                 hir::VarKind::Struct,
@@ -319,7 +319,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
             let error = self.hir.error(id);
             init_cx!(error);
-            self.hir.errors[id].parameters = self.lower_variables(
+            self.hir.errors[id].parameters = self.lower_variables_hidden(
                 *ast_error.parameters,
                 Some(hir::ItemId::Error(id)),
                 hir::VarKind::Error,
@@ -331,7 +331,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let ast::ItemKind::Event(ast_event) = &ast_item.kind else { unreachable!() };
             let event = self.hir.event(id);
             init_cx!(event);
-            self.hir.events[id].parameters = self.lower_variables(
+            self.hir.events[id].parameters = self.lower_variables_hidden(
                 *ast_event.parameters,
                 Some(hir::ItemId::Event(id)),
                 hir::VarKind::Event,
@@ -367,19 +367,20 @@ impl<'gcx> ResolveContext<'gcx> {
             self.hir.functions[id].overrides =
                 self.lower_overrides(ast_func.header.override_.as_ref(), func.contract, true);
 
-            let implemented = ast_func.body.is_some();
+            // Only the parameters of a function without a body are hidden; a modifier's are not.
+            let hidden = ast_func.body.is_none() && !self.hir.function(id).kind.is_modifier();
             self.hir.functions[id].parameters = self.lower_function_variables(
                 *ast_func.header.parameters,
                 id,
                 hir::VarKind::FunctionParam,
-                implemented,
+                hidden,
             );
 
             self.hir.functions[id].returns = self.lower_function_variables(
                 ast_func.header.returns(),
                 id,
                 hir::VarKind::FunctionReturn,
-                implemented,
+                hidden,
             );
 
             self.hir.functions[id].modifiers = {
@@ -1574,7 +1575,7 @@ impl<'gcx> ResolveContext<'gcx> {
         self.in_scope(|this| hir::TryCatchClause {
             span,
             name,
-            args: this.lower_variables(
+            args: this.lower_variables_visible(
                 args.vars,
                 this.function_id.map(hir::ItemId::Function),
                 hir::VarKind::TryCatch,
@@ -1607,22 +1608,19 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     /// Lowers a list of variables whose names are not visible to unqualified name resolution:
-    /// struct fields, event and error parameters, and function type parameters and returns.
+    /// struct fields, event and error parameters, function type parameters and returns, and the
+    /// parameters and returns of a function without a body.
     ///
     /// Every type is lowered before any name is declared, so a name cannot shadow a type used by
     /// a sibling's type.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/ast/AST.cpp#L727-L736>
-    fn lower_variables(
+    fn lower_variables_hidden(
         &mut self,
         vars: &[ast::VariableDefinition<'_>],
         parent: Option<hir::ItemId>,
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
-        debug_assert!(
-            !matches!(kind, hir::VarKind::FunctionParam | hir::VarKind::FunctionReturn),
-            "function parameters must go through `lower_function_variables`"
-        );
         let ids: &'gcx [hir::VariableId] = self.arena.alloc_slice_fill_iter(
             vars.iter().map(|var| self.lower_variable_undeclared(var, parent, kind)),
         );
@@ -1632,30 +1630,36 @@ impl<'gcx> ResolveContext<'gcx> {
         ids
     }
 
-    /// Lowers the parameters or returns of a function.
+    /// Lowers a list of variables whose names are visible to unqualified name resolution: the
+    /// parameters and returns of an implemented function or of a modifier, and the variables of a
+    /// try/catch clause.
     ///
-    /// Unlike [`Self::lower_variables`], the names of an implemented function's parameters are
-    /// visible to unqualified name resolution, so they are declared as the list is lowered and
-    /// can shadow a type used by a later sibling's type.
+    /// Each name is declared as the list is lowered, so it can shadow a type used by a later
+    /// sibling's type.
+    fn lower_variables_visible(
+        &mut self,
+        vars: &[ast::VariableDefinition<'_>],
+        parent: Option<hir::ItemId>,
+        kind: hir::VarKind,
+    ) -> &'gcx [hir::VariableId] {
+        self.arena
+            .alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, parent, kind).0))
+    }
+
+    /// Lowers the parameters or returns of a function.
     fn lower_function_variables(
         &mut self,
         vars: &[ast::VariableDefinition<'_>],
         id: hir::FunctionId,
         kind: hir::VarKind,
-        implemented: bool,
+        hidden: bool,
     ) -> &'gcx [hir::VariableId] {
         let parent = Some(hir::ItemId::Function(id));
-        if !implemented {
-            let ids: &'gcx [hir::VariableId] = self.arena.alloc_slice_fill_iter(
-                vars.iter().map(|var| self.lower_variable_undeclared(var, parent, kind)),
-            );
-            for &id in ids {
-                let _ = self.declare_variable(id);
-            }
-            return ids;
+        if hidden {
+            self.lower_variables_hidden(vars, parent, kind)
+        } else {
+            self.lower_variables_visible(vars, parent, kind)
         }
-        self.arena
-            .alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, parent, kind).0))
     }
 
     /// Lowers `var` to HIR and declares it in the current scope.
@@ -1967,7 +1971,7 @@ impl<'gcx> ResolveContext<'gcx> {
             })),
             ast::TypeKind::Function(f) => hir::TypeKind::Function(
                 self.arena.alloc(hir::TypeFunction {
-                    parameters: self.lower_variables(
+                    parameters: self.lower_variables_hidden(
                         *f.parameters,
                         self.function_id.map(hir::ItemId::Function),
                         hir::VarKind::FunctionTyParam,
@@ -1977,7 +1981,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         .state_mutability
                         .map(|s| s.data)
                         .unwrap_or(ast::StateMutability::NonPayable),
-                    returns: self.lower_variables(
+                    returns: self.lower_variables_hidden(
                         f.returns(),
                         self.function_id.map(hir::ItemId::Function),
                         hir::VarKind::FunctionTyReturn,

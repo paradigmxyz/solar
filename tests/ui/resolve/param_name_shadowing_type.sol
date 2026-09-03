@@ -52,3 +52,23 @@ abstract contract D {
 
     function implementedReturns() external returns (EnumType StructType, StructType memory EnumType) {} //~ ERROR: name has to refer to a valid user-defined type
 }
+
+abstract contract E {
+    enum EnumType {A, B, C}
+
+    struct StructType {
+        uint x;
+    }
+
+    // A modifier's parameters are visible even when it has no body, since solc's rule only
+    // covers functions.
+    modifier m(EnumType StructType, StructType memory EnumType) virtual; //~ ERROR: name has to refer to a valid user-defined type
+
+    function g() external virtual returns (EnumType, StructType memory);
+
+    // The variables of a try/catch clause are visible too.
+    function f() external {
+        try this.g() returns (EnumType StructType, StructType memory EnumType) {} //~ ERROR: name has to refer to a valid user-defined type
+        catch {}
+    }
+}
