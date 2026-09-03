@@ -40,6 +40,11 @@ contract C {
         uint256[] memory s = data[start:end]; //~ ERROR: can only slice dynamic calldata arrays
     }
 
+    // Slices can only be created from dynamically sized arrays.
+    function notDynamic(uint256[2] calldata data) external pure {
+        data[0:1][0]; //~ ERROR: can only slice dynamic calldata arrays
+    }
+
     // Slices cannot be converted to a single element.
     function wrongType(uint256[] calldata data, uint256 start, uint256 end) external pure {
         uint256 a = data[start:end]; //~ ERROR: mismatched types
