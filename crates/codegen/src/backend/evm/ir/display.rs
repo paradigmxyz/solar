@@ -120,12 +120,21 @@ fn display_metadata(
     default_stack: Option<StackEffect>,
 ) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        if let Some(stack) = metadata.stack
-            && Some(stack) != default_stack
-        {
-            write!(f, " !meta(stack={}->{})", stack.inputs, stack.outputs)?;
+        let stack = metadata.stack.filter(|&stack| Some(stack) != default_stack);
+        if stack.is_none() && !metadata.keep_with_next {
+            return Ok(());
         }
-        Ok(())
+        f.write_str(" !meta(")?;
+        if let Some(stack) = stack {
+            write!(f, "stack={}->{}", stack.inputs, stack.outputs)?;
+            if metadata.keep_with_next {
+                f.write_str(", ")?;
+            }
+        }
+        if metadata.keep_with_next {
+            f.write_str("keep_with_next")?;
+        }
+        f.write_str(")")
     })
 }
 

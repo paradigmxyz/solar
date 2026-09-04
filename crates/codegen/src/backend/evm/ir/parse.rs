@@ -406,6 +406,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Arrow)?;
                 let outputs = self.parse_u8()?;
                 metadata.stack = Some(StackEffect::new(inputs, outputs));
+            } else if key == sym::keep_with_next {
+                metadata.keep_with_next = true;
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }

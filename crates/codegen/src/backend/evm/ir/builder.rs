@@ -66,6 +66,18 @@ impl<'gcx> Assembler<'gcx> {
         self.push_ir_instruction(ir::Instruction::opcode(opcode));
     }
 
+    /// Requires the last emitted instruction to stay immediately before the next one.
+    ///
+    /// See [`ir::Metadata::keep_with_next`].
+    pub(crate) fn keep_last_with_next(&mut self) {
+        let block = self.current_block();
+        self.program.blocks[block]
+            .instructions
+            .last_mut()
+            .expect("`keep_last_with_next` needs an emitted instruction")
+            .keep_with_next();
+    }
+
     /// Emits a logical stack operation.
     pub(crate) fn emit_stack_op(&mut self, stack_op: op::StackOp) {
         self.push_ir_instruction(ir::Instruction::stack_op(stack_op));

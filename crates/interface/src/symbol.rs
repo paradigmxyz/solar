@@ -1092,6 +1092,7 @@ symbols! {
         jump,
         jumpi,
         keccak256_bytes,
+        keep_with_next,
         layout,
         length,
         literal,

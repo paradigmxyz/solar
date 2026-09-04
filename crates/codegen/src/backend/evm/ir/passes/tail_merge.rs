@@ -5,10 +5,17 @@
 //! it with every earlier block. It then splits profitable suffixes into shared
 //! tail blocks until no new merges remain. Each candidate includes the cost of its new jumps and
 //! labels, and the pass keeps address-taken or otherwise incompatible entries separate.
+//!
+//! A shared tail starts at a block boundary, so both the merged block and the representative may
+//! only be cut where `keep_with_next` allows a split. That keeps sequences whose intervening gas
+//! is observable, such as a pre-EIP-150 call's `GAS`-relative gas reserve, in one block.
 
 use super::{
     EvmPass,
-    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_terminal_boundary},
+    utils::{
+        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
+        is_terminal_boundary,
+    },
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
@@ -100,12 +107,18 @@ impl RunState {
         let terminator = &block.terminator.as_ref()?.kind;
         let mut node = *self.tail_roots.get(terminator)?;
         let mut matched = None;
+        let len = block.instructions.len();
         for (common, inst) in block.instructions.iter().rev().enumerate() {
             let Some(&child) = self.tail_nodes[node].children.get(&MachineInstKey::new(inst))
             else {
                 break;
             };
             node = child;
+            // Splitting the tail off leaves a jump at this boundary, so only offer tails that
+            // start at a legal split point. A longer tail may still start at one.
+            if !is_split_point(&block.instructions, len - common - 1) {
+                continue;
+            }
             if let Some(representative) = self.tail_nodes[node].representative {
                 matched = Some((representative, common + 1));
             }
@@ -116,10 +129,17 @@ impl RunState {
     fn insert_tail(&mut self, block_id: BlockId, block: &Block) {
         let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
         let mut node = self.tail_root(terminator);
-        self.tail_nodes[node].representative.get_or_insert(block_id);
-        for inst in block.instructions.iter().rev() {
-            node = self.tail_child(node, MachineInstKey::new(inst));
-            self.tail_nodes[node].representative.get_or_insert(block_id);
+        let len = block.instructions.len();
+        // The representative is truncated at the shared tail too, so it only represents tails
+        // whose start is a legal split point in its own instruction list.
+        for common in 0..=len {
+            if common > 0 {
+                node =
+                    self.tail_child(node, MachineInstKey::new(&block.instructions[len - common]));
+            }
+            if is_split_point(&block.instructions, len - common) {
+                self.tail_nodes[node].representative.get_or_insert(block_id);
+            }
         }
     }
 

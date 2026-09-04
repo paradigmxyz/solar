@@ -11061,9 +11061,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         if let Some(subtracted) = late.subtracted {
+            // push <reserve>
+            // gas !meta(keep_with_next)
+            // sub !meta(keep_with_next)
+            //
+            // Before EIP-150 a call asking for more gas than is left throws, so the reserve only
+            // keeps solc's 10-gas margin while nothing but the `SUB` runs between the `GAS` and
+            // the call. Keeping both with the next instruction stops every backend transform from
+            // making that boundary a block boundary, and with it from inserting a jump.
+            let keep_with_call = !self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call();
             self.asm.emit_push(subtracted);
             self.asm.emit_op(op::GAS);
+            if keep_with_call {
+                self.asm.keep_last_with_next();
+            }
             self.asm.emit_op(op::SUB);
+            if keep_with_call {
+                self.asm.keep_last_with_next();
+            }
         } else {
             self.asm.emit_op(op::GAS);
         }

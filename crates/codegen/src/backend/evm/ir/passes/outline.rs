@@ -13,6 +13,9 @@
 //! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
 //! representation.
 //!
+//! Replacing a site splits its block around the run, so both ends of a candidate run must be
+//! boundaries `keep_with_next` allows to become block boundaries.
+//!
 //! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
 //! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
 //! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
@@ -22,7 +25,7 @@
 use super::{
     EvmPass,
     compact_pushes::selected_len,
-    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound},
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -92,7 +95,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for start in 0..block.instructions.len() {
-            if !hashes.repeats(block_id, start) {
+            if !hashes.repeats(block_id, start) || !is_split_point(&block.instructions, start) {
                 continue;
             }
             let mut delta = 0i32;
@@ -123,7 +126,11 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 // before the shared stub's fixed overhead. A run no larger than that site can
                 // never save bytes regardless of its occurrence count, so do not intern it.
                 let can_amortize = run_size > 7 + inputs as usize;
-                if len >= MIN_MACHINE_RUN && can_amortize && (closed || open_size_run) {
+                if len >= MIN_MACHINE_RUN
+                    && can_amortize
+                    && (closed || open_size_run)
+                    && is_split_point(&block.instructions, end + 1)
+                {
                     let key = MachineInstSlice {
                         hash: hashes.range(block_id, start, end),
                         insts: &block.instructions[start..=end],
@@ -263,6 +270,9 @@ fn outline_parametric_machine_runs(
         FxHashMap::<ParamMachineInstSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for start in 0..block.instructions.len() {
+            if !is_split_point(&block.instructions, start) {
+                continue;
+            }
             let mut delta = 0i32;
             let mut inputs = 0i32;
             let mut immediate_pushes = 0usize;
@@ -285,6 +295,7 @@ fn outline_parametric_machine_runs(
                     || !matches!(outputs, 0 | 1)
                     || immediate_pushes == 0
                     || immediate_pushes > MAX_PARAMETERS * 2
+                    || !is_split_point(&block.instructions, end + 1)
                 {
                     continue;
                 }
@@ -538,6 +549,8 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             if inst.is_encoded_push()
                 && inst.deferred_push().is_none()
                 && inst.immutable_push().is_none()
+                && is_split_point(&block.instructions, index)
+                && is_split_point(&block.instructions, index + 1)
                 && let Some(PushValue::Immediate(value)) = &inst.value
             {
                 sites.entry(*value).or_default().push((block_id, index));
