@@ -4388,7 +4388,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // Such a value is one the plan carries into the successor,
                             // which rebuilds it from its recorded entry layout and wants no
                             // memory home; anything that has to travel in memory is still
-                            // on the stack or already stored at this point.
+                            // on the stack, already stored, or holds its slot on every
+                            // emitted path into this block at this point.
+                            //
+                            // A value that arrives only from a forward predecessor further
+                            // down the stream is the exception: that predecessor stores its
+                            // live-out values when it is emitted, later in the stream but
+                            // earlier at runtime, so the home is owed rather than missing
+                            // and there is nothing to check here yet.
                             debug_assert!(
                                 self.has_spill_home(func, value)
                                     || planned_entry_carries(
@@ -4396,6 +4403,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                                         &global_stack_plan,
                                         successor,
                                         value,
+                                    )
+                                    || !Self::forward_predecessors_emitted(
+                                        func, &store_cfg, &block_pos, block_id, pos,
                                     ),
                                 "{value:?} lives across the edge from {block_id:?} to \
                                  already-emitted {successor:?} with no home"
@@ -6060,14 +6070,48 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Returns true when `val` is reachable from a successor block: it is on the stack, it has a
-    /// valid store, or [`Self::spill_value_if_needed`] gives it no slot in the first place because
-    /// it is stack-only, rematerializable, or reloadable from its argument address.
+    /// valid store, its slot is available on every emitted path into this block, or
+    /// [`Self::spill_value_if_needed`] gives it no slot in the first place because it is
+    /// stack-only, rematerializable, or reloadable from its argument address.
     fn has_spill_home(&self, func: &Function, val: ValueId) -> bool {
         self.scheduler.stack.contains(val)
             || self.scheduler.spills.is_stored(val)
+            || self.spill_store_available(val)
             || self.scheduler.is_stack_only_value(val)
             || !Self::can_own_spill_slot(func, val)
             || Self::is_reloadable_argument_address(func, val)
+    }
+
+    /// Returns true when `val`'s slot holds it on every emitted forward path
+    /// into the current block.
+    ///
+    /// The scheduler's stored flag is one function-wide bit, so it is the
+    /// weaker record of the two. A block that carries a value in on the stack
+    /// while the slot is not available there clears the bit, which is right for
+    /// that block but also forgets the store for the blocks whose predecessors
+    /// all did write the slot. The store-availability intersection is the
+    /// per-path record and still names the value there, so a cleared bit alone
+    /// does not mean the value lost its memory home.
+    fn spill_store_available(&self, val: ValueId) -> bool {
+        self.scheduler.spills.get(val).is_some()
+            && self.spill_available.as_ref().is_some_and(|available| available.contains(&val))
+    }
+
+    /// Returns whether every forward predecessor of `block`, which sits at `pos` in the emission
+    /// order, was already emitted. Only then does a value live into `block` have to own a home
+    /// already: a predecessor emitted later stores its live-out values when its own turn comes,
+    /// which is later in the stream but earlier at runtime.
+    fn forward_predecessors_emitted(
+        func: &Function,
+        store_cfg: &CfgInfo,
+        block_pos: &FxHashMap<BlockId, usize>,
+        block: BlockId,
+        pos: usize,
+    ) -> bool {
+        func.blocks[block].predecessors.iter().all(|&pred| {
+            store_cfg.dominators().dominates(block, pred)
+                || block_pos.get(&pred).is_some_and(|&pred_pos| pred_pos < pos)
+        })
     }
 
     /// Spills an instruction result if it is on the stack and not already stored.
