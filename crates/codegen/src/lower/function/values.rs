@@ -84,7 +84,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let return_types = return_types
                         .iter()
                         .skip(1)
-                        .map(|ty| Some(ty.with_loc_if_ref(gcx, DataLocation::Memory)));
+                        .map(|&ty| Some(types::TypeLowerer::return_encoding_ty(gcx, ty)));
                     return Some(self.load_multi_return_values(first, base, returns, return_types));
                 }
                 return Some(self.load_internal_return_values(first, &return_types));
@@ -151,8 +151,77 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 })
                 .collect();
         }
+        if self.returns.len() > 1 {
+            let returns = self.returns.clone();
+            let source_types = self.multi_value_types(expr);
+            let values = self.lower_values(expr)?;
+            let Some(source_types) = source_types
+                .filter(|types| types.len() == values.len() && values.len() == returns.len())
+            else {
+                // Without one source type per lowered value per declared return there is no way
+                // to tell which value needs which conversion, and a storage reference among them
+                // would travel on as a raw slot word.
+                return self.cx.report_unsupported(expr.span, "return value arity");
+            };
+            return values
+                .into_iter()
+                .zip(source_types)
+                .zip(returns)
+                .map(|((value, source_ty), id)| {
+                    let target_ty = self.cx.gcx.type_of_item(id.into());
+                    self.convert_return_component(value, source_ty, target_ty, expr.span)
+                })
+                .collect();
+        }
 
         self.lower_values(expr)
+    }
+
+    /// The component types of an expression that produces several values, such as a call to a
+    /// function with several returns.
+    fn multi_value_types(&self, expr: &hir::Expr<'_>) -> Option<Vec<Ty<'gcx>>> {
+        let TyKind::Tuple(types) = self.cx.gcx.type_of_expr(expr.peel_parens().id)?.kind else {
+            return None;
+        };
+        Some(types.to_vec())
+    }
+
+    /// Converts one already-lowered component of a multi-value return source to the type the
+    /// enclosing function declares for it.
+    fn convert_return_component(
+        &mut self,
+        value: ValueId,
+        source_ty: Ty<'gcx>,
+        target_ty: Ty<'gcx>,
+        span: Span,
+    ) -> Option<ValueId> {
+        // A storage reference is its slot in both the source and the declared return, so the
+        // value already has the right shape.
+        if target_ty.is_ref_at(DataLocation::Storage) {
+            return Some(value);
+        }
+        // A component the callee returned as a storage reference arrives as the slot word, which
+        // is not a memory pointer; copy the object out of storage instead of returning the slot.
+        // object = load_storage_object(target_ty, slot)
+        if source_ty.is_ref_at(DataLocation::Storage) {
+            // A target without a memory layout has nowhere to hold the copy, so there is no
+            // conversion to emit and the slot word must not be handed on as a memory pointer.
+            if self.types.memory_layout(target_ty).is_none() {
+                return self.cx.report_unsupported(span, "storage reference return");
+            }
+            return self.load_storage_object(target_ty, value, span);
+        }
+        let value = if target_ty.is_ref_at(DataLocation::Memory) {
+            self.materialize_memory_argument(target_ty, value, span)?
+        } else {
+            value
+        };
+        // value = coerce(value, source_ty, target_ty)
+        Some(if source_ty == target_ty {
+            value
+        } else {
+            self.coerce_value(value, source_ty, target_ty)
+        })
     }
 
     pub(super) fn lower_tuple_assignment<'hir>(

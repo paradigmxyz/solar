@@ -54,6 +54,30 @@ library L {
         return a;
     }
 
+    // A mapping is storage-only, so returning one is omitted as well. The ABI printer never
+    // sees the mapping type.
+    function mappingReturn(Set storage s)
+        external
+        view
+        returns (mapping(uint256 => uint256) storage)
+    {
+        return s.idx;
+    }
+
+    // A struct holding a mapping is storage-only in both directions.
+    function setReturn(Set storage s) external pure returns (Set storage) {
+        return s;
+    }
+
+    // A bare mapping parameter with a mapping return is the same case without a struct.
+    function mapOf(mapping(uint256 => uint256) storage m)
+        external
+        pure
+        returns (mapping(uint256 => uint256) storage)
+    {
+        return m;
+    }
+
     function ext(uint256 x) external pure returns (uint256) {
         return x;
     }
