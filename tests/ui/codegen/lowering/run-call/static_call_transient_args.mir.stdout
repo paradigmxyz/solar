@@ -76,8 +76,8 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb10:
     jump bb11
   bb11:
-    v27 = internal_call @hashOperationBatch, 1, arg0, arg1, arg2, arg3, arg4
-    internal_call @_schedule, 0, v27, arg5
+    v27 = icall @hashOperationBatch, 1, arg0, arg1, arg2, arg3, arg4
+    icall @_schedule, 0, v27, arg5
     jump bb12
   bb12:
     v28 = phi [bb11: arg5], [bb35: v28]
@@ -246,12 +246,12 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
 
 fn @_schedule(arg0: bytes32, arg1: u256) {
   bb0:
-    v0 = internal_call @isOperation, 1, arg0
+    v0 = icall @isOperation, 1, arg0
     jumpi v0, bb1, bb2
   bb2:
     jump bb3
   bb3:
-    v5 = internal_call @getMinDelay, 1
+    v5 = icall @getMinDelay, 1
     v6 = lt arg1, v5
     jumpi v6, bb4, bb5
   bb5:

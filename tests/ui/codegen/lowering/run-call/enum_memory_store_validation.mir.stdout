@@ -8,7 +8,7 @@ fn @dirty() -> u8 [pure] {
 fn @structConstructor() -> u8 [selector=0x9b40f93f, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
-    v1 = internal_call @dirty, 1
+    v1 = icall @dirty, 1
     v2 = lt v1, 3
     v3 = iszero v2
     jumpi v3, bb1, bb2
@@ -29,7 +29,7 @@ fn @structConstructor() -> u8 [selector=0x9b40f93f, pure, abi_params=[], abi_ret
 fn @arrayLiteral() -> u8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=[word<enum 3>], abi_return_params=[enum<3, u8>]] {
   bb0:
     v0 = alloc memoryfixedarray<1, 1>, exact, uninitialized, infallible, 32
-    v1 = internal_call @dirty, 1
+    v1 = icall @dirty, 1
     v2 = lt v1, 3
     v3 = iszero v2
     jumpi v3, bb1, bb2
@@ -59,7 +59,7 @@ fn @arrayElement() -> u8 [selector=0x050651a8, pure, abi_params=[], abi_returns=
   bb0:
     v0 = alloc memoryarray<1>, exact, zeroed, panic, 64
     set_memory_object_len memoryarray, v0, 1
-    v1 = internal_call @dirty, 1
+    v1 = icall @dirty, 1
     v2 = memory_object_len memoryarray, v0
     v3 = lt 0, v2
     v4 = iszero v3

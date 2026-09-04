@@ -24,7 +24,7 @@ fn @run() -> (u256, u256) [selector=0xc0406226, abi_params=[], abi_returns=[word
     v12 = shl 160, v11
     v13 = or v10, v12
     sstore v6, v13 !metadata(storage=symbolic(v6))
-    v14 = internal_call @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v14 = icall @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
     v17 = eq v16, 96
@@ -33,7 +33,7 @@ fn @run() -> (u256, u256) [selector=0xc0406226, abi_params=[], abi_returns=[word
   bb2:
     v19 = add v14, 1
     sstore v19, 7 !metadata(storage=offset(v14, 1))
-    v20 = internal_call @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v20 = icall @_getPool, 1, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
     v21 = sload v20 !metadata(storage=symbolic(v20))
     v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
     v23 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
@@ -41,7 +41,7 @@ fn @run() -> (u256, u256) [selector=0xc0406226, abi_params=[], abi_returns=[word
     v25 = sload v24 !metadata(storage=offset(v23, 1))
     ret v22, v25
   bb1:
-    internal_call @revert_error, 0, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
+    icall @revert_error, 0, 16, 0x72656164207468726f7567682072656600000000000000000000000000000000
     invalid
 }
 

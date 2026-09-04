@@ -139,7 +139,7 @@ impl MemoryCallSummaries {
     pub(crate) fn new(module: &Module) -> Self {
         if !module.functions.iter().any(|func| {
             func.instructions()
-                .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. }))
+                .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::ICall { .. }))
                 || func
                     .blocks
                     .iter()
@@ -158,7 +158,7 @@ impl MemoryCallSummaries {
         let mut callers = IndexVec::from_vec(vec![Vec::new(); module.functions.len()]);
         for (caller, func) in module.functions.iter_enumerated() {
             for inst_id in func.instructions() {
-                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind
+                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind
                     && let Some(function_callers) = callers.get_mut(function)
                 {
                     function_callers.push(caller);
@@ -185,9 +185,7 @@ impl MemoryCallSummaries {
             let mut summary = local[func_id].clone();
             for block in &func.blocks {
                 for &inst_id in &block.instructions {
-                    if let InstKind::InternalCall { function, ref args, .. } =
-                        func.inst(inst_id).kind
-                    {
+                    if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind {
                         merge_call(
                             &mut summary,
                             func,
@@ -276,7 +274,7 @@ fn local_summary(
     for block in &func.blocks {
         for &inst_id in &block.instructions {
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::InternalCall { returns, .. } = kind {
+            if let InstKind::ICall { returns, .. } = kind {
                 // Callee effects merge through the call graph, but a multi-result
                 // call also writes the caller-side multi-return buffer during
                 // backend lowering. That traffic exists in no MIR body, so it
@@ -367,7 +365,7 @@ fn heap_derived_values(func: &Function) -> DenseBitSet<ValueId> {
         let Some(result) = func.inst_result_value(inst_id) else { continue };
         let kind = &func.inst(inst_id).kind;
         let root = match kind {
-            InstKind::Fmp | InstKind::MSize | InstKind::InternalCall { .. } => true,
+            InstKind::Fmp | InstKind::MSize | InstKind::ICall { .. } => true,
             InstKind::MLoad(address) => func.value_u64(*address) == Some(EvmMemoryLayout::FMP_SLOT),
             _ => false,
         };
@@ -675,11 +673,11 @@ mod tests {
         }
         let resetter = module.add_function(resetter);
 
-        let mut reader_caller = Function::new(Ident::with_dummy_span(sym::internal_call));
+        let mut reader_caller = Function::new(Ident::with_dummy_span(sym::icall));
         {
             let mut builder = FunctionBuilder::new(&mut reader_caller);
             let ptr = builder.add_param(MirType::MemPtr);
-            builder.internal_call_void(reader, vec![ptr], 1);
+            builder.icall_void(reader, vec![ptr], 1);
             builder.ret([]);
         }
         let reader_caller = module.add_function(reader_caller);
@@ -688,7 +686,7 @@ mod tests {
         {
             let mut builder = FunctionBuilder::new(&mut returning_caller);
             let ptr = builder.add_param(MirType::MemPtr);
-            builder.internal_call_void(returning, vec![ptr], 1);
+            builder.icall_void(returning, vec![ptr], 1);
             builder.ret([]);
         }
         let returning_caller = module.add_function(returning_caller);

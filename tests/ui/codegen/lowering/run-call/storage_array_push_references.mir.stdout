@@ -217,7 +217,7 @@ fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_params=[], abi_retur
     set_memory_object_len memorybytes, v70, v64
     memory_object_copy memorybytes, v70, memorybytes, v54, v63
     memory_object_store_byte memorybytes, v70, v63, 0
-    internal_call @store_storage_bytes, 0, 2, v70
+    icall @store_storage_bytes, 0, 2, v70
     v71 = sload 2 !metadata(storage=slot(2))
     v72 = and v71, 1
     v73 = eq v72, 1
@@ -376,7 +376,7 @@ fn @bytesPush() -> (u256, bytes1) [selector=0x52808f21, abi_params=[], abi_retur
     set_memory_object_len memorybytes, v37, v31
     memory_object_copy memorybytes, v37, memorybytes, v21, v30
     memory_object_store_byte memorybytes, v37, v30, v6
-    internal_call @store_storage_bytes, 0, 2, v37
+    icall @store_storage_bytes, 0, 2, v37
     jump bb6
   bb6:
     jump bb3
@@ -558,7 +558,7 @@ fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_params=[], abi_returns=[
     set_memory_object_len memorybytes, v35, v29
     memory_object_copy memorybytes, v35, memorybytes, v19, v28
     memory_object_store_byte memorybytes, v35, v28, v4
-    internal_call @store_storage_bytes, 0, 2, v35
+    icall @store_storage_bytes, 0, 2, v35
     v36 = sload 2 !metadata(storage=slot(2))
     v37 = and v36, 1
     v38 = eq v37, 1
@@ -852,7 +852,7 @@ fn @bytesPushLvalue(arg0: u256) -> (u256, bytes1, bytes1) [selector=0x6fd1f0e5, 
     memory_object_copy memorybytes, v73, memorybytes, v57, v66
     v74 = byte 0, v42
     memory_object_store_byte memorybytes, v73, v66, v74
-    internal_call @store_storage_bytes, 0, 2, v73
+    icall @store_storage_bytes, 0, 2, v73
     v75 = sload 2 !metadata(storage=slot(2))
     v76 = and v75, 1
     v77 = eq v76, 1
@@ -1064,7 +1064,7 @@ fn @bytesPushLvalue(arg0: u256) -> (u256, bytes1, bytes1) [selector=0x6fd1f0e5, 
     memory_object_copy memorybytes, v38, memorybytes, v22, v31
     v39 = byte 0, v7
     memory_object_store_byte memorybytes, v38, v31, v39
-    internal_call @store_storage_bytes, 0, 2, v38
+    icall @store_storage_bytes, 0, 2, v38
     jump bb6
   bb6:
     jump bb3
@@ -1146,7 +1146,7 @@ fn @bytesPushTuple() -> (u256, bytes1, bytes1) [selector=0xc07456bc, abi_params=
     v30 = alloc memorybytes, exact, zeroed, panic, v29
     set_memory_object_len memorybytes, v30, v24
     memory_object_copy memorybytes, v30, memorybytes, v14, v23
-    internal_call @store_storage_bytes, 0, 2, v30
+    icall @store_storage_bytes, 0, 2, v30
     v31 = sload 2 !metadata(storage=slot(2))
     v32 = and v31, 1
     v33 = eq v32, 1
@@ -1196,7 +1196,7 @@ fn @bytesPushTuple() -> (u256, bytes1, bytes1) [selector=0xc07456bc, abi_params=
     v61 = alloc memorybytes, exact, zeroed, panic, v60
     set_memory_object_len memorybytes, v61, v55
     memory_object_copy memorybytes, v61, memorybytes, v45, v54
-    internal_call @store_storage_bytes, 0, 2, v61
+    icall @store_storage_bytes, 0, 2, v61
     v62 = sload 2 !metadata(storage=slot(2))
     v63 = and v62, 1
     v64 = eq v63, 1
@@ -1234,7 +1234,7 @@ fn @bytesPushTuple() -> (u256, bytes1, bytes1) [selector=0xc07456bc, abi_params=
   bb27:
     v85 = byte 0, 0xbb00000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v76, v54, v85
-    internal_call @store_storage_bytes, 0, 2, v76
+    icall @store_storage_bytes, 0, 2, v76
     v86 = sload 2 !metadata(storage=slot(2))
     v87 = and v86, 1
     v88 = eq v87, 1
@@ -1272,7 +1272,7 @@ fn @bytesPushTuple() -> (u256, bytes1, bytes1) [selector=0xc07456bc, abi_params=
   bb35:
     v109 = byte 0, 0xaa00000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v100, v23, v109
-    internal_call @store_storage_bytes, 0, 2, v100
+    icall @store_storage_bytes, 0, 2, v100
     v110 = sload 2 !metadata(storage=slot(2))
     v111 = and v110, 1
     v112 = eq v111, 1
@@ -1502,7 +1502,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

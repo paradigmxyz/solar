@@ -11,7 +11,7 @@ fn @storeLong() -> (bytes32, bytes32, u256) [selector=0xc4a6ec73, abi_params=[],
     mstore v3, v2
     v4 = add v0, 96
     mstore 64, v4 !metadata(memory=scratch)
-    internal_call @store_storage_bytes, 0, 0, v0
+    icall @store_storage_bytes, 0, 0, v0
     mstore 0, 0 !metadata(memory=scratch)
     v5 = keccak256 0, 32 !metadata(memory=scratch)
     v6 = sload v5 !metadata(storage=symbolic(v5))
@@ -80,7 +80,7 @@ fn @storeShort() -> (bytes32, u256) [selector=0x5296e6c1, abi_params=[], abi_ret
     mstore v2, v1
     v3 = add v0, 64
     mstore 64, v3 !metadata(memory=scratch)
-    internal_call @store_storage_bytes, 0, 0, v0
+    icall @store_storage_bytes, 0, 0, v0
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = and v5, 1
@@ -181,7 +181,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

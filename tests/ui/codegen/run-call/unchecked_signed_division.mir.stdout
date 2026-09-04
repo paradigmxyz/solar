@@ -97,7 +97,7 @@ fn @upcastI8(arg0: i8, arg1: i8) -> i256 [selector=0xc8f1d00b, pure, abi_params=
 
 fn @internalI8(arg0: i8, arg1: i8) -> i8 [selector=0xeca4fc1e, pure, abi_params=[i8, i8], abi_returns=[word<i8>]] {
   bb0:
-    v0 = internal_call @divideI8, 1, arg0, arg1
+    v0 = icall @divideI8, 1, arg0, arg1
     ret v0
 }
 

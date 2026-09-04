@@ -5,7 +5,7 @@
 //! sketch in [`MirPhase`]).
 //!
 //! The synthesized `entry` function loads the 4-byte selector through a
-//! semantic calldata slice and switches on it to one argument-free `internal_call`
+//! semantic calldata slice and switches on it to one argument-free `icall`
 //! per external wrapper, defaulting to a `revert`. It is meant
 //! to run after [`super::lower_abi::LowerAbi`], which turns external functions into the
 //! argument-free self-decoding wrappers this switch routes to; that is why it

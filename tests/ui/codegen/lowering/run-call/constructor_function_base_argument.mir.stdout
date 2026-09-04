@@ -20,7 +20,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]]
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @two, 1
+    v0 = icall @two, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -42,7 +42,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]]
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @two, 1
+    v0 = icall @two, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:

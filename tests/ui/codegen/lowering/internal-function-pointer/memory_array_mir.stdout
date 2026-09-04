@@ -105,7 +105,7 @@ fn @callArray(arg0: u256, arg1: u256) -> u256 [selector=0xefc06ab0, abi_params=[
     jumpi v18, bb1, bb7
   bb7:
     v19 = memory_object_load_element memoryarray<1>, v0, arg1
-    v20 = internal_call @internal_dispatcher_p_u256_r_u256, 1, v19, arg0
+    v20 = icall @internal_dispatcher_p_u256_r_u256, 1, v19, arg0
     ret v20
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -134,18 +134,18 @@ fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [funct
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    v9 = internal_call @arrayE, 1, arg1
+    v9 = icall @arrayE, 1, arg1
     ret v9
   bb7:
-    v7 = internal_call @arrayD, 1, arg1
+    v7 = icall @arrayD, 1, arg1
     ret v7
   bb5:
-    v5 = internal_call @arrayC, 1, arg1
+    v5 = icall @arrayC, 1, arg1
     ret v5
   bb3:
-    v3 = internal_call @arrayB, 1, arg1
+    v3 = icall @arrayB, 1, arg1
     ret v3
   bb1:
-    v1 = internal_call @arrayA, 1, arg1
+    v1 = icall @arrayA, 1, arg1
     ret v1
 }

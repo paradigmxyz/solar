@@ -307,8 +307,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 FunctionRefTarget::Instruction(inst) => {
                     let result_ty = module.functions[*function].returns.first().copied();
                     let instruction = module.functions[owner].inst_mut(inst);
-                    let InstKind::InternalCall { function: target, returns, .. } =
-                        &mut instruction.kind
+                    let InstKind::ICall { function: target, returns, .. } = &mut instruction.kind
                     else {
                         unreachable!()
                     };
@@ -1354,7 +1353,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::transient_write => EffectKind::TransientWrite,
             sym::environment_read => EffectKind::EnvironmentRead,
             sym::external_call => EffectKind::ExternalCall,
-            sym::internal_call => EffectKind::InternalCall,
+            sym::icall => EffectKind::ICall,
             kw::Create => EffectKind::Create,
             sym::log => EffectKind::Log,
             sym::immutable_read => EffectKind::ImmutableRead,
@@ -1782,7 +1781,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let pending_call = matches!(
                     builder.func().value(data),
                     Value::Inst(inst)
-                        if matches!(builder.func().inst(*inst).kind, InstKind::InternalCall { .. })
+                        if matches!(builder.func().inst(*inst).kind, InstKind::ICall { .. })
                 );
                 if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
                     && !(data_ty == Some(MirType::MemPtr)
@@ -1942,7 +1941,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 => MirType::uint256()),
             kw::Extstaticcall => struct_inst!(ExtStaticCall { addr, args_offset, args_size }
                 => MirType::uint256()),
-            sym::internal_call => {
+            sym::icall => {
                 let function = self.parse_function_id()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let returns = self.parser.parse_uint()?.to::<u32>();
@@ -1951,7 +1950,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     args.push(self.parse_value(builder)?);
                 }
                 let result_ty = (returns > 0).then(MirType::uint256);
-                (InstKind::InternalCall { function, args: args.into(), returns }, result_ty)
+                (InstKind::ICall { function, args: args.into(), returns }, result_ty)
             }
             sym::internal_frame_addr => {
                 let offset = self.parser.parse_uint()?.to::<u64>();

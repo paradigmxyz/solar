@@ -103,7 +103,7 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_params=[], abi_returns=[wor
     v3 = sload v2 !metadata(storage=slot(0))
     v4 = shr 16, v3
     v5 = and v4, 0xffffffffffffffff
-    v6 = internal_call @internal_dispatcher_p_none_r_u256, 1, v5
+    v6 = icall @internal_dispatcher_p_none_r_u256, 1, v5
     v7 = lt 1, 2
     v8 = iszero v7
     jumpi v8, bb1, bb3
@@ -112,7 +112,7 @@ fn @read() -> (u256, u256) [selector=0x57de26a4, abi_params=[], abi_returns=[wor
     v10 = sload v9 !metadata(storage=slot(1))
     v11 = shr 16, v10
     v12 = and v11, 0xffffffffffffffff
-    v13 = internal_call @internal_dispatcher_p_none_r_u256, 1, v12
+    v13 = icall @internal_dispatcher_p_none_r_u256, 1, v12
     ret v6, v13
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -132,9 +132,9 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    v3 = internal_call @secondTarget, 1
+    v3 = icall @secondTarget, 1
     ret v3
   bb1:
-    v1 = internal_call @firstTarget, 1
+    v1 = icall @firstTarget, 1
     ret v1
 }

@@ -2,7 +2,7 @@
 @module NestedStorageReferenceTuple
 fn @fromCall() -> (u256, u256, u256, u256) [selector=0xbe4b486b, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
-    internal_call @initialize, 0
+    icall @initialize, 0
     v0 = lt 0, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -13,7 +13,7 @@ fn @fromCall() -> (u256, u256, u256, u256) [selector=0xbe4b486b, abi_params=[], 
     jumpi v4, bb1, bb3
   bb3:
     v5 = add 0, 1
-    v6 = internal_call @pair, 2
+    v6 = icall @pair, 2
     v7 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v8 = add v7, 32
     v9 = mload v8
@@ -46,7 +46,7 @@ fn @fromCall() -> (u256, u256, u256, u256) [selector=0xbe4b486b, abi_params=[], 
 
 fn @fromTuple() -> (u256, u256, u256, u256) [selector=0x7550b31f, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
-    internal_call @initialize, 0
+    icall @initialize, 0
     v0 = lt 0, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -96,7 +96,7 @@ fn @fromTuple() -> (u256, u256, u256, u256) [selector=0x7550b31f, abi_params=[],
 
 fn @fromFunctionPointer() -> (u256, u256, u256, u256) [selector=0xceab4ac0, abi_params=[], abi_returns=[word, word, word, word]] {
   bb0:
-    internal_call @initialize, 0
+    icall @initialize, 0
     v0 = lt 0, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -114,7 +114,7 @@ fn @fromFunctionPointer() -> (u256, u256, u256, u256) [selector=0xceab4ac0, abi_
     jump bb6
   bb6:
     v6 = phi [bb4: 6], [bb5: 6]
-    v7 = internal_call @internal_dispatcher_p_none_r_storageptr_storageptr, 2, v6
+    v7 = icall @internal_dispatcher_p_none_r_storageptr_storageptr, 2, v6
     v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v9 = add v8, 32
     v10 = mload v9
@@ -147,7 +147,7 @@ fn @fromFunctionPointer() -> (u256, u256, u256, u256) [selector=0xceab4ac0, abi_
 
 fn @fromDeclaration() -> (u256, u256, u256) [selector=0x3d9dfb25, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
-    internal_call @initialize, 0
+    icall @initialize, 0
     v0 = lt 1, 3
     v1 = iszero v0
     jumpi v1, bb1, bb2
@@ -222,7 +222,7 @@ fn @internal_dispatcher_p_none_r_storageptr_storageptr(arg0: function) -> (stora
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @pair, 2
+    v1 = icall @pair, 2
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
     v4 = mload v3

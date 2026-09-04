@@ -6,7 +6,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     set_memory_object_len memorybytes, v0, 4
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6162636400000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 0, v0
+    icall @store_storage_bytes, 0, 0, v0
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = and v2, 1
     v4 = eq v3, 1
@@ -132,7 +132,7 @@ fn @dirty() -> u256 [selector=0x7dce0fd0, abi_params=[], abi_returns=[word]] {
     v3 = not 0
     v4 = add v2, 32
     mstore v4, v3
-    internal_call @store_storage_bytes, 0, 0, v2
+    icall @store_storage_bytes, 0, 0, v2
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = and v5, 1
     v7 = eq v6, 1
@@ -348,7 +348,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

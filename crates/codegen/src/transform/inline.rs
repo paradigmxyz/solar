@@ -209,7 +209,7 @@ struct MirInlineSummary {
     estimated_code_size: usize,
     estimated_runtime_gas: u64,
     internal_frame_size: u64,
-    has_internal_call: bool,
+    has_icall: bool,
     has_phi: bool,
     has_external_call: bool,
     has_storage_write: bool,
@@ -349,7 +349,7 @@ impl MirInliner {
         let mut counts = FxHashMap::default();
         for func in module.functions.iter() {
             for inst_id in func.instructions() {
-                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
                     *counts.entry(function).or_default() += 1;
                 }
             }
@@ -380,8 +380,7 @@ impl MirInliner {
                 summaries.get(&caller).map(|summary| summary.instruction_count).unwrap_or_default();
             for (block_index, block) in func.blocks.iter().enumerate() {
                 for (inst_index, &inst_id) in block.instructions.iter().enumerate() {
-                    let InstKind::InternalCall { function, ref args, .. } = func.inst(inst_id).kind
-                    else {
+                    let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind else {
                         continue;
                     };
                     if !summaries.get(&function).is_some_and(|summary| {
@@ -424,9 +423,7 @@ impl MirInliner {
         for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-                if let InstKind::InternalCall { function, ref args, returns } =
-                    func.inst(inst_id).kind
-                {
+                if let InstKind::ICall { function, ref args, returns } = func.inst(inst_id).kind {
                     return Some(CallSite {
                         block,
                         inst_index,
@@ -486,7 +483,7 @@ impl MirInliner {
                     }
                 || summary.return_count != 1
                 || (summary.has_reference_return && !summary.is_transparent_forwarder)
-                || (summary.has_internal_call && !summary.is_transparent_forwarder)
+                || (summary.has_icall && !summary.is_transparent_forwarder)
                 || summary.has_control_flow)
         {
             return false;
@@ -499,7 +496,7 @@ impl MirInliner {
                 && summary.is_pure
                 && summary.block_count == 1
                 && summary.instruction_count <= self.max_instructions
-                && !summary.has_internal_call
+                && !summary.has_icall
                 && !summary.has_reference_return
                 && !summary.has_control_flow;
         }
@@ -537,7 +534,7 @@ impl MirInliner {
                 || summary.has_external_call
                 || summary.has_log)
             && summary.estimated_code_size
-                > estimated_internal_call_code_size(site)
+                > estimated_icall_code_size(site)
                     + estimated_internal_return_code_size(summary, site)
         {
             return false;
@@ -559,7 +556,7 @@ impl MirInliner {
         const CODE_DEPOSIT_GAS_PER_BYTE: u128 = 200;
 
         let inlined_bytes = summary.estimated_code_size;
-        let mut removed_bytes = estimated_internal_call_code_size(site);
+        let mut removed_bytes = estimated_icall_code_size(site);
         if single_call {
             removed_bytes = removed_bytes.saturating_add(
                 summary.estimated_code_size + estimated_internal_return_code_size(summary, site),
@@ -571,7 +568,7 @@ impl MirInliner {
 
         let added_deposit_cost =
             (inlined_bytes - removed_bytes) as u128 * CODE_DEPOSIT_GAS_PER_BYTE;
-        let execution_savings = u128::from(estimated_internal_call_savings(site, summary))
+        let execution_savings = u128::from(estimated_icall_savings(site, summary))
             * u128::from(self.expected_executions_per_deployment);
         execution_savings > added_deposit_cost
     }
@@ -624,7 +621,7 @@ fn summarize_function(gcx: Gcx<'_>, module: &Module, func: &Function) -> MirInli
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match kind {
-                InstKind::InternalCall { .. } => summary.has_internal_call = true,
+                InstKind::ICall { .. } => summary.has_icall = true,
                 InstKind::Phi(_) => summary.has_phi = true,
                 // ABI decoding validates its input through branches, and dynamic encoding
                 // emits copy loops and padding branches, so neither operation is a tiny leaf.
@@ -714,7 +711,7 @@ fn is_transparent_forwarder(func: &Function) -> bool {
     }
 
     let [call] = func.blocks[BlockId::ENTRY].instructions.as_slice() else { return false };
-    let InstKind::InternalCall { returns: 1, .. } = func.inst(*call).kind else { return false };
+    let InstKind::ICall { returns: 1, .. } = func.inst(*call).kind else { return false };
     let Some(result) = func.inst_result_value(*call) else { return false };
     matches!(
         func.blocks[BlockId::ENTRY].terminator.as_ref(),
@@ -933,7 +930,7 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
         | InstKind::ExtStaticCall { .. } => (700, 1),
-        InstKind::InternalCall { args, returns, .. } => {
+        InstKind::ICall { args, returns, .. } => {
             let returns = *returns as usize;
             (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
         }
@@ -973,7 +970,7 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
     MirCost { runtime_gas, code_size }
 }
 
-fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
+fn estimated_icall_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
     let frame_words = (summary.internal_frame_size / EvmMemoryLayout::WORD_SIZE)
         + (EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE)
         + (site.args_len + site.returns) as u64;
@@ -983,7 +980,7 @@ fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) ->
     (protocol + return_protocol) * loop_multiplier
 }
 
-fn estimated_internal_call_code_size(site: CallSite) -> usize {
+fn estimated_icall_code_size(site: CallSite) -> usize {
     18 + (site.args_len + site.returns) * 5
 }
 
@@ -1069,7 +1066,7 @@ fn find_next_constant_function_call(
     for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
         let start_inst = if block.index() == start.0 { start.1 } else { 0 };
         for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
-            if let InstKind::InternalCall { function, ref args, .. } = func.inst(inst_id).kind
+            if let InstKind::ICall { function, ref args, .. } = func.inst(inst_id).kind
                 && let Some(selector) =
                     args.first().and_then(|&arg| func.value(arg).as_immediate()).cloned()
             {
@@ -1110,7 +1107,7 @@ fn direct_dispatch_case_target(dispatcher: &Function, block: BlockId) -> Option<
     let [call] = block.instructions.as_slice() else {
         return None;
     };
-    let InstKind::InternalCall { function, args, returns } = &dispatcher.inst(*call).kind else {
+    let InstKind::ICall { function, args, returns } = &dispatcher.inst(*call).kind else {
         return None;
     };
     if !args.iter().enumerate().all(|(index, &arg)| {
@@ -1141,7 +1138,7 @@ fn rewrite_dispatch_call(
     let Some(&call) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::InternalCall { function, args, .. } = &mut caller.inst_mut(call).kind else {
+    let InstKind::ICall { function, args, .. } = &mut caller.inst_mut(call).kind else {
         return false;
     };
     if args.is_empty() {
@@ -1160,7 +1157,7 @@ fn propagate_function_pointer_cast(
     let Some(&call_inst) = caller.blocks[call_block].instructions.get(call_inst_index) else {
         return false;
     };
-    let InstKind::InternalCall { ref args, returns: 1, .. } = caller.inst(call_inst).kind else {
+    let InstKind::ICall { ref args, returns: 1, .. } = caller.inst(call_inst).kind else {
         return false;
     };
     let Some(&arg) = args.first() else {
@@ -1197,7 +1194,7 @@ fn inline_call_impl(
     callee: &Function,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
-    let InstKind::InternalCall { args, returns, .. } = caller.inst(call_inst).kind.clone() else {
+    let InstKind::ICall { args, returns, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
     };
     let returns = returns as usize;
@@ -1602,7 +1599,7 @@ mod tests {
 
         let mut ordinary = Function::new(Ident::DUMMY);
         let mut builder = FunctionBuilder::new(&mut ordinary);
-        builder.internal_call_void(callee, Vec::new(), 0);
+        builder.icall_void(callee, Vec::new(), 0);
         builder.stop();
         module.add_function(ordinary);
 
@@ -1622,7 +1619,7 @@ mod tests {
         let mut caller = Function::new(Ident::DUMMY);
         caller.internal_frame_size = u64::MAX;
         let mut builder = FunctionBuilder::new(&mut caller);
-        builder.internal_call_void(callee_id, Vec::new(), 0);
+        builder.icall_void(callee_id, Vec::new(), 0);
         builder.stop();
         let call = caller.blocks[BlockId::ENTRY].instructions[0];
         let call_index = caller.blocks[BlockId::ENTRY]
@@ -1634,6 +1631,6 @@ mod tests {
         assert!(!inline_call(&mut caller, BlockId::ENTRY, call_index, &callee));
         assert_eq!(caller.internal_frame_size, u64::MAX);
         assert_eq!(caller.blocks.len(), 1);
-        assert!(matches!(caller.inst(call).kind, InstKind::InternalCall { .. }));
+        assert!(matches!(caller.inst(call).kind, InstKind::ICall { .. }));
     }
 }

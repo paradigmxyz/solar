@@ -332,7 +332,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb77:
     v202 = storage_array_data_slot 7
     v203 = add v202, 0
-    internal_call @store_storage_bytes, 0, v203, v197
+    icall @store_storage_bytes, 0, v203, v197
     v204 = sload 7 !metadata(storage=slot(7))
     v205 = lt 0, v204
     v206 = iszero v205
@@ -780,16 +780,16 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb183:
     ret 1
   bb182:
-    internal_call @revert_error, 0, 13, 0x6e65737465642064656c65746500000000000000000000000000000000000000
+    icall @revert_error, 0, 13, 0x6e65737465642064656c65746500000000000000000000000000000000000000
     invalid
   bb179:
-    internal_call @revert_error, 0, 11, 0x776f72642064656c657465000000000000000000000000000000000000000000
+    icall @revert_error, 0, 11, 0x776f72642064656c657465000000000000000000000000000000000000000000
     invalid
   bb172:
-    internal_call @revert_error, 0, 13, 0x7061636b65642064656c65746500000000000000000000000000000000000000
+    icall @revert_error, 0, 13, 0x7061636b65642064656c65746500000000000000000000000000000000000000
     invalid
   bb165:
-    internal_call @revert_error, 0, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
+    icall @revert_error, 0, 12, 0x62797465732064656c6574650000000000000000000000000000000000000000
     invalid
   bb163:
     v464 = add v461, v462
@@ -799,10 +799,10 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v467 = add v462, 1
     jump bb162
   bb154:
-    internal_call @revert_error, 0, 12, 0x66697865642064656c6574650000000000000000000000000000000000000000
+    icall @revert_error, 0, 12, 0x66697865642064656c6574650000000000000000000000000000000000000000
     invalid
   bb145:
-    internal_call @revert_error, 0, 13, 0x7374727563742064656c65746500000000000000000000000000000000000000
+    icall @revert_error, 0, 13, 0x7374727563742064656c65746500000000000000000000000000000000000000
     invalid
   bb135:
     v388 = storage_array_data_slot 10
@@ -895,7 +895,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v335 = add v329, 1
     jump bb110
   bb101:
-    internal_call @revert_error, 0, 12, 0x62797465732061737369676e0000000000000000000000000000000000000000
+    icall @revert_error, 0, 12, 0x62797465732061737369676e0000000000000000000000000000000000000000
     invalid
   bb98:
     v258 = add v255, v256
@@ -916,7 +916,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     mstore 4, 34 !metadata(memory=scratch)
     revert 0, 36
   bb74:
-    internal_call @revert_error, 0, 14, 0x64796e616d69632061737369676e000000000000000000000000000000000000
+    icall @revert_error, 0, 14, 0x64796e616d69632061737369676e000000000000000000000000000000000000
     invalid
   bb66:
     v167 = memory_object_load_element memoryarray<1>, v145, v165
@@ -932,7 +932,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v164 = add v160, 1
     jump bb62
   bb54:
-    internal_call @revert_error, 0, 12, 0x66697865642061737369676e0000000000000000000000000000000000000000
+    icall @revert_error, 0, 12, 0x66697865642061737369676e0000000000000000000000000000000000000000
     invalid
   bb42:
     v112 = add v109, v110
@@ -949,14 +949,14 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v115 = add v110, 1
     jump bb41
   bb37:
-    internal_call @revert_error, 0, 13, 0x7374727563742061737369676e00000000000000000000000000000000000000
+    icall @revert_error, 0, 13, 0x7374727563742061737369676e00000000000000000000000000000000000000
     invalid
   bb29:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb27:
-    internal_call @revert_error, 0, 11, 0x6e657374656420636f7079000000000000000000000000000000000000000000
+    icall @revert_error, 0, 11, 0x6e657374656420636f7079000000000000000000000000000000000000000000
     invalid
   bb11:
     v31 = mul v29, 2
@@ -1037,7 +1037,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

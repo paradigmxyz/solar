@@ -38,8 +38,8 @@ fn @constructor() [constructor] {
 
 fn @test() -> (u256, u256) [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @load_storage_word_array, 1, 0
-    v1 = internal_call @consume, 2, v0
+    v0 = icall @load_storage_word_array, 1, 0
+    v1 = icall @consume, 2, v0
     v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v3 = add v2, 32
     v4 = mload v3

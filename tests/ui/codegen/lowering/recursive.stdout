@@ -12,7 +12,7 @@ fn @fact(arg0: u256) -> u256 [selector=0x0b95d228, pure, abi_params=[u256], abi_
     v3 = lt arg0, 1
     jumpi v3, bb4, bb5
   bb5:
-    v4 = internal_call @fact, 1, v2
+    v4 = icall @fact, 1, v2
     v5 = mul arg0, v4
     v6 = iszero v4
     v7 = div v5, v4
@@ -42,12 +42,12 @@ fn @fib(arg0: u256) -> u256 [selector=0xc6c2ea17, pure, abi_params=[u256], abi_r
     v3 = lt arg0, 1
     jumpi v3, bb4, bb5
   bb5:
-    v4 = internal_call @fib, 1, v2
+    v4 = icall @fib, 1, v2
     v5 = sub arg0, 2
     v6 = lt arg0, 2
     jumpi v6, bb4, bb6
   bb6:
-    v7 = internal_call @fib, 1, v5
+    v7 = icall @fib, 1, v5
     v8 = add v4, v7
     v9 = lt v8, v4
     jumpi v9, bb4, bb7
@@ -72,7 +72,7 @@ fn @isEven(arg0: u256) -> bool [selector=0x2a2e1320, pure, abi_params=[u256], ab
     v2 = lt arg0, 1
     jumpi v2, bb4, bb5
   bb5:
-    v3 = internal_call @isOdd, 1, v1
+    v3 = icall @isOdd, 1, v1
     ret v3
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -93,7 +93,7 @@ fn @isOdd(arg0: u256) -> bool [selector=0xd8b3a2eb, pure, abi_params=[u256], abi
     v2 = lt arg0, 1
     jumpi v2, bb4, bb5
   bb5:
-    v3 = internal_call @isEven, 1, v1
+    v3 = icall @isEven, 1, v1
     ret v3
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

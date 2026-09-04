@@ -392,7 +392,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.builder.switch_to_block(validate);
         let helper = self.ensure_error_catch_match_helper();
-        let valid = self.builder.internal_call(helper, vec![data_ptr, data_len], MirType::Bool, 1);
+        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::Bool, 1);
         let valid_block = self.builder.current_block();
         self.builder.jump(done);
 

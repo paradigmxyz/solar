@@ -5,22 +5,22 @@
 @module ConstantIntegerValue
 fn @calc() -> u256 [selector=0x96f1b6be, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @mulWadDown, 1, 0x8ac7230489e80000, 0xaa87bee538000
+    v0 = icall @mulWadDown, 1, 0x8ac7230489e80000, 0xaa87bee538000
     v1 = exp 2, 128
-    v2 = internal_call @mulDivDown, 1, v0, v1, 0x21e19e0c9bab2400000
+    v2 = icall @mulDivDown, 1, v0, v1, 0x21e19e0c9bab2400000
     ret v2
 }
 
 fn @avgEdge() -> u256 [selector=0xbb94a0c5, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @average, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v0 = icall @average, 1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
     ret v0
 }
 
 fn @negativeConstant() -> bool [selector=0xce4ac84e, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
     v0 = sub 0, 0xd89e8
-    v1 = internal_call @isMinTick, 1, v0
+    v1 = icall @isMinTick, 1, v0
     ret v1
 }
 
@@ -35,7 +35,7 @@ fn @average(arg0: u256, arg1: u256) -> u256 [pure] {
 
 fn @mulWadDown(arg0: u256, arg1: u256) -> u256 [pure] {
   bb0:
-    v0 = internal_call @mulDivDown, 1, arg0, arg1, 0xde0b6b3a7640000
+    v0 = icall @mulDivDown, 1, arg0, arg1, 0xde0b6b3a7640000
     ret v0
 }
 

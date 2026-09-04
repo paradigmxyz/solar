@@ -44,7 +44,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     sstore v34, v35 !metadata(storage=symbolic(v34))
     v36 = add v34, 1
     v37 = memory_object_load_field memorystruct<2>, v31, 1
-    internal_call @store_storage_bytes, 0, v36, v37
+    icall @store_storage_bytes, 0, v36, v37
     v38 = add v25, 1
     jump bb13
   bb4:
@@ -135,7 +135,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -247,7 +247,7 @@ fn @constructor(arg0: memoryarray) [constructor, abi_params=[array<_, tuple<u256
     sstore v34, v35 !metadata(storage=symbolic(v34))
     v36 = add v34, 1
     v37 = memory_object_load_field memorystruct<2>, v31, 1
-    internal_call @store_storage_bytes, 0, v36, v37
+    icall @store_storage_bytes, 0, v36, v37
     v38 = add v25, 1
     jump bb14
   bb5:
@@ -493,7 +493,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

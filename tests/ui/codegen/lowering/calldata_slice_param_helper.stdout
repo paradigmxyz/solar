@@ -7,10 +7,10 @@ fn @lastWord() [selector=0x3955f902, pure] {
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb2:
-    v3 = internal_call @decode_calldata_slice, 1, 4
+    v3 = icall @decode_calldata_slice, 1, 4
     v4 = calldataload v3
     v5 = add v3, 32
-    v0 = internal_call @_last, 1, v5, v4
+    v0 = icall @_last, 1, v5, v4
     mstore 128, v0
     returndata 128, 32
   bb1:
@@ -23,15 +23,15 @@ fn @lastWord2() [selector=0x97f495a8, pure] {
     v12 = lt v11, 36
     jumpi v12, bb1, bb3
   bb3:
-    v13 = internal_call @decode_calldata_slice, 1, 4
+    v13 = icall @decode_calldata_slice, 1, 4
     v14 = calldataload v13
     v15 = add v13, 32
-    v0 = internal_call @_last, 1, v15, v14
+    v0 = icall @_last, 1, v15, v14
     jumpi v14, bb2, bb1
   bb2:
     v6 = sub v14, 1
     v7 = add v15, 1
-    v9 = internal_call @_last, 1, v7, v6
+    v9 = icall @_last, 1, v7, v6
     v10 = xor v0, v9
     mstore 128, v10
     returndata 128, 32

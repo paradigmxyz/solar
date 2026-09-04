@@ -60,7 +60,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb11:
     jump bb12
   bb12:
-    v27 = internal_call @g, 3
+    v27 = icall @g, 3
     v28 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v29 = add v28, 32
     v30 = mload v29

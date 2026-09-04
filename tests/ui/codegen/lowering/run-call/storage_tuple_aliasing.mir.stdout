@@ -16,25 +16,25 @@ fn @storageAliases() -> (u256, u256, u256, u256) [selector=0x985e71ce, abi_param
     sstore v5, 20 !metadata(storage=slot(1))
     sstore 3, 0 !metadata(storage=slot(3))
     sstore 4, 1 !metadata(storage=slot(4))
-    v6 = internal_call @nextRhs, 1
+    v6 = icall @nextRhs, 1
     v7 = lt v6, 3
     v8 = iszero v7
     jumpi v8, bb1, bb4
   bb4:
     v9 = add 0, v6
-    v10 = internal_call @nextRhs, 1
+    v10 = icall @nextRhs, 1
     v11 = lt v10, 3
     v12 = iszero v11
     jumpi v12, bb1, bb5
   bb5:
     v13 = add 0, v10
-    v14 = internal_call @nextLhs, 1
+    v14 = icall @nextLhs, 1
     v15 = lt v14, 3
     v16 = iszero v15
     jumpi v16, bb1, bb6
   bb6:
     v17 = add 0, v14
-    v18 = internal_call @nextLhs, 1
+    v18 = icall @nextLhs, 1
     v19 = lt v18, 3
     v20 = iszero v19
     jumpi v20, bb1, bb7
@@ -95,7 +95,7 @@ fn @lhsMutation() -> (u256, u256) [selector=0x8bbab81c, abi_params=[], abi_retur
     jumpi v10, bb1, bb5
   bb5:
     v11 = add 0, 1
-    v12 = internal_call @mutateSource, 1
+    v12 = icall @mutateSource, 1
     v13 = lt v12, 3
     v14 = iszero v13
     jumpi v14, bb1, bb6
@@ -152,7 +152,7 @@ fn @memorySnapshot() -> (u256, u256) [selector=0xaa7868c1, abi_params=[], abi_re
     jumpi v6, bb1, bb3
   bb3:
     v7 = add 0, 0
-    v8 = internal_call @mutateSource, 1
+    v8 = icall @mutateSource, 1
     v9 = lt v8, 1
     v10 = iszero v9
     jumpi v10, bb1, bb4
@@ -189,7 +189,7 @@ fn @returnedReferences() -> (u256, u256) [selector=0x29826554, abi_params=[], ab
   bb3:
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
-    v6 = internal_call @pair, 2
+    v6 = icall @pair, 2
     v7 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v8 = add v7, 32
     v9 = mload v8
@@ -246,7 +246,7 @@ fn @nestedReturnedReferences() -> (u256, u256, u256) [selector=0xccf01a6c, abi_p
   bb3:
     v5 = add 0, 1
     sstore v5, 20 !metadata(storage=slot(1))
-    v6 = internal_call @pair, 2
+    v6 = icall @pair, 2
     v7 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v8 = add v7, 32
     v9 = mload v8
@@ -355,7 +355,7 @@ fn @dynamicArrays() -> (u256, u256, u256, u256) [selector=0x586e696e, abi_params
     v26 = add v25, v22
     sstore v26, 3 !metadata(storage=symbolic(v26))
     sstore 6, v23 !metadata(storage=slot(6))
-    v27 = internal_call @load_storage_word_array, 1, 5
+    v27 = icall @load_storage_word_array, 1, 5
     v28 = memory_object_len memoryarray, v27
     v29 = sload 6 !metadata(storage=slot(6))
     v30 = gt v29, v28
@@ -376,7 +376,7 @@ fn @dynamicArrays() -> (u256, u256, u256, u256) [selector=0x586e696e, abi_params
     v37 = lt v36, v28
     jumpi v37, bb17, bb18
   bb18:
-    v42 = internal_call @load_storage_word_array, 1, 6
+    v42 = icall @load_storage_word_array, 1, 6
     v43 = memory_object_len memoryarray, v42
     v44 = sload 5 !metadata(storage=slot(5))
     v45 = gt v44, v43
@@ -470,18 +470,18 @@ fn @byteArrays() -> (memorybytes, memorybytes) [selector=0x2d074e2f, abi_params=
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x102000000000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 7, v0
+    icall @store_storage_bytes, 0, 7, v0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 3
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x304050000000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 8, v2
-    v4 = internal_call @load_storage_bytes, 1, 7
-    internal_call @store_storage_bytes, 0, 8, v4
-    v5 = internal_call @load_storage_bytes, 1, 8
-    internal_call @store_storage_bytes, 0, 7, v5
-    v6 = internal_call @load_storage_bytes, 1, 7
-    v7 = internal_call @load_storage_bytes, 1, 8
+    icall @store_storage_bytes, 0, 8, v2
+    v4 = icall @load_storage_bytes, 1, 7
+    icall @store_storage_bytes, 0, 8, v4
+    v5 = icall @load_storage_bytes, 1, 8
+    icall @store_storage_bytes, 0, 7, v5
+    v6 = icall @load_storage_bytes, 1, 7
+    v7 = icall @load_storage_bytes, 1, 8
     ret v6, v7
 }
 
@@ -625,7 +625,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

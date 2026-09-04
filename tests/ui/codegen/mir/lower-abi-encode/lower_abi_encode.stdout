@@ -144,7 +144,7 @@
 +     v12 = mload v10
 +     v13 = sub v8, v2
 +     mstore v9, v13
-+     v14 = internal_call @encode_abi_array, 1, v12, v8
++     v14 = icall @encode_abi_array, 1, v12, v8
 +     v15 = sub v7, 1
 +     v16 = add v10, 32
 +     v17 = add v9, 32

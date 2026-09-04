@@ -33,7 +33,7 @@ contract AbiDecodeStructs {
     // ADS-LABEL: fn @dFixed
     // ADS: [[INDEX:v[0-9]+]] = phi
     // ADS: lt [[INDEX]], 2
-    // ADS: internal_call @[[FIXED_HELPER:decode_memory_type]]
+    // ADS: icall @[[FIXED_HELPER:decode_memory_type]]
     function dFixed(bytes memory b) public pure returns (uint256) {
         Dyn[2] memory ds = abi.decode(b, (Dyn[2]));
         return ds[1].nums.length;
@@ -42,7 +42,7 @@ contract AbiDecodeStructs {
     // ADS-LABEL: fn @dDynArr
     // A dynamic array of dynamic structs: elements rebuild one at a time into
     // a fresh memory array of pointers.
-    // ADS: internal_call @[[CALLDATA_HELPER:decode_calldata_type]]
+    // ADS: icall @[[CALLDATA_HELPER:decode_calldata_type]]
     // ADS: mload
     // ADS: fn @[[CALLDATA_HELPER]]
     function dDynArr(bytes memory b) public pure returns (uint256 count) {

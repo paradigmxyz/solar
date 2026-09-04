@@ -22,10 +22,10 @@ fn @higher3() -> function [pure] {
 
 fn @callReturned() -> u256 [selector=0x0ae2f92f, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @internal_dispatcher_p_none_r_function, 1, 4
-    v1 = internal_call @internal_dispatcher_p_none_r_function, 1, v0
-    v2 = internal_call @internal_dispatcher_p_none_r_function, 1, v1
-    v3 = internal_call @internal_dispatcher_p_none_r_u256, 1, v2
+    v0 = icall @internal_dispatcher_p_none_r_function, 1, 4
+    v1 = icall @internal_dispatcher_p_none_r_function, 1, v0
+    v2 = icall @internal_dispatcher_p_none_r_function, 1, v1
+    v3 = icall @internal_dispatcher_p_none_r_u256, 1, v2
     ret v3
 }
 
@@ -44,13 +44,13 @@ fn @internal_dispatcher_p_none_r_function(arg0: function) -> function [function_
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v5 = internal_call @higher3, 1
+    v5 = icall @higher3, 1
     ret v5
   bb3:
-    v3 = internal_call @higher2, 1
+    v3 = icall @higher2, 1
     ret v3
   bb1:
-    v1 = internal_call @higher1, 1
+    v1 = icall @higher1, 1
     ret v1
 }
 
@@ -63,6 +63,6 @@ fn @internal_dispatcher_p_none_r_u256(arg0: function) -> u256 [function_pointer_
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @higher0, 1
+    v1 = icall @higher0, 1
     ret v1
 }

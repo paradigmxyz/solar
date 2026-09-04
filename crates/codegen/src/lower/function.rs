@@ -876,7 +876,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
 
             // for target {
             //     if function_id == target {
-            //         results = internal_call(target, arguments)
+            //         results = icall(target, arguments)
             //         return results
             //     }
             // }
@@ -904,10 +904,10 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
-                    builder.internal_call_void(mir_id, call_arguments, 0);
+                    builder.icall_void(mir_id, call_arguments, 0);
                     builder.ret([]);
                 } else {
-                    let result = builder.internal_call(
+                    let result = builder.icall(
                         mir_id,
                         call_arguments,
                         shape.returns[0],

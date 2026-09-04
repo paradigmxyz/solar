@@ -45,7 +45,7 @@ fn @readCopy() -> (address, bytes4) [selector=0x3af23521, view, abi_params=[], a
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<2>, v0, 0, v3
     v4 = add 0, 1
-    v5 = internal_call @load_storage_packed_array_4_2, 1, v4
+    v5 = icall @load_storage_packed_array_4_2, 1, v4
     memory_object_store_field memorystruct<2>, v0, 1, v5
     v6 = memory_object_load_field memorystruct<2>, v0, 0
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
@@ -72,7 +72,7 @@ fn @readDirect() -> (address, bytes4) [selector=0x28da8d5d, view, abi_params=[],
     v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<2>, v0, 0, v3
     v4 = add 0, 1
-    v5 = internal_call @load_storage_packed_array_4_2, 1, v4
+    v5 = icall @load_storage_packed_array_4_2, 1, v4
     memory_object_store_field memorystruct<2>, v0, 1, v5
     v6 = memory_object_load_field memorystruct<2>, v0, 0
     v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff

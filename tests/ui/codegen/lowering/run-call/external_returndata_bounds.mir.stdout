@@ -80,13 +80,13 @@ fn @check(arg0: memorystruct) -> u256 [pure] {
   bb9:
     ret 1
   bb8:
-    internal_call @revert_error, 0, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 3, 0x7461670000000000000000000000000000000000000000000000000000000000
     invalid
   bb6:
-    internal_call @revert_error, 0, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 6, 0x7365636f6e640000000000000000000000000000000000000000000000000000
     invalid
   bb3:
-    internal_call @revert_error, 0, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x6669727374000000000000000000000000000000000000000000000000000000
     invalid
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -124,7 +124,7 @@ fn @staticAggregate() -> u256 [selector=0x9982aedb, abi_params=[], abi_returns=[
     jumpi v14, bb5, bb6
   bb6:
     v15 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v11
-    v16 = internal_call @check, 1, v15
+    v16 = icall @check, 1, v15
     ret v16
   bb5:
     revert 0, 0
@@ -211,7 +211,7 @@ fn @functionPointerAggregate() -> u256 [selector=0xebe6d175, abi_params=[], abi_
     jumpi v19, bb5, bb6
   bb6:
     v20 = abi_decode [tuple<tuple<array<2, u256>>, u256>], v16
-    v21 = internal_call @check, 1, v20
+    v21 = icall @check, 1, v20
     ret v21
   bb5:
     revert 0, 0
@@ -260,7 +260,7 @@ fn @dirtyAddressBoundary() -> u256 [selector=0x2986c9cc, abi_params=[], abi_retu
   bb9:
     ret 1
   bb8:
-    internal_call @revert_error, 0, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     invalid
   bb5:
     revert 0, 0

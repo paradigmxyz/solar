@@ -289,13 +289,13 @@ fn @fetchRich(arg0: address) -> (u256, u256, i256) [view] {
 
 fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @fetch, 3, 1
+    v0 = icall @fetch, 3, 1
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
     v4 = add v1, 64
     v5 = mload v4
-    v6 = internal_call @fetch, 3, 2
+    v6 = icall @fetch, 3, 2
     v7 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v8 = add v7, 32
     v9 = mload v8
@@ -325,7 +325,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
   bb12:
     jump bb8
   bb11:
-    internal_call @revert_error, 0, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 4, 0x6f76657200000000000000000000000000000000000000000000000000000000
     invalid
   bb6:
     v21 = slt v11, 0
@@ -349,7 +349,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     jumpi v31, bb16, bb17
   bb17:
     v32 = sub 0, v5
-    internal_call @settle, 0, v29, v30, v32
+    icall @settle, 0, v29, v30, v32
     jump bb15
   bb15:
     v33 = slt v11, 0
@@ -364,7 +364,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     jumpi v37, bb16, bb21
   bb21:
     v38 = sub 0, v11
-    internal_call @settle, 0, v35, v36, v38
+    icall @settle, 0, v35, v36, v38
     jump bb20
   bb20:
     v39 = sgt v5, 0
@@ -436,7 +436,7 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
   bb39:
     ret 1
   bb38:
-    internal_call @revert_error, 0, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
+    icall @revert_error, 0, 17, 0x746f6f6b2077726f6e6720616d6f756e74000000000000000000000000000000
     invalid
   bb25:
     revert 0, 0
@@ -445,10 +445,10 @@ fn @go() -> u256 [selector=0x0f59f83a, abi_params=[], abi_returns=[word]] {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    internal_call @revert_error, 0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x7800000000000000000000000000000000000000000000000000000000000000
     invalid
   bb1:
-    internal_call @revert_error, 0, 2, 0x6430000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 2, 0x6430000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -478,7 +478,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     mstore v11, 0x1234567800000000000000000000000000000000000000000000000000000000
     v12 = memory_object_load_field memorystruct<5>, v0, 0
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
-    v14 = internal_call @fetchRich, 3, v13
+    v14 = icall @fetchRich, 3, v13
     v15 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v16 = add v15, 32
     v17 = mload v16
@@ -486,7 +486,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v19 = mload v18
     v20 = memory_object_load_field memorystruct<5>, v0, 1
     v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffff
-    v22 = internal_call @fetchRich, 3, v21
+    v22 = icall @fetchRich, 3, v21
     v23 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v24 = add v23, 32
     v25 = mload v24
@@ -521,7 +521,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v44 = mload v43
     v45 = memory_object_load_field memorystruct<5>, v0, 0
     v46 = and v45, 0xffffffffffffffffffffffffffffffffffffffff
-    v47 = internal_call @fetchRich, 3, v46
+    v47 = icall @fetchRich, 3, v46
     v48 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v49 = add v48, 32
     v50 = mload v49
@@ -529,7 +529,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     v52 = mload v51
     v53 = memory_object_load_field memorystruct<5>, v0, 1
     v54 = and v53, 0xffffffffffffffffffffffffffffffffffffffff
-    v55 = internal_call @fetchRich, 3, v54
+    v55 = icall @fetchRich, 3, v54
     v56 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v57 = add v56, 32
     v58 = mload v57
@@ -557,10 +557,10 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb33:
     jump bb25
   bb32:
-    internal_call @revert_error, 0, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6800000000000000000000000000000000000000000000000000000000000000
     invalid
   bb30:
-    internal_call @revert_error, 0, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6700000000000000000000000000000000000000000000000000000000000000
     invalid
   bb23:
     v82 = memory_object_load_field memorystruct<3>, v6, 1
@@ -578,10 +578,10 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb25:
     jump bb11
   bb28:
-    internal_call @revert_error, 0, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6600000000000000000000000000000000000000000000000000000000000000
     invalid
   bb26:
-    internal_call @revert_error, 0, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6500000000000000000000000000000000000000000000000000000000000000
     invalid
   bb9:
     v64 = memory_object_load_field memorystruct<3>, v6, 1
@@ -601,10 +601,10 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb22:
     jump bb14
   bb21:
-    internal_call @revert_error, 0, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6400000000000000000000000000000000000000000000000000000000000000
     invalid
   bb19:
-    internal_call @revert_error, 0, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6300000000000000000000000000000000000000000000000000000000000000
     invalid
   bb12:
     v66 = memory_object_load_field memorystruct<3>, v6, 1
@@ -634,7 +634,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     jumpi v100, bb37, bb38
   bb38:
     v101 = sub 0, v52
-    internal_call @settle, 0, v98, v99, v101
+    icall @settle, 0, v98, v99, v101
     jump bb36
   bb36:
     v102 = slt v60, 0
@@ -649,7 +649,7 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
     jumpi v106, bb37, bb42
   bb42:
     v107 = sub 0, v60
-    internal_call @settle, 0, v104, v105, v107
+    icall @settle, 0, v104, v105, v107
     jump bb41
   bb41:
     v108 = sgt v52, 0
@@ -725,28 +725,28 @@ fn @goRich() -> u256 [selector=0xfcf1ec3b, abi_params=[], abi_returns=[word]] {
   bb61:
     ret 2
   bb60:
-    internal_call @revert_error, 0, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
+    icall @revert_error, 0, 22, 0x746f6f6b2077726f6e67207269636820616d6f756e7400000000000000000000
     invalid
   bb55:
-    internal_call @revert_error, 0, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
+    icall @revert_error, 0, 17, 0x77726f6e672063616c6c20726573756c74000000000000000000000000000000
     invalid
   bb37:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb17:
-    internal_call @revert_error, 0, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6200000000000000000000000000000000000000000000000000000000000000
     invalid
   bb15:
-    internal_call @revert_error, 0, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 1, 0x6100000000000000000000000000000000000000000000000000000000000000
     invalid
   bb7:
     revert 0, 0
   bb3:
-    internal_call @revert_error, 0, 7, 0x6265666f72653100000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 7, 0x6265666f72653100000000000000000000000000000000000000000000000000
     invalid
   bb1:
-    internal_call @revert_error, 0, 7, 0x6265666f72653000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 7, 0x6265666f72653000000000000000000000000000000000000000000000000000
     invalid
 }
 

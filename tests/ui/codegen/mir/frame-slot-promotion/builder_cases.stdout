@@ -56,11 +56,11 @@
       ret v2
   }
   
-  fn @internal_call() -> u256 {
+  fn @icall() -> u256 {
     bb0:
       v0 = internal_frame_addr 128
 -     mstore v0, 42
-      internal_call @callee, 0
+      icall @callee, 0
 -     v1 = mload v0
 -     ret v1
 +     ret 42

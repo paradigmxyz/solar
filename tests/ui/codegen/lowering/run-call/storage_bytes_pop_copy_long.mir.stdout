@@ -114,7 +114,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     v71 = alloc memorybytes, exact, zeroed, panic, v70
     set_memory_object_len memorybytes, v71, v66
     memory_object_copy memorybytes, v71, memorybytes, v55, v66
-    internal_call @store_storage_bytes, 0, 0, v71
+    icall @store_storage_bytes, 0, 0, v71
     jump bb26
   bb26:
     jump bb23
@@ -187,7 +187,7 @@ fn @test() -> memorybytes [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     set_memory_object_len memorybytes, v34, v28
     memory_object_copy memorybytes, v34, memorybytes, v18, v27
     memory_object_store_byte memorybytes, v34, v27, v3
-    internal_call @store_storage_bytes, 0, 0, v34
+    icall @store_storage_bytes, 0, 0, v34
     jump bb6
   bb6:
     jump bb3
@@ -324,7 +324,7 @@ fn @testNoPop() -> memorybytes [selector=0xa43e8948, abi_params=[], abi_returns=
     set_memory_object_len memorybytes, v34, v28
     memory_object_copy memorybytes, v34, memorybytes, v18, v27
     memory_object_store_byte memorybytes, v34, v27, v3
-    internal_call @store_storage_bytes, 0, 0, v34
+    icall @store_storage_bytes, 0, 0, v34
     jump bb6
   bb6:
     jump bb3
@@ -415,7 +415,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     v67 = alloc memorybytes, exact, zeroed, panic, v66
     set_memory_object_len memorybytes, v67, v62
     memory_object_copy memorybytes, v67, memorybytes, v51, v62
-    internal_call @store_storage_bytes, 0, 0, v67
+    icall @store_storage_bytes, 0, 0, v67
     v68 = sload 0 !metadata(storage=slot(0))
     v69 = and v68, 1
     v70 = eq v69, 1
@@ -534,7 +534,7 @@ fn @testOnePop() -> u8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<u8
     set_memory_object_len memorybytes, v34, v28
     memory_object_copy memorybytes, v34, memorybytes, v18, v27
     memory_object_store_byte memorybytes, v34, v27, v3
-    internal_call @store_storage_bytes, 0, 0, v34
+    icall @store_storage_bytes, 0, 0, v34
     jump bb6
   bb6:
     jump bb3
@@ -610,7 +610,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

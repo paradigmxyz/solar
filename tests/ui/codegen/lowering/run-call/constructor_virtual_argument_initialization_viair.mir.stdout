@@ -22,7 +22,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
 @module ConstructorVirtualArgumentInitialization
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @f, 1
+    v0 = icall @f, 1
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
   bb1:

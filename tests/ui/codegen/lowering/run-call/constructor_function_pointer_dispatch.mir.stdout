@@ -2,8 +2,8 @@
 @module ConstructorFunctionPointerDispatch
 fn @constructor() [constructor] {
   bb0:
-    internal_call @internal_dispatcher_p_bytes6_r_none, 0, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
-    internal_call @applyShift, 0, 4, 3
+    icall @internal_dispatcher_p_bytes6_r_none, 0, 3, 0x6162636465660000000000000000000000000000000000000000000000000000
+    icall @applyShift, 0, 4, 3
     stop
 }
 
@@ -40,7 +40,7 @@ fn @applyShift(arg0: function, arg1: u256) {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffff
     v2 = shl 208, v1
-    v3 = internal_call @internal_dispatcher_p_bytes6_u256_r_bytes6, 1, arg0, v2, arg1
+    v3 = icall @internal_dispatcher_p_bytes6_u256_r_bytes6, 1, arg0, v2, arg1
     v4 = and v3, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = not 0xffffffffffff
@@ -74,7 +74,7 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: function, arg1: bytes6) [function_
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    internal_call @setName, 0, arg1
+    icall @setName, 0, arg1
     ret
 }
 
@@ -87,6 +87,6 @@ fn @internal_dispatcher_p_bytes6_u256_r_bytes6(arg0: function, arg1: bytes6, arg
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @leftByteShift, 1, arg1, arg2
+    v1 = icall @leftByteShift, 1, arg1, arg2
     ret v1
 }

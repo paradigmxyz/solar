@@ -136,7 +136,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0x4b1
     set_memory_object_len memoryarray, v33, v14
     v34 = make_calldata_slice v15, v25
     memory_object_copy_from_slice memoryarray, v33, v34
-    v35 = internal_call @first, 1, v33
+    v35 = icall @first, 1, v33
     ret v35
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

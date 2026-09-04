@@ -327,7 +327,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = internal_call @load_storage_packed_array_2_0, 1, 0
+    v6 = icall @load_storage_packed_array_2_0, 1, 0
     v7 = sload 1 !metadata(storage=slot(1))
     v8 = add v7, 1
     v9 = lt v8, v7

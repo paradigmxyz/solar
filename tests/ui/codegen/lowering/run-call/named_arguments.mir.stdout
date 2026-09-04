@@ -35,13 +35,13 @@ fn @a(arg0: u256, arg1: u256, arg2: u256) -> u256 [pure] {
 
 fn @b() -> u256 [selector=0x4df7e3d0, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @a, 1, 1, 2, 3
+    v0 = icall @a, 1, 1, 2, 3
     ret v0
 }
 
 fn @c() -> u256 [selector=0xc3da42b8, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @a, 1, 1, 2, 3
+    v0 = icall @a, 1, 1, 2, 3
     ret v0
 }
 
@@ -51,7 +51,7 @@ fn @d() -> u256 [selector=0x8a054ac2, pure, abi_params=[], abi_returns=[word]] {
     v1 = iszero v0
     jumpi v1, bb2, bb3
   bb3:
-    v2 = internal_call @a, 1, 0, 0, 7
+    v2 = icall @a, 1, 0, 0, 7
     jump bb4
   bb4:
     jump bb1
@@ -108,8 +108,8 @@ fn @take(arg0: u256, arg1: u256) -> u256 [pure] {
 fn @structNamed() -> u256 [selector=0x486a2e72, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = internal_call @tick, 1, 1
-    v2 = internal_call @tick, 1, 2
+    v1 = icall @tick, 1, 1
+    v2 = icall @tick, 1, 2
     memory_object_store_field memorystruct<2>, v0, 0, v2
     memory_object_store_field memorystruct<2>, v0, 1, v1
     v3 = memory_object_load_field memorystruct<2>, v0, 0
@@ -155,8 +155,8 @@ fn @structNamed() -> u256 [selector=0x486a2e72, abi_params=[], abi_returns=[word
 fn @structPositional() -> u256 [selector=0xa99479b5, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = internal_call @tick, 1, 1
-    v2 = internal_call @tick, 1, 2
+    v1 = icall @tick, 1, 1
+    v2 = icall @tick, 1, 2
     memory_object_store_field memorystruct<2>, v0, 0, v1
     memory_object_store_field memorystruct<2>, v0, 1, v2
     v3 = memory_object_load_field memorystruct<2>, v0, 0
@@ -201,9 +201,9 @@ fn @structPositional() -> u256 [selector=0xa99479b5, abi_params=[], abi_returns=
 
 fn @callNamed() -> u256 [selector=0x89fca8e0, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @tick, 1, 1
-    v1 = internal_call @tick, 1, 2
-    v2 = internal_call @take, 1, v1, v0
+    v0 = icall @tick, 1, 1
+    v1 = icall @tick, 1, 2
+    v2 = icall @take, 1, v1, v0
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = mul v3, 100
     v5 = iszero 100
@@ -226,9 +226,9 @@ fn @callNamed() -> u256 [selector=0x89fca8e0, abi_params=[], abi_returns=[word]]
 
 fn @callPositional() -> u256 [selector=0xac93a445, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @tick, 1, 1
-    v1 = internal_call @tick, 1, 2
-    v2 = internal_call @take, 1, v0, v1
+    v0 = icall @tick, 1, 1
+    v1 = icall @tick, 1, 2
+    v2 = icall @take, 1, v0, v1
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = mul v3, 100
     v5 = iszero 100
@@ -253,8 +253,8 @@ fn @externalNamed() -> u256 [selector=0x1747fe5f, abi_params=[], abi_returns=[wo
   bb0:
     v0 = address
     v1 = gas
-    v2 = internal_call @tick, 1, 1
-    v3 = internal_call @tick, 1, 2
+    v2 = icall @tick, 1, 1
+    v3 = icall @tick, 1, 2
     v4 = abi_encode [word, word], selector 0xba2f355f00000000000000000000000000000000000000000000000000000000, args v3, v2
     v5 = slice_ptr v4
     v6 = slice_len v4
@@ -275,8 +275,8 @@ fn @receivePair(arg0: u256, arg1: u256) [selector=0xba2f355f, pure, abi_params=[
 fn @memoryStructNamed() -> u256 [selector=0x7b7c1324, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    v1 = internal_call @tick, 1, 1
-    v2 = internal_call @tick, 1, 2
+    v1 = icall @tick, 1, 1
+    v2 = icall @tick, 1, 2
     memory_object_store_field memorystruct<2>, v0, 0, v2
     memory_object_store_field memorystruct<2>, v0, 1, v1
     v3 = sload 0 !metadata(storage=slot(0))
@@ -315,8 +315,8 @@ fn @memoryStructNamed() -> u256 [selector=0x7b7c1324, abi_params=[], abi_returns
 
 fn @eventNamed() -> u256 [selector=0xab104c47, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @tick, 1, 1
-    v1 = internal_call @tick, 1, 2
+    v0 = icall @tick, 1, 1
+    v1 = icall @tick, 1, 2
     v2 = abi_encode [word, word], args v1, v0
     v3 = slice_ptr v2
     v4 = slice_len v2

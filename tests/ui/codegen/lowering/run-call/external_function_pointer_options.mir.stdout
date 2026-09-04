@@ -84,9 +84,9 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v4 = shl 224, v3
     v5 = shr 32, v2
     v6 = gas
-    v7 = internal_call @gasOpt, 1
-    v8 = internal_call @valueOpt, 1
-    v9 = internal_call @arg, 1
+    v7 = icall @gasOpt, 1
+    v8 = icall @valueOpt, 1
+    v9 = icall @arg, 1
     v10 = abi_encode [word], selector v4, args v9
     v11 = slice_ptr v10
     v12 = slice_len v10

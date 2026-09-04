@@ -5,7 +5,7 @@
 @module InternalFunctionPointerLibrary
 fn @f(arg0: memoryarray) -> u256 [selector=0x7bc5bbbf, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @reduce, 1, arg0, 2, 0
+    v0 = icall @reduce, 1, arg0, 2, 0
     ret v0
 }
 
@@ -32,7 +32,7 @@ fn @reduce(arg0: memoryarray, arg1: function, arg2: u256) -> u256 {
     jumpi v9, bb7, bb8
   bb8:
     v10 = memory_object_load_element memoryarray<1>, v2, v1
-    v11 = internal_call @internal_dispatcher_p_u256_u256_r_u256, 1, v4, v10, v0
+    v11 = icall @internal_dispatcher_p_u256_u256_r_u256, 1, v4, v10, v0
     jump bb6
   bb6:
     jump bb3
@@ -74,6 +74,6 @@ fn @internal_dispatcher_p_u256_u256_r_u256(arg0: function, arg1: u256, arg2: u25
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @sum, 1, arg1, arg2
+    v1 = icall @sum, 1, arg1, arg2
     ret v1
 }

@@ -29,7 +29,7 @@ fn @factory.0() [selector=0x1af91295, pure] {
     v8 = gt 256, v7
     jumpi v8, bb1, bb4
   bb4:
-    v0 = internal_call @factory.3, 1, v4, 32
+    v0 = icall @factory.3, 1, v4, 32
     v10 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 128, v10
     returndata 128, 32
@@ -53,7 +53,7 @@ fn @tailHash.1() [selector=0x9850c81b, pure] {
     v8 = gt 256, v7
     jumpi v8, bb1, bb4
   bb4:
-    v0 = internal_call @tailHash.4, 1, v4, 32
+    v0 = icall @tailHash.4, 1, v4, 32
     mstore 128, v0
     returndata 128, 32
   bb1:
@@ -76,7 +76,7 @@ fn @midWord.2() [selector=0xbb6106d2, pure] {
     v8 = gt 256, v7
     jumpi v8, bb1, bb4
   bb4:
-    v0 = internal_call @midWord.5, 1, v4, 32
+    v0 = icall @midWord.5, 1, v4, 32
     mstore 128, v0
     returndata 128, 32
   bb1:

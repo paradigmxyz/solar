@@ -30,7 +30,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v8 = memory_object_data memorybytes, v7
     mstore v8, 0x112233445566778899aabbccddeeff0000000000000000000000000000000000
     v9 = shl 0, 1
-    v10 = internal_call @_cloneDeterministic, 1, v6, v7, v9
+    v10 = icall @_cloneDeterministic, 1, v6, v7, v9
     v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffff
     v12 = gas
     v13 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
@@ -55,7 +55,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb8:
     ret 1
   bb7:
-    internal_call @revert_error, 0, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x70726f7879000000000000000000000000000000000000000000000000000000
     invalid
   bb5:
     revert 0, 0
@@ -63,7 +63,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
 
 fn @_cloneDeterministic(arg0: address, arg1: memorybytes, arg2: bytes32) -> address {
   bb0:
-    v0 = internal_call @_creationStart, 1, arg1
+    v0 = icall @_creationStart, 1, arg1
     v1 = sub arg1, 96
     v2 = mload v1
     v3 = sub arg1, 64

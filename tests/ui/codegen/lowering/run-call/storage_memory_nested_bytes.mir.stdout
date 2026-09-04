@@ -13,7 +13,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb2:
     v5 = storage_array_data_slot 0
     v6 = add v5, v2
-    internal_call @store_storage_bytes, 0, v6, v0
+    icall @store_storage_bytes, 0, v6, v0
     sstore 0, v3 !metadata(storage=slot(0))
     v7 = not 31
     v8 = and 103, v7
@@ -45,9 +45,9 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
   bb5:
     v27 = storage_array_data_slot 0
     v28 = add v27, v24
-    internal_call @store_storage_bytes, 0, v28, v9
+    icall @store_storage_bytes, 0, v28, v9
     sstore 0, v25 !metadata(storage=slot(0))
-    v29 = internal_call @load_storage_bytes_array, 1, 0
+    v29 = icall @load_storage_bytes_array, 1, 0
     v30 = memory_object_len memoryarray, v29
     v31 = lt 0, v30
     v32 = iszero v31
@@ -198,7 +198,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -287,7 +287,7 @@ fn @load_storage_bytes_array(arg0: u256) -> memoryarray {
     ret v9
   bb5:
     v13 = add v10, v11
-    v14 = internal_call @load_storage_bytes, 1, v13
+    v14 = icall @load_storage_bytes, 1, v13
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v15 = add v11, 1
     jump bb4

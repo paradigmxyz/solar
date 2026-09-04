@@ -37,7 +37,7 @@ fn build_storage_array_helper(function: &mut Function, element: StorageArrayElem
         let value = match element {
             StorageArrayElement::Bytes(helper) => {
                 let element_slot = builder.add(data_slot, index);
-                builder.internal_call(
+                builder.icall(
                     helper,
                     vec![element_slot],
                     MirType::MemoryObject(MemoryObjectKind::Bytes),
@@ -182,7 +182,7 @@ fn build_storage_bytes_store_helper(function: &mut Function, clear_helper: Funct
     //     clear_storage_words(slot, new_words, old_words)
     // }
     builder.switch_to_block(cleanup_block);
-    builder.internal_call_void(clear_helper, vec![slot, new_words, old_words], 0);
+    builder.icall_void(clear_helper, vec![slot, new_words, old_words], 0);
     builder.jump(write_block);
 
     builder.switch_to_block(write_block);
@@ -1072,7 +1072,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let element_words = self.types.element_words(element);
         if let Some(helper) = self.ensure_storage_array_helper(element) {
             let layout = MemoryObjectLayout::DynamicArray { element_words };
-            return Some(self.builder.internal_call(
+            return Some(self.builder.icall(
                 helper,
                 vec![slot],
                 MirType::MemoryObject(layout.kind()),
@@ -1138,7 +1138,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         },
                         span,
                     )?;
-                    self.builder.internal_call_void(helper, vec![slot, object], 0);
+                    self.builder.icall_void(helper, vec![slot, object], 0);
                     return Some(());
                 }
                 self.store_storage_struct_fields_with_source(
@@ -1209,12 +1209,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return lower_storage_bytes_inline(&mut self.builder, slot);
         }
         let helper = self.ensure_storage_bytes_helper();
-        self.builder.internal_call(
-            helper,
-            vec![slot],
-            MirType::MemoryObject(MemoryObjectKind::Bytes),
-            1,
-        )
+        self.builder.icall(helper, vec![slot], MirType::MemoryObject(MemoryObjectKind::Bytes), 1)
     }
 
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
@@ -1224,7 +1219,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             build_storage_bytes_store_helper(function, clear_helper);
             Some(())
         })?;
-        self.builder.internal_call_void(helper, vec![slot, object], 0);
+        self.builder.icall_void(helper, vec![slot, object], 0);
         Some(())
     }
 
@@ -1243,7 +1238,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         words: ValueId,
     ) {
         let helper = self.storage_clear_helper();
-        self.builder.internal_call_void(helper, vec![slot, first_word, words], 0);
+        self.builder.icall_void(helper, vec![slot, first_word, words], 0);
     }
 
     fn store_constant_storage_bytes(&mut self, slot: ValueId, bytes: &[u8]) {
@@ -1523,7 +1518,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         RecursiveStorageHelper::Clear { target: struct_id },
                         span,
                     )?;
-                    self.builder.internal_call_void(helper, vec![access.slot], 0);
+                    self.builder.icall_void(helper, vec![access.slot], 0);
                 } else {
                     self.clear_storage_struct_fields(struct_id, access.slot, span)?;
                 }

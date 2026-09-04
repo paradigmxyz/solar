@@ -409,7 +409,7 @@ impl LoopOptimizer {
                         | InstKind::ExtCall { .. }
                         | InstKind::ExtDelegateCall { .. }
                         | InstKind::ExtStaticCall { .. }
-                        | InstKind::InternalCall { .. }
+                        | InstKind::ICall { .. }
                         | InstKind::Create(_, _, _)
                         | InstKind::Create2(_, _, _, _)
                 )
@@ -598,7 +598,7 @@ impl LoopOptimizer {
                 matches!(
                     func.inst(inst_id).kind,
                     InstKind::StoreImmutable(id, _) if id == load_id
-                ) || matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
+                ) || matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
             })
         })
     }

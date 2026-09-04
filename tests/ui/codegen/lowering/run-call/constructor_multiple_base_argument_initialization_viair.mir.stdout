@@ -30,8 +30,8 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
 @module ConstructorMultipleBaseArgumentInitialization
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @touchA, 1
-    v1 = internal_call @touchB, 1
+    v0 = icall @touchA, 1
+    v1 = icall @touchB, 1
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
   bb1:

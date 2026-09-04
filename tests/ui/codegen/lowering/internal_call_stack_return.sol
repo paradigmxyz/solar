@@ -10,13 +10,13 @@
 //@ run-call: nestedAcross 2 => 218
 //@ run-call: multiAcross 2 => 0
 
-contract InternalCallStackReturn {
+contract ICallStackReturn {
     uint256 private state;
 
     // Capture the dispatch targets in their hash-bucket order so checks remain independent of
     // block numbering. Equivalent one-result entries share one block after the late structural
     // sweep, while stateful, nested, and multi-operand callers retain their specialized layouts.
-    // GAS-LABEL: @module InternalCallStackReturn_runtime
+    // GAS-LABEL: @module ICallStackReturn_runtime
     // GAS: push 0xf368aee0
     // GAS-NEXT: eq
     // GAS-NEXT: push [[VOID_ENTRY:bb[0-9]+]]
@@ -66,7 +66,7 @@ contract InternalCallStackReturn {
     // frame slot. Five operations keep each leaf above the tiny-leaf inlining threshold so these
     // checks exercise the internal-call conventions.
     //
-    // SIZE-LABEL: @module InternalCallStackReturn_runtime
+    // SIZE-LABEL: @module ICallStackReturn_runtime
     // SIZE: push 11
     // SIZE-NEXT: mul
     // SIZE-NEXT: swap1
