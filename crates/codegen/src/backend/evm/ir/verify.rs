@@ -155,6 +155,7 @@ impl<'a> Verifier<'a> {
             for inst in &block.instructions {
                 self.verify_instruction_shape(block_id, module, inst);
             }
+            self.verify_keep_with_next(block_id, block);
             let Some(term) = &block.terminator else {
                 self.error_in_block(block_id, "missing terminator");
                 continue;
@@ -171,6 +172,59 @@ impl<'a> Verifier<'a> {
         }
 
         self.dcx.err_count() == errors_before
+    }
+
+    /// Verifies every sequence `keep_with_next` glues together.
+    ///
+    /// The flag forbids both a block boundary and an inserted instruction after the instruction
+    /// carrying it, and neither is any use unless the successor is still the instruction the
+    /// sequence needs. The only sequence lowering glues is a pre-EIP-150 call's `GAS`-relative
+    /// gas reserve, `push <reserve>; gas; sub; <call>`, whose margin pays for the `sub` and the
+    /// call setup alone, so the pair is checked by shape: a glued `gas` is followed by a glued
+    /// `sub`, and a glued `sub` by the call opcode itself. Anything else carrying the flag has no
+    /// rule to check it and is rejected, which keeps a new use of the flag from passing
+    /// verification unverified.
+    fn verify_keep_with_next(&self, block_id: BlockId, block: &Block) {
+        const CALLS: [u8; 4] = [op::CALL, op::CALLCODE, op::DELEGATECALL, op::STATICCALL];
+        for (index, inst) in block.instructions.iter().enumerate() {
+            if !inst.keeps_with_next() {
+                continue;
+            }
+            let Some(next) = block.instructions.get(index + 1) else {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "`{}` must be followed by the instruction it is kept with",
+                        inst.mnemonic()
+                    ),
+                );
+                continue;
+            };
+            let expected = match inst.opcode {
+                op::GAS if next.opcode == op::SUB && next.keeps_with_next() => continue,
+                op::GAS => "a `sub` kept with the call",
+                op::SUB if CALLS.contains(&next.opcode) => continue,
+                op::SUB => "a call",
+                _ => {
+                    self.error_in_block(
+                        block_id,
+                        format_args!(
+                            "`{}` cannot be kept with a next instruction",
+                            inst.mnemonic()
+                        ),
+                    );
+                    continue;
+                }
+            };
+            self.error_in_block(
+                block_id,
+                format_args!(
+                    "`{}` is kept with the next instruction, which must be {expected}, not `{}`",
+                    inst.mnemonic(),
+                    next.mnemonic()
+                ),
+            );
+        }
     }
 
     fn verify_instruction_shape(&self, block_id: BlockId, module: &Module, inst: &Instruction) {
@@ -324,6 +378,12 @@ impl<'a> Verifier<'a> {
     fn verify_terminator_shape(&self, block_id: BlockId, term: &Terminator) {
         if matches!(&term.kind, TerminatorKind::IndexedJump(targets) if targets.is_empty()) {
             self.error_in_block(block_id, "`indexed_jump` must have at least one target");
+        }
+        if term.metadata.keep_with_next {
+            self.error_in_block(
+                block_id,
+                format_args!("terminator `{}` cannot be kept with a next instruction", term.kind),
+            );
         }
         if let TerminatorKind::Op(opcode) = &term.kind
             && !op::is_terminal(*opcode)

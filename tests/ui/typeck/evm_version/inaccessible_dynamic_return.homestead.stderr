@@ -1,0 +1,119 @@
+error[9553]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         (keccak256(I(a).dyn()), uint256(1));
+   │                    ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[7407]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         (b, ) = (I(a).dyn(), uint256(1));
+   │                  ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[9574]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         bytes memory b = I(a).dyn();
+   │                          ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[9574]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         uint256[] memory c = I(a).dynArray();
+   │                              ━━━━━━━━━━━━━━━
+   │
+   ├ note: the call returns `uint256[] memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[9574]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         S memory s = I(a).dynStruct();
+   │                      ━━━━━━━━━━━━━━━━
+   │
+   ├ note: the call returns `struct S memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[9574]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         bytes[2] memory f = I(a).dynFixed();
+   │                             ━━━━━━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes[2] memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[6359]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         return I(a).dyn();
+   │                ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[9553]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         return keccak256(I(a).dyn());
+   │                          ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[7407]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         I(a).dyn().length;
+   │         ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[6509]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         try I(a).dyn() returns (bytes memory b) {
+   │             ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[6509]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         try I(a).mixed() returns (uint256 v, bytes memory b) {
+   │             ━━━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[9574]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         bytes memory b = p();
+   │                          ━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[9574]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         bytes memory b = L.dyn();
+   │                          ━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error: aborting due to 13 previous errors
+

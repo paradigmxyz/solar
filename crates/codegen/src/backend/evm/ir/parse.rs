@@ -498,6 +498,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let depth = u32::try_from(depth)
                     .map_err(|_| self.parser.error("modifier depth does not fit in u32"))?;
                 metadata.set_modifier_depth(depth);
+            } else if key == sym::keep_with_next {
+                metadata.keep_with_next = true;
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }

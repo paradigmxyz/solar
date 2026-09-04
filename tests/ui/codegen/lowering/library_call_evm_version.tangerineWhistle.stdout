@@ -1,0 +1,311 @@
+// === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:Lib ===
+@module Lib
+fn @dbl(arg0: u256) -> u256 [selector=0x5d2a6863, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul 2, arg0
+    v1 = iszero arg0
+    v2 = div v0, arg0
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @pair(arg0: u256) -> (u256, u256) [selector=0x645751af, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0, v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @arr(arg0: u256) -> memoryfixedarray [selector=0x71e5ee5f, pure, abi_params=[u256], abi_returns=[array<2, word>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v1, 0, arg0
+    memory_object_store_element memoryfixedarray<2, 1>, v1, 1, arg0
+    ret v1
+}
+
+fn @flag(arg0: u256) -> bool [selector=0xbb760a75, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    ret v1
+}
+
+fn @flagged(arg0: u256) -> memorystruct [selector=0xa370c668, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 0
+    v1 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v2 = eq arg0, 0
+    v3 = iszero v2
+    v4 = eq v3, 0
+    v5 = iszero v4
+    memory_object_store_field memorystruct<2>, v1, 0, v5
+    memory_object_store_field memorystruct<2>, v1, 1, arg0
+    ret v1
+}
+
+fn @total(arg0: storageptr) -> u256 [selector=0xa2fc82bf, view, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v0
+}
+
+fn @noret(arg0: u256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @six(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    ret v0, 1, 2, 3, 4, 5
+}
+
+// === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
+@module C
+fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], selector 0x5d2a686300000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = add v1, 0
+    v10 = mload v9
+    ret v10
+  bb1:
+    revert 0, 0
+}
+
+fn @two(arg0: u256) -> (u256, u256) [selector=0xcf2a8612, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = abi_encode [word], selector 0x645751af00000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 64
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = add v1, 32
+    v10 = mload v9
+    frame_store multi_return, word, 0, v1 !metadata(memory=scratch)
+    v11 = add v1, 0
+    v12 = mload v11
+    v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v14 = add v13, 32
+    v15 = mload v14
+    ret v12, v15
+  bb1:
+    revert 0, 0
+}
+
+fn @aggregate(arg0: u256) -> memoryfixedarray [selector=0x407b7269, pure, abi_params=[u256], abi_returns=[array<2, word>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v1, 64
+    v2 = memory_object_data memorybytes, v1
+    v3 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = gas
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = delegatecall v6, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
+    jumpi v9, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    mcopy v2, v4, 64
+    v10 = abi_decode [array<2, u256>], v1
+    ret v10
+  bb1:
+    revert 0, 0
+}
+
+fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode [word], selector 0xbb760a7500000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = iszero v8
+    v10 = iszero v9
+    v11 = eq v8, v10
+    v12 = iszero v11
+    jumpi v12, bb1, bb5
+  bb5:
+    v13 = add v1, 0
+    v14 = mload v13
+    ret v14
+  bb1:
+    revert 0, 0
+}
+
+fn @structBool(arg0: u256) -> memorystruct [selector=0x199436a8, pure, abi_params=[u256], abi_returns=[tuple<word<bool>, word>], abi_return_params=[tuple<bool, u256>]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 0
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v1, 64
+    v2 = memory_object_data memorybytes, v1
+    v3 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = gas
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = delegatecall v6, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
+    jumpi v9, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    mcopy v2, v4, 64
+    v10 = abi_decode [tuple<bool, u256>], v1
+    ret v10
+  bb1:
+    revert 0, 0
+}
+
+fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], selector 0xa2fc82bf00000000000000000000000000000000000000000000000000000000, args 0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = add v1, 0
+    v10 = mload v9
+    ret v10
+  bb1:
+    revert 0, 0
+}
+
+fn @dynamicArgument(arg0: memorybytes) -> (u256, u256) [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word]] {
+  bb0:
+    v0 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 192
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = add v1, 32
+    v10 = mload v9
+    v11 = add v1, 64
+    v12 = mload v11
+    v13 = add v1, 96
+    v14 = mload v13
+    v15 = add v1, 128
+    v16 = mload v15
+    v17 = add v1, 160
+    v18 = mload v17
+    frame_store multi_return, word, 0, v1 !metadata(memory=scratch)
+    v19 = add v1, 0
+    v20 = mload v19
+    v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v22 = add v21, 32
+    v23 = mload v22
+    v24 = add v21, 64
+    v25 = mload v24
+    v26 = add v21, 96
+    v27 = mload v26
+    v28 = add v21, 128
+    v29 = mload v28
+    v30 = add v21, 160
+    v31 = mload v30
+    ret v20, v31
+  bb1:
+    revert 0, 0
+}
+
+fn @none(arg0: u256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode [word], selector 0x89b964400000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 0
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    revert 0, 0
+}

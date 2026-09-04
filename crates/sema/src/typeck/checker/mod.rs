@@ -11,11 +11,13 @@ use alloy_primitives::U256;
 use solar_ast::{
     DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
-use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
+use solar_data_structures::{
+    Never, bit_set::DenseBitSet, map::FxHashMap, pluralize, smallvec::SmallVec,
+};
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -68,6 +70,41 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
+    /// The value components the enclosing statement discards, by expression.
+    ///
+    /// Only populated before Byzantium, where a dynamically encoded external return value is
+    /// inaccessible and only a discarded one is legal.
+    discarded: FxHashMap<hir::ExprId, Discarded>,
+    /// Where the value of the expression being checked is used.
+    value_position: ValuePosition,
+}
+
+/// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
+/// call's inaccessible dynamically encoded return value.
+///
+/// solc gives such a call an inaccessible dynamic type and then reports the ordinary conversion
+/// error of the position the value is used in, and every position has a code of its own.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum ValuePosition {
+    /// Any other expression, a member access on the value included, which solc reports as 7407.
+    #[default]
+    Expression,
+    /// A variable declaration's initializer, which solc reports as 9574.
+    VariableDeclaration,
+    /// A `return` statement's value, which solc reports as 6359.
+    Return,
+    /// A call argument, which solc reports as 9553.
+    Argument,
+    /// A `try ... returns` clause's binding, which solc reports as 6509.
+    TryReturns,
+}
+
+/// The components of an expression's value that a statement discards.
+enum Discarded {
+    /// The whole value, as in an expression statement or a `try` without a `returns` clause.
+    All,
+    /// The components a tuple destructuring drops, by index.
+    Components(DenseBitSet<usize>),
 }
 
 #[derive(Clone, Copy)]
@@ -94,6 +131,8 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
+            discarded: FxHashMap::default(),
+            value_position: ValuePosition::default(),
         }
     }
 
@@ -102,11 +141,21 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn emit_evm_version_error(&self, span: Span, feature: &str, required: EvmVersion) {
+        self.evm_version_error(span, feature, required).emit();
+    }
+
+    /// Builds the diagnostic for a feature the target EVM version does not have. Callers that
+    /// mirror a solc diagnostic attach its code before emitting.
+    fn evm_version_error(
+        &self,
+        span: Span,
+        feature: &str,
+        required: EvmVersion,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         self.dcx()
             .err(format!("{feature} requires {required:?}-compatible EVM"))
             .span(span)
             .help(format!("compile with `--evm-version {required}` or newer"))
-            .emit();
     }
 
     fn check_res_evm_version(&self, res: hir::Res, span: Span) {
@@ -363,6 +412,9 @@ impl<'gcx> TypeChecker<'gcx> {
                         if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                         }
+                        // Keep the declared return type: the value is unusable, but an error
+                        // type here would only hide the checks its uses still go through.
+                        let _ = self.check_inaccessible_dynamic_return(expr, f);
                         self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
@@ -823,6 +875,15 @@ impl<'gcx> TypeChecker<'gcx> {
         lhs_ty: Ty<'gcx>,
         rhs: &'gcx hir::Expr<'gcx>,
     ) {
+        if let hir::ExprKind::Tuple(components) = lhs.peel_parens().kind {
+            let mut dropped = DenseBitSet::new_empty(components.len());
+            for (index, component) in components.iter().enumerate() {
+                if component.is_none() {
+                    dropped.insert(index);
+                }
+            }
+            self.discard(rhs, Discarded::Components(dropped));
+        }
         let rhs_ty = self.check_expr(rhs);
         self.check_tuple_assign_rhs_components(lhs, lhs_ty, rhs, rhs_ty);
     }
@@ -1181,6 +1242,83 @@ impl<'gcx> TypeChecker<'gcx> {
         Err(err)
     }
 
+    /// Records the components of `expr`'s value that the enclosing statement discards.
+    ///
+    /// Does nothing from Byzantium on, where every return value is accessible.
+    fn discard(&mut self, expr: &'gcx hir::Expr<'gcx>, discarded: Discarded) {
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            return;
+        }
+        let expr = expr.peel_parens();
+        // The components of a tuple expression are values of their own, so a discarded one is
+        // discarded whole, however deeply the tuples nest.
+        if let hir::ExprKind::Tuple(exprs) = expr.kind {
+            for (index, expr) in exprs.iter().enumerate() {
+                if let Some(expr) = expr
+                    && match &discarded {
+                        Discarded::All => true,
+                        Discarded::Components(components) => components.contains(index),
+                    }
+                {
+                    self.discard(expr, Discarded::All);
+                }
+            }
+            return;
+        }
+        self.discarded.insert(expr.id, discarded);
+    }
+
+    /// Rejects a use of an external call's dynamically encoded return value before Byzantium.
+    ///
+    /// Without `RETURNDATASIZE` the size of such a value is unknowable, so solc gives it an
+    /// inaccessible dynamic type (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the
+    /// call itself is legal and only reading the value is not. The other return values stay
+    /// accessible, so a tuple destructuring that drops the dynamic ones is legal too.
+    ///
+    /// solc reports the ordinary conversion error of the position the value is used in, so the
+    /// code comes from [`ValuePosition`] rather than being one code for every use.
+    fn check_inaccessible_dynamic_return(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+        f: &'gcx TyFn<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.gcx.sess.opts.evm_version.supports_returndata()
+            || !matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall)
+        {
+            return Ok(());
+        }
+        let discarded = self.discarded.get(&expr.id);
+        if matches!(discarded, Some(Discarded::All)) {
+            return Ok(());
+        }
+        for (index, ty) in f.returns.iter().enumerate() {
+            if !ty.is_dynamically_encoded(self.gcx)
+                || matches!(discarded, Some(Discarded::Components(components)) if components.contains(index))
+            {
+                continue;
+            }
+            let code = match self.value_position {
+                ValuePosition::Expression => error_code!(7407),
+                ValuePosition::VariableDeclaration => error_code!(9574),
+                ValuePosition::Return => error_code!(6359),
+                ValuePosition::Argument => error_code!(9553),
+                ValuePosition::TryReturns => error_code!(6509),
+            };
+            return Err(self
+                .dcx()
+                .err("cannot use the dynamically encoded return value of an external call")
+                .code(code)
+                .span(expr.span)
+                .note(format!(
+                    "the call returns `{}`, whose size is unknowable without `RETURNDATASIZE`",
+                    ty.display(self.gcx)
+                ))
+                .help("discard the value, or compile with `--evm-version byzantium` or newer")
+                .emit());
+        }
+        Ok(())
+    }
+
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
         match returns {
             [] => self.gcx.types.unit,
@@ -1196,14 +1334,18 @@ impl<'gcx> TypeChecker<'gcx> {
         param_tys: &[Ty<'gcx>],
         param_names: Option<CallableParamSource>,
     ) -> Result<(), ErrorGuaranteed> {
-        match args.kind {
+        // An argument's conversion error is solc's 9553, whichever position the call itself is in.
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::Argument);
+        let result = match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
                 self.check_positional_call_args(call_span, args.span, exprs, param_tys)
             }
             hir::CallArgsKind::Named(named_args) => {
                 self.check_named_call_args(call_span, args.span, named_args, param_tys, param_names)
             }
-        }
+        };
+        self.value_position = prev;
+        result
     }
 
     /// Rejects a base constructor whose arguments two contracts of the
@@ -2049,6 +2191,18 @@ impl<'gcx> TypeChecker<'gcx> {
         param_tys: &[Ty<'gcx>],
         param_names: Option<CallableParamSource>,
     ) -> bool {
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::Argument);
+        let matches = self.call_args_match_inner(args, param_tys, param_names);
+        self.value_position = prev;
+        matches
+    }
+
+    fn call_args_match_inner(
+        &mut self,
+        args: &hir::CallArgs<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_names: Option<CallableParamSource>,
+    ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => self.positional_call_args_match(exprs, param_tys),
             hir::CallArgsKind::Named(named_args) => {
@@ -2484,7 +2638,19 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let expected =
             if let &[Some(id)] = decls { Some(self.gcx.type_of_item(id.into())) } else { None };
+        if decls.len() > 1 {
+            let mut dropped = DenseBitSet::new_empty(decls.len());
+            for (index, decl) in decls.iter().enumerate() {
+                if decl.is_none() {
+                    dropped.insert(index);
+                }
+            }
+            self.discard(init, Discarded::Components(dropped));
+        }
+        // A declaration's conversion error is solc's 9574.
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::VariableDeclaration);
         let ty = self.check_expr_with_noexpect(init, expected);
+        self.value_position = prev;
         let value_types =
             if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
 
@@ -2923,6 +3089,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        // Every statement sets the position of the values it uses itself, so no position outlives
+        // the statement that set it.
+        self.value_position = ValuePosition::Expression;
         match stmt.kind {
             hir::StmtKind::DeclSingle(var) => {
                 let init = self.gcx.hir.variable(var).initializer;
@@ -2951,16 +3120,52 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Try(try_) => {
-                if !self.gcx.sess.opts.evm_version.supports_returndata() {
-                    for clause in &try_.clauses[1..] {
-                        if clause.name.is_some() || !clause.args.is_empty() {
-                            self.emit_evm_version_error(
-                                clause.span,
-                                "typed catch clause",
-                                EvmVersion::Byzantium,
-                            );
-                        }
+                let supports_returndata = self.gcx.sess.opts.evm_version.supports_returndata();
+                for clause in &try_.clauses[1..] {
+                    // `Error` and `Panic` are the only clause names there are, at every EVM
+                    // version.
+                    if let Some(name) = clause.name
+                        && name.name != sym::Error
+                        && name.name != sym::Panic
+                    {
+                        self.dcx()
+                            .err("invalid catch clause name")
+                            .code(error_code!(3542))
+                            .span(clause.span)
+                            .help(
+                                "expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`",
+                            )
+                            .emit();
+                        continue;
                     }
+                    if supports_returndata {
+                        continue;
+                    }
+                    // A bare `catch { }` needs no return data and stays accepted; solc
+                    // reports 1812 for `catch Error`/`catch Panic` and 9908 for
+                    // `catch (bytes memory)`.
+                    let code = if clause.name.is_some() {
+                        error_code!(1812)
+                    } else if !clause.args.is_empty() {
+                        error_code!(9908)
+                    } else {
+                        continue;
+                    };
+                    self.evm_version_error(
+                        clause.span,
+                        "typed catch clause",
+                        EvmVersion::Byzantium,
+                    )
+                    .code(code)
+                    .emit();
+                }
+                // A `returns` clause binds the call's values; without one they are discarded.
+                // Binding an inaccessible one is the mismatch solc reports as 6509, and the
+                // walk below checks the call expression before any clause body.
+                if try_.clauses[0].args.is_empty() {
+                    self.discard(&try_.expr, Discarded::All);
+                } else {
+                    self.value_position = ValuePosition::TryReturns;
                 }
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
@@ -3019,6 +3224,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
+            hir::StmtKind::Expr(expr) => {
+                // An expression statement discards its value.
+                self.discard(expr, Discarded::All);
+            }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
                     self.function.map(|id| self.gcx.hir.function(id).returns).unwrap_or_default();
@@ -3031,7 +3240,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                                 ids.iter().map(|&id| self.gcx.type_of_item(id.into())),
                             )),
                         };
+                    // A return value's conversion error is solc's 6359.
+                    let prev = std::mem::replace(&mut self.value_position, ValuePosition::Return);
                     let actual = self.check_expr_with_noexpect(expr, Some(expected));
+                    self.value_position = prev;
                     let _ = self.check_return_expected(expr, actual, expected);
                 } else if !returns.is_empty() {
                     self.dcx().emit_err(stmt.span, "return arguments required");

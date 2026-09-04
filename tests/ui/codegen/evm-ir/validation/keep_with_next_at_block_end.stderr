@@ -1,0 +1,4 @@
+error: EVM IR verification failed: block 0: `gas` must be followed by the instruction it is kept with
+
+error: aborting due to 1 previous error
+

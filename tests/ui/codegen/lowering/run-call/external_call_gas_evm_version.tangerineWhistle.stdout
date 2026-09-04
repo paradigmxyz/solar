@@ -1,0 +1,432 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee ===
+@module CallGasCallee
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+fn @paid() -> u256 [selector=0x295b4e17, payable, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 7
+}
+
+fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    ret 1, 2
+}
+
+fn @eight() -> (u256, u256, u256, u256, u256, u256, u256, u256) [selector=0xcb94343e, pure, abi_params=[], abi_returns=[word, word, word, word, word, word, word, word]] {
+  bb0:
+    ret 1, 2, 3, 4, 5, 6, 7, 8
+}
+
+fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 11
+    v3 = lt 1, 2
+    v4 = iszero v3
+    jumpi v4, bb1, bb3
+  bb3:
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 22
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @receive() [receive, payable] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===
+@module CallGasCalls
+data:
+  CallGasCallee_initcode_0: hex"346010576102038060166000396000f35b60006000fe36600857610202565b6000357c010000000000000000000000000000000000000000000000000000000090048063295b4e1714606b5780633fa4f24514606f5780635dfc2e4a146073578063a8aa1b31146077578063cb94343e14607b578063f5e34bfa14607f576084565b60af565b6094565b6089565b60c1565b60e9565b610143565b600080fe5b34608f57005b600080fe5b3460aa57602a6080526020608001608090036080f35b600080fe5b60076080526020608001608090036080f35b60c06040523460e457600160805260206080016002815260209001608090036080f35b600080fe5b6101806040523461013e57600160805260206080016002815260209001600381526020900160048152602090016005815260209001600681526020900160078152602090016008815260209001608090036080f35b600080fe5b610120604052346101fd576040518060c0528060c05260408101604052604036828060c05237600260001015156101a4575b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fe5b8060c052600b81526002600110156101755760208101601681525060005b8060e05260028110156101ed576020818060e0520282015160208202608001526001810190506101c2565b6040608001915050608090036080f35b600080fe5b"
+
+fn @noReturn() -> u256 [selector=0x31794254, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, v9, 0
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    ret 1
+  bb3:
+    revert 0, 0
+}
+
+fn @withReturn() -> u256 [selector=0x2149184b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, v9, 32
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = add v9, 0
+    v15 = mload v14
+    v16 = add v9, 0
+    v17 = mload v16
+    ret v17
+  bb3:
+    revert 0, 0
+}
+
+fn @withValue() -> u256 [selector=0xd6b69802, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x295b4e1700000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, v9, 32
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = add v9, 0
+    v15 = mload v14
+    v16 = add v9, 0
+    v17 = mload v16
+    ret v17
+  bb3:
+    revert 0, 0
+}
+
+fn @twoReturns() -> u256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, v9, 64
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = add v9, 0
+    v15 = mload v14
+    v16 = add v9, 32
+    v17 = mload v16
+    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
+    v18 = add v9, 0
+    v19 = mload v18
+    v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = mload v21
+    v23 = add v19, v22
+    v24 = lt v23, v19
+    jumpi v24, bb7, bb8
+  bb8:
+    ret v23
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @eightReturns() -> u256 [selector=0x67b0b213, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xcb94343e00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, v9, 256
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = add v9, 0
+    v15 = mload v14
+    v16 = add v9, 32
+    v17 = mload v16
+    v18 = add v9, 64
+    v19 = mload v18
+    v20 = add v9, 96
+    v21 = mload v20
+    v22 = add v9, 128
+    v23 = mload v22
+    v24 = add v9, 160
+    v25 = mload v24
+    v26 = add v9, 192
+    v27 = mload v26
+    v28 = add v9, 224
+    v29 = mload v28
+    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
+    v30 = add v9, 0
+    v31 = mload v30
+    v32 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v33 = add v32, 32
+    v34 = mload v33
+    v35 = add v32, 64
+    v36 = mload v35
+    v37 = add v32, 96
+    v38 = mload v37
+    v39 = add v32, 128
+    v40 = mload v39
+    v41 = add v32, 160
+    v42 = mload v41
+    v43 = add v32, 192
+    v44 = mload v43
+    v45 = add v32, 224
+    v46 = mload v45
+    v47 = add v31, v34
+    v48 = lt v47, v31
+    jumpi v48, bb7, bb8
+  bb8:
+    v49 = add v47, v36
+    v50 = lt v49, v47
+    jumpi v50, bb7, bb9
+  bb9:
+    v51 = add v49, v38
+    v52 = lt v51, v49
+    jumpi v52, bb7, bb10
+  bb10:
+    v53 = add v51, v40
+    v54 = lt v53, v51
+    jumpi v54, bb7, bb11
+  bb11:
+    v55 = add v53, v42
+    v56 = lt v55, v53
+    jumpi v56, bb7, bb12
+  bb12:
+    v57 = add v55, v44
+    v58 = lt v57, v55
+    jumpi v58, bb7, bb13
+  bb13:
+    v59 = add v57, v46
+    v60 = lt v59, v57
+    jumpi v60, bb7, bb14
+  bb14:
+    ret v59
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v8, 64
+    v9 = memory_object_data memorybytes, v8
+    v10 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v11 = slice_ptr v10
+    v12 = slice_len v10
+    v13 = extcodesize v6
+    v14 = iszero v13
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = call v7, v6, 0, v11, v12, v11, 64
+    jumpi v15, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    mcopy v9, v11, 64
+    v16 = abi_decode [array<2, u256>], v8
+    v17 = lt 0, 2
+    v18 = iszero v17
+    jumpi v18, bb7, bb8
+  bb8:
+    v19 = memory_object_load_element memoryfixedarray<2, 1>, v16, 0
+    v20 = lt 1, 2
+    v21 = iszero v20
+    jumpi v21, bb7, bb9
+  bb9:
+    v22 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
+    v23 = add v19, v22
+    v24 = lt v23, v19
+    jumpi v24, bb10, bb11
+  bb11:
+    ret v23
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @bare() -> u256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], object, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v9 = memory_object_data memorybytes, v8
+    v10 = memory_object_len memorybytes, v8
+    v11 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v11, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v12 = phi [bb3: 1], [bb4: 0]
+    ret v12
+}
+
+fn @sendZero() -> u256 [selector=0xe857d88b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 568, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 537
+    v4 = slice_ptr v0
+    v5 = add v3, 537
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 537
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = iszero 0
+    v8 = select v7, 0x8fc, 0
+    v9 = call v8, v6, 0, 0, 0, 0, 0
+    jumpi v9, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v10 = phi [bb3: 1], [bb4: 0]
+    ret v10
+}

@@ -1,0 +1,38 @@
+error[1812]: typed catch clause requires Byzantium-compatible EVM
+   ╭▸ ROOT/tests/ui/codegen/lowering/try_catch_clause_evm_version.sol:LL:CC
+   │
+LL │           } catch Error(string memory) {
+   │ ┏━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃             r = 1;
+LL │ ┃         } catch Panic(uint256) {
+   │ ┗━━━━━━━━━┛
+   │
+   ╰ help: compile with `--evm-version byzantium` or newer
+
+error[1812]: typed catch clause requires Byzantium-compatible EVM
+   ╭▸ ROOT/tests/ui/codegen/lowering/try_catch_clause_evm_version.sol:LL:CC
+   │
+LL │           } catch Panic(uint256) {
+   │ ┏━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃             r = 2;
+LL │ ┃         } catch (bytes memory) {
+   │ ┗━━━━━━━━━┛
+   │
+   ╰ help: compile with `--evm-version byzantium` or newer
+
+error[9908]: typed catch clause requires Byzantium-compatible EVM
+   ╭▸ ROOT/tests/ui/codegen/lowering/try_catch_clause_evm_version.sol:LL:CC
+   │
+LL │           } catch (bytes memory) {
+   │ ┏━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃             r = 3;
+LL │ ┃         }
+   │ ┗━━━━━━━━━┛
+   │
+   ╰ help: compile with `--evm-version byzantium` or newer
+
+error: aborting due to 3 previous errors
+

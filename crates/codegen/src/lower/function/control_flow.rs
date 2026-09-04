@@ -1,6 +1,6 @@
 //! Branch, loop, ternary, and state-merge lowering.
 
-use super::*;
+use super::{calls::ExternalReturnMode, *};
 
 /// A `try` statement target resolved to the callee shape needed for lowering.
 #[derive(Clone, Copy)]
@@ -9,6 +9,24 @@ enum TryCallee<'a> {
     Member { receiver: &'a hir::Expr<'a>, selector: [u8; 4] },
     LinkedLibrary { address: U256, function: hir::FunctionId, receiver: Option<&'a hir::Expr<'a>> },
     FunctionPointer { address: ValueId, selector: ValueId },
+}
+
+/// The failed call's return data, which the catch clauses match on and bind.
+///
+/// Absent before Byzantium, where the only lowerable clause is a bare `catch { }` and there is no
+/// `RETURNDATACOPY` to read the data with.
+#[derive(Clone, Copy)]
+struct TryCatchData {
+    /// The `bytes` object holding the return data.
+    object: ValueId,
+    /// Pointer to the object's first data byte.
+    data: ValueId,
+    /// The data's length in bytes.
+    len: ValueId,
+    /// Whether the data is an `Error(string)` payload a `catch Error` clause can decode.
+    error_matches: ValueId,
+    /// Whether the data is a `Panic(uint256)` payload a `catch Panic` clause can decode.
+    panic_matches: ValueId,
 }
 
 struct TryTarget<'a, 'gcx> {
@@ -319,20 +337,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if ty.peel_refs().kind != expected {
                     return self.cx.report_unsupported(catch_clause.span, "try catch clause");
                 }
-                if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
-                    return report_error(
-                        self.cx.gcx,
-                        try_stmt.expr.span,
-                        "codegen cannot bind try/catch returndata before Byzantium",
-                    );
-                }
             }
+        }
+        // Before Byzantium only a bare `catch { }` is lowerable: there is no return data for a
+        // typed clause to match or bind. The type checker rejects one, so this reports rather
+        // than bailing silently, which would leave the caller without a diagnostic.
+        let supports_returndata = self.cx.gcx.sess.opts.evm_version.supports_returndata();
+        if !supports_returndata
+            && let Some(clause) =
+                catch_clauses.iter().find(|clause| clause.name.is_some() || !clause.args.is_empty())
+        {
+            return self.cx.report_unsupported(clause.span, "typed catch clause");
         }
         if args.len() != target.parameter_types.len() {
             return self.cx.report_unsupported(args.span, "try argument list");
         }
+        let return_types = self.external_return_types(&target.return_types);
 
-        let (success, creation_value) = if let TryCallee::Creation { ty, contract_id } =
+        let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
             // address = create(...)
@@ -340,7 +362,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let created = self.lower_create_contract(ty, contract_id, *args, *call_opts)?;
             let zero = self.builder.imm(U256::ZERO);
             let failed = self.builder.eq(created, zero);
-            (self.builder.iszero(failed), Some(created))
+            (self.builder.iszero(failed), Some(created), None)
         } else {
             let address = match target.callee {
                 TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
@@ -348,8 +370,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
-            let (gas, call_value, zero) =
-                self.lower_call_options(*call_opts, true, "try call option")?;
+            let options = self.lower_call_options(*call_opts, true, "try call option")?;
+            let (call_value, zero) = (options.value, options.zero);
             let (mut values, mut types) =
                 if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
                     let capacity = args.len() + usize::from(receiver.is_some());
@@ -392,26 +414,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { selector, .. } => selector,
                 TryCallee::Creation { .. } => unreachable!(),
             };
+            // buffer = alloc_overlay_return_buffer(returns)
+            // input = abi_encode(selector, args)
+            let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
+            // mstore(add(fmp(), ret_size), 0)
+            self.touch_call_output_area(options.gas, &return_types, overlay_buffer.is_some());
             let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
             let encoded =
                 self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
             let input = self.builder.slice_ptr(encoded);
             let input_size = self.builder.slice_len(encoded);
-            let ret_offset = zero;
-            let ret_size = self.builder.imm(0);
-            let check_code = target.return_types.is_empty()
-                && match target.callee {
-                    TryCallee::Member { receiver, .. } => {
-                        self.builder.func().attributes.is_constructor
-                            || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This)
-                    }
-                    TryCallee::LinkedLibrary { .. } | TryCallee::FunctionPointer { .. } => true,
-                    TryCallee::Creation { .. } => unreachable!(),
-                };
-            if check_code {
+            // From Byzantium on the return values come out of the return data, which the catch
+            // clauses need anyway; before it the call writes them into an output area overlaying
+            // its input and the success path reads them back from there.
+            // ret_offset, ret_size = plan_return_buffer(returns)
+            let ret_plan = (!supports_returndata)
+                .then(|| self.plan_return_buffer(input, zero, &return_types, overlay_buffer));
+            let (ret_offset, ret_size) = match &ret_plan {
+                Some(plan) => plan.output_area(),
+                None => (zero, self.builder.imm(0)),
+            };
+            if self.needs_code_check(return_types.len()) {
                 self.revert_if_no_code(address);
             }
-            // ok = delegatecall|staticcall|call(gas, address, input, 0, 0)
+            // The code check above is emitted at every version that needs the reserve, so the
+            // call cannot create the callee's account.
+            // gas = gas() | sub(gas(), reserve)
+            let gas = self.call_gas(options.gas, options.value_set, false);
+            // ok = delegatecall|staticcall|call(gas, address, input, ret_offset, ret_size)
             let success = match target.callee {
                 TryCallee::LinkedLibrary { .. } => {
                     self.builder.delegatecall(gas, address, input, input_size, ret_offset, ret_size)
@@ -423,7 +453,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .builder
                     .call(gas, address, call_value, input, input_size, ret_offset, ret_size),
             };
-            (success, None)
+            (success, None, ret_plan)
         };
 
         let success_block = self.builder.create_block();
@@ -442,11 +472,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             };
             self.values.insert(binding, value);
-        } else if !target.return_types.is_empty() {
-            // success.returns = abi_decode(returndata)
-            let data = self.materialize_returndata_bytes();
-            let values =
-                self.lower_abi_decode_values(data, &target.return_types, returns_clause.span)?;
+        } else if !return_types.is_empty() {
+            let values = if let Some(plan) = ret_plan {
+                // success.returns = load_words(ret_offset) | abi_decode(buffer)
+                self.finish_external_call(
+                    plan,
+                    &return_types,
+                    returns_clause.span,
+                    ExternalReturnMode::All,
+                    "codegen cannot decode try/catch returndata before Byzantium",
+                )?
+            } else {
+                // success.returns = abi_decode(returndata)
+                let data = self.materialize_returndata_bytes();
+                self.lower_abi_decode_values(data, &return_types, returns_clause.span)?
+            };
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 self.values.insert(binding, value);
             }
@@ -471,39 +511,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
         self.builder.switch_to_block(catch_block);
+        // Only from Byzantium on; before it the bare clause matches unconditionally and there is
+        // no data to bind or forward.
         // data = returndata()
         // selector = data.length >= 4 ? mload(data) >> 224 : 0
         // error_matches = selector == Error(string) && valid_error_payload(data)
         // panic_matches = selector == Panic(uint256) && data.length >= 36
-        let catch_data = self.materialize_returndata_bytes();
-        let catch_data_ptr = self.builder.memory_object_data(catch_data, MemoryObjectKind::Bytes);
-        let catch_data_len = self.builder.memory_object_len(catch_data, MemoryObjectKind::Bytes);
-        let zero = self.builder.imm(U256::ZERO);
-        let selector_slice =
-            self.builder.make_slice(catch_data_ptr, catch_data_len, SliceLocation::Memory);
-        let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
-        let four = self.builder.imm(4);
-        let selector_short = self.builder.lt(catch_data_len, four);
-        let has_selector = self.builder.iszero(selector_short);
-        let selector_shift = self.builder.imm(224);
-        let selector = self.builder.shr(selector_shift, selector_word);
-        let error_selector =
-            self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
-        let panic_selector = self.builder.imm(0x4e48_7b71_u64);
-        let error_selector_matches = self.builder.eq(selector, error_selector);
-        let error_matches = if catch_clauses
-            .iter()
-            .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
-        {
-            self.lower_error_catch_match(catch_data_ptr, catch_data_len, error_selector_matches)
-        } else {
-            self.builder.and(has_selector, error_selector_matches)
-        };
-        let panic_size = self.builder.imm(36);
-        let panic_short = self.builder.lt(catch_data_len, panic_size);
-        let panic_has_payload = self.builder.iszero(panic_short);
-        let panic_selector_matches = self.builder.eq(selector, panic_selector);
-        let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
+        let catch_data = supports_returndata.then(|| {
+            let object = self.materialize_returndata_bytes();
+            let data = self.builder.memory_object_data(object, MemoryObjectKind::Bytes);
+            let len = self.builder.memory_object_len(object, MemoryObjectKind::Bytes);
+            let zero = self.builder.imm(U256::ZERO);
+            let selector_slice = self.builder.make_slice(data, len, SliceLocation::Memory);
+            let selector_word = self.builder.memory_slice_load_word(selector_slice, zero);
+            let four = self.builder.imm(4);
+            let selector_short = self.builder.lt(len, four);
+            let has_selector = self.builder.iszero(selector_short);
+            let selector_shift = self.builder.imm(224);
+            let selector = self.builder.shr(selector_shift, selector_word);
+            let error_selector =
+                self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
+            let panic_selector = self.builder.imm(0x4e48_7b71_u64);
+            let error_selector_matches = self.builder.eq(selector, error_selector);
+            let error_matches = if catch_clauses
+                .iter()
+                .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
+            {
+                self.lower_error_catch_match(data, len, error_selector_matches)
+            } else {
+                self.builder.and(has_selector, error_selector_matches)
+            };
+            let panic_size = self.builder.imm(36);
+            let panic_short = self.builder.lt(len, panic_size);
+            let panic_has_payload = self.builder.iszero(panic_short);
+            let panic_selector_matches = self.builder.eq(selector, panic_selector);
+            let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
+            TryCatchData { object, data, len, error_matches, panic_matches }
+        });
         let mut next_catch = self.builder.current_block();
         for catch_clause in catch_clauses {
             // if catch_matches(clause, data) { lower(clause) } else { next_catch }
@@ -512,10 +556,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let next_block = self.builder.create_block();
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
+            // A typed clause is rejected before Byzantium, so its data is always there.
             let condition = if catch_error {
-                error_matches
+                catch_data?.error_matches
             } else if catch_panic {
-                panic_matches
+                catch_data?.panic_matches
             } else {
                 self.builder.imm_bool(true)
             };
@@ -525,12 +570,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.storage_refs = before_storage_refs.clone();
             self.builder.switch_to_block(clause_block);
             if let Some(&binding) = catch_clause.args.first() {
+                let object = catch_data?.object;
                 let value = if catch_error {
-                    self.lower_error_catch_string(catch_data)?
+                    self.lower_error_catch_string(object)?
                 } else if catch_panic {
-                    self.lower_panic_catch_word(catch_data)
+                    self.lower_panic_catch_word(object)
                 } else {
-                    catch_data
+                    object
                 };
                 self.values.insert(binding, value);
             }
@@ -548,8 +594,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             next_catch = next_block;
         }
         self.builder.switch_to_block(next_catch);
-        // revert(data.data, data.length)
-        self.builder.revert(catch_data_ptr, catch_data_len);
+        match catch_data {
+            // revert(data.data, data.length)
+            Some(data) => self.builder.revert(data.data, data.len),
+            // Unreachable: a pre-Byzantium `try` only has a bare clause, which always matches.
+            // revert(0, 0)
+            None => {
+                let zero = self.builder.imm(U256::ZERO);
+                self.builder.revert(zero, zero);
+            }
+        }
 
         // values, storage_refs = phi(success, catches)
         self.builder.switch_to_block(merge_block);
