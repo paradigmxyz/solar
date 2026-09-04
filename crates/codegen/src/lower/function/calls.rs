@@ -18,6 +18,19 @@ pub(super) struct ExternalReturnPlan {
 }
 
 impl ExternalReturnPlan {
+    /// A plan for a call that declares no output area and decodes its return values from the
+    /// return data, which only exists from Byzantium on.
+    fn returndata(zero: ValueId) -> Self {
+        Self {
+            static_buffer: None,
+            offset: zero,
+            size: zero,
+            size_bytes: 0,
+            owns_output_area: false,
+            decode_returndata: true,
+        }
+    }
+
     /// The `(offset, size)` output-area operands of the call the plan was built for.
     pub(super) fn output_area(&self) -> (ValueId, ValueId) {
         (self.offset, self.size)
@@ -1117,35 +1130,47 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let address = self.builder.imm(address);
         let evm_version = self.cx.gcx.sess.opts.evm_version;
         let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
-        if self.needs_code_check(function.returns.len()) {
+        let return_types = function
+            .returns
+            .iter()
+            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
+            .collect::<Vec<_>>();
+        // From Byzantium on the return values come out of the return data; before it the
+        // delegatecall writes them into an output area of its own and the success path reads them
+        // back from there, as solc's static output size does.
+        // buffer, ret_offset, ret_size = plan_return_buffer(returns)
+        // mstore(ret_offset + ret_size - 32, 0)
+        let return_plan = if evm_version.supports_returndata() {
+            ExternalReturnPlan::returndata(zero)
+        } else {
+            let plan = self.plan_return_buffer(input, zero, &return_types);
+            self.touch_call_output_area(gas, &plan);
+            plan
+        };
+        if self.needs_code_check(return_types.len()) {
             self.revert_if_no_code(address);
         }
         // A delegatecall transfers no value and creates no account, so the pre-EIP-150 reserve is
         // the call's base cost alone.
         // gas = gas() | sub(gas(), reserve)
         let gas = self.call_gas(gas, false, false);
-        // ok = delegatecall(gas, library, input, 0, 0)
-        let success = self.builder.delegatecall(gas, address, input, input_size, zero, zero);
+        // ok = delegatecall(gas, library, input, ret_offset, ret_size)
+        let success = self.builder.delegatecall(
+            gas,
+            address,
+            input,
+            input_size,
+            return_plan.offset,
+            return_plan.size,
+        );
         // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
-        if function.returns.is_empty() {
+        if return_types.is_empty() {
             return Some(zero);
         }
-        // result = abi_decode(returndata)
-        let return_types = function
-            .returns
-            .iter()
-            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
-            .collect::<Vec<_>>();
+        // result = load_words(ret_offset) | abi_decode(buffer) | abi_decode(returndata)
         let values = self.finish_external_call(
-            ExternalReturnPlan {
-                static_buffer: None,
-                offset: zero,
-                size: zero,
-                size_bytes: 0,
-                owns_output_area: false,
-                decode_returndata: true,
-            },
+            return_plan,
             &return_types,
             expr.span,
             ExternalReturnMode::First,
