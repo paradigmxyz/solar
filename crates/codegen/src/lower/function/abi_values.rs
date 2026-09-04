@@ -300,23 +300,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // data, layout = lower_decode_layout(data, types)
         // first = abi_decode(layout, data)
         // values = [first] | load_multi_return_values(first, ...)
-        let memory_types = types
+        let decoded_types = types
             .iter()
             .copied()
-            .map(|ty| ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory))
+            .map(|ty| types::TypeLowerer::return_encoding_ty(self.cx.gcx, ty))
             .collect::<Vec<_>>();
-        let (data, layout) = self.lower_abi_decode_layout(data, &memory_types, span)?;
+        let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, span)?;
         let layout = self.cx.module.intern_abi_param_layout(layout);
         let first = self.builder.abi_decode(layout, data);
-        if memory_types.len() == 1 {
+        if decoded_types.len() == 1 {
             return Some(vec![first]);
         }
         let base = self.multi_return_buffer_base();
         Some(self.load_multi_return_values(
             first,
             base,
-            memory_types.len(),
-            memory_types.iter().skip(1).copied().map(Some),
+            decoded_types.len(),
+            decoded_types.iter().skip(1).copied().map(Some),
         ))
     }
 
