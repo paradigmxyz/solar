@@ -84,7 +84,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let return_types = return_types
                         .iter()
                         .skip(1)
-                        .map(|ty| Some(ty.with_loc_if_ref(gcx, DataLocation::Memory)));
+                        .map(|&ty| Some(types::TypeLowerer::return_encoding_ty(gcx, ty)));
                     return Some(self.load_multi_return_values(first, base, returns, return_types));
                 }
                 return Some(self.load_internal_return_values(first, &return_types));

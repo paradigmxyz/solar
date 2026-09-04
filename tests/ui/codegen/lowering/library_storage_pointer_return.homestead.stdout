@@ -141,9 +141,10 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, view, abi_params=[], abi_return
     v14 = add v3, 0
     v15 = mload v14
     v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v17 = memory_object_load_element memoryfixedarray<2, 1>, v16, 1
-    v18 = sload v17 !metadata(storage=symbolic(v17))
-    ret v15, v18
+    v17 = add v16, 32
+    v18 = mload v17
+    v19 = sload v18 !metadata(storage=symbolic(v18))
+    ret v15, v19
   bb1:
     revert 0, 0
 }
