@@ -138,13 +138,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 "codegen cannot bind low-level call returndata before Byzantium",
             );
         }
-        let (gas, value, zero) =
+        let options =
             self.lower_call_options(call_opts, builtin == Builtin::AddressCall, "call option")?;
+        let (value, zero) = (options.value, options.zero);
         // input = materialize_memory(arg)
         let data = self.lower_typed_expr(data, memory_ty)?;
         let data = self.materialize_memory_argument(memory_ty, data, data_span)?;
         let input = self.builder.memory_object_data(data, MemoryObjectKind::Bytes);
         let input_size = self.builder.memory_object_len(data, MemoryObjectKind::Bytes);
+        // A bare call has no `extcodesize` guard, so before EIP-150 it also reserves the cost of
+        // creating the callee's account, which is unknowable here; solc reserves it for all three
+        // kinds too (`appendBareCall`).
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(options.gas, options.value_set, true);
         // ok = call|staticcall|delegatecall(gas, to, value?, input, 0, 0)
         let success = match builtin {
             Builtin::AddressCall => {

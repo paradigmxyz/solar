@@ -1,0 +1,247 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCallee ===
+@module CallGasCallee
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+fn @paid() -> u256 [selector=0x295b4e17, payable, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 7
+}
+
+fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    ret 1, 2
+}
+
+fn @receive() [receive, payable] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/external_call_gas_evm_version.sol:CallGasCalls ===
+@module CallGasCalls
+data:
+  CallGasCallee_initcode_0: hex"34600f5760cc8060156000396000f35b60006000fe3660075760cb565b6000357c010000000000000000000000000000000000000000000000000000000090048063295b4e171460565780633fa4f24514605a5780635dfc2e4a14605e578063a8aa1b31146062576066565b6091565b6076565b606b565b60a3565b600080fe5b34607157005b600080fe5b34608c57602a6080526020608001608090036080f35b600080fe5b60076080526020608001608090036080f35b60c06040523460c657600160805260206080016002815260209001608090036080f35b600080fe5b"
+
+fn @noReturn() -> u256 [selector=0x31794254, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 256, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 225
+    v4 = slice_ptr v0
+    v5 = add v3, 225
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 225
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    ret 1
+  bb3:
+    revert 0, 0
+}
+
+fn @withReturn() -> u256 [selector=0x2149184b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 256, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 225
+    v4 = slice_ptr v0
+    v5 = add v3, 225
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 225
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, 0, 32
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = add 0, 0
+    v17 = mload v16
+    ret v17
+  bb3:
+    revert 0, 0
+}
+
+fn @withValue() -> u256 [selector=0xd6b69802, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 256, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 225
+    v4 = slice_ptr v0
+    v5 = add v3, 225
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 225
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x295b4e1700000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, 0, 32
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = add 0, 0
+    v15 = mload v14
+    v16 = add 0, 0
+    v17 = mload v16
+    ret v17
+  bb3:
+    revert 0, 0
+}
+
+fn @twoReturns() -> u256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 256, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 225
+    v4 = slice_ptr v0
+    v5 = add v3, 225
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 225
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, v9, 64
+    jumpi v13, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v14 = add v9, 0
+    v15 = mload v14
+    v16 = add v9, 32
+    v17 = mload v16
+    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
+    v18 = add v9, 0
+    v19 = mload v18
+    v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = mload v21
+    v23 = add v19, v22
+    v24 = lt v23, v19
+    jumpi v24, bb7, bb8
+  bb8:
+    ret v23
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @bare() -> u256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 256, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 225
+    v4 = slice_ptr v0
+    v5 = add v3, 225
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 225
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], object, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v9 = memory_object_data memorybytes, v8
+    v10 = memory_object_len memorybytes, v8
+    v11 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v11, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v12 = phi [bb3: 1], [bb4: 0]
+    ret v12
+}
+
+fn @sendZero() -> u256 [selector=0xe857d88b, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 256, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CallGasCallee_initcode_0, v3, 225
+    v4 = slice_ptr v0
+    v5 = add v3, 225
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 225
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = iszero 0
+    v8 = select v7, 0x8fc, 0
+    v9 = call v8, v6, 0, 0, 0, 0, 0
+    jumpi v9, bb3, bb4
+  bb4:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v10 = phi [bb3: 1], [bb4: 0]
+    ret v10
+}

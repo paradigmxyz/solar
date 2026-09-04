@@ -7,6 +7,13 @@ struct ExternalReturnPlan {
     static_buffer: Option<(ValueId, ValueId, ValueId)>,
     offset: ValueId,
     size: ValueId,
+    /// The output area's size in bytes, zero when the call declares no output area.
+    size_bytes: u64,
+    /// Whether `offset` points at memory that holds nothing but the output area.
+    ///
+    /// Only such an area may be touched before the call: a reused input buffer still holds the
+    /// arguments the call is about to send.
+    owns_output_area: bool,
     decode_returndata: bool,
 }
 
@@ -46,6 +53,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.needs_code_check(returns)
             && (self.in_creation_code
                 || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This))
+    }
+
+    /// Returns the `gas` operand of an external call, materializing the pre-EIP-150 reserve when
+    /// [`LoweredCallOptions::gas`] left it to the call site.
+    ///
+    /// `may_create_account` says whether the call can create the callee's account, which a
+    /// pre-EIP-150 `CALL` charges the caller for. Emit this immediately before the call: on such
+    /// a target everything after the `GAS` runs on the withheld gas.
+    pub(super) fn call_gas(
+        &mut self,
+        gas: Option<ValueId>,
+        sends_value: bool,
+        may_create_account: bool,
+    ) -> ValueId {
+        gas.unwrap_or_else(|| {
+            crate::utils::pre_tangerine_call_gas(&mut self.builder, sends_value, may_create_account)
+        })
     }
 
     pub(super) fn lower_user_operator(
@@ -359,7 +383,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // address, selector = split_function_pointer(function)
         let (address, selector) = self.split_external_function_pointer(function_value);
 
-        let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
+        let options = self.lower_call_options(call_opts, true, "call option")?;
 
         let values_and_types = self.lower_argument_exprs(
             CallArgumentParams { count: arg_exprs.len(), names: None, reverse: false },
@@ -377,10 +401,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let return_tys = function.returns;
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let return_plan = self.plan_return_buffer(input, zero, return_tys);
+        let return_plan = self.plan_return_buffer(input, options.zero, return_tys);
+        self.touch_call_output_area(options.gas, &return_plan);
         if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
+        // The code check above is emitted at every version that needs the reserve, so the call
+        // cannot create the callee's account.
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(options.gas, options.value_set, false);
         // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
         let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(
@@ -395,7 +424,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.call(
                 gas,
                 address,
-                call_value,
+                options.value,
                 input,
                 input_size,
                 return_plan.offset,
@@ -876,7 +905,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(expr.span, "external function arguments");
         }
         let address = self.lower_expr(receiver)?;
-        let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
+        let options = self.lower_call_options(call_opts, true, "call option")?;
         let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
             id: function_id,
             skips_receiver: false,
@@ -906,10 +935,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let return_plan = self.plan_return_buffer(input, zero, &return_tys);
+        let return_plan = self.plan_return_buffer(input, options.zero, &return_tys);
+        self.touch_call_output_area(options.gas, &return_plan);
         if self.needs_receiver_code_check(receiver, returns) {
             self.revert_if_no_code(address);
         }
+        // The call cannot create the callee's account: before EIP-150 the code check above is
+        // emitted for every callee but `this`, whose own code is running.
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(options.gas, options.value_set, false);
         // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
         let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(
@@ -924,7 +958,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.call(
                 gas,
                 address,
-                call_value,
+                options.value,
                 input,
                 input_size,
                 return_plan.offset,
@@ -941,7 +975,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExternalReturnMode::First,
             "codegen cannot decode external function returndata before Byzantium",
         )?;
-        Some(values.into_iter().next().unwrap_or(zero))
+        Some(values.into_iter().next().unwrap_or(options.zero))
     }
 
     pub(super) fn lower_abi_call_arguments(
@@ -1074,10 +1108,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm(U256::ZERO);
         let address = self.builder.imm(address);
-        let gas = self.builder.gas();
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
+        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         if self.needs_code_check(function.returns.len()) {
             self.revert_if_no_code(address);
         }
+        // A delegatecall transfers no value and creates no account, so the pre-EIP-150 reserve is
+        // the call's base cost alone.
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(gas, false, false);
         // ok = delegatecall(gas, library, input, 0, 0)
         let success = self.builder.delegatecall(gas, address, input, input_size, zero, zero);
         // if !ok { revert(0, returndatasize()) }
@@ -1096,6 +1135,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 static_buffer: None,
                 offset: zero,
                 size: zero,
+                size_bytes: 0,
+                owns_output_area: false,
                 decode_returndata: true,
             },
             &return_types,
@@ -1151,23 +1192,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let decode_returndata = return_tys.iter().any(|&ty| {
             self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
         });
-        let ret_offset = static_return_buffer.as_ref().map_or_else(
-            || if !decode_returndata && returns > 1 { input } else { zero },
-            |(_, data, _)| *data,
-        );
-        let ret_size = if let Some((_, _, size)) = static_return_buffer.as_ref() {
-            *size
+        let words = (returns as u64).saturating_mul(32);
+        let (ret_offset, ret_size, size_bytes, owns_output_area) = if let Some((_, data, size)) =
+            static_return_buffer
+        {
+            let size_bytes =
+                static_return.as_ref().and_then(AbiParamLayout::checked_head_size).unwrap_or(0);
+            (data, size, size_bytes, true)
         } else if decode_returndata {
-            zero
+            (zero, zero, 0, false)
+        } else if returns > 1 && !self.cx.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
+            // Before EIP-150 the output area gets a buffer of its own instead of reusing the
+            // input: the words the call would write above the arguments are untouched memory, and
+            // the expansion the call is charged for them comes out of the gas the caller has to
+            // withhold from the forwarded gas.
+            // buffer = alloc raw(returns * 32)
+            let size = self.builder.imm(words);
+            let buffer = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
+            (buffer, size, words, true)
         } else {
-            self.builder.imm((returns as u64).saturating_mul(32))
+            let offset = if returns > 1 { input } else { zero };
+            (offset, self.builder.imm(words), words, false)
         };
         ExternalReturnPlan {
             static_buffer: static_return_buffer,
             offset: ret_offset,
             size: ret_size,
+            size_bytes,
+            owns_output_area,
             decode_returndata,
         }
+    }
+
+    /// Touches the last word of a call's output area so that the memory the call needs is already
+    /// expanded when its `gas` operand is computed.
+    ///
+    /// A pre-EIP-150 `CALL` is charged the expansion of its input and output areas out of the gas
+    /// left before the forwarded gas is checked against the remainder, and the reserve
+    /// [`crate::utils::pre_tangerine_call_gas`] withholds does not cover it. The area's contents
+    /// are dead until the call overwrites them, so zeroing its last word has no other effect, and
+    /// it expands memory exactly as far as the call needs. solc touches the word above the area
+    /// instead (`appendExternalFunctionCall`), one word more than it needs.
+    ///
+    /// Nothing is emitted where the gas operand is already materialized: an explicit `{gas: ...}`
+    /// is the caller's business, and from EIP-150 on the forwarded gas is capped anyway.
+    fn touch_call_output_area(&mut self, gas: Option<ValueId>, plan: &ExternalReturnPlan) {
+        if gas.is_some() || !plan.owns_output_area || plan.size_bytes < 32 {
+            return;
+        }
+        // mstore(add(ret_offset, ret_size - 32), 0)
+        let last = self.builder.imm(plan.size_bytes - 32);
+        let last = self.builder.add(plan.offset, last);
+        let zero = self.builder.imm(U256::ZERO);
+        self.builder.mstore(last, zero);
     }
 
     fn finish_external_call(
