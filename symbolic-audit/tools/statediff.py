@@ -48,13 +48,14 @@ def evm_index(v: str) -> int:
 # ---------------------------------------------------------------- compilation
 
 def standard_input(src: pathlib.Path, root: pathlib.Path, evm: str, optimize: bool, runs: int,
-                   solc: str) -> tuple[dict, str]:
+                   solc: str, remappings: list[str] | None = None) -> tuple[dict, str]:
     """Snapshot the source and its imports (discovered through solc) into Standard JSON."""
     src = src.resolve()
     root = root.resolve()
     rel = src.relative_to(root).as_posix()
     disc = {"language": "Solidity", "sources": {rel: {"content": src.read_text()}},
-            "settings": {"evmVersion": evm, "outputSelection": {"*": {"": ["ast"]}}}}
+            "settings": {"evmVersion": evm, "outputSelection": {"*": {"": ["ast"]}},
+                         **({"remappings": remappings} if remappings else {})}}
     r = subprocess.run([solc, "--base-path", str(root), "--standard-json"], input=json.dumps(disc),
                        capture_output=True, text=True, cwd=root)
     out = json.loads(r.stdout)
@@ -71,6 +72,7 @@ def standard_input(src: pathlib.Path, root: pathlib.Path, evm: str, optimize: bo
         "metadata": {"bytecodeHash": "none"},
         "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object", "evm.bytecode.linkReferences",
                                         "evm.methodIdentifiers"]}},
+        **({"remappings": remappings} if remappings else {}),
     }
     return {"language": "Solidity", "sources": sources, "settings": settings}, rel
 
@@ -549,6 +551,8 @@ def main() -> int:
     ap.add_argument("--gas", type=int, default=20_000_000)
     ap.add_argument("--value-max", type=int, default=10 ** 18)
     ap.add_argument("--keep", action="store_true")
+    ap.add_argument("--random-ctor", action="store_true", help="generate constructor arguments from the seed when --ctor is absent")
+    ap.add_argument("--remapping", action="append", default=[], help="prefix=target, as in Standard JSON")
     ap.add_argument("--forge-evm", default=None, help="EVM version for the forge run (default: target, or osaka pre-byzantium)")
     args = ap.parse_args()
 
@@ -559,7 +563,7 @@ def main() -> int:
     t0 = time.time()
     try:
         inp, rel = standard_input(args.source, root, args.evm_version, not args.no_optimize,
-                                  args.optimizer_runs, solc)
+                                  args.optimizer_runs, solc, args.remapping)
         a = compile_one(solc, inp, rel, args.contract, "solc")
         b = compile_one(solar, inp, rel, args.contract, "solar")
     except Exception as err:  # noqa: BLE001
@@ -570,20 +574,30 @@ def main() -> int:
     abi = a["abi"]
     funcs = [e for e in abi if e.get("type") == "function"]
     sigs = {f"{e['name']}({','.join(canonical(i) for i in e['inputs'])})": e for e in funcs}
+    # methodIdentifiers may spell a signature differently (e.g. enum or contract types); fall
+    # back to hashing the canonical signature.
+    for sig_ in sigs:
+        if sig_ not in a["ids"]:
+            a["ids"][sig_] = subprocess.run(["cast", "sig", sig_], capture_output=True, text=True).stdout.strip().removeprefix("0x")
     ctor = next((e for e in abi if e.get("type") == "constructor"), None)
     ctor_types = [parse_type(canonical(i)) for i in (ctor["inputs"] if ctor else [])]
-    if ctor_types and not args.ctor:
+    rng = random.Random(args.seed)
+    if ctor_types and not args.ctor and not args.random_ctor:
         result.update(status="error", reason="constructor needs arguments (--ctor)")
         print(json.dumps(result, indent=1))
         return 2
     try:
-        ctor_hex = encode_tuple(ctor_types, coerce_args(ctor_types, parse_values(args.ctor))) if ctor_types else ""
+        if ctor_types and not args.ctor:
+            ctor_vals = [gen_value(t, rng) for t in ctor_types]
+            result["ctor_random"] = repr(ctor_vals)[:300]
+            ctor_hex = encode_tuple(ctor_types, ctor_vals)
+        else:
+            ctor_hex = encode_tuple(ctor_types, coerce_args(ctor_types, parse_values(args.ctor))) if ctor_types else ""
     except Exception as err:  # noqa: BLE001
         result.update(status="error", reason=f"bad --ctor: {err}")
         print(json.dumps(result, indent=1))
         return 2
 
-    rng = random.Random(args.seed)
     skip = re.compile(args.skip) if args.skip else None
     callable_sigs = [s for s in sigs if not (skip and skip.search(s))]
     sequences: list[list[tuple[str, str, int, str]]] = []  # (sig, args text, value, calldata)

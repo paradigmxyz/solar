@@ -103,12 +103,14 @@ and describe behavior that no longer differs.
       (`symbolic-audit/storage_array_push_rvalue.sol`; fixed in `7176fe3d`, review fix `84aa90a1`)
 - [x] 38. At `-Ogas` the backend puts a jump between homestead's `sub(gas(), 50)` and a shared CALL block, so the reserve is short and the call throws
       (`symbolic-audit/call_gas_reserve_split.sol`; fixed in `58ab6626`, review fix `595abb4c`)
-- [ ] 39. A pre-byzantium external call whose dynamic return value is unused is rejected; solc compiles it
-      (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`)
+- [x] 39. A pre-byzantium external call whose dynamic return value is unused is rejected; solc compiles it
+      (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`; fixed in `e679031a`, review fix `6b9e9d80`)
 - [ ] 40. Interface constructors, implemented or `virtual` interface functions, interface modifiers and variables, and `virtual` library modifiers are accepted; solc reports 6482, 4726, 5815, 6408, 8274, 3275
       (`symbolic-audit/interface_member_checks.sol`)
 - [ ] 41. A `try` `returns` clause with mismatched variable types or count is accepted; solc reports 6509 and 2800
       (`symbolic-audit/try_returns_clause_checks.sol`)
+- [ ] 42. An external library function returning a storage pointer is miscompiled from byzantium on: the caller gets a wrong slot
+      (`symbolic-audit/library_storage_pointer_return.sol`)
 
 ## Findings
 
@@ -1804,6 +1806,30 @@ reads the value.
 
 Severity: valid program rejected. Low; pre-byzantium only.
 
+Cause and fix (`e679031a`): `plan_return_buffer` set return-data decoding
+for dynamically encoded return types at every EVM version, so
+`finish_external_call` bailed pre-byzantium even when nothing read the
+value. solc's `ReturnInfo` still reserves one word per inaccessible value
+and decodes nothing. The fix maps each dynamic return type to one word
+before byzantium at all four call sites (direct, function pointer,
+library, `try`), keeping the guard, the gas reserve, the output-area touch
+and word validation; the type checker's new
+`check_inaccessible_dynamic_return` rejects any use of such a value with
+solc's 6509, tracking what a statement discards (expression statements,
+bare `try`, tuple destructuring drops); and `is_dynamically_encoded` now
+looks through references, which also makes the index-range-access check
+agree with solc on structs with dynamic members. Byzantium and later are
+unchanged (4350 bytecode comparisons). Verified with the harness on a
+live-callee probe at homestead, spuriousDragon, byzantium, and osaka, on a
+homestead forge EVM (discarded call, bare `try`, mixed static/dynamic
+return all agree with solc), and against solc on a 16-shape acceptance
+matrix. The review (`6b9e9d80`) ran a 36-shape acceptance matrix and
+found one false rejection, a tuple expression statement `(a.dyn(),
+b.dyn());` that solc accepts, fixed it, confirmed the one-word reservation
+and the accept-anything validator against solc's `InaccessibleDynamicType`
+source, and checked the tightened slice check on nine shapes. It also
+found finding 42.
+
 ### 40. Five more interface and library declaration checks are missing
 
 File: `symbolic-audit/interface_member_checks.sol`
@@ -1854,6 +1880,47 @@ Not a codegen divergence on valid programs: solar accepts programs solc
 refuses.
 
 Severity: missing diagnostics.
+
+### 42. An external library function returning a storage pointer is miscompiled
+
+File: `symbolic-audit/library_storage_pointer_return.sol`
+Found by the review of finding 39's fix (`6b9e9d80`). Verified with the
+new linked-library runner `symbolic-audit/tools/libdiff.py`, which
+compiles the library and the caller with both compilers through Standard
+JSON `libraries`, etches each compiler's library runtime at the linked
+address, deploys both callers, and compares fixed calls:
+
+```solidity
+library L { function arrRef(uint256[] storage a) external pure returns (uint256[] storage) { return a; } }
+contract C {
+    uint256[] internal nums;   // [5, 9] after the constructor
+    uint256 internal guard;    // 77
+    function len() external returns (uint256) { return L.arrRef(nums).length; }
+    function pushThrough(uint256 v) external returns (uint256, uint256) { L.arrRef(nums).push(v); return (nums.length, guard); }
+}
+```
+
+| Call at osaka and byzantium | solc | solar |
+|------|------|------|
+| `len()` | `2` | `0` |
+| `sum()`, iterating through the returned pointer | `14` | `0` |
+| `pushThrough(3)` | `(3, 77)` | `(2, 77)`: the push went to another slot |
+| `len()` afterwards | `3` | `1` |
+| the same at homestead | compiles | rejected with 6509 (finding 39's check treats the storage array as inaccessible) |
+
+solc encodes a storage pointer crossing a library call boundary as its
+slot number (`ArrayType::encodingType()` is `uint256` for storage
+references), on the way in and on the way out. Our library ABI wrapper
+already receives the parameter as a slot but encodes the return as a
+memory array (`abi_returns = [memory_array<word>]`), so the caller
+decodes an offset instead of a slot and every access through the pointer
+targets the wrong storage. Only external library functions returning
+storage references are affected; internal ones pass the slot directly.
+Pre-byzantium the call is rejected rather than miscompiled, and the
+finding-39 diagnostic's "size unknowable" note is inaccurate there.
+
+Severity: miscompile from byzantium on. Reads through the returned
+pointer see zeros and writes through it corrupt other slots.
 
 ## solc-side observations
 

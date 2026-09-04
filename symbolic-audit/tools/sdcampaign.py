@@ -88,11 +88,11 @@ def ctor_args(text: str) -> str | None:
     return " ".join(out)
 
 
-def solc_contracts(path: pathlib.Path, evm: str, root: pathlib.Path | None) -> list[tuple[str, bool]]:
+def solc_contracts(path: pathlib.Path, evm: str, root: pathlib.Path | None, remappings: list[str]) -> list[tuple[str, bool]]:
     """Return (contract name, has constructor args) for every deployable contract, in source order."""
-    cmd = ["solc", "--combined-json", "abi,bin", "--evm-version", evm, "--via-ir", "--optimize", str(path)]
+    cmd = ["solc", "--combined-json", "abi,bin", "--evm-version", evm, "--via-ir", "--optimize", str(path)] + remappings
     if root:
-        cmd += ["--base-path", str(root)]
+        cmd += ["--base-path", str(root.resolve())]
     r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=120, cwd=path.parent)
     if r.returncode != 0:
         return []
@@ -102,7 +102,10 @@ def solc_contracts(path: pathlib.Path, evm: str, root: pathlib.Path | None) -> l
         return []
     result = []
     for key, art in out.get("contracts", {}).items():
-        name = key.rsplit(":", 1)[1]
+        src_name, name = key.rsplit(":", 1)
+        bases = [pathlib.Path(src_name), path.parent / src_name] + ([root / src_name] if root else [])
+        if not any(b.resolve() == path.resolve() for b in bases):
+            continue
         if not art.get("bin"):
             continue
         abi = art["abi"]
@@ -123,6 +126,8 @@ def run_one(path: pathlib.Path, contract: str, ctor: str, args, extra: list[str]
         cmd += ["--ctor", ctor]
     if args.root:
         cmd += ["--project-root", str(args.root)]
+    for r in args.remapping:
+        cmd += ["--remapping", r]
     t0 = time.time()
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=args.timeout, cwd=ROOT)
@@ -150,6 +155,8 @@ def main() -> int:
     ap.add_argument("--calls", type=int, default=25)
     ap.add_argument("--seqs", type=int, default=2)
     ap.add_argument("--limit", type=int, default=10 ** 9)
+    ap.add_argument("--remapping", action="append", default=[])
+    ap.add_argument("--exclude", default=None, help="regex on file path to skip")
     args = ap.parse_args()
     extra = args.extra.split()
     evm = extra[extra.index("--evm-version") + 1] if "--evm-version" in extra else "osaka"
@@ -168,11 +175,14 @@ def main() -> int:
         files.extend(sorted(x for x in p.rglob("*.sol") if not {"out", "lib", "node_modules", "auxiliary"} & set(x.parts)))
     if args.only:
         files = [f for f in files if re.search(args.only, str(f))]
+    if args.exclude:
+        files = [f for f in files if not re.search(args.exclude, str(f))]
     tasks = []
     skipped = {"hard": 0, "evm": 0, "self": 0, "ctor": 0, "nocontract": 0}
     for path in files:
         text = path.read_text(errors="replace")
-        if HARD_SKIP_RE.search(text):
+        hard = HARD_SKIP_RE.search(text)
+        if hard and (args.root is None or not re.match(r"^import\b|\nimport\b", hard.group(0))):
             skipped["hard"] += 1
             continue
         if not evm_ok(text, evm):
@@ -182,14 +192,14 @@ def main() -> int:
         if is_self and not args.no_skip:
             skipped["self"] += 1
             continue
-        contracts = solc_contracts(path, evm, args.root)
+        contracts = solc_contracts(path, evm, args.root, args.remapping)
         if not contracts:
             skipped["nocontract"] += 1
             continue
         ctor = ctor_args(text)
         for i, (name, needs_args) in enumerate(contracts):
             last = i == len(contracts) - 1
-            if needs_args and not (last and ctor):
+            if needs_args and not (last and ctor) and "--random-ctor" not in extra:
                 skipped["ctor"] += 1
                 continue
             rel = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
