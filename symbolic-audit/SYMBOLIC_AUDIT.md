@@ -24,8 +24,22 @@ Items 1 to 22 are fixed in code; 1 to 19 were re-verified against `e6db78e6b`
 on 2026-09-02, 20 against `e9ca037d5`, 21 against `e1693d1ba`, and 22
 against `96551139a` on 2026-09-03, with the repros below (symbolic where the executor can model the
 input, concrete otherwise). Each item names the commit that fixed it.
-CODEGEN-003, 004, and 005 in `docs/SOLC_DIVERGENCE.md` predate those fixes
-and describe behavior that no longer differs.
+CODEGEN-003, 004, and 005 in `docs/SOLC_DIVERGENCE.md` predated those fixes
+and described behavior that no longer differs; they are removed together
+with this report.
+
+The compiler changes this report cites land in their own pull requests,
+split by area so each can be reviewed on its own: #1363 (library ABI and
+declaration checks, items 20 to 22), #1364 (base constructor arguments, 23
+and 24), #1365 (type-checker acceptance, 25), #1366 (storage `bytes`, 26,
+28, 37), #1367 (pre-byzantium calls, 27, 29, 30, 31, 33, 38, 39), #1368
+(spills across branches and the IR verifier, 36 and 34), #1369 (library
+storage-pointer returns, 42), #1370 (interface and free-function checks,
+35 and 40), and #1372 (`try` clause checks, 41). This document and the
+tools under `symbolic-audit/tools` do not change compiler code, so a
+checkout of this branch alone still shows the behavior the findings
+describe; the commit hashes below refer to the audit branch
+`dani/symbolic-audit`, whose history the split preserves.
 
 - [x] 1. Integer literal expressions lose arbitrary-precision semantics during lowering
       (`symbolic-audit/literal_addmod_fold.sol`; fixed in `52c20ab3f`)
