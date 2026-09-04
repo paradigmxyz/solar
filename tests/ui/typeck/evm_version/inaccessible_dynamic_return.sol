@@ -40,6 +40,29 @@ contract C {
         pointer();
     }
 
+    // A tuple expression statement discards every component, however deeply the tuples nest,
+    // and a tuple assignment discards the components it drops.
+    function discardedTuple(address a) external {
+        (I(a).dyn(), I(a).dynArray());
+        ((I(a).dyn(), I(a).dynStruct()), I(a).dyn());
+        uint256 v;
+        (v, ) = (v, I(a).dyn());
+        (v, ) = I(a).mixed();
+        for (uint256 i = 0; i < 1; I(a).dyn()) {
+            i++;
+        }
+    }
+
+    // A component that is used stays a use, whichever tuple it sits in.
+    function usedInTuple(address a) external {
+        (keccak256(I(a).dyn()), uint256(1));
+        //~[homestead]^ ERROR: cannot use the dynamically encoded return value of an external call
+        bytes memory b;
+        (b, ) = (I(a).dyn(), uint256(1));
+        //~[homestead]^ ERROR: cannot use the dynamically encoded return value of an external call
+        b;
+    }
+
     function assigned(address a) external {
         bytes memory b = I(a).dyn();
         //~[homestead]^ ERROR: cannot use the dynamically encoded return value of an external call

@@ -1,6 +1,24 @@
 error[6509]: cannot use the dynamically encoded return value of an external call
    ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
    │
+LL │         (keccak256(I(a).dyn()), uint256(1));
+   │                    ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[6509]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
+LL │         (b, ) = (I(a).dyn(), uint256(1));
+   │                  ━━━━━━━━━━
+   │
+   ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
+   ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
+
+error[6509]: cannot use the dynamically encoded return value of an external call
+   ╭▸ ROOT/tests/ui/typeck/evm_version/inaccessible_dynamic_return.sol:LL:CC
+   │
 LL │         bytes memory b = I(a).dyn();
    │                          ━━━━━━━━━━
    │
@@ -97,5 +115,5 @@ LL │         bytes memory b = L.dyn();
    ├ note: the call returns `bytes memory`, whose size is unknowable without `RETURNDATASIZE`
    ╰ help: discard the value, or compile with `--evm-version byzantium` or newer
 
-error: aborting due to 11 previous errors
+error: aborting due to 13 previous errors
 

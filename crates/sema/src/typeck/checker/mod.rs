@@ -1243,16 +1243,17 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         }
         let expr = expr.peel_parens();
-        // The components of a tuple expression are values of their own, so a dropped one is
-        // discarded whole.
-        if let hir::ExprKind::Tuple(exprs) = expr.kind
-            && let Discarded::Components(components) = &discarded
-        {
+        // The components of a tuple expression are values of their own, so a discarded one is
+        // discarded whole, however deeply the tuples nest.
+        if let hir::ExprKind::Tuple(exprs) = expr.kind {
             for (index, expr) in exprs.iter().enumerate() {
                 if let Some(expr) = expr
-                    && components.contains(index)
+                    && match &discarded {
+                        Discarded::All => true,
+                        Discarded::Components(components) => components.contains(index),
+                    }
                 {
-                    self.discarded.insert(expr.peel_parens().id, Discarded::All);
+                    self.discard(expr, Discarded::All);
                 }
             }
             return;
