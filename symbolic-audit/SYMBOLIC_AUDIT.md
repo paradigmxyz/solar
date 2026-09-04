@@ -83,8 +83,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/external_call_prebyzantium.sol`; fixed in `49cf1b51d`, tests in `46b9d61f8`)
 - [x] 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value, so loops of them are quadratic in gas
       (`symbolic-audit/storage_bytes_push_gas.sol`; fixed in `8f2e55ba`, review fix `3d5d21f8`)
-- [ ] 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects, so every external call runs out of gas
-      (`symbolic-audit/external_call_gas_prebyzantium.sol`)
+- [x] 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects, so every external call runs out of gas
+      (`symbolic-audit/external_call_gas_prebyzantium.sol`; fixed in `5aebf672`, review fix `f675c760`)
 - [ ] 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium because the catch path emits `RETURNDATACOPY`
       (`symbolic-audit/try_catch_prebyzantium.sol`)
 - [ ] 31. External library calls with return values are rejected before byzantium instead of using a static output buffer
@@ -1194,6 +1194,38 @@ Only homestead is affected; the stateful harness's osaka EVM applies the
 63/64 rule and hides it.
 
 Severity: miscompile for the homestead target. Every external call fails.
+
+Cause and fix (`5aebf672`): `lower_call_options` materialized `GAS` as the
+call's gas operand at every EVM version, and did so before the argument
+encoding, so the value also included the encoding's own cost. At
+homestead the operand is now `sub(gas(), 50)`, `sub(gas(), 9050)` with a
+`value`, for direct calls, external function pointers, library
+delegatecalls, and `try`; `sub(gas(), 25050)` and `sub(gas(), 34050)`
+for bare `.call`/`.delegatecall`, mirroring solc's `appendBareCall`
+which always adds the new-account cost; `transfer`/`send` keep 2300/0
+and precompiles keep their reserve. The `GAS` is evaluated just before
+the call only where the reserve applies, so tangerineWhistle and later
+are byte-identical to before (716 UI codegen files compiled at four EVM
+versions and three optimization levels: no diffs). The output area is
+touched (`mstore(offset + size - 32, 0)`) before `GAS` where the call
+owns its buffer, and multi-word returns get their own buffer instead of
+reusing the input buffer, because a pre-EIP-150 `CALL` charges the
+output expansion out of the gas left before checking the forwarded
+amount. Re-verified on a homestead forge EVM: `callRet`, `callNoRet`,
+`callValue` all succeed with the same return values at 100 000 and
+1 000 000 gas, using 23 429 / 23 418 / 23 448 gas against solc's
+23 765 / 23 562 / 23 763; tangerineWhistle unchanged. The review
+(`f675c760`) checked every shape's expression against solc's source
+(table in the commit), found the precompile reserve one step off (25 100
+where solc reserves 25 050) and fixed it, added optimized homestead
+revisions and eight-word and aggregate return cases to the new run-call
+test since every existing homestead test ran at `-Onone`, and probed
+reverting, gas-hungry, dynamic-return, looping, value-carrying, bare,
+`transfer`/`send`, function-pointer, and constructor-code calls on a
+homestead EVM with 0 mismatches. Residual: at homestead a loop of
+multi-word-return calls allocates a fresh buffer per call where solc
+reuses one, and the `try` reserve is unreachable until finding 30 is
+fixed.
 
 ### 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium
 
