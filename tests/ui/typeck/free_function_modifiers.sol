@@ -5,7 +5,6 @@ contract C {
 }
 
 function fun() C.someModifier { //~ ERROR: free functions cannot have modifiers
-//~^ ERROR: can only use modifiers defined in the current contract or in base contracts
 }
 
 // A file-level name in the modifier position is rejected too; solc reports that the declaration is
