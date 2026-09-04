@@ -1,0 +1,14 @@
+// The stack limit is checked per pass through a cycle rather than accumulated around it, so a
+// cycle that leaves a word behind every round is accepted: how many rounds it runs is a runtime
+// property, exactly as the depth of a recursive call is. The cycle closes on the entry block,
+// whose minimum entry depth of zero no edge can lower. A single pass that already overflows is
+// still an error, which `cycle_stack_overflow.evmir` covers.
+@module module
+
+bb0:
+  push 0
+  push 1
+  jumpi bb0, bb1
+
+bb1:
+  stop
