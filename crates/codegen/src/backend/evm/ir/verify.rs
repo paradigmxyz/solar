@@ -1,4 +1,28 @@
 //! EVM IR verifier.
+//!
+//! Two checks run over a module. The shape check is local: it validates labels, push encodings,
+//! terminators, and that every instruction declares a stack effect consistent with its opcode.
+//! The stack-operation check is global: it walks the direct control-flow edges and models the
+//! physical stack height so that per-block imbalances, operand underflows, and depth violations
+//! are caught before assembly.
+//!
+//! EVM IR is one flat CFG of blocks with no function boundaries: an internal call is a block
+//! that pushes a return address and jumps to the callee's first block, and a return is a dynamic
+//! `jump` through that address, which carries no static target. The walk therefore sees a
+//! recursive function as an ordinary cycle whose modeled stack height grows by the return address
+//! on every round, and a concrete-depth walk that follows it never converges.
+//!
+//! The walk instead propagates a range of entry depths per block and checks each bound where it
+//! is the worst case. Operand availability (`dup`, `swap`, `pop`, and every instruction's inputs)
+//! is monotone in the entry depth, so it is checked at the block's minimum; the 1024-word stack
+//! limit is checked at the maximum. This is as strong as visiting every distinct depth, and it is
+//! bounded: minimums only fall, maximums only rise, and a maximum may not rise across an edge
+//! that closes a cycle. Cutting the growth there is what makes recursion compile, and it is the
+//! only sound choice available statically, because the recursion depth of a legal program is a
+//! runtime property; exceeding the stack limit through it is a runtime failure, exactly as it is
+//! for solc. The cost is that the limit is checked per pass through a cycle rather than
+//! accumulated around it, so a cycle whose body is not stack-balanced is reported only if one
+//! pass through it already overflows.
 
 use super::*;
 use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
@@ -28,11 +52,13 @@ impl<'a> Verifier<'a> {
         self.verify_stack_ops_for_evm_version(module);
     }
 
-    /// Checks output target support after target legalization.
+    /// Checks the module and its output target support after target legalization.
+    ///
+    /// This is the only stack-operation check that reports in release builds, so it runs for
+    /// every EVM version: which module the check sees must not depend on whether legalization
+    /// had shifts to rewrite.
     pub(super) fn verify_after_legalization(&self, module: &Module) {
-        if !self.evm_version.has_bitwise_shifting() {
-            self.verify_module(module);
-        }
+        self.verify_module(module);
         self.verify_target_support(module);
     }
 
@@ -294,10 +320,14 @@ impl<'a> Verifier<'a> {
     }
 
     /// Checks physical stack operations along generated direct control-flow edges.
+    ///
+    /// See the module documentation for the bounds the walk propagates and for why cycle edges
+    /// are not allowed to raise a block's maximum entry depth.
     fn verify_stack_ops(&self, module: &Module) {
-        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![None; module.blocks.len()]);
-        entry_depths[BlockId::ENTRY] = Some(0);
-        let mut alternate_depths = FxHashSet::default();
+        let cycle_edges = cycle_edges(module);
+        let mut entry_depths =
+            IndexVec::<BlockId, Option<DepthBounds>>::from_vec(vec![None; module.blocks.len()]);
+        entry_depths[BlockId::ENTRY] = Some(DepthBounds::exact(0));
         let mut pending = vec![(BlockId::ENTRY, 0)];
         while let Some((block_id, mut stack)) = pending.pop() {
             let block = &module.blocks[block_id];
@@ -348,15 +378,24 @@ impl<'a> Verifier<'a> {
             }
             term.kind.visit_targets(|target| physical_targets.push((target, stack)));
             for (target, depth) in physical_targets {
-                match entry_depths[target] {
+                match &mut entry_depths[target] {
                     None => {
-                        entry_depths[target] = Some(depth);
+                        entry_depths[target] = Some(DepthBounds::exact(depth));
                         pending.push((target, depth));
                     }
-                    Some(first) if first != depth && alternate_depths.insert((target, depth)) => {
-                        pending.push((target, depth));
+                    Some(bounds) => {
+                        // A cycle edge may lower the minimum, which terminates because depths
+                        // are non-negative, but it may not raise the maximum: one round of a
+                        // recursive call leaves its return address behind, so following the
+                        // growth would never converge.
+                        if depth < bounds.min {
+                            bounds.min = depth;
+                            pending.push((target, depth));
+                        } else if depth > bounds.max && !cycle_edges.contains(&(block_id, target)) {
+                            bounds.max = depth;
+                            pending.push((target, depth));
+                        }
                     }
-                    Some(_) => {}
                 }
             }
         }
@@ -502,6 +541,85 @@ impl<'a> Verifier<'a> {
         Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module(module);
         dcx.has_errors().is_ok()
     }
+}
+
+/// The range of stack depths a block has been entered with by the stack-operation walk.
+#[derive(Clone, Copy, Debug)]
+struct DepthBounds {
+    min: usize,
+    max: usize,
+}
+
+impl DepthBounds {
+    /// Bounds for a block entered at a single depth so far.
+    const fn exact(depth: usize) -> Self {
+        Self { min: depth, max: depth }
+    }
+}
+
+/// Appends every direct control-flow successor of `block`, in walk order.
+///
+/// The `push bbN; jumpi` pair is a physical conditional branch inside a block, so its target is
+/// an edge as well. Dynamic jumps through a stack value, which is how an internal function
+/// returns, carry no target and therefore no edge.
+fn direct_successors(block: &Block, out: &mut Vec<BlockId>) {
+    for (index, inst) in block.instructions.iter().enumerate() {
+        if inst.opcode == op::JUMPI
+            && let Some(target) =
+                index.checked_sub(1).and_then(|index| block.instructions[index].pushed_block())
+        {
+            out.push(target);
+        }
+    }
+    if let Some(term) = &block.terminator {
+        term.kind.visit_targets(|target| out.push(target));
+    }
+}
+
+/// Returns the edges that close a cycle in a depth-first walk from the entry block.
+///
+/// Removing them leaves an acyclic graph, which is what bounds the stack-depth walk. Only edges
+/// reachable from the entry are classified; the walk never leaves that region either.
+fn cycle_edges(module: &Module) -> FxHashSet<(BlockId, BlockId)> {
+    /// Depth-first states: not yet reached, on the current path, and fully walked.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum State {
+        Unseen,
+        OnPath,
+        Done,
+    }
+
+    let mut edges = FxHashSet::default();
+    if module.blocks.is_empty() {
+        return edges;
+    }
+    let mut states = IndexVec::<BlockId, _>::from_vec(vec![State::Unseen; module.blocks.len()]);
+    // Successors of every block on the current path, each frame owning the tail of the buffer
+    // from its recorded start.
+    let mut successors = Vec::new();
+    let mut path = vec![(BlockId::ENTRY, 0)];
+    states[BlockId::ENTRY] = State::OnPath;
+    direct_successors(&module.blocks[BlockId::ENTRY], &mut successors);
+    while let Some(&(block_id, start)) = path.last() {
+        if successors.len() == start {
+            states[block_id] = State::Done;
+            path.pop();
+            continue;
+        }
+        let target = successors.pop().expect("frame owns the buffer tail");
+        match states[target] {
+            State::Unseen => {
+                states[target] = State::OnPath;
+                path.push((target, successors.len()));
+                direct_successors(&module.blocks[target], &mut successors);
+            }
+            State::OnPath => {
+                edges.insert((block_id, target));
+            }
+            State::Done => {}
+        }
+    }
+    edges
 }
 
 #[cfg(test)]
