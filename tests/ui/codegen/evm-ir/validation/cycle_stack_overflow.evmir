@@ -1,0 +1,26 @@
+// One pass through the cycle already overflows, which stays an error: only the growth carried
+// around the cycle edge is left unchecked.
+//~? ERROR: EVM IR verification failed: block 1: `push` grows the stack to 1025 words, exceeding the limit of 1024
+@module module
+
+bb0:
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  jump bb1
+
+bb1:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  pop
+  pop
+  pop
+  pop
+  jumpi bb1, bb2
+
+bb2:
+  stop

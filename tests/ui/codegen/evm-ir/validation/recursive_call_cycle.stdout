@@ -1,0 +1,18 @@
+- // === ROOT/tests/ui/codegen/evm-ir/validation/recursive_call_cycle.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/validation/recursive_call_cycle.evmir (after none) ===
+  @module module
+  bb0:
+    push bb4
+    jump bb1
+  bb1:
+    push 0
+    calldataload
+    jumpi bb2, bb3
+  bb2:
+    push bb3
+    jump bb1
+  bb3:
+    jump
+  bb4:
+    stop
+  
