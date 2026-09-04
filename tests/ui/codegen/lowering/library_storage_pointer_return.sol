@@ -51,7 +51,7 @@ contract C {
     // as solc's `delegatecall(..., out, 32)` does; from Byzantium on it is decoded out of the
     // return data as a word and used as a slot.
     // HOMESTEAD-LABEL: fn @len
-    // HOMESTEAD: delegatecall {{.*}}, 0, 32
+    // HOMESTEAD: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
     // HOMESTEAD: mload
     // HOMESTEAD: sload
     // OSAKA-LABEL: fn @len
@@ -64,7 +64,7 @@ contract C {
 
     // A `bytes` slot is a slot too: the length still comes from storage.
     // HOMESTEAD-LABEL: fn @bytesLen
-    // HOMESTEAD: delegatecall {{.*}}, 0, 32
+    // HOMESTEAD: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
     // HOMESTEAD: mload
     // HOMESTEAD: sload
     // OSAKA-LABEL: fn @bytesLen
@@ -76,7 +76,7 @@ contract C {
 
     // A struct pointer indexes its member off the returned slot.
     // HOMESTEAD-LABEL: fn @member
-    // HOMESTEAD: delegatecall {{.*}}, 0, 32
+    // HOMESTEAD: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
     // HOMESTEAD: mload
     // HOMESTEAD: sload
     // OSAKA-LABEL: fn @member
@@ -98,7 +98,7 @@ contract C {
 
     // An attached call passes the receiver's slot and gets a slot back.
     // HOMESTEAD-LABEL: fn @attached
-    // HOMESTEAD: delegatecall {{.*}}, 0, 32
+    // HOMESTEAD: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 32
     // HOMESTEAD: mload
     // HOMESTEAD: sload
     // OSAKA-LABEL: fn @attached
