@@ -36,7 +36,7 @@ fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
     v1 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
     v2 = slice_ptr v1
     v3 = slice_len v1
-    v4 = delegatecall v0, 0xf6e85b2cc7f6a7ce364e7443aa232891136029fe, v2, v3, 0, 0
+    v4 = delegatecall v0, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v2, v3, 0, 0
     jumpi v4, bb1, bb2
   bb2:
     v13 = returndatasize
@@ -98,11 +98,11 @@ fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi
     v1 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
     v2 = slice_ptr v1
     v3 = slice_len v1
-    v4 = extcodesize 0xf6e85b2cc7f6a7ce364e7443aa232891136029fe
+    v4 = extcodesize 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
-    v6 = delegatecall v0, 0xf6e85b2cc7f6a7ce364e7443aa232891136029fe, v2, v3, 0, 0
+    v6 = delegatecall v0, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v2, v3, 0, 0
     jumpi v6, bb3, bb4
   bb4:
     v7 = returndatasize

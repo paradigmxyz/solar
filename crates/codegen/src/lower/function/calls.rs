@@ -1071,7 +1071,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
 
         let name = contract.name.as_str_in(self.cx.gcx.sess).to_string();
-        let hash = keccak256(format!("{source}:{name}"));
+        // The source map keeps absolute file names under `-Zui-testing` (the UI runner relies
+        // on them), so hash only the file name there; otherwise the placeholder would change
+        // with the checkout path and no blessed output could pin it.
+        let hashed_source = if self.cx.gcx.sess.opts.unstable.ui_testing
+            && let Some(file_name) = std::path::Path::new(&source).file_name()
+        {
+            file_name.to_string_lossy().into_owned()
+        } else {
+            source.clone()
+        };
+        let hash = keccak256(format!("{hashed_source}:{name}"));
         let mut placeholder = <[u8; 20]>::try_from(&hash[..20]).unwrap();
         placeholder[0] |= 0x80;
         self.cx.module.add_library_link(LibraryLink { source, name, placeholder });
