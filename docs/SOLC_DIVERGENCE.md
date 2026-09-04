@@ -129,6 +129,23 @@ Coverage: `tests/ui/typeck/base_arguments.sol`,
 `tests/ui/codegen/lowering/base_constructor_args.sol`, and
 `tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`.
 
+### TYPECK-005: Parenthesized `try` targets
+
+Status: intentional.
+
+Difference: `solc` requires a `try` statement's target to be a call
+syntactically and reports 5347 ("Try can only be used with external function
+calls and contract creation calls") for `try (c.f()) { ... }`, because the
+parenthesized expression is a tuple rather than a call. `solar` peels the
+parentheses and compiles the statement as if they were not written.
+
+Rationale: parentheses do not change the call they wrap, so the statement has
+one unambiguous meaning; rejecting it would be a grammar restriction rather
+than a language rule. The checker and lowering peel them identically, so an
+accepted statement always compiles.
+
+Coverage: `tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

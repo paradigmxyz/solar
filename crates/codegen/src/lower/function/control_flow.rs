@@ -186,7 +186,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
-        let ExprKind::Call(callee, args, call_opts) = &try_stmt.expr.kind else {
+        // Parenthesizing the target changes nothing about the call it wraps, so peel the parens
+        // here exactly as the checker does when it accepts the statement. solc rejects
+        // `try (c.f()) { ... }` because its target must be a call syntactically, but the
+        // statement has only one meaning and we compile it.
+        let try_expr = try_stmt.expr.peel_parens();
+        let ExprKind::Call(callee, args, call_opts) = &try_expr.kind else {
             return self.cx.report_unsupported(try_stmt.expr.span, "try expression");
         };
         let target = if let ExprKind::New(ty) = &callee.kind {
