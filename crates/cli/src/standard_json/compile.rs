@@ -2,14 +2,15 @@
 
 use super::{
     data::{
-        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, CowStr, EthdebugCodePointer,
-        EthdebugCompilation, EthdebugCompiler, EthdebugContext, EthdebugContract,
-        EthdebugEnvironment, EthdebugFunctionExit, EthdebugFunctionInvoke, EthdebugId,
-        EthdebugInstruction, EthdebugInvocationTarget, EthdebugOperation, EthdebugOutput,
-        EthdebugProgram, EthdebugRange, EthdebugReference, EthdebugResources, EthdebugSource,
-        EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength, OutputSelection,
-        OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback,
-        optimizer_settings, print_standard_json_stats, strip_json_comments,
+        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
+        DebugSettings, EthdebugCodePointer, EthdebugCompilation, EthdebugCompiler, EthdebugContext,
+        EthdebugContract, EthdebugEnvironment, EthdebugFunctionExit, EthdebugFunctionInvoke,
+        EthdebugId, EthdebugInstruction, EthdebugInvocationTarget, EthdebugOperation,
+        EthdebugOutput, EthdebugProgram, EthdebugRange, EthdebugReference, EthdebugResources,
+        EthdebugSource, EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength,
+        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
+        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
+        strip_json_comments,
     },
     metadata::Metadata,
 };
@@ -143,31 +144,45 @@ fn finish_standard_json_output<'a>(
     crate::emit::to_json(out, &output, opts.pretty_json).map_err(Into::into)
 }
 
-/// Validates `settings.debug.debugInfo` like solc's `DebugInfoSelection`.
+/// Applies `settings.debug`, enforcing solc's selection rules.
 ///
-/// The components only affect Yul IR output, which we do not emit, so they are checked and
-/// otherwise ignored.
-fn check_debug_info_selection(dcx: &DiagCtxt, components: &[CowStr<'_>]) {
-    let mut location = false;
-    let mut snippet = false;
-    for component in components {
-        match component.as_ref() {
-            "*" => {
-                location = true;
-                snippet = true;
-            }
-            "location" => location = true,
-            "snippet" => snippet = true,
-            "ast-id" | "ethdebug" => {}
-            component => {
-                dcx.err(format!("invalid value `{component}` in `settings.debug.debugInfo`"))
-                    .emit();
-            }
+/// `debugInfo` components only affect Yul IR output, which we do not emit, so only the rules
+/// that solc rejects inputs for are checked: `snippet` requires `location`, and an explicit
+/// selection has to include `ethdebug` when ethdebug bytecode output is requested.
+fn apply_debug_settings(
+    dcx: &DiagCtxt,
+    opts: &mut CompileOpts,
+    debug: &DebugSettings,
+    output_selection: &OutputSelection<'_>,
+) {
+    match debug.revert_strings {
+        Some(RevertStrings::VerboseDebug) => {
+            dcx.err(
+                "only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now",
+            )
+            .emit();
         }
+        Some(revert_strings) => opts.revert_strings = revert_strings,
+        None => {}
     }
-    if snippet && !location {
+    if debug.debug_info.is_none() {
+        return;
+    }
+    if debug.selects_debug_info(DebugInfoComponent::Snippet)
+        && !debug.selects_debug_info(DebugInfoComponent::Location)
+    {
         dcx.err("to use `snippet` with `settings.debug.debugInfo` you must also select `location`")
             .emit();
+    }
+    let ethdebug_outputs =
+        OutputSelectionFlags::BYTECODE_ETHDEBUG | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
+    if output_selection.all().intersects(ethdebug_outputs)
+        && !debug.selects_debug_info(DebugInfoComponent::Ethdebug)
+    {
+        dcx.err(
+            "`ethdebug` needs to be enabled in `settings.debug.debugInfo` if `evm.bytecode.ethdebug` or `evm.deployedBytecode.ethdebug` was selected as output",
+        )
+        .emit();
     }
 }
 
@@ -243,26 +258,7 @@ fn compile(
         }
     }
     if let Some(debug) = debug {
-        if let Some(revert_strings) = debug.revert_strings.as_deref() {
-            match RevertStrings::from_str(revert_strings) {
-                Ok(RevertStrings::VerboseDebug) => {
-                    dcx.err(
-                        "only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now",
-                    )
-                    .emit();
-                }
-                Ok(revert_strings) => opts.revert_strings = revert_strings,
-                Err(_) => {
-                    dcx.err(format!(
-                        "invalid value `{revert_strings}` for `settings.debug.revertStrings`"
-                    ))
-                    .emit();
-                }
-            }
-        }
-        if let Some(debug_info) = &debug.debug_info {
-            check_debug_info_selection(&dcx, debug_info);
-        }
+        apply_debug_settings(&dcx, opts, debug, output_selection);
     }
     if dcx.has_errors().is_err() {
         return write_empty_standard_json_output(source_map, opts, diagnostics, out);

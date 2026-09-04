@@ -7,8 +7,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "invalid value `Strip` for `settings.debug.revertStrings`",
-      "formattedMessage": "error: invalid value `Strip` for `settings.debug.revertStrings`\n\n"
+      "message": "JSON parse error: unknown variant `Strip`, expected one of `default`, `strip`, `debug`, `verboseDebug` at line 5 column 30",
+      "formattedMessage": "error: JSON parse error: unknown variant `Strip`, expected one of `default`, `strip`, `debug`, `verboseDebug` at line 5 column 30\n\n"
     }
   ]
 }

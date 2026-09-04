@@ -11,7 +11,7 @@ use crate::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
         AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
         FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind, MemoryObjectLayout,
-        MirType, Module, PanicCode, SliceLocation, Value, ValueId,
+        MirType, Module, PanicCode, RevertReason, SliceLocation, Value, ValueId,
     },
 };
 use alloy_primitives::{U256, keccak256};
@@ -445,7 +445,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let gcx = cx.gcx;
         Self {
             cx,
-            builder: FunctionBuilder::new(function),
+            builder: FunctionBuilder::new(function)
+                .with_revert_strings(gcx.sess.opts.revert_strings),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             dirty_values: FxHashSet::default(),

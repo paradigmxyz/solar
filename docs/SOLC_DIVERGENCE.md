@@ -281,18 +281,22 @@ No intentional divergences documented yet.
   optimization.
 - Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
 
-### CODEGEN-007: `revertStrings: debug` adds no compiler-generated messages
+### CODEGEN-007: `revertStrings: debug` message granularity
 
 - ID: CODEGEN-007
 - Status: parity debt
-- Difference: `--revert-strings debug` and Standard JSON
-  `settings.debug.revertStrings: "debug"` are accepted and behave like
-  `default`. `solc` additionally attaches reason strings such as
-  "ABI decoding: invalid tuple offset" to its own internally generated
-  reverts. `strip` matches `solc`, and `verboseDebug` is rejected as
+- Difference: With `--revert-strings debug` (Standard JSON
+  `settings.debug.revertStrings: "debug"`), compiler-generated reverts carry
+  solc's `Error(string)` messages, but the set of checks differs. Checks that
+  the compiler fuses into one comparison report the first applicable solc
+  message (for example a `bytes` calldata head and tail check both report
+  "ABI decoding: invalid calldata array offset"), decoded-value validators
+  revert with empty data as in solc, and checks solc does not emit have no
+  message. `strip` matches `solc`, and `verboseDebug` is rejected as
   unimplemented by both compilers.
-- Rationale: compiler-generated reverts are emitted as plain `revert(0, 0)` or
-  panics, and the extra strings only aid debugging. Rejecting the setting would
-  block projects that enable it for `solc`.
+- Rationale: the messages are debugging aids and the fused checks are what
+  keep the default output small; splitting them only in debug mode would make
+  debug builds diverge from the code being debugged.
 - Coverage: `tests/ui/standard-json/debug/`,
+  `tests/ui/codegen/lowering/revert_strings_debug.sol`,
   `tests/ui/codegen/lowering/revert_strings_strip.sol`.

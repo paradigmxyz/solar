@@ -1,0 +1,88 @@
+// === ROOT/tests/ui/codegen/lowering/revert_strings_debug.sol:RevertStringsDebug ===
+@module RevertStringsDebug
+fn @passthrough(arg0: u256) -> u256 [selector=0x8f336a56, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0xe0041396, pure, abi_params=[bytes, u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = slice_len arg0
+    v2 = gt arg2, v1
+    v3 = lt arg2, arg1
+    jumpi v2, bb1, bb2
+  bb2:
+    jumpi v3, bb3, bb4
+  bb4:
+    v4 = sub arg2, arg1
+    v5 = add v0, arg1
+    v6 = make_calldata_slice v5, v4
+    v7 = slice_len v6
+    ret v7
+  bb3:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, 22 !metadata(memory=scratch)
+    mstore 68, 0x536c6963652073746172747320616674657220656e6400000000000000000000 !metadata(memory=scratch)
+    revert 0, 100
+  bb1:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, 28 !metadata(memory=scratch)
+    mstore 68, 0x536c6963652069732067726561746572207468616e206c656e67746800000000 !metadata(memory=scratch)
+    revert 0, 100
+}
+
+fn @callNoCode() [selector=0xc8b48fe8, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x5c36b18600000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0x1234
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = call v0, 0x1234, 0, v2, v3, 0, 0
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, 37 !metadata(memory=scratch)
+    mstore 68, 0x54617267657420636f6e747261637420646f6573206e6f7420636f6e7461696e !metadata(memory=scratch)
+    mstore 100, 0x20636f6465000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 132
+}
+
+fn @userRevert() [selector=0xa1cb50d6, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    icall @revert_error, 0, 4, 0x7573657200000000000000000000000000000000000000000000000000000000
+    invalid
+}
+
+fn @userRequire(arg0: u256) -> u256 [selector=0x81b54504, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    ret arg0
+  bb1:
+    icall @revert_error, 0, 17, 0x78206d757374206265206e6f6e7a65726f000000000000000000000000000000
+    invalid
+}
+
+fn @revert_error(arg0: u256, arg1: u256) {
+  bb0:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}

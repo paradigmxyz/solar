@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "JSON parse error: unknown variant `source`, expected one of `location`, `snippet`, `ast-id`, `ethdebug`, `*` at line 7 column 16",
+      "formattedMessage": "error: JSON parse error: unknown variant `source`, expected one of `location`, `snippet`, `ast-id`, `ethdebug`, `*` at line 7 column 16\n\n"
+    }
+  ]
+}

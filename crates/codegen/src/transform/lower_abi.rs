@@ -40,13 +40,13 @@ use crate::{
         AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType, AbiType,
         AbiWordValidator, AllocationKind, AllocationSemantics, ArgIdx, BlockId, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MangledSymbol,
-        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, SliceLocation,
-        Terminator, Value, ValueId,
+        MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PanicCode, RevertReason,
+        SliceLocation, Terminator, Value, ValueId,
     },
     pass::MirPass,
 };
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, RevertStrings};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -76,7 +76,7 @@ impl MirPass for LowerAbi {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        LowerAbiCx::default().run(
+        LowerAbiCx { revert_strings: gcx.sess.opts.revert_strings, ..Default::default() }.run(
             module,
             gcx.sess.opts.evm_version,
             gcx.sess.opts.optimization.is_gas(),
@@ -91,6 +91,8 @@ struct LowerAbiCx {
     return_cleanup_helpers: FxHashMap<AbiParamType, FunctionId>,
     function_params: IndexVec<FunctionId, Vec<MirType>>,
     has_bitwise_shifting: bool,
+    /// How compiler-generated decoding reverts are encoded.
+    revert_strings: RevertStrings,
 }
 
 #[derive(Clone, Copy)]
@@ -254,7 +256,7 @@ impl LowerAbiCx {
             Self::clear_abi_inputs(module.function_mut(id));
         }
         if let Some(id) = rejecting_constructor {
-            Self::inject_callvalue_check(module.function_mut(id));
+            self.inject_callvalue_check(module.function_mut(id));
         }
 
         let mut body_of_wrapper = FxHashMap::default();
@@ -269,7 +271,7 @@ impl LowerAbiCx {
                 body_of_wrapper.insert(id, body_id);
             }
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
-                Self::inject_callvalue_check(module.function_mut(id));
+                self.inject_callvalue_check(module.function_mut(id));
             }
         }
 
@@ -330,6 +332,11 @@ impl LowerAbiCx {
                 .all(|(abi_ty, &param_ty)| abi_ty.mir_type() == param_ty)
     }
 
+    /// Creates a builder for `func` that encodes revert reasons per the session's settings.
+    fn builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
+        FunctionBuilder::new(func).with_revert_strings(self.revert_strings)
+    }
+
     fn lower_decode_instructions(&self, module: &mut Module) -> bool {
         let mut decode_counts = FxHashMap::default();
         let mut memory_type_counts = FxHashMap::default();
@@ -362,6 +369,7 @@ impl LowerAbiCx {
         let mut memory_type_helpers = FxHashMap::default();
         for (_, ty) in memory_types {
             let helper = synthesize_memory_decode_helper(
+                self.revert_strings,
                 module,
                 &ty,
                 &memory_type_helpers,
@@ -394,7 +402,7 @@ impl LowerAbiCx {
         for func_id in decode_functions.iter() {
             let func = module.function_mut(func_id);
             let mut replacements = FxHashMap::default();
-            let mut builder = FunctionBuilder::new(func);
+            let mut builder = self.builder(func);
             let blocks = builder.func().blocks.indices();
             for block in blocks {
                 let instructions =
@@ -502,7 +510,7 @@ impl LowerAbiCx {
     ) -> FunctionId {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_type));
         {
-            let mut builder = FunctionBuilder::new(&mut function);
+            let mut builder = self.builder(&mut function);
             let head = builder.add_param(MirType::uint256());
             let tuple_base = builder.imm(4);
             let input_end = builder.calldatasize();
@@ -603,7 +611,7 @@ impl LowerAbiCx {
     fn synthesize_calldata_slice_helper(&self, module: &mut Module) -> FunctionId {
         let mut function = Function::new(Ident::with_dummy_span(sym::decode_calldata_slice));
         {
-            let mut builder = FunctionBuilder::new(&mut function);
+            let mut builder = self.builder(&mut function);
             let head = builder.add_param(MirType::uint256());
             let tuple_base = builder.imm(4);
             let input_end = builder.calldatasize();
@@ -631,7 +639,7 @@ impl LowerAbiCx {
     ) -> FunctionId {
         let mut function = Function::new(Ident::with_dummy_span(name));
         {
-            let mut builder = FunctionBuilder::new(&mut function);
+            let mut builder = self.builder(&mut function);
             let data = builder.add_param(MirType::MemoryObject(MemoryObjectKind::Bytes));
             for ty in &layout.types {
                 builder.add_return(ty.mir_type());
@@ -677,7 +685,7 @@ impl LowerAbiCx {
         let head_size = builder.imm(head_size);
         let short = builder.lt(length, head_size);
         let invalid = builder.or(overflow, short);
-        *current = builder.revert_if(invalid);
+        *current = builder.revert_if_reason(invalid, RevertReason::TupleDataTooShort);
         input_end
     }
 
@@ -969,7 +977,7 @@ impl LowerAbiCx {
             }
         }
         let guard = {
-            let mut builder = FunctionBuilder::new(func);
+            let mut builder = self.builder(func);
             let guard = builder.create_block();
             let revert = builder.create_block();
             let mut current = guard;
@@ -1168,8 +1176,7 @@ impl LowerAbiCx {
             builder.jump(old_entry);
 
             builder.switch_to_block(revert);
-            let zero = builder.imm(0);
-            builder.revert(zero, zero);
+            builder.revert_reason(RevertReason::TupleDataTooShort);
 
             guard
         };
@@ -1889,7 +1896,7 @@ impl LowerAbiCx {
         let remaining = builder.sub(input_end, data);
         let tail_invalid = builder.gt(len, remaining);
         let invalid = builder.or(head_invalid, tail_invalid);
-        *current = builder.revert_if(invalid);
+        *current = builder.revert_if_reason(invalid, RevertReason::InvalidCalldataArrayOffset);
         (base, data, len)
     }
 
@@ -2002,7 +2009,7 @@ impl LowerAbiCx {
             builder.div(remaining, element_head_size)
         };
         let invalid = builder.gt(len, max_len);
-        *current = builder.revert_if(invalid);
+        *current = builder.revert_if_reason(invalid, RevertReason::InvalidCalldataArrayStride);
     }
 
     fn decode_source_scalar(
@@ -2040,7 +2047,7 @@ impl LowerAbiCx {
         ) {
             let remaining = builder.sub(input_end, base);
             let invalid = builder.gt(offset, remaining);
-            *current = builder.revert_if(invalid);
+            *current = builder.revert_if_reason(invalid, RevertReason::InvalidTupleOffset);
             return target;
         }
 
@@ -2052,7 +2059,7 @@ impl LowerAbiCx {
         let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);
         let invalid = builder.or(overflow, out_of_range);
-        *current = builder.revert_if(invalid);
+        *current = builder.revert_if_reason(invalid, RevertReason::InvalidCalldataArrayOffset);
         target
     }
 
@@ -2080,7 +2087,7 @@ impl LowerAbiCx {
         // potentially overflowing end pointer.
         let remaining = builder.sub(input_end, start);
         let invalid = builder.gt(size, remaining);
-        *current = builder.revert_if(invalid);
+        *current = builder.revert_if_reason(invalid, RevertReason::TupleDataTooShort);
     }
 
     fn checked_add(
@@ -2548,17 +2555,16 @@ impl LowerAbiCx {
     /// The new guard block becomes the entry and falls through into the old
     /// body, so the check costs no extra jump. Function bodies have already
     /// been extracted, so internal callers never pay the check.
-    fn inject_callvalue_check(func: &mut Function) {
+    fn inject_callvalue_check(&self, func: &mut Function) {
         let old_entry = BlockId::ENTRY;
-        let mut builder = FunctionBuilder::new(func);
+        let mut builder = self.builder(func);
         let guard = builder.create_block();
         let revert = builder.create_block();
         builder.switch_to_block(guard);
         let value = builder.callvalue();
         builder.branch(value, revert, old_entry);
         builder.switch_to_block(revert);
-        let zero = builder.imm(0);
-        builder.revert(zero, zero);
+        builder.revert_reason(RevertReason::EtherSentToNonPayable);
 
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
@@ -2658,6 +2664,7 @@ fn abi_param_type_depth(ty: &AbiParamType) -> usize {
 
 /// Adds a helper for a repeated dynamic tuple in a memory ABI decode.
 fn synthesize_memory_decode_helper(
+    revert_strings: RevertStrings,
     module: &mut Module,
     ty: &AbiParamType,
     helpers: &FxHashMap<AbiParamType, FunctionId>,
@@ -2665,7 +2672,7 @@ fn synthesize_memory_decode_helper(
 ) -> FunctionId {
     let mut function = Function::new(Ident::with_dummy_span(sym::decode_memory_type));
     {
-        let mut builder = FunctionBuilder::new(&mut function);
+        let mut builder = FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
         let head = builder.add_param(MirType::uint256());
         let tuple_base = builder.add_param(MirType::uint256());
         let input_end = builder.add_param(MirType::uint256());

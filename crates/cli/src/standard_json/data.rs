@@ -8,6 +8,7 @@ use serde::{
     de::{self, SeqAccess, Visitor},
 };
 use serde_json::{Map, Value};
+use solar_config::RevertStrings;
 use solar_data_structures::map::FxBuildHasher;
 use solar_interface::diagnostics::SolcDiagnostic;
 use solar_sema::output::{Documentation, StorageLayoutOutput};
@@ -86,8 +87,8 @@ pub(super) struct Settings<'a> {
     pub(super) metadata: MetadataSettings,
     #[serde(borrow, default)]
     pub(super) libraries: Libraries<'a>,
-    #[serde(borrow, default)]
-    pub(super) debug: Option<DebugSettings<'a>>,
+    #[serde(default)]
+    pub(super) debug: Option<DebugSettings>,
     //
     // Not supported.
     // #[serde(borrow, default)]
@@ -103,15 +104,44 @@ pub(super) struct Settings<'a> {
 /// The solc Standard JSON `settings.debug` object.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub(super) struct DebugSettings<'a> {
-    /// Revert reason string handling; parsed and validated in `compile`.
-    #[serde(borrow)]
-    pub(super) revert_strings: Option<CowStr<'a>>,
-    /// Debug info components to include in the IR output.
+pub(super) struct DebugSettings {
+    /// Revert reason string handling.
+    #[serde(default)]
+    pub(super) revert_strings: Option<RevertStrings>,
+    /// Debug info components to include in IR output.
     ///
-    /// We do not emit Yul IR, so the components only get validated.
-    #[serde(borrow)]
-    pub(super) debug_info: Option<Vec<CowStr<'a>>>,
+    /// We do not emit Yul IR, so only the selection rules are enforced: `snippet` requires
+    /// `location`, and an explicit selection must include `ethdebug` to request ethdebug output.
+    #[serde(default)]
+    pub(super) debug_info: Option<Vec<DebugInfoComponent>>,
+}
+
+impl DebugSettings {
+    /// Returns `true` if `component` is selected, either directly or through `*`.
+    ///
+    /// Returns `false` when `debugInfo` is absent; callers apply solc's defaults themselves.
+    pub(super) fn selects_debug_info(&self, component: DebugInfoComponent) -> bool {
+        self.debug_info.as_deref().is_some_and(|components| {
+            components.iter().any(|&c| c == component || c == DebugInfoComponent::All)
+        })
+    }
+}
+
+/// A solc `DebugInfoSelection` component name.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum DebugInfoComponent {
+    /// Source locations, `@src` in Yul IR.
+    Location,
+    /// Source snippets next to locations.
+    Snippet,
+    /// AST node IDs, `@ast-id` in Yul IR.
+    AstId,
+    /// Ethdebug annotations.
+    Ethdebug,
+    /// Every component.
+    #[serde(rename = "*")]
+    All,
 }
 
 /// The solc Standard JSON `settings.metadata` object.
@@ -1006,14 +1036,24 @@ mod tests {
     }
 
     #[test]
-    fn debug_rejects_unknown_keys() {
-        assert!(serde_json::from_str::<DebugSettings<'_>>(r#"{"verbose":true}"#).is_err());
-        let debug = serde_json::from_str::<DebugSettings<'_>>(
-            r#"{"revertStrings":"strip","debugInfo":["location","snippet"]}"#,
+    fn debug_settings_parse_solc_names() {
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"verbose":true}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":"Strip"}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["source"]}"#).is_err());
+        let debug = serde_json::from_str::<DebugSettings>(
+            r#"{"revertStrings":"verboseDebug","debugInfo":["location","ast-id","*"]}"#,
         )
         .unwrap();
-        assert_eq!(debug.revert_strings.as_deref(), Some("strip"));
-        assert_eq!(debug.debug_info.as_deref().map(<[_]>::len), Some(2));
+        assert_eq!(debug.revert_strings, Some(RevertStrings::VerboseDebug));
+        assert_eq!(
+            debug.debug_info.as_deref(),
+            Some(
+                &[DebugInfoComponent::Location, DebugInfoComponent::AstId, DebugInfoComponent::All]
+                    [..]
+            )
+        );
+        assert!(debug.selects_debug_info(DebugInfoComponent::Ethdebug));
+        assert!(!DebugSettings::default().selects_debug_info(DebugInfoComponent::Ethdebug));
     }
 
     #[test]

@@ -70,7 +70,7 @@ fn @bump() -> memorybytes {
 
 fn @requireSideEffects() -> u256 [selector=0x0b84f921, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @bump, 1
+    v0 = icall @bump, 1
     v1 = iszero 1
     jumpi v1, bb1, bb2
   bb2:
@@ -82,7 +82,7 @@ fn @requireSideEffects() -> u256 [selector=0x0b84f921, abi_params=[], abi_return
 
 fn @revertSideEffects() [selector=0x03d865f9, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = internal_call @bump, 1
+    v0 = icall @bump, 1
     revert 0, 0
 }
 

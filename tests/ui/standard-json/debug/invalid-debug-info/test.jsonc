@@ -1,7 +1,5 @@
 // CHECK: "errors": [
 // CHECK: "severity": "error"
-// CHECK: "message": "invalid value `source` in `settings.debug.debugInfo`"
-// CHECK: "severity": "error"
 // CHECK: "message": "to use `snippet` with `settings.debug.debugInfo` you must also select `location`"
 // CHECK-NOT: "contracts"
 {
@@ -13,7 +11,7 @@
   },
   "settings": {
     "debug": {
-      "debugInfo": ["snippet", "source"]
+      "debugInfo": ["snippet", "ast-id"]
     },
     "outputSelection": {
       "*": {

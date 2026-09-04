@@ -1,6 +1,6 @@
 // CHECK: "errors": [
 // CHECK: "severity": "error"
-// CHECK: "message": "JSON parse error: unknown variant `Strip`, expected one of `default`, `strip`, `debug`, `verboseDebug`
+// CHECK: "message": "JSON parse error: unknown variant `source`, expected one of `location`, `snippet`, `ast-id`, `ethdebug`, `*`
 // CHECK-NOT: "contracts"
 {
   "language": "Solidity",
@@ -11,7 +11,7 @@
   },
   "settings": {
     "debug": {
-      "revertStrings": "Strip"
+      "debugInfo": ["location", "source"]
     },
     "outputSelection": {
       "*": {

@@ -1483,13 +1483,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let actual = self.current_returndata_size();
         let short = self.builder.lt(actual, expected);
-        self.builder.revert_if(short);
+        self.builder.revert_if_reason(short, RevertReason::TupleDataTooShort);
     }
 
     pub(super) fn revert_if_no_code(&mut self, address: ValueId) {
         let size = self.builder.extcodesize(address);
         let missing = self.builder.iszero(size);
-        self.builder.revert_if(missing);
+        self.builder.revert_if_reason(missing, RevertReason::TargetContractHasNoCode);
     }
 
     fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
