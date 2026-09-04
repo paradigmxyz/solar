@@ -108,7 +108,7 @@ Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
 
 ### TYPECK-003: Inline array literals adopt the expected element type
 
-Status: parity debt.
+Status: intentional.
 
 Difference: `solc` types an inline array literal from its elements alone and
 then requires the result to convert to the destination, which rules out any
@@ -120,9 +120,12 @@ all of them and stores the widened values. A copy into storage, such as
 `s = [[1, 2], [3, 4]];` or `a.push([1, 2])`, is accepted by both, because a
 storage copy converts element-wise.
 
-Rationale: the seed gives a literal the element type of its destination, which
-is how a nested literal copied into storage picks up the destination's element
-type. The widened values are correct; only the acceptance is wider.
+Rationale: we deliberately support this extended form. The seed gives a
+literal the element type of its destination, which is how a nested literal
+copied into storage picks up the destination's element type, and the same
+rule makes `uint256[2] memory x = [1, 2];` mean what it reads. The widened
+values are correct; only the acceptance is wider than `solc`'s, and every
+program `solc` accepts here has the same meaning in `solar`.
 
 Coverage: `tests/ui/typeck/inline_array_reference_elements.sol`,
 `tests/ui/typeck/array_push_element_locations.sol`, and
