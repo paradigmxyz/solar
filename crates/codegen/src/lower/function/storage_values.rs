@@ -660,18 +660,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let memory_ty = element.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 // The copy into storage converts element-wise, so the source type has to be
                 // the argument's own type: a shorter fixed array then copies only the
-                // elements it has and the destination's remaining ones are zero-filled. A
-                // storage source is the exception, because `lower_typed_expr` already loaded
-                // it as an object of the destination type.
-                let source_ty = self
-                    .cx
-                    .gcx
-                    .type_of_expr(argument.id)
-                    .filter(|ty| !ty.is_ref_at(DataLocation::Storage))
+                // elements it has and the destination's remaining ones are zero-filled.
+                let argument_ty = self.cx.gcx.type_of_expr(argument.id);
+                let source_ty = argument_ty
                     .map(|ty| ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory))
-                    .filter(|&ty| self.types.memory_layout(ty).is_some())
-                    .unwrap_or(memory_ty);
-                let value = self.lower_typed_expr(argument, memory_ty)?;
+                    .filter(|&ty| self.types.memory_layout(ty).is_some());
+                // A storage source is loaded at its own type as well. Loading it as the
+                // destination type reads the slots that follow a shorter source and decodes
+                // a differently packed one at the wrong width, so the appended element ends
+                // up holding unrelated state.
+                let storage_source =
+                    argument_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage));
+                let load_ty = if storage_source {
+                    let Some(source_ty) = source_ty else {
+                        return self
+                            .cx
+                            .report_unsupported(argument.span, "storage array push source");
+                    };
+                    source_ty
+                } else {
+                    memory_ty
+                };
+                let source_ty = source_ty.unwrap_or(memory_ty);
+                let value = self.lower_typed_expr(argument, load_ty)?;
                 // A calldata argument is decoded at the type it is materialized with, so it
                 // has to be the argument's own type as well: reading it at the destination
                 // type would take the element count and the lengths from the destination.
