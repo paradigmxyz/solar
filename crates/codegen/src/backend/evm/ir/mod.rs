@@ -621,9 +621,9 @@ pub(crate) struct Metadata {
     /// `GAS`-relative gas reserve.
     ///
     /// The flag records only that the pair is glued, not what it is glued to, so verification can
-    /// reject a block that ends with a flagged instruction but cannot tell that a transform swapped
-    /// the successor for another instruction. Transforms therefore check the boundary themselves,
-    /// through `is_split_point`.
+    /// reject a block that ends with a flagged instruction but cannot tell that a transform
+    /// swapped the successor for another instruction. Transforms therefore check the boundary
+    /// themselves, through `is_split_point`.
     pub(crate) keep_with_next: bool,
 }
 

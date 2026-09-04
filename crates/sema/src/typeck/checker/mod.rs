@@ -3083,9 +3083,13 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     } else {
                         continue;
                     };
-                    self.evm_version_error(clause.span, "typed catch clause", EvmVersion::Byzantium)
-                        .code(code)
-                        .emit();
+                    self.evm_version_error(
+                        clause.span,
+                        "typed catch clause",
+                        EvmVersion::Byzantium,
+                    )
+                    .code(code)
+                    .emit();
                 }
                 // A `returns` clause binds the call's values; without one they are discarded.
                 if try_.clauses[0].args.is_empty() {
