@@ -85,8 +85,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/storage_bytes_push_gas.sol`; fixed in `8f2e55ba`, review fix `3d5d21f8`)
 - [x] 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects, so every external call runs out of gas
       (`symbolic-audit/external_call_gas_prebyzantium.sol`; fixed in `5aebf672`, review fix `f675c760`)
-- [ ] 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium because the catch path emits `RETURNDATACOPY`
-      (`symbolic-audit/try_catch_prebyzantium.sol`)
+- [x] 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium because the catch path emits `RETURNDATACOPY`
+      (`symbolic-audit/try_catch_prebyzantium.sol`; fixed in `af297b6b`, review fix `813b6632`)
 - [ ] 31. External library calls with return values are rejected before byzantium instead of using a static output buffer
       (`symbolic-audit/library_call_prebyzantium.sol`)
 - [ ] 32. Loop-carried values round-trip through memory frame slots on every iteration, so tight loops cost 1.25x to 1.7x solc
@@ -103,6 +103,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/storage_array_push_rvalue.sol`)
 - [ ] 38. At `-Ogas` the backend puts a jump between homestead's `sub(gas(), 50)` and a shared CALL block, so the reserve is short and the call throws
       (`symbolic-audit/call_gas_reserve_split.sol`)
+- [ ] 39. A pre-byzantium external call whose dynamic return value is unused is rejected; solc compiles it
+      (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`)
 
 ## Findings
 
@@ -1255,6 +1257,38 @@ verification failure for a valid program.
 
 Severity: valid program rejected, with an internal error as the message.
 
+Cause and fix (`af297b6b`): `lower_try` passed an empty output area to
+the call, decoded the return values from return data on success, and
+materialized the return data on failure to match `Error`/`Panic` clauses
+even when only a bare `catch` existed. Where the EVM version has no return
+data the call now plans a static output area through the shared
+`plan_return_buffer`/`finish_external_call` helpers (so the `extcodesize`
+guard of finding 27, the gas reserve and output-area touch of finding 29,
+and the returned-word validation all apply), reads the static return
+values back from it, and carries no catch data: the bare clause runs
+unconditionally and the forwarding revert is `revert(0, 0)`, as in solc's
+`revert_forward_0`. Typed clauses pre-byzantium bail without a second
+diagnostic, and the type checker's error carries solc's codes 1812 and
+9908. Byzantium and later are unchanged (all 719 UI codegen files
+compiled at four versions and three optimization levels: no diffs).
+Verified with the harness on the repro at homestead, tangerineWhistle,
+spuriousDragon, byzantium, and osaka, on a live-callee probe with 15
+shapes (one, two, aggregate, and no return values, view, revert, revert
+with string, panic, gas hog, code-less callee, function pointer, side
+effects, `try new`) at all five versions, and on a homestead forge EVM
+where `try` around a returning, a two-word, a no-return, and a
+gas-capped reverting callee gives solc's values with gas within 300. The
+review (`813b6632`) read solc's `visit(TryStatement)`, `handleCatch`,
+and forwarding-revert helpers, probed `try` in loops, nested, in a
+modifier, in the constructor, and with the binding used after the block
+on a real homestead EVM, and fixed the catch-clause name check: solc
+reports 3542 for a name other than `Error` or `Panic` at every version,
+and we had accepted `catch Foo(uint256)` from byzantium on. Confirmed by
+both: a code-less callee reverts the whole function instead of running
+the catch pre-byzantium and, with return values, from byzantium on,
+because solc guards `try` calls too. Residual: a pre-byzantium call whose
+dynamic return value is unused is still rejected (finding 39).
+
 ### 31. External library calls with return values are rejected before byzantium
 
 File: `symbolic-audit/library_call_prebyzantium.sol`
@@ -1607,6 +1641,34 @@ worst-case jump sequence the backend can insert.
 
 Severity: miscompile for the homestead target at the default optimization
 level; which call sites fail depends on which tails the backend merges.
+
+### 39. A pre-byzantium external call whose dynamic return value is unused is rejected
+
+File: `symbolic-audit/dynamic_return_unused_prebyzantium.sol`
+Found by the review of finding 30's fix.
+
+```solidity
+interface I { function dyn() external returns (bytes memory); }
+contract C {
+    function t(address a) external { I(a).dyn(); }
+    function u(address a) external { try I(a).dyn() { } catch { } }
+}
+```
+
+| Input at homestead | solc | solar |
+|------|------|------|
+| `I(a).dyn();`, value discarded | compiles | error `codegen cannot decode external function returndata before Byzantium` |
+| `try I(a).dyn() { } catch { }` | compiles | error `codegen cannot decode try/catch returndata before Byzantium` |
+| `bytes memory b = I(a).dyn();` | error 6509 (inaccessible dynamic type) | rejected |
+| the same at byzantium | compiles | compiles |
+
+Before byzantium solc types a dynamically encoded return value as
+`InaccessibleDynamicType`: the call is legal as long as the value is not
+used, and the type checker rejects any use. Our lowering tries to decode
+the return data regardless and reports the codegen gap even when nothing
+reads the value.
+
+Severity: valid program rejected. Low; pre-byzantium only.
 
 ## solc-side observations
 
