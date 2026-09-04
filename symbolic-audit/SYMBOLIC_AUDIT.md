@@ -101,8 +101,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/loop_tuple_assign_miscompile.sol`; fixed in `daaf2d05`, tests in `ae814158`)
 - [ ] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
       (`symbolic-audit/storage_array_push_rvalue.sol`)
-- [ ] 38. At `-Ogas` the backend puts a jump between homestead's `sub(gas(), 50)` and a shared CALL block, so the reserve is short and the call throws
-      (`symbolic-audit/call_gas_reserve_split.sol`)
+- [x] 38. At `-Ogas` the backend puts a jump between homestead's `sub(gas(), 50)` and a shared CALL block, so the reserve is short and the call throws
+      (`symbolic-audit/call_gas_reserve_split.sol`; fixed in `58ab6626`, review fix `595abb4c`)
 - [ ] 39. A pre-byzantium external call whose dynamic return value is unused is rejected; solc compiles it
       (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`)
 
@@ -1668,6 +1668,34 @@ worst-case jump sequence the backend can insert.
 
 Severity: miscompile for the homestead target at the default optimization
 level; which call sites fail depends on which tails the backend merges.
+
+Cause and fix (`58ab6626`): the EVM IR tail merger picks the longest equal
+instruction suffix of two blocks and cuts there; when a forwarded-gas call
+and a `{gas: ...}` call of the same shape shared a call tail, the cut fell
+between the `SUB` and the `CALL`. The fix adds an instruction-level
+constraint, `Metadata::keep_with_next` (`!meta(keep_with_next)` in the
+text format), set by lowering on the `GAS` and `SUB` of the reserve
+whenever the target cannot overcharge gas for a call; `tail_merge` and
+`outline` only split at legal boundaries (a merge shrinks to the next
+legal boundary rather than being refused), the flag is part of the
+machine-instruction and terminal-block keys, and the EVM IR verifier
+rejects a block ending in a flagged instruction, so a future pass that
+splits there fails validation instead of miscompiling. TangerineWhistle
+and later are unaffected by construction (4320 bytecode comparisons at
+byzantium and osaka: no diffs); homestead grows 3 bytes over the UI
+codegen corpus. Verified on a homestead forge EVM: every shape of the
+repro returns solc's value (`live` 23 444 gas against solc's 23 802). The
+review (`595abb4c`) walked every EVM IR transform for boundary creation
+and in-block insertion, guarded the two remaining insertion sites
+(`share_reverts` and degenerate-branch simplification, unreachable today
+but now checked), fixed an inverted doc comment, added verifier fixtures,
+and swept 806 reserves over 4380 compilations of adversarial probes
+(shared tails with mixed gas options, value and bare calls, libraries,
+loops, both branch arms, deep stack pressure, `try`): none is followed by
+anything but a call opcode, where the parent commit had 18 violations.
+Residual: the verifier runs in debug builds only, like all EVM IR
+validation, and passes that rebuild pushes or shifts drop metadata,
+harmless while only `GAS` and `SUB` carry the flag.
 
 ### 39. A pre-byzantium external call whose dynamic return value is unused is rejected
 
