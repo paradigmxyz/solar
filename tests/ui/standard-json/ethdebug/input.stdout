@@ -236,6 +236,15 @@
                   "offset": 18,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 19,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x24"
+                    ]
                   },
                   "context": {
                     "invoke": {
@@ -249,24 +258,8 @@
                           "length": 74
                         }
                       },
-                      "jump": true,
-                      "target": {
-                        "pointer": {
-                          "location": "code",
-                          "offset": 48,
-                          "length": 1
-                        }
-                      }
+                      "jump": true
                     }
-                  }
-                },
-                {
-                  "offset": 19,
-                  "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x24"
-                    ]
                   }
                 },
                 {

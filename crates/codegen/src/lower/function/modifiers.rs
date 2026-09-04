@@ -135,12 +135,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // argument expressions still form the input frame used by each `_`.
         self.restore_bindings(&context.incoming_returns);
         self.modifiers.push(context);
-        self.modifier_depth = self.modifier_depth.saturating_add(1);
-        self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_block(modifier_body);
-        self.modifier_depth = self.modifier_depth.saturating_sub(1);
         self.modifiers.pop();
-        self.builder.replace_modifier_depth(self.modifier_depth);
         self.restore_bindings(&saved_parameters);
         self.restore_bindings(&saved_locals);
         result
@@ -210,7 +206,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.restore_bindings(&context.parameters);
         self.restore_bindings(&context.returns);
         self.push_return_target(continuation);
+        self.modifier_depth = self.modifier_depth.saturating_add(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
+        self.modifier_depth = self.modifier_depth.saturating_sub(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         result?;
         if !self.is_terminated() {
             self.record_return_state();

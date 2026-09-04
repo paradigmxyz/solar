@@ -1,7 +1,7 @@
 //! Legacy Solidity instruction source maps.
 
 use solar_codegen::backend::evm::{DebugFunctionExit, DebugInstruction};
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 use std::fmt::Write as _;
 
@@ -36,12 +36,37 @@ impl SourceMapEncoder {
     }
 
     /// Encodes final EVM instructions.
-    pub(crate) fn encode(&self, gcx: Gcx<'_>, instructions: &[DebugInstruction]) -> String {
-        let entries = instructions.iter().map(|instruction| self.entry(gcx, instruction));
+    pub(crate) fn encode(
+        &self,
+        gcx: Gcx<'_>,
+        bytecode: &[u8],
+        instructions: &[DebugInstruction],
+    ) -> String {
+        let function_entries = instructions
+            .iter()
+            .filter(|instruction| instruction.function_invoke.is_some())
+            .map(|instruction| instruction.offset as usize)
+            .collect::<FxHashSet<_>>();
+        let entries = instructions.iter().enumerate().map(|(index, instruction)| {
+            self.entry(
+                gcx,
+                bytecode,
+                &function_entries,
+                instructions.get(index.wrapping_sub(1)),
+                instruction,
+            )
+        });
         encode(entries)
     }
 
-    fn entry(&self, gcx: Gcx<'_>, instruction: &DebugInstruction) -> SourceMapEntry {
+    fn entry(
+        &self,
+        gcx: Gcx<'_>,
+        bytecode: &[u8],
+        function_entries: &FxHashSet<usize>,
+        previous: Option<&DebugInstruction>,
+        instruction: &DebugInstruction,
+    ) -> SourceMapEntry {
         // Legacy maps have one origin, so shared instructions use their primary span.
         let location = instruction.source_spans.first().and_then(|&span| {
             let source = gcx.sess.source_map().span_to_source(span).ok()?;
@@ -52,7 +77,10 @@ impl SourceMapEncoder {
         // `i` denotes an internal transfer and is meaningful only on a jump.
         // `o` also covers RETURN, which is the external function's terminal transfer.
         let is_jump = matches!(instruction.opcode, 0x56 | 0x57);
-        let jump = if is_jump && instruction.function_invoke.is_some() {
+        let enters_function = instruction.function_invoke.is_some()
+            || static_jump_target(bytecode, previous, instruction)
+                .is_some_and(|target| function_entries.contains(&target));
+        let jump = if is_jump && enters_function {
             'i'
         } else if instruction.function_exit == Some(DebugFunctionExit::Return) {
             'o'
@@ -68,6 +96,30 @@ impl SourceMapEncoder {
             modifier_depth: i64::from(instruction.modifier_depth),
         }
     }
+}
+
+/// Returns the statically encoded destination of a jump preceded by `PUSH`.
+pub(crate) fn static_jump_target(
+    bytecode: &[u8],
+    previous: Option<&DebugInstruction>,
+    instruction: &DebugInstruction,
+) -> Option<usize> {
+    if !matches!(instruction.opcode, 0x56 | 0x57) {
+        return None;
+    }
+    let previous = previous?;
+    let width = previous.opcode.checked_sub(0x5f)? as usize;
+    if !(1..=32).contains(&width)
+        || previous.offset as usize + width + 1 != instruction.offset as usize
+    {
+        return None;
+    }
+    let start = previous.offset as usize + 1;
+    let mut target = 0usize;
+    for &byte in bytecode.get(start..instruction.offset as usize)? {
+        target = target.checked_mul(256)?.checked_add(usize::from(byte))?;
+    }
+    (bytecode.get(target).copied() == Some(0x5b)).then_some(target)
 }
 
 fn encode(entries: impl IntoIterator<Item = SourceMapEntry>) -> String {

@@ -515,11 +515,13 @@ bitflags::bitflags! {
             | Self::YUL_CFG_JSON.bits();
         const BYTECODE = Self::BYTECODE_OBJECT.bits()
             | Self::BYTECODE_OPCODES.bits()
+            | Self::BYTECODE_SOURCE_MAP.bits()
             | Self::BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::BYTECODE_GENERATED_SOURCES.bits()
             | Self::BYTECODE_LINK_REFERENCES.bits();
         const DEPLOYED_BYTECODE = Self::DEPLOYED_BYTECODE_OBJECT.bits()
             | Self::DEPLOYED_BYTECODE_OPCODES.bits()
+            | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
             | Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA.bits()
             | Self::DEPLOYED_BYTECODE_GENERATED_SOURCES.bits()
             | Self::DEPLOYED_BYTECODE_LINK_REFERENCES.bits()
@@ -1049,6 +1051,15 @@ mod tests {
             selection_flags(r#"["evm.bytecode", "evm.deployedBytecode"]"#),
             OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE
         );
+        assert!(OutputSelectionFlags::BYTECODE.contains(OutputSelectionFlags::BYTECODE_SOURCE_MAP));
+        assert!(
+            OutputSelectionFlags::DEPLOYED_BYTECODE
+                .contains(OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP)
+        );
+        assert!(OutputSelectionFlags::WILDCARD.contains(
+            OutputSelectionFlags::BYTECODE_SOURCE_MAP
+                | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
+        ));
         assert!(!OutputSelectionFlags::EVM.intersects(OutputSelectionFlags::ETHDEBUG));
     }
 

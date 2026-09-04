@@ -608,7 +608,9 @@ fn make_bytecode_output(
             }
         });
         output.source_map = Some(match (source_map_encoder, debug_info) {
-            (Some(encoder), Some(info)) => encoder.encode(gcx, info),
+            (Some(encoder), Some(info)) => {
+                encoder.encode(gcx, bytecode.map_or(&[], |bytecode| bytecode.as_ref()), info)
+            }
             _ => String::new(),
         });
     }
@@ -772,7 +774,8 @@ fn make_ethdebug_program(
 
     let instructions = debug_info
         .iter()
-        .map(|instruction| {
+        .enumerate()
+        .map(|(index, instruction)| {
             let mnemonic = solar_codegen::backend::evm::opcode_mnemonic(instruction.opcode)
                 .expect("assembled opcode should have a mnemonic")
                 .to_ascii_uppercase();
@@ -783,7 +786,13 @@ fn make_ethdebug_program(
             EthdebugInstruction {
                 offset: instruction.offset as usize,
                 operation: EthdebugOperation { mnemonic, arguments },
-                context: make_ethdebug_context(gcx, &source_ids, bytecode, instruction),
+                context: make_ethdebug_context(
+                    gcx,
+                    &source_ids,
+                    bytecode,
+                    debug_info.get(index.wrapping_sub(1)),
+                    instruction,
+                ),
             }
         })
         .collect();
@@ -818,6 +827,7 @@ fn make_ethdebug_context(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
     bytecode: &[u8],
+    previous: Option<&DebugInstruction>,
     instruction: &DebugInstruction,
 ) -> Option<EthdebugContext> {
     let mut contexts = instruction
@@ -838,14 +848,7 @@ fn make_ethdebug_context(
         _ => (None, contexts),
     };
     let invoke = instruction.function_invoke.and_then(|function| {
-        make_ethdebug_function_invoke(
-            gcx,
-            source_ids,
-            bytecode,
-            function,
-            instruction.offset as usize,
-            instruction.opcode,
-        )
+        make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
     });
     let (r#return, revert) = match instruction.function_exit {
         Some(DebugFunctionExit::Return) => (Some(EthdebugFunctionExit {}), None),
@@ -868,36 +871,22 @@ fn make_ethdebug_function_invoke(
     gcx: Gcx<'_>,
     source_ids: &FxHashMap<u32, u32>,
     bytecode: &[u8],
+    previous: Option<&DebugInstruction>,
     function: DebugFunction,
-    offset: usize,
-    opcode: u8,
+    instruction: &DebugInstruction,
 ) -> Option<EthdebugFunctionInvoke> {
-    let target =
-        static_jump_target(bytecode, offset).or_else(|| (opcode == 0x5b).then_some(offset))?;
+    let target = crate::source_map::static_jump_target(bytecode, previous, instruction)
+        .or_else(|| (instruction.opcode == 0x5b).then_some(instruction.offset as usize))
+        .map(|target| EthdebugInvocationTarget {
+            pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
+        });
     Some(EthdebugFunctionInvoke {
         identifier: (function.identifier != solar_interface::sym::_anonymous)
             .then(|| function.identifier.to_string()),
         declaration: make_ethdebug_source_range(gcx, source_ids, function.declaration)?,
         jump: true,
-        target: Some(EthdebugInvocationTarget {
-            pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
-        }),
+        target,
     })
-}
-
-fn static_jump_target(bytecode: &[u8], offset: usize) -> Option<usize> {
-    for width in 1..=32 {
-        let start = offset.checked_sub(width + 1)?;
-        if bytecode.get(start).copied() != Some(0x5f + width as u8) {
-            continue;
-        }
-        let mut target = 0usize;
-        for &byte in bytecode.get(start + 1..offset)? {
-            target = target.checked_mul(256)?.checked_add(usize::from(byte))?;
-        }
-        return (bytecode.get(target).copied() == Some(0x5b)).then_some(target);
-    }
-    None
 }
 
 fn make_ethdebug_source_range(

@@ -135,7 +135,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             pop.metadata.copy_source_debug_from(&metadata);
             block.instructions.push(pop);
             let mut terminator = Terminator::new(TerminatorKind::Jump(target));
-            terminator.metadata = metadata;
+            terminator.metadata.copy_debug_info_from(&metadata);
             block.terminator = Some(terminator);
             changed = true;
             continue;

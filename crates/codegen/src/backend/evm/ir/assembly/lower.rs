@@ -32,13 +32,10 @@ impl Assembler<'_> {
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        if input_is_valid && !ir::verify::Verifier::is_valid(&ir_program) {
-            // An optimization pass may intentionally leave the temporary
-            // builder form until the legalization boundary below. Keep the
-            // check diagnostic-only so debug-info capture cannot turn a valid
-            // source program into an internal compiler error.
-            tracing::debug!("EVM IR validation deferred until legalization");
-        }
+        debug_assert!(
+            !input_is_valid || ir::verify::Verifier::is_valid(&ir_program),
+            "EVM IR pipeline invalidated a valid module"
+        );
         let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -187,6 +184,7 @@ fn lower_evm_ir_once(
         }
     }
     let mut program = Program::with_debug_info(capture_debug_info);
+    let mut pending_block_invoke = None;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
         let block_modifier_depth = block.instructions.first().map_or_else(
@@ -195,42 +193,30 @@ fn lower_evm_ir_once(
         );
         program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
+        if let Some(function) = block.metadata.function_invoke {
+            debug_assert!(
+                pending_block_invoke.is_none() || pending_block_invoke == Some(function),
+                "an instruction-free block cannot enter two functions"
+            );
+            pending_block_invoke = Some(function);
+        }
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
-            program.mark_last_function_invoke(block.metadata.function_invoke);
+            program.mark_last_function_invoke(pending_block_invoke.take());
         }
 
-        let mut pending_invoke = None;
         for inst in &block.instructions {
             program.set_source_spans(inst.metadata.source_spans());
             program.set_modifier_depth(inst.metadata.modifier_depth());
+            let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
-            let function_invoke = inst.metadata.function_invoke();
-            if let Some((index, function)) = pending_invoke.take()
-                && program.instructions.last().is_some_and(|last| {
-                    matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
-                })
+            if first < program.instructions.len()
+                && let Some(function) = pending_block_invoke.take()
             {
-                program.set_function_invoke(index, None);
-                program.mark_last_function_invoke(Some(function));
+                program.set_function_invoke(first, Some(function));
             }
-            if let Some(function) = function_invoke {
-                if inst.is_encoded_push() {
-                    let index = program.instructions.len() - 1;
-                    if let Some(previous) = index.checked_sub(1)
-                        && program.instructions.get(previous).is_some_and(|last| {
-                            matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
-                        })
-                    {
-                        program.set_function_invoke(index, None);
-                        program.set_function_invoke(previous, Some(function));
-                    } else {
-                        program.mark_last_function_invoke(Some(function));
-                        pending_invoke = Some((index, function));
-                    }
-                } else {
-                    program.mark_last_function_invoke(Some(function));
-                }
+            if let Some(function) = inst.metadata.function_invoke() {
+                program.mark_last_function_invoke(Some(function));
             }
             program.mark_last_function_exit(inst.metadata.function_exit());
         }
@@ -238,6 +224,7 @@ fn lower_evm_ir_once(
         if let Some(terminator) = &block.terminator {
             program.set_source_spans(terminator.metadata.source_spans());
             program.set_modifier_depth(terminator.metadata.modifier_depth());
+            let first = program.instructions.len();
             lower_terminator(
                 assembler,
                 &mut program,
@@ -247,16 +234,13 @@ fn lower_evm_ir_once(
                 labels,
                 indexed_jump_lowerings[block_id],
             );
-            let function_invoke = terminator.metadata.function_invoke();
-            if let Some((index, function)) = pending_invoke
-                && program.instructions.last().is_some_and(|last| {
-                    matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
-                })
+            if first < program.instructions.len()
+                && let Some(function) = pending_block_invoke.take()
             {
-                program.set_function_invoke(index, None);
+                program.set_function_invoke(first, Some(function));
+            }
+            if let Some(function) = terminator.metadata.function_invoke() {
                 program.mark_last_function_invoke(Some(function));
-            } else {
-                program.mark_last_function_invoke(function_invoke);
             }
             program.mark_last_function_exit(terminator.metadata.function_exit());
         }

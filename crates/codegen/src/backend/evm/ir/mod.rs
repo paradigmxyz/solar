@@ -724,6 +724,13 @@ impl Metadata {
         self.modifier_depth = other.modifier_depth;
     }
 
+    /// Copies debug information without copying machine properties such as stack effects.
+    pub(crate) fn copy_debug_info_from(&mut self, other: &Self) {
+        self.copy_source_debug_from(other);
+        self.function_invoke = other.function_invoke;
+        self.function_exit = other.function_exit;
+    }
+
     /// Absorbs another operation's debug information: its origins are added and its function
     /// events are taken when this operation has none of its own.
     pub(crate) fn absorb_debug_info(&mut self, other: &Self) {

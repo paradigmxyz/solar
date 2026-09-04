@@ -6,8 +6,13 @@
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK-NEXT: "ethdebug": {
 // CHECK: "environment": "call"
-// CHECK: "invoke": {
+// CHECK: "offset": 18
+// CHECK: "mnemonic": "JUMPI"
+// CHECK: "offset": 19
+// CHECK: "mnemonic": "PUSH1"
+// CHECK-COUNT-1: "invoke": {
 // CHECK-NEXT: "identifier": "f"
+// CHECK-NOT: "target":
 // CHECK: "mnemonic": "ADD"
 // CHECK: "offset": 79
 // CHECK-NEXT: "length": 5

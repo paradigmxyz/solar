@@ -1,5 +1,6 @@
 //@ filecheck:
 // CHECK: "sourceMap":
+// CHECK-SAME: :0
 // CHECK-SAME: :1
 // CHECK-SAME: :2
 {

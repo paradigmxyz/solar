@@ -4,10 +4,14 @@
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +].*}}pop !metadata(span=10..20)
-// CHECK: {{^[ +].*}}stop !metadata(span=30..40, invoke=callee@30..50)
+// CHECK: {{^[ +].*}}jump bb1 !metadata(span=10..20)
 bb0:
+  push bb1
+  pop
   push 1 !metadata(span=1..5)
-  jumpi bb1, bb1 !metadata(span=10..20)
+  jumpi bb1, bb1 !metadata(stack=1->0, span=10..20)
 
+// CHECK-LABEL: {{^[ +].*}}bb1 [invoke=callee@30..50]:
+// CHECK: {{^[ +].*}}stop !metadata(span=30..40)
 bb1 [invoke=callee@30..50]:
   stop !metadata(span=30..40)

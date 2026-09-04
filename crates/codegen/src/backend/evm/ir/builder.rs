@@ -91,17 +91,6 @@ impl<'gcx> Assembler<'gcx> {
         self.program.blocks[block].metadata.function_invoke = Some(function);
     }
 
-    /// Marks the most recently emitted operation as entering a source-language function.
-    pub(crate) fn mark_last_function_invoke(&mut self, function: DebugFunction) {
-        self.program.track_debug_info();
-        let block = self.current_block.expect("function invoke requires an emitted operation");
-        let instruction = self.program.blocks[block]
-            .instructions
-            .last_mut()
-            .expect("function invoke requires an emitted operation");
-        instruction.metadata.set_function_invoke(function);
-    }
-
     /// Marks the most recently emitted operation as closing a function activation.
     pub(crate) fn mark_function_exit(&mut self, exit: DebugFunctionExit) {
         self.program.track_debug_info();

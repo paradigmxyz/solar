@@ -2286,8 +2286,6 @@ pub struct EvmCodegen<'gcx> {
     block_labels: FxHashMap<BlockId, Label>,
     /// Function labels for direct internal calls.
     function_labels: FxHashMap<FunctionId, Label>,
-    /// Source identities for MIR functions that survive lowering.
-    debug_functions: IndexVec<FunctionId, Option<DebugFunction>>,
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
     cold_functions: DenseBitSet<FunctionId>,
@@ -2441,7 +2439,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             scheduler: StackScheduler::for_evm_version(gcx.sess.opts.evm_version),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
-            debug_functions: IndexVec::new(),
             cold_functions: DenseBitSet::new_empty(0),
             empty_stop_functions: DenseBitSet::new_empty(0),
             cold_blocks: DenseBitSet::new_empty(0),
@@ -2811,19 +2808,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .emit();
             return EvmArtifact::default();
         }
-        self.debug_functions = module
-            .functions
-            .iter()
-            .map(|func| {
-                (self.capture_debug_info && !func.declaration_span.is_dummy())
-                    .then_some(func.debug_identifier)
-                    .flatten()
-                    .map(|identifier| DebugFunction {
-                        identifier,
-                        declaration: func.declaration_span,
-                    })
-            })
-            .collect();
         self.immutable_staging_base = immutable_staging_base(module);
         self.immutable_encodings.clear();
         for (id, immutable) in module.iter_immutables() {
@@ -3691,12 +3675,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 identifier,
                 declaration: func.declaration_span,
             });
-        }
-    }
-
-    fn mark_debug_function_invoke_id(&mut self, func_id: FunctionId) {
-        if let Some(&Some(function)) = self.debug_functions.get(func_id) {
-            self.asm.mark_last_function_invoke(function);
         }
     }
 
@@ -9978,7 +9956,6 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
-        self.mark_debug_function_invoke_id(callee);
 
         self.asm.define_label(return_label);
         if let Some(caller_stack) = caller_stack {
@@ -10606,7 +10583,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         self.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
-        self.mark_debug_function_invoke_id(callee);
 
         self.asm.define_label(return_label);
         if let Some(caller_stack) = caller_stack {
@@ -12067,7 +12043,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_push_label(label);
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
-                self.mark_debug_function_invoke_id(*function);
             }
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
