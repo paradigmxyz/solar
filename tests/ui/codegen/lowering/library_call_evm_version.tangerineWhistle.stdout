@@ -73,6 +73,12 @@ fn @noret(arg0: u256) [selector=0x089b9644, pure, abi_params=[u256], abi_returns
     stop
 }
 
+fn @six(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    ret v0, 1, 2, 3, 4, 5
+}
+
 // === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
 @module C
 fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[word]] {
@@ -234,6 +240,52 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v9 = add v1, 0
     v10 = mload v9
     ret v10
+  bb1:
+    revert 0, 0
+}
+
+fn @dynamicArgument(arg0: memorybytes) -> (u256, u256) [selector=0x11b8efbf, pure, abi_params=[bytes], abi_returns=[word, word]] {
+  bb0:
+    v0 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = gas
+    v4 = extcodesize 0x1111111111111111111111111111111111111111
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 192
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v7 = add v1, 0
+    v8 = mload v7
+    v9 = add v1, 32
+    v10 = mload v9
+    v11 = add v1, 64
+    v12 = mload v11
+    v13 = add v1, 96
+    v14 = mload v13
+    v15 = add v1, 128
+    v16 = mload v15
+    v17 = add v1, 160
+    v18 = mload v17
+    frame_store multi_return, word, 0, v1 !metadata(memory=scratch)
+    v19 = add v1, 0
+    v20 = mload v19
+    v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v22 = add v21, 32
+    v23 = mload v22
+    v24 = add v21, 64
+    v25 = mload v24
+    v26 = add v21, 96
+    v27 = mload v26
+    v28 = add v21, 128
+    v29 = mload v28
+    v30 = add v21, 160
+    v31 = mload v30
+    ret v20, v31
   bb1:
     revert 0, 0
 }

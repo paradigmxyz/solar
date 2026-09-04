@@ -69,13 +69,14 @@ contract TryBareCatch {
         }
     }
 
-    // A multi-word output area reaches a word past the four-byte input, and that word is touched
-    // before the gas is read.
+    // The word above a multi-word output area is touched before the arguments are encoded and
+    // the gas is read.
     // HOMESTEAD-LABEL: fn @liveTwo
     // HOMESTEAD: create
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
-    // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64

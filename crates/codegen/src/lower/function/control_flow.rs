@@ -415,8 +415,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // buffer = alloc_overlay_return_buffer(returns)
             // input = abi_encode(selector, args)
             let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
+            // mstore(add(fmp(), ret_size), 0)
+            self.touch_call_output_area(options.gas, &return_types, overlay_buffer.is_some());
             let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-            let input_size_bytes = Self::static_input_size(&layout);
             let encoded =
                 self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
             let input = self.builder.slice_ptr(encoded);
@@ -425,21 +426,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // clauses need anyway; before it the call writes them into an output area overlaying
             // its input and the success path reads them back from there.
             // ret_offset, ret_size = plan_return_buffer(returns)
-            // mstore(ret_offset + ret_size - 32, 0)
-            let ret_plan = (!supports_returndata).then(|| {
-                self.plan_return_buffer(
-                    input,
-                    input_size_bytes,
-                    zero,
-                    &return_types,
-                    overlay_buffer,
-                )
-            });
-            let (ret_offset, ret_size) = if let Some(plan) = &ret_plan {
-                self.touch_call_output_area(options.gas, plan);
-                plan.output_area()
-            } else {
-                (zero, self.builder.imm(0))
+            let ret_plan = (!supports_returndata)
+                .then(|| self.plan_return_buffer(input, zero, &return_types, overlay_buffer));
+            let (ret_offset, ret_size) = match &ret_plan {
+                Some(plan) => plan.output_area(),
+                None => (zero, self.builder.imm(0)),
             };
             if self.needs_code_check(return_types.len()) {
                 self.revert_if_no_code(address);

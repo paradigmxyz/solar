@@ -105,25 +105,28 @@ fn @withReturn() -> u256 [selector=0x2149184b, abi_params=[], abi_returns=[word]
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize v6
-    v11 = iszero v10
-    jumpi v11, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 32
+    mstore v8, 0
+    v9 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v12 = gas
-    v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, v8, 32
-    jumpi v14, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 32
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v15 = add v8, 0
-    v16 = mload v15
-    v17 = add v8, 0
+    v17 = add v10, 0
     v18 = mload v17
-    ret v18
+    v19 = add v10, 0
+    v20 = mload v19
+    ret v20
   bb3:
     revert 0, 0
 }
@@ -143,25 +146,28 @@ fn @withValue() -> u256 [selector=0xd6b69802, abi_params=[], abi_returns=[word]]
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x295b4e1700000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize v6
-    v11 = iszero v10
-    jumpi v11, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 32
+    mstore v8, 0
+    v9 = abi_encode [], selector 0x295b4e1700000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v12 = gas
-    v13 = sub v12, 0x235a
-    v14 = call v13, v6, 0, v8, v9, v8, 32
-    jumpi v14, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 0x235a
+    v16 = call v15, v6, 0, v10, v11, v10, 32
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v15 = add v8, 0
-    v16 = mload v15
-    v17 = add v8, 0
+    v17 = add v10, 0
     v18 = mload v17
-    ret v18
+    v19 = add v10, 0
+    v20 = mload v19
+    ret v20
   bb3:
     revert 0, 0
 }
@@ -181,37 +187,38 @@ fn @twoReturns() -> u256 [selector=0xf7f4979a, abi_params=[], abi_returns=[word]
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = add v8, 32
-    mstore v10, 0
-    v11 = extcodesize v6
-    v12 = iszero v11
-    jumpi v12, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 64
+    mstore v8, 0
+    v9 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v13 = gas
-    v14 = sub v13, 50
-    v15 = call v14, v6, 0, v8, v9, v8, 64
-    jumpi v15, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 64
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v16 = add v8, 0
-    v17 = mload v16
-    v18 = add v8, 32
-    v19 = mload v18
-    frame_store multi_return, word, 0, v8 !metadata(memory=scratch)
-    v20 = add v8, 0
-    v21 = mload v20
-    v22 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v23 = add v22, 32
-    v24 = mload v23
-    v25 = add v21, v24
-    v26 = lt v25, v21
-    jumpi v26, bb7, bb8
+    v17 = add v10, 0
+    v18 = mload v17
+    v19 = add v10, 32
+    v20 = mload v19
+    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
+    v21 = add v10, 0
+    v22 = mload v21
+    v23 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v24 = add v23, 32
+    v25 = mload v24
+    v26 = add v22, v25
+    v27 = lt v26, v22
+    jumpi v27, bb7, bb8
   bb8:
-    ret v25
+    ret v26
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -235,85 +242,86 @@ fn @eightReturns() -> u256 [selector=0x67b0b213, abi_params=[], abi_returns=[wor
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0xcb94343e00000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = add v8, 224
-    mstore v10, 0
-    v11 = extcodesize v6
-    v12 = iszero v11
-    jumpi v12, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 256
+    mstore v8, 0
+    v9 = abi_encode [], selector 0xcb94343e00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v13 = gas
-    v14 = sub v13, 50
-    v15 = call v14, v6, 0, v8, v9, v8, 256
-    jumpi v15, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 256
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v16 = add v8, 0
-    v17 = mload v16
-    v18 = add v8, 32
-    v19 = mload v18
-    v20 = add v8, 64
-    v21 = mload v20
-    v22 = add v8, 96
-    v23 = mload v22
-    v24 = add v8, 128
-    v25 = mload v24
-    v26 = add v8, 160
-    v27 = mload v26
-    v28 = add v8, 192
-    v29 = mload v28
-    v30 = add v8, 224
-    v31 = mload v30
-    frame_store multi_return, word, 0, v8 !metadata(memory=scratch)
-    v32 = add v8, 0
-    v33 = mload v32
-    v34 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v35 = add v34, 32
-    v36 = mload v35
-    v37 = add v34, 64
-    v38 = mload v37
-    v39 = add v34, 96
-    v40 = mload v39
-    v41 = add v34, 128
-    v42 = mload v41
-    v43 = add v34, 160
-    v44 = mload v43
-    v45 = add v34, 192
-    v46 = mload v45
-    v47 = add v34, 224
-    v48 = mload v47
-    v49 = add v33, v36
-    v50 = lt v49, v33
-    jumpi v50, bb7, bb8
+    v17 = add v10, 0
+    v18 = mload v17
+    v19 = add v10, 32
+    v20 = mload v19
+    v21 = add v10, 64
+    v22 = mload v21
+    v23 = add v10, 96
+    v24 = mload v23
+    v25 = add v10, 128
+    v26 = mload v25
+    v27 = add v10, 160
+    v28 = mload v27
+    v29 = add v10, 192
+    v30 = mload v29
+    v31 = add v10, 224
+    v32 = mload v31
+    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
+    v33 = add v10, 0
+    v34 = mload v33
+    v35 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v36 = add v35, 32
+    v37 = mload v36
+    v38 = add v35, 64
+    v39 = mload v38
+    v40 = add v35, 96
+    v41 = mload v40
+    v42 = add v35, 128
+    v43 = mload v42
+    v44 = add v35, 160
+    v45 = mload v44
+    v46 = add v35, 192
+    v47 = mload v46
+    v48 = add v35, 224
+    v49 = mload v48
+    v50 = add v34, v37
+    v51 = lt v50, v34
+    jumpi v51, bb7, bb8
   bb8:
-    v51 = add v49, v38
-    v52 = lt v51, v49
-    jumpi v52, bb7, bb9
+    v52 = add v50, v39
+    v53 = lt v52, v50
+    jumpi v53, bb7, bb9
   bb9:
-    v53 = add v51, v40
-    v54 = lt v53, v51
-    jumpi v54, bb7, bb10
+    v54 = add v52, v41
+    v55 = lt v54, v52
+    jumpi v55, bb7, bb10
   bb10:
-    v55 = add v53, v42
-    v56 = lt v55, v53
-    jumpi v56, bb7, bb11
+    v56 = add v54, v43
+    v57 = lt v56, v54
+    jumpi v57, bb7, bb11
   bb11:
-    v57 = add v55, v44
-    v58 = lt v57, v55
-    jumpi v58, bb7, bb12
+    v58 = add v56, v45
+    v59 = lt v58, v56
+    jumpi v59, bb7, bb12
   bb12:
-    v59 = add v57, v46
-    v60 = lt v59, v57
-    jumpi v60, bb7, bb13
+    v60 = add v58, v47
+    v61 = lt v60, v58
+    jumpi v61, bb7, bb13
   bb13:
-    v61 = add v59, v48
-    v62 = lt v61, v59
-    jumpi v62, bb7, bb14
+    v62 = add v60, v49
+    v63 = lt v62, v60
+    jumpi v63, bb7, bb14
   bb14:
-    ret v61
+    ret v62
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -340,39 +348,40 @@ fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]]
     v7 = alloc memorybytes, exact, uninitialized, infallible, 96
     set_memory_object_len memorybytes, v7, 64
     v8 = memory_object_data memorybytes, v7
-    v9 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v10 = slice_ptr v9
-    v11 = slice_len v9
-    v12 = add v10, 32
-    mstore v12, 0
-    v13 = extcodesize v6
-    v14 = iszero v13
-    jumpi v14, bb3, bb4
+    v9 = fmp
+    v10 = add v9, 64
+    mstore v10, 0
+    v11 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = extcodesize v6
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
   bb4:
-    v15 = gas
-    v16 = sub v15, 50
-    v17 = call v16, v6, 0, v10, v11, v10, 64
-    jumpi v17, bb6, bb5
+    v16 = gas
+    v17 = sub v16, 50
+    v18 = call v17, v6, 0, v12, v13, v12, 64
+    jumpi v18, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    mcopy v8, v10, 64
-    v18 = abi_decode [array<2, u256>], v7
-    v19 = lt 0, 2
-    v20 = iszero v19
-    jumpi v20, bb7, bb8
+    mcopy v8, v12, 64
+    v19 = abi_decode [array<2, u256>], v7
+    v20 = lt 0, 2
+    v21 = iszero v20
+    jumpi v21, bb7, bb8
   bb8:
-    v21 = memory_object_load_element memoryfixedarray<2, 1>, v18, 0
-    v22 = lt 1, 2
-    v23 = iszero v22
-    jumpi v23, bb7, bb9
+    v22 = memory_object_load_element memoryfixedarray<2, 1>, v19, 0
+    v23 = lt 1, 2
+    v24 = iszero v23
+    jumpi v24, bb7, bb9
   bb9:
-    v24 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
-    v25 = add v21, v24
-    v26 = lt v25, v21
-    jumpi v26, bb10, bb11
+    v25 = memory_object_load_element memoryfixedarray<2, 1>, v19, 1
+    v26 = add v22, v25
+    v27 = lt v26, v22
+    jumpi v27, bb10, bb11
   bb11:
-    ret v25
+    ret v26
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)

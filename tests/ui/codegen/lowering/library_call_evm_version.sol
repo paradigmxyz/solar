@@ -37,6 +37,14 @@ library Lib {
     }
 
     function noret(uint256) external pure {}
+
+    function six(bytes memory b)
+        external
+        pure
+        returns (uint256, uint256, uint256, uint256, uint256, uint256)
+    {
+        return (b.length, 1, 2, 3, 4, 5);
+    }
 }
 
 contract C {
@@ -71,10 +79,13 @@ contract C {
         return Lib.dbl(x);
     }
 
-    // Two words overlay the input buffer as well. The area ends where encoding the selector and
-    // the one argument already expanded memory, so nothing has to be touched before the gas the
-    // call withholds is read.
+    // Two words overlay the input buffer as well, and the word above the area is touched before
+    // the arguments are encoded so that the delegatecall's own memory expansion is not charged
+    // against the gas it withholds.
     // HOMESTEAD-LABEL: fn @two
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD-NOT: mstore
     // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
@@ -155,6 +166,29 @@ contract C {
     // BYZANTIUM: returndatasize
     function attached() external view returns (uint256) {
         return nums.total();
+    }
+
+    // A six-word output area behind a dynamically encoded argument reaches far past the
+    // argument's last word, and `sub(gas(), 50)` leaves only two words of expansion. The touch
+    // sits at the free-memory pointer plus the output size, so it covers the area whatever the
+    // argument encodes to, and it precedes the encoding it would otherwise write over.
+    // HOMESTEAD-LABEL: fn @dynamicArgument
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 192
+    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[GAS:v[0-9]+]] = gas
+    // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
+    // HOMESTEAD: delegatecall [[FWD]], {{.*}}, [[IN]], {{.*}}, [[IN]], 192
+    // TANGERINE-LABEL: fn @dynamicArgument
+    // TANGERINE-NOT: = fmp
+    // TANGERINE: delegatecall {{.*}}, [[IN:v[0-9]+]], {{.*}}, [[IN]], 192
+    // BYZANTIUM-LABEL: fn @dynamicArgument
+    // BYZANTIUM: delegatecall {{.*}}, 0, 0
+    // BYZANTIUM: returndatasize
+    function dynamicArgument(bytes memory b) external pure returns (uint256, uint256) {
+        (uint256 a,,,,, uint256 f) = Lib.six(b);
+        return (a, f);
     }
 
     // A call with no return values declares an empty output area at either version.

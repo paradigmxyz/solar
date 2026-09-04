@@ -82,9 +82,10 @@ contract DynamicReturnUnused {
     // words and the first one is read back from the input area it overlays.
     // HOMESTEAD-LABEL: fn @liveMixed()
     // HOMESTEAD: create
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
-    // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64

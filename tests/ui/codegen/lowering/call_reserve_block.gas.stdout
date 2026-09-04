@@ -97,7 +97,7 @@ bb4 [cold]:
   dup 1
   invalid
 bb9:
-  push 224
+  push 256
   push 64
   mstore
   push 0
@@ -123,6 +123,16 @@ bb9:
   exp
   swap 1
   div
+  push 64
+  mload
+  dup 1
+  push 160
+  mstore
+  push 32
+  add
+  push 0
+  swap 1
+  mstore
   push 64
   mload
   push 32

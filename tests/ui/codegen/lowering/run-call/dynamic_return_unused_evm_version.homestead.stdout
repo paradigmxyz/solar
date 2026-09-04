@@ -50,24 +50,27 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize v6
-    v11 = iszero v10
-    jumpi v11, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 32
+    mstore v8, 0
+    v9 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v12 = gas
-    v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, v8, 32
-    jumpi v14, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 32
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v15 = add v8, 0
-    v16 = mload v15
-    v17 = add v8, 0
+    v17 = add v10, 0
     v18 = mload v17
+    v19 = add v10, 0
+    v20 = mload v19
     ret 1
   bb3:
     revert 0, 0
@@ -88,24 +91,27 @@ fn @liveString() -> u256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize v6
-    v11 = iszero v10
-    jumpi v11, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 32
+    mstore v8, 0
+    v9 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v12 = gas
-    v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, v8, 32
-    jumpi v14, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 32
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v15 = add v8, 0
-    v16 = mload v15
-    v17 = add v8, 0
+    v17 = add v10, 0
     v18 = mload v17
+    v19 = add v10, 0
+    v20 = mload v19
     ret 1
   bb3:
     revert 0, 0
@@ -126,17 +132,20 @@ fn @liveTry() -> u256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word]] {
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize v6
-    v11 = iszero v10
-    jumpi v11, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 32
+    mstore v8, 0
+    v9 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v12 = gas
-    v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, v8, 32
-    jumpi v14, bb5, bb6
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 32
+    jumpi v16, bb5, bb6
   bb6:
     jumpi 1, bb8, bb9
   bb9:
@@ -144,14 +153,14 @@ fn @liveTry() -> u256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word]] {
   bb8:
     jump bb7
   bb5:
-    v15 = add v8, 0
-    v16 = mload v15
-    v17 = add v8, 0
+    v17 = add v10, 0
     v18 = mload v17
+    v19 = add v10, 0
+    v20 = mload v19
     jump bb7
   bb7:
-    v19 = phi [bb5: 1], [bb8: 2]
-    ret v19
+    v21 = phi [bb5: 1], [bb8: 2]
+    ret v21
   bb3:
     revert 0, 0
 }
@@ -171,32 +180,33 @@ fn @liveMixed() -> u256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word]]
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = add v8, 32
-    mstore v10, 0
-    v11 = extcodesize v6
-    v12 = iszero v11
-    jumpi v12, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 64
+    mstore v8, 0
+    v9 = abi_encode [], selector 0x354df1f900000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v13 = gas
-    v14 = sub v13, 50
-    v15 = call v14, v6, 0, v8, v9, v8, 64
-    jumpi v15, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 64
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v16 = add v8, 0
-    v17 = mload v16
-    v18 = add v8, 32
-    v19 = mload v18
-    frame_store multi_return, word, 0, v8 !metadata(memory=scratch)
-    v20 = add v8, 0
-    v21 = mload v20
-    v22 = frame_load multi_return, word, 0 !metadata(memory=scratch)
-    v23 = memory_object_load_element memoryfixedarray<2, 1>, v22, 1
-    ret v21
+    v17 = add v10, 0
+    v18 = mload v17
+    v19 = add v10, 32
+    v20 = mload v19
+    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
+    v21 = add v10, 0
+    v22 = mload v21
+    v23 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v24 = memory_object_load_element memoryfixedarray<2, 1>, v23, 1
+    ret v22
   bb3:
     revert 0, 0
 }
@@ -216,42 +226,48 @@ fn @liveTuple() -> u256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word]]
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = extcodesize v6
-    v11 = iszero v10
-    jumpi v11, bb3, bb4
+    v7 = fmp
+    v8 = add v7, 32
+    mstore v8, 0
+    v9 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
   bb4:
-    v12 = gas
-    v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, v8, 32
-    jumpi v14, bb6, bb5
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v10, v11, v10, 32
+    jumpi v16, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v15 = add v8, 0
-    v16 = mload v15
-    v17 = add v8, 0
+    v17 = add v10, 0
     v18 = mload v17
-    v19 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
-    v20 = slice_ptr v19
-    v21 = slice_len v19
-    v22 = extcodesize v6
-    v23 = iszero v22
-    jumpi v23, bb3, bb7
+    v19 = add v10, 0
+    v20 = mload v19
+    v21 = fmp
+    v22 = add v21, 32
+    mstore v22, 0
+    v23 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v24 = slice_ptr v23
+    v25 = slice_len v23
+    v26 = extcodesize v6
+    v27 = iszero v26
+    jumpi v27, bb3, bb7
   bb7:
-    v24 = gas
-    v25 = sub v24, 50
-    v26 = call v25, v6, 0, v20, v21, v20, 32
-    jumpi v26, bb9, bb8
+    v28 = gas
+    v29 = sub v28, 50
+    v30 = call v29, v6, 0, v24, v25, v24, 32
+    jumpi v30, bb9, bb8
   bb8:
     revert_returndata
   bb9:
-    v27 = add v20, 0
-    v28 = mload v27
-    v29 = add v20, 0
-    v30 = mload v29
+    v31 = add v24, 0
+    v32 = mload v31
+    v33 = add v24, 0
+    v34 = mload v33
     ret 1
   bb3:
     revert 0, 0
@@ -277,24 +293,27 @@ fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v9 = and v8, 0xffffffff
     v10 = shl 224, v9
     v11 = shr 32, v8
-    v12 = abi_encode [], selector v10
-    v13 = slice_ptr v12
-    v14 = slice_len v12
-    v15 = extcodesize v11
-    v16 = iszero v15
-    jumpi v16, bb3, bb4
+    v12 = fmp
+    v13 = add v12, 32
+    mstore v13, 0
+    v14 = abi_encode [], selector v10
+    v15 = slice_ptr v14
+    v16 = slice_len v14
+    v17 = extcodesize v11
+    v18 = iszero v17
+    jumpi v18, bb3, bb4
   bb4:
-    v17 = gas
-    v18 = sub v17, 50
-    v19 = call v18, v11, 0, v13, v14, v13, 32
-    jumpi v19, bb6, bb5
+    v19 = gas
+    v20 = sub v19, 50
+    v21 = call v20, v11, 0, v15, v16, v15, 32
+    jumpi v21, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v20 = add v13, 0
-    v21 = mload v20
-    v22 = add v13, 0
+    v22 = add v15, 0
     v23 = mload v22
+    v24 = add v15, 0
+    v25 = mload v24
     ret 1
   bb3:
     revert 0, 0
@@ -317,9 +336,9 @@ fn @liveLoop() -> u256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word]] 
   bb2:
     jump bb3
   bb3:
-    v7 = phi [bb2: 0], [bb15: v23]
+    v7 = phi [bb2: 0], [bb15: v25]
     v8 = phi [bb2: v6], [bb15: v8]
-    v9 = phi [bb2: 0], [bb15: v25]
+    v9 = phi [bb2: 0], [bb15: v27]
     v10 = lt v9, 3
     jumpi v10, bb6, bb7
   bb7:
@@ -327,35 +346,38 @@ fn @liveLoop() -> u256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word]] 
   bb4:
     ret v7
   bb6:
-    v11 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v12 = slice_ptr v11
-    v13 = slice_len v11
-    v14 = extcodesize v8
-    v15 = iszero v14
-    jumpi v15, bb9, bb10
+    v11 = fmp
+    v12 = add v11, 32
+    mstore v12, 0
+    v13 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = extcodesize v8
+    v17 = iszero v16
+    jumpi v17, bb9, bb10
   bb10:
-    v16 = gas
-    v17 = sub v16, 50
-    v18 = call v17, v8, 0, v12, v13, v12, 32
-    jumpi v18, bb12, bb11
+    v18 = gas
+    v19 = sub v18, 50
+    v20 = call v19, v8, 0, v14, v15, v14, 32
+    jumpi v20, bb12, bb11
   bb11:
     revert_returndata
   bb12:
-    v19 = add v12, 0
-    v20 = mload v19
-    v21 = add v12, 0
+    v21 = add v14, 0
     v22 = mload v21
-    v23 = add v7, 1
-    v24 = lt v23, v7
-    jumpi v24, bb13, bb14
+    v23 = add v14, 0
+    v24 = mload v23
+    v25 = add v7, 1
+    v26 = lt v25, v7
+    jumpi v26, bb13, bb14
   bb14:
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v25 = add v9, 1
-    v26 = lt v25, v9
-    jumpi v26, bb13, bb15
+    v27 = add v9, 1
+    v28 = lt v27, v9
+    jumpi v28, bb13, bb15
   bb15:
     jump bb3
   bb13:
@@ -368,24 +390,27 @@ fn @liveLoop() -> u256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word]] 
 
 fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = extcodesize 0
-    v4 = iszero v3
-    jumpi v4, bb1, bb2
+    v0 = fmp
+    v1 = add v0, 32
+    mstore v1, 0
+    v2 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize 0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
   bb2:
-    v5 = gas
-    v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, v1, 32
-    jumpi v7, bb4, bb3
+    v7 = gas
+    v8 = sub v7, 50
+    v9 = call v8, 0, 0, v3, v4, v3, 32
+    jumpi v9, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v8 = add v1, 0
-    v9 = mload v8
-    v10 = add v1, 0
+    v10 = add v3, 0
     v11 = mload v10
+    v12 = add v3, 0
+    v13 = mload v12
     ret 1
   bb1:
     revert 0, 0
@@ -393,17 +418,20 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
 
 fn @noCodeTry() -> u256 [selector=0x1908ad35, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = extcodesize 0
-    v4 = iszero v3
-    jumpi v4, bb1, bb2
+    v0 = fmp
+    v1 = add v0, 32
+    mstore v1, 0
+    v2 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize 0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
   bb2:
-    v5 = gas
-    v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, v1, 32
-    jumpi v7, bb3, bb4
+    v7 = gas
+    v8 = sub v7, 50
+    v9 = call v8, 0, 0, v3, v4, v3, 32
+    jumpi v9, bb3, bb4
   bb4:
     jumpi 1, bb6, bb7
   bb7:
@@ -411,14 +439,14 @@ fn @noCodeTry() -> u256 [selector=0x1908ad35, abi_params=[], abi_returns=[word]]
   bb6:
     jump bb5
   bb3:
-    v8 = add v1, 0
-    v9 = mload v8
-    v10 = add v1, 0
+    v10 = add v3, 0
     v11 = mload v10
+    v12 = add v3, 0
+    v13 = mload v12
     jump bb5
   bb5:
-    v12 = phi [bb3: 1], [bb6: 2]
-    ret v12
+    v14 = phi [bb3: 1], [bb6: 2]
+    ret v14
   bb1:
     revert 0, 0
 }

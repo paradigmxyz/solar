@@ -9,7 +9,11 @@ pub(crate) mod eval;
 
 /// Homestead's `CALL` base cost plus the `SUB` and the call setup emitted after `GAS`.
 ///
-/// Mirrors solc's `GasCosts::callGas(homestead) + 10`.
+/// Mirrors solc's `GasCosts::callGas(homestead) + 10`: 40 for the call itself and 10 for the
+/// three-gas `SUB` and the pushes between the `GAS` and the `CALL`. That leaves seven gas of the
+/// reserve for the call's own memory expansion, at most two words, so the output area has to be
+/// touched before the reserve is computed; see
+/// [`FunctionLowerer::touch_call_output_area`](crate::lower::FunctionLowerer).
 const PRE_TANGERINE_CALL_GAS_RESERVE: u64 = 50;
 
 /// Extra gas a pre-Tangerine call is charged for transferring value.

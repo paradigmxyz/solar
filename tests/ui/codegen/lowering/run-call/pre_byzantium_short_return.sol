@@ -87,12 +87,13 @@ contract ShortReturns {
         return Target(address(this)).pair();
     }
 
-    // This output area reaches past the four-byte input, so its last word is written before the
-    // gas is read and the call is not charged the expansion out of what it withholds.
+    // The word above this output area is written before the arguments are encoded and the gas is
+    // read, so the call is not charged the expansion out of what it withholds.
     // HOMESTEAD-LABEL: fn @emptyFour
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 96
-    // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 128

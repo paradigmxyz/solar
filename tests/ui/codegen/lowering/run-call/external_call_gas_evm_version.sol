@@ -97,14 +97,15 @@ contract CallGasCalls {
         return CallGasTarget(address(new CallGasCallee())).paid{value: 0}();
     }
 
-    // The output area of a multi-word return overlays the input area, and the word it reaches
-    // past the four-byte input is written before the gas is read so that the call's memory
+    // The output area of a multi-word return overlays the input area, and the word above it is
+    // written before the arguments are encoded and the gas is read, so that the call's memory
     // expansion is not charged against what the call withholds.
     // HOMESTEAD-LABEL: fn @twoReturns
     // HOMESTEAD: create
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
-    // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
@@ -118,12 +119,13 @@ contract CallGasCalls {
         return first + second;
     }
 
-    // A wider output area is touched at its own last word, not one word further.
+    // A wider output area is touched one word above its own size, whatever the input encodes to.
     // HOMESTEAD-LABEL: fn @eightReturns
     // HOMESTEAD: create
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 256
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 224
-    // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 256
@@ -142,12 +144,12 @@ contract CallGasCalls {
     }
 
     // A static aggregate return is copied out of the overlaid area into a buffer of its own, and
-    // the word the area reaches past the input is touched too.
+    // the word above the area is touched too.
     // HOMESTEAD-LABEL: fn @aggregate
     // HOMESTEAD: create
-    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
-    // HOMESTEAD: mstore [[LAST]], 0
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 64
+    // HOMESTEAD: mstore [[ABOVE]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
     // HOMESTEAD: call [[FWD]],
