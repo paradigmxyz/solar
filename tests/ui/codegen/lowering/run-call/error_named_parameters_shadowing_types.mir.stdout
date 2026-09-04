@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/error_named_parameters_shadowing_types.sol:ErrorNamedParametersShadowingTypes ===
+@module ErrorNamedParametersShadowingTypes
+fn @f() [selector=0x26121ff0, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 42
+    v1 = abi_encode [tuple<word>], selector 0x33a5419300000000000000000000000000000000000000000000000000000000, args v0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    revert v2, v3
+}
+
+fn @g() [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    memory_object_store_field memorystruct<1>, v0, 0, 42
+    v1 = lt 1, 3
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = abi_encode [word<enum 3>, tuple<word>], selector 0x374b938700000000000000000000000000000000000000000000000000000000, args 1, v0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    revert v4, v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+}

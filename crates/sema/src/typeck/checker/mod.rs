@@ -244,6 +244,19 @@ impl<'gcx> TypeChecker<'gcx> {
         self.check_expr_with(expr, Some(expected))
     }
 
+    /// Checks the length expression of a fixed-size array type.
+    ///
+    /// Any integer expression is accepted, whatever its declared signedness and width. Only the
+    /// evaluated value matters, and [`crate::eval::eval_array_len`] checks it.
+    #[must_use]
+    fn check_array_size(&mut self, size: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        let ty = self.check_expr(size);
+        if !ty.is_integer() && !ty.references_error() {
+            let _ = self.check_expected(size, ty, self.gcx.types.uint(256));
+        }
+        ty
+    }
+
     #[track_caller]
     #[must_use]
     fn check_expr_with(
@@ -278,10 +291,17 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
-                let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
+                // The expected element type also seeds the elements, so a nested literal such as
+                // `[[1, 2], [3, 4]]` picks up the element type of its destination.
+                let element_expected = expected.and_then(|arr| arr.base_type(self.gcx));
+                let mut common = element_expected;
+                // The seed does not always unify with the elements' own types: a storage
+                // element type has no common type with a calldata slice. Infer the
+                // unseeded common type as well and fall back to it.
+                let mut mobile_common = None;
                 let mut guar: Option<ErrorGuaranteed> = None;
                 for (i, expr) in exprs.iter().enumerate() {
-                    let expr_ty = self.check_expr(expr);
+                    let expr_ty = self.check_expr_with_noexpect(expr, element_expected);
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
@@ -293,7 +313,15 @@ impl<'gcx> TypeChecker<'gcx> {
                     } else if i == 0 {
                         common = expr_ty.mobile(self.gcx);
                     }
+                    if i == 0 {
+                        mobile_common = expr_ty.mobile(self.gcx);
+                    } else if let Some(mobile_ty) = mobile_common {
+                        mobile_common = mobile_ty.common_type(expr_ty, self.gcx);
+                    }
                 }
+                // An unnameable fallback cannot be an element type either, so keep reporting
+                // the inference failure instead of it.
+                let common = common.or_else(|| mobile_common.filter(|ty| ty.nameable()));
                 if let Some(guar) = guar {
                     return self.gcx.mk_ty_err(guar);
                 }
@@ -523,7 +551,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else if let TyKind::Type(elem_ty) = ty.kind {
                     // `elem_ty` array type expression.
                     let arr = if let Some(index) = index {
-                        let index_ty = self.expect_ty(index, self.gcx.types.uint(256));
+                        let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
                             .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
@@ -1001,22 +1029,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn can_copy_to_storage(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> bool {
         let TyKind::Ref(to, DataLocation::Storage) = to.kind else { return false };
-        self.can_copy_storage_value(from, to)
-    }
-
-    fn can_copy_storage_value(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> bool {
-        let from = from.peel_refs();
-        let to = to.peel_refs();
-        match (from.kind, to.kind) {
-            (TyKind::DynArray(from), TyKind::DynArray(to))
-            | (TyKind::Array(from, _), TyKind::DynArray(to)) => {
-                self.can_copy_storage_value(from, to)
-            }
-            (TyKind::Array(from, from_len), TyKind::Array(to, to_len)) => {
-                from_len <= to_len && self.can_copy_storage_value(from, to)
-            }
-            _ => from.convert_implicit_to(to, self.gcx),
-        }
+        from.can_copy_to_storage_value(to, self.gcx)
     }
 
     /// Tries to evaluate an expression made up of int literals.
@@ -1242,6 +1255,16 @@ impl<'gcx> TypeChecker<'gcx> {
         expected: Ty<'gcx>,
     ) -> Result<(), TyConvertError> {
         let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return Ok(()) };
+
+        // A location-less reference parameter is a direct storage value, as in the argument of a
+        // storage array's `push`. Copies into storage are element-wise, so the element types only
+        // have to be convertible.
+        if matches!(actual.kind, TyKind::Ref(..))
+            && !matches!(expected.kind, TyKind::Ref(..))
+            && actual.can_copy_to_storage_value(expected, self.gcx)
+        {
+            return Ok(());
+        }
 
         if let TyKind::Tuple([ty]) = expected.kind
             && matches!(ty.kind, TyKind::Variadic)
@@ -3302,7 +3325,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
                 if let Some(size) = array.size {
-                    let _ = self.expect_ty(size, self.gcx.types.uint(256));
+                    let _ = self.check_array_size(size);
                 }
                 return self.visit_ty(&array.element);
             }
@@ -3584,9 +3607,13 @@ fn valid_delete(ty: Ty<'_>) -> bool {
     }
 }
 
+/// Returns `true` if index range access is supported on `ty`, which requires a dynamically sized
+/// calldata array.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/analysis/TypeChecker.cpp#L3717-L3718>
 fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
-    ty.is_ref_at(DataLocation::Calldata)
-        || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
+    let array = if let TyKind::Slice(array) = ty.kind { array } else { ty };
+    array.is_ref_at(DataLocation::Calldata) && array.peel_refs().is_dynamically_sized()
 }
 
 /// The element type of an array-typed expression, descending through slices.

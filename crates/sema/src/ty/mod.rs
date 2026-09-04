@@ -20,6 +20,7 @@ use solar_interface::{
     Ident, Session, Span, Symbol,
     config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
+    error_code,
     source_map::{FileName, SourceFile},
     sym,
 };
@@ -2069,6 +2070,16 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             }
         }
     };
+
+    // Only value types fit in a single transient storage slot.
+    // Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/analysis/DeclarationTypeChecker.cpp#L537-L538>
+    if ty_loc == Transient && !ty.is_value_type() && !ty.references_error() {
+        gcx.dcx()
+            .err("transient data location is only supported for value types")
+            .code(error_code!(1834))
+            .span(var.span)
+            .emit();
+    }
 
     ty.with_loc_if_ref(gcx, ty_loc)
 }

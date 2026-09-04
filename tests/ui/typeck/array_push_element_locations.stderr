@@ -22,5 +22,17 @@ error: member `push` not found on type `uint256[] memory`
 LL │         m.push(1);
    ╰╴          ━━━━
 
-error: aborting due to 4 previous errors
+error: no matching member `push` found on type `uint256[2][] storage`
+   ╭▸ ROOT/tests/ui/typeck/array_push_element_locations.sol:LL:CC
+   │
+LL │         pairs.push([1, 2, 3]);
+   ╰╴              ━━━━
+
+error: no matching member `push` found on type `int256[2][] storage`
+   ╭▸ ROOT/tests/ui/typeck/array_push_element_locations.sol:LL:CC
+   │
+LL │         signedPairs.push([1, 2]);
+   ╰╴                    ━━━━
+
+error: aborting due to 6 previous errors
 
