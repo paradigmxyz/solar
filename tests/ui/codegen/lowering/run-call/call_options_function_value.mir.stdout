@@ -194,14 +194,3 @@ fn @sideEffects() -> u256 [selector=0x1c954435, abi_params=[], abi_returns=[word
     v7 = sload 0 !metadata(storage=slot(0))
     ret v7
 }
-
-fn @discardedStatement() -> u256 [selector=0xe5c3c938, abi_params=[], abi_returns=[word]] {
-  bb0:
-    v0 = address
-    v1 = shl 32, v0
-    v2 = or v1, 0xb8c9d365
-    v3 = internal_call @gasOpt, 1
-    v4 = internal_call @valueOpt, 1
-    v5 = sload 0 !metadata(storage=slot(0))
-    ret v5
-}

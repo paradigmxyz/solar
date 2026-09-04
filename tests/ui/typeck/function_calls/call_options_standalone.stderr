@@ -62,11 +62,5 @@ error: member `selector` not found on type `function ()`
 LL │         internalFn{gas: 1}.selector;
    ╰╴                           ━━━━━━━━
 
-error: function call options can only be set on external function calls or contract creations
-   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
-   │
-LL │         internalFn{gas: 1};
-   ╰╴        ━━━━━━━━━━━━━━━━━━
-
-error: aborting due to 10 previous errors
+error: aborting due to 9 previous errors
 

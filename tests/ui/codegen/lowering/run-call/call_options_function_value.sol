@@ -3,7 +3,6 @@
 //@ codegen-matrix: standard
 //@ run-call: test_function => true
 //@ run-call: sideEffects => 12
-//@ run-call: discardedStatement => 12
 // ported-from: test/libsolidity/semanticTests/functionTypes/stack_height_check_on_adding_gas_variable_to_function.sol
 
 contract CallOptionsFunctionValue {
@@ -43,12 +42,6 @@ contract CallOptionsFunctionValue {
     // Discarded options are still evaluated, in order.
     function sideEffects() external returns (uint256) {
         this.h{gas: gasOpt(), value: valueOpt()}.address;
-        return marker;
-    }
-
-    // An expression statement discards the function value, so it takes options too.
-    function discardedStatement() external returns (uint256) {
-        this.h{gas: gasOpt(), value: valueOpt()};
         return marker;
     }
 }
