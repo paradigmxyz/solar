@@ -847,14 +847,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
             ExprKind::Payable(value) => self.lower_expr(value),
-            ExprKind::CallOptions(inner, opts) => {
-                // Options on a function value have no effect, but they are still evaluated.
-                let value = self.lower_expr(inner)?;
-                for opt in opts.args {
-                    self.lower_expr(&opt.value)?;
-                }
-                Some(value)
-            }
             _ if self.cx.gcx.dcx().has_errors().is_err() => Some(self.builder.imm(U256::ZERO)),
             _ => self.cx.report_unsupported(expr.span, "expression"),
         }

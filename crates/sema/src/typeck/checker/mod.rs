@@ -351,11 +351,6 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
             }
-            hir::ExprKind::CallOptions(inner, opts) => {
-                // Options on a function value have no effect, but they are still validated.
-                let ty = self.check_expr(inner);
-                self.check_call_options(ty, opts.args, opts.span)
-            }
             hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
                     self.check_member_call_callee(callee, receiver, ident, args)
@@ -2710,7 +2705,6 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Array(_)
             | hir::ExprKind::Assign(..)
             | hir::ExprKind::Binary(..)
-            | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::Delete(_)
             | hir::ExprKind::Slice(..)
             | hir::ExprKind::Lit(_)

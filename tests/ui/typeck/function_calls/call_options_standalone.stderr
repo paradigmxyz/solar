@@ -6,61 +6,77 @@ LL │         this.h{gas: 42}{value: 5}();
    │
    ╰ help: combine them into a single `{...}` option
 
-error: function call options have already been set
-   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
-   │
-LL │         this.h{gas: 42}{value: 5}.address;
-   │         ━━━━━━━━━━━━━━━━━━━━━━━━━
-   │
-   ╰ help: combine them into a single `{...}` option
-
 error: call options must be part of a call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         function() external f = this.g{gas: 42};
-   │                                       ━━━━━━━━━
+LL │         return this.g{gas: 42}.address == this.g.address &&
+   │                      ━━━━━━━━━
    ╰╴
 note: this expression is not a function call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         function() external f = this.g{gas: 42};
-   ╰╴                                ━━━━━━━━━━━━━━━
+LL │         return this.g{gas: 42}.address == this.g.address &&
+   ╰╴               ━━━━━━━━━━━━━━━
 
-error: cannot set option `value` on a non-payable function type
+error: call options must be part of a call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         this.g{value: 5}.address;
-   ╰╴               ━━━━━
-
-error: duplicate call option `gas`
+LL │             this.g{gas: 42}.selector == this.g.selector &&
+   │                   ━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         this.h{gas: 1, gas: 2}.address;
-   ╰╴                       ━━━
+LL │             this.g{gas: 42}.selector == this.g.selector &&
+   ╰╴            ━━━━━━━━━━━━━━━
 
-error: unknown call option `random`
+error: call options must be part of a call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         this.h{random: 1}.address;
-   ╰╴               ━━━━━━
-
-error: function call option `salt` can only be used with `new`
+LL │             this.h{gas: 42}.address == this.h.address &&
+   │                   ━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         this.h{salt: bytes32(0)}.address;
-   ╰╴               ━━━━
+LL │             this.h{gas: 42}.address == this.h.address &&
+   ╰╴            ━━━━━━━━━━━━━━━
 
-error: function call options can only be set on external function calls or contract creations
+error: call options must be part of a call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         internalFn{gas: 1}.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━
-
-error: member `selector` not found on type `function ()`
+LL │             this.h{gas: 42}.selector == this.h.selector &&
+   │                   ━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
-LL │         internalFn{gas: 1}.selector;
-   ╰╴                           ━━━━━━━━
+LL │             this.h{gas: 42}.selector == this.h.selector &&
+   ╰╴            ━━━━━━━━━━━━━━━
 
-error: aborting due to 9 previous errors
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.address == this.h.address &&
+   │                   ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.address == this.h.address &&
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.selector == this.h.selector;
+   │                   ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.selector == this.h.selector;
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
 
