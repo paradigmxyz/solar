@@ -1,4 +1,4 @@
-error[6509]: cannot use the dynamically encoded return value of an external call
+error[9574]: cannot use the dynamically encoded return value of an external call
    ╭▸ ROOT/tests/ui/typeck/evm_version/returned_dynamic_array_without_returndata.sol:LL:CC
    │
 LL │         uint[][] memory x = this.get();

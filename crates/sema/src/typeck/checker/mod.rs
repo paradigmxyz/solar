@@ -75,6 +75,28 @@ struct TypeChecker<'gcx> {
     /// Only populated before Byzantium, where a dynamically encoded external return value is
     /// inaccessible and only a discarded one is legal.
     discarded: FxHashMap<hir::ExprId, Discarded>,
+    /// Where the value of the expression being checked is used.
+    value_position: ValuePosition,
+}
+
+/// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
+/// call's inaccessible dynamically encoded return value.
+///
+/// solc gives such a call an inaccessible dynamic type and then reports the ordinary conversion
+/// error of the position the value is used in, and every position has a code of its own.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum ValuePosition {
+    /// Any other expression, a member access on the value included, which solc reports as 7407.
+    #[default]
+    Expression,
+    /// A variable declaration's initializer, which solc reports as 9574.
+    VariableDeclaration,
+    /// A `return` statement's value, which solc reports as 6359.
+    Return,
+    /// A call argument, which solc reports as 9553.
+    Argument,
+    /// A `try ... returns` clause's binding, which solc reports as 6509.
+    TryReturns,
 }
 
 /// The components of an expression's value that a statement discards.
@@ -110,6 +132,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_revert: false,
             in_yul: false,
             discarded: FxHashMap::default(),
+            value_position: ValuePosition::default(),
         }
     }
 
@@ -1251,6 +1274,9 @@ impl<'gcx> TypeChecker<'gcx> {
     /// inaccessible dynamic type (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the
     /// call itself is legal and only reading the value is not. The other return values stay
     /// accessible, so a tuple destructuring that drops the dynamic ones is legal too.
+    ///
+    /// solc reports the ordinary conversion error of the position the value is used in, so the
+    /// code comes from [`ValuePosition`] rather than being one code for every use.
     fn check_inaccessible_dynamic_return(
         &self,
         expr: &'gcx hir::Expr<'gcx>,
@@ -1271,10 +1297,17 @@ impl<'gcx> TypeChecker<'gcx> {
             {
                 continue;
             }
+            let code = match self.value_position {
+                ValuePosition::Expression => error_code!(7407),
+                ValuePosition::VariableDeclaration => error_code!(9574),
+                ValuePosition::Return => error_code!(6359),
+                ValuePosition::Argument => error_code!(9553),
+                ValuePosition::TryReturns => error_code!(6509),
+            };
             return Err(self
                 .dcx()
                 .err("cannot use the dynamically encoded return value of an external call")
-                .code(error_code!(6509))
+                .code(code)
                 .span(expr.span)
                 .note(format!(
                     "the call returns `{}`, whose size is unknowable without `RETURNDATASIZE`",
@@ -1301,14 +1334,18 @@ impl<'gcx> TypeChecker<'gcx> {
         param_tys: &[Ty<'gcx>],
         param_names: Option<CallableParamSource>,
     ) -> Result<(), ErrorGuaranteed> {
-        match args.kind {
+        // An argument's conversion error is solc's 9553, whichever position the call itself is in.
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::Argument);
+        let result = match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
                 self.check_positional_call_args(call_span, args.span, exprs, param_tys)
             }
             hir::CallArgsKind::Named(named_args) => {
                 self.check_named_call_args(call_span, args.span, named_args, param_tys, param_names)
             }
-        }
+        };
+        self.value_position = prev;
+        result
     }
 
     /// Rejects a base constructor whose arguments two contracts of the
@@ -2154,6 +2191,18 @@ impl<'gcx> TypeChecker<'gcx> {
         param_tys: &[Ty<'gcx>],
         param_names: Option<CallableParamSource>,
     ) -> bool {
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::Argument);
+        let matches = self.call_args_match_inner(args, param_tys, param_names);
+        self.value_position = prev;
+        matches
+    }
+
+    fn call_args_match_inner(
+        &mut self,
+        args: &hir::CallArgs<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_names: Option<CallableParamSource>,
+    ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => self.positional_call_args_match(exprs, param_tys),
             hir::CallArgsKind::Named(named_args) => {
@@ -2598,7 +2647,10 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             self.discard(init, Discarded::Components(dropped));
         }
+        // A declaration's conversion error is solc's 9574.
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::VariableDeclaration);
         let ty = self.check_expr_with_noexpect(init, expected);
+        self.value_position = prev;
         let value_types =
             if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
 
@@ -3037,6 +3089,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        // Every statement sets the position of the values it uses itself, so no position outlives
+        // the statement that set it.
+        self.value_position = ValuePosition::Expression;
         match stmt.kind {
             hir::StmtKind::DeclSingle(var) => {
                 let init = self.gcx.hir.variable(var).initializer;
@@ -3105,8 +3160,12 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     .emit();
                 }
                 // A `returns` clause binds the call's values; without one they are discarded.
+                // Binding an inaccessible one is the mismatch solc reports as 6509, and the
+                // walk below checks the call expression before any clause body.
                 if try_.clauses[0].args.is_empty() {
                     self.discard(&try_.expr, Discarded::All);
+                } else {
+                    self.value_position = ValuePosition::TryReturns;
                 }
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
@@ -3181,7 +3240,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                                 ids.iter().map(|&id| self.gcx.type_of_item(id.into())),
                             )),
                         };
+                    // A return value's conversion error is solc's 6359.
+                    let prev = std::mem::replace(&mut self.value_position, ValuePosition::Return);
                     let actual = self.check_expr_with_noexpect(expr, Some(expected));
+                    self.value_position = prev;
                     let _ = self.check_return_expected(expr, actual, expected);
                 } else if !returns.is_empty() {
                     self.dcx().emit_err(stmt.span, "return arguments required");
