@@ -484,7 +484,7 @@ fn @test1() -> memoryarray [selector=0x6b59084d, view, abi_params=[], abi_return
   bb6:
     v18 = storage_array_data_slot 0
     v19 = add v18, v16
-    v20 = internal_call @load_storage_word_array, 1, v19
+    v20 = icall @load_storage_word_array, 1, v19
     memory_object_store_element memoryarray<1>, v15, v16, v20
     v21 = add v16, 1
     jump bb5
@@ -513,7 +513,7 @@ fn @test2() -> memoryfixedarray [selector=0x66e41cb7, view, abi_params=[], abi_r
     ret v4
   bb5:
     v7 = add 1, v5
-    v8 = internal_call @load_storage_word_array, 1, v7
+    v8 = icall @load_storage_word_array, 1, v7
     memory_object_store_element memoryfixedarray<2, 1>, v4, v5, v8
     v9 = add v5, 1
     jump bb4
