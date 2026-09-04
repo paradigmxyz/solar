@@ -113,6 +113,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/library_storage_pointer_return.sol`; fixed in `35ae83f1`, review follow-up `8b1538be`)
 - [ ] 43. `delete` on a storage pointer local is accepted; solc rejects it with error 9767
       (`symbolic-audit/delete_storage_pointer.sol`)
+- [ ] 44. `try` on an internal call, duplicate `Error`/low-level catch clauses, and wrongly typed `Panic`/`Error` clauses are accepted; solc reports 2536, 1036, 5320, 1271, 2943
+      (`symbolic-audit/try_catch_clause_checks.sol`)
 
 ## Findings
 
@@ -2001,6 +2003,31 @@ clear of the target. Not a divergence on valid programs: solar accepts a
 program solc refuses.
 
 Severity: missing diagnostic.
+
+### 44. Five `try`/`catch` statement checks are missing
+
+File: `symbolic-audit/try_catch_clause_checks.sol`
+Found by the agent fixing finding 41 while comparing solc's
+`syntaxTests/tryCatch/` directory; confirmed against solc 0.8.36 Standard
+JSON codes.
+
+| Statement | solc | solar |
+|------|------|------|
+| `try g()` on an internal function | error 2536 `Try can only be used with external function calls and contract creation calls.` | compiles |
+| two `catch Error(string memory)` clauses | error 1036 `This try statement already has an "Error" catch clause.` | compiles |
+| `catch (bytes memory)` followed by a bare `catch` | error 5320 `This try statement already has a low-level catch clause.` | compiles |
+| `catch Panic(uint8)` | error 1271 `Expected `catch Panic(uint ...) { ... }`.` | compiles |
+| `catch Error(uint256)` | error 2943 `Expected `catch Error(string memory ...) { ... }`.` | compiles |
+
+The fixer also listed 5347 (`try` on a non-call expression), 6231
+(low-level clause with a wrong type), 6732 (a second `Panic` clause),
+9106, and several correctly rejected forms whose messages lack solc's
+codes (6651, 1788, 8297, 7858, 2314, 3546). All live in
+`TypeChecker::visit(TryStatement)` next to the clause-name and
+`returns`-clause checks fixed in items 30 and 41. Not codegen
+divergences: solar accepts programs solc refuses.
+
+Severity: missing diagnostics.
 
 ## solc-side observations
 
