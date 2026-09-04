@@ -23,6 +23,15 @@ interface K {
     receive() external payable;
 }
 
+// Members that are not ordinary functions keep their own checks: solc rejects a constructor, a
+// modifier, and a variable in an interface with a different error each, and the getter of a public
+// variable is `external`, so none of them may report this one.
+interface L {
+    constructor() {}
+    modifier m() { _; }
+    uint256 public x;
+}
+
 // The restriction only applies to interfaces.
 contract C {
     function f() public {}
