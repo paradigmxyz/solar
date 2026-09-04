@@ -8,43 +8,52 @@ fn @inject(arg0: u256) -> u8 [pure] {
 fn @storageIndex(arg0: u256) -> u256 [selector=0xe1f98cd0, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, 1 !metadata(storage=symbolic(v4))
-    sstore 0, v1 !metadata(storage=slot(0))
-    v5 = sload 0 !metadata(storage=slot(0))
-    v6 = add v5, 1
-    v7 = lt v6, v5
-    jumpi v7, bb1, bb3
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb3
   bb3:
-    v8 = storage_array_data_slot 0
-    v9 = add v8, v5
-    sstore v9, 2 !metadata(storage=symbolic(v9))
-    sstore 0, v6 !metadata(storage=slot(0))
-    v10 = sload 0 !metadata(storage=slot(0))
-    v11 = add v10, 1
-    v12 = lt v11, v10
-    jumpi v12, bb1, bb4
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore v5, 1 !metadata(storage=symbolic(v5))
+    sstore 0, v2 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = gt v6, 0xffffffffffffffff
+    jumpi v7, bb1, bb4
   bb4:
-    v13 = storage_array_data_slot 0
-    v14 = add v13, v10
-    sstore v14, 3 !metadata(storage=symbolic(v14))
-    sstore 0, v11 !metadata(storage=slot(0))
-    v15 = icall @inject, 1, arg0
-    v16 = sload 0 !metadata(storage=slot(0))
-    v17 = lt v15, v16
-    v18 = iszero v17
-    jumpi v18, bb5, bb6
-  bb6:
-    v19 = storage_array_data_slot 0
-    v20 = add v19, v15
-    v21 = sload v20 !metadata(storage=symbolic(v20))
-    ret v21
+    v8 = add v6, 1
+    v9 = lt v8, v6
+    jumpi v9, bb1, bb5
   bb5:
+    v10 = storage_array_data_slot 0
+    v11 = add v10, v6
+    sstore v11, 2 !metadata(storage=symbolic(v11))
+    sstore 0, v8 !metadata(storage=slot(0))
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = gt v12, 0xffffffffffffffff
+    jumpi v13, bb1, bb6
+  bb6:
+    v14 = add v12, 1
+    v15 = lt v14, v12
+    jumpi v15, bb1, bb7
+  bb7:
+    v16 = storage_array_data_slot 0
+    v17 = add v16, v12
+    sstore v17, 3 !metadata(storage=symbolic(v17))
+    sstore 0, v14 !metadata(storage=slot(0))
+    v18 = icall @inject, 1, arg0
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = lt v18, v19
+    v21 = iszero v20
+    jumpi v21, bb8, bb9
+  bb9:
+    v22 = storage_array_data_slot 0
+    v23 = add v22, v18
+    v24 = sload v23 !metadata(storage=symbolic(v23))
+    ret v24
+  bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36

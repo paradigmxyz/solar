@@ -553,7 +553,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         span: Span,
     ) -> Option<(StorageAccess, ValueId)> {
+        // old_length = sload(array_slot)
+        // if old_length >= 2**64 { panic(MemoryAllocationOverflow) }
+        // new_length = checked_add(old_length, 1)
+        // element_slot = storage_array_element_slot(array_slot, old_length)
+        //
+        // A length at or above 2**64 cannot be reached by growing the array, so
+        // it is a forged one, and `keccak256(array_slot) + old_length` then
+        // wraps onto unrelated storage. solc's `array_push` caps it the same
+        // way, before the element slot is derived; the 256-bit overflow check
+        // on the new length stays as defense in depth.
         let length = self.builder.sload(base.slot);
+        let max_length = self.builder.imm(U256::from(u64::MAX));
+        let too_long = self.builder.gt(length, max_length);
+        self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
         let one = self.builder.imm(1);
         let new_length = self.builder.checked_add(length, one);
         let access = self.storage_array_element_access(base.slot, length, element, true, span)?;

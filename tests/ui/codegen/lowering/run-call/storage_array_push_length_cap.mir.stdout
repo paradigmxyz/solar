@@ -1,0 +1,106 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_length_cap.sol:C ===
+@module C
+fn @grow() -> (u256, u256, u256) [selector=0x5298948e, abi_params=[], abi_returns=[word, word, word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb3
+  bb3:
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v2 !metadata(storage=slot(1))
+    v6 = sload 1 !metadata(storage=slot(1))
+    v7 = gt v6, 0xffffffffffffffff
+    jumpi v7, bb1, bb4
+  bb4:
+    v8 = add v6, 1
+    v9 = lt v8, v6
+    jumpi v9, bb1, bb5
+  bb5:
+    v10 = storage_array_data_slot 1
+    v11 = add v10, v6
+    sstore v11, 8 !metadata(storage=symbolic(v11))
+    sstore 1, v8 !metadata(storage=slot(1))
+    v12 = sload 1 !metadata(storage=slot(1))
+    v13 = lt 0, v12
+    v14 = iszero v13
+    jumpi v14, bb6, bb7
+  bb7:
+    v15 = storage_array_data_slot 1
+    v16 = add v15, 0
+    v17 = sload v16 !metadata(storage=symbolic(v15))
+    v18 = sload 1 !metadata(storage=slot(1))
+    v19 = lt 1, v18
+    v20 = iszero v19
+    jumpi v20, bb6, bb8
+  bb8:
+    v21 = storage_array_data_slot 1
+    v22 = add v21, 1
+    v23 = sload v22 !metadata(storage=offset(v21, 1))
+    v24 = sload 1 !metadata(storage=slot(1))
+    ret v17, v23, v24
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @wrapOntoOwner() -> u256 [selector=0x428ae2e7, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 1, 0x4ef1d2ad89edf8c4d91132028e8195cdf30bb4b5053d4f8cd260341d4805f30a !metadata(storage=slot(1))
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb3
+  bb3:
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v2 !metadata(storage=slot(1))
+    v6 = sload 0 !metadata(storage=slot(0))
+    ret v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[]] {
+  bb0:
+    sstore 1, 0x10000000000000000 !metadata(storage=slot(1))
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb3
+  bb3:
+    v4 = storage_array_data_slot 1
+    v5 = add v4, v0
+    sstore v5, 7 !metadata(storage=symbolic(v5))
+    sstore 1, v2 !metadata(storage=slot(1))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 0xbeef !metadata(storage=slot(0))
+    stop
+}

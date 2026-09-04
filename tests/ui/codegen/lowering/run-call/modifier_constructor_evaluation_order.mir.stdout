@@ -56,14 +56,17 @@ fn @query() -> memoryarray [selector=0x2c46b205, view, abi_params=[], abi_return
 fn @f(arg0: u256) -> u256 {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
-    v3 = storage_array_data_slot 0
-    v4 = add v3, v0
-    sstore v4, arg0 !metadata(storage=symbolic(v4))
-    sstore 0, v1 !metadata(storage=slot(0))
+    v2 = add v0, 1
+    v3 = lt v2, v0
+    jumpi v3, bb1, bb3
+  bb3:
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v0
+    sstore v5, arg0 !metadata(storage=symbolic(v5))
+    sstore 0, v2 !metadata(storage=slot(0))
     ret 0
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

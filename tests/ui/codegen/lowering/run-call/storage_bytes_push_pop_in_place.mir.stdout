@@ -1942,61 +1942,61 @@ fn @pushPopWords(arg0: u256) -> (u256, u256) [selector=0x068eaf65, abi_params=[u
   bb0:
     jump bb1
   bb1:
-    v0 = phi [bb0: 0], [bb11: v0]
-    v1 = phi [bb0: 0], [bb11: v24]
-    v2 = phi [bb0: 0], [bb11: v2]
-    v3 = phi [bb0: arg0], [bb11: v3]
+    v0 = phi [bb0: 0], [bb12: v0]
+    v1 = phi [bb0: 0], [bb12: v25]
+    v2 = phi [bb0: 0], [bb12: v2]
+    v3 = phi [bb0: arg0], [bb12: v3]
     v4 = lt v1, v3
     jumpi v4, bb4, bb5
   bb5:
     jump bb2
   bb2:
-    v26 = sload 4 !metadata(storage=slot(4))
-    v27 = eq v26, 0
-    jumpi v27, bb12, bb13
-  bb13:
-    v28 = sub v26, 1
-    sstore 4, v28 !metadata(storage=slot(4))
-    v29 = storage_array_data_slot 4
-    v30 = div v28, 32
-    v31 = add v29, v30
-    v32 = mod v28, 32
-    v33 = mul v32, 1
-    v34 = mul v33, 8
-    v35 = shl v34, 255
-    v36 = sload v31 !metadata(storage=symbolic(v31))
-    v37 = not v35
-    v38 = and v36, v37
-    v39 = and 0, 255
-    v40 = shl v34, v39
-    v41 = or v38, v40
-    sstore v31, v41 !metadata(storage=symbolic(v31))
-    v42 = sload 4 !metadata(storage=slot(4))
-    v43 = sload 4 !metadata(storage=slot(4))
-    v44 = sub v43, 1
-    v45 = lt v43, 1
-    jumpi v45, bb7, bb14
+    v27 = sload 4 !metadata(storage=slot(4))
+    v28 = eq v27, 0
+    jumpi v28, bb13, bb14
   bb14:
-    v46 = sload 4 !metadata(storage=slot(4))
-    v47 = lt v44, v46
-    v48 = iszero v47
-    jumpi v48, bb15, bb16
-  bb16:
-    v49 = storage_array_data_slot 4
-    v50 = div v44, 32
-    v51 = add v49, v50
-    v52 = mod v44, 32
-    v53 = mul v52, 1
-    v54 = sload v51 !metadata(storage=symbolic(v51))
-    v55 = mul v53, 8
-    v56 = shr v55, v54
-    v57 = and v56, 255
-    ret v42, v57
+    v29 = sub v27, 1
+    sstore 4, v29 !metadata(storage=slot(4))
+    v30 = storage_array_data_slot 4
+    v31 = div v29, 32
+    v32 = add v30, v31
+    v33 = mod v29, 32
+    v34 = mul v33, 1
+    v35 = mul v34, 8
+    v36 = shl v35, 255
+    v37 = sload v32 !metadata(storage=symbolic(v32))
+    v38 = not v36
+    v39 = and v37, v38
+    v40 = and 0, 255
+    v41 = shl v35, v40
+    v42 = or v39, v41
+    sstore v32, v42 !metadata(storage=symbolic(v32))
+    v43 = sload 4 !metadata(storage=slot(4))
+    v44 = sload 4 !metadata(storage=slot(4))
+    v45 = sub v44, 1
+    v46 = lt v44, 1
+    jumpi v46, bb7, bb15
   bb15:
+    v47 = sload 4 !metadata(storage=slot(4))
+    v48 = lt v45, v47
+    v49 = iszero v48
+    jumpi v49, bb16, bb17
+  bb17:
+    v50 = storage_array_data_slot 4
+    v51 = div v45, 32
+    v52 = add v50, v51
+    v53 = mod v45, 32
+    v54 = mul v53, 1
+    v55 = sload v52 !metadata(storage=symbolic(v52))
+    v56 = mul v54, 8
+    v57 = shr v56, v55
+    v58 = and v57, 255
+    ret v43, v58
+  bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb12:
+  bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
@@ -2007,33 +2007,36 @@ fn @pushPopWords(arg0: u256) -> (u256, u256) [selector=0x068eaf65, abi_params=[u
   bb8:
     v7 = and v5, 255
     v8 = sload 4 !metadata(storage=slot(4))
-    v9 = add v8, 1
-    v10 = lt v9, v8
-    jumpi v10, bb9, bb10
+    v9 = gt v8, 0xffffffffffffffff
+    jumpi v9, bb9, bb10
   bb10:
-    v11 = storage_array_data_slot 4
-    v12 = div v8, 32
-    v13 = add v11, v12
-    v14 = mod v8, 32
-    v15 = mul v14, 1
-    v16 = mul v15, 8
-    v17 = shl v16, 255
-    v18 = sload v13 !metadata(storage=symbolic(v13))
-    v19 = not v17
-    v20 = and v18, v19
-    v21 = and v7, 255
-    v22 = shl v16, v21
-    v23 = or v20, v22
-    sstore v13, v23 !metadata(storage=symbolic(v13))
-    sstore 4, v9 !metadata(storage=slot(4))
+    v10 = add v8, 1
+    v11 = lt v10, v8
+    jumpi v11, bb9, bb11
+  bb11:
+    v12 = storage_array_data_slot 4
+    v13 = div v8, 32
+    v14 = add v12, v13
+    v15 = mod v8, 32
+    v16 = mul v15, 1
+    v17 = mul v16, 8
+    v18 = shl v17, 255
+    v19 = sload v14 !metadata(storage=symbolic(v14))
+    v20 = not v18
+    v21 = and v19, v20
+    v22 = and v7, 255
+    v23 = shl v17, v22
+    v24 = or v21, v23
+    sstore v14, v24 !metadata(storage=symbolic(v14))
+    sstore 4, v10 !metadata(storage=slot(4))
     jump bb6
   bb6:
     jump bb3
   bb3:
-    v24 = add v1, 1
-    v25 = lt v24, v1
-    jumpi v25, bb7, bb11
-  bb11:
+    v25 = add v1, 1
+    v26 = lt v25, v1
+    jumpi v26, bb7, bb12
+  bb12:
     jump bb1
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

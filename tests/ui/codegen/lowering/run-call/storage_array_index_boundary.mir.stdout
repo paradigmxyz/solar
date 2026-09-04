@@ -13,56 +13,59 @@ fn @read(arg0: u256, arg1: u256) -> u256 [selector=0x75080997, abi_params=[u256,
   bb4:
     jump bb2
   bb2:
-    jump bb8
-  bb8:
-    v10 = phi [bb2: v1], [bb12: v10]
-    v11 = phi [bb2: v0], [bb12: v11]
-    v12 = phi [bb2: v2], [bb12: v12]
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = gt v13, v12
-    jumpi v14, bb10, bb11
-  bb11:
     jump bb9
   bb9:
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = lt v11, v20
-    v22 = iszero v21
-    jumpi v22, bb15, bb16
+    v11 = phi [bb2: v1], [bb13: v11]
+    v12 = phi [bb2: v0], [bb13: v12]
+    v13 = phi [bb2: v2], [bb13: v13]
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = gt v14, v13
+    jumpi v15, bb11, bb12
+  bb12:
+    jump bb10
+  bb10:
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = lt v12, v21
+    v23 = iszero v22
+    jumpi v23, bb16, bb17
+  bb17:
+    v24 = storage_array_data_slot 0
+    v25 = add v24, v12
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    ret v26
   bb16:
-    v23 = storage_array_data_slot 0
-    v24 = add v23, v11
-    v25 = sload v24 !metadata(storage=symbolic(v24))
-    ret v25
-  bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
-  bb10:
-    v15 = sload 0 !metadata(storage=slot(0))
-    v16 = eq v15, 0
-    jumpi v16, bb13, bb14
-  bb14:
-    v17 = sub v15, 1
-    sstore 0, v17 !metadata(storage=slot(0))
-    v18 = storage_array_data_slot 0
-    v19 = add v18, v17
-    sstore v19, 0 !metadata(storage=symbolic(v19))
-    jump bb12
-  bb12:
-    jump bb8
+  bb11:
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = eq v16, 0
+    jumpi v17, bb14, bb15
+  bb15:
+    v18 = sub v16, 1
+    sstore 0, v18 !metadata(storage=slot(0))
+    v19 = storage_array_data_slot 0
+    v20 = add v19, v18
+    sstore v20, 0 !metadata(storage=symbolic(v20))
+    jump bb13
   bb13:
+    jump bb9
+  bb14:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36
   bb3:
     v5 = sload 0 !metadata(storage=slot(0))
-    v6 = add v5, 1
-    v7 = lt v6, v5
-    jumpi v7, bb6, bb7
+    v6 = gt v5, 0xffffffffffffffff
+    jumpi v6, bb6, bb7
   bb7:
-    v8 = storage_array_data_slot 0
-    v9 = add v8, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v7 = add v5, 1
+    v8 = lt v7, v5
+    jumpi v8, bb6, bb8
+  bb8:
+    v9 = storage_array_data_slot 0
+    v10 = add v9, v5
+    sstore 0, v7 !metadata(storage=slot(0))
     jump bb5
   bb5:
     jump bb1
