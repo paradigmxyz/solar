@@ -133,7 +133,7 @@
   (ExtCall (addr Value) (args_offset Value) (args_size Value) (value Value))
   (ExtDelegateCall (addr Value) (args_offset Value) (args_size Value))
   (ExtStaticCall (addr Value) (args_offset Value) (args_size Value))
-  (InternalCall (function FunctionId) (args Unit) (returns u32))
+  (ICall (function FunctionId) (args Unit) (returns u32))
   (Create (value Value) (offset Value) (size Value))
   (Create2 (value Value) (offset Value) (size Value) (salt Value))
   (Log0 (offset Value) (size Value))
@@ -492,8 +492,8 @@
 (decl extstaticcall (Value Value Value) Value)
 (extractor (extstaticcall addr args_offset args_size) (inst (Op.ExtStaticCall addr args_offset args_size)))
 
-(decl internalcall (FunctionId Unit u32) Value)
-(extractor (internalcall function args returns) (inst (Op.InternalCall function args returns)))
+(decl icall (FunctionId Unit u32) Value)
+(extractor (icall function args returns) (inst (Op.ICall function args returns)))
 
 (decl create (Value Value Value) Value)
 (extractor (create value offset size) (inst (Op.Create value offset size)))
