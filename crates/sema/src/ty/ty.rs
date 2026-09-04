@@ -542,14 +542,18 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
+    /// Returns `true` if the ABI encoding of the type is dynamic.
+    ///
+    /// The data location does not affect the encoding, so references are peeled first.
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
-        match self.kind {
+        let inner = self.peel_refs();
+        match inner.kind {
             TyKind::Struct(id) => {
-                self.is_recursive(gcx)
+                inner.is_recursive(gcx)
                     || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
-            _ => self.is_dynamically_sized(),
+            _ => inner.is_dynamically_sized(),
         }
     }
 
