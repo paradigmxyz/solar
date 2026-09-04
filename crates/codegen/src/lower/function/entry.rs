@@ -74,10 +74,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.lower_implicit_base_constructors_inner(contract_id, &mut lowered)
     }
 
+    /// Lowers every base constructor's argument list into the derived
+    /// constructor's frame, before any base constructor body is lowered.
+    ///
+    /// The bindings stay live: an argument expression may assign to a
+    /// constructor parameter, and, because every argument list is evaluated
+    /// before the first base body runs, that assignment is visible to the
+    /// body that owns the parameter. Restoring the pre-argument bindings here
+    /// would lower each body from the parameter values the arguments started
+    /// with instead.
     fn prepare_base_constructor_arguments(&mut self, contract_id: hir::ContractId) -> Option<()> {
         let bases = self.cx.gcx.hir.contract(contract_id).linearized_bases;
         let mut prepared = FxHashSet::default();
-        let mut saved_parameters = Vec::new();
         for (index, &base_id) in bases.iter().skip(1).enumerate() {
             if !prepared.insert(base_id) {
                 continue;
@@ -123,13 +131,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 },
             )?;
             // Later bases may name an earlier base's parameters in their own
-            // argument list, so bind them until every list is lowered.
-            saved_parameters.push(self.snapshot_bindings(constructor.parameters));
+            // argument list, and each body is lowered from these bindings, so
+            // they stay live for the rest of the constructor.
             self.bind_constructor_parameters(constructor.parameters, &values);
-            self.constructor_arguments.insert(constructor_id, values);
-        }
-        for snapshot in saved_parameters.into_iter().rev() {
-            self.restore_bindings(&snapshot);
+            self.prepared_constructors.insert(constructor_id);
         }
         Some(())
     }
