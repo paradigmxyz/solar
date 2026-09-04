@@ -1,20 +1,31 @@
-//@ revisions: homestead tangerineWhistle
+//@ revisions: homestead homesteadGas homesteadSize tangerineWhistle
 //@[homestead] compile-flags: -O none --evm-version homestead -Zdump=mir
 //@[homestead] filecheck: --check-prefix=HOMESTEAD
+// The reserve only covers the `SUB` and the `CALL`, and the output-area touch is a store the call
+// itself overwrites, so both survive only as long as no pass moves work between the `GAS` and the
+// call or eliminates the store. The optimized revisions run the same calls on a homestead EVM.
+//@[homesteadGas] compile-flags: -O gas --evm-version homestead
+//@[homesteadSize] compile-flags: -O size --evm-version homestead
 //@[tangerineWhistle] compile-flags: -O none --evm-version tangerineWhistle -Zdump=mir
 //@[tangerineWhistle] filecheck: --check-prefix=TANGERINE
-//@[homestead,tangerineWhistle] run-call: CallGasCalls::noReturn => 1
-//@[homestead,tangerineWhistle] run-call: CallGasCalls::withReturn => 42
-//@[homestead,tangerineWhistle] run-call: CallGasCalls::withValue => 7
-//@[homestead,tangerineWhistle] run-call: CallGasCalls::twoReturns => 3
-//@[homestead,tangerineWhistle] run-call: CallGasCalls::bare => 1
-//@[homestead,tangerineWhistle] run-call: CallGasCalls::sendZero => 1
+//@ run-call: CallGasCalls::noReturn => 1
+//@ run-call: CallGasCalls::withReturn => 42
+//@ run-call: CallGasCalls::withValue => 7
+//@ run-call: CallGasCalls::twoReturns => 3
+//@ run-call: CallGasCalls::eightReturns => 36
+//@ run-call: CallGasCalls::aggregate => 33
+//@ run-call: CallGasCalls::bare => 1
+//@ run-call: CallGasCalls::sendZero => 1
 
 interface CallGasTarget {
     function noop() external;
     function value() external returns (uint256);
     function paid() external payable returns (uint256);
     function pair() external returns (uint256, uint256);
+    function eight()
+        external
+        returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256);
+    function agg() external returns (uint256[2] memory);
 }
 
 contract CallGasCallee {
@@ -30,6 +41,19 @@ contract CallGasCallee {
 
     function pair() external pure returns (uint256, uint256) {
         return (1, 2);
+    }
+
+    function eight()
+        external
+        pure
+        returns (uint256, uint256, uint256, uint256, uint256, uint256, uint256, uint256)
+    {
+        return (1, 2, 3, 4, 5, 6, 7, 8);
+    }
+
+    function agg() external pure returns (uint256[2] memory r) {
+        r[0] = 11;
+        r[1] = 22;
     }
 
     receive() external payable {}
@@ -91,6 +115,40 @@ contract CallGasCalls {
         (uint256 first, uint256 second) =
             CallGasTarget(address(new CallGasCallee())).pair();
         return first + second;
+    }
+
+    // A wider output area is touched at its own last word, not one word further.
+    // HOMESTEAD-LABEL: fn @eightReturns
+    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 256
+    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[BUFFER]], 224
+    // HOMESTEAD: mstore [[LAST]], 0
+    // HOMESTEAD: [[GAS:v[0-9]+]] = gas
+    // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
+    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, [[BUFFER]], 256
+    function eightReturns() external returns (uint256) {
+        (
+            uint256 a1,
+            uint256 a2,
+            uint256 a3,
+            uint256 a4,
+            uint256 a5,
+            uint256 a6,
+            uint256 a7,
+            uint256 a8
+        ) = CallGasTarget(address(new CallGasCallee())).eight();
+        return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
+    }
+
+    // A static aggregate return already had a buffer of its own, and its last word is touched too.
+    // HOMESTEAD-LABEL: fn @aggregate
+    // HOMESTEAD: [[LAST:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // HOMESTEAD: mstore [[LAST]], 0
+    // HOMESTEAD: [[GAS:v[0-9]+]] = gas
+    // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
+    // HOMESTEAD: call [[FWD]],
+    function aggregate() external returns (uint256) {
+        uint256[2] memory r = CallGasTarget(address(new CallGasCallee())).agg();
+        return r[0] + r[1];
     }
 
     // A bare call has no `extcodesize` guard, so it also withholds the account-creation cost,

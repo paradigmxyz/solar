@@ -7,9 +7,6 @@ use std::fmt;
 
 pub(crate) mod eval;
 
-/// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
-const PRE_TANGERINE_PRECOMPILE_GAS_RESERVE: u64 = 25_100;
-
 /// Homestead's `CALL` base cost plus the `SUB` and the call setup emitted after `GAS`.
 ///
 /// Mirrors solc's `GasCosts::callGas(homestead) + 10`.
@@ -24,6 +21,14 @@ const PRE_TANGERINE_VALUE_TRANSFER_GAS_RESERVE: u64 = 9_000;
 ///
 /// Mirrors solc's `GasCosts::callNewAccountGas`.
 const PRE_TANGERINE_NEW_ACCOUNT_GAS_RESERVE: u64 = 25_000;
+
+/// The reserve of a pre-Tangerine precompile call.
+///
+/// A precompile call sends no value and is not guarded by `extcodesize`, so it reserves the base
+/// cost and the account-creation cost, like solc's `gasNeededByCaller` for `ECRecover`, `SHA256`
+/// and `RIPEMD160`.
+const PRE_TANGERINE_PRECOMPILE_GAS_RESERVE: u64 =
+    PRE_TANGERINE_CALL_GAS_RESERVE + PRE_TANGERINE_NEW_ACCOUNT_GAS_RESERVE;
 
 pub(crate) fn display_data_name(name: Symbol, index: usize) -> impl fmt::Display {
     fmt::from_fn(move |f| write!(f, "{name}_{index}"))
