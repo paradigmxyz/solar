@@ -47,12 +47,15 @@ contract TryCallee {
 
 contract TryBareCatch {
     // Before Byzantium a bare `catch { }` needs no return data: the call writes its return
-    // values into an output area of its own and the failure path runs the clause as it is.
+    // values into an output area overlaying its input and the failure path runs the clause as it
+    // is.
     // HOMESTEAD-LABEL: fn @live
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 32
+    // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     // HOMESTEAD: jumpi [[OK]]
     // OSAKA-LABEL: fn @live
     // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 0
@@ -66,15 +69,16 @@ contract TryBareCatch {
         }
     }
 
-    // A multi-word output area gets a buffer of its own before EIP-150, whose last word is
-    // touched before the gas is read.
+    // A multi-word output area reaches a word past the four-byte input, and that word is touched
+    // before the gas is read.
     // HOMESTEAD-LABEL: fn @liveTwo
-    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[BUFFER]], 32
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
     // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, [[BUFFER]], 64
+    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     function liveTwo() external returns (uint256 r) {
         try TryTarget(address(new TryCallee())).pair() returns (uint256 a, uint256 b) {
             r = a + b;

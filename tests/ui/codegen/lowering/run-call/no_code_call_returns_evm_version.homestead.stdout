@@ -42,14 +42,14 @@ fn @direct() -> u256 [selector=0x222b1407, abi_params=[], abi_returns=[word]] {
   bb2:
     v5 = gas
     v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, 0, 32
+    v7 = call v6, 0, 0, v1, v2, v1, 32
     jumpi v7, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v8 = add 0, 0
+    v8 = add v1, 0
     v9 = mload v8
-    v10 = add 0, 0
+    v10 = add v1, 0
     v11 = mload v10
     ret v11
   bb1:
@@ -67,14 +67,14 @@ fn @viewCall() -> u256 [selector=0x33fd44fa, view, abi_params=[], abi_returns=[w
   bb2:
     v5 = gas
     v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, 0, 32
+    v7 = call v6, 0, 0, v1, v2, v1, 32
     jumpi v7, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v8 = add 0, 0
+    v8 = add v1, 0
     v9 = mload v8
-    v10 = add 0, 0
+    v10 = add v1, 0
     v11 = mload v10
     ret v11
   bb1:
@@ -95,14 +95,14 @@ fn @pointer() -> u256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word]] {
   bb2:
     v8 = gas
     v9 = sub v8, 50
-    v10 = call v9, v2, 0, v4, v5, 0, 32
+    v10 = call v9, v2, 0, v4, v5, v4, 32
     jumpi v10, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v11 = add 0, 0
+    v11 = add v4, 0
     v12 = mload v11
-    v13 = add 0, 0
+    v13 = add v4, 0
     v14 = mload v13
     ret v14
   bb1:
@@ -111,30 +111,33 @@ fn @pointer() -> u256 [selector=0x2f5f3b3c, abi_params=[], abi_returns=[word]] {
 
 fn @aggregate() -> u256 [selector=0xaf36778b, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v1 = slice_ptr v0
-    v2 = slice_len v0
-    v3 = alloc raw, exact, uninitialized, infallible, 64
-    v4 = add v3, 32
-    mstore v4, 0
-    v5 = extcodesize 0
-    v6 = iszero v5
-    jumpi v6, bb1, bb2
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v0, 64
+    v1 = memory_object_data memorybytes, v0
+    v2 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = add v3, 32
+    mstore v5, 0
+    v6 = extcodesize 0
+    v7 = iszero v6
+    jumpi v7, bb1, bb2
   bb2:
-    v7 = gas
-    v8 = sub v7, 50
-    v9 = call v8, 0, 0, v1, v2, v3, 64
-    jumpi v9, bb4, bb3
+    v8 = gas
+    v9 = sub v8, 50
+    v10 = call v9, 0, 0, v3, v4, v3, 64
+    jumpi v10, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v10 = abi_decode [array<2, u256>], v3
-    v11 = lt 0, 2
-    v12 = iszero v11
-    jumpi v12, bb5, bb6
+    mcopy v1, v3, 64
+    v11 = abi_decode [array<2, u256>], v0
+    v12 = lt 0, 2
+    v13 = iszero v12
+    jumpi v13, bb5, bb6
   bb6:
-    v13 = memory_object_load_element memoryfixedarray<2, 1>, v10, 0
-    ret v13
+    v14 = memory_object_load_element memoryfixedarray<2, 1>, v11, 0
+    ret v14
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
@@ -154,7 +157,7 @@ fn @directNoReturn() [selector=0xda4f8e3a, abi_params=[], abi_returns=[]] {
   bb2:
     v5 = gas
     v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, 0, 0
+    v7 = call v6, 0, 0, v1, v2, v1, 0
     jumpi v7, bb4, bb3
   bb3:
     revert_returndata
@@ -178,7 +181,7 @@ fn @pointerNoReturn() [selector=0xcf820bfc, abi_params=[], abi_returns=[]] {
   bb2:
     v8 = gas
     v9 = sub v8, 50
-    v10 = call v9, v2, 0, v4, v5, 0, 0
+    v10 = call v9, v2, 0, v4, v5, v4, 0
     jumpi v10, bb4, bb3
   bb3:
     revert_returndata
@@ -212,14 +215,14 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb4:
     v12 = gas
     v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, 0, 32
+    v14 = call v13, v6, 0, v8, v9, v8, 32
     jumpi v14, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v15 = add 0, 0
+    v15 = add v8, 0
     v16 = mload v15
-    v17 = add 0, 0
+    v17 = add v8, 0
     v18 = mload v17
     ret v18
   bb3:
@@ -241,35 +244,38 @@ fn @liveAggregate() -> (u256, u256) [selector=0xc64a4ee9, abi_params=[], abi_ret
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = alloc raw, exact, uninitialized, infallible, 64
-    v11 = add v10, 32
-    mstore v11, 0
-    v12 = extcodesize v6
-    v13 = iszero v12
-    jumpi v13, bb3, bb4
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v7, 64
+    v8 = memory_object_data memorybytes, v7
+    v9 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = add v10, 32
+    mstore v12, 0
+    v13 = extcodesize v6
+    v14 = iszero v13
+    jumpi v14, bb3, bb4
   bb4:
-    v14 = gas
-    v15 = sub v14, 50
-    v16 = call v15, v6, 0, v8, v9, v10, 64
-    jumpi v16, bb6, bb5
+    v15 = gas
+    v16 = sub v15, 50
+    v17 = call v16, v6, 0, v10, v11, v10, 64
+    jumpi v17, bb6, bb5
   bb5:
     revert_returndata
   bb6:
-    v17 = abi_decode [array<2, u256>], v10
-    v18 = lt 0, 2
-    v19 = iszero v18
-    jumpi v19, bb7, bb8
+    mcopy v8, v10, 64
+    v18 = abi_decode [array<2, u256>], v7
+    v19 = lt 0, 2
+    v20 = iszero v19
+    jumpi v20, bb7, bb8
   bb8:
-    v20 = memory_object_load_element memoryfixedarray<2, 1>, v17, 0
-    v21 = lt 1, 2
-    v22 = iszero v21
-    jumpi v22, bb7, bb9
+    v21 = memory_object_load_element memoryfixedarray<2, 1>, v18, 0
+    v22 = lt 1, 2
+    v23 = iszero v22
+    jumpi v23, bb7, bb9
   bb9:
-    v23 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
-    ret v20, v23
+    v24 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
+    ret v21, v24
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)

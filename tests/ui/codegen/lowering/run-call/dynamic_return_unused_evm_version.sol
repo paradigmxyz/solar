@@ -41,10 +41,12 @@ contract DynamicReturnUnused {
     // word of output area for it, nothing decodes it, and the `extcodesize` guard and the
     // pre-EIP-150 gas reserve still apply.
     // HOMESTEAD-LABEL: fn @live()
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 32
+    // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     // HOMESTEAD: jumpi [[OK]]
     // OSAKA-LABEL: fn @live()
     // OSAKA: [[OK:v[0-9]+]] = call {{v[0-9]+}}, {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 0
@@ -61,10 +63,12 @@ contract DynamicReturnUnused {
 
     // A bare `catch` around an inaccessible value needs no return data either.
     // HOMESTEAD-LABEL: fn @liveTry()
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, 0, 32
+    // HOMESTEAD: [[OK:v[0-9]+]] = call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 32
     // HOMESTEAD: jumpi [[OK]]
     function liveTry() external returns (uint256 r) {
         try DynamicTarget(address(new DynamicCallee())).dynBytes() {
@@ -75,15 +79,16 @@ contract DynamicReturnUnused {
     }
 
     // The static components of a mixed return stay accessible, so the output area covers both
-    // words and the first one is read back from it.
+    // words and the first one is read back from the input area it overlays.
     // HOMESTEAD-LABEL: fn @liveMixed()
-    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[BUFFER]], 32
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
     // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, [[BUFFER]], 64
-    // HOMESTEAD: [[FIRST:v[0-9]+]] = add [[BUFFER]], 0
+    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
+    // HOMESTEAD: [[FIRST:v[0-9]+]] = add [[INPUT]], 0
     // HOMESTEAD: mload [[FIRST]]
     function liveMixed() external returns (uint256 r) {
         (uint256 v, ) = DynamicTarget(address(new DynamicCallee())).mixed();

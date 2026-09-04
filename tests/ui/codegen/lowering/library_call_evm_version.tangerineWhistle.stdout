@@ -85,14 +85,14 @@ fn @one(arg0: u256) -> u256 [selector=0xef56f928, pure, abi_params=[u256], abi_r
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
-    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 32
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v7 = add 0, 0
+    v7 = add v1, 0
     v8 = mload v7
-    v9 = add 0, 0
+    v9 = add v1, 0
     v10 = mload v9
     ret v10
   bb1:
@@ -133,22 +133,25 @@ fn @aggregate(arg0: u256) -> memoryfixedarray [selector=0x407b7269, pure, abi_pa
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
-    v1 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    v4 = gas
-    v5 = alloc raw, exact, uninitialized, infallible, 64
-    v6 = extcodesize 0x1111111111111111111111111111111111111111
-    v7 = iszero v6
-    jumpi v7, bb1, bb2
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v1, 64
+    v2 = memory_object_data memorybytes, v1
+    v3 = abi_encode [word], selector 0x71e5ee5f00000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = gas
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
   bb2:
-    v8 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v5, 64
-    jumpi v8, bb4, bb3
+    v9 = delegatecall v6, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
+    jumpi v9, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v9 = abi_decode [array<2, u256>], v5
-    ret v9
+    mcopy v2, v4, 64
+    v10 = abi_decode [array<2, u256>], v1
+    ret v10
   bb1:
     revert 0, 0
 }
@@ -163,12 +166,12 @@ fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], a
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
-    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 32
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v7 = add 0, 0
+    v7 = add v1, 0
     v8 = mload v7
     v9 = iszero v8
     v10 = iszero v9
@@ -176,7 +179,7 @@ fn @boolean(arg0: u256) -> bool [selector=0xbc586ed6, pure, abi_params=[u256], a
     v12 = iszero v11
     jumpi v12, bb1, bb5
   bb5:
-    v13 = add 0, 0
+    v13 = add v1, 0
     v14 = mload v13
     ret v14
   bb1:
@@ -188,22 +191,25 @@ fn @structBool(arg0: u256) -> memorystruct [selector=0x199436a8, pure, abi_param
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v0, 0, 0
     memory_object_store_field memorystruct<2>, v0, 1, 0
-    v1 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
-    v2 = slice_ptr v1
-    v3 = slice_len v1
-    v4 = gas
-    v5 = alloc raw, exact, uninitialized, infallible, 64
-    v6 = extcodesize 0x1111111111111111111111111111111111111111
-    v7 = iszero v6
-    jumpi v7, bb1, bb2
+    v1 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v1, 64
+    v2 = memory_object_data memorybytes, v1
+    v3 = abi_encode [word], selector 0xa370c66800000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = slice_ptr v3
+    v5 = slice_len v3
+    v6 = gas
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
   bb2:
-    v8 = delegatecall v4, 0x1111111111111111111111111111111111111111, v2, v3, v5, 64
-    jumpi v8, bb4, bb3
+    v9 = delegatecall v6, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
+    jumpi v9, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v9 = abi_decode [tuple<bool, u256>], v5
-    ret v9
+    mcopy v2, v4, 64
+    v10 = abi_decode [tuple<bool, u256>], v1
+    ret v10
   bb1:
     revert 0, 0
 }
@@ -218,14 +224,14 @@ fn @attached() -> u256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
-    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 32
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 32
     jumpi v6, bb4, bb3
   bb3:
     revert_returndata
   bb4:
-    v7 = add 0, 0
+    v7 = add v1, 0
     v8 = mload v7
-    v9 = add 0, 0
+    v9 = add v1, 0
     v10 = mload v9
     ret v10
   bb1:
@@ -242,7 +248,7 @@ fn @none(arg0: u256) [selector=0x2758da14, pure, abi_params=[u256], abi_returns=
     v5 = iszero v4
     jumpi v5, bb1, bb2
   bb2:
-    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, 0, 0
+    v6 = delegatecall v3, 0x1111111111111111111111111111111111111111, v1, v2, v1, 0
     jumpi v6, bb4, bb3
   bb3:
     revert_returndata

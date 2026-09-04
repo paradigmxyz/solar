@@ -9,11 +9,10 @@ pub(super) struct ExternalReturnPlan {
     size: ValueId,
     /// The output area's size in bytes, zero when the call declares no output area.
     size_bytes: u64,
-    /// Whether `offset` points at memory that holds nothing but the output area.
-    ///
-    /// Only such an area may be touched before the call: a reused input buffer still holds the
-    /// arguments the call is about to send.
-    owns_output_area: bool,
+    /// Whether the output area overlays the input area, as it does before Byzantium.
+    overlays_input: bool,
+    /// The input area's size in bytes, when the argument encoding gives it a constant one.
+    input_size_bytes: Option<u64>,
     decode_returndata: bool,
 }
 
@@ -26,7 +25,8 @@ impl ExternalReturnPlan {
             offset: zero,
             size: zero,
             size_bytes: 0,
-            owns_output_area: false,
+            overlays_input: false,
+            input_size_bytes: None,
             decode_returndata: true,
         }
     }
@@ -413,15 +413,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
         )?;
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
+        let return_tys = self.external_return_types(function.returns);
+        let returns = return_tys.len();
+        // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
+        let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let input_size_bytes = Self::static_input_size(&layout);
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let return_tys = self.external_return_types(function.returns);
-        let returns = return_tys.len();
-        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let return_plan = self.plan_return_buffer(input, options.zero, &return_tys);
+        // ret_offset, ret_size, decode = plan_return_buffer(returns)
+        let return_plan = self.plan_return_buffer(
+            input,
+            input_size_bytes,
+            options.zero,
+            &return_tys,
+            overlay_buffer,
+        );
         self.touch_call_output_area(options.gas, &return_plan);
         if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
@@ -940,13 +949,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "external function argument",
             false,
         )?;
-        // input = abi_encode(selector, args)
-        let selector = self.cx.gcx.function_selector(function_id).0;
-        let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
-        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-        let input = self.builder.slice_ptr(encoded);
-        let input_size = self.builder.slice_len(encoded);
         let return_tys = function
             .returns
             .iter()
@@ -954,8 +956,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect::<Vec<_>>();
         let return_tys = self.external_return_types(&return_tys);
         let returns = return_tys.len();
-        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let return_plan = self.plan_return_buffer(input, options.zero, &return_tys);
+        // buffer = alloc_overlay_return_buffer(returns)
+        // input = abi_encode(selector, args)
+        let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
+        let selector = self.cx.gcx.function_selector(function_id).0;
+        let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let input_size_bytes = Self::static_input_size(&layout);
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let input = self.builder.slice_ptr(encoded);
+        let input_size = self.builder.slice_len(encoded);
+        // ret_offset, ret_size, decode = plan_return_buffer(returns)
+        let return_plan = self.plan_return_buffer(
+            input,
+            input_size_bytes,
+            options.zero,
+            &return_tys,
+            overlay_buffer,
+        );
         self.touch_call_output_area(options.gas, &return_plan);
         if self.needs_receiver_code_check(receiver, returns) {
             self.revert_if_no_code(address);
@@ -1129,32 +1147,41 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.insert(0, ty);
         }
 
-        // input = abi_encode(selector, args)
-        let selector = self.cx.gcx.function_selector(function_id).0;
-        let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
-        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
-        let input = self.builder.slice_ptr(encoded);
-        let input_size = self.builder.slice_len(encoded);
-        let zero = self.builder.imm(U256::ZERO);
-        let address = self.builder.imm(address);
         let evm_version = self.cx.gcx.sess.opts.evm_version;
-        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         let return_types = function
             .returns
             .iter()
             .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
         let return_types = self.external_return_types(&return_types);
+        // buffer = alloc_overlay_return_buffer(returns)
+        // input = abi_encode(selector, args)
+        let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
+        let selector = self.cx.gcx.function_selector(function_id).0;
+        let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
+        let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+        let input_size_bytes = Self::static_input_size(&layout);
+        let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
+        let input = self.builder.slice_ptr(encoded);
+        let input_size = self.builder.slice_len(encoded);
+        let zero = self.builder.imm(U256::ZERO);
+        let address = self.builder.imm(address);
+        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         // From Byzantium on the return values come out of the return data; before it the
-        // delegatecall writes them into an output area of its own and the success path reads them
-        // back from there, as solc's static output size does.
-        // buffer, ret_offset, ret_size = plan_return_buffer(returns)
+        // delegatecall writes them into an output area overlaying its input and the success path
+        // reads them back from there, as solc's static output size does.
+        // ret_offset, ret_size = plan_return_buffer(returns)
         // mstore(ret_offset + ret_size - 32, 0)
         let return_plan = if evm_version.supports_returndata() {
             ExternalReturnPlan::returndata(zero)
         } else {
-            let plan = self.plan_return_buffer(input, zero, &return_types);
+            let plan = self.plan_return_buffer(
+                input,
+                input_size_bytes,
+                zero,
+                &return_types,
+                overlay_buffer,
+            );
             self.touch_call_output_area(gas, &plan);
             plan
         };
@@ -1240,52 +1267,102 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .collect()
     }
 
+    /// The input area's size in bytes, when the argument encoding gives it a constant one.
+    ///
+    /// The size covers the four selector bytes every call in this module encodes. A dynamically
+    /// encoded argument has a run-time length, so such an input has no constant size.
+    pub(super) fn static_input_size(layout: &AbiLayout) -> Option<u64> {
+        (!layout.types.iter().any(AbiType::is_dynamic))
+            .then(|| layout.head_size().saturating_add(4))
+    }
+
+    /// Allocates the buffer a pre-Byzantium call decodes its static aggregate returns from, which
+    /// has to be in place before the arguments the output area overlays are encoded.
+    ///
+    /// Every allocation the encoding and the decoding make lands above the arguments, so it can
+    /// land inside the output area as well. A buffer taken before them sits below the arguments
+    /// instead, which keeps it disjoint from the area it is copied out of.
+    pub(super) fn alloc_overlay_return_buffer(
+        &mut self,
+        return_tys: &[Ty<'gcx>],
+    ) -> Option<(ValueId, ValueId, ValueId)> {
+        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            return None;
+        }
+        // buffer = bytes(head_size(static))
+        let layout = self.static_aggregate_return_layout(return_tys.iter().copied())?;
+        self.alloc_static_return_buffer(&layout, true)
+    }
+
     pub(super) fn plan_return_buffer(
         &mut self,
         input: ValueId,
+        input_size_bytes: Option<u64>,
         zero: ValueId,
         return_tys: &[Ty<'gcx>],
+        overlay_buffer: Option<(ValueId, ValueId, ValueId)>,
     ) -> ExternalReturnPlan {
+        let returns = return_tys.len();
+        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
+        let decode_returndata = return_tys.iter().any(|&ty| {
+            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
+        });
+        let words = (returns as u64).saturating_mul(32);
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            // Before Byzantium the output area overlays the input area, as solc's
+            // `appendExternalFunctionCall` lays out an ordinary call: a code-bearing callee that
+            // returns fewer bytes than it declares cannot be detected without `RETURNDATASIZE`,
+            // so the decoding reads the selector and arguments the call left behind rather than
+            // whatever untouched memory a buffer of its own would hold.
+            // offset = input
+            // size = head_size(static) | returns * 32
+            let size_bytes = match &static_return {
+                Some(layout) => overlay_buffer.and_then(|_| layout.checked_head_size()),
+                // A dynamically encoded return has no size to reserve before Byzantium;
+                // `finish_external_call` reports it.
+                None if decode_returndata => None,
+                None => Some(words),
+            };
+            let (offset, size, size_bytes) = match size_bytes {
+                Some(size_bytes) => (input, self.builder.imm(size_bytes), size_bytes),
+                None => (zero, zero, 0),
+            };
+            return ExternalReturnPlan {
+                static_buffer: overlay_buffer.filter(|_| size_bytes != 0),
+                offset,
+                size,
+                size_bytes,
+                overlays_input: true,
+                input_size_bytes,
+                decode_returndata,
+            };
+        }
         // static = static_aggregate_layout(returns)
         // buffer = static ? alloc_static_buffer(static) : none
         // decode = any_return_is_nonword
         // offset = static.data ? static.data : (!decode && returns > 1 ? input : zero)
         // size = static.size ? static.size : (decode ? 0 : returns * 32)
-        let returns = return_tys.len();
-        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
-        let static_return_buffer =
-            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let decode_returndata = return_tys.iter().any(|&ty| {
-            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
-        });
-        let words = (returns as u64).saturating_mul(32);
-        let (ret_offset, ret_size, size_bytes, owns_output_area) = if let Some((_, data, size)) =
-            static_return_buffer
+        let static_return_buffer = static_return
+            .as_ref()
+            .and_then(|layout| self.alloc_static_return_buffer(layout, false));
+        let (ret_offset, ret_size, size_bytes) = if let Some((_, data, size)) = static_return_buffer
         {
             let size_bytes =
                 static_return.as_ref().and_then(AbiParamLayout::checked_head_size).unwrap_or(0);
-            (data, size, size_bytes, true)
+            (data, size, size_bytes)
         } else if decode_returndata {
-            (zero, zero, 0, false)
-        } else if returns > 1 && !self.cx.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
-            // Before EIP-150 the output area gets a buffer of its own instead of reusing the
-            // input: the words the call would write above the arguments are untouched memory, and
-            // the expansion the call is charged for them comes out of the gas the caller has to
-            // withhold from the forwarded gas.
-            // buffer = alloc raw(returns * 32)
-            let size = self.builder.imm(words);
-            let buffer = self.builder.alloc_raw(size, AllocationSemantics::INTERNAL);
-            (buffer, size, words, true)
+            (zero, zero, 0)
         } else {
             let offset = if returns > 1 { input } else { zero };
-            (offset, self.builder.imm(words), words, false)
+            (offset, self.builder.imm(words), words)
         };
         ExternalReturnPlan {
             static_buffer: static_return_buffer,
             offset: ret_offset,
             size: ret_size,
             size_bytes,
-            owns_output_area,
+            overlays_input: false,
+            input_size_bytes,
             decode_returndata,
         }
     }
@@ -1295,10 +1372,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ///
     /// A pre-EIP-150 `CALL` is charged the expansion of its input and output areas out of the gas
     /// left before the forwarded gas is checked against the remainder, and the reserve
-    /// [`crate::utils::pre_tangerine_call_gas`] withholds does not cover it. The area's contents
-    /// are dead until the call overwrites them, so zeroing its last word has no other effect, and
-    /// it expands memory exactly as far as the call needs. solc touches the word above the area
-    /// instead (`appendExternalFunctionCall`), one word more than it needs.
+    /// [`crate::utils::pre_tangerine_call_gas`] withholds does not cover it. solc touches the word
+    /// above the area instead (`appendExternalFunctionCall`), before it encodes the arguments the
+    /// area overlays.
+    ///
+    /// The output area starts where the arguments do, so encoding them already expanded memory to
+    /// their last word, and only an area reaching a word past them needs anything. That word is
+    /// above every argument byte, so zeroing it destroys nothing the call still has to send, and
+    /// the call overwrites it anyway. An input whose size is only known at run time leaves the
+    /// comparison undecidable and is left alone.
     ///
     /// Nothing is emitted where the gas operand is already materialized: an explicit `{gas: ...}`
     /// is the caller's business, and from EIP-150 on the forwarded gas is capped anyway.
@@ -1307,7 +1389,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         gas: Option<ValueId>,
         plan: &ExternalReturnPlan,
     ) {
-        if gas.is_some() || !plan.owns_output_area || plan.size_bytes < 32 {
+        if gas.is_some() || !plan.overlays_input {
+            return;
+        }
+        let Some(input_size) = plan.input_size_bytes else { return };
+        if plan.size_bytes < input_size.saturating_add(32) {
             return;
         }
         // mstore(add(ret_offset, ret_size - 32), 0)
@@ -1330,8 +1416,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if returns == 0 {
             return Some(Vec::new());
         }
-        let data = if let Some((data, _, size)) = static_buffer {
+        let data = if let Some((data, buffer, size)) = static_buffer {
             self.revert_if_short_returndata(size);
+            if plan.overlays_input {
+                // The output area overlays the arguments, so the values move out of it before the
+                // decoding allocates over them.
+                // mcopy(buffer, ret_offset, ret_size)
+                self.builder.mcopy(buffer, offset, size);
+            }
             Some(data)
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
@@ -1384,15 +1476,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(values.into_iter().next().expect("external return list is not empty"))
     }
 
+    /// Allocates the buffer a call decodes its static aggregate return values from.
+    ///
+    /// `as_bytes` allocates a bytes object, which the decoding reads in place; a single return
+    /// value otherwise decodes out of a raw buffer, which the decoding copies into a bytes object
+    /// of its own.
     fn alloc_static_return_buffer(
         &mut self,
         layout: &AbiParamLayout,
+        as_bytes: bool,
     ) -> Option<(ValueId, ValueId, ValueId)> {
         // size = head_size(layout)
         // buffer = bytes(size) if multiple_returns else raw(size)
         // return (buffer, data, size)
         let size = layout.checked_head_size()?;
-        if layout.types.len() != 1 {
+        if as_bytes || layout.types.len() != 1 {
             let object_size = self.builder.imm(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
             let object = self.builder.alloc_object(
                 object_size,

@@ -97,16 +97,17 @@ contract CallGasCalls {
         return CallGasTarget(address(new CallGasCallee())).paid{value: 0}();
     }
 
-    // The output area of a multi-word return gets its own buffer, whose last word is written
-    // before the gas is read so that the call's memory expansion is not charged against what the
-    // call withholds.
+    // The output area of a multi-word return overlays the input area, and the word it reaches
+    // past the four-byte input is written before the gas is read so that the call's memory
+    // expansion is not charged against what the call withholds.
     // HOMESTEAD-LABEL: fn @twoReturns
-    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[BUFFER]], 32
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
     // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, [[BUFFER]], 64
+    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 64
     // TANGERINE-LABEL: fn @twoReturns
     // TANGERINE: [[GAS:v[0-9]+]] = gas
     // TANGERINE: [[INPUT:v[0-9]+]] = slice_ptr
@@ -119,12 +120,13 @@ contract CallGasCalls {
 
     // A wider output area is touched at its own last word, not one word further.
     // HOMESTEAD-LABEL: fn @eightReturns
-    // HOMESTEAD: [[BUFFER:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 256
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[BUFFER]], 224
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 224
     // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, {{v[0-9]+}}, {{v[0-9]+}}, [[BUFFER]], 256
+    // HOMESTEAD: call [[FWD]], {{v[0-9]+}}, 0, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 256
     function eightReturns() external returns (uint256) {
         (
             uint256 a1,
@@ -139,9 +141,12 @@ contract CallGasCalls {
         return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8;
     }
 
-    // A static aggregate return already had a buffer of its own, and its last word is touched too.
+    // A static aggregate return is copied out of the overlaid area into a buffer of its own, and
+    // the word the area reaches past the input is touched too.
     // HOMESTEAD-LABEL: fn @aggregate
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add {{v[0-9]+}}, 32
+    // HOMESTEAD: create
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[INPUT]], 32
     // HOMESTEAD: mstore [[LAST]], 0
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50

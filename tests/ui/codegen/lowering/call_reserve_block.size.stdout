@@ -65,23 +65,27 @@ bb0:
   iszero
   push bb4
   jumpi
+  dup 1
+  push 160
+  mstore
   push 32
-  push 0
+  dup 2
   push 4
-  dup 4
+  dup 2
   push 0
   dup 7
   push 0xc350
   call
-  jump bb10
-bb10:
   swap 2
   pop
   pop
   iszero
   push bb4
   jumpi
-  push 0
+  push 160
+  mload
+  jump bb10
+bb10:
   mload
   push 128
   mstore
@@ -137,13 +141,18 @@ bb9:
   push bb4
   jumpi
   push 32
-  push 0
+  dup 3
   push 4
-  dup 5
+  dup 2
   push 0
   dup 6
   push 50
   gas !meta(keep_with_next)
   sub !meta(keep_with_next)
   call
+  swap 1
+  pop
+  iszero
+  push bb4
+  jumpi
   jump bb10

@@ -44,22 +44,24 @@ contract C {
 
     uint256[] private nums;
 
-    // Before Byzantium a linked-library call takes its return values out of the delegatecall's
-    // static output area, as solc's `delegatecall(..., out, 32)` does; from Byzantium on they come
-    // out of the return data, and the length check there subsumes the code check.
+    // Before Byzantium a linked-library call takes its return values out of a static output area
+    // overlaying its own input, as solc's `delegatecall(..., in, 32)` does; from Byzantium on they
+    // come out of the return data, and the length check there subsumes the code check.
     // HOMESTEAD-LABEL: fn @one
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
     // HOMESTEAD: [[GAS:v[0-9]+]] = gas
     // HOMESTEAD: [[FWD:v[0-9]+]] = sub [[GAS]], 50
-    // HOMESTEAD: delegatecall [[FWD]], {{.*}}, 0, 32
+    // HOMESTEAD: delegatecall [[FWD]], {{.*}}, [[IN]], {{.*}}, [[IN]], 32
     // HOMESTEAD: mload
     // From EIP-150 on the forwarded gas is capped, so the reserve goes away while the output area
     // and the code check stay.
     // TANGERINE-LABEL: fn @one
+    // TANGERINE: [[IN:v[0-9]+]] = slice_ptr
     // TANGERINE: [[GAS:v[0-9]+]] = gas
     // TANGERINE-NOT: sub [[GAS]]
     // TANGERINE: extcodesize
-    // TANGERINE: delegatecall [[GAS]], {{.*}}, 0, 32
+    // TANGERINE: delegatecall [[GAS]], {{.*}}, [[IN]], {{.*}}, [[IN]], 32
     // TANGERINE: mload
     // BYZANTIUM-LABEL: fn @one
     // BYZANTIUM-NOT: extcodesize
@@ -69,18 +71,15 @@ contract C {
         return Lib.dbl(x);
     }
 
-    // Two words get an output area of their own: the words the call writes above the arguments are
-    // untouched memory, whose expansion a pre-EIP-150 call charges before checking the gas it
-    // forwards.
+    // Two words overlay the input buffer as well. The area ends where encoding the selector and
+    // the one argument already expanded memory, so nothing has to be touched before the gas the
+    // call withholds is read.
     // HOMESTEAD-LABEL: fn @two
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[BUF]], 32
-    // HOMESTEAD: mstore [[LAST]], 0
-    // HOMESTEAD: delegatecall {{.*}}, [[BUF]], 64
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD-NOT: mstore
+    // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
     // HOMESTEAD: mload
     // HOMESTEAD: mload
-    // Once the expansion is not charged out of the withheld gas the output area reuses the input
-    // buffer, as solc's does at every version.
     // TANGERINE-LABEL: fn @two
     // TANGERINE: [[IN:v[0-9]+]] = slice_ptr
     // TANGERINE-NOT: alloc raw
@@ -93,12 +92,14 @@ contract C {
         (a, b) = Lib.pair(x);
     }
 
-    // A statically encoded aggregate is decoded out of the output area itself.
+    // A statically encoded aggregate is copied out of the overlaid output area into a buffer taken
+    // before the arguments, which the decoding then reads.
     // HOMESTEAD-LABEL: fn @aggregate
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-    // HOMESTEAD: [[LAST:v[0-9]+]] = add [[BUF]], 32
-    // HOMESTEAD: mstore [[LAST]], 0
-    // HOMESTEAD: delegatecall {{.*}}, [[BUF]], 64
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
+    // HOMESTEAD: [[DATA:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
+    // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
     // HOMESTEAD: abi_decode {{.*}}, [[BUF]]
     // BYZANTIUM-LABEL: fn @aggregate
     // BYZANTIUM-NOT: extcodesize
@@ -111,7 +112,8 @@ contract C {
     // A returned word is validated where it is read from, so a dirty `bool` reverts before
     // Byzantium as well.
     // HOMESTEAD-LABEL: fn @boolean
-    // HOMESTEAD: delegatecall {{.*}}, 0, 32
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: [[WORD:v[0-9]+]] = mload
     // HOMESTEAD: [[CLEAN:v[0-9]+]] = eq [[WORD]],
     // HOMESTEAD: iszero [[CLEAN]]
@@ -126,8 +128,11 @@ contract C {
     // A static struct is decoded out of the output area with its member types, so its `bool` member
     // is validated too.
     // HOMESTEAD-LABEL: fn @structBool
-    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc raw, exact, uninitialized, infallible, 64
-    // HOMESTEAD: delegatecall {{.*}}, [[BUF]], 64
+    // HOMESTEAD: [[BUF:v[0-9]+]] = alloc memorybytes
+    // HOMESTEAD: [[DATA:v[0-9]+]] = memory_object_data memorybytes, [[BUF]]
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: delegatecall {{.*}}, [[IN]], 64
+    // HOMESTEAD: mcopy [[DATA]], [[IN]], 64
     // HOMESTEAD: abi_decode [tuple<bool, u256>], [[BUF]]
     // BYZANTIUM-LABEL: fn @structBool
     // BYZANTIUM: delegatecall {{.*}}, 0, 0
@@ -137,11 +142,12 @@ contract C {
     }
 
     // An attached call passes its storage receiver as a slot and reads its return value out of the
-    // same output area.
+    // same overlaid output area.
     // HOMESTEAD-LABEL: fn @attached
     // HOMESTEAD: abi_encode {{.*}}, args 0
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
-    // HOMESTEAD: delegatecall {{.*}}, 0, 32
+    // HOMESTEAD: delegatecall {{.*}}, [[IN]], 32
     // HOMESTEAD: mload
     // BYZANTIUM-LABEL: fn @attached
     // BYZANTIUM: abi_encode {{.*}}, args 0
@@ -151,10 +157,11 @@ contract C {
         return nums.total();
     }
 
-    // A call with no return values declares no output area at either version.
+    // A call with no return values declares an empty output area at either version.
     // HOMESTEAD-LABEL: fn @none
+    // HOMESTEAD: [[IN:v[0-9]+]] = slice_ptr
     // HOMESTEAD: extcodesize
-    // HOMESTEAD: delegatecall {{.*}}, 0, 0
+    // HOMESTEAD: delegatecall {{.*}}, [[IN]], 0
     // BYZANTIUM-LABEL: fn @none
     // BYZANTIUM: extcodesize
     // BYZANTIUM: delegatecall {{.*}}, 0, 0

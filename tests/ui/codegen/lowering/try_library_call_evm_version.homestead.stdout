@@ -41,7 +41,7 @@ fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
   bb2:
     v5 = gas
     v6 = sub v5, 50
-    v7 = delegatecall v6, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v1, v2, 0, 32
+    v7 = delegatecall v6, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v1, v2, v1, 32
     jumpi v7, bb3, bb4
   bb4:
     jumpi 1, bb6, bb7
@@ -50,9 +50,9 @@ fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
   bb6:
     jump bb5
   bb3:
-    v8 = add 0, 0
+    v8 = add v1, 0
     v9 = mload v8
-    v10 = add 0, 0
+    v10 = add v1, 0
     v11 = mload v10
     sstore 0, v11 !metadata(storage=slot(0))
     jump bb5
@@ -74,7 +74,7 @@ fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi
   bb2:
     v5 = gas
     v6 = sub v5, 50
-    v7 = delegatecall v6, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v1, v2, 0, 0
+    v7 = delegatecall v6, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v1, v2, v1, 0
     jumpi v7, bb3, bb4
   bb4:
     jumpi 1, bb6, bb7

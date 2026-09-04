@@ -70,7 +70,7 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb4:
     v12 = gas
     v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, 0, 32
+    v14 = call v13, v6, 0, v8, v9, v8, 32
     jumpi v14, bb5, bb6
   bb6:
     jumpi 1, bb8, bb9
@@ -79,9 +79,9 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
   bb8:
     jump bb7
   bb5:
-    v15 = add 0, 0
+    v15 = add v8, 0
     v16 = mload v15
-    v17 = add 0, 0
+    v17 = add v8, 0
     v18 = mload v17
     jump bb7
   bb7:
@@ -109,17 +109,16 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
     v7 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
     v8 = slice_ptr v7
     v9 = slice_len v7
-    v10 = alloc raw, exact, uninitialized, infallible, 64
-    v11 = add v10, 32
-    mstore v11, 0
-    v12 = extcodesize v6
-    v13 = iszero v12
-    jumpi v13, bb3, bb4
+    v10 = add v8, 32
+    mstore v10, 0
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
   bb4:
-    v14 = gas
-    v15 = sub v14, 50
-    v16 = call v15, v6, 0, v8, v9, v10, 64
-    jumpi v16, bb5, bb6
+    v13 = gas
+    v14 = sub v13, 50
+    v15 = call v14, v6, 0, v8, v9, v8, 64
+    jumpi v15, bb5, bb6
   bb6:
     jumpi 1, bb10, bb11
   bb11:
@@ -127,23 +126,23 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
   bb10:
     jump bb7
   bb5:
-    v17 = add v10, 0
-    v18 = mload v17
-    v19 = add v10, 32
-    v20 = mload v19
-    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
-    v21 = add v10, 0
-    v22 = mload v21
-    v23 = add v10, 32
-    v24 = mload v23
-    v25 = add v22, v24
-    v26 = lt v25, v22
-    jumpi v26, bb8, bb9
+    v16 = add v8, 0
+    v17 = mload v16
+    v18 = add v8, 32
+    v19 = mload v18
+    frame_store multi_return, word, 0, v8 !metadata(memory=scratch)
+    v20 = add v8, 0
+    v21 = mload v20
+    v22 = add v8, 32
+    v23 = mload v22
+    v24 = add v21, v23
+    v25 = lt v24, v21
+    jumpi v25, bb8, bb9
   bb9:
     jump bb7
   bb7:
-    v27 = phi [bb9: v25], [bb10: 7]
-    ret v27
+    v26 = phi [bb9: v24], [bb10: 7]
+    ret v26
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -167,20 +166,22 @@ fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb1:
     revert_returndata
   bb2:
-    v7 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
-    v8 = slice_ptr v7
-    v9 = slice_len v7
-    v10 = alloc raw, exact, uninitialized, infallible, 64
-    v11 = add v10, 32
-    mstore v11, 0
-    v12 = extcodesize v6
-    v13 = iszero v12
-    jumpi v13, bb3, bb4
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 96
+    set_memory_object_len memorybytes, v7, 64
+    v8 = memory_object_data memorybytes, v7
+    v9 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v10 = slice_ptr v9
+    v11 = slice_len v9
+    v12 = add v10, 32
+    mstore v12, 0
+    v13 = extcodesize v6
+    v14 = iszero v13
+    jumpi v14, bb3, bb4
   bb4:
-    v14 = gas
-    v15 = sub v14, 50
-    v16 = call v15, v6, 0, v8, v9, v10, 64
-    jumpi v16, bb5, bb6
+    v15 = gas
+    v16 = sub v15, 50
+    v17 = call v16, v6, 0, v10, v11, v10, 64
+    jumpi v17, bb5, bb6
   bb6:
     jumpi 1, bb13, bb14
   bb14:
@@ -188,25 +189,26 @@ fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb13:
     jump bb7
   bb5:
-    v17 = abi_decode [array<2, u256>], v10
-    v18 = lt 0, 2
-    v19 = iszero v18
-    jumpi v19, bb8, bb9
+    mcopy v8, v10, 64
+    v18 = abi_decode [array<2, u256>], v7
+    v19 = lt 0, 2
+    v20 = iszero v19
+    jumpi v20, bb8, bb9
   bb9:
-    v20 = memory_object_load_element memoryfixedarray<2, 1>, v17, 0
-    v21 = lt 1, 2
-    v22 = iszero v21
-    jumpi v22, bb8, bb10
+    v21 = memory_object_load_element memoryfixedarray<2, 1>, v18, 0
+    v22 = lt 1, 2
+    v23 = iszero v22
+    jumpi v23, bb8, bb10
   bb10:
-    v23 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
-    v24 = add v20, v23
-    v25 = lt v24, v20
-    jumpi v25, bb11, bb12
+    v24 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
+    v25 = add v21, v24
+    v26 = lt v25, v21
+    jumpi v26, bb11, bb12
   bb12:
     jump bb7
   bb7:
-    v26 = phi [bb12: v24], [bb13: 7]
-    ret v26
+    v27 = phi [bb12: v25], [bb13: 7]
+    ret v27
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -243,7 +245,7 @@ fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb4:
     v12 = gas
     v13 = sub v12, 50
-    v14 = call v13, v6, 0, v8, v9, 0, 0
+    v14 = call v13, v6, 0, v8, v9, v8, 0
     jumpi v14, bb5, bb6
   bb6:
     jumpi 1, bb8, bb9
@@ -284,7 +286,7 @@ fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]]
   bb4:
     v12 = gas
     v13 = sub v12, 0x235a
-    v14 = call v13, v6, 1, v8, v9, 0, 32
+    v14 = call v13, v6, 1, v8, v9, v8, 32
     jumpi v14, bb5, bb6
   bb6:
     jumpi 1, bb8, bb9
@@ -293,9 +295,9 @@ fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]]
   bb8:
     jump bb7
   bb5:
-    v15 = add 0, 0
+    v15 = add v8, 0
     v16 = mload v15
-    v17 = add 0, 0
+    v17 = add v8, 0
     v18 = mload v17
     jump bb7
   bb7:
@@ -334,7 +336,7 @@ fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb4:
     v17 = gas
     v18 = sub v17, 50
-    v19 = call v18, v11, 0, v13, v14, 0, 32
+    v19 = call v18, v11, 0, v13, v14, v13, 32
     jumpi v19, bb5, bb6
   bb6:
     jumpi 1, bb8, bb9
@@ -343,9 +345,9 @@ fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb8:
     jump bb7
   bb5:
-    v20 = add 0, 0
+    v20 = add v13, 0
     v21 = mload v20
-    v22 = add 0, 0
+    v22 = add v13, 0
     v23 = mload v22
     jump bb7
   bb7:
@@ -393,7 +395,7 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
   bb2:
     v5 = gas
     v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, 0, 32
+    v7 = call v6, 0, 0, v1, v2, v1, 32
     jumpi v7, bb3, bb4
   bb4:
     jumpi 1, bb6, bb7
@@ -402,9 +404,9 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
   bb6:
     jump bb5
   bb3:
-    v8 = add 0, 0
+    v8 = add v1, 0
     v9 = mload v8
-    v10 = add 0, 0
+    v10 = add v1, 0
     v11 = mload v10
     jump bb5
   bb5:
@@ -425,7 +427,7 @@ fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
   bb2:
     v5 = gas
     v6 = sub v5, 50
-    v7 = call v6, 0, 0, v1, v2, 0, 0
+    v7 = call v6, 0, 0, v1, v2, v1, 0
     jumpi v7, bb3, bb4
   bb4:
     jumpi 1, bb6, bb7

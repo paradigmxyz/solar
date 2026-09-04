@@ -412,18 +412,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { selector, .. } => selector,
                 TryCallee::Creation { .. } => unreachable!(),
             };
+            // buffer = alloc_overlay_return_buffer(returns)
+            // input = abi_encode(selector, args)
+            let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
             let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
+            let input_size_bytes = Self::static_input_size(&layout);
             let encoded =
                 self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
             let input = self.builder.slice_ptr(encoded);
             let input_size = self.builder.slice_len(encoded);
             // From Byzantium on the return values come out of the return data, which the catch
-            // clauses need anyway; before it the call writes them into an output area of its own
-            // and the success path reads them back from there.
-            // buffer, ret_offset, ret_size = plan_return_buffer(returns)
+            // clauses need anyway; before it the call writes them into an output area overlaying
+            // its input and the success path reads them back from there.
+            // ret_offset, ret_size = plan_return_buffer(returns)
             // mstore(ret_offset + ret_size - 32, 0)
-            let ret_plan =
-                (!supports_returndata).then(|| self.plan_return_buffer(input, zero, &return_types));
+            let ret_plan = (!supports_returndata).then(|| {
+                self.plan_return_buffer(
+                    input,
+                    input_size_bytes,
+                    zero,
+                    &return_types,
+                    overlay_buffer,
+                )
+            });
             let (ret_offset, ret_size) = if let Some(plan) = &ret_plan {
                 self.touch_call_output_area(options.gas, plan);
                 plan.output_area()
