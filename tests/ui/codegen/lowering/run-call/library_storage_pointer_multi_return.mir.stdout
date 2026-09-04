@@ -1,0 +1,450 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:Lib ===
+@module Lib
+
+// === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:LibraryStoragePointerMultiReturn ===
+@module LibraryStoragePointerMultiReturn
+fn @constructor() [constructor] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 11 !metadata(storage=symbolic(v4))
+    sstore 0, v1 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = add v5, 1
+    v7 = lt v6, v5
+    jumpi v7, bb1, bb3
+  bb3:
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
+    sstore v9, 22 !metadata(storage=symbolic(v9))
+    sstore 0, v6 !metadata(storage=slot(0))
+    v10 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v10, 3
+    v11 = memory_object_data memorybytes, v10
+    mstore v11, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    internal_call @store_storage_bytes, 0, 1, v10
+    sstore 2, 7 !metadata(storage=slot(2))
+    v12 = add 2, 1
+    v13 = sload v12 !metadata(storage=slot(3))
+    v14 = add v13, 1
+    v15 = lt v14, v13
+    jumpi v15, bb1, bb4
+  bb4:
+    v16 = storage_array_data_slot v12
+    v17 = add v16, v13
+    sstore v17, 33 !metadata(storage=symbolic(v17))
+    sstore v12, v14 !metadata(storage=slot(3))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @forwardPair() -> (u256, memoryarray) [selector=0x9948ca45, view, abi_params=[], abi_returns=[word, memory_array<word>]] {
+  bb0:
+    v0 = internal_call @pair, 2, 0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = internal_call @load_storage_word_array, 1, v3
+    ret v0, v4
+}
+
+fn @forwardBytesPair() -> (u256, memorybytes) [selector=0x244e77d3, view, abi_params=[], abi_returns=[word, memory_bytes]] {
+  bb0:
+    v0 = internal_call @bytesPair, 2, 1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = and v4, 1
+    v6 = eq v5, 1
+    v7 = shr 1, v4
+    v8 = and v7, 127
+    v9 = select v6, v7, v8
+    v10 = lt v9, 32
+    v11 = eq v6, v10
+    jumpi v11, bb1, bb2
+  bb2:
+    v12 = add v9, 31
+    v13 = div v12, 32
+    v14 = add v9, 63
+    v15 = lt v14, v9
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, panic, v17
+    set_memory_object_len memorybytes, v18, v9
+    jumpi v6, bb6, bb5
+  bb5:
+    v19 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v18, 0, v19
+    jump bb7
+  bb6:
+    v20 = storage_array_data_slot v3
+    jump bb8
+  bb8:
+    v21 = phi [bb6: 0], [bb9: v26]
+    v22 = lt v21, v13
+    jumpi v22, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    ret v0, v18
+  bb9:
+    v23 = add v20, v21
+    v24 = sload v23 !metadata(storage=symbolic(v23))
+    v25 = mul v21, 32
+    memory_object_store_word memorybytes, v18, v25, v24
+    v26 = add v21, 1
+    jump bb8
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @forwardStructPair() -> (u256, memorystruct) [selector=0x89663e35, view, abi_params=[], abi_returns=[word, tuple<word, memory_array<word>>]] {
+  bb0:
+    v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    memory_object_store_field memorystruct<2>, v0, 0, 0
+    memory_object_store_field memorystruct<2>, v0, 1, 96
+    v1 = internal_call @structPair, 2, 2
+    v2 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v6 = sload v4 !metadata(storage=symbolic(v4))
+    memory_object_store_field memorystruct<2>, v5, 0, v6
+    v7 = add v4, 1
+    v8 = internal_call @load_storage_word_array, 1, v7
+    memory_object_store_field memorystruct<2>, v5, 1, v8
+    ret v1, v5
+}
+
+fn @forwardNarrowPair() -> (u256, memoryarray) [selector=0x1c173dc4, view, abi_params=[], abi_returns=[word, memory_array<word>]] {
+  bb0:
+    v0 = internal_call @narrowPair, 2, 0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = and v0, 255
+    v5 = internal_call @load_storage_word_array, 1, v3
+    ret v4, v5
+}
+
+fn @forwardLeadingPair() -> (memoryarray, u256) [selector=0x59d1f54e, view, abi_params=[], abi_returns=[memory_array<word>, word]] {
+  bb0:
+    v0 = internal_call @leadingPair, 2, 0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = internal_call @load_storage_word_array, 1, v0
+    ret v4, v3
+}
+
+fn @forwardTriple() -> (memoryarray, u256, memorybytes) [selector=0xd5d6b86b, view, abi_params=[], abi_returns=[memory_array<word>, word, memory_bytes]] {
+  bb0:
+    v0 = internal_call @triple, 3, 0, 1
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v1, 64
+    v5 = mload v4
+    v6 = internal_call @load_storage_word_array, 1, v0
+    v7 = sload v5 !metadata(storage=symbolic(v5))
+    v8 = and v7, 1
+    v9 = eq v8, 1
+    v10 = shr 1, v7
+    v11 = and v10, 127
+    v12 = select v9, v10, v11
+    v13 = lt v12, 32
+    v14 = eq v9, v13
+    jumpi v14, bb1, bb2
+  bb2:
+    v15 = add v12, 31
+    v16 = div v15, 32
+    v17 = add v12, 63
+    v18 = lt v17, v12
+    jumpi v18, bb3, bb4
+  bb4:
+    v19 = not 31
+    v20 = and v17, v19
+    v21 = alloc memorybytes, exact, uninitialized, panic, v20
+    set_memory_object_len memorybytes, v21, v12
+    jumpi v9, bb6, bb5
+  bb5:
+    v22 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    memory_object_store_word memorybytes, v21, 0, v22
+    jump bb7
+  bb6:
+    v23 = storage_array_data_slot v5
+    jump bb8
+  bb8:
+    v24 = phi [bb6: 0], [bb9: v29]
+    v25 = lt v24, v16
+    jumpi v25, bb9, bb10
+  bb10:
+    jump bb7
+  bb7:
+    ret v6, v3, v21
+  bb9:
+    v26 = add v23, v24
+    v27 = sload v26 !metadata(storage=symbolic(v26))
+    v28 = mul v24, 32
+    memory_object_store_word memorybytes, v21, v28, v27
+    v29 = add v24, 1
+    jump bb8
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @declarePair() -> (u256, memoryarray) [selector=0x2538210e, view, abi_params=[], abi_returns=[word, memory_array<word>]] {
+  bb0:
+    v0 = internal_call @pair, 2, 0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = internal_call @load_storage_word_array, 1, v3
+    ret v0, v4
+}
+
+fn @assignPair() -> (u256, memoryarray) [selector=0x9355e772, view, abi_params=[], abi_returns=[word, memory_array<word>]] {
+  bb0:
+    v0 = internal_call @pair, 2, 0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = internal_call @load_storage_word_array, 1, v3
+    ret v0, v4
+}
+
+fn @keepStorage() -> (u256, storageptr) [view] {
+  bb0:
+    v0 = internal_call @pair, 2, 0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    ret v0, v3
+}
+
+fn @forwardKeepingStorage() -> (u256, u256) [selector=0xe85db471, view, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @keepStorage, 2
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v0, v4
+}
+
+fn @pair(arg0: storageptr) -> (u256, storageptr) [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v0, arg0
+}
+
+fn @bytesPair(arg0: storageptr) -> (u256, storageptr) [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = shr 1, v0
+    v4 = and v3, 127
+    v5 = select v2, v3, v4
+    v6 = lt v5, 32
+    v7 = eq v2, v6
+    jumpi v7, bb1, bb2
+  bb2:
+    ret v5, arg0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @structPair(arg0: storageptr) -> (u256, storageptr) [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v0, arg0
+}
+
+fn @narrowPair(arg0: storageptr) -> (u8, storageptr) [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = and v0, 255
+    ret v1, arg0
+}
+
+fn @leadingPair(arg0: storageptr) -> (storageptr, u256) [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret arg0, v0
+}
+
+fn @triple(arg0: storageptr, arg1: storageptr) -> (storageptr, u256, storageptr) [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret arg0, v0, arg1
+}
+
+fn @clear_storage_words(arg0: u256, arg1: u256, arg2: u256) {
+  bb0:
+    v0 = storage_array_data_slot arg0
+    jump bb1
+  bb1:
+    v1 = phi [bb0: arg1], [bb2: v4]
+    v2 = lt v1, arg2
+    jumpi v2, bb2, bb3
+  bb3:
+    stop
+  bb2:
+    v3 = add v0, v1
+    sstore v3, 0 !metadata(storage=symbolic(v3))
+    v4 = add v1, 1
+    jump bb1
+}
+
+fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = and v0, 1
+    v2 = eq v1, 1
+    v3 = shr 1, v0
+    v4 = and v3, 127
+    v5 = select v2, v3, v4
+    v6 = lt v5, 32
+    v7 = eq v2, v6
+    jumpi v7, bb1, bb2
+  bb2:
+    v8 = memory_object_len memorybytes, arg1
+    v9 = memory_object_data memorybytes, arg1
+    v10 = make_memory_slice v9, v8
+    v11 = add v5, 31
+    v12 = div v11, 32
+    v13 = add v8, 31
+    v14 = lt v13, v8
+    jumpi v14, bb3, bb4
+  bb4:
+    v15 = div v13, 32
+    v16 = lt v8, 32
+    v17 = select v16, 0, v15
+    v18 = gt v5, v8
+    v19 = and v2, v18
+    jumpi v19, bb5, bb6
+  bb5:
+    internal_call @clear_storage_words, 0, arg0, v17, v12
+    jump bb6
+  bb6:
+    jumpi v16, bb7, bb8
+  bb8:
+    v29 = shl 1, v8
+    v30 = or v29, 1
+    sstore arg0, v30 !metadata(storage=symbolic(arg0))
+    v31 = storage_array_data_slot arg0
+    v32 = div v8, 32
+    jump bb10
+  bb10:
+    v33 = phi [bb8: 0], [bb11: v38]
+    v34 = lt v33, v32
+    jumpi v34, bb11, bb12
+  bb12:
+    v39 = and v8, 31
+    v40 = iszero v39
+    jumpi v40, bb9, bb13
+  bb13:
+    v41 = mul v32, 32
+    v42 = memory_slice_load_word memory, v10, v41
+    v43 = sub 32, v39
+    v44 = mul v43, 8
+    v45 = shl v44, 1
+    v46 = sub v45, 1
+    v47 = not v46
+    v48 = and v42, v47
+    v49 = add v31, v32
+    sstore v49, v48 !metadata(storage=symbolic(v49))
+    jump bb9
+  bb11:
+    v35 = mul v33, 32
+    v36 = memory_slice_load_word memory, v10, v35
+    v37 = add v31, v33
+    sstore v37, v36 !metadata(storage=symbolic(v37))
+    v38 = add v33, 1
+    jump bb10
+  bb7:
+    v20 = memory_slice_load_word memory, v10, 0
+    v21 = sub 32, v8
+    v22 = mul v21, 8
+    v23 = shl v22, 1
+    v24 = sub v23, 1
+    v25 = not v24
+    v26 = and v20, v25
+    v27 = mul v8, 2
+    v28 = or v26, v27
+    sstore arg0, v28 !metadata(storage=symbolic(arg0))
+    jump bb9
+  bb9:
+    stop
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @load_storage_word_array(arg0: u256) -> memoryarray {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = mul v1, 32
+    v4 = iszero 32
+    v5 = div v3, 32
+    v6 = eq v5, v1
+    v7 = or v4, v6
+    v8 = iszero v7
+    jumpi v8, bb1, bb3
+  bb3:
+    v9 = alloc memoryarray<1>, exact, uninitialized, panic, v3
+    set_memory_object_len memoryarray, v9, v0
+    v10 = storage_array_data_slot arg0
+    jump bb4
+  bb4:
+    v11 = phi [bb3: 0], [bb5: v15]
+    v12 = lt v11, v0
+    jumpi v12, bb5, bb6
+  bb6:
+    ret v9
+  bb5:
+    v13 = add v10, v11
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    memory_object_store_element memoryarray<1>, v9, v11, v14
+    v15 = add v11, 1
+    jump bb4
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
