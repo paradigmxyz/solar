@@ -243,12 +243,13 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
-    /// The expression of the expression statement being lowered, whose value nothing observes.
+    /// The expressions of the expression statement being lowered, whose values nothing observes.
     ///
     /// Lowering an expression that has to read storage to produce its value can skip the read
-    /// here. Only the statement's own expression qualifies: every subexpression feeds the value
-    /// it belongs to.
-    discarded_expr: Option<hir::ExprId>,
+    /// here. Only the statement's own expression and the tuple components and conditional
+    /// branches that just hand their value up to it qualify: every other subexpression feeds the
+    /// value it belongs to.
+    discarded_exprs: Vec<hir::ExprId>,
 }
 
 #[derive(Clone, Copy)]
@@ -438,7 +439,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
-            discarded_expr: None,
+            discarded_exprs: Vec::new(),
         }
     }
 

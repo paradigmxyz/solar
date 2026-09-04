@@ -692,7 +692,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         //
         // r = load(element_slot)
         if argument.is_none()
-            && self.discarded_expr != Some(expr.id)
+            && !self.discarded_exprs.contains(&expr.id)
             && self.types.memory_layout(element).is_none()
         {
             return self.load_storage_value(element, element_access, expr.span);

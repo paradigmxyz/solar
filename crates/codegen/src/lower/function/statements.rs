@@ -180,13 +180,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 // Nothing observes the statement's value, which lets `a.push();` skip the
                 // read that produces the appended element.
-                let previous = self.discarded_expr.replace(expr.id);
+                let previous = self.discarded_exprs.len();
+                self.mark_discarded(expr);
                 let result = if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
                     self.lower_values(expr).map(drop)
                 } else {
                     self.lower_expr(expr).map(drop)
                 };
-                self.discarded_expr = previous;
+                self.discarded_exprs.truncate(previous);
                 result?;
             }
             StmtKind::Block(block) => self.lower_block(*block)?,
@@ -286,6 +287,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         Some(())
+    }
+
+    /// Records the expressions of a discarded expression statement: the statement's own
+    /// expression, and the tuple components and conditional branches that only forward it, since
+    /// nothing observes their values either.
+    fn mark_discarded(&mut self, expr: &hir::Expr<'_>) {
+        let expr = expr.peel_parens();
+        self.discarded_exprs.push(expr.id);
+        match expr.kind {
+            ExprKind::Tuple(exprs) => {
+                for &expr in exprs.iter().flatten() {
+                    self.mark_discarded(expr);
+                }
+            }
+            ExprKind::Ternary(_, then_expr, else_expr) => {
+                self.mark_discarded(then_expr);
+                self.mark_discarded(else_expr);
+            }
+            _ => {}
+        }
     }
 
     pub(super) fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
