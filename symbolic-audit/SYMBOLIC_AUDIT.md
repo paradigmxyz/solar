@@ -87,8 +87,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/external_call_gas_prebyzantium.sol`; fixed in `5aebf672`, review fix `f675c760`)
 - [x] 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium because the catch path emits `RETURNDATACOPY`
       (`symbolic-audit/try_catch_prebyzantium.sol`; fixed in `af297b6b`, review fix `813b6632`)
-- [ ] 31. External library calls with return values are rejected before byzantium instead of using a static output buffer
-      (`symbolic-audit/library_call_prebyzantium.sol`)
+- [x] 31. External library calls with return values are rejected before byzantium instead of using a static output buffer
+      (`symbolic-audit/library_call_prebyzantium.sol`; fixed in `0e722706`, tests in `a5b57877`)
 - [ ] 32. Loop-carried values round-trip through memory frame slots on every iteration, so tight loops cost 1.25x to 1.7x solc
       (`symbolic-audit/loop_carried_frame_slots.sol`)
 - [x] 33. `this.f()` in an internal function reached from the constructor skips the `extcodesize` guard, so deployment succeeds where solc reverts
@@ -1316,6 +1316,33 @@ function with a return value cannot be compiled for the three pre-byzantium
 targets.
 
 Severity: valid program rejected.
+
+Cause and fix (`0e722706`): `lower_library_call` hardcoded a return plan
+with an empty output area and return-data decoding, so
+`finish_external_call` bailed wherever the version has no return data.
+Pre-byzantium the library delegatecall now plans a static output area
+through the shared helpers of findings 29 and 30 (gas reserve of 50, the
+output-area touch, the `extcodesize` guard, and word validation), passes
+it as the delegatecall's output operands, and reads the return values or
+`abi_decode`s a static aggregate back from it; from byzantium on the plan
+is unchanged (720 UI codegen files at byzantium and osaka, three
+optimization levels: no diffs). Dynamically encoded return values keep
+the diagnostic where solc rejects their use (finding 39 covers the unused
+case). Verified with a linked-library forge project (both compilers'
+library and caller through Standard JSON `libraries`, 13 calls: one and
+two words, `uint256[2]`, a static struct, a storage-pointer parameter, a
+reverting callee, no return, a code-less library) at five EVM versions
+and three optimization levels, 195 comparisons with 0 mismatches. The
+review (`a5b57877`) extended that to 49 calls with dirty-word libraries
+(solc reverts pre-byzantium on a dirty returned `bool`, `uint8`,
+`address`, `bytes4`, enum, or struct `bool` member and accepts dirty
+`uint256`/`bytes32`; we match all seven), `try`, loops, `using for`,
+storage and mapping parameters, and a gas-hungry callee, 588 comparisons
+with 0 mismatches, and pinned `bool` and struct returns, an attached call
+with a storage receiver, and a tangerineWhistle revision. Residual: from
+byzantium on library calls still decode return data while direct calls
+use the static area, a deliberate leftover to keep byzantium bytes
+identical.
 
 ### 32. Loop-carried values round-trip through memory frame slots on every iteration
 
