@@ -47,7 +47,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::cell::OnceCell;
+use std::{cell::OnceCell, rc::Rc};
 
 mod switch;
 
@@ -183,7 +183,7 @@ struct StackResultProjection {
 /// Subset-invariant analyses shared by one resident-layout subset search.
 struct ResidentSearchContext {
     /// Planned stack-phi edges, present when the function has phis.
-    phi_plan: Option<StackPhiPlan>,
+    phi_plan: Option<Rc<StackPhiPlan>>,
     /// CFG facts whose memoized dominators persist across candidates.
     cfg: CfgInfo,
     /// Operand occurrences per candidate value across the whole function.
@@ -234,7 +234,7 @@ struct ICallStackEdge {
     argument_words: usize,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
@@ -2381,6 +2381,10 @@ pub struct EvmCodegen<'gcx> {
     spill_stores: Vec<SpillStore>,
     spill_loads: Vec<(SpillSlot, ir::BlockId, usize)>,
     early_spill_removals: Vec<(ir::BlockId, std::ops::Range<usize>)>,
+    /// Stack-phi plans by function, shared by the resident-argument search and body emission.
+    /// A plan depends only on the function, its whole-function liveness, and the module's cold
+    /// functions, so one analysis per function serves both.
+    stack_phi_plans: FxHashMap<FunctionId, Rc<StackPhiPlan>>,
     function_ir_block_start: usize,
     /// Whole-calldata-forwarding clobbers (`calldatacopy(0, 0, calldatasize())`
     /// in a proxy) whose write reaches the compiler spill area. Values live
@@ -2472,6 +2476,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             spill_stores: Vec::new(),
             spill_loads: Vec::new(),
             early_spill_removals: Vec::new(),
+            stack_phi_plans: FxHashMap::default(),
             function_ir_block_start: 0,
             spill_hazard_insts: FxHashSet::default(),
             heap_pointer_return_functions: DenseBitSet::new_empty(0),
@@ -2532,6 +2537,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.spill_available = None;
         self.elided_insts.clear();
         self.late_gas_operands.clear();
+        self.stack_phi_plans.clear();
         self.spill_hazard_insts.clear();
         self.heap_pointer_return_functions.clear_to(module.functions.len());
         self.global_stack_active = false;
@@ -3863,11 +3869,10 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
-        let liveness = self
-            .emitting_entry
-            .then(|| Liveness::compute_block_local_for_codegen(func))
-            .flatten()
-            .unwrap_or_else(|| Liveness::compute(func));
+        let block_local_liveness =
+            self.emitting_entry.then(|| Liveness::compute_block_local_for_codegen(func)).flatten();
+        let whole_function_liveness = block_local_liveness.is_none();
+        let liveness = block_local_liveness.unwrap_or_else(|| Liveness::compute(func));
         let liveness = &liveness;
         let cross_block_live = OnceCell::new();
 
@@ -3885,11 +3890,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         // Stack-phi planning starts with loop analysis, but cannot produce a
         // plan without a phi. Avoid that analysis for the overwhelmingly
         // common phi-free function.
-        let mut stack_phi_plan = if has_phis {
-            StackPhiPlan::analyze(func, liveness, &self.cold_functions)
+        // The cached plan is keyed on whole-function liveness; a block-local entry gets its own.
+        let phi_plan = if !has_phis {
+            None
+        } else if whole_function_liveness {
+            Some(self.stack_phi_plan(func_id, func, liveness))
         } else {
-            StackPhiPlan::default()
+            Some(Rc::new(StackPhiPlan::analyze(func, liveness, &self.cold_functions)))
         };
+        let mut stack_phi_plan =
+            phi_plan.as_deref().map_or_else(StackPhiPlan::default, StackPhiPlan::clone);
         let resident_stack_plan = self.resident_stack_plan(func_id).cloned();
         let existing_stack_only_values = self.stack_only_values(func_id, true);
         let hazard_recomputable =
@@ -3961,7 +3971,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     func,
                     liveness,
                     &cross_block_live,
-                    has_phis,
+                    phi_plan,
                 )
             // Phi layouts own their incoming stack on planned joins. Adopt the layout only when
             // that composition is proven, mirroring the resident arm.
@@ -6039,19 +6049,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let successors = [*then_block, *else_block];
         let current_block = self.asm.next_instruction_position().0;
+        // Only stores made in the current block are candidates. Test that first so the
+        // function-wide store list costs one comparison per entry, and collect the block's
+        // reloaded slots once instead of rescanning every load per store.
+        let reloaded_here = self
+            .spill_loads
+            .iter()
+            .filter(|&&(_, block, _)| block == current_block)
+            .map(|&(slot, _, _)| slot)
+            .collect::<FxHashSet<_>>();
+        let block_insts = &func.blocks[block_id].instructions;
         let mut removals = Vec::new();
         self.spill_stores.retain(|store| {
-            let defined_here = matches!(func.value(store.value), Value::Inst(inst)
-                if func.blocks[block_id].instructions.contains(inst));
-            let reloaded_here = self
-                .spill_loads
-                .iter()
-                .any(|&(slot, block, _)| block == store.block && slot == store.slot);
             let remove = store.block == current_block
                 && store.value != *condition
-                && defined_here
-                && !reloaded_here
                 && self.scheduler.stack.contains(store.value)
+                && !reloaded_here.contains(&store.slot)
+                && matches!(func.value(store.value), Value::Inst(inst)
+                    if block_insts.contains(inst))
                 && successors.iter().all(|&successor| {
                     preserved.contains(&successor)
                         || !liveness.live_in(successor).contains(store.value)
@@ -7397,6 +7412,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         all_values
     }
 
+    /// Returns the stack-phi plan for a function, computing it on first use.
+    fn stack_phi_plan(
+        &mut self,
+        func_id: FunctionId,
+        func: &Function,
+        liveness: &Liveness,
+    ) -> Rc<StackPhiPlan> {
+        let cold_functions = &self.cold_functions;
+        Rc::clone(
+            self.stack_phi_plans
+                .entry(func_id)
+                .or_insert_with(|| Rc::new(StackPhiPlan::analyze(func, liveness, cold_functions))),
+        )
+    }
+
     /// Builds the subset-invariant analyses shared by one resident-layout
     /// search. The exhaustive subset loop evaluates up to `2^8` candidates;
     /// recomputing the CFG, its dominators, the phi plan, or operand counts
@@ -7404,9 +7434,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     fn resident_search_context(
         &self,
         func: &Function,
-        liveness: &Liveness,
         values: &[ValueId],
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> ResidentSearchContext {
         let mut value_uses = FxHashMap::default();
         for block in &func.blocks {
@@ -7421,11 +7450,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
         }
-        ResidentSearchContext {
-            phi_plan: has_phis.then(|| StackPhiPlan::analyze(func, liveness, &self.cold_functions)),
-            cfg: CfgInfo::new(func),
-            value_uses,
-        }
+        ResidentSearchContext { phi_plan, cfg: CfgInfo::new(func), value_uses }
     }
 
     fn analyze_resident_subset(
@@ -7551,7 +7576,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         liveness: &Liveness,
         values: &[ValueId],
         preserve_across_calls: bool,
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         debug_assert!(values.len() <= GLOBAL_STACK_LAYOUT_LIMIT);
         let mut use_counts = FxHashMap::default();
@@ -7590,7 +7615,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = self.resident_search_context(func, liveness, values, has_phis);
+        let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -7643,7 +7668,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         cross_block_live: &OnceCell<DenseBitSet<ValueId>>,
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if matches!(self.gcx.sess.opts.optimization, OptimizationMode::None)
             || !Self::is_external_entry(func)
@@ -7718,7 +7743,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .take(GLOBAL_STACK_LAYOUT_LIMIT)
             .map(|(value, _, _)| value)
             .collect::<Vec<_>>();
-        self.select_cross_block_stack_layout(func, liveness, &values, has_phis)
+        self.select_cross_block_stack_layout(func, liveness, &values, phi_plan)
     }
 
     /// Keeps values that survive a low-memory calldata copy in a canonical
@@ -7843,7 +7868,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func: &Function,
         liveness: &Liveness,
         values: &[ValueId],
-        has_phis: bool,
+        phi_plan: Option<Rc<StackPhiPlan>>,
     ) -> Option<(Vec<ValueId>, GlobalStackPlan)> {
         if values.is_empty() {
             return None;
@@ -7882,7 +7907,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
         let optimization = self.gcx.sess.opts.optimization;
         let expected_executions = self.gcx.sess.opts.optimizer_runs.unwrap_or(200);
-        let context = self.resident_search_context(func, liveness, values, has_phis);
+        let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
         for bits in 1usize..(1usize << values.len()) {
             let subset = values
@@ -8061,7 +8086,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::Phi(_)));
             let liveness = (func.blocks.len() != 1 || has_phis).then(|| Liveness::compute(func));
             let plan = if let Some(liveness) = &liveness {
-                let context = self.resident_search_context(func, liveness, &values, has_phis);
+                let phi_plan = has_phis.then(|| self.stack_phi_plan(func_id, func, liveness));
+                let context = self.resident_search_context(func, &values, phi_plan.clone());
                 if let Some((plan, _)) = self.analyze_resident_subset(
                     func,
                     liveness,
@@ -8079,7 +8105,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     liveness,
                     &values,
                     self.preserve_caller_stack,
-                    has_phis,
+                    phi_plan,
                 ) {
                     values = subset;
                     mask.clear();
@@ -12709,7 +12735,7 @@ mod tests {
                 builder.ret([acc]);
                 let liveness = Liveness::compute(&function);
                 codegen
-                    .select_resident_layout(&function, &liveness, &[argument], false, false)
+                    .select_resident_layout(&function, &liveness, &[argument], false, None)
                     .map(|(values, _)| values)
             })
         };
