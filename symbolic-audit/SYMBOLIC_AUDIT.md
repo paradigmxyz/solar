@@ -985,7 +985,10 @@ had made bodiless-modifier and `try` clause parameters invisible
 own type as it does in solc (`8ee9a58c0`), and `this.g{gas: 5};` as a bare
 statement was rejected (`cb8683cf5`). It documented the one remaining
 divergence in this area, nested array literals assigned to a wider memory
-array, as `TYPECK-003` in `docs/SOLC_DIVERGENCE.md`.
+array, as `TYPECK-003` in `docs/SOLC_DIVERGENCE.md`; that entry is
+intentional (2026-09-04): the extended form, where an inline array
+literal takes the element type of its destination, is a supported
+feature, not parity debt.
 
 Correction (2026-09-04): the call-option change was wrong to make.
 `TYPECK-002` in `docs/SOLC_DIVERGENCE.md` already recorded, as an
