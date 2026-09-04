@@ -19,7 +19,7 @@ import sys
 import tempfile
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, getcontext
 from enum import Enum
 from functools import cache
 from pathlib import Path
@@ -1441,13 +1441,76 @@ def _decimal_percentile(samples: Iterable[Decimal], percent: float) -> Decimal:
     return ordered[index]
 
 
+def _can_group_bootstrap(
+    base: Sequence[Decimal], head: Sequence[Decimal]
+) -> bool:
+    """Return whether grouped sums stay exact under the active Decimal context."""
+    values = tuple(itertools.chain(base, head))
+    if any(not value.is_finite() for value in values):
+        return False
+    nonzero_values = tuple(value for value in values if not value.is_zero())
+    if not nonzero_values:
+        return False
+
+    minimum_exponent = min(
+        value.as_tuple().exponent for value in nonzero_values
+    )
+    maximum_adjusted = max(value.adjusted() for value in nonzero_values)
+    carry_digits = len(str(len(base)))
+    context = getcontext()
+    return (
+        maximum_adjusted - minimum_exponent + 1 + carry_digits <= context.prec
+        and minimum_exponent >= context.Emin
+        and maximum_adjusted + carry_digits <= context.Emax
+    )
+
+
 @cache
-def _paired_bootstrap_interval(
+def _bootstrap_count_vectors(
+    sample_count: int,
+) -> tuple[tuple[tuple[int, ...], int], ...]:
+    """Return replacement count vectors and their ordered-resample weights."""
+    if sample_count <= 0:
+        raise ValueError("bootstrap requires a positive sample count")
+
+    factorial = math.factorial(sample_count)
+    vectors: list[tuple[tuple[int, ...], int]] = []
+    for selected in itertools.combinations_with_replacement(
+        range(sample_count), sample_count
+    ):
+        counts = [0] * sample_count
+        for index in selected:
+            counts[index] += 1
+        multiplicity = factorial // math.prod(
+            math.factorial(count) for count in counts
+        )
+        vectors.append((tuple(counts), multiplicity))
+    return tuple(vectors)
+
+
+def _weighted_decimal_percentile(
+    samples: Iterable[tuple[Decimal, int]], percent: float
+) -> Decimal:
+    ordered = sorted(samples, key=lambda sample: sample[0])
+    if not ordered:
+        raise ValueError("percentile requires at least one sample")
+    if not 0 < percent <= 100:
+        raise ValueError("percentile must be in (0, 100]")
+
+    total_weight = sum(weight for _, weight in ordered)
+    index = max(0, math.ceil(percent / 100 * total_weight) - 1)
+    cumulative_weight = 0
+    for value, weight in ordered:
+        cumulative_weight += weight
+        if cumulative_weight > index:
+            return value
+    raise ValueError("weighted percentile did not reach its requested rank")
+
+
+def _paired_bootstrap_interval_exhaustive(
     base: tuple[Decimal, ...], head: tuple[Decimal, ...]
 ) -> dict[str, tuple[Decimal, Decimal]]:
-    if len(base) != len(head) or not base:
-        raise ValueError("paired bootstrap requires equally sized samples")
-
+    """Preserve ordered Decimal arithmetic when grouped sums could round."""
     absolute_deltas: list[Decimal] = []
     percent_deltas: list[Decimal] = []
     for indices in itertools.product(range(len(base)), repeat=len(base)):
@@ -1466,6 +1529,45 @@ def _paired_bootstrap_interval(
         "delta_percent": (
             _decimal_percentile(percent_deltas, tail),
             _decimal_percentile(percent_deltas, 100 - tail),
+        ),
+    }
+
+
+@cache
+def _paired_bootstrap_interval(
+    base: tuple[Decimal, ...], head: tuple[Decimal, ...]
+) -> dict[str, tuple[Decimal, Decimal]]:
+    if len(base) != len(head) or not base:
+        raise ValueError("paired bootstrap requires equally sized samples")
+    if not _can_group_bootstrap(base, head):
+        return _paired_bootstrap_interval_exhaustive(base, head)
+
+    sample_count = len(base)
+    sample_count_decimal = Decimal(sample_count)
+    absolute_deltas: list[tuple[Decimal, int]] = []
+    percent_deltas: list[tuple[Decimal, int]] = []
+    for counts, multiplicity in _bootstrap_count_vectors(sample_count):
+        base_estimate = sum(
+            (value * count for value, count in zip(base, counts) if count), Decimal()
+        ) / sample_count_decimal
+        head_estimate = sum(
+            (value * count for value, count in zip(head, counts) if count), Decimal()
+        ) / sample_count_decimal
+        absolute_delta = head_estimate - base_estimate
+        absolute_deltas.append((absolute_delta, multiplicity))
+        percent_deltas.append(
+            (absolute_delta / base_estimate * Decimal(100), multiplicity)
+        )
+
+    tail = (1.0 - CONFIDENCE_LEVEL) * 50
+    return {
+        "delta_ms": (
+            _weighted_decimal_percentile(absolute_deltas, tail),
+            _weighted_decimal_percentile(absolute_deltas, 100 - tail),
+        ),
+        "delta_percent": (
+            _weighted_decimal_percentile(percent_deltas, tail),
+            _weighted_decimal_percentile(percent_deltas, 100 - tail),
         ),
     }
 

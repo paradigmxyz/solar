@@ -5,11 +5,13 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import itertools
 import json
 import os
 import sys
 import tempfile
 import unittest
+from decimal import Decimal, localcontext
 from pathlib import Path
 from typing import Any
 from unittest import mock
@@ -1046,6 +1048,87 @@ class StatisticsTests(unittest.TestCase):
                 self.assertRaisesRegex(ValueError, "must be in"),
             ):
                 benchmark.percentile([1], percent)
+
+    def test_bootstrap_count_vectors_cover_ordered_resample_weights(self) -> None:
+        vectors = benchmark._bootstrap_count_vectors(5)
+
+        self.assertEqual(len(vectors), 126)
+        self.assertEqual(sum(weight for _, weight in vectors), 5**5)
+        weights = dict(vectors)
+        self.assertEqual(weights[(5, 0, 0, 0, 0)], 1)
+        self.assertEqual(weights[(2, 2, 1, 0, 0)], 30)
+
+    def test_paired_bootstrap_matches_ordered_resample_reference(self) -> None:
+        base = tuple(
+            Decimal(value) for value in ("1.1", "1.1", "2.2", "4.4", "4.4")
+        )
+        head = tuple(
+            Decimal(value) for value in ("1.4", "1.4", "2.0", "5.1", "5.1")
+        )
+        absolute_deltas = []
+        percent_deltas = []
+        for indices in itertools.product(range(len(base)), repeat=len(base)):
+            base_estimate = sum(
+                (base[index] for index in indices), Decimal()
+            ) / Decimal(len(base))
+            head_estimate = sum(
+                (head[index] for index in indices), Decimal()
+            ) / Decimal(len(head))
+            absolute_delta = head_estimate - base_estimate
+            absolute_deltas.append(absolute_delta)
+            percent_deltas.append(absolute_delta / base_estimate * Decimal(100))
+
+        tail = (1.0 - benchmark.CONFIDENCE_LEVEL) * 50
+        expected = {
+            "delta_ms": (
+                benchmark._decimal_percentile(absolute_deltas, tail),
+                benchmark._decimal_percentile(absolute_deltas, 100 - tail),
+            ),
+            "delta_percent": (
+                benchmark._decimal_percentile(percent_deltas, tail),
+                benchmark._decimal_percentile(percent_deltas, 100 - tail),
+            ),
+        }
+
+        benchmark._paired_bootstrap_interval.cache_clear()
+        actual = benchmark._paired_bootstrap_interval(base, head)
+
+        self.assertEqual(actual, expected)
+
+    def test_paired_bootstrap_falls_back_when_grouped_sums_could_round(
+        self,
+    ) -> None:
+        base = tuple(
+            Decimal(value) for value in ("1.1", "1.2", "1.3", "1.4", "1.5")
+        )
+        head = tuple(
+            Decimal(value) for value in ("1.2", "1.3", "1.4", "1.5", "1.6")
+        )
+        benchmark._paired_bootstrap_interval.cache_clear()
+        self.addCleanup(benchmark._paired_bootstrap_interval.cache_clear)
+
+        with localcontext() as context:
+            context.prec = 2
+            expected = benchmark._paired_bootstrap_interval_exhaustive(base, head)
+            with mock.patch.object(
+                benchmark,
+                "_paired_bootstrap_interval_exhaustive",
+                wraps=benchmark._paired_bootstrap_interval_exhaustive,
+            ) as exhaustive:
+                actual = benchmark._paired_bootstrap_interval(base, head)
+
+        exhaustive.assert_called_once_with(base, head)
+        self.assertEqual(actual, expected)
+
+    def test_weighted_decimal_percentile_uses_nearest_rank(self) -> None:
+        samples = ((Decimal("1"), 3), (Decimal("2"), 2))
+
+        self.assertEqual(
+            benchmark._weighted_decimal_percentile(samples, 50), Decimal("1")
+        )
+        self.assertEqual(
+            benchmark._weighted_decimal_percentile(samples, 95), Decimal("2")
+        )
 
     def test_method_verdict_requires_both_order_strata(self) -> None:
         cases = (
