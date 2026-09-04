@@ -1,5 +1,7 @@
 use super::support::RequestFixture;
+use crate::vfs::VfsPath;
 use async_lsp::ErrorCode;
+use crop::Rope;
 use lsp_types::Position;
 use snapbox::str;
 
@@ -126,6 +128,35 @@ fn uses_utf16_positions_for_crlf_documents_without_waiting_for_analysis() {
 
 "#]],
     );
+}
+
+#[test]
+fn cached_utf16_ranges_match_repeated_and_disk_requests() {
+    let fixture = RequestFixture::new(
+        concat!(
+            "//- /Open.sol open\r\n",
+            "contract C {\r\n",
+            "    function f(uint256 value) external pure returns (uint256) {\r\n",
+            "        /* 中😀 */ return val$1ue;\r\n",
+            "    }\r\n",
+            "}\r\n",
+            "//- /Disk.sol\r\n",
+            "contract C {\r\n",
+            "    function f(uint256 value) external pure returns (uint256) {\r\n",
+            "        /* 中😀 */ return val$2ue;\r\n",
+            "    }\r\n",
+            "}",
+        ),
+        "/Open.sol",
+    );
+    let mut state = fixture.state();
+
+    let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
+    let cached = fixture.selection_range_response_in_state(&mut state, &["$1"]);
+    let disk = fixture.selection_range_response_in_state(&mut state, &["$2"]);
+
+    assert_eq!(cached, first);
+    assert_eq!(disk, first);
 }
 
 #[test]
@@ -373,6 +404,54 @@ fn falls_back_when_source_cannot_be_parsed() {
 
 "#]],
     );
+}
+
+#[test]
+fn cached_parse_failure_matches_repeated_and_disk_fallbacks() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Open.sol open
+        @$1
+        //- /Disk.sol
+        @$2
+        "#,
+        "/Open.sol",
+    );
+    let mut state = fixture.state();
+
+    let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
+    let cached = fixture.selection_range_response_in_state(&mut state, &["$1"]);
+    let disk = fixture.selection_range_response_in_state(&mut state, &["$2"]);
+
+    assert_eq!(cached, first);
+    assert_eq!(disk, first);
+}
+
+#[test]
+fn content_changes_replace_cached_selection_ranges() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Selection.sol open
+        contract $1A {}
+        "#,
+        "/Selection.sol",
+    );
+    let mut state = fixture.state();
+    let first = fixture.selection_range_response_in_state(&mut state, &["$1"]);
+    let (_, position) = fixture.marker_location("$1");
+    let changed_source = "contract LongName {}";
+    state.vfs.write().set_file_contents_with_version(
+        VfsPath::from(fixture.project_path("/Selection.sol")),
+        Some(Rope::from(changed_source)),
+        Some(2),
+    );
+
+    let changed = fixture.selection_range_response_in_state(&mut state, &["$1"]);
+    let expected = crate::selection_range::selection_ranges(changed_source.into(), &[position])
+        .expect("the unchanged request position should remain valid");
+
+    assert_ne!(changed, first);
+    assert_eq!(changed, expected);
 }
 
 #[test]

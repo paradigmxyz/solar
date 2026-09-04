@@ -2109,7 +2109,7 @@ impl GlobalStateSnapshot {
         paths
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "bench"))]
     fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
         self.analysis_batches_cancellable(disk_paths, &IndexingCancellation::default())
             .map(|(batches, _)| batches)
@@ -2124,16 +2124,15 @@ impl GlobalStateSnapshot {
         let vfs_files = {
             let vfs = self.vfs.read();
             let mut files = Vec::new();
-            for (path, contents) in vfs.iter() {
+            for (path, _) in vfs.iter() {
                 if cancellation.is_cancelled() {
                     return None;
                 }
                 let Some(path_buf) = path.as_path() else { continue };
-                let mut src = String::with_capacity(contents.byte_len());
-                for chunk in contents.chunks() {
-                    src.push_str(chunk);
-                }
-                files.push((path_buf.to_path_buf(), Arc::new(src), vfs.get_file_version(path)));
+                let contents = vfs
+                    .get_file_analysis_source(path)
+                    .expect("iterated VFS path should retain its source");
+                files.push((path_buf.to_path_buf(), contents, vfs.get_file_version(path)));
             }
             files
         };

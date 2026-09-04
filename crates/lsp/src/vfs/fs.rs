@@ -23,18 +23,63 @@
 //! [`SourceFile`]: solar_interface::source_map::SourceFile
 
 use super::VfsPath;
-use crate::file_operations::{FileMoveBatch, FileMoveError};
+use crate::{
+    file_operations::{FileMoveBatch, FileMoveError},
+    selection_range::SelectionRangeIndex,
+};
 use crop::Rope;
+use lsp_types::{Position, SelectionRange};
 use solar_interface::data_structures::map::rustc_hash::FxHashMap;
 use std::{
     collections::hash_map::Entry,
     mem,
     path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
 };
+
+struct VfsFile {
+    contents: Rope,
+    analysis_source: OnceLock<Arc<String>>,
+    selection_range_index: OnceLock<SelectionRangeIndex>,
+}
+
+impl VfsFile {
+    fn new(contents: Rope) -> Self {
+        Self { contents, analysis_source: OnceLock::new(), selection_range_index: OnceLock::new() }
+    }
+
+    fn analysis_source(&self) -> Arc<String> {
+        self.analysis_source
+            .get_or_init(|| {
+                let mut source = String::with_capacity(self.contents.byte_len());
+                for chunk in self.contents.chunks() {
+                    source.push_str(chunk);
+                }
+                Arc::new(source)
+            })
+            .clone()
+    }
+}
+
+/// An exact-content handle for lazily answering selection-range requests.
+#[derive(Clone)]
+pub(crate) struct SelectionRangeSource(Arc<VfsFile>);
+
+impl SelectionRangeSource {
+    fn index(&self) -> &SelectionRangeIndex {
+        self.0.selection_range_index.get_or_init(|| {
+            SelectionRangeIndex::new(self.0.analysis_source(), self.0.contents.clone())
+        })
+    }
+
+    pub(crate) fn selection_ranges(&self, positions: &[Position]) -> Option<Vec<SelectionRange>> {
+        self.index().selection_ranges(positions)
+    }
+}
 
 #[derive(Default)]
 pub(crate) struct Vfs {
-    data: FxHashMap<VfsPath, Rope>,
+    data: FxHashMap<VfsPath, Arc<VfsFile>>,
     versions: FxHashMap<VfsPath, i32>,
     content_revision: u64,
     dirty: bool,
@@ -56,12 +101,14 @@ impl Vfs {
         if let Some(contents) = contents {
             let contents_changed = match self.data.entry(path.clone()) {
                 Entry::Occupied(mut entry) => {
-                    let changed = entry.get() != &contents;
-                    entry.insert(contents);
+                    let changed = entry.get().contents != contents;
+                    if changed {
+                        entry.insert(Arc::new(VfsFile::new(contents)));
+                    }
                     changed
                 }
                 Entry::Vacant(entry) => {
-                    entry.insert(contents);
+                    entry.insert(Arc::new(VfsFile::new(contents)));
                     true
                 }
             };
@@ -87,7 +134,20 @@ impl Vfs {
     }
 
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
-        self.data.get(path)
+        self.data.get(path).map(|file| &file.contents)
+    }
+
+    /// Returns a shared contiguous source for compiler analysis.
+    pub(crate) fn get_file_analysis_source(&self, path: &VfsPath) -> Option<Arc<String>> {
+        self.data.get(path).map(|file| file.analysis_source())
+    }
+
+    /// Returns an exact-content handle whose derived index can initialize outside the VFS lock.
+    pub(crate) fn get_file_selection_range_source(
+        &self,
+        path: &VfsPath,
+    ) -> Option<SelectionRangeSource> {
+        self.data.get(path).cloned().map(SelectionRangeSource)
     }
 
     pub(crate) fn get_file_version(&self, path: &VfsPath) -> Option<i32> {
@@ -193,7 +253,7 @@ impl Vfs {
 
     /// Returns an iterator over stored paths and their corresponding contents.
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&VfsPath, &Rope)> {
-        self.data.iter()
+        self.data.iter().map(|(path, file)| (path, &file.contents))
     }
 
     fn bump_content_revision(&mut self) {
@@ -262,6 +322,133 @@ mod tests {
         assert_eq!(vfs.get_file_version(&file), None);
         assert!(!vfs.set_file_contents_with_version(file, None, None));
         assert_eq!(vfs.content_revision(), revision + 2);
+    }
+
+    #[test]
+    fn analysis_sources_are_cached_until_contents_change() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "contract Test {}", 1);
+
+        let first = vfs.get_file_analysis_source(&file).unwrap();
+        let cached = vfs.get_file_analysis_source(&file).unwrap();
+        assert!(Arc::ptr_eq(&first, &cached));
+
+        assert!(!vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Test {}")),
+            Some(2),
+        ));
+        let version_only = vfs.get_file_analysis_source(&file).unwrap();
+        assert!(Arc::ptr_eq(&first, &version_only));
+        assert_eq!(vfs.get_file_version(&file), Some(2));
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Changed {}")),
+            Some(3),
+        ));
+        let changed = vfs.get_file_analysis_source(&file).unwrap();
+        assert!(!Arc::ptr_eq(&first, &changed));
+        assert_eq!(changed.as_str(), "contract Changed {}");
+    }
+
+    #[test]
+    fn selection_range_indexes_are_cached_until_contents_change() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "contract Test {}", 1);
+
+        let first_source = vfs.get_file_selection_range_source(&file).unwrap();
+        let first = first_source.index();
+        let cached_source = vfs.get_file_selection_range_source(&file).unwrap();
+        let cached = cached_source.index();
+        assert!(std::ptr::eq(first, cached));
+
+        assert!(!vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Test {}")),
+            Some(2),
+        ));
+        let version_only_source = vfs.get_file_selection_range_source(&file).unwrap();
+        let version_only = version_only_source.index();
+        assert!(std::ptr::eq(first, version_only));
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract Changed {}")),
+            Some(3),
+        ));
+        let changed_source = vfs.get_file_selection_range_source(&file).unwrap();
+        let changed = changed_source.index();
+        assert!(!std::ptr::eq(first, changed));
+    }
+
+    #[test]
+    fn stale_selection_range_handles_cannot_populate_replaced_files() {
+        let mut vfs = Vfs::default();
+        let file = path("/workspace/Test.sol");
+        insert(&mut vfs, "/workspace/Test.sol", "contract Old {}", 1);
+        let old_source = vfs.get_file_selection_range_source(&file).unwrap();
+
+        assert!(vfs.set_file_contents_with_version(
+            file.clone(),
+            Some(Rope::from("contract NewName {}")),
+            Some(2),
+        ));
+        let new_source = vfs.get_file_selection_range_source(&file).unwrap();
+
+        let old_index = old_source.index();
+        let new_index = new_source.index();
+        assert!(!std::ptr::eq(old_index, new_index));
+        assert_eq!(
+            old_source.selection_ranges(&[Position::new(0, 9)]).unwrap()[0].range.end.character,
+            12
+        );
+        assert_eq!(
+            new_source.selection_ranges(&[Position::new(0, 9)]).unwrap()[0].range.end.character,
+            16
+        );
+    }
+
+    #[test]
+    fn renaming_preserves_cached_analysis_sources() {
+        let mut vfs = Vfs::default();
+        let old = path("/workspace/Old.sol");
+        let new = path("/workspace/New.sol");
+        insert(&mut vfs, "/workspace/Old.sol", "contract Test {}", 1);
+        let source = vfs.get_file_analysis_source(&old).unwrap();
+
+        vfs.rename_file_prefixes(&moves([(
+            PathBuf::from("/workspace/Old.sol"),
+            PathBuf::from("/workspace/New.sol"),
+        )]))
+        .unwrap();
+
+        let renamed = vfs.get_file_analysis_source(&new).unwrap();
+        assert!(Arc::ptr_eq(&source, &renamed));
+        assert_eq!(vfs.get_file_analysis_source(&old), None);
+    }
+
+    #[test]
+    fn renaming_preserves_cached_selection_range_indexes() {
+        let mut vfs = Vfs::default();
+        let old = path("/workspace/Old.sol");
+        let new = path("/workspace/New.sol");
+        insert(&mut vfs, "/workspace/Old.sol", "contract Test {}", 1);
+        let source = vfs.get_file_selection_range_source(&old).unwrap();
+        let index = source.index();
+
+        vfs.rename_file_prefixes(&moves([(
+            PathBuf::from("/workspace/Old.sol"),
+            PathBuf::from("/workspace/New.sol"),
+        )]))
+        .unwrap();
+
+        let renamed_source = vfs.get_file_selection_range_source(&new).unwrap();
+        let renamed = renamed_source.index();
+        assert!(std::ptr::eq(index, renamed));
+        assert!(vfs.get_file_selection_range_source(&old).is_none());
     }
 
     #[test]
