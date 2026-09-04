@@ -244,7 +244,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let baseline = values
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
-        let optimization = self.gcx.sess.opts.optimization;
         let target = Target::new(self.gcx);
         let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
@@ -536,7 +535,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         let baseline = values
             .iter()
             .fold(ScheduleCost::default(), |cost, &value| cost.plus(memory_cost(value)));
-        let optimization = self.gcx.sess.opts.optimization;
         let target = Target::new(self.gcx);
         let context = self.resident_search_context(func, values, phi_plan);
         let mut best = Option::<(ScheduleCost, Vec<ValueId>, GlobalStackPlan)>::None;
