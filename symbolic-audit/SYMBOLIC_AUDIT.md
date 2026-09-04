@@ -107,6 +107,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`)
 - [ ] 40. Interface constructors, implemented or `virtual` interface functions, interface modifiers and variables, and `virtual` library modifiers are accepted; solc reports 6482, 4726, 5815, 6408, 8274, 3275
       (`symbolic-audit/interface_member_checks.sol`)
+- [ ] 41. A `try` `returns` clause with mismatched variable types or count is accepted; solc reports 6509 and 2800
+      (`symbolic-audit/try_returns_clause_checks.sol`)
 
 ## Findings
 
@@ -1826,6 +1828,30 @@ solc's code 4549, that 5811 (free functions cannot have modifiers) is not
 emitted, and that the `Contract::functions()` doc comment in
 `crates/sema/src/hir/mod.rs` still claims to exclude the constructor and
 fallback while the lowering pushes every function into `items`.
+
+Severity: missing diagnostics.
+
+### 41. A `try` `returns` clause with mismatched types or count is accepted
+
+File: `symbolic-audit/try_returns_clause_checks.sol`
+Found by the agent fixing finding 39, whose 6509 check for inaccessible
+dynamic values is the first use of that code in the type checker.
+
+```solidity
+try I(a).f() returns (bool x) { ... } catch { ... }          // f returns uint256
+try I(a).f() returns (uint256 x, uint256 y) { ... } catch { ... }
+```
+
+| Declaration | solc | solar |
+|------|------|------|
+| `returns (bool x)` on a `uint256`-returning callee | error 6509 `Invalid type, expected uint256 but got bool.` | compiles |
+| `returns (uint256 x, uint256 y)` on a one-value callee | error 2800 `Function returns 1 values, but returns clause has 2 variables.` | compiles |
+
+solc checks the clause in `TypeChecker::visit(TryStatement)`; we bind the
+variables without comparing them to the callee's return types, so the
+success block reads whatever the decoder produced for the declared types.
+Not a codegen divergence on valid programs: solar accepts programs solc
+refuses.
 
 Severity: missing diagnostics.
 
