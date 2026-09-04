@@ -1222,11 +1222,28 @@ class ExecutionAndRemovalTests(unittest.TestCase):
         self.assertIn("runs-on: ubuntu-latest", compute)
         self.assertNotIn("depot-ubuntu-latest", compute)
 
-    def test_existing_benchmark_workflow_only_adds_adapter_unit_tests(self) -> None:
+    def test_existing_benchmark_workflow_tracks_tested_merge_base(self) -> None:
         trigger = BENCH_WORKFLOW.split("\nenv:", 1)[0]
 
         self.assertNotIn("issue_comment", trigger)
         self.assertNotIn("pull_request_target", trigger)
+        self.assertNotIn("github.event.pull_request.base.sha", BENCH_WORKFLOW)
+        self.assertIn(
+            'if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then', BENCH_WORKFLOW
+        )
+        self.assertIn(
+            "PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}", BENCH_WORKFLOW
+        )
+        self.assertIn(
+            'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', BENCH_WORKFLOW
+        )
+        self.assertIn(
+            'test "$(git rev-parse HEAD^2)" = "$PR_HEAD_SHA"', BENCH_WORKFLOW
+        )
+        self.assertIn('base_sha="$(git rev-parse HEAD^1)"', BENCH_WORKFLOW)
+        self.assertIn(
+            'base_sha="$(git rev-parse "origin/$BASE_BRANCH")"', BENCH_WORKFLOW
+        )
         self.assertIn(
             '"$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \\\n'
             "            -s benches/lsp -p 'test_*.py'",
