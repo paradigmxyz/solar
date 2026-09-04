@@ -542,6 +542,16 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
+    /// Returns `true` if the type crosses an ABI boundary as its storage slot number, as solc's
+    /// `ArrayType::encodingType`, `StructType::encodingType` and `MappingType::encodingType`.
+    ///
+    /// Such a value is a single static word in both directions, so it is neither dynamically
+    /// encoded nor encoded from memory.
+    pub fn encodes_as_slot(self) -> bool {
+        self.is_ref_at(DataLocation::Storage)
+            || matches!(self.peel_refs().kind, TyKind::Mapping(..))
+    }
+
     /// Returns `true` if the type's ABI encoding carries a tail, as solc's
     /// `Type::isDynamicallyEncoded`.
     ///

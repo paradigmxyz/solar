@@ -1282,7 +1282,10 @@ impl<'gcx> TypeChecker<'gcx> {
             return Ok(());
         }
         for (index, ty) in f.returns.iter().enumerate() {
-            if !ty.is_dynamically_encoded(self.gcx)
+            // A storage reference is decoded as its slot number
+            // (`ReferenceType::decodingType`), so it stays accessible at every version.
+            if ty.encodes_as_slot()
+                || !ty.is_dynamically_encoded(self.gcx)
                 || matches!(discarded, Some(Discarded::Components(components)) if components.contains(index))
             {
                 continue;
