@@ -1,0 +1,694 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee ===
+@module TryCallee
+fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    ret 1, 2
+}
+
+fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 11
+    v3 = lt 1, 2
+    v4 = iszero v3
+    jumpi v4, bb1, bb3
+  bb3:
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 22
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word]] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryBareCatch ===
+@module TryBareCatch
+data:
+  TryCallee_initcode_0: hex"34600e5761015c8060125f395ff35b5f5ffd5f3560e01c80633fa4f24514603a5780635dfc2e4a14603e578063a8aa1b31146043578063a9cc4718146047578063f5e34bfa14604c576050565b6054565b61014d565b606e565b610158565b6095565b5f5ffd5b34606a57602a6080526020608001608090036080f35b5f5ffd5b60c060405234609157600160805260206080016002815260209001608090036080f35b5f5ffd5b61012060405234610149576040518060c0528060c05260408101604052604036828060c0523760025f10151560f2575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8060c052600b815260026001101560c5576020810160168152505f5b8060e0526002811015610139576020818060e05202820151602082026080015260018101905061010e565b6040608001915050608090036080f35b5f5ffd5b3461015457005b5f5ffd5b5f5ffd"
+
+fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 397, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 366
+    v4 = slice_ptr v0
+    v5 = add v3, 366
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 366
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v11, bb3, bb4
+  bb4:
+    v20 = returndatasize
+    v21 = add v20, 63
+    v22 = lt v21, v20
+    jumpi v22, bb6, bb8
+  bb8:
+    v23 = not 31
+    v24 = and v21, v23
+    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
+    set_memory_object_len memorybytes, v25, v20
+    v26 = make_returndata_slice 0, v20
+    memory_object_copy_from_slice memorybytes, v25, v26
+    v27 = memory_object_data memorybytes, v25
+    v28 = memory_object_len memorybytes, v25
+    v29 = make_memory_slice v27, v28
+    v30 = memory_slice_load_word memory, v29, 0
+    v31 = lt v28, 4
+    v32 = iszero v31
+    v33 = shr 224, v30
+    v34 = eq v33, 0x8c379a0
+    v35 = and v32, v34
+    v36 = lt v28, 36
+    v37 = iszero v36
+    v38 = eq v33, 0x4e487b71
+    v39 = and v37, v38
+    jumpi 1, bb9, bb10
+  bb10:
+    revert v27, v28
+  bb9:
+    jump bb5
+  bb3:
+    v12 = returndatasize
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    jumpi v14, bb6, bb7
+  bb7:
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    v18 = make_returndata_slice 0, v12
+    memory_object_copy_from_slice memorybytes, v17, v18
+    v19 = abi_decode [u256], v17
+    jump bb5
+  bb5:
+    v40 = phi [bb7: v19], [bb9: 7]
+    ret v40
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 397, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 366
+    v4 = slice_ptr v0
+    v5 = add v3, 366
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 366
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v11, bb3, bb4
+  bb4:
+    v25 = returndatasize
+    v26 = add v25, 63
+    v27 = lt v26, v25
+    jumpi v27, bb6, bb10
+  bb10:
+    v28 = not 31
+    v29 = and v26, v28
+    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
+    set_memory_object_len memorybytes, v30, v25
+    v31 = make_returndata_slice 0, v25
+    memory_object_copy_from_slice memorybytes, v30, v31
+    v32 = memory_object_data memorybytes, v30
+    v33 = memory_object_len memorybytes, v30
+    v34 = make_memory_slice v32, v33
+    v35 = memory_slice_load_word memory, v34, 0
+    v36 = lt v33, 4
+    v37 = iszero v36
+    v38 = shr 224, v35
+    v39 = eq v38, 0x8c379a0
+    v40 = and v37, v39
+    v41 = lt v33, 36
+    v42 = iszero v41
+    v43 = eq v38, 0x4e487b71
+    v44 = and v42, v43
+    jumpi 1, bb11, bb12
+  bb12:
+    revert v32, v33
+  bb11:
+    jump bb5
+  bb3:
+    v12 = returndatasize
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    jumpi v14, bb6, bb7
+  bb7:
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    v18 = make_returndata_slice 0, v12
+    memory_object_copy_from_slice memorybytes, v17, v18
+    v19 = abi_decode [u256, u256], v17
+    v20 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = mload v21
+    v23 = add v19, v22
+    v24 = lt v23, v19
+    jumpi v24, bb8, bb9
+  bb9:
+    jump bb5
+  bb5:
+    v45 = phi [bb9: v23], [bb11: 7]
+    ret v45
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 397, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 366
+    v4 = slice_ptr v0
+    v5 = add v3, 366
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 366
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v11, bb3, bb4
+  bb4:
+    v28 = returndatasize
+    v29 = add v28, 63
+    v30 = lt v29, v28
+    jumpi v30, bb6, bb13
+  bb13:
+    v31 = not 31
+    v32 = and v29, v31
+    v33 = alloc memorybytes, exact, uninitialized, infallible, v32
+    set_memory_object_len memorybytes, v33, v28
+    v34 = make_returndata_slice 0, v28
+    memory_object_copy_from_slice memorybytes, v33, v34
+    v35 = memory_object_data memorybytes, v33
+    v36 = memory_object_len memorybytes, v33
+    v37 = make_memory_slice v35, v36
+    v38 = memory_slice_load_word memory, v37, 0
+    v39 = lt v36, 4
+    v40 = iszero v39
+    v41 = shr 224, v38
+    v42 = eq v41, 0x8c379a0
+    v43 = and v40, v42
+    v44 = lt v36, 36
+    v45 = iszero v44
+    v46 = eq v41, 0x4e487b71
+    v47 = and v45, v46
+    jumpi 1, bb14, bb15
+  bb15:
+    revert v35, v36
+  bb14:
+    jump bb5
+  bb3:
+    v12 = returndatasize
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    jumpi v14, bb6, bb7
+  bb7:
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    v18 = make_returndata_slice 0, v12
+    memory_object_copy_from_slice memorybytes, v17, v18
+    v19 = abi_decode [array<2, u256>], v17
+    v20 = lt 0, 2
+    v21 = iszero v20
+    jumpi v21, bb8, bb9
+  bb9:
+    v22 = memory_object_load_element memoryfixedarray<2, 1>, v19, 0
+    v23 = lt 1, 2
+    v24 = iszero v23
+    jumpi v24, bb8, bb10
+  bb10:
+    v25 = memory_object_load_element memoryfixedarray<2, 1>, v19, 1
+    v26 = add v22, v25
+    v27 = lt v26, v22
+    jumpi v27, bb11, bb12
+  bb12:
+    jump bb5
+  bb5:
+    v48 = phi [bb12: v26], [bb14: 7]
+    ret v48
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 397, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 366
+    v4 = slice_ptr v0
+    v5 = add v3, 366
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 366
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v6
+    v12 = iszero v11
+    jumpi v12, bb3, bb4
+  bb4:
+    v13 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v13, bb5, bb6
+  bb6:
+    v14 = returndatasize
+    v15 = add v14, 63
+    v16 = lt v15, v14
+    jumpi v16, bb8, bb9
+  bb9:
+    v17 = not 31
+    v18 = and v15, v17
+    v19 = alloc memorybytes, exact, uninitialized, infallible, v18
+    set_memory_object_len memorybytes, v19, v14
+    v20 = make_returndata_slice 0, v14
+    memory_object_copy_from_slice memorybytes, v19, v20
+    v21 = memory_object_data memorybytes, v19
+    v22 = memory_object_len memorybytes, v19
+    v23 = make_memory_slice v21, v22
+    v24 = memory_slice_load_word memory, v23, 0
+    v25 = lt v22, 4
+    v26 = iszero v25
+    v27 = shr 224, v24
+    v28 = eq v27, 0x8c379a0
+    v29 = and v26, v28
+    v30 = lt v22, 36
+    v31 = iszero v30
+    v32 = eq v27, 0x4e487b71
+    v33 = and v31, v32
+    jumpi 1, bb10, bb11
+  bb11:
+    revert v21, v22
+  bb10:
+    jump bb7
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    jump bb7
+  bb7:
+    v34 = phi [bb5: 1], [bb10: 7]
+    ret v34
+  bb3:
+    revert 0, 0
+}
+
+fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 397, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 366
+    v4 = slice_ptr v0
+    v5 = add v3, 366
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 366
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = call v7, v6, 1, v9, v10, 0, 0
+    jumpi v11, bb3, bb4
+  bb4:
+    v20 = returndatasize
+    v21 = add v20, 63
+    v22 = lt v21, v20
+    jumpi v22, bb6, bb8
+  bb8:
+    v23 = not 31
+    v24 = and v21, v23
+    v25 = alloc memorybytes, exact, uninitialized, infallible, v24
+    set_memory_object_len memorybytes, v25, v20
+    v26 = make_returndata_slice 0, v20
+    memory_object_copy_from_slice memorybytes, v25, v26
+    v27 = memory_object_data memorybytes, v25
+    v28 = memory_object_len memorybytes, v25
+    v29 = make_memory_slice v27, v28
+    v30 = memory_slice_load_word memory, v29, 0
+    v31 = lt v28, 4
+    v32 = iszero v31
+    v33 = shr 224, v30
+    v34 = eq v33, 0x8c379a0
+    v35 = and v32, v34
+    v36 = lt v28, 36
+    v37 = iszero v36
+    v38 = eq v33, 0x4e487b71
+    v39 = and v37, v38
+    jumpi 1, bb9, bb10
+  bb10:
+    revert v27, v28
+  bb9:
+    jump bb5
+  bb3:
+    v12 = returndatasize
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    jumpi v14, bb6, bb7
+  bb7:
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    v18 = make_returndata_slice 0, v12
+    memory_object_copy_from_slice memorybytes, v17, v18
+    v19 = abi_decode [u256], v17
+    jump bb5
+  bb5:
+    v40 = phi [bb7: v19], [bb9: 7]
+    ret v40
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 397, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 366
+    v4 = slice_ptr v0
+    v5 = add v3, 366
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 366
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = shl 32, v6
+    v8 = or v7, 0x3fa4f245
+    v9 = and v8, 0xffffffff
+    v10 = shl 224, v9
+    v11 = shr 32, v8
+    v12 = gas
+    v13 = abi_encode [], selector v10
+    v14 = slice_ptr v13
+    v15 = slice_len v13
+    v16 = call v12, v11, 0, v14, v15, 0, 0
+    jumpi v16, bb3, bb4
+  bb4:
+    v25 = returndatasize
+    v26 = add v25, 63
+    v27 = lt v26, v25
+    jumpi v27, bb6, bb8
+  bb8:
+    v28 = not 31
+    v29 = and v26, v28
+    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
+    set_memory_object_len memorybytes, v30, v25
+    v31 = make_returndata_slice 0, v25
+    memory_object_copy_from_slice memorybytes, v30, v31
+    v32 = memory_object_data memorybytes, v30
+    v33 = memory_object_len memorybytes, v30
+    v34 = make_memory_slice v32, v33
+    v35 = memory_slice_load_word memory, v34, 0
+    v36 = lt v33, 4
+    v37 = iszero v36
+    v38 = shr 224, v35
+    v39 = eq v38, 0x8c379a0
+    v40 = and v37, v39
+    v41 = lt v33, 36
+    v42 = iszero v41
+    v43 = eq v38, 0x4e487b71
+    v44 = and v42, v43
+    jumpi 1, bb9, bb10
+  bb10:
+    revert v32, v33
+  bb9:
+    jump bb5
+  bb3:
+    v17 = returndatasize
+    v18 = add v17, 63
+    v19 = lt v18, v17
+    jumpi v19, bb6, bb7
+  bb7:
+    v20 = not 31
+    v21 = and v18, v20
+    v22 = alloc memorybytes, exact, uninitialized, infallible, v21
+    set_memory_object_len memorybytes, v22, v17
+    v23 = make_returndata_slice 0, v17
+    memory_object_copy_from_slice memorybytes, v22, v23
+    v24 = abi_decode [u256], v22
+    jump bb5
+  bb5:
+    v45 = phi [bb7: v24], [bb9: 7]
+    ret v45
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @liveCreation() -> u256 [selector=0xb217934d, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 397, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 366
+    v4 = slice_ptr v0
+    v5 = add v3, 366
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 366
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = returndatasize
+    v10 = add v9, 63
+    v11 = lt v10, v9
+    jumpi v11, bb4, bb5
+  bb5:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v13
+    set_memory_object_len memorybytes, v14, v9
+    v15 = make_returndata_slice 0, v9
+    memory_object_copy_from_slice memorybytes, v14, v15
+    v16 = memory_object_data memorybytes, v14
+    v17 = memory_object_len memorybytes, v14
+    v18 = make_memory_slice v16, v17
+    v19 = memory_slice_load_word memory, v18, 0
+    v20 = lt v17, 4
+    v21 = iszero v20
+    v22 = shr 224, v19
+    v23 = eq v22, 0x8c379a0
+    v24 = and v21, v23
+    v25 = lt v17, 36
+    v26 = iszero v25
+    v27 = eq v22, 0x4e487b71
+    v28 = and v26, v27
+    jumpi 1, bb6, bb7
+  bb7:
+    revert v16, v17
+  bb6:
+    jump bb3
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    jump bb3
+  bb3:
+    v29 = phi [bb1: 1], [bb6: 7]
+    ret v29
+}
+
+fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = call v0, 0, 0, v2, v3, 0, 0
+    jumpi v4, bb1, bb2
+  bb2:
+    v13 = returndatasize
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    jumpi v15, bb4, bb6
+  bb6:
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    v19 = make_returndata_slice 0, v13
+    memory_object_copy_from_slice memorybytes, v18, v19
+    v20 = memory_object_data memorybytes, v18
+    v21 = memory_object_len memorybytes, v18
+    v22 = make_memory_slice v20, v21
+    v23 = memory_slice_load_word memory, v22, 0
+    v24 = lt v21, 4
+    v25 = iszero v24
+    v26 = shr 224, v23
+    v27 = eq v26, 0x8c379a0
+    v28 = and v25, v27
+    v29 = lt v21, 36
+    v30 = iszero v29
+    v31 = eq v26, 0x4e487b71
+    v32 = and v30, v31
+    jumpi 1, bb7, bb8
+  bb8:
+    revert v20, v21
+  bb7:
+    jump bb3
+  bb1:
+    v5 = returndatasize
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    jumpi v7, bb4, bb5
+  bb5:
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, v5
+    v11 = make_returndata_slice 0, v5
+    memory_object_copy_from_slice memorybytes, v10, v11
+    v12 = abi_decode [u256], v10
+    jump bb3
+  bb3:
+    v33 = phi [bb5: v12], [bb7: 7]
+    ret v33
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = call v0, 0, 0, v2, v3, 0, 0
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = returndatasize
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    jumpi v9, bb6, bb7
+  bb7:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    v13 = make_returndata_slice 0, v7
+    memory_object_copy_from_slice memorybytes, v12, v13
+    v14 = memory_object_data memorybytes, v12
+    v15 = memory_object_len memorybytes, v12
+    v16 = make_memory_slice v14, v15
+    v17 = memory_slice_load_word memory, v16, 0
+    v18 = lt v15, 4
+    v19 = iszero v18
+    v20 = shr 224, v17
+    v21 = eq v20, 0x8c379a0
+    v22 = and v19, v21
+    v23 = lt v15, 36
+    v24 = iszero v23
+    v25 = eq v20, 0x4e487b71
+    v26 = and v24, v25
+    jumpi 1, bb8, bb9
+  bb9:
+    revert v14, v15
+  bb8:
+    jump bb5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    v27 = phi [bb3: 1], [bb8: 7]
+    ret v27
+  bb1:
+    revert 0, 0
+}

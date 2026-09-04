@@ -1,0 +1,443 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryCallee ===
+@module TryCallee
+fn @value() -> u256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 42
+}
+
+fn @pair() -> (u256, u256) [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    ret 1, 2
+}
+
+fn @agg() -> memoryfixedarray [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = iszero v1
+    jumpi v2, bb1, bb2
+  bb2:
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 0, 11
+    v3 = lt 1, 2
+    v4 = iszero v3
+    jumpi v4, bb1, bb3
+  bb3:
+    memory_object_store_element memoryfixedarray<2, 1>, v0, 1, 22
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+fn @fail() [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word]] {
+  bb0:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/try_bare_catch_evm_version.sol:TryBareCatch ===
+@module TryBareCatch
+data:
+  TryCallee_initcode_0: hex"346010576101858060166000396000f35b60006000fe6000357c0100000000000000000000000000000000000000000000000000000000900480633fa4f2451460585780635dfc2e4a14605c578063a8aa1b31146061578063a9cc4718146065578063f5e34bfa14606a57606e565b6073565b610174565b608e565b610180565b60b6565b600080fe5b34608957602a6080526020608001608090036080f35b600080fe5b60c06040523460b157600160805260206080016002815260209001608090036080f35b600080fe5b6101206040523461016f576040518060c0528060c05260408101604052604036828060c0523760026000101515610117575b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fe5b8060c052600b815260026001101560e85760208101601681525060005b8060e052600281101561015f576020818060e052028201516020820260800152600181019050610134565b6040608001915050608090036080f35b600080fe5b3461017b57005b600080fe5b600080fe"
+
+fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 442, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 411
+    v4 = slice_ptr v0
+    v5 = add v3, 411
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 411
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = extcodesize v6
+    v11 = iszero v10
+    jumpi v11, bb3, bb4
+  bb4:
+    v12 = gas
+    v13 = sub v12, 50
+    v14 = call v13, v6, 0, v8, v9, 0, 32
+    jumpi v14, bb5, bb6
+  bb6:
+    jumpi 1, bb8, bb9
+  bb9:
+    revert 0, 0
+  bb8:
+    jump bb7
+  bb5:
+    v15 = add 0, 0
+    v16 = mload v15
+    v17 = add 0, 0
+    v18 = mload v17
+    jump bb7
+  bb7:
+    v19 = phi [bb5: v18], [bb8: 7]
+    ret v19
+  bb3:
+    revert 0, 0
+}
+
+fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 442, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 411
+    v4 = slice_ptr v0
+    v5 = add v3, 411
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 411
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = alloc raw, exact, uninitialized, infallible, 64
+    v11 = add v10, 32
+    mstore v11, 0
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
+  bb4:
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v8, v9, v10, 64
+    jumpi v16, bb5, bb6
+  bb6:
+    jumpi 1, bb10, bb11
+  bb11:
+    revert 0, 0
+  bb10:
+    jump bb7
+  bb5:
+    v17 = add v10, 0
+    v18 = mload v17
+    v19 = add v10, 32
+    v20 = mload v19
+    frame_store multi_return, word, 0, v10 !metadata(memory=scratch)
+    v21 = add v10, 0
+    v22 = mload v21
+    v23 = add v10, 32
+    v24 = mload v23
+    v25 = add v22, v24
+    v26 = lt v25, v22
+    jumpi v26, bb8, bb9
+  bb9:
+    jump bb7
+  bb7:
+    v27 = phi [bb9: v25], [bb10: 7]
+    ret v27
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 442, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 411
+    v4 = slice_ptr v0
+    v5 = add v3, 411
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 411
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = alloc raw, exact, uninitialized, infallible, 64
+    v11 = add v10, 32
+    mstore v11, 0
+    v12 = extcodesize v6
+    v13 = iszero v12
+    jumpi v13, bb3, bb4
+  bb4:
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = call v15, v6, 0, v8, v9, v10, 64
+    jumpi v16, bb5, bb6
+  bb6:
+    jumpi 1, bb13, bb14
+  bb14:
+    revert 0, 0
+  bb13:
+    jump bb7
+  bb5:
+    v17 = abi_decode [array<2, u256>], v10
+    v18 = lt 0, 2
+    v19 = iszero v18
+    jumpi v19, bb8, bb9
+  bb9:
+    v20 = memory_object_load_element memoryfixedarray<2, 1>, v17, 0
+    v21 = lt 1, 2
+    v22 = iszero v21
+    jumpi v22, bb8, bb10
+  bb10:
+    v23 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
+    v24 = add v20, v23
+    v25 = lt v24, v20
+    jumpi v25, bb11, bb12
+  bb12:
+    jump bb7
+  bb7:
+    v26 = phi [bb12: v24], [bb13: 7]
+    ret v26
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 442, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 411
+    v4 = slice_ptr v0
+    v5 = add v3, 411
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 411
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = extcodesize v6
+    v11 = iszero v10
+    jumpi v11, bb3, bb4
+  bb4:
+    v12 = gas
+    v13 = sub v12, 50
+    v14 = call v13, v6, 0, v8, v9, 0, 0
+    jumpi v14, bb5, bb6
+  bb6:
+    jumpi 1, bb8, bb9
+  bb9:
+    revert 0, 0
+  bb8:
+    jump bb7
+  bb5:
+    jump bb7
+  bb7:
+    v15 = phi [bb5: 1], [bb8: 7]
+    ret v15
+  bb3:
+    revert 0, 0
+}
+
+fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 442, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 411
+    v4 = slice_ptr v0
+    v5 = add v3, 411
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 411
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v8 = slice_ptr v7
+    v9 = slice_len v7
+    v10 = extcodesize v6
+    v11 = iszero v10
+    jumpi v11, bb3, bb4
+  bb4:
+    v12 = gas
+    v13 = sub v12, 0x235a
+    v14 = call v13, v6, 1, v8, v9, 0, 32
+    jumpi v14, bb5, bb6
+  bb6:
+    jumpi 1, bb8, bb9
+  bb9:
+    revert 0, 0
+  bb8:
+    jump bb7
+  bb5:
+    v15 = add 0, 0
+    v16 = mload v15
+    v17 = add 0, 0
+    v18 = mload v17
+    jump bb7
+  bb7:
+    v19 = phi [bb5: v18], [bb8: 7]
+    ret v19
+  bb3:
+    revert 0, 0
+}
+
+fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 442, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 411
+    v4 = slice_ptr v0
+    v5 = add v3, 411
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 411
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = shl 32, v6
+    v8 = or v7, 0x3fa4f245
+    v9 = and v8, 0xffffffff
+    v10 = shl 224, v9
+    v11 = shr 32, v8
+    v12 = abi_encode [], selector v10
+    v13 = slice_ptr v12
+    v14 = slice_len v12
+    v15 = extcodesize v11
+    v16 = iszero v15
+    jumpi v16, bb3, bb4
+  bb4:
+    v17 = gas
+    v18 = sub v17, 50
+    v19 = call v18, v11, 0, v13, v14, 0, 32
+    jumpi v19, bb5, bb6
+  bb6:
+    jumpi 1, bb8, bb9
+  bb9:
+    revert 0, 0
+  bb8:
+    jump bb7
+  bb5:
+    v20 = add 0, 0
+    v21 = mload v20
+    v22 = add 0, 0
+    v23 = mload v22
+    jump bb7
+  bb7:
+    v24 = phi [bb5: v23], [bb8: 7]
+    ret v24
+  bb3:
+    revert 0, 0
+}
+
+fn @liveCreation() -> u256 [selector=0xb217934d, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 442, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy TryCallee_initcode_0, v3, 411
+    v4 = slice_ptr v0
+    v5 = add v3, 411
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 411
+    v7 = eq v6, 0
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    jumpi 1, bb4, bb5
+  bb5:
+    revert 0, 0
+  bb4:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v9 = phi [bb1: 1], [bb4: 7]
+    ret v9
+}
+
+fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = extcodesize 0
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = gas
+    v6 = sub v5, 50
+    v7 = call v6, 0, 0, v1, v2, 0, 32
+    jumpi v7, bb3, bb4
+  bb4:
+    jumpi 1, bb6, bb7
+  bb7:
+    revert 0, 0
+  bb6:
+    jump bb5
+  bb3:
+    v8 = add 0, 0
+    v9 = mload v8
+    v10 = add 0, 0
+    v11 = mload v10
+    jump bb5
+  bb5:
+    v12 = phi [bb3: v11], [bb6: 7]
+    ret v12
+  bb1:
+    revert 0, 0
+}
+
+fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = extcodesize 0
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = gas
+    v6 = sub v5, 50
+    v7 = call v6, 0, 0, v1, v2, 0, 0
+    jumpi v7, bb3, bb4
+  bb4:
+    jumpi 1, bb6, bb7
+  bb7:
+    revert 0, 0
+  bb6:
+    jump bb5
+  bb3:
+    jump bb5
+  bb5:
+    v8 = phi [bb3: 1], [bb6: 7]
+    ret v8
+  bb1:
+    revert 0, 0
+}

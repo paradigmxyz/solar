@@ -1,0 +1,149 @@
+// === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
+@module TryLib
+fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul 2, arg0
+    v1 = iszero arg0
+    v2 = div v0, arg0
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @noop(arg0: u256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLibraryCall ===
+@module TryLibraryCall
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = delegatecall v0, 0xf6e85b2cc7f6a7ce364e7443aa232891136029fe, v2, v3, 0, 0
+    jumpi v4, bb1, bb2
+  bb2:
+    v13 = returndatasize
+    v14 = add v13, 63
+    v15 = lt v14, v13
+    jumpi v15, bb4, bb6
+  bb6:
+    v16 = not 31
+    v17 = and v14, v16
+    v18 = alloc memorybytes, exact, uninitialized, infallible, v17
+    set_memory_object_len memorybytes, v18, v13
+    v19 = make_returndata_slice 0, v13
+    memory_object_copy_from_slice memorybytes, v18, v19
+    v20 = memory_object_data memorybytes, v18
+    v21 = memory_object_len memorybytes, v18
+    v22 = make_memory_slice v20, v21
+    v23 = memory_slice_load_word memory, v22, 0
+    v24 = lt v21, 4
+    v25 = iszero v24
+    v26 = shr 224, v23
+    v27 = eq v26, 0x8c379a0
+    v28 = and v25, v27
+    v29 = lt v21, 36
+    v30 = iszero v29
+    v31 = eq v26, 0x4e487b71
+    v32 = and v30, v31
+    jumpi 1, bb7, bb8
+  bb8:
+    revert v20, v21
+  bb7:
+    jump bb3
+  bb1:
+    v5 = returndatasize
+    v6 = add v5, 63
+    v7 = lt v6, v5
+    jumpi v7, bb4, bb5
+  bb5:
+    v8 = not 31
+    v9 = and v6, v8
+    v10 = alloc memorybytes, exact, uninitialized, infallible, v9
+    set_memory_object_len memorybytes, v10, v5
+    v11 = make_returndata_slice 0, v5
+    memory_object_copy_from_slice memorybytes, v10, v11
+    v12 = abi_decode [u256], v10
+    sstore 0, v12 !metadata(storage=slot(0))
+    jump bb3
+  bb3:
+    v33 = phi [bb5: v12], [bb7: 7]
+    ret v33
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0xf6e85b2cc7f6a7ce364e7443aa232891136029fe
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = delegatecall v0, 0xf6e85b2cc7f6a7ce364e7443aa232891136029fe, v2, v3, 0, 0
+    jumpi v6, bb3, bb4
+  bb4:
+    v7 = returndatasize
+    v8 = add v7, 63
+    v9 = lt v8, v7
+    jumpi v9, bb6, bb7
+  bb7:
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = alloc memorybytes, exact, uninitialized, infallible, v11
+    set_memory_object_len memorybytes, v12, v7
+    v13 = make_returndata_slice 0, v7
+    memory_object_copy_from_slice memorybytes, v12, v13
+    v14 = memory_object_data memorybytes, v12
+    v15 = memory_object_len memorybytes, v12
+    v16 = make_memory_slice v14, v15
+    v17 = memory_slice_load_word memory, v16, 0
+    v18 = lt v15, 4
+    v19 = iszero v18
+    v20 = shr 224, v17
+    v21 = eq v20, 0x8c379a0
+    v22 = and v19, v21
+    v23 = lt v15, 36
+    v24 = iszero v23
+    v25 = eq v20, 0x4e487b71
+    v26 = and v24, v25
+    jumpi 1, bb8, bb9
+  bb9:
+    revert v14, v15
+  bb8:
+    jump bb5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    sstore 0, 1 !metadata(storage=slot(0))
+    jump bb5
+  bb5:
+    v27 = phi [bb3: 1], [bb8: 7]
+    ret v27
+  bb1:
+    revert 0, 0
+}
