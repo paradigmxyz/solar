@@ -531,8 +531,9 @@ fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
                 // Getters have no declaration of their own in solc, and are always lowered as an
                 // implemented `external` function here; the variable they belong to is rejected
-                // below instead.
-                if f.is_getter() {
+                // below instead. Yul functions from inline assembly are items too, but they
+                // belong to the function that contains them, which is reported on its own.
+                if f.is_getter() || f.is_yul {
                     continue;
                 }
 

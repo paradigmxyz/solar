@@ -12,6 +12,17 @@ interface J {
     receive() external payable {} //~ ERROR: functions in interfaces cannot have an implementation
 }
 
+// A Yul function inside the body is an item of its own, but only the Solidity function is
+// reported.
+interface L {
+    function g() external pure { //~ ERROR: functions in interfaces cannot have an implementation
+        assembly {
+            function inner() -> r { r := 1 }
+            pop(inner())
+        }
+    }
+}
+
 // Declarations without a body are what an interface is for.
 interface K {
     function f() external pure returns (uint256);
