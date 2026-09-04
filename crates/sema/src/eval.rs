@@ -2,7 +2,7 @@ use crate::{builtins::Builtin, hir, ty::Gcx};
 use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Signed, Zero};
-use solar_ast::{LitKind, StrKind};
+use solar_ast::{ElementaryType, LitKind, StrKind, TypeSize};
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
@@ -143,7 +143,17 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                self.try_eval_value(v.initializer.expect("constant variable has no initializer"))
+                let value = self
+                    .try_eval_value(v.initializer.expect("constant variable has no initializer"))?;
+                // The constant's declared type carries over into the surrounding expression, so
+                // arithmetic on it is checked against that type instead of widening to the
+                // mathematical result.
+                Ok(match value {
+                    ConstValue::Integer(value) => {
+                        ConstValue::Integer(value.typed(IntTy::from_hir_ty(&v.ty)))
+                    }
+                    value => value,
+                })
             }
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
@@ -286,16 +296,67 @@ impl ConstValue {
     }
 }
 
+/// The declared integer type of a constant value.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct IntTy {
+    signed: bool,
+    size: TypeSize,
+}
+
+impl IntTy {
+    /// Returns the integer type denoted by the given type, if it is an integer type.
+    fn from_hir_ty(ty: &hir::Type<'_>) -> Option<Self> {
+        match ty.kind {
+            hir::TypeKind::Elementary(ElementaryType::Int(size)) => {
+                Some(Self { signed: true, size })
+            }
+            hir::TypeKind::Elementary(ElementaryType::UInt(size)) => {
+                Some(Self { signed: false, size })
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the number of bits of the type.
+    fn bits(self) -> u16 {
+        self.size.bits()
+    }
+
+    /// Returns whether the given value is representable in this type.
+    fn contains(self, value: &BigInt) -> bool {
+        let value_bits = if self.signed { self.bits() - 1 } else { self.bits() };
+        if value.is_negative() {
+            self.signed && -value <= BigInt::one() << value_bits
+        } else {
+            value.bits() <= value_bits as u64
+        }
+    }
+
+    /// Returns the type both `self` and `other` implicitly convert to, if any.
+    ///
+    /// Integer types only convert implicitly to wider types of the same signedness.
+    fn common(self, other: Self) -> Option<Self> {
+        (self.signed == other.signed)
+            .then(|| if self.bits() >= other.bits() { self } else { other })
+    }
+}
+
 /// Represents an integer value for constant evaluation.
 #[derive(Debug)]
 pub struct IntScalar {
     data: BigInt,
+    /// The declared type the value was computed in, if it came from a typed constant.
+    ///
+    /// Values built only from literals are unbounded, like solc's rational numbers, and carry no
+    /// type; as soon as a typed constant takes part in the expression, arithmetic is checked
+    /// against the declared type instead of yielding the mathematical result.
+    ty: Option<IntTy>,
 }
 
 impl IntScalar {
     /// Creates a new non-negative integer value.
     pub fn new(data: U256) -> Self {
-        Self { data: Self::bigint_from_u256(data) }
+        Self { data: Self::bigint_from_u256(data), ty: None }
     }
 
     /// Creates a new integer value from a boolean.
@@ -363,7 +424,27 @@ impl IntScalar {
         if Self::bits(&data) > MAX_INTERMEDIATE_BITS {
             return Err(EE::ArithmeticOverflow);
         }
-        Ok(Self { data })
+        Ok(Self { data, ty: None })
+    }
+
+    /// Attaches the declared type of the constant this value was read from.
+    ///
+    /// An initializer that does not fit its declared type is already a type error at the
+    /// declaration, so the value stays untyped instead of reporting a second error here.
+    fn typed(mut self, ty: Option<IntTy>) -> Self {
+        self.ty = ty.filter(|ty| ty.contains(&self.data));
+        self
+    }
+
+    /// Sets the type the value was computed in, rejecting values outside of its range.
+    fn retype(mut self, ty: Option<IntTy>) -> Result<Self, EE> {
+        if let Some(ty) = ty
+            && !ty.contains(&self.data)
+        {
+            return Err(EE::ArithmeticOverflow);
+        }
+        self.ty = ty;
+        Ok(self)
     }
 
     fn bits(data: &BigInt) -> u64 {
@@ -396,21 +477,51 @@ impl IntScalar {
     }
 
     /// Applies the given unary operation to this value.
+    ///
+    /// The operation is performed in the operand's type, so a result outside of that type's range
+    /// is an error rather than the mathematical value.
     pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
-        Ok(match op {
+        let ty = self.ty;
+        let value = match op {
             hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
             hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::checked(!self.data)?,
             hir::UnOpKind::Neg => self.negate()?,
-        })
+        };
+        value.retype(ty)
+    }
+
+    /// Returns the type the given binary operation is performed in, if any.
+    ///
+    /// Shifts and exponentiation are performed in the left operand's type, every other operation
+    /// in the common type of both operands. A literal operand adopts the other operand's type
+    /// when it fits in it; otherwise, and for operands without a common type, the result stays
+    /// untyped because the type checker already rejects such operands.
+    fn binop_ty(l: &Self, r: &Self, op: hir::BinOpKind) -> Option<IntTy> {
+        use hir::BinOpKind::*;
+        match op {
+            Shl | Shr | Sar | Pow => l.ty,
+            _ => match (l.ty, r.ty) {
+                (None, None) => None,
+                (Some(ty), None) => ty.contains(&r.data).then_some(ty),
+                (None, Some(ty)) => ty.contains(&l.data).then_some(ty),
+                (Some(l), Some(r)) => l.common(r),
+            },
+        }
     }
 
     /// Applies the given binary operation to this value.
     ///
-    /// For literal arithmetic, this preserves the exact mathematical value.
+    /// For literal arithmetic, this preserves the exact mathematical value. Typed arithmetic stays
+    /// checked: a result outside of the operation's type is an error, like it is at runtime.
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
+        let ty = Self::binop_ty(&self, &r, op);
+        self.binop_value(r, op)?.retype(ty)
+    }
+
+    fn binop_value(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         use hir::BinOpKind::*;
         Ok(match op {
             Add => Self::checked(self.data + r.data)?,
@@ -540,9 +651,15 @@ impl std::error::Error for EvalError {}
 
 #[cfg(test)]
 mod tests {
-    use super::{ConstValue, IntScalar, erc7201_slot};
+    use super::{ConstValue, IntScalar, IntTy, erc7201_slot};
     use crate::hir;
     use alloy_primitives::{U256, b256};
+    use num_bigint::BigInt;
+    use solar_ast::TypeSize;
+
+    fn int(signed: bool, bits: u16) -> IntTy {
+        IntTy { signed, size: TypeSize::new_int_bits(bits) }
+    }
 
     #[test]
     fn const_value_integer_accessors() {
@@ -567,6 +684,26 @@ mod tests {
         assert_eq!(value.as_bool(), Some(false));
         assert_eq!(value.as_u256(), None);
         assert!(!value.is_zero());
+    }
+
+    #[test]
+    fn int_ty_contains_range_boundaries() {
+        assert!(int(true, 8).contains(&BigInt::from(127)));
+        assert!(!int(true, 8).contains(&BigInt::from(128)));
+        assert!(int(true, 8).contains(&BigInt::from(-128)));
+        assert!(!int(true, 8).contains(&BigInt::from(-129)));
+        assert!(int(false, 8).contains(&BigInt::from(255)));
+        assert!(!int(false, 8).contains(&BigInt::from(256)));
+        assert!(!int(false, 8).contains(&BigInt::from(-1)));
+    }
+
+    #[test]
+    fn int_ty_common_widens_only_within_signedness() {
+        assert_eq!(int(true, 8).common(int(true, 16)), Some(int(true, 16)));
+        assert_eq!(int(true, 16).common(int(true, 8)), Some(int(true, 16)));
+        assert_eq!(int(false, 8).common(int(false, 8)), Some(int(false, 8)));
+        assert_eq!(int(true, 8).common(int(false, 16)), None);
+        assert_eq!(int(false, 8).common(int(true, 16)), None);
     }
 
     #[test]
