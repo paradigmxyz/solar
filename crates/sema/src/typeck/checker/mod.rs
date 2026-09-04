@@ -99,6 +99,17 @@ enum ValuePosition {
     TryReturns,
 }
 
+/// How a variable reaches the variable checks, which decides who owns its initializer.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum VarSource {
+    /// The variable is checked on its own and carries its initializer, if it has one.
+    Standalone,
+    /// The variable is one target of a declaration statement whose initializer the caller has
+    /// already checked. A destructuring target has no initializer of its own, because the
+    /// initializer belongs to the statement rather than to any one target.
+    DeclStatement,
+}
+
 /// The components of an expression's value that a statement discards.
 enum Discarded {
     /// The whole value, as in an expression statement or a `try` without a `returns` clause.
@@ -2505,11 +2516,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
     #[must_use]
     fn check_var(&mut self, id: hir::VariableId) -> Ty<'gcx> {
-        self.check_var_(id, true)
+        self.check_var_(id, VarSource::Standalone)
     }
 
     #[must_use]
-    fn check_var_(&mut self, id: hir::VariableId, expect: bool) -> Ty<'gcx> {
+    fn check_var_(&mut self, id: hir::VariableId, source: VarSource) -> Ty<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
@@ -2527,7 +2538,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     var.span,
                     "types in storage containing (nested) mappings cannot be assigned to",
                 );
-            } else if expect {
+            } else if source == VarSource::Standalone {
                 let _ = if var.is_state_variable() {
                     self.with_construction_context(|this| {
                         let init_ty = this.check_expr_with_noexpect(init, Some(ty));
@@ -2572,9 +2583,12 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         }
 
-        // Uninitialized local mapping variables are invalid (error 4182).
+        // Uninitialized local mapping variables are invalid (error 4182). A destructuring
+        // target's initializer belongs to the declaration statement, so only a standalone
+        // declaration without one is uninitialized.
         if var.kind == hir::VarKind::Statement
             && var.initializer.is_none()
+            && source == VarSource::Standalone
             && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
         {
             self.dcx()
@@ -2681,7 +2695,7 @@ impl<'gcx> TypeChecker<'gcx> {
         };
         for ((&var, &ty), &expr) in decls.iter().zip(value_types).zip(exprs) {
             let (Some(var), Some(expr)) = (var, expr) else { continue };
-            let var_ty = self.check_var_(var, false);
+            let var_ty = self.check_var_(var, VarSource::DeclStatement);
             let _ = self.check_expected(expr, ty, var_ty);
         }
         // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1219
