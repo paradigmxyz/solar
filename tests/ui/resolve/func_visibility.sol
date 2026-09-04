@@ -8,6 +8,7 @@ contract U1 {
 
 interface U2 {
     function c() {} //~ERROR: no visibility specified
+    //~^ ERROR: functions in interfaces must be declared `external`
 }
 
 contract U3 {

@@ -1,0 +1,34 @@
+error: no visibility specified
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function f();
+   │     ━━━━━━━━━━━━━
+   │
+   ╰ help: add `external` to the declaration
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function f() public;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function g() internal;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function h() private;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function f();
+   ╰╴    ━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

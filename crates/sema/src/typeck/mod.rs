@@ -42,6 +42,7 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_external_type_clashes(gcx, id);
     check_receive_function(gcx, id);
     check_library_functions(gcx, id);
+    check_interface_functions(gcx, id);
     for f_id in gcx.hir.contract(id).functions() {
         check_payable_function(gcx, gcx.hir.function(f_id));
     }
@@ -56,7 +57,9 @@ fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
     check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
     check_break_continue(gcx, id);
     for f_id in gcx.hir.source(id).items.iter().filter_map(ItemId::as_function) {
-        check_payable_function(gcx, gcx.hir.function(f_id));
+        let f = gcx.hir.function(f_id);
+        check_free_function(gcx, f);
+        check_payable_function(gcx, f);
     }
     for using in gcx.hir.source(id).usings {
         check_using_directive(gcx, using);
@@ -454,6 +457,47 @@ fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
                 .span(f.span)
                 .emit();
         }
+    }
+}
+
+/// Checks restrictions that only apply to functions declared in an interface.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L434-L443>
+fn check_interface_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    if !contract.kind.is_interface() {
+        return;
+    }
+
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
+
+        // Constructors and modifiers cannot be declared in an interface at all, and getters are
+        // always `external`.
+        if f.is_constructor() || f.kind.is_modifier() {
+            continue;
+        }
+
+        if f.visibility != Visibility::External {
+            gcx.dcx()
+                .err("functions in interfaces must be declared `external`")
+                .code(error_code!(1560))
+                .span(f.span)
+                .emit();
+        }
+    }
+}
+
+/// Checks restrictions that only apply to free functions.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L309>
+fn check_free_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if f.marked_virtual {
+        gcx.dcx()
+            .err("free functions cannot be `virtual`")
+            .code(error_code!(4493))
+            .span(f.span)
+            .emit();
     }
 }
 
