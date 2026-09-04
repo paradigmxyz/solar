@@ -93,8 +93,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/loop_carried_frame_slots.sol`)
 - [x] 33. `this.f()` in an internal function reached from the constructor skips the `extcodesize` guard, so deployment succeeds where solc reverts
       (`symbolic-audit/this_call_from_constructor_helper.sol`; fixed in `e638b191`, tests in `ffb4d4bf`)
-- [ ] 34. Any recursive internal function is rejected before constantinople by the post-legalization stack verifier
-      (`symbolic-audit/recursion_preconstantinople.sol`)
+- [x] 34. Any recursive internal function is rejected before constantinople by the post-legalization stack verifier
+      (`symbolic-audit/recursion_preconstantinople.sol`; fixed in `000c5698`, tests in `6ebfe5a2`)
 - [ ] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
       (`symbolic-audit/interface_free_function_checks.sol`)
 - [x] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
@@ -1487,6 +1487,38 @@ function f(uint256 n) internal pure returns (uint256) {
 The last row shows the check depends on what else the pipeline did to the
 module, so which recursive programs are rejected varies with the
 optimization level and the surrounding code.
+
+Cause and fix (`000c5698`): EVM IR is one flat CFG with no function
+boundary; an internal call pushes a return address and jumps to the
+callee's first block, and a return is a dynamic `jump`. `verify_stack_ops`
+re-queued a block at every new concrete entry depth, so a recursive call
+re-entered the callee one word deeper each round until the walk crossed
+1024. The verifier now propagates a range of entry depths per block:
+operand availability is checked at the minimum and the 1024-word limit at
+the maximum (both checks are affine in the entry depth, so this is as
+strong as visiting every depth), and a depth-first classification of
+cycle edges lets a back edge lower a block's minimum but never raise its
+maximum, so the walk converges. With the walk bounded, the check now runs
+at every EVM version instead of only after shift legalization; UI suite,
+solc test modes, the fifteen project archives (byte-identical bytecode and
+diagnostics at byzantium and osaka, three levels), and compile time are
+unchanged. Verified: the repro compiles at all fourteen versions and three
+levels, the six upstream tests compile at homestead, the harness agrees on
+`g(0)`, `g(5)`, `g(300)` at tangerineWhistle through osaka, and `g(2000)`
+burns the 20M cap on both sides. At homestead `g(255)` and deeper fail on
+solc's side only: its pre-EIP-150 build keeps four stack words per
+activation and hits the 1024-slot stack, the known stack-depth non-bug.
+The review (`6ebfe5a2`) checked the monotonicity argument op by op,
+confirmed the back-edge classification on irreducible shapes, and added
+fixtures for an underflow through a cycle edge, an irreducible cycle, and
+the one accepted trade-off: a cycle whose body gains a word per pass
+(positive stack drift) is no longer reported, because in a flat CFG it is
+indistinguishable from recursion; negative drift is still caught. Also
+documented: blocks reachable only through dynamic jumps (every post-call
+continuation) are outside the depth walk, before and after.
+
+Residual gas note: recursion costs about 1.6x solc's gas (finding 32's
+class of frame-slot traffic).
 
 The cause is in the backend's EVM IR verifier, not in lowering.
 `verify_after_legalization` (`crates/codegen/src/backend/evm/ir/verify.rs`)
