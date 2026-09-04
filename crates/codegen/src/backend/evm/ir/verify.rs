@@ -10,7 +10,9 @@
 //! that pushes a return address and jumps to the callee's first block, and a return is a dynamic
 //! `jump` through that address, which carries no static target. The walk therefore sees a
 //! recursive function as an ordinary cycle whose modeled stack height grows by the return address
-//! on every round, and a concrete-depth walk that follows it never converges.
+//! on every round, and a concrete-depth walk that follows it never converges. A block reached only
+//! through such a jump, the continuation a call returns to, has no modeled entry depth at all and
+//! only the shape check covers it.
 //!
 //! The walk instead propagates a range of entry depths per block and checks each bound where it
 //! is the worst case. Operand availability (`dup`, `swap`, `pop`, and every instruction's inputs)
@@ -674,5 +676,28 @@ mod tests {
         Verifier::for_evm_version(&amsterdam, EvmVersion::Amsterdam)
             .verify_after_legalization(&module);
         assert_eq!(amsterdam.err_count(), 0);
+    }
+
+    /// Which module the stack-operation check sees must not depend on the EVM version, since
+    /// legalization only rewrites shifts for the older ones.
+    #[test]
+    fn checks_stack_ops_at_every_evm_version() {
+        let mut module = Module::new(sym::module);
+        let entry = module.add_block(Block::new(0));
+        module.blocks[entry]
+            .instructions
+            .extend((0..=MAX_STACK_DEPTH).map(|_| Instruction::push_value(U256::ZERO)));
+        module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+        for evm_version in [
+            EvmVersion::Homestead,
+            EvmVersion::Byzantium,
+            EvmVersion::Constantinople,
+            EvmVersion::Osaka,
+        ] {
+            let dcx = DiagCtxt::with_silent_emitter(None);
+            Verifier::for_evm_version(&dcx, evm_version).verify_after_legalization(&module);
+            assert_eq!(dcx.err_count(), 1, "{evm_version}");
+        }
     }
 }
