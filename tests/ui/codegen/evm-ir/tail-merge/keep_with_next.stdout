@@ -8,8 +8,8 @@
     jump bb1
   bb1:
     push 71
-    gas !meta(keep_with_next)
-    sub !meta(keep_with_next)
+    gas !metadata(keep_with_next)
+    sub !metadata(keep_with_next)
     push 11
 -   push 12
 -   push 13
@@ -40,8 +40,8 @@
     stop
 - bb3:
 -   push 81
--   gas !meta(keep_with_next)
--   sub !meta(keep_with_next)
+-   gas !metadata(keep_with_next)
+-   sub !metadata(keep_with_next)
 -   push 21
 -   push 22
 -   push 23
@@ -51,8 +51,8 @@
 - bb4:
 -   push 82
 + bb6:
-    gas !meta(keep_with_next)
-    sub !meta(keep_with_next)
+    gas !metadata(keep_with_next)
+    sub !metadata(keep_with_next)
     push 21
     push 22
     push 23

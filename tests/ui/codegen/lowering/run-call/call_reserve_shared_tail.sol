@@ -53,17 +53,17 @@ contract ReserveCalls {
     // Every `gas` in the runtime object is a reserve read, and `keep_with_next` pins each one to
     // the `sub` and the `call` that follow it in the same block. The implicit check-not covers
     // every other `gas` line, so a pass that splits one of these sequences fails the test.
-    // RESERVE: gas !meta(keep_with_next)
-    // RESERVE-NEXT: sub !meta(keep_with_next)
+    // RESERVE: gas !metadata(keep_with_next)
+    // RESERVE-NEXT: sub !metadata(keep_with_next)
     // RESERVE-NEXT: call
-    // RESERVE: gas !meta(keep_with_next)
-    // RESERVE-NEXT: sub !meta(keep_with_next)
+    // RESERVE: gas !metadata(keep_with_next)
+    // RESERVE-NEXT: sub !metadata(keep_with_next)
     // RESERVE-NEXT: call
-    // RESERVE: gas !meta(keep_with_next)
-    // RESERVE-NEXT: sub !meta(keep_with_next)
+    // RESERVE: gas !metadata(keep_with_next)
+    // RESERVE-NEXT: sub !metadata(keep_with_next)
     // RESERVE-NEXT: call
-    // RESERVE: gas !meta(keep_with_next)
-    // RESERVE-NEXT: sub !meta(keep_with_next)
+    // RESERVE: gas !metadata(keep_with_next)
+    // RESERVE-NEXT: sub !metadata(keep_with_next)
     // RESERVE-NEXT: call
     function fixedGas() external returns (uint256) {
         return callee.value{gas: 50000}();

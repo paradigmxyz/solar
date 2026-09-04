@@ -93,7 +93,7 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
   bb8:
     jump bb9
   bb7:
-    v28 = internal_call @try_decode_error_message, 1, v20, v21
+    v28 = icall @try_decode_error_message, 1, v20, v21
     jump bb9
   bb9:
     v29 = phi [bb7: v28], [bb8: 0]

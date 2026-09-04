@@ -18,8 +18,8 @@ bb0:
 // stays in both blocks and the reserve keeps its own `gas` and `sub`.
 // CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}push 71
-// CHECK-NEXT: {{^[ +].*}}gas !meta(keep_with_next)
-// CHECK-NEXT: {{^[ +].*}}sub !meta(keep_with_next)
+// CHECK-NEXT: {{^[ +].*}}gas !metadata(keep_with_next)
+// CHECK-NEXT: {{^[ +].*}}sub !metadata(keep_with_next)
 // CHECK-NEXT: {{^[ +].*}}push 11
 // CHECK: + jump [[SHORT:bb[0-9]+]]
 bb1:
@@ -85,6 +85,6 @@ bb4:
 // CHECK: + [[SHORT]]:
 // CHECK: {{^[ +].*}}push 12
 // CHECK: + [[WHOLE]]:
-// CHECK: {{^[ +].*}}gas !meta(keep_with_next)
-// CHECK-NEXT: {{^[ +].*}}sub !meta(keep_with_next)
+// CHECK: {{^[ +].*}}gas !metadata(keep_with_next)
+// CHECK-NEXT: {{^[ +].*}}sub !metadata(keep_with_next)
 // CHECK-NEXT: {{^[ +].*}}push 21

@@ -147,8 +147,8 @@ bb9:
   push 0
   dup 6
   push 50
-  gas !meta(keep_with_next)
-  sub !meta(keep_with_next)
+  gas !metadata(keep_with_next)
+  sub !metadata(keep_with_next)
   call
   swap 1
   pop

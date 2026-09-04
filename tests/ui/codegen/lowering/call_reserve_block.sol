@@ -35,8 +35,8 @@ contract ReserveBlock {
     // block boundary. The implicit check-not covers every other `gas` in the runtime object, so a
     // pass that splits this sequence fails the test. From EIP-150 on the gas is capped instead of
     // rejected, the reserve is gone, and the plain `gas` read carries no metadata.
-    // RESERVE: gas !meta(keep_with_next)
-    // RESERVE-NEXT: sub !meta(keep_with_next)
+    // RESERVE: gas !metadata(keep_with_next)
+    // RESERVE-NEXT: sub !metadata(keep_with_next)
     // RESERVE-NEXT: call
     // TANGERINE-NOT: keep_with_next
     function fixedGas() external returns (uint256) {

@@ -8,7 +8,7 @@ fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]
 
 fn @constructor() [constructor] {
   bb0:
-    internal_call @helper, 0
+    icall @helper, 0
     stop
 }
 
@@ -284,7 +284,7 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @init, 1
+    v0 = icall @init, 1
     sstore 1, v0 !metadata(storage=slot(1))
     stop
 }
@@ -398,7 +398,7 @@ fn @helper() {
 
 fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
   bb0:
-    internal_call @helper, 0
+    icall @helper, 0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
@@ -432,7 +432,7 @@ fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
   bb2:
     jump bb3
   bb1:
-    internal_call @helper, 0
+    icall @helper, 0
     jump bb3
   bb3:
     stop
@@ -461,7 +461,7 @@ fn @helper() {
 
 fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
   bb0:
-    internal_call @helper, 0
+    icall @helper, 0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }

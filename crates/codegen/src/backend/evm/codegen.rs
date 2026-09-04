@@ -11322,8 +11322,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if let Some(subtracted) = late.subtracted {
             // push <reserve>
-            // gas !meta(keep_with_next)
-            // sub !meta(keep_with_next)
+            // gas !metadata(keep_with_next)
+            // sub !metadata(keep_with_next)
             //
             // Before EIP-150 a call asking for more gas than is left throws, so the reserve only
             // keeps solc's 10-gas margin while nothing but the `SUB` runs between the `GAS` and

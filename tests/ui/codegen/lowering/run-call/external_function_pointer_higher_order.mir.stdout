@@ -100,7 +100,7 @@ fn @t() -> u256 [selector=0x92d0d153, abi_params=[], abi_returns=[word]] {
     v24 = sload 0 !metadata(storage=slot(0))
     v25 = shr 64, v24
     v26 = and v25, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v27 = internal_call @internal_dispatcher_p_function_r_u256, 1, v23, v26
+    v27 = icall @internal_dispatcher_p_function_r_u256, 1, v23, v26
     ret v27
   bb3:
     revert 0, 0
@@ -115,6 +115,6 @@ fn @internal_dispatcher_p_function_r_u256(arg0: function, arg1: function) -> u25
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v1 = internal_call @eval, 1, arg1
+    v1 = icall @eval, 1, arg1
     ret v1
 }

@@ -53,7 +53,7 @@ fn @constructor(arg0: address) [constructor, abi_params=[address]] {
   bb2:
     stop
   bb1:
-    internal_call @revert_error, 0, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
+    icall @revert_error, 0, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
     invalid
 }
 
