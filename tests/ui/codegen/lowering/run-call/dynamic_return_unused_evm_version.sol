@@ -10,6 +10,7 @@
 //@ run-call: DynamicReturnUnused::liveString => 1
 //@ run-call: DynamicReturnUnused::liveTry => 1
 //@ run-call: DynamicReturnUnused::liveMixed => 11
+//@ run-call: DynamicReturnUnused::liveTuple => 1
 //@ run-call: DynamicReturnUnused::livePointer => 1
 //@ run-call: DynamicReturnUnused::liveLoop => 3
 //@ run-call-fail: DynamicReturnUnused::noCode => 0x
@@ -87,6 +88,14 @@ contract DynamicReturnUnused {
     function liveMixed() external returns (uint256 r) {
         (uint256 v, ) = DynamicTarget(address(new DynamicCallee())).mixed();
         r = v;
+    }
+
+    // A tuple expression statement discards every component, so both calls are lowered like a
+    // discarded one.
+    function liveTuple() external returns (uint256) {
+        DynamicTarget target = DynamicTarget(address(new DynamicCallee()));
+        (target.dynBytes(), target.dynString());
+        return 1;
     }
 
     function livePointer() external returns (uint256) {

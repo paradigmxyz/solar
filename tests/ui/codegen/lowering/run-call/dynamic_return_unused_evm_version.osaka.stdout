@@ -245,6 +245,70 @@ fn @liveMixed() -> u256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word]]
     revert 0, 36
 }
 
+fn @liveTuple() -> u256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 969, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy DynamicCallee_initcode_0, v3, 938
+    v4 = slice_ptr v0
+    v5 = add v3, 938
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 938
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = gas
+    v8 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = call v7, v6, 0, v9, v10, 0, 0
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v12 = returndatasize
+    v13 = add v12, 63
+    v14 = lt v13, v12
+    jumpi v14, bb5, bb6
+  bb6:
+    v15 = not 31
+    v16 = and v13, v15
+    v17 = alloc memorybytes, exact, uninitialized, infallible, v16
+    set_memory_object_len memorybytes, v17, v12
+    v18 = make_returndata_slice 0, v12
+    memory_object_copy_from_slice memorybytes, v17, v18
+    v19 = abi_decode [bytes], v17
+    v20 = gas
+    v21 = abi_encode [], selector 0x2f4e740900000000000000000000000000000000000000000000000000000000
+    v22 = slice_ptr v21
+    v23 = slice_len v21
+    v24 = call v20, v6, 0, v22, v23, 0, 0
+    jumpi v24, bb8, bb7
+  bb7:
+    revert_returndata
+  bb8:
+    v25 = returndatasize
+    v26 = add v25, 63
+    v27 = lt v26, v25
+    jumpi v27, bb5, bb9
+  bb9:
+    v28 = not 31
+    v29 = and v26, v28
+    v30 = alloc memorybytes, exact, uninitialized, infallible, v29
+    set_memory_object_len memorybytes, v30, v25
+    v31 = make_returndata_slice 0, v25
+    memory_object_copy_from_slice memorybytes, v30, v31
+    v32 = abi_decode [bytes], v30
+    ret 1
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
@@ -310,21 +374,21 @@ fn @liveLoop() -> u256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word]] 
   bb2:
     jump bb3
   bb3:
-    v7 = phi [bb2: v6], [bb15: v7]
-    v8 = phi [bb2: 0], [bb15: v26]
-    v9 = phi [bb2: 0], [bb15: v24]
-    v10 = lt v8, 3
+    v7 = phi [bb2: 0], [bb15: v24]
+    v8 = phi [bb2: v6], [bb15: v8]
+    v9 = phi [bb2: 0], [bb15: v26]
+    v10 = lt v9, 3
     jumpi v10, bb6, bb7
   bb7:
     jump bb4
   bb4:
-    ret v9
+    ret v7
   bb6:
     v11 = gas
     v12 = abi_encode [], selector 0x7271bb2c00000000000000000000000000000000000000000000000000000000
     v13 = slice_ptr v12
     v14 = slice_len v12
-    v15 = call v11, v7, 0, v13, v14, 0, 0
+    v15 = call v11, v8, 0, v13, v14, 0, 0
     jumpi v15, bb10, bb9
   bb9:
     revert_returndata
@@ -341,16 +405,16 @@ fn @liveLoop() -> u256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word]] 
     v22 = make_returndata_slice 0, v16
     memory_object_copy_from_slice memorybytes, v21, v22
     v23 = abi_decode [bytes], v21
-    v24 = add v9, 1
-    v25 = lt v24, v9
+    v24 = add v7, 1
+    v25 = lt v24, v7
     jumpi v25, bb13, bb14
   bb14:
     jump bb8
   bb8:
     jump bb5
   bb5:
-    v26 = add v8, 1
-    v27 = lt v26, v8
+    v26 = add v9, 1
+    v27 = lt v26, v9
     jumpi v27, bb13, bb15
   bb15:
     jump bb3
