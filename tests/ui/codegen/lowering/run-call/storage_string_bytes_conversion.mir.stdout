@@ -2,7 +2,7 @@
 @module StorageStringBytesConversion
 fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
   bb0:
-    internal_call @store_storage_bytes, 0, 0, arg0
+    icall @store_storage_bytes, 0, 0, arg0
     stop
 }
 
@@ -170,7 +170,7 @@ fn @pushThroughConversion() -> memorybytes [selector=0x10f946b0, abi_params=[], 
     set_memory_object_len memorybytes, v31, v25
     memory_object_copy memorybytes, v31, memorybytes, v15, v24
     memory_object_store_byte memorybytes, v31, v24, v0
-    internal_call @store_storage_bytes, 0, 0, v31
+    icall @store_storage_bytes, 0, 0, v31
     v32 = sload 0 !metadata(storage=slot(0))
     v33 = and v32, 1
     v34 = eq v33, 1
@@ -276,7 +276,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

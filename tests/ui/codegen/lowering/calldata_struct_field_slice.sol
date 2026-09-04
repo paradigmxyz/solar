@@ -39,7 +39,7 @@ library ERC4337Utils {
 
 contract CalldataStructFieldSlice {
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
-    // CDSFS: internal_call @factory
+    // CDSFS: icall @factory
     // CDSFS-LABEL: fn @factory{{[.][0-9]+}}
     // CDSFS: calldataload
     function factory(PackedUserOperation calldata op) external pure returns (address) {

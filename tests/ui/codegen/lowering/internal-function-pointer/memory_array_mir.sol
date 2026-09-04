@@ -31,18 +31,18 @@ contract FunctionPointerMemoryArray {
     // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 3, [[D:[0-9]+]]
     // CHECK: memory_object_store_element memoryarray<1>, {{v[0-9]+}}, 4, [[E:[0-9]+]]
     // CHECK: [[ARRAY_FN:v[0-9]+]] = memory_object_load_element memoryarray<1>, {{v[0-9]+}}, arg1
-    // CHECK: internal_call @internal_dispatcher{{.*}}, 1, [[ARRAY_FN]], arg0
+    // CHECK: icall @internal_dispatcher{{.*}}, 1, [[ARRAY_FN]], arg0
     // CHECK-LABEL: fn @internal_dispatcher{{.*}}(
     // CHECK: eq arg0, [[A]]
     // CHECK: eq arg0, [[B]]
     // CHECK: eq arg0, [[C]]
     // CHECK: eq arg0, [[D]]
     // CHECK: eq arg0, [[E]]
-    // CHECK: internal_call @arrayE, 1, arg1
-    // CHECK: internal_call @arrayD, 1, arg1
-    // CHECK: internal_call @arrayC, 1, arg1
-    // CHECK: internal_call @arrayB, 1, arg1
-    // CHECK: internal_call @arrayA, 1, arg1
+    // CHECK: icall @arrayE, 1, arg1
+    // CHECK: icall @arrayD, 1, arg1
+    // CHECK: icall @arrayC, 1, arg1
+    // CHECK: icall @arrayB, 1, arg1
+    // CHECK: icall @arrayA, 1, arg1
     function callArray(uint256 x, uint256 index) public returns (uint256) {
         function(uint256) internal returns (uint256)[] memory functions =
             new function(uint256) internal returns (uint256)[](10);

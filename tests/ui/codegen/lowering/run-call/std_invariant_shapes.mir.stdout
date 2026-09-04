@@ -131,21 +131,21 @@ fn @targetSelector(arg0: memorystruct) {
 
 fn @targetContracts() -> memoryarray [selector=0x3f7286f4, view, abi_params=[], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
-    v0 = internal_call @load_storage_packed_array_20_0, 1, 0
+    v0 = icall @load_storage_packed_array_20_0, 1, 0
     ret v0
 }
 
 fn @targetSelectors() -> memoryarray [selector=0x916a17c6, view, abi_params=[], abi_returns=[memory_array<tuple<word<u160>, memory_array<word<bytes4>>>>], abi_return_params=[array<_, tuple<address, array<_, bytes4>>>]] {
   bb0:
-    v0 = internal_call @load_storage_struct_array_0, 1, 1
+    v0 = icall @load_storage_struct_array_0, 1, 1
     ret v0
 }
 
 fn @pushAndReadContracts() -> (u256, address) [selector=0x4a1b3b99, abi_params=[], abi_returns=[word, word<u160>]] {
   bb0:
-    internal_call @targetContract, 0, 170
+    icall @targetContract, 0, 170
     v0 = address
-    internal_call @targetContract, 0, v0
+    icall @targetContract, 0, v0
     v1 = address
     v2 = gas
     v3 = abi_encode [], selector 0x3f7286f400000000000000000000000000000000000000000000000000000000
@@ -212,7 +212,7 @@ fn @pushAndReadSelectors() -> (u256, u256, bytes4) [selector=0x5c0d845c, abi_par
     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<2>, v11, 0, v13
     memory_object_store_field memorystruct<2>, v11, 1, v0
-    internal_call @targetSelector, 0, v11
+    icall @targetSelector, 0, v11
     v14 = address
     v15 = gas
     v16 = abi_encode [], selector 0x916a17c600000000000000000000000000000000000000000000000000000000
@@ -368,7 +368,7 @@ fn @load_storage_struct_array_0(arg0: u256) -> memoryarray {
     v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
     memory_object_store_field memorystruct<2>, v14, 0, v17
     v18 = add v12, 1
-    v19 = internal_call @load_storage_packed_array_4_2, 1, v18
+    v19 = icall @load_storage_packed_array_4_2, 1, v18
     memory_object_store_field memorystruct<2>, v14, 1, v19
     memory_object_store_element memoryarray<1>, v9, v11, v14
     v20 = add v11, 1

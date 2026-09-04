@@ -25,21 +25,21 @@ fn @forward() -> u256 {
 
 // The stored result is a material use that keeps `@keep`'s return live.
 // CHECK-LABEL: fn @user()
-// CHECK: v0 = internal_call @keep, 1
+// CHECK: v0 = icall @keep, 1
 // CHECK: mstore 0, v0
 fn @user() -> u256 {
   bb0:
-    v0 = internal_call fn0, 1
+    v0 = icall fn0, 1
     mstore 0, v0
     ret 7
 }
 
 // CHECK-LABEL: fn @entry()
-// CHECK: v0 = internal_call @forward, 1
-// CHECK: internal_call @user, 0
+// CHECK: v0 = icall @forward, 1
+// CHECK: icall @user, 0
 fn @entry() [selector=0x01020304] {
   bb0:
-    v0 = internal_call fn1, 1
-    v1 = internal_call fn2, 1
+    v0 = icall fn1, 1
+    v1 = icall fn2, 1
     ret
 }

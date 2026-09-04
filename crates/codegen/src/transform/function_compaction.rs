@@ -207,7 +207,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
     for (func_id, func) in module.functions.iter_enumerated() {
         for inst_id in func.instructions() {
             let kind = &func.inst(inst_id).kind;
-            if let InstKind::InternalCall { function, args, .. } = kind {
+            if let InstKind::ICall { function, args, .. } = kind {
                 called.insert(*function);
                 record_arg_dependencies(func_id, func, *function, args, &mut live, &mut dependents);
             } else {
@@ -267,7 +267,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
     let mut removed_call_operands = 0usize;
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
-            if let InstKind::InternalCall { function, args, .. } = &mut inst.kind {
+            if let InstKind::ICall { function, args, .. } = &mut inst.kind {
                 let old_len = args.len();
                 *args = args
                     .iter()
@@ -379,7 +379,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
         for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
                 called.insert(function);
             }
         }
@@ -416,7 +416,7 @@ fn prune_unused_returns(module: &mut Module) -> usize {
         let mut changed = false;
         for (caller_id, caller) in module.functions.iter_enumerated() {
             for inst_id in caller.instructions() {
-                let InstKind::InternalCall { function, .. } = caller.inst(inst_id).kind else {
+                let InstKind::ICall { function, .. } = caller.inst(inst_id).kind else {
                     continue;
                 };
                 if !candidates.contains(function) || live.contains(function) {
@@ -472,12 +472,12 @@ fn prune_unused_returns(module: &mut Module) -> usize {
             .filter(|&inst_id| {
                 matches!(
                     func.inst(inst_id).kind,
-                    InstKind::InternalCall { function, .. } if removed_set.contains(function)
+                    InstKind::ICall { function, .. } if removed_set.contains(function)
                 )
             })
             .collect::<Vec<_>>();
         for inst_id in calls {
-            let InstKind::InternalCall { returns, .. } = &mut func.inst_mut(inst_id).kind else {
+            let InstKind::ICall { returns, .. } = &mut func.inst_mut(inst_id).kind else {
                 unreachable!()
             };
             *returns = 0;
@@ -697,7 +697,7 @@ fn has_only_direct_self_recursion(
 ) -> bool {
     let mut saw_self = false;
     for inst_id in func.instructions() {
-        if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+        if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
             if function == func_id {
                 saw_self = true;
             } else if calls.is_recursive(function) {
@@ -857,8 +857,8 @@ fn equivalent_inst_payload(
     lhs.visit_operands_mut(|value| *value = zero);
     rhs.visit_operands_mut(|value| *value = zero);
     if let (
-        InstKind::InternalCall { function: lhs_target, .. },
-        InstKind::InternalCall { function: rhs_target, .. },
+        InstKind::ICall { function: lhs_target, .. },
+        InstKind::ICall { function: rhs_target, .. },
     ) = (&lhs, &mut rhs)
         && *lhs_target == lhs_id
         && *rhs_target == rhs_id
@@ -897,7 +897,7 @@ fn equivalent_terminator_payload(
 fn redirect_calls(module: &mut Module, replacements: &FxHashMap<FunctionId, FunctionId>) {
     for func in &mut module.functions {
         func.for_each_instruction_mut(|_, inst| {
-            if let InstKind::InternalCall { function, .. } = &mut inst.kind
+            if let InstKind::ICall { function, .. } = &mut inst.kind
                 && let Some(&replacement) = replacements.get(function)
             {
                 *function = replacement;

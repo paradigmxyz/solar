@@ -640,7 +640,7 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     v205 = and v204, 255
     memory_object_store_field memorystruct<3>, v198, 1, v205
     v206 = add v197, 1
-    v207 = internal_call @load_storage_word_array, 1, v206
+    v207 = icall @load_storage_word_array, 1, v206
     memory_object_store_field memorystruct<3>, v198, 2, v207
     memory_object_store_element memoryfixedarray<3, 1>, v193, v194, v198
     v208 = add v194, 1

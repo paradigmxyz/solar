@@ -577,20 +577,19 @@ impl<'a> Validator<'a> {
     /// mirrors how the display and every pass treat instructions.
     fn validate_calls(&mut self, module: &Module, func: &Function) {
         for inst_id in func.instructions() {
-            let InstKind::InternalCall { function, args, returns } = &func.inst(inst_id).kind
-            else {
+            let InstKind::ICall { function, args, returns } = &func.inst(inst_id).kind else {
                 continue;
             };
             let Some(callee) = module.functions.get(*function) else {
                 self.emit(format_args!(
-                    "internal_call targets nonexistent function fn{}",
+                    "icall targets nonexistent function fn{}",
                     function.index()
                 ));
                 continue;
             };
             if args.len() != callee.params.len() {
                 self.emit(format_args!(
-                    "internal_call to `{}` passes {} argument(s), expected {}",
+                    "icall to `{}` passes {} argument(s), expected {}",
                     callee.name,
                     args.len(),
                     callee.params.len()
@@ -601,7 +600,7 @@ impl<'a> Validator<'a> {
             // dropped and the other still delivers or consumes a value.
             if *returns as usize != callee.returns.len() {
                 self.emit(format_args!(
-                    "internal_call to `{}` expects {} result(s), callee returns {}",
+                    "icall to `{}` expects {} result(s), callee returns {}",
                     callee.name,
                     returns,
                     callee.returns.len()

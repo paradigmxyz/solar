@@ -12,7 +12,7 @@ fn @libLiteral() -> u256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v2 = internal_call @lenPlus, 1, v0, 1
+    v2 = icall @lenPlus, 1, v0, 1
     ret v2
 }
 
@@ -22,7 +22,7 @@ fn @libConstant() -> u256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns
     set_memory_object_len memorybytes, v0, 20
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6d61782075696e74313238206578636565646564000000000000000000000000
-    v2 = internal_call @lenPlus, 1, v0, 0
+    v2 = icall @lenPlus, 1, v0, 0
     ret v2
 }
 
@@ -32,7 +32,7 @@ fn @libHex() -> u256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[wor
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0xaabb000000000000000000000000000000000000000000000000000000000000
-    v2 = internal_call @lenBytes, 1, v0
+    v2 = icall @lenBytes, 1, v0
     ret v2
 }
 
@@ -44,7 +44,7 @@ fn @libLong() -> u256 [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[wo
     mstore v1, 0x3031323334353637383930313233343536373839303132333435363738393031
     v2 = add v1, 32
     mstore v2, 0x3233343536373839000000000000000000000000000000000000000000000000
-    v3 = internal_call @lenPlus, 1, v0, 0
+    v3 = icall @lenPlus, 1, v0, 0
     ret v3
 }
 
@@ -54,7 +54,7 @@ fn @literalContent() -> bytes32 [selector=0x4ab72711, pure, abi_params=[], abi_r
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6869000000000000000000000000000000000000000000000000000000000000
-    v2 = internal_call @firstWord, 1, v0
+    v2 = icall @firstWord, 1, v0
     ret v2
 }
 

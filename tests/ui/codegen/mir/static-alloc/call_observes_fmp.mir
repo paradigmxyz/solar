@@ -13,7 +13,7 @@ fn @observing_caller() -> bool [selector=0x01020304] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
-    v1 = internal_call fn4, 1, v0
+    v1 = icall fn4, 1, v0
     ret v1
 }
 
@@ -26,7 +26,7 @@ fn @forwarding_caller() -> bool [selector=0x01020305] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
-    v1 = internal_call fn5, 1, v0
+    v1 = icall fn5, 1, v0
     ret v1
 }
 
@@ -36,14 +36,14 @@ fn @forwarding_caller() -> bool [selector=0x01020305] {
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
 // CHECK-NEXT: -     mstore v0, 7
-// CHECK-NEXT: -     v1 = internal_call @dereferences, 1, v0
+// CHECK-NEXT: -     v1 = icall @dereferences, 1, v0
 // CHECK-NEXT: +     mstore 128, 7
-// CHECK-NEXT: +     v1 = internal_call @dereferences, 1, 128
+// CHECK-NEXT: +     v1 = icall @dereferences, 1, 128
 fn @dereferencing_caller() -> u256 [selector=0x01020306] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
-    v1 = internal_call fn6, 1, v0
+    v1 = icall fn6, 1, v0
     ret v1
 }
 
@@ -55,7 +55,7 @@ fn @msize_caller() -> u256 [selector=0x01020307] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
-    v1 = internal_call fn7, 1, v0
+    v1 = icall fn7, 1, v0
     ret v1
 }
 
@@ -68,7 +68,7 @@ fn @observes(arg0: memptr) -> bool {
 
 fn @forwards(arg0: memptr) -> bool {
   bb0:
-    v0 = internal_call fn4, 1, arg0
+    v0 = icall fn4, 1, arg0
     ret v0
 }
 
@@ -114,14 +114,14 @@ fn @reserve_frame() [selector=0x01020308] {
 // CHECK-NEXT:     bb0:
 // CHECK-NEXT: -     v0 = alloc raw, exact, uninitialized, infallible, 32
 // CHECK-NEXT: -     mstore v0, 7
-// CHECK-NEXT: -     v1 = internal_call @iterates, 1, v0
+// CHECK-NEXT: -     v1 = icall @iterates, 1, v0
 // CHECK-NEXT: +     mstore 128, 7
-// CHECK-NEXT: +     v1 = internal_call @iterates, 1, 128
+// CHECK-NEXT: +     v1 = icall @iterates, 1, 128
 fn @iterating_caller() -> u256 [selector=0x01020309] {
   bb0:
     v0 = alloc raw, exact, uninitialized, infallible, 32
     mstore v0, 7
-    v1 = internal_call fn10, 1, v0
+    v1 = icall fn10, 1, v0
     ret v1
 }
 

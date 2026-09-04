@@ -600,7 +600,7 @@ impl FrameSlotPromoter {
             // Internal callees address their own frame through the frame
             // pointer and stage data in scratch or heap memory; they never
             // reference a caller's compiler-owned absolute local slots.
-            InstKind::InternalCall { .. } => false,
+            InstKind::ICall { .. } => false,
             InstKind::MappingSlotMemory(_, _)
             | InstKind::AbiEncode { .. }
             | InstKind::AbiDecode { .. }

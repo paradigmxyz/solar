@@ -59,7 +59,7 @@ fn @run(arg0: i128) -> u256 [selector=0x96c07422, abi_params=[i128], abi_returns
     v13 = sload 0 !metadata(storage=slot(0))
     v14 = and v13, 0xffffffffffffffffffffffffffffffff
     v15 = signextend 15, v14
-    internal_call @_settleOrTake, 0, v7, v15
+    icall @_settleOrTake, 0, v7, v15
     jump bb3
   bb3:
     v16 = sload 0 !metadata(storage=slot(0))
@@ -76,7 +76,7 @@ fn @run(arg0: i128) -> u256 [selector=0x96c07422, abi_params=[i128], abi_returns
     v23 = shr 128, v22
     v24 = and v23, 0xffffffffffffffffffffffffffffffff
     v25 = signextend 15, v24
-    internal_call @_settleOrTake, 0, v7, v25
+    icall @_settleOrTake, 0, v7, v25
     jump bb6
   bb6:
     v26 = sload 2 !metadata(storage=slot(2))
@@ -121,7 +121,7 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     v21 = sload 2 !metadata(storage=slot(2))
     v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
     v23 = address
-    internal_call @settle, 0, arg0, v22, v23, v9, 0
+    icall @settle, 0, arg0, v22, v23, v9, 0
     jump bb8
   bb6:
     v12 = sload 2 !metadata(storage=slot(2))
@@ -154,7 +154,7 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     v4 = address
     v5 = signextend 15, arg1
     v6 = and v5, 0xffffffffffffffffffffffffffffffff
-    internal_call @take, 0, arg0, v3, v4, v6, 0
+    icall @take, 0, arg0, v3, v4, v6, 0
     jump bb3
   bb3:
     stop

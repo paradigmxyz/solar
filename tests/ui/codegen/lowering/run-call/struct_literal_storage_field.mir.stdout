@@ -47,7 +47,7 @@ fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] 
     v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v35 = address
     v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffff
-    v37 = internal_call @load_storage_packed_array_4_2, 1, 0
+    v37 = icall @load_storage_packed_array_4_2, 1, 0
     memory_object_store_field memorystruct<2>, v34, 0, v36
     memory_object_store_field memorystruct<2>, v34, 1, v37
     v38 = memory_object_load_field memorystruct<2>, v34, 1
@@ -82,17 +82,17 @@ fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] 
   bb12:
     ret 1
   bb11:
-    internal_call @revert_error, 0, 2, 0x6531000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 2, 0x6531000000000000000000000000000000000000000000000000000000000000
     invalid
   bb8:
-    internal_call @revert_error, 0, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 2, 0x6530000000000000000000000000000000000000000000000000000000000000
     invalid
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    internal_call @revert_error, 0, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 3, 0x6c656e0000000000000000000000000000000000000000000000000000000000
     invalid
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -162,10 +162,10 @@ fn @structField() -> u256 [selector=0x3442156e, abi_params=[], abi_returns=[word
   bb7:
     ret 1
   bb6:
-    internal_call @revert_error, 0, 4, 0x636f707900000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 4, 0x636f707900000000000000000000000000000000000000000000000000000000
     invalid
   bb4:
-    internal_call @revert_error, 0, 5, 0x696e6e6572000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x696e6e6572000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -239,7 +239,7 @@ fn @fixedField() -> u256 [selector=0x0dfda72b, abi_params=[], abi_returns=[word]
   bb18:
     ret 1
   bb17:
-    internal_call @revert_error, 0, 4, 0x76616c7300000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 4, 0x76616c7300000000000000000000000000000000000000000000000000000000
     invalid
   bb6:
     v13 = add 1, v11

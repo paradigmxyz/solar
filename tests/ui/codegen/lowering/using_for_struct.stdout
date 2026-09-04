@@ -11,7 +11,7 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 [selector=0x36245213, pur
     memory_object_store_field memorystruct<4>, v0, 1, v1
     memory_object_store_field memorystruct<4>, v0, 2, 0
     memory_object_store_field memorystruct<4>, v0, 3, arg1
-    v2 = internal_call @hashLib, 1, v0
+    v2 = icall @hashLib, 1, v0
     ret v2
 }
 

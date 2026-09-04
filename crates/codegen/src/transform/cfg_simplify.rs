@@ -266,7 +266,7 @@ impl CfgSimplifier {
             let extra = match &inst.kind {
                 InstKind::Phi(_) => return None,
                 InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
-                InstKind::InternalCall { function, returns, .. } => {
+                InstKind::ICall { function, returns, .. } => {
                     CanonPayload::Call(*function, *returns as usize)
                 }
                 InstKind::Alloc { .. }
@@ -818,7 +818,7 @@ impl DeadFunctionEliminator {
 
         for func in &mut module.functions {
             func.for_each_instruction_mut(|_, inst| {
-                if let InstKind::InternalCall { function, .. } = &mut inst.kind {
+                if let InstKind::ICall { function, .. } = &mut inst.kind {
                     *function = remap[*function]
                         .expect("reachable function cannot call an eliminated function");
                 }

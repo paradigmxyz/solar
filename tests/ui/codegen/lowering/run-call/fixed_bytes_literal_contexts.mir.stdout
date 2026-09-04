@@ -76,7 +76,7 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     set_memory_object_len memorybytes, v34, v28
     memory_object_copy memorybytes, v34, memorybytes, v18, v27
     memory_object_store_byte memorybytes, v34, v27, v3
-    internal_call @store_storage_bytes, 0, 1, v34
+    icall @store_storage_bytes, 0, 1, v34
     v35 = sload 2 !metadata(storage=slot(2))
     v36 = add v35, 1
     v37 = lt v36, v35
@@ -105,8 +105,8 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v56 = sload 0 !metadata(storage=slot(0))
     v57 = and v56, 0xffff
     v58 = shl 240, v57
-    v59 = internal_call @internalIdentity, 1, 0x500000000000000000000000000000000000000000000000000000000000000
-    v60 = internal_call @identity, 1, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v59 = icall @internalIdentity, 1, 0x500000000000000000000000000000000000000000000000000000000000000
+    v60 = icall @identity, 1, 0x1234000000000000000000000000000000000000000000000000000000000000
     v61 = memory_object_load_field memorystruct<2>, v0, 0
     v62 = and v61, 0xff00000000000000000000000000000000000000000000000000000000000000
     v63 = memory_object_load_field memorystruct<2>, v0, 1
@@ -305,7 +305,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

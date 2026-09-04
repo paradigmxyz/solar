@@ -24,10 +24,10 @@ fn @framed(arg0: u256, arg1: u256, arg2: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @entry() -> u256
-// CHECK: internal_call @framed, 1, 5, 7
+// CHECK: icall @framed, 1, 5, 7
 fn @entry() -> u256 [selector=0x01020304] {
   bb0:
-    v0 = internal_call fn0, 1, 5, 6, 7
+    v0 = icall fn0, 1, 5, 6, 7
     ret v0
 }
 
@@ -44,9 +44,9 @@ fn @explicit_slot(arg0: u256, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @explicit_slot_caller() -> u256
-// CHECK: internal_call @explicit_slot, 1, 1, 2
+// CHECK: icall @explicit_slot, 1, 1, 2
 fn @explicit_slot_caller() -> u256 [selector=0x05060708] {
   bb0:
-    v0 = internal_call fn2, 1, 1, 2
+    v0 = icall fn2, 1, 1, 2
     ret v0
 }

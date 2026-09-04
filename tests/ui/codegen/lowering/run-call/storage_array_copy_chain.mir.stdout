@@ -29,7 +29,7 @@ fn @constructor() [constructor] {
     v14 = add v13, v10
     sstore v14, 9 !metadata(storage=symbolic(v14))
     sstore 0, v11 !metadata(storage=slot(0))
-    v15 = internal_call @load_storage_word_array, 1, 0
+    v15 = icall @load_storage_word_array, 1, 0
     v16 = sload 1 !metadata(storage=slot(1))
     v17 = add v16, 1
     v18 = lt v17, v16
@@ -135,7 +135,7 @@ fn @runtimeNested(arg0: u256) -> (u256, u256) [selector=0x916a6a26, abi_params=[
     v4 = add v3, v0
     sstore v4, arg0 !metadata(storage=symbolic(v4))
     sstore 0, v1 !metadata(storage=slot(0))
-    v5 = internal_call @load_storage_word_array, 1, 0
+    v5 = icall @load_storage_word_array, 1, 0
     v6 = sload 1 !metadata(storage=slot(1))
     v7 = add v6, 1
     v8 = lt v7, v6
@@ -226,7 +226,7 @@ fn @runtimeNested(arg0: u256) -> (u256, u256) [selector=0x916a6a26, abi_params=[
 
 fn @storageToStorage() -> (u256, u256, u256) [selector=0xdb07d74b, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
-    v0 = internal_call @load_storage_word_array, 1, 0
+    v0 = icall @load_storage_word_array, 1, 0
     v1 = memory_object_len memoryarray, v0
     v2 = sload 2 !metadata(storage=slot(2))
     v3 = gt v2, v1

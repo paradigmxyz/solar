@@ -54,9 +54,9 @@ fn @repeatedMemoryTarget() -> (u256, u256, u256) [selector=0xe028cc76, view, abi
 
 fn @repeatedStateTarget() -> (u256, u256) [selector=0x9f06da88, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @setCursor, 1, 1
-    v1 = internal_call @setCursor, 1, 2
-    v2 = internal_call @setCursor, 1, 3
+    v0 = icall @setCursor, 1, 1
+    v1 = icall @setCursor, 1, 2
+    v2 = icall @setCursor, 1, 3
     sstore 2, v2 !metadata(storage=slot(2))
     sstore 2, v1 !metadata(storage=slot(2))
     sstore 2, v0 !metadata(storage=slot(2))
@@ -67,7 +67,7 @@ fn @repeatedStateTarget() -> (u256, u256) [selector=0x9f06da88, abi_params=[], a
 
 fn @repeatedCallTarget() -> u256 [selector=0xbf139358, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @threeValues, 3
+    v0 = icall @threeValues, 3
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -80,12 +80,12 @@ fn @sideEffectfulTargets() -> (u256, u256, u256) [selector=0x1a1f53e1, abi_param
   bb0:
     v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_zero v0, 64
-    v1 = internal_call @nextIndex, 1
+    v1 = icall @nextIndex, 1
     v2 = lt v1, 2
     v3 = iszero v2
     jumpi v3, bb1, bb2
   bb2:
-    v4 = internal_call @nextIndex, 1
+    v4 = icall @nextIndex, 1
     v5 = lt v4, 2
     v6 = iszero v5
     jumpi v6, bb1, bb3
@@ -229,7 +229,7 @@ fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_params=[
   bb26:
     v75 = byte 0, 0x6200000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v66, 1, v75
-    internal_call @store_storage_bytes, 0, 3, v66
+    icall @store_storage_bytes, 0, 3, v66
     v76 = sload 3 !metadata(storage=slot(3))
     v77 = and v76, 1
     v78 = eq v77, 1
@@ -267,7 +267,7 @@ fn @storageBytesTargets() -> (bytes1, bytes1) [selector=0x58cc8be8, abi_params=[
   bb34:
     v99 = byte 0, 0x6100000000000000000000000000000000000000000000000000000000000000
     memory_object_store_byte memorybytes, v90, 0, v99
-    internal_call @store_storage_bytes, 0, 3, v90
+    icall @store_storage_bytes, 0, 3, v90
     v100 = sload 3 !metadata(storage=slot(3))
     v101 = and v100, 1
     v102 = eq v101, 1
@@ -481,7 +481,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -550,6 +550,6 @@ fn @constructor() [constructor] {
     set_memory_object_len memorybytes, v0, 2
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x7a7a000000000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 3, v0
+    icall @store_storage_bytes, 0, 3, v0
     stop
 }

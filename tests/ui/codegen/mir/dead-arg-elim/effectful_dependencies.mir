@@ -14,10 +14,10 @@ fn @read() -> u256 {
 }
 
 // CHECK-LABEL: fn @read_entry()
-// CHECK: v0 = internal_call @read, 1
+// CHECK: v0 = icall @read, 1
 fn @read_entry() [selector=0x01020304] {
   bb0:
-    v0 = internal_call fn0, 1
+    v0 = icall fn0, 1
     ret
 }
 
@@ -30,11 +30,11 @@ fn @unused(arg0: u256) {
 
 // CHECK-LABEL: fn @argument_entry()
 // CHECK: v0 = mload 0x10000
-// CHECK-NEXT: internal_call @unused, 0, v0
+// CHECK-NEXT: icall @unused, 0, v0
 fn @argument_entry() [selector=0x05060708] {
   bb0:
     v0 = mload 65536
-    internal_call fn2, 0, v0
+    icall fn2, 0, v0
     ret
 }
 
@@ -50,9 +50,9 @@ fn @mapping_slot() -> bytes32 {
 }
 
 // CHECK-LABEL: fn @mapping_entry()
-// CHECK: v0 = internal_call @mapping_slot, 1
+// CHECK: v0 = icall @mapping_slot, 1
 fn @mapping_entry() [selector=0x090a0b0c] {
   bb0:
-    v0 = internal_call fn4, 1
+    v0 = icall fn4, 1
     ret
 }

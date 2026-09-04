@@ -30,7 +30,7 @@ fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_p
   bb8:
     v9 = memory_object_load_element memoryarray<1>, v1, v0
     v10 = and v9, 0xffffffffffffffffffffffff
-    v11 = internal_call @mint, 1, v3, v10
+    v11 = icall @mint, 1, v3, v10
     jump bb6
   bb6:
     jump bb3
@@ -52,7 +52,7 @@ fn @constructor(arg0: memoryarray, arg1: address, arg2: u96) [constructor, abi_p
 
 fn @latestKey() -> u96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[word<u96>]] {
   bb0:
-    v0 = internal_call @latest, 3, 6
+    v0 = icall @latest, 3, 6
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -63,7 +63,7 @@ fn @latestKey() -> u96 [selector=0x8ee82b53, view, abi_params=[], abi_returns=[w
 
 fn @next() -> u96 [selector=0x4c8fe526, view, abi_params=[], abi_returns=[word<u96>]] {
   bb0:
-    v0 = internal_call @nextId, 1
+    v0 = icall @nextId, 1
     ret v0
 }
 
@@ -80,7 +80,7 @@ fn @push(arg0: storageptr, arg1: u96, arg2: u160) {
     v4 = lt v0, 1
     jumpi v4, bb4, bb5
   bb5:
-    v5 = internal_call @unsafeAccess, 1, arg0, v3
+    v5 = icall @unsafeAccess, 1, arg0, v3
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = and v6, 0xffffffffffffffffffffffff
     v8 = and arg1, 0xffffffffffffffffffffffff
@@ -148,7 +148,7 @@ fn @latest(arg0: storageptr) -> (bool, u96, u160) [view] {
     v4 = lt v0, 1
     jumpi v4, bb4, bb5
   bb5:
-    v5 = internal_call @unsafeAccess, 1, arg0, v3
+    v5 = icall @unsafeAccess, 1, arg0, v3
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = and v6, 0xffffffffffffffffffffffff
     v8 = sload v5 !metadata(storage=symbolic(v5))
@@ -171,7 +171,7 @@ fn @unsafeAccess(arg0: storageptr, arg1: u256) -> storageptr [pure] {
 
 fn @mint(arg0: address, arg1: u96) -> u96 {
   bb0:
-    v0 = internal_call @nextId, 1
+    v0 = icall @nextId, 1
     v1 = and v0, 0xffffffffffffffffffffffff
     v2 = and arg1, 0xffffffffffffffffffffffff
     v3 = add v1, v2
@@ -183,7 +183,7 @@ fn @mint(arg0: address, arg1: u96) -> u96 {
     jumpi v6, bb1, bb3
   bb3:
     v7 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    internal_call @push, 0, 6, v5, v7
+    icall @push, 0, 6, v5, v7
     v8 = and v0, 0xffffffffffffffffffffffff
     v9 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
     mstore 0, v5 !metadata(memory=scratch)
@@ -197,7 +197,7 @@ fn @mint(arg0: address, arg1: u96) -> u96 {
 
 fn @nextId() -> u96 [view] {
   bb0:
-    v0 = internal_call @latest, 3, 6
+    v0 = icall @latest, 3, 6
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -361,7 +361,7 @@ fn @value() -> u8 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word<u
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @pair, 2
+    v0 = icall @pair, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2

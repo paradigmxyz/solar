@@ -255,7 +255,7 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0x51efa653, pure, abi_params=
     v22 = lt v21, 1
     jumpi v22, bb8, bb9
   bb9:
-    v54 = internal_call @readFixed, 1, v20
+    v54 = icall @readFixed, 1, v20
     ret v54
   bb8:
     v23 = mul v21, 32

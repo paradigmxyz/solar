@@ -31,7 +31,7 @@ fn @constructor() [constructor] {
     sstore 0, 42 !metadata(storage=slot(0))
     jump bb1
   bb1:
-    v0 = internal_call @f, 1
+    v0 = icall @f, 1
     sstore 1, v0 !metadata(storage=slot(1))
     stop
 }

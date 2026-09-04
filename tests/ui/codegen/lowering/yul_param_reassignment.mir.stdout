@@ -5,7 +5,7 @@
 @module YulParamReassignment
 fn @indexOf.0(arg0: memorybytes, arg1: memorybytes, arg2: u256) -> u256 [selector=0x86e2d68c, pure, abi_params=[bytes, bytes, u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @indexOf.1, 1, arg0, arg1, arg2
+    v0 = icall @indexOf.1, 1, arg0, arg1, arg2
     ret v0
 }
 

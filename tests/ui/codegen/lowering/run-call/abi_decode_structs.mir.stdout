@@ -270,7 +270,7 @@ fn @nestedRoundtrip() -> (u256, memorybytes, u256) [selector=0x07f0bc21, pure, a
     mstore v24, 0x78797a0000000000000000000000000000000000000000000000000000000000
     memory_object_store_field memorystruct<3>, v0, 2, v23
     v25 = abi_encode [tuple<tuple<word, word<u160>, word<bool>>, tuple<word, memory_bytes, memory_array<word>>, memory_bytes>], object, args v0
-    v26 = internal_call @dNested, 3, v25
+    v26 = icall @dNested, 3, v25
     v27 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v28 = memory_object_load_element memoryfixedarray<3, 1>, v27, 1
     v29 = add v27, 64
@@ -352,7 +352,7 @@ fn @dynamicArrayRoundtrip() -> (u256, u256, u256, u256) [selector=0x533c608a, pu
   bb9:
     memory_object_store_element memoryarray<1>, v0, 1, v17
     v31 = abi_encode [memory_array<tuple<word, memory_bytes, memory_array<word>>>], object, args v0
-    v32 = internal_call @dDynArr, 4, v31
+    v32 = icall @dDynArr, 4, v31
     v33 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v34 = add v33, 32
     v35 = mload v34

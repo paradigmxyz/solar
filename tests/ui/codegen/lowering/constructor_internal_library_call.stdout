@@ -12,7 +12,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = and arg0, 7
-    v1 = internal_call @helper, 1, v0
+    v1 = icall @helper, 1, v0
     sstore 0, v1 !metadata(storage=slot(0))
     stop
 }
@@ -36,7 +36,7 @@ fn @helper(arg0: u256) -> u256 [pure] {
     v8 = lt arg0, 1
     jumpi v8, bb4, bb6
   bb6:
-    v9 = internal_call @helper, 1, v7
+    v9 = icall @helper, 1, v7
     v10 = add v1, v9
     v11 = lt v10, v1
     jumpi v11, bb4, bb7

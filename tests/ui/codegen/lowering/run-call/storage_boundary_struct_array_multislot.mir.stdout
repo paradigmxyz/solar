@@ -13,8 +13,8 @@ fn @getDest() -> storageptr [pure] {
 
 fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @getSource, 1
-    v1 = internal_call @getDest, 1
+    v0 = icall @getSource, 1
+    v1 = icall @getDest, 1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb17: v2]

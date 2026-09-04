@@ -1452,7 +1452,7 @@ fn @copyDynamic() -> u256 [selector=0x902a0a84, abi_params=[], abi_returns=[word
   bb8:
     v23 = storage_array_data_slot v4
     v24 = add v23, v21
-    v25 = internal_call @load_storage_packed_array_1_0, 1, v24
+    v25 = icall @load_storage_packed_array_1_0, 1, v24
     memory_object_store_element memoryarray<1>, v20, v21, v25
     v26 = add v21, 1
     jump bb7
@@ -1735,7 +1735,7 @@ fn @copyFixed() -> u256 [selector=0x23235673, abi_params=[], abi_returns=[word]]
   bb8:
     v21 = storage_array_data_slot v2
     v22 = add v21, v19
-    v23 = internal_call @load_storage_packed_array_1_0, 1, v22
+    v23 = icall @load_storage_packed_array_1_0, 1, v22
     memory_object_store_element memoryarray<1>, v18, v19, v23
     v24 = add v19, 1
     jump bb7
@@ -2021,7 +2021,7 @@ fn @copyMixed() -> u256 [selector=0x0eb8f89e, abi_params=[], abi_returns=[word]]
     jump bb14
   bb4:
     v9 = add v5, v7
-    v10 = internal_call @load_storage_packed_array_1_0, 1, v9
+    v10 = icall @load_storage_packed_array_1_0, 1, v9
     memory_object_store_element memoryfixedarray<2, 1>, v6, v7, v10
     v11 = add v7, 1
     jump bb3

@@ -17,8 +17,8 @@ contract CalldataSliceYulBounds {
     // `_empty` inlines because it returns a slice; `_sink` remains an ordinary
     // MIR call.
     // CHECK-LABEL: fn @emptyLen{{[( ]}}
-    // CHECK: internal_call @_empty
-    // CHECK: internal_call @_sink
+    // CHECK: icall @_empty
+    // CHECK: icall @_sink
     function emptyLen() external pure returns (uint256) {
         return _sink(_empty());
     }

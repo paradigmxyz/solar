@@ -52,7 +52,7 @@ fn @matchesReference() -> bool [selector=0xedf3feeb, pure, abi_params=[], abi_re
     set_memory_object_len memorybytes, v0, 12
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
-    v2 = internal_call @erc7201Reference, 1, v0
+    v2 = icall @erc7201Reference, 1, v0
     v3 = eq 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500, v2
     ret v3
 }

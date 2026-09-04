@@ -38,7 +38,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let result_ty = types::TypeLowerer::mir_return_type(
             self.cx.gcx.type_of_item(function.returns[0].into()),
         );
-        let result = self.builder.internal_call(mir_id, values.to_vec(), result_ty, 1);
+        let result = self.builder.icall(mir_id, values.to_vec(), result_ty, 1);
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -436,16 +436,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let dispatcher = self.ensure_internal_function_pointer_dispatcher(function);
         if function.returns.is_empty() {
-            // internal_call_void(dispatcher, function, args)
+            // icall_void(dispatcher, function, args)
             // result = 0
-            self.builder.internal_call_void(dispatcher, values, 0);
+            self.builder.icall_void(dispatcher, values, 0);
             return Some(self.builder.imm(U256::ZERO));
         }
         let first_ty = function.returns[0];
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
-        // result = internal_call(dispatcher, function, args)
-        let result =
-            self.builder.internal_call(dispatcher, values, result_ty, function.returns.len());
+        // result = icall(dispatcher, function, args)
+        let result = self.builder.icall(dispatcher, values, result_ty, function.returns.len());
         self.dirty_values.insert(result);
         Some(result)
     }
@@ -781,15 +780,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(value);
         }
         if function.returns.is_empty() {
-            // internal_call_void(function, call_args)
+            // icall_void(function, call_args)
             // result = 0
-            self.builder.internal_call_void(mir_id, values, 0);
+            self.builder.icall_void(mir_id, values, 0);
             return Some(self.builder.imm(U256::ZERO));
         }
         let first_ty = self.cx.gcx.type_of_item((*function.returns.first()?).into());
         let result_ty = types::TypeLowerer::mir_return_type(first_ty);
-        // result = internal_call(function, call_args)
-        let result = self.builder.internal_call(mir_id, values, result_ty, function.returns.len());
+        // result = icall(function, call_args)
+        let result = self.builder.icall(mir_id, values, result_ty, function.returns.len());
         self.dirty_values.insert(result);
         Some(result)
     }

@@ -124,9 +124,9 @@ fn @sink(arg0: u256) [selector=0xa4ba067e, payable, abi_params=[u256], abi_retur
 
 fn @externalReceiver() -> u256 [selector=0x7b42c356, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @receiver, 1
+    v0 = icall @receiver, 1
     v1 = gas
-    v2 = internal_call @arg, 1
+    v2 = icall @arg, 1
     v3 = abi_encode [word], selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args v2
     v4 = slice_ptr v3
     v5 = slice_len v3
@@ -149,9 +149,9 @@ fn @callOptions() -> u256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word
   bb0:
     v0 = address
     v1 = gas
-    v2 = internal_call @gasOpt, 1
-    v3 = internal_call @valueOpt, 1
-    v4 = internal_call @arg, 1
+    v2 = icall @gasOpt, 1
+    v3 = icall @valueOpt, 1
+    v4 = icall @arg, 1
     v5 = abi_encode [word], selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
     v7 = slice_len v5
@@ -173,7 +173,7 @@ fn @dirtyGasOption() -> bool [selector=0x494be41f, abi_params=[], abi_returns=[w
   bb0:
     v0 = address
     v1 = gas
-    v2 = internal_call @dirtyUint8, 1, 0x10000
+    v2 = icall @dirtyUint8, 1, 0x10000
     v3 = and v2, 255
     v4 = abi_encode [word], object, selector 0xa4ba067e00000000000000000000000000000000000000000000000000000000, args 0
     v5 = memory_object_data memorybytes, v4
@@ -184,7 +184,7 @@ fn @dirtyGasOption() -> bool [selector=0x494be41f, abi_params=[], abi_returns=[w
 
 fn @dirtySend() -> bool [selector=0x82ec93de, payable, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @dirtyUint8, 1, 256
+    v0 = icall @dirtyUint8, 1, 256
     v1 = and v0, 255
     v2 = iszero v1
     v3 = select v2, 0x8fc, 0
@@ -206,7 +206,7 @@ fn @dirtyIndex() -> u256 [selector=0xe98f4d7c, pure, abi_params=[], abi_returns=
     jumpi v4, bb1, bb3
   bb3:
     memory_object_store_element memoryfixedarray<257, 1>, v0, 256, 9
-    v5 = internal_call @dirtyUint8, 1, 256
+    v5 = icall @dirtyUint8, 1, 256
     v6 = and v5, 255
     v7 = lt v6, 257
     v8 = iszero v7

@@ -2,7 +2,7 @@
 //@filecheck:
 
 // A same-contract internal function whose body contains a loop, called by bare
-// ident, must be lowered as a real `internal_call` rather than inlined. The SSA
+// ident, must be lowered as a real `icall` rather than inlined. The SSA
 // inline path (`lower_library_body_simple`) can't model a loop's induction
 // variable, so inlining produced a loop whose counter never advanced — an
 // infinite loop that ran out of gas. Runtime-verified against solc: run(5) == 10.
@@ -18,7 +18,7 @@ contract C {
     }
 
     // CHECK-LABEL: fn @run{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @sumTo, 1, arg0
+    // CHECK: {{v[0-9]+}} = icall @sumTo, 1, arg0
     function run(uint256 n) public pure returns (uint256) {
         return sumTo(n);
     }

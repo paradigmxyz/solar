@@ -7,9 +7,9 @@ contract StorageBytesPushPop {
     // CHECK-LABEL: fn @constructor{{[( ]}}
     // CHECK: memory_object_len memorybytes
     // CHECK: memory_object_copy memorybytes
-    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: icall @store_storage_bytes, 0, 0,
     // CHECK: memory_object_copy memorybytes
-    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: icall @store_storage_bytes, 0, 0,
     constructor() {
         data.push(0x01);
         data.push(0x02);
@@ -20,7 +20,7 @@ contract StorageBytesPushPop {
     // CHECK: memory_object_len memorybytes
     // CHECK: memory_object_copy memorybytes
     // CHECK: memory_object_store_byte memorybytes
-    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: icall @store_storage_bytes, 0, 0,
     function pushValue(bytes1 value) external {
         data.push(value);
     }
@@ -29,14 +29,14 @@ contract StorageBytesPushPop {
     // CHECK: memory_object_len memorybytes
     // CHECK: memory_object_copy memorybytes
     // CHECK: memory_object_store_byte memorybytes
-    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: icall @store_storage_bytes, 0, 0,
     function pushZero() external {
         data.push();
     }
 
     // CHECK-LABEL: fn @popValue{{[( ]}}
     // CHECK: memory_object_len memorybytes
-    // CHECK: internal_call @store_storage_bytes, 0, 0,
+    // CHECK: icall @store_storage_bytes, 0, 0,
     function popValue() external {
         data.pop();
     }

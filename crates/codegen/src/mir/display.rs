@@ -557,8 +557,8 @@ fn display_inst_kind<'a>(
         InstKind::ClearStorage { storage, layout } => {
             write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
         }
-        InstKind::InternalCall { function, args, returns } => {
-            write!(f, "internal_call {}, {returns}", display_function_ref(*function, module))?;
+        InstKind::ICall { function, args, returns } => {
+            write!(f, "icall {}, {returns}", display_function_ref(*function, module))?;
             if !args.is_empty() {
                 write!(f, ", {}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
             }

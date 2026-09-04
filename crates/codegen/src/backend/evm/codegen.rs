@@ -225,7 +225,7 @@ enum StaticCallEntry {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct InternalCallStackEdge {
+struct ICallStackEdge {
     caller: FunctionId,
     callee: FunctionId,
     preserved_words: usize,
@@ -510,8 +510,7 @@ impl GlobalStackPlan {
         // arguments cannot fall back to memory on just one edge.
         if func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| {
-                !preserve_across_calls
-                    && matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
+                !preserve_across_calls && matches!(func.inst(inst_id).kind, InstKind::ICall { .. })
             })
         }) {
             return None;
@@ -1289,7 +1288,7 @@ impl<'a> StackPhiPlanner<'a> {
             let mut kept = Vec::new();
             for &inst in &block.instructions {
                 let kind = &func.inst(inst).kind;
-                if matches!(kind, InstKind::InternalCall { .. }) {
+                if matches!(kind, InstKind::ICall { .. }) {
                     has_call.insert(block_id);
                     kept.clear();
                 }
@@ -2329,7 +2328,7 @@ pub struct EvmCodegen<'gcx> {
     /// untracked prefix.
     function_stack_peaks: FxHashMap<FunctionId, usize>,
     /// Runtime internal-call edges and the caller words retained at each site.
-    internal_call_stack_edges: Vec<InternalCallStackEdge>,
+    icall_stack_edges: Vec<ICallStackEdge>,
     /// Whether the current assembly is the runtime (stack-passed arguments
     /// apply). The constructor assembly emits its own copies of internal
     /// functions with the plain frame-store convention.
@@ -2450,7 +2449,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             recursive_frame_edges: FxHashSet::default(),
             recursion_reaching_functions: DenseBitSet::new_empty(0),
             function_stack_peaks: FxHashMap::default(),
-            internal_call_stack_edges: Vec::new(),
+            icall_stack_edges: Vec::new(),
             runtime_stack_args: false,
             spill_addr_consts: FxHashMap::default(),
             external_spill_addr_consts: FxHashMap::default(),
@@ -2512,7 +2511,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.recursive_frame_edges.clear();
         self.recursion_reaching_functions.clear_to(module.functions.len());
         self.function_stack_peaks.clear();
-        self.internal_call_stack_edges.clear();
+        self.icall_stack_edges.clear();
         self.runtime_stack_args = false;
         self.spill_addr_consts.clear();
         self.external_spill_addr_consts.clear();
@@ -3098,7 +3097,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.current_internal_function = None;
             self.stack_phi_sources.clear();
             self.function_stack_peaks.clear();
-            self.internal_call_stack_edges.clear();
+            self.icall_stack_edges.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
                 if !func.attributes.may_return_memory
@@ -3284,7 +3283,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     continue;
                 }
                 let stack_fits = self.caller_stack_prefixes_fit(module, MAX_STACK_DEPTH);
-                if !stack_fits && !self.internal_call_stack_edges.is_empty() {
+                if !stack_fits && !self.icall_stack_edges.is_empty() {
                     if preserve_caller_stack {
                         preserve_caller_stack = false;
                         continue;
@@ -3357,7 +3356,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.recursive_frame_edges.clear();
         self.recursion_reaching_functions.clear_to(module.functions.len());
         self.function_stack_peaks.clear();
-        self.internal_call_stack_edges.clear();
+        self.icall_stack_edges.clear();
         self.runtime_stack_args = true;
         self.stack_returns_enabled = true;
         self.emitting_entry = false;
@@ -3403,7 +3402,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         incoming[entry_id] = Some(0);
         for _ in 0..module.functions.len() {
             let mut changed = false;
-            for edge in &self.internal_call_stack_edges {
+            for edge in &self.icall_stack_edges {
                 if self.recursive_stack_functions.contains(edge.caller)
                     || self.recursive_stack_functions.contains(edge.callee)
                     || !self.function_stack_peaks.contains_key(&edge.callee)
@@ -3671,7 +3670,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn has_direct_self_call(func_id: FunctionId, func: &Function) -> bool {
         func.instructions().any(|inst_id| {
-            matches!(func.inst(inst_id).kind, InstKind::InternalCall { function, .. }
+            matches!(func.inst(inst_id).kind, InstKind::ICall { function, .. }
                 if function == func_id)
         }) || func.blocks.iter().any(|block| {
             matches!(block.terminator, Some(Terminator::TailCall { function, .. })
@@ -4678,7 +4677,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
                             func.inst(inst_id).kind,
-                            InstKind::InternalCall { function, .. } if cold.contains(function)
+                            InstKind::ICall { function, .. } if cold.contains(function)
                         )
                     }) {
                         saw_exit = true;
@@ -4766,7 +4765,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         ) || block.instructions.iter().any(|&inst_id| {
             matches!(
                 func.inst(inst_id).kind,
-                InstKind::InternalCall { function, .. }
+                InstKind::ICall { function, .. }
                     if self.cold_functions.contains(function)
             )
         })
@@ -6609,9 +6608,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             }
 
-            InstKind::InternalCall { function, args, returns } => {
+            InstKind::ICall { function, args, returns } => {
                 self.preserve_stack_only_operands(args, liveness, block, inst_idx);
-                self.emit_internal_call(
+                self.emit_icall(
                     func_id,
                     func,
                     *function,
@@ -6881,7 +6880,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// it. Ordinary operations consume one operand while arranging the rest, but an internal call
     /// also pushes its return label before emitting stack-passed arguments.
     fn instruction_transient_growth(kind: &InstKind, operands: usize) -> usize {
-        if matches!(kind, InstKind::InternalCall { .. }) {
+        if matches!(kind, InstKind::ICall { .. }) {
             operands.max(1)
         } else {
             operands.saturating_sub(1).max(1)
@@ -7091,7 +7090,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         for (caller, func) in module.functions.iter_enumerated() {
             for inst_id in func.instructions() {
-                if let InstKind::InternalCall { function, returns, .. } = &func.inst(inst_id).kind
+                if let InstKind::ICall { function, returns, .. } = &func.inst(inst_id).kind
                     && self
                         .stack_return_plan(*function)
                         .is_some_and(|plan| *returns as usize != plan.arity)
@@ -7141,7 +7140,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 has_candidate_call |= block.instructions.iter().any(|&inst_id| {
                     matches!(
                         &func.inst(inst_id).kind,
-                        InstKind::InternalCall { function, .. }
+                        InstKind::ICall { function, .. }
                             if self.static_frame_functions.contains(*function)
                     )
                 });
@@ -7177,8 +7176,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {
                 for &inst_id in &block.instructions {
-                    let InstKind::InternalCall { function, args, .. } = &func.inst(inst_id).kind
-                    else {
+                    let InstKind::ICall { function, args, .. } = &func.inst(inst_id).kind else {
                         continue;
                     };
                     if !self.static_frame_functions.contains(*function) {
@@ -7913,8 +7911,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Self::is_external_entry(caller) || self.static_frame_functions.contains(caller_id);
             for block in &caller.blocks {
                 for &inst_id in &block.instructions {
-                    let InstKind::InternalCall { function, args, .. } = &caller.inst(inst_id).kind
-                    else {
+                    let InstKind::ICall { function, args, .. } = &caller.inst(inst_id).kind else {
                         continue;
                     };
                     let Some(mask) = candidates.get_mut(function) else { continue };
@@ -7981,9 +7978,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             // whole-function liveness. Single-block leaves have no inter-block layout to solve.
             if func.blocks.iter().any(|block| {
                 !self.preserve_caller_stack
-                    && block.instructions.iter().any(|&inst_id| {
-                        matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. })
-                    })
+                    && block
+                        .instructions
+                        .iter()
+                        .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::ICall { .. }))
             }) {
                 continue;
             }
@@ -8064,7 +8062,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                     let kind = &func.inst(inst_id).kind;
-                    let is_call = matches!(kind, InstKind::InternalCall { .. });
+                    let is_call = matches!(kind, InstKind::ICall { .. });
                     if block_id == BlockId::ENTRY && info.first_entry_call.is_none() && is_call {
                         info.first_entry_call = Some(inst_idx);
                     }
@@ -8148,7 +8146,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block
                     .instructions
                     .iter()
-                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::InternalCall { .. }))
+                    .any(|&inst| matches!(func.inst(inst).kind, InstKind::ICall { .. }))
                     || matches!(
                         block.terminator,
                         Some(Terminator::TailCall { .. } | Terminator::Switch { .. })
@@ -8716,7 +8714,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 func.instructions().any(|inst_id| {
                     matches!(
                         func.inst(inst_id).kind,
-                        InstKind::InternalCall { function, .. }
+                        InstKind::ICall { function, .. }
                             if !self.static_frame_functions.contains(function)
                     )
                 }) || func.blocks.iter().any(|block| {
@@ -8787,7 +8785,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             for inst_id in func.instructions() {
-                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
                     edges.push((func_id, function));
                 }
             }
@@ -9133,7 +9131,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     Some(0)
                 }
-                InstKind::InternalCall { function, returns: 1, .. } => {
+                InstKind::ICall { function, returns: 1, .. } => {
                     returned_offsets.get(function).copied()
                 }
                 InstKind::Sub(base, amount) => {
@@ -9238,8 +9236,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
-        func.instructions()
-            .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalCall { .. }))
+        func.instructions().any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::ICall { .. }))
     }
 
     fn emit_entry_free_memory_start(
@@ -9257,7 +9254,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 || module.functions[func_id].instructions().any(|inst_id| {
                     matches!(
                         module.functions[func_id].inst(inst_id).kind,
-                        InstKind::InternalCall { function, returns, .. }
+                        InstKind::ICall { function, returns, .. }
                             if returns > 1 || !self.static_frame_functions.contains(function)
                     )
                 })
@@ -9420,14 +9417,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let no_helpers = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
             if func.instructions().any(|inst_id| {
-                matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::InternalCall { .. } | InstKind::SetFmp(_)
-                ) || matches!(
-                    func.inst(inst_id).kind,
-                    InstKind::MStore(address, _)
-                        if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
-                )
+                matches!(func.inst(inst_id).kind, InstKind::ICall { .. } | InstKind::SetFmp(_))
+                    || matches!(
+                        func.inst(inst_id).kind,
+                        InstKind::MStore(address, _)
+                            if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
+                    )
             }) {
                 continue;
             }
@@ -9534,7 +9529,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     {
                         Some(true)
                     }
-                    InstKind::InternalCall { function, returns: 1, .. }
+                    InstKind::ICall { function, returns: 1, .. }
                         if helper_returns.contains(*function) =>
                     {
                         Some(true)
@@ -9728,7 +9723,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Returns the first internal-call result only when it is consumed. The call itself remains
     /// effectful, and additional returns are staged separately in the multi-return buffer.
-    fn live_internal_call_result(
+    fn live_icall_result(
         result: Option<ValueId>,
         returns: usize,
         liveness: &Liveness,
@@ -9739,7 +9734,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn emit_internal_call(
+    fn emit_icall(
         &mut self,
         func_id: FunctionId,
         func: &Function,
@@ -9760,7 +9755,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // free-pointer bookkeeping below: its addresses are compile-time
         // constants.
         if self.static_frame_functions.contains(callee) {
-            let (preserved_words, argument_words) = self.emit_internal_call_static(
+            let (preserved_words, argument_words) = self.emit_icall_static(
                 func_id,
                 func,
                 callee,
@@ -9773,7 +9768,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 block,
                 inst_idx,
             );
-            self.internal_call_stack_edges.push(InternalCallStackEdge {
+            self.icall_stack_edges.push(ICallStackEdge {
                 caller: func_id,
                 callee,
                 preserved_words,
@@ -9862,7 +9857,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             Some(self.scheduler.stack.clone())
         };
         let preserved_words = caller_stack.as_ref().map_or(0, StackModel::depth);
-        self.internal_call_stack_edges.push(InternalCallStackEdge {
+        self.icall_stack_edges.push(ICallStackEdge {
             caller: func_id,
             callee,
             preserved_words,
@@ -9892,8 +9887,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.clear_stack();
         }
 
-        let live_result =
-            Self::live_internal_call_result(result, returns, liveness, block, inst_idx);
+        let live_result = Self::live_icall_result(result, returns, liveness, block, inst_idx);
         if let Some(result) = live_result {
             self.emit_current_internal_frame_addr(
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -10096,8 +10090,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return None;
         }
 
-        let live_result =
-            Self::live_internal_call_result(result, returns, liveness, block, inst_idx);
+        let live_result = Self::live_icall_result(result, returns, liveness, block, inst_idx);
         let mut post_call = self.scheduler.clone();
         if let Some(result) = live_result {
             post_call.stack.push(result);
@@ -10221,7 +10214,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// the suspended activation's live state on the EVM stack before reusing
     /// that region.
     #[allow(clippy::too_many_arguments)]
-    fn emit_internal_call_static(
+    fn emit_icall_static(
         &mut self,
         func_id: FunctionId,
         func: &Function,
@@ -10551,9 +10544,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return (preserved_words, argument_words);
         }
 
-        if let Some(result) =
-            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
-        {
+        if let Some(result) = Self::live_icall_result(result, returns, liveness, block, inst_idx) {
             let addr = self.static_frame_addr(
                 callee,
                 EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
@@ -10603,7 +10594,7 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         if plan.arity > 1 {
             if let Some(result) =
-                Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
+                Self::live_icall_result(result, returns, liveness, block, inst_idx)
                 && let Some(projection) =
                     Self::plan_stack_result_projection(func, block, inst_idx, plan.arity)
             {
@@ -10642,9 +10633,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        if let Some(result) =
-            Self::live_internal_call_result(result, returns, liveness, block, inst_idx)
-        {
+        if let Some(result) = Self::live_icall_result(result, returns, liveness, block, inst_idx) {
             self.scheduler.stack.push(result);
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         } else {
@@ -12306,7 +12295,7 @@ mod tests {
             codegen.recursive_stack_functions = DenseBitSet::new_empty(module.functions.len());
             codegen.function_stack_peaks.insert(entry, 1);
             codegen.function_stack_peaks.insert(callee, MAX_STACK_DEPTH - 1);
-            codegen.internal_call_stack_edges.push(InternalCallStackEdge {
+            codegen.icall_stack_edges.push(ICallStackEdge {
                 caller: entry,
                 callee,
                 preserved_words: 1,
@@ -12319,17 +12308,17 @@ mod tests {
 
             // The transient argument tuple and target label must be budgeted even
             // when the preserved prefix and callee peak fit on their own.
-            codegen.internal_call_stack_edges[0].preserved_words = MAX_STACK_DEPTH - 3;
-            codegen.internal_call_stack_edges[0].argument_words = 2;
+            codegen.icall_stack_edges[0].preserved_words = MAX_STACK_DEPTH - 3;
+            codegen.icall_stack_edges[0].argument_words = 2;
             codegen.function_stack_peaks.insert(callee, 2);
             assert!(!codegen.caller_stack_prefixes_fit(&module, MAX_STACK_DEPTH));
 
-            codegen.internal_call_stack_edges[0].preserved_words = 0;
-            codegen.internal_call_stack_edges[0].argument_words = MAX_STACK_DEPTH;
+            codegen.icall_stack_edges[0].preserved_words = 0;
+            codegen.icall_stack_edges[0].argument_words = MAX_STACK_DEPTH;
             codegen.function_stack_peaks.insert(callee, 0);
             assert!(!codegen.caller_stack_prefixes_fit(&module, MAX_STACK_DEPTH));
 
-            codegen.internal_call_stack_edges[0] = InternalCallStackEdge {
+            codegen.icall_stack_edges[0] = ICallStackEdge {
                 caller: constructor,
                 callee,
                 preserved_words: 1,
@@ -12380,7 +12369,7 @@ mod tests {
                 let mut function = Function::new(Ident::DUMMY);
                 let mut builder = FunctionBuilder::new(&mut function);
                 if index < MAX_STACK_DEPTH {
-                    builder.internal_call_void(FunctionId::from_usize(index + 1), Vec::new(), 0);
+                    builder.icall_void(FunctionId::from_usize(index + 1), Vec::new(), 0);
                 }
                 builder.stop();
                 let function = module.add_function(function);
@@ -12460,9 +12449,9 @@ mod tests {
     }
 
     #[test]
-    fn internal_call_headroom_includes_return_label() {
+    fn icall_headroom_includes_return_label() {
         let value = ValueId::from_usize(0);
-        let call = InstKind::InternalCall {
+        let call = InstKind::ICall {
             function: FunctionId::from_usize(0),
             args: vec![value; MAX_STACK_ACCESS].into(),
             returns: 0,

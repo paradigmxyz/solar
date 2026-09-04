@@ -186,7 +186,7 @@ impl LowerAbiCx {
             }
             for inst_id in func.instructions() {
                 has_decodes |= matches!(func.inst(inst_id).kind, InstKind::AbiDecode { .. });
-                if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind {
+                if let InstKind::ICall { function, .. } = func.inst(inst_id).kind {
                     internally_called.insert(function);
                 }
             }
@@ -279,7 +279,7 @@ impl LowerAbiCx {
         if !body_of_wrapper.is_empty() {
             for func in module.functions.iter_mut() {
                 func.for_each_instruction_mut(|_, inst| {
-                    if let InstKind::InternalCall { function, .. } = &mut inst.kind
+                    if let InstKind::ICall { function, .. } = &mut inst.kind
                         && let Some(&body_id) = body_of_wrapper.get(function)
                     {
                         *function = body_id;
@@ -422,7 +422,7 @@ impl LowerAbiCx {
                     };
                     if let Some(&helper) = decode_helpers.get(layout.as_ref()) {
                         let return_count = layout.types.len();
-                        let value = builder.internal_call(
+                        let value = builder.icall(
                             helper,
                             vec![data],
                             layout.types[0].mir_type(),
@@ -816,13 +816,13 @@ impl LowerAbiCx {
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
         if return_types.is_empty() {
-            builder.internal_call_void(body_id, args, 0);
+            builder.icall_void(body_id, args, 0);
             builder.ret([]);
         } else if return_types.len() == 1 {
-            let result = builder.internal_call(body_id, args, return_types[0], 1);
+            let result = builder.icall(body_id, args, return_types[0], 1);
             builder.ret([result]);
         } else {
-            let result = builder.internal_call(body_id, args, return_types[0], return_types.len());
+            let result = builder.icall(body_id, args, return_types[0], return_types.len());
             let mut values = Vec::with_capacity(return_types.len());
             values.push(result);
             let base = builder.frame_load(0, FrameMode::MultiReturn, FrameSlotKind::Word);
@@ -877,7 +877,7 @@ impl LowerAbiCx {
             let zero = builder.imm(0);
             let length = builder.calldatasize();
             let input = builder.make_slice(zero, length, SliceLocation::Calldata);
-            builder.internal_call_void(body_id, vec![input], 0);
+            builder.icall_void(body_id, vec![input], 0);
             builder.invalid();
         }
         *module.function_mut(fallback_id) = wrapper;
@@ -1074,7 +1074,7 @@ impl LowerAbiCx {
                             if location == AbiParamLocation::Memory
                                 && let Some(helper) = self.calldata_slice_helper
                             {
-                                builder.internal_call_void(helper, vec![head], 1);
+                                builder.icall_void(helper, vec![head], 1);
                             } else {
                                 Self::validate_dynamic_aggregate_argument(
                                     &mut builder,
@@ -1091,7 +1091,7 @@ impl LowerAbiCx {
                                 && matches!(arg_type, MirType::MemoryObject(_))
                                 && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                             {
-                                let value = builder.internal_call(helper, vec![head], arg_type, 1);
+                                let value = builder.icall(helper, vec![head], arg_type, 1);
                                 logical_values[index] = Some(value);
                             } else {
                                 let value = Self::decode_aggregate_argument(
@@ -1112,15 +1112,14 @@ impl LowerAbiCx {
                             && matches!(arg_type, MirType::MemoryObject(_))
                             && let Some(&helper) = self.aggregate_type_helpers.get(ty)
                         {
-                            builder.internal_call(helper, vec![head], arg_type, 1)
+                            builder.icall(helper, vec![head], arg_type, 1)
                         } else if !constructor
                             && decode_type == arg_type
                             && matches!(arg_type, MirType::Slice(SliceLocation::Calldata))
                             && matches!(ty, AbiParamType::Bytes)
                             && let Some(helper) = self.calldata_slice_helper
                         {
-                            let base =
-                                builder.internal_call(helper, vec![head], MirType::uint256(), 1);
+                            let base = builder.icall(helper, vec![head], MirType::uint256(), 1);
                             let len = builder.calldataload(base);
                             let data = builder.add_u64_offset(base, 32);
                             builder.make_slice(data, len, SliceLocation::Calldata)
@@ -1356,12 +1355,7 @@ impl LowerAbiCx {
             && head_checked
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
-            return builder.internal_call(
-                helper,
-                vec![head, tuple_base, input_end],
-                ty.mir_type(),
-                1,
-            );
+            return builder.icall(helper, vec![head, tuple_base, input_end], ty.mir_type(), 1);
         }
         if !constructor
             && matches!(ty, crate::mir::AbiParamType::Bytes)
@@ -2175,7 +2169,7 @@ impl LowerAbiCx {
         }
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
-            if matches!(inst.kind, InstKind::InternalCall { .. }) {
+            if matches!(inst.kind, InstKind::ICall { .. }) {
                 return false;
             }
             let tainted_operand = inst.operands().iter().any(|value| tainted.contains(*value));
@@ -2264,7 +2258,7 @@ impl LowerAbiCx {
                 InstKind::MappingSlotMemory(..) | InstKind::MappingSlotCalldata(..) => {
                     (true, false)
                 }
-                InstKind::InternalCall { function, args, .. }
+                InstKind::ICall { function, args, .. }
                     if args.iter().enumerate().any(|(index, value)| {
                         tainted.contains(*value)
                             && !matches!(
@@ -2277,7 +2271,7 @@ impl LowerAbiCx {
                 {
                     (true, false)
                 }
-                InstKind::InternalCall { .. } => (false, false),
+                InstKind::ICall { .. } => (false, false),
                 // A bytes memory value is commonly used as a raw pointer in inline assembly
                 // (`add(data, 0x20)`). Do not replace that pointer with a calldata slice. Keep
                 // the older propagation rule for other aggregate operations.
@@ -2432,7 +2426,7 @@ impl LowerAbiCx {
                 | InstKind::ExtCall { .. }
                 | InstKind::ExtDelegateCall { .. }
                 | InstKind::ExtStaticCall { .. } => return true,
-                InstKind::InternalCall { function, args, .. } => {
+                InstKind::ICall { function, args, .. } => {
                     let callee_params = self.function_params.get(*function);
                     let preserves_calldata = args.iter().enumerate().all(|(index, value)| {
                         !tainted.contains(*value)
@@ -2743,8 +2737,7 @@ fn find_canonical_return_calls(
             for (&value, ty) in values.iter().zip(&layout.types) {
                 if cleanup_helpers.contains_key(ty)
                     && let Value::Inst(inst) = func.value(value)
-                    && let InstKind::InternalCall { function, returns: 1, .. } =
-                        func.inst(*inst).kind
+                    && let InstKind::ICall { function, returns: 1, .. } = func.inst(*inst).kind
                     && func.value_ty(value) == Some(ty.mir_type())
                 {
                     candidates.insert((function, ty.clone()));
@@ -2864,7 +2857,7 @@ fn is_canonical_return_value_inner(
     }
     if calls.module.is_some()
         && let Value::Inst(inst) = func.value(value)
-        && let InstKind::InternalCall { function, returns: 1, .. } = func.inst(*inst).kind
+        && let InstKind::ICall { function, returns: 1, .. } = func.inst(*inst).kind
         && func.value_ty(value) == Some(ty.mir_type())
         && (ty.is_scalar_word() || is_unmodified_call_result(func, value, *inst))
     {
@@ -2965,7 +2958,7 @@ fn is_canonical_return_call(
     canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
 ) -> bool {
     let Value::Inst(inst) = func.value(value) else { return false };
-    let InstKind::InternalCall { function, returns: 1, .. } = func.inst(*inst).kind else {
+    let InstKind::ICall { function, returns: 1, .. } = func.inst(*inst).kind else {
         return false;
     };
     func.blocks[block].instructions.last() == Some(inst)
@@ -3673,7 +3666,7 @@ fn encode_live_returns(
                     ) {
                         value
                     } else {
-                        builder.internal_call(helper, vec![value], ty.mir_type(), 1)
+                        builder.icall(helper, vec![value], ty.mir_type(), 1)
                     }
                 } else {
                     canonicalize_return_value(

@@ -19,16 +19,16 @@ fn @leaf_b(arg0: u256) -> u256 {
 // CHECK-LABEL: fn @wrap_a(arg0: u256) -> u256
 fn @wrap_a(arg0: u256) -> u256 {
   bb0:
-    v0 = internal_call fn0, 1, arg0
+    v0 = icall fn0, 1, arg0
     ret v0
 }
 
 // Merging the leaves exposes these wrappers as equivalent on the next wave.
 // CHECK-LABEL: fn @wrap_b(arg0: u256) -> u256
-// CHECK: {{^\+.*}}internal_call @leaf_a, 1, arg0
+// CHECK: {{^\+.*}}icall @leaf_a, 1, arg0
 fn @wrap_b(arg0: u256) -> u256 {
   bb0:
-    v0 = internal_call fn1, 1, arg0
+    v0 = icall fn1, 1, arg0
     ret v0
 }
 
@@ -41,14 +41,14 @@ fn @different(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @entry() -> u256
-// CHECK: internal_call @wrap_a, 1, 1
-// CHECK: internal_call @wrap_a, 1, 2
-// CHECK: internal_call @different, 1, 3
+// CHECK: icall @wrap_a, 1, 1
+// CHECK: icall @wrap_a, 1, 2
+// CHECK: icall @different, 1, 3
 fn @entry() -> u256 [selector=0x01020304] {
   bb0:
-    v0 = internal_call fn2, 1, 1
-    v1 = internal_call fn3, 1, 2
-    v2 = internal_call fn4, 1, 3
+    v0 = icall fn2, 1, 1
+    v1 = icall fn3, 1, 2
+    v2 = icall fn4, 1, 3
     v3 = add v0, v1
     v4 = add v3, v2
     ret v4
@@ -60,30 +60,30 @@ fn @recursive_a(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    v0 = internal_call fn6, 1, false, arg1
+    v0 = icall fn6, 1, false, arg1
     ret v0
   bb2:
     ret arg1
 }
 
 // CHECK-LABEL: fn @recursive_b(arg0: bool, arg1: u256) -> u256
-// CHECK: {{^\+.*}}internal_call @recursive_a, 1, 0, arg1
+// CHECK: {{^\+.*}}icall @recursive_a, 1, 0, arg1
 fn @recursive_b(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    v0 = internal_call fn7, 1, false, arg1
+    v0 = icall fn7, 1, false, arg1
     ret v0
   bb2:
     ret arg1
 }
 
 // CHECK-LABEL: fn @recursive_entry()
-// CHECK: internal_call @recursive_a, 1, 1, 1
-// CHECK: {{^\+.*}}internal_call @recursive_a, 1, 1, 2
+// CHECK: icall @recursive_a, 1, 1, 1
+// CHECK: {{^\+.*}}icall @recursive_a, 1, 1, 2
 fn @recursive_entry() [selector=0x01020306] {
   bb0:
-    v0 = internal_call fn6, 1, true, 1
-    v1 = internal_call fn7, 1, true, 2
+    v0 = icall fn6, 1, true, 1
+    v1 = icall fn7, 1, true, 2
     stop
 }

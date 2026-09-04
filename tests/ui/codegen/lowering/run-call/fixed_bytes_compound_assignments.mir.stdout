@@ -39,7 +39,7 @@ fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns
     v1 = and 98, v0
     v2 = alloc memorybytes, exact, zeroed, panic, v1
     set_memory_object_len memorybytes, v2, 35
-    internal_call @store_storage_bytes, 0, 0, v2
+    icall @store_storage_bytes, 0, 0, v2
     v3 = shl 248, 1
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = and v4, 1
@@ -83,7 +83,7 @@ fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns
   bb12:
     v30 = byte 0, v3
     memory_object_store_byte memorybytes, v18, 31, v30
-    internal_call @store_storage_bytes, 0, 0, v18
+    icall @store_storage_bytes, 0, 0, v18
     v31 = sload 0 !metadata(storage=slot(0))
     v32 = and v31, 1
     v33 = eq v32, 1
@@ -130,7 +130,7 @@ fn @storageBoundary() -> bytes1 [selector=0x90f7c243, abi_params=[], abi_returns
     v60 = and v59, 0xff00000000000000000000000000000000000000000000000000000000000000
     v61 = byte 0, v60
     memory_object_store_byte memorybytes, v45, 31, v61
-    internal_call @store_storage_bytes, 0, 0, v45
+    icall @store_storage_bytes, 0, 0, v45
     v62 = sload 0 !metadata(storage=slot(0))
     v63 = and v62, 1
     v64 = eq v63, 1
@@ -254,7 +254,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

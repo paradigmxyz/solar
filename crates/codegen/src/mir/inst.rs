@@ -238,7 +238,7 @@ impl MetadataFlags {
             7 => Some(EffectKind::TransientWrite),
             8 => Some(EffectKind::EnvironmentRead),
             9 => Some(EffectKind::ExternalCall),
-            10 => Some(EffectKind::InternalCall),
+            10 => Some(EffectKind::ICall),
             11 => Some(EffectKind::Create),
             12 => Some(EffectKind::Log),
             13 => Some(EffectKind::ImmutableRead),
@@ -259,7 +259,7 @@ impl MetadataFlags {
             Some(EffectKind::TransientWrite) => 7,
             Some(EffectKind::EnvironmentRead) => 8,
             Some(EffectKind::ExternalCall) => 9,
-            Some(EffectKind::InternalCall) => 10,
+            Some(EffectKind::ICall) => 10,
             Some(EffectKind::Create) => 11,
             Some(EffectKind::Log) => 12,
             Some(EffectKind::ImmutableRead) => 13,
@@ -420,7 +420,7 @@ pub(crate) enum EffectKind {
     /// External call.
     ExternalCall,
     /// Internal MIR call.
-    InternalCall,
+    ICall,
     /// Contract creation.
     Create,
     /// Event emission.
@@ -445,7 +445,7 @@ impl EffectKind {
             Self::TransientWrite => "transient_write",
             Self::EnvironmentRead => "environment_read",
             Self::ExternalCall => "external_call",
-            Self::InternalCall => "internal_call",
+            Self::ICall => "icall",
             Self::Create => "create",
             Self::Log => "log",
             Self::ImmutableRead => "immutable_read",
@@ -1089,7 +1089,7 @@ pub(crate) enum InstKind {
     /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
     ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
     /// Internal function call lowered to a direct jump.
-    InternalCall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
+    ICall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
@@ -1373,7 +1373,7 @@ impl InstKind {
                 out.push(*args_offset);
                 out.push(*args_size);
             }
-            Self::InternalCall { args, .. } => {
+            Self::ICall { args, .. } => {
                 out.extend(args.iter().copied());
             }
 
@@ -1640,7 +1640,7 @@ impl InstKind {
                 f(args_offset);
                 f(args_size);
             }
-            Self::InternalCall { args, .. } => {
+            Self::ICall { args, .. } => {
                 for arg in args {
                     f(arg);
                 }
@@ -1801,7 +1801,7 @@ impl InstKind {
             Self::ExtCall { .. } => "extcall",
             Self::ExtDelegateCall { .. } => "extdelegatecall",
             Self::ExtStaticCall { .. } => "extstaticcall",
-            Self::InternalCall { .. } => "internal_call",
+            Self::ICall { .. } => "icall",
             Self::Create(_, _, _) => "create",
             Self::Create2(_, _, _, _) => "create2",
             Self::Log0(_, _) => "log0",
@@ -1853,7 +1853,7 @@ impl InstKind {
             | Self::ExtCall { .. }
             | Self::ExtDelegateCall { .. }
             | Self::ExtStaticCall { .. }
-            | Self::InternalCall { .. }
+            | Self::ICall { .. }
             // Contract creation
             | Self::Create(_, _, _)
             | Self::Create2(_, _, _, _)
@@ -1955,7 +1955,7 @@ impl InstKind {
             | Self::ExtCall { .. }
             | Self::ExtDelegateCall { .. }
             | Self::ExtStaticCall { .. } => EffectKind::ExternalCall,
-            Self::InternalCall { .. } => EffectKind::InternalCall,
+            Self::ICall { .. } => EffectKind::ICall,
             Self::Create(_, _, _) | Self::Create2(_, _, _, _) => EffectKind::Create,
             Self::Log0(_, _)
             | Self::Log1(_, _, _)

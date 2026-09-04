@@ -5,7 +5,7 @@
 // exist. The evm-shaped phase rewrites it into a `tail_call` — arguments
 // included — and drops the dead remainder of the block. The rewrite only
 // applies to callees the backend statically frames: `@spin` cannot return
-// either, but it is recursive, so its call stays an ordinary `internal_call`.
+// either, but it is recursive, so its call stays an ordinary `icall`.
 // `@entry` is present so the module satisfies the memory-lowered phase contract.
 @module LowerEvmShaped
 @phase memory-lowered
@@ -20,12 +20,12 @@ fn @entry() [entry] {
     revert 0, 0
 }
 // CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
-// CHECK: - internal_call @fused
+// CHECK: - icall @fused
 // CHECK: + tail_call @fused, {{v[0-9]+}}
 fn @caller() [selector=0x00000007] {
   bb0:
     v0 = calldataload 4
-    internal_call fn2, 0, v0
+    icall fn2, 0, v0
     stop
 }
 fn @fused(arg0: u256) {
@@ -36,10 +36,10 @@ fn @fused(arg0: u256) {
     stop
 }
 // CHECK-LABEL: {{^[ +].*}}fn @spin{{[( ]}}
-// CHECK: {{^[ +].*}}internal_call @spin
+// CHECK: {{^[ +].*}}icall @spin
 fn @spin(arg0: u256) {
   bb0:
-    internal_call fn3, 0, arg0
+    icall fn3, 0, arg0
     revert 0, 0
 }
 

@@ -13,7 +13,7 @@ fn @setFlag() {
 
 fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    internal_call @internal_dispatcher_p_none_r_none, 0, 1
+    icall @internal_dispatcher_p_none_r_none, 0, 1
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 255
     ret v1
@@ -28,6 +28,6 @@ fn @internal_dispatcher_p_none_r_none(arg0: function) [function_pointer_dispatch
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    internal_call @setFlag, 0
+    icall @setFlag, 0
     ret
 }

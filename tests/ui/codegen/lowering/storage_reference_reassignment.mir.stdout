@@ -11,7 +11,7 @@ fn @bindAfterDeclaration(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x605
     v3 = add v0, 1
     sstore v3, v1 !metadata(storage=offset(v0, 1))
     v4 = sload v0 !metadata(storage=symbolic(v0))
-    v5 = internal_call @readB, 1, v0
+    v5 = icall @readB, 1, v0
     ret v4, v5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -41,7 +41,7 @@ fn @rebind(arg0: bool, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [sele
 fn @rebindParameter(arg0: u256, arg1: u256, arg2: u256) -> (u256, u256) [selector=0xe4706ccb, abi_params=[u256, u256, u256], abi_returns=[word, word]] {
   bb0:
     v0 = mapping_slot arg0, 0
-    internal_call @rebindParameterInner, 0, v0, arg1, arg2
+    icall @rebindParameterInner, 0, v0, arg1, arg2
     v1 = mapping_slot arg0, 0
     v2 = sload v1 !metadata(storage=symbolic(v1))
     v3 = mapping_slot arg1, 0

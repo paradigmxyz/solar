@@ -300,7 +300,7 @@ impl StorageScalarPromoter {
                     | InstKind::ExtCall { .. }
                     | InstKind::ExtDelegateCall { .. }
                     | InstKind::ExtStaticCall { .. }
-                    | InstKind::InternalCall { .. }
+                    | InstKind::ICall { .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _)
                     | InstKind::Gas
@@ -348,7 +348,7 @@ impl StorageScalarPromoter {
                     | InstKind::ExtCall { .. }
                     | InstKind::ExtDelegateCall { .. }
                     | InstKind::ExtStaticCall { .. }
-                    | InstKind::InternalCall { .. }
+                    | InstKind::ICall { .. }
                     | InstKind::Create(_, _, _)
                     | InstKind::Create2(_, _, _, _)
                     | InstKind::Gas => return false,

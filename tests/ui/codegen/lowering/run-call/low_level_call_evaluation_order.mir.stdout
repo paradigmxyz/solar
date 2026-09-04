@@ -104,11 +104,11 @@ fn @receive() [receive, payable] {
 
 fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @receiver, 1
+    v0 = icall @receiver, 1
     v1 = gas
-    v2 = internal_call @gasOpt, 1
-    v3 = internal_call @valueOpt, 1
-    v4 = internal_call @data, 1
+    v2 = icall @gasOpt, 1
+    v3 = icall @valueOpt, 1
+    v4 = icall @data, 1
     v5 = memory_object_data memorybytes, v4
     v6 = memory_object_len memorybytes, v4
     v7 = call v2, v0, v3, v5, v6, 0, 0

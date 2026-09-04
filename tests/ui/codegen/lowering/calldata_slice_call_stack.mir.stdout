@@ -72,7 +72,7 @@ fn @execute(arg0: address, arg1: address, arg2: u256, arg3: calldataslice) [sele
   bb10:
     revert_returndata
   bb11:
-    v40 = internal_call @getFee, 1, arg1, arg2
+    v40 = icall @getFee, 1, arg1, arg2
     v41 = add v12, v40
     v42 = lt v41, v12
     jumpi v42, bb12, bb13

@@ -7,27 +7,27 @@ contract StorageBytesFromCalldata {
 
     // CHECK-LABEL: fn @setText{{[( ]}}
     // CHECK: memory_object_copy_from_slice memorybytes, [[TEXT:v[0-9]+]], arg0
-    // CHECK: internal_call @store_storage_bytes, 0, 0, [[TEXT]]
+    // CHECK: icall @store_storage_bytes, 0, 0, [[TEXT]]
     function setText(string calldata value) external {
         text = value;
     }
 
     // CHECK-LABEL: fn @setBlob{{[( ]}}
     // CHECK: memory_object_copy_from_slice memorybytes, [[BLOB:v[0-9]+]], arg0
-    // CHECK: internal_call @store_storage_bytes, 0, 1, [[BLOB]]
+    // CHECK: icall @store_storage_bytes, 0, 1, [[BLOB]]
     function setBlob(bytes calldata value) external {
         blob = value;
     }
 
     // CHECK-LABEL: fn @getText{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 0
+    // CHECK: {{v[0-9]+}} = icall @load_storage_bytes{{.*}}, 1, 0
     // CHECK: ret
     function getText() external view returns (string memory) {
         return text;
     }
 
     // CHECK-LABEL: fn @getBlob{{[( ]}}
-    // CHECK: {{v[0-9]+}} = internal_call @load_storage_bytes{{.*}}, 1, 1
+    // CHECK: {{v[0-9]+}} = icall @load_storage_bytes{{.*}}, 1, 1
     // CHECK: ret
     function getBlob() external view returns (bytes memory) {
         return blob;

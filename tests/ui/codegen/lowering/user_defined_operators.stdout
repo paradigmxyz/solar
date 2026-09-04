@@ -7,7 +7,7 @@ fn @doAdd() [selector=0xe9148a2a, pure] {
     v2 = lt v1, 68
     jumpi v2, bb1, bb2
   bb2:
-    v0 = internal_call @add, 1, arg0, arg1
+    v0 = icall @add, 1, arg0, arg1
     mstore 128, v0
     returndata 128, 32
   bb1:
@@ -20,7 +20,7 @@ fn @doNeg() [selector=0x8fa81b4e, pure] {
     v2 = lt v1, 36
     jumpi v2, bb1, bb2
   bb2:
-    v0 = internal_call @neg, 1, arg0
+    v0 = icall @neg, 1, arg0
     mstore 128, v0
     returndata 128, 32
   bb1:
