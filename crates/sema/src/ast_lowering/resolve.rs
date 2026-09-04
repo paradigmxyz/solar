@@ -397,14 +397,16 @@ impl<'gcx> ResolveContext<'gcx> {
                                     self.hir.contract(c).linearized_bases[1..].contains(&base)
                                 }) => {}
                         hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {
+                            // A modifier on a free function is reported by
+                            // `ast_passes::AstValidator`, so solc only looks at the modifier's
+                            // contract for a function that is in one.
+                            let Some(current) = func.contract else { continue };
                             let modifier_contract = self.hir.function(f).contract;
-                            let allowed = func.contract.is_some_and(|current| {
-                                modifier_contract.is_some_and(|modifier_contract| {
-                                    self.hir
-                                        .contract(current)
-                                        .linearized_bases
-                                        .contains(&modifier_contract)
-                                })
+                            let allowed = modifier_contract.is_some_and(|modifier_contract| {
+                                self.hir
+                                    .contract(current)
+                                    .linearized_bases
+                                    .contains(&modifier_contract)
                             });
                             if !allowed {
                                 self.dcx().emit_err(modifier.name.span(), "can only use modifiers defined in the current contract or in base contracts");

@@ -22,11 +22,17 @@ error[6408]: modifiers cannot be defined or declared in interfaces
 LL │     modifier muv virtual;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━
 
+error[8063]: modifiers without implementation must be marked `virtual`
+   ╭▸ ROOT/tests/ui/typeck/interface_modifiers.sol:LL:CC
+   │
+LL │     modifier mu;
+   ╰╴    ━━━━━━━━━━━━
+
 error[6408]: modifiers cannot be defined or declared in interfaces
    ╭▸ ROOT/tests/ui/typeck/interface_modifiers.sol:LL:CC
    │
 LL │     modifier m() virtual { _; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 5 previous errors
+error: aborting due to 6 previous errors
 

@@ -335,11 +335,30 @@ fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool 
     key(a) == key(b)
 }
 
+/// Checks that every declaration without a body is allowed to have none.
+///
+/// References:
+/// - functions: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L448-L460>
+/// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
+/// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L300-L301>
 fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
 
     for f_id in contract.functions() {
         let f = gcx.hir.function(f_id);
+
+        // Modifiers are not functions in solc, so they get their own error instead of the
+        // function ones below, and they are never implicitly `virtual` in an interface.
+        if f.kind.is_modifier() {
+            if f.body.is_none() && !f.marked_virtual {
+                gcx.dcx()
+                    .err("modifiers without implementation must be marked `virtual`")
+                    .code(error_code!(8063))
+                    .span(f.span)
+                    .emit();
+            }
+            continue;
+        }
 
         // In an interface, solc's `virtual` chain stops at the implicitly-`virtual` warning
         // reported by `check_interface_members`.
