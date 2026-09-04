@@ -5,8 +5,12 @@
 //! continuation. The pass recognizes both `PUSH0; PUSH0; REVERT` and the legacy `PUSH0; DUP1;
 //! REVERT` spelling. It preserves the original layout when moving a frequently referenced shared
 //! revert could widen its target push and lose more bytes than the removed jump saves.
+//!
+//! Inverting the branch can need an extra `ISZERO` before the branch target, which runs between
+//! the condition and the jump. That boundary must be one `keep_with_next` allows to be disturbed,
+//! so a sequence whose intervening gas is observable is left alone.
 
-use super::EvmPass;
+use super::{EvmPass, utils::is_split_point};
 use crate::backend::evm::{
     ir::{BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
     op,
@@ -50,24 +54,34 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         if !empty_reverts.contains(revert) {
             continue;
         }
-        let [.., target, jumpi] = block.instructions.as_mut_slice() else { continue };
-        if jumpi.opcode != op::JUMPI || jumpi.is_encoded_push() {
+        let [.., target, jumpi] = block.instructions.as_slice() else { continue };
+        let Some(PushValue::Block(continuation)) = target.value else { continue };
+        if jumpi.opcode != op::JUMPI
+            || jumpi.is_encoded_push()
+            || !target.is_encoded_push()
+            || revert.index() != block_id.index() + 1
+            || continuation.index() != revert.index() + 1
+        {
             continue;
         }
-        let continuation = match &target.value {
-            Some(PushValue::Block(continuation)) => *continuation,
-            _ => continue,
-        };
-        if !target.is_encoded_push() {
-            continue;
-        }
-        if revert.index() != block_id.index() + 1 || continuation.index() != revert.index() + 1 {
-            continue;
-        }
-        *target = Instruction::push_block(shared);
-        block.terminator = Some(Terminator::new(TerminatorKind::Jump(continuation)));
+        // Inverting the branch drops an `ISZERO`, retargets an `EQ`, or inserts an `ISZERO`
+        // before the branch target. Dropping and inserting change what runs at that boundary, so
+        // both need a boundary `keep_with_next` allows to be disturbed.
         let condition_end = block.instructions.len() - 2;
-        match block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode) {
+        let condition =
+            block.instructions.get(condition_end.wrapping_sub(1)).map(|inst| inst.opcode);
+        let boundary =
+            if condition == Some(op::ISZERO) { condition_end - 1 } else { condition_end };
+        if condition != Some(op::EQ) && !is_split_point(&block.instructions, boundary) {
+            continue;
+        }
+        // <condition>
+        // iszero
+        // push <shared>
+        // jump <continuation>
+        block.instructions[condition_end] = Instruction::push_block(shared);
+        block.terminator = Some(Terminator::new(TerminatorKind::Jump(continuation)));
+        match condition {
             Some(op::ISZERO) => {
                 block.instructions.remove(condition_end - 1);
             }

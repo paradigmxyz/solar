@@ -9,11 +9,13 @@
 //!
 //! Address-taken blocks remain distinct, and block merging requires one reference so changing a
 //! predecessor cannot affect another edge. The pass preserves the condition's stack effect with a
-//! `POP`; later dead-code elimination may remove the pure condition computation.
+//! `POP`; later dead-code elimination may remove the pure condition computation. Replacing the
+//! physical form's `PUSH target; JUMPI` with that `POP` changes what runs after the condition, so
+//! it only applies where `keep_with_next` allows that boundary to be disturbed.
 
 use super::{
     EvmPass,
-    utils::{remap_block_order, retain_blocks},
+    utils::{is_split_point, remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind},
@@ -134,6 +136,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && pushed.value == Some(PushValue::Block(*target))
             && jumpi.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
+            && is_split_point(&block.instructions, block.instructions.len() - 2)
         {
             block.instructions.truncate(block.instructions.len() - 2);
             block

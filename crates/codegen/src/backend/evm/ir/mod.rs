@@ -459,7 +459,8 @@ impl Instruction {
         self.stack_op.is_some()
     }
 
-    /// Returns whether the boundary after this instruction may become a block boundary.
+    /// Returns whether this instruction must stay immediately before the next one in its block,
+    /// so the boundary after it may not be disturbed.
     ///
     /// See [`Metadata::keep_with_next`].
     #[must_use]
@@ -613,10 +614,16 @@ pub(crate) struct Metadata {
     pub(crate) stack: Option<StackEffect>,
     /// Whether this instruction must stay immediately before the next instruction of its block.
     ///
-    /// Only meaningful on instructions. It forbids every transform from turning the boundary
+    /// Only meaningful on instructions. It forbids every transform both from turning the boundary
     /// after this instruction into a block boundary, so no jump, label, or block-layout decision
-    /// can come between the two. Lowering sets it where the gas consumed between two
-    /// instructions is observable, such as a pre-EIP-150 call's `GAS`-relative gas reserve.
+    /// can come between the two, and from inserting an instruction there. Lowering sets it where
+    /// the gas consumed between two instructions is observable, such as a pre-EIP-150 call's
+    /// `GAS`-relative gas reserve.
+    ///
+    /// The flag records only that the pair is glued, not what it is glued to, so verification can
+    /// reject a block that ends with a flagged instruction but cannot tell that a transform swapped
+    /// the successor for another instruction. Transforms therefore check the boundary themselves,
+    /// through `is_split_point`.
     pub(crate) keep_with_next: bool,
 }
 
