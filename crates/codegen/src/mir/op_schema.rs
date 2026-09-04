@@ -1456,7 +1456,7 @@ mod tests {
         assert!(!add.has_side_effects());
 
         let calldata_size = InstKind::CalldataSize;
-        assert!(calldata_size.is_always_rematerializable());
+        assert!(calldata_size.op_def().traits.contains(OpTraits::REMATERIALIZABLE));
         assert!(calldata_size.op_def().phases.contains(MirPhase::EvmShaped));
 
         assert_eq!(add.op_def().result.default_type(), Some(MirType::uint256()));
