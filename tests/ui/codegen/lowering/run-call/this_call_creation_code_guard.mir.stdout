@@ -232,6 +232,141 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     revert 0, 36
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationInitializer ===
+@module CreationInitializer
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @x() -> u256 [selector=0x0c55699c, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @init() -> u256 {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    ret 3
+  bb1:
+    revert 0, 0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = internal_call @init, 1
+    sstore 1, v0 !metadata(storage=slot(1))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationTry ===
+@module CreationTry
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb3, bb4
+  bb4:
+    v8 = returndatasize
+    v9 = add v8, 63
+    v10 = lt v9, v8
+    jumpi v10, bb6, bb7
+  bb7:
+    v11 = not 31
+    v12 = and v9, v11
+    v13 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v13, v8
+    v14 = make_returndata_slice 0, v8
+    memory_object_copy_from_slice memorybytes, v13, v14
+    v15 = memory_object_data memorybytes, v13
+    v16 = memory_object_len memorybytes, v13
+    v17 = make_memory_slice v15, v16
+    v18 = memory_slice_load_word memory, v17, 0
+    v19 = lt v16, 4
+    v20 = iszero v19
+    v21 = shr 224, v18
+    v22 = eq v21, 0x8c379a0
+    v23 = and v20, v22
+    v24 = lt v16, 36
+    v25 = iszero v24
+    v26 = eq v21, 0x4e487b71
+    v27 = and v25, v26
+    jumpi 1, bb8, bb9
+  bb9:
+    revert v15, v16
+  bb8:
+    jump bb5
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    jump bb5
+  bb5:
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Runtime ===
 @module Runtime
 fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
@@ -277,12 +412,78 @@ fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
     revert 0, 36
 }
 
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:SharedHelper ===
+@module SharedHelper
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor(arg0: bool) [constructor, abi_params=[bool]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    internal_call @helper, 0
+    jump bb3
+  bb3:
+    stop
+}
+
+fn @helper() {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
+  bb0:
+    internal_call @helper, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 // === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Deployer ===
 @module Deployer
 data:
   CreationHelper_initcode_0: hex"60c06040526097565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051604001523b1515606e575f5ffd5b8160a051606001528060a051608001525f5f6004835f3087f19150506095573d5f5f3e3d5ffd5b565b3460ca5760405160a05181602001528060a05260a00160405260b66008565b60a05160405260a0516020015160a05260ce565b5f5ffd5b608d8060d85f395ff3346028575f3560e01c80635fb11492146020578063d99aa8e2146024576028565b603e565b602c565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050156083577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
   CreationDirect_initcode_1: hex"610120604052346081575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b1515605d575f5ffd5b8160e05280610100525f5f6004835f3087f1915050607d573d5f5f3e3d5ffd5b6085565b5f5ffd5b608d80608f5f395ff3346028575f3560e01c80635fb11492146020578063d99aa8e2146024576028565b603e565b602c565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050156083577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
   CreationModifier_initcode_2: hex"610120604052346089575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b15156065576061565b608d565b5f5ffd5b8160e05280610100525f5f6004835f3087f19150506085573d5f5f3e3d5ffd5b605d565b5f5ffd5b608d8060975f395ff3346028575f3560e01c80635fb11492146020578063d99aa8e2146024576028565b603e565b602c565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050156083577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
+  CreationInitializer_initcode_3: hex"60e060405260a0565b5a8060a051608001528060a051608001526040518060a05160a001528060a05160a00152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051606001523b1515606e575f5ffd5b8160a051608001528060a05160a001525f5f6004835f3087f19150506095573d5f5f3e3d5ffd5b600360a05160400152565b3460e95760405160a05181602001528060a05260c00160405260bf6008565b60a051604001518060c05260a05160405260a0516020015160a0528060c0528060c05260015560ed565b5f5ffd5b60ae8060f75f395ff3346036575f3560e01c80630c55699c14602a5780635fb1149214602e578063d99aa8e2146032576036565b604c565b605f565b603a565b5f5ffd5b5f546080526020608001608090036080f35b6001546080526020608001608090036080f35b5f546001810180608052806080528181109150501560a4577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
+  CreationTry_initcode_4: hex"6101c06040523461016b575a8060e0528060e05260405180610180528061018052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b1515605e575f5ffd5b8160e05280610180525f5f6004835f3087f191505015607b5760a4565b3d80610100528061010052603f81018061012052806101205281806101005281101560d65760a9565b61016f565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b601f1981169050604051806101a05281810191508160405290508180610100528152602081018280610100525f823e509050602081018061014052806101405281806101a0525180610160529150816101605280610140525160048210158160e01c91506308c379a08214811650506024821015634e487b71821491501650506001156101615760a4565b6101605161014051fd5b5f5ffd5b608d8061017a5f395ff3346028575f3560e01c80635fb11492146020578063d99aa8e2146024576028565b603e565b602c565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050156083577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
+  SharedHelper_initcode_5: hex"61028338038061028360e03960e001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c9565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051604001523b151560a0575f5ffd5b8160a051606001528060a051608001525f5f6004835f3087f191505060c7573d5f5f3e3d5ffd5b565b346101445760e08060c0528060c05260e06102833803016020820111156101325761012e565b60e051156101285760405160a05181602001528060a05260a001604052610113603a565b60a05160405260a0516020015160a052610129565b5b610148565b5f5ffd5b8060c05251600290101561012e5760ef565b5f5ffd5b61012f806101545f395ff3346036575f3560e01c80635fb1149214602a5780639c6f4ff514602e578063d99aa8e2146032576036565b606a565b604c565b603a565b5f5ffd5b5f546080526020608001608090036080f35b610100604052605860ba565b5f546080526020608001608090036080f35b5f546001810180608052806080528181109150501560af577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55005b5a8060c0528060c0526040518060e0528060e052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a0523b151561010d575f5ffd5b8160c0528060e0525f5f6004835f3087f191505061012d573d5f5f3e3d5ffd5b56"
 
 fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[]] {
   bb0:
@@ -350,6 +551,62 @@ fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[]] {
     mcopy v5, v4, 0 !metadata(memory=heap)
     v6 = create 0, v3, 292
     jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+fn @viaInitializer() [selector=0x7c61d018, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 452, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CreationInitializer_initcode_3, v3, 421
+    v4 = slice_ptr v0
+    v5 = add v3, 421
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 421
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 550, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CreationTry_initcode_4, v3, 519
+    v4 = slice_ptr v0
+    v5 = add v3, 519
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 519
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = eq 1, 0
+    v1 = iszero v0
+    v2 = abi_encode [word<bool>], args v1
+    v3 = not 31
+    v4 = and 706, v3
+    v5 = alloc raw, exact, uninitialized, infallible, v4
+    data_copy SharedHelper_initcode_5, v5, 643
+    v6 = slice_ptr v2
+    v7 = add v5, 643
+    mcopy v7, v6, 32 !metadata(memory=heap)
+    v8 = create 0, v5, 675
+    jumpi v8, bb2, bb1
   bb1:
     revert_returndata
   bb2:
