@@ -382,12 +382,18 @@ fn @helper() {
     v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
     v3 = slice_ptr v2
     v4 = slice_len v2
-    v5 = call v1, v0, 0, v3, v4, 0, 0
-    jumpi v5, bb2, bb1
-  bb1:
-    revert_returndata
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
   bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
     stop
+  bb1:
+    revert 0, 0
 }
 
 fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {

@@ -441,16 +441,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 (zero, self.builder.imm(0))
             };
-            let check_code = match target.callee {
-                TryCallee::Member { receiver, .. } => {
-                    self.needs_receiver_code_check(receiver, return_types.len())
-                }
-                TryCallee::LinkedLibrary { .. } | TryCallee::FunctionPointer { .. } => {
-                    self.needs_code_check(return_types.len())
-                }
-                TryCallee::Creation { .. } => unreachable!(),
-            };
-            if check_code {
+            if self.needs_code_check(return_types.len()) {
                 self.revert_if_no_code(address);
             }
             // The code check above is emitted at every version that needs the reserve, so the

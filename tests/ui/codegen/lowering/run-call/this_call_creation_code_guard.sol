@@ -10,11 +10,11 @@
 //@ run-call: Runtime::viaHelper => 1
 //@ run-call: SharedHelper::viaHelper; constructor=[false] => 1
 
-// A `this.f()` call in creation code has to keep the `extcodesize` guard: the contract's code is
-// only stored once the constructor returns, so the call would otherwise silently do nothing.
-// Every function copied into the creation object keeps the guard, not just the constructor.
-// A function the runtime object shares with the creation object has one body, so it keeps the
-// guard in both copies; the runtime call still succeeds because the code exists by then.
+// A `this.f()` call keeps the `extcodesize` guard wherever solc emits one, so creation code is
+// guarded too: the contract's code is only stored once the constructor returns, and the call
+// would otherwise silently do nothing. A function the runtime object shares with the creation
+// object has one body, so it keeps the guard in both copies; the runtime call still succeeds
+// because the code exists by then.
 
 // CHECK-LABEL: @module CreationHelper
 // CHECK-LABEL: fn @helper
@@ -128,10 +128,12 @@ contract CreationTry {
     }
 }
 
-// The same helper in runtime code needs no guard: the running code is the contract's own.
+// The same helper in runtime code is guarded as well: the running code is the contract's own only
+// until a `DELEGATECALL` frame separates it from `address(this)`, which is what
+// `this_call_delegated_guard.sol` covers. The call passes here because the code exists.
 // CHECK-LABEL: @module Runtime
 // CHECK-LABEL: fn @helper
-// CHECK-NOT: extcodesize
+// CHECK: extcodesize
 // CHECK: call
 // CHECK-LABEL: fn @viaHelper
 contract Runtime {
@@ -152,7 +154,7 @@ contract Runtime {
 }
 
 // One helper reached from both objects: its single body keeps the guard, which the constructor
-// only reaches when its argument asks for it and the runtime call passes.
+// only reaches when its argument asks for it, and the runtime call passes.
 // CHECK-LABEL: @module SharedHelper
 // CHECK-LABEL: fn @helper
 // CHECK: extcodesize

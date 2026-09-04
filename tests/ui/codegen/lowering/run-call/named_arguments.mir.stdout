@@ -258,13 +258,19 @@ fn @externalNamed() -> u256 [selector=0x1747fe5f, abi_params=[], abi_returns=[wo
     v4 = abi_encode [word, word], selector 0xba2f355f00000000000000000000000000000000000000000000000000000000, args v3, v2
     v5 = slice_ptr v4
     v6 = slice_len v4
-    v7 = staticcall v1, v0, v5, v6, 0, 0
-    jumpi v7, bb2, bb1
-  bb1:
-    revert_returndata
+    v7 = extcodesize v0
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
   bb2:
-    v8 = sload 0 !metadata(storage=slot(0))
-    ret v8
+    v9 = staticcall v1, v0, v5, v6, 0, 0
+    jumpi v9, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v10 = sload 0 !metadata(storage=slot(0))
+    ret v10
+  bb1:
+    revert 0, 0
 }
 
 fn @receivePair(arg0: u256, arg1: u256) [selector=0xba2f355f, pure, abi_params=[u256, u256], abi_returns=[]] {

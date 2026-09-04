@@ -54,25 +54,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ///
     /// A call that expects return data needs no check from Byzantium on: a code-less callee
     /// returns nothing, so the return-data length check reverts anyway. Before Byzantium there is
-    /// no `RETURNDATASIZE` and nothing subsumes the check, so every call needs it.
+    /// no `RETURNDATASIZE` and nothing subsumes the check, so every call needs it. This is solc's
+    /// rule, `encodedHeadSize == 0 || !supportsReturndata()`, and it holds for every receiver:
+    /// `this` is no exception, because the executing code and `address(this)` come apart under
+    /// `DELEGATECALL`, where the account may well have no code of its own.
     pub(super) fn needs_code_check(&self, returns: usize) -> bool {
         returns == 0 || !self.cx.gcx.sess.opts.evm_version.supports_returndata()
-    }
-
-    /// Returns `true` if a call to `receiver` expecting `returns` return values must check that
-    /// the callee has code.
-    ///
-    /// A call on `this` needs no check in the runtime object: the contract's own code is running,
-    /// so it exists. The creation object has no such guarantee, because the code is only stored
-    /// once the constructor returns, so every function copied into it keeps the check.
-    pub(super) fn needs_receiver_code_check(
-        &self,
-        receiver: &hir::Expr<'_>,
-        returns: usize,
-    ) -> bool {
-        self.needs_code_check(returns)
-            && (self.in_creation_code
-                || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This))
     }
 
     /// Returns the `gas` operand of an external call, materializing the pre-EIP-150 reserve when
@@ -975,11 +962,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             overlay_buffer,
         );
         self.touch_call_output_area(options.gas, &return_plan);
-        if self.needs_receiver_code_check(receiver, returns) {
+        if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
-        // The call cannot create the callee's account: before EIP-150 the code check above is
-        // emitted for every callee but `this`, whose own code is running.
+        // The code check above is emitted at every version that needs the reserve, so the call
+        // cannot create the callee's account.
         // gas = gas() | sub(gas(), reserve)
         let gas = self.call_gas(options.gas, options.value_set, false);
         // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)

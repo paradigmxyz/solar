@@ -179,9 +179,7 @@ pub(super) fn lower(
         }
     }
 
-    let in_creation_code = gcx.contract_creation_functions(context.contract_id).contains(id);
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
-    lowerer.in_creation_code = in_creation_code;
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
@@ -210,7 +208,6 @@ pub(super) fn lower_synthetic_constructor(
         Function::new(solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor));
     mir.attributes.is_constructor = true;
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
-    lowerer.in_creation_code = true;
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
@@ -246,10 +243,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
-    /// Whether this function's code ends up in the contract's creation object, where the
-    /// contract has no code of its own yet. Functions shared with the runtime object are
-    /// copied into the creation code, so this is `true` for them as well.
-    in_creation_code: bool,
     /// The expressions being lowered whose values nothing observes: a discarded expression
     /// statement, and the tuple declaration and assignment components that have no target.
     ///
@@ -470,7 +463,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
-            in_creation_code: false,
             discarded_exprs: Vec::new(),
         }
     }
