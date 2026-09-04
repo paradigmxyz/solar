@@ -15,6 +15,11 @@
 //@ run-call: enumBareRvalue 7 => 7, 1
 //@ run-call: enumTupleBare 7 => 7, 2
 //@ run-call: enumTernaryBare 7, true => 7, 1
+//@ run-call: enumDeclHole 7 => 0, 7, 2
+//@ run-call: enumAssignHole 7 => 123, 7, 1
+//@ run-call: enumNestedHole 7 => 1, 7, 1
+//@ run-call: enumNestedInnerHole 7 => 3, 7, 1
+//@ run-call-fail: enumUsedComponent 7 => Panic(0x21)
 //@ run-call-fail: enumInvalidRvalue 7 => Panic(0x21)
 //@ run-call: nestedInStmtRvalue 0x2a => 0x2a, 1
 //@ run-call: memberRvalue 5 => 5, 6, 1
@@ -213,6 +218,82 @@ contract StorageArrayPushRvalue {
             raw := and(sload(keccak256(0, 32)), 0xff)
         }
         return (raw, directions.length);
+    }
+
+    // A tuple declaration or assignment hole drops its component just like an
+    // expression statement does, so the push it holds skips the read, and with
+    // it the range check that would reject the dirtied element.
+    function enumDeclHole(uint256 dirty) external returns (uint256, uint256, uint256) {
+        assembly {
+            mstore(0, directions.slot)
+            sstore(keccak256(0, 32), dirty)
+        }
+        (, Direction second) = (directions.push(), directions.push());
+        uint256 raw;
+        assembly {
+            mstore(0, directions.slot)
+            raw := and(sload(keccak256(0, 32)), 0xff)
+        }
+        return (uint256(uint8(second)), raw, directions.length);
+    }
+
+    function enumAssignHole(uint256 dirty) external returns (uint256, uint256, uint256) {
+        assembly {
+            mstore(0, directions.slot)
+            sstore(keccak256(0, 32), dirty)
+        }
+        uint256 value;
+        (, value) = (directions.push(), 123);
+        uint256 raw;
+        assembly {
+            mstore(0, directions.slot)
+            raw := and(sload(keccak256(0, 32)), 0xff)
+        }
+        return (value, raw, directions.length);
+    }
+
+    // A dropped nested component, and a hole inside a nested component, discard
+    // their pushes the same way.
+    function enumNestedHole(uint256 dirty) external returns (uint256, uint256, uint256) {
+        assembly {
+            mstore(0, directions.slot)
+            sstore(keccak256(0, 32), dirty)
+        }
+        uint256 first;
+        (first, ) = (1, (directions.push(), 2));
+        uint256 raw;
+        assembly {
+            mstore(0, directions.slot)
+            raw := and(sload(keccak256(0, 32)), 0xff)
+        }
+        return (first, raw, directions.length);
+    }
+
+    function enumNestedInnerHole(uint256 dirty) external returns (uint256, uint256, uint256) {
+        assembly {
+            mstore(0, directions.slot)
+            sstore(keccak256(0, 32), dirty)
+        }
+        uint256 first;
+        uint256 second;
+        (first, (, second)) = (1, (directions.push(), 2));
+        uint256 raw;
+        assembly {
+            mstore(0, directions.slot)
+            raw := and(sload(keccak256(0, 32)), 0xff)
+        }
+        return (first + second, raw, directions.length);
+    }
+
+    // A used tuple component still reads the element, so the range check runs
+    // and the dirtied enum panics.
+    function enumUsedComponent(uint256 dirty) external returns (uint256, uint256) {
+        assembly {
+            mstore(0, directions.slot)
+            sstore(keccak256(0, 32), dirty)
+        }
+        (Direction first, uint256 value) = (directions.push(), 123);
+        return (uint256(uint8(first)), value);
     }
 
     // Only the statement's own expression is discarded: the push nested in this

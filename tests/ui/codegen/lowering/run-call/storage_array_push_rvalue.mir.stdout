@@ -544,6 +544,184 @@ fn @enumTernaryBare(arg0: u256, arg1: bool) -> (u256, u256) [selector=0x2209d499
     revert 0, 36
 }
 
+fn @enumDeclHole(arg0: u256) -> (u256, u256, u256) [selector=0xfcfa4d59, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    mstore 0, 4 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v0, arg0 !metadata(storage=symbolic(v0))
+    v1 = sload 4 !metadata(storage=slot(4))
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = storage_array_data_slot 4
+    v5 = div v1, 32
+    v6 = add v4, v5
+    v7 = mod v1, 32
+    v8 = mul v7, 1
+    sstore 4, v2 !metadata(storage=slot(4))
+    v9 = sload 4 !metadata(storage=slot(4))
+    v10 = add v9, 1
+    v11 = lt v10, v9
+    jumpi v11, bb1, bb3
+  bb3:
+    v12 = storage_array_data_slot 4
+    v13 = div v9, 32
+    v14 = add v12, v13
+    v15 = mod v9, 32
+    v16 = mul v15, 1
+    sstore 4, v10 !metadata(storage=slot(4))
+    v17 = sload v14 !metadata(storage=symbolic(v14))
+    v18 = mul v16, 8
+    v19 = shr v18, v17
+    v20 = and v19, 255
+    v21 = lt v20, 4
+    v22 = iszero v21
+    jumpi v22, bb4, bb5
+  bb5:
+    mstore 0, 4 !metadata(memory=scratch)
+    v23 = keccak256 0, 32 !metadata(memory=scratch)
+    v24 = sload v23 !metadata(storage=symbolic(v23))
+    v25 = and v24, 255
+    v26 = sload 4 !metadata(storage=slot(4))
+    ret v20, v25, v26
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @enumAssignHole(arg0: u256) -> (u256, u256, u256) [selector=0xb891707d, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    mstore 0, 4 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v0, arg0 !metadata(storage=symbolic(v0))
+    v1 = sload 4 !metadata(storage=slot(4))
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = storage_array_data_slot 4
+    v5 = div v1, 32
+    v6 = add v4, v5
+    v7 = mod v1, 32
+    v8 = mul v7, 1
+    sstore 4, v2 !metadata(storage=slot(4))
+    mstore 0, 4 !metadata(memory=scratch)
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 255
+    v12 = sload 4 !metadata(storage=slot(4))
+    ret 123, v11, v12
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @enumNestedHole(arg0: u256) -> (u256, u256, u256) [selector=0xdf286fc3, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    mstore 0, 4 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v0, arg0 !metadata(storage=symbolic(v0))
+    v1 = sload 4 !metadata(storage=slot(4))
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = storage_array_data_slot 4
+    v5 = div v1, 32
+    v6 = add v4, v5
+    v7 = mod v1, 32
+    v8 = mul v7, 1
+    sstore 4, v2 !metadata(storage=slot(4))
+    mstore 0, 4 !metadata(memory=scratch)
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 255
+    v12 = sload 4 !metadata(storage=slot(4))
+    ret 1, v11, v12
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @enumNestedInnerHole(arg0: u256) -> (u256, u256, u256) [selector=0x1f0f0670, abi_params=[u256], abi_returns=[word, word, word]] {
+  bb0:
+    mstore 0, 4 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v0, arg0 !metadata(storage=symbolic(v0))
+    v1 = sload 4 !metadata(storage=slot(4))
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = storage_array_data_slot 4
+    v5 = div v1, 32
+    v6 = add v4, v5
+    v7 = mod v1, 32
+    v8 = mul v7, 1
+    sstore 4, v2 !metadata(storage=slot(4))
+    mstore 0, 4 !metadata(memory=scratch)
+    v9 = keccak256 0, 32 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = and v10, 255
+    v12 = add 1, 2
+    v13 = lt v12, 1
+    jumpi v13, bb3, bb4
+  bb4:
+    v14 = sload 4 !metadata(storage=slot(4))
+    ret v12, v11, v14
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @enumUsedComponent(arg0: u256) -> (u256, u256) [selector=0x3af411b8, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    mstore 0, 4 !metadata(memory=scratch)
+    v0 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v0, arg0 !metadata(storage=symbolic(v0))
+    v1 = sload 4 !metadata(storage=slot(4))
+    v2 = add v1, 1
+    v3 = lt v2, v1
+    jumpi v3, bb1, bb2
+  bb2:
+    v4 = storage_array_data_slot 4
+    v5 = div v1, 32
+    v6 = add v4, v5
+    v7 = mod v1, 32
+    v8 = mul v7, 1
+    sstore 4, v2 !metadata(storage=slot(4))
+    v9 = sload v6 !metadata(storage=symbolic(v6))
+    v10 = mul v8, 8
+    v11 = shr v10, v9
+    v12 = and v11, 255
+    v13 = lt v12, 4
+    v14 = iszero v13
+    jumpi v14, bb3, bb4
+  bb4:
+    ret v12, 123
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 33 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
 fn @nestedInStmtRvalue(arg0: u256) -> (u256, u256) [selector=0xa803cfdb, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
     mstore 0, 0 !metadata(memory=scratch)

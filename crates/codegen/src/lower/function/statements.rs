@@ -111,7 +111,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         };
                         let Some(id) = id else {
-                            self.lower_expr(value)?;
+                            // The declaration drops this component, so its value needs no read.
+                            self.lower_discarded_expr(value)?;
                             continue;
                         };
                         let ty = self.cx.gcx.type_of_item((*id).into());
@@ -180,15 +181,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 // Nothing observes the statement's value, which lets `a.push();` skip the
                 // read that produces the appended element.
-                let previous = self.discarded_exprs.len();
-                self.mark_discarded(expr);
-                let result = if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
-                    self.lower_values(expr).map(drop)
-                } else {
-                    self.lower_expr(expr).map(drop)
-                };
-                self.discarded_exprs.truncate(previous);
-                result?;
+                self.with_discarded(expr, |this| {
+                    if this.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
+                        this.lower_values(expr).map(drop)
+                    } else {
+                        this.lower_expr(expr).map(drop)
+                    }
+                })?;
             }
             StmtKind::Block(block) => self.lower_block(*block)?,
             StmtKind::UncheckedBlock(block) => {
@@ -289,9 +288,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    /// Records the expressions of a discarded expression statement: the statement's own
-    /// expression, and the tuple components and conditional branches that only forward it, since
-    /// nothing observes their values either.
+    /// Lowers an expression whose value is dropped, such as a tuple declaration or assignment
+    /// hole, so that it can skip the reads only its value would need.
+    pub(super) fn lower_discarded_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        self.with_discarded(expr, |this| this.lower_expr(expr))
+    }
+
+    /// Runs `f` with `expr` recorded as discarded, restoring the previously recorded discards on
+    /// every exit.
+    fn with_discarded<T>(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        f: impl FnOnce(&mut Self) -> Option<T>,
+    ) -> Option<T> {
+        let previous = self.discarded_exprs.len();
+        self.mark_discarded(expr);
+        let result = f(self);
+        self.discarded_exprs.truncate(previous);
+        result
+    }
+
+    /// Records the expressions of a discarded value: the discarded expression itself, and the
+    /// tuple components and conditional branches that only forward it, since nothing observes
+    /// their values either.
     fn mark_discarded(&mut self, expr: &hir::Expr<'_>) {
         let expr = expr.peel_parens();
         self.discarded_exprs.push(expr.id);

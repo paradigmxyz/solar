@@ -243,10 +243,11 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
-    /// The expressions of the expression statement being lowered, whose values nothing observes.
+    /// The expressions being lowered whose values nothing observes: a discarded expression
+    /// statement, and the tuple declaration and assignment components that have no target.
     ///
     /// Lowering an expression that has to read storage to produce its value can skip the read
-    /// here. Only the statement's own expression and the tuple components and conditional
+    /// here. Only the discarded expression itself and the tuple components and conditional
     /// branches that just hand their value up to it qualify: every other subexpression feeds the
     /// value it belongs to.
     discarded_exprs: Vec<hir::ExprId>,

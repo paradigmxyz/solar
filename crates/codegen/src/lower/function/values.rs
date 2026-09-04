@@ -444,7 +444,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         values.push((lhs, value));
                     } else {
-                        self.lower_expr(rhs)?;
+                        // The assignment drops this component, so its value needs no read.
+                        self.lower_discarded_expr(rhs)?;
                     }
                 }
                 continue;
