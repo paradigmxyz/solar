@@ -5,6 +5,7 @@
 //@ run-call: BaseConstructorArgs::labelHash; constructor=[5] => 0x14502d3ab34ae28d404da8f6ec0501c6f295f66caa41e122cfa9b1291bc0f9e8
 //@ run-call: ConstructorArgumentOrder::order => 1, 3, 2, 4
 //@ run-call: ConstructorInitializationOrder::x => 2
+//@ run-call: NamedDerived::value => 12
 //@ run-call: BaseConstructorReturn::value => 2
 //@ run-call: FunctionUsageDerived::getA => 2
 //@ run-call: VirtualFunctionUsageDerived::getA => 2
@@ -81,6 +82,16 @@ contract InitializationBase {
 contract ConstructorInitializationOrder is InitializationBase {
     constructor() InitializationBase(touch()) {}
 }
+
+contract NamedBase {
+    uint256 public value;
+
+    constructor(uint256 a, uint256 b) {
+        value = a * 10 + b;
+    }
+}
+
+contract NamedDerived is NamedBase({b: 2, a: 1}) {}
 
 contract ReturningBase {
     uint256 public value;

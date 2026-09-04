@@ -103,13 +103,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if args.len() != constructor.parameters.len() {
                 return self.cx.report_unsupported(constructor.span, "base constructor arguments");
             }
-            // Base constructor arguments are always positional: resolution
-            // rejects a named argument list, the way solc's parser does.
+            let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
+                id: constructor_id,
+                skips_receiver: false,
+            });
             let values = self.lower_call_arguments(
                 args,
                 CallArgumentParams {
                     count: constructor.parameters.len(),
-                    names: None,
+                    names: Some(parameter_names.as_slice()),
                     reverse: false,
                 },
                 constructor.span,

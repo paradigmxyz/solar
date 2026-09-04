@@ -1,27 +1,3 @@
-error: base constructor arguments cannot be named
-   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
-   │
-LL │ contract Named1 is NamedBase({b: 1, a: 2}) { }
-   │                             ━━━━━━━━━━━━━━
-   │
-   ╰ help: pass the arguments positionally
-
-error: base constructor arguments cannot be named
-   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
-   │
-LL │     constructor(uint8 x, uint256 y) NamedBase({b: y + 1, a: x + 1}) {}
-   │                                              ━━━━━━━━━━━━━━━━━━━━━━
-   │
-   ╰ help: pass the arguments positionally
-
-error: base constructor arguments cannot be named
-   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
-   │
-LL │ contract Named3 is NamedBase({a: 1}) { }
-   │                             ━━━━━━━━
-   │
-   ╰ help: pass the arguments positionally
-
 error: wrong number of arguments for base constructor: expected 2, found 0
    ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
    │
@@ -45,6 +21,24 @@ error: mismatched types
    │
 LL │ contract Derived6 is Base { constructor() Base("a", 1) {} }
    ╰╴                                               ━━━ expected `uint256`, found `utf8_string_literal[1]`
+
+error: named argument `nope` does not match function declaration
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Named3 is NamedBase({nope: 1, b: 2}) { }
+   ╰╴                              ━━━━
+
+error: duplicate named argument `a`
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Named4 is NamedBase({a: 1, a: 2}) { }
+   ╰╴                                    ━
+
+error: wrong number of arguments for base constructor: expected 2, found 1
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Named5 is NamedBase({a: 1}) { }
+   ╰╴                   ━━━━━━━━━━━━━━━━━
 
 error: wrong number of arguments for base constructor: expected 0, found 1
    ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
