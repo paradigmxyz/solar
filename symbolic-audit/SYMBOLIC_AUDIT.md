@@ -95,8 +95,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/this_call_from_constructor_helper.sol`; fixed in `e638b191`, tests in `ffb4d4bf`)
 - [x] 34. Any recursive internal function is rejected before constantinople by the post-legalization stack verifier
       (`symbolic-audit/recursion_preconstantinople.sol`; fixed in `000c5698`, tests in `6ebfe5a2`)
-- [ ] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
-      (`symbolic-audit/interface_free_function_checks.sol`)
+- [x] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
+      (`symbolic-audit/interface_free_function_checks.sol`; fixed in `ffe5e017`)
 - [x] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
       (`symbolic-audit/loop_tuple_assign_miscompile.sol`; fixed in `daaf2d05`, tests in `ae814158`)
 - [x] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
@@ -105,6 +105,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/call_gas_reserve_split.sol`; fixed in `58ab6626`, review fix `595abb4c`)
 - [ ] 39. A pre-byzantium external call whose dynamic return value is unused is rejected; solc compiles it
       (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`)
+- [ ] 40. Interface constructors, implemented or `virtual` interface functions, interface modifiers and variables, and `virtual` library modifiers are accepted; solc reports 6482, 4726, 5815, 6408, 8274, 3275
+      (`symbolic-audit/interface_member_checks.sol`)
 
 ## Findings
 
@@ -1562,6 +1564,18 @@ divergences: solar accepts programs solc refuses.
 
 Severity: missing diagnostics.
 
+Fix (`ffe5e017`): `check_interface_functions` reports 1560 for every
+interface function whose visibility is not `external` (constructors and
+modifiers are left to their own checks, getters are lowered as
+`external`), and `check_free_function` reports 4493 for a `virtual` free
+function, emitted before the `payable` check to match solc's order. The
+repro reports 1560, 1560, 4493 and nothing else; solc's five
+`visibility/interface/function_*.sol` and `freeFunctions/free_virtual.sol`
+syntax tests are ported 1-1, the UI suite and `cargo tq solc-solidity`
+pass, and all 149 interface files across the project archives still
+compile. The fixer listed the neighbouring checks still missing; they are
+finding 40.
+
 ### 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value
 
 File: `symbolic-audit/loop_tuple_assign_miscompile.sol`
@@ -1781,6 +1795,32 @@ the return data regardless and reports the codegen gap even when nothing
 reads the value.
 
 Severity: valid program rejected. Low; pre-byzantium only.
+
+### 40. Five more interface and library declaration checks are missing
+
+File: `symbolic-audit/interface_member_checks.sol`
+Found by the agent fixing finding 35, which lives in the same
+`TypeChecker::visit(FunctionDefinition)` neighbourhood; confirmed against
+solc 0.8.36 with Standard JSON error codes.
+
+| Declaration | solc | solar |
+|------|------|------|
+| `constructor() {}` in an interface | error 6482 `Constructor cannot be defined in interfaces.` (plus 4726 for the body) | compiles |
+| `function f() external {}` in an interface | error 4726 `Functions in interfaces cannot have an implementation.` | compiles |
+| `modifier m() { _; }` in an interface | error 6408 `Modifiers cannot be defined or declared in interfaces.` | compiles |
+| `uint256 public x;` in an interface | error 8274 `Variables cannot be declared in interfaces.` | compiles |
+| `function g() external virtual;` in an interface | warning 5815 `Interface functions are implicitly "virtual"` | silent |
+| `modifier n() virtual { _; }` in a library | error 3275 `Modifiers in a library cannot be virtual.` | error 7801 `library functions cannot be `virtual`` (the function message on a modifier) |
+
+Not codegen divergences: solar accepts programs solc refuses, and one
+rejection carries the wrong code and wording. The fixer also noted that
+the "libraries cannot have receive ether functions" message still lacks
+solc's code 4549, that 5811 (free functions cannot have modifiers) is not
+emitted, and that the `Contract::functions()` doc comment in
+`crates/sema/src/hir/mod.rs` still claims to exclude the constructor and
+fallback while the lowering pushes every function into `items`.
+
+Severity: missing diagnostics.
 
 ## solc-side observations
 
