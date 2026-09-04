@@ -1,0 +1,11 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/debug_info.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/debug_info.evmir (after cfg-simplify) ===
+  @module DebugInfo
+  bb0:
+    push 1 !metadata(span=1..5)
+-   jumpi bb1, bb1 !metadata(span=10..20)
+- bb1 [invoke=callee@30..50]:
+-   stop !metadata(span=30..40)
++   pop !metadata(span=10..20)
++   stop !metadata(span=30..40, invoke=callee@30..50)
+  

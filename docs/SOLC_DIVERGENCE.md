@@ -206,3 +206,12 @@ No intentional divergences documented yet.
   index type before checking bounds. This preserves the normal implicit
   conversion rule for narrow values.
 - Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`.
+
+### CODEGEN-006: Legacy source-map modifier depth
+
+- ID: CODEGEN-006
+- Status: implemented
+- Behavior: Legacy `sourceMap` output carries the compiler's modifier nesting
+  depth in the `m` field, preserving it through MIR and EVM IR lowering and
+  optimization.
+- Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.

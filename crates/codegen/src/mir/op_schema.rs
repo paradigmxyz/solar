@@ -1,0 +1,1517 @@
+//! Declarative metadata for MIR operations.
+//!
+//! The table owns the typed [`InstKind`] enum as well as its compiler-facing
+//! metadata. Several operations carry domain-specific layouts and
+//! variable-length operands, so the generated representation remains a typed
+//! Rust enum while the declaration stays in one place. The descriptors can
+//! drive verification, textual serialization, and later machine serialization
+//! without making the optimizer reason about untyped operands.
+//!
+//! Every field of an operation is either a value operand or an attribute, and
+//! the [`Operands`] trait says which. Operand traversal is generated from the
+//! declaration, so fields are listed in canonical operand order and tuple
+//! operands carry names that document their meaning.
+//!
+//! The same declaration produces [`Op`], the copyable instruction view that
+//! ISLE rewrite rules match on, and the ISLE prelude declaring it.
+
+use super::{
+    AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AllocationKind, AllocationSemantics, BlockId,
+    DataRef, EffectKind, FrameMode, FrameSlotKind, FunctionId, ImmutableId, InstructionMetadata,
+    MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, SliceLocation, StorageLayoutRef,
+    ValueId,
+};
+use smallvec::{Array, SmallVec};
+#[cfg(test)]
+use std::fmt::Write as _;
+
+/// A compact set of MIR phases in which an operation is structurally valid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct PhaseSet(u8);
+
+impl PhaseSet {
+    /// All phases currently defined by MIR.
+    pub(crate) const ALL: Self = Self::through(MirPhase::EvmShaped);
+    /// Phases before semantic memory lowering has completed.
+    pub(crate) const THROUGH_DISPATCH: Self = Self::through(MirPhase::Dispatch);
+    /// Phases before the physical EVM shape boundary.
+    pub(crate) const THROUGH_MEMORY_LOWERED: Self = Self::through(MirPhase::MemoryLowered);
+
+    /// Creates a set containing every phase up to and including `phase`.
+    const fn through(phase: MirPhase) -> Self {
+        Self((1u8 << (phase as u8 + 1)) - 1)
+    }
+
+    /// Returns whether this operation is valid in `phase`.
+    pub(crate) const fn contains(self, phase: MirPhase) -> bool {
+        self.0 & (1u8 << phase as u8) != 0
+    }
+}
+
+/// Declarative operation properties used by analyses and rewrites.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct OpTraits(u16);
+
+impl OpTraits {
+    /// No additional operation traits.
+    pub(crate) const NONE: Self = Self(0);
+    /// The operation's binary operands may be exchanged by the scheduler.
+    pub(crate) const REORDERABLE: Self = Self(1 << 0);
+    /// The operation is cheap and stable enough to rematerialize at uses.
+    pub(crate) const REMATERIALIZABLE: Self = Self(1 << 1);
+    /// The operation still carries a semantic memory-object representation.
+    pub(crate) const MEMORY_OBJECT: Self = Self(1 << 2);
+
+    /// Returns whether this set contains `trait_`.
+    pub(crate) const fn contains(self, trait_: Self) -> bool {
+        self.0 & trait_.0 == trait_.0
+    }
+}
+
+/// The value an operation produces, when the operation alone determines it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum ResultKind {
+    /// The operation produces no value.
+    None,
+    /// An unsigned 256-bit word.
+    Word,
+    /// A signed 256-bit word.
+    SignedWord,
+    /// A boolean.
+    Bool,
+    /// An address.
+    Address,
+    /// A 32-byte hash or slot.
+    Bytes32,
+    /// A memory pointer.
+    MemPtr,
+    /// A value whose type depends on the operation's attributes.
+    Custom,
+}
+
+impl ResultKind {
+    /// Returns the result type used when the textual form carries none.
+    #[must_use]
+    pub(crate) const fn default_type(self) -> Option<MirType> {
+        match self {
+            Self::None | Self::Custom => None,
+            Self::Word => Some(MirType::uint256()),
+            Self::SignedWord => Some(MirType::int256()),
+            Self::Bool => Some(MirType::Bool),
+            Self::Address => Some(MirType::Address),
+            Self::Bytes32 => Some(MirType::bytes32()),
+            Self::MemPtr => Some(MirType::MemPtr),
+        }
+    }
+
+    /// Returns whether operations of this kind always produce a value.
+    #[must_use]
+    pub(crate) const fn produces_value(self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
+/// Instruction field types, classified as value operands or attributes.
+pub(crate) trait Operands {
+    /// Copyable projection of the field seen by rewrite rules.
+    type View: Copy;
+    /// ISLE type name of the projection.
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str;
+
+    /// Appends every value operand held by this field in canonical order.
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>);
+    /// Visits every value operand held by this field mutably.
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId));
+    /// Projects the field for rewrite rules.
+    fn view(&self) -> Self::View;
+    /// Applies `f` to every value operand of a projection.
+    fn map_view(view: Self::View, f: &mut impl FnMut(ValueId) -> ValueId) -> Self::View;
+    /// Rebuilds the field from its projection, unless the projection elided it.
+    fn from_view(view: Self::View) -> Option<Self>
+    where
+        Self: Sized;
+    /// Whether the field is exactly one value operand.
+    const IS_OPERAND: bool;
+    /// Builds the field from one value operand; only value operands support this.
+    fn from_operand(value: ValueId) -> Self
+    where
+        Self: Sized;
+}
+
+impl Operands for ValueId {
+    type View = Self;
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "Value";
+
+    #[inline]
+    fn collect<A: Array<Item = Self>>(&self, out: &mut SmallVec<A>) {
+        out.push(*self);
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut Self)) {
+        f(self);
+    }
+
+    #[inline]
+    fn view(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn map_view(view: Self, f: &mut impl FnMut(Self) -> Self) -> Self {
+        f(view)
+    }
+
+    #[inline]
+    fn from_view(view: Self) -> Option<Self> {
+        Some(view)
+    }
+
+    const IS_OPERAND: bool = true;
+
+    #[inline]
+    fn from_operand(value: ValueId) -> Self {
+        value
+    }
+}
+
+impl Operands for Option<ValueId> {
+    type View = Self;
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "OptionValue";
+
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.extend(*self);
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        if let Some(value) = self {
+            f(value);
+        }
+    }
+
+    #[inline]
+    fn view(&self) -> Self {
+        *self
+    }
+
+    #[inline]
+    fn map_view(view: Self, f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
+        view.map(f)
+    }
+
+    #[inline]
+    fn from_view(view: Self) -> Option<Self> {
+        Some(view)
+    }
+
+    const IS_OPERAND: bool = false;
+
+    fn from_operand(_: ValueId) -> Self {
+        unreachable!("an optional operand is not built from one value")
+    }
+}
+
+impl Operands for Box<[ValueId]> {
+    type View = ();
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "Unit";
+
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.extend(self.iter().copied());
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        self.iter_mut().for_each(f);
+    }
+
+    #[inline]
+    fn view(&self) {}
+
+    #[inline]
+    fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+
+    #[inline]
+    fn from_view((): ()) -> Option<Self> {
+        None
+    }
+
+    const IS_OPERAND: bool = false;
+
+    fn from_operand(_: ValueId) -> Self {
+        unreachable!("an operand list is not built from one value")
+    }
+}
+
+impl Operands for Vec<(BlockId, ValueId)> {
+    type View = ();
+    #[cfg(test)]
+    const ISLE_TYPE: &'static str = "Unit";
+
+    #[inline]
+    fn collect<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
+        out.extend(self.iter().map(|(_, value)| *value));
+    }
+
+    #[inline]
+    fn visit_mut(&mut self, f: &mut impl FnMut(&mut ValueId)) {
+        self.iter_mut().for_each(|(_, value)| f(value));
+    }
+
+    #[inline]
+    fn view(&self) {}
+
+    #[inline]
+    fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+
+    #[inline]
+    fn from_view((): ()) -> Option<Self> {
+        None
+    }
+
+    const IS_OPERAND: bool = false;
+
+    fn from_operand(_: ValueId) -> Self {
+        unreachable!("phi incoming values are not built from one value")
+    }
+}
+
+/// Declares field types that never hold value operands.
+macro_rules! attributes {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl Operands for $ty {
+                type View = Self;
+                #[cfg(test)]
+                const ISLE_TYPE: &'static str = stringify!($ty);
+
+                #[inline]
+                fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
+
+                #[inline]
+                fn view(&self) -> Self {
+                    *self
+                }
+
+                #[inline]
+                fn map_view(view: Self, _f: &mut impl FnMut(ValueId) -> ValueId) -> Self {
+                    view
+                }
+
+                #[inline]
+                fn from_view(view: Self) -> Option<Self> {
+                    Some(view)
+                }
+
+                const IS_OPERAND: bool = false;
+
+                fn from_operand(_: ValueId) -> Self {
+                    unreachable!("an attribute is not built from a value operand")
+                }
+            }
+        )+
+    };
+}
+
+/// Declares attribute types that rewrite rules cannot inspect.
+macro_rules! opaque_attributes {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl Operands for $ty {
+                type View = ();
+                #[cfg(test)]
+                const ISLE_TYPE: &'static str = "Unit";
+
+                #[inline]
+                fn collect<A: Array<Item = ValueId>>(&self, _out: &mut SmallVec<A>) {}
+
+                #[inline]
+                fn visit_mut(&mut self, _f: &mut impl FnMut(&mut ValueId)) {}
+
+                #[inline]
+                fn view(&self) {}
+
+                #[inline]
+                fn map_view((): (), _f: &mut impl FnMut(ValueId) -> ValueId) {}
+
+                #[inline]
+                fn from_view((): ()) -> Option<Self> {
+                    None
+                }
+
+                const IS_OPERAND: bool = false;
+
+                fn from_operand(_: ValueId) -> Self {
+                    unreachable!("an attribute is not built from a value operand")
+                }
+            }
+        )+
+    };
+}
+
+/// Generates one `FunctionBuilder` method for an operation marked
+/// `#[builder(name)]` or `#[builder(name, void)]`, taking its value operands in
+/// declaration order. The result type comes from the operation's result kind.
+/// Only tuple operands are generated; an operation with named fields or none
+/// keeps a hand-written builder.
+macro_rules! builder_method {
+    ($inst:ident::$variant:ident; []; ($($operand:ident)*); {$($field:ident)*}) => {};
+    ($inst:ident::$variant:ident; [$name:ident]; ($($operand:ident)+); {}) => {
+        impl crate::mir::FunctionBuilder<'_> {
+            #[doc = concat!("Emits `", stringify!($name), "`.")]
+            pub(crate) fn $name(&mut self $(, $operand: ValueId)+) -> ValueId {
+                let kind = $inst::$variant($($operand),+);
+                let ty = kind.op_def().result.default_type();
+                self.emit_inst(kind, ty)
+            }
+        }
+    };
+    ($inst:ident::$variant:ident; [$name:ident, void]; ($($operand:ident)+); {}) => {
+        impl crate::mir::FunctionBuilder<'_> {
+            #[doc = concat!("Emits `", stringify!($name), "`.")]
+            pub(crate) fn $name(&mut self $(, $operand: ValueId)+) {
+                self.emit_void_inst($inst::$variant($($operand),+));
+            }
+        }
+    };
+}
+
+/// Returns the ISLE term name of an operation: the lower-cased variant name,
+/// with the bitwise operations named as in Cranelift because `and` is an ISLE
+/// keyword.
+#[cfg(test)]
+fn isle_op_name(variant: &str) -> String {
+    match variant {
+        "And" => "band".into(),
+        "Or" => "bor".into(),
+        "Xor" => "bxor".into(),
+        "Not" => "bnot".into(),
+        _ => variant.to_ascii_lowercase(),
+    }
+}
+
+attributes! {
+    u32,
+    u64,
+    AbiEncodeMode,
+    AllocationKind,
+    AllocationSemantics,
+    DataRef,
+    FrameMode,
+    FrameSlotKind,
+    FunctionId,
+    ImmutableId,
+    MemoryObjectKind,
+    MemoryObjectLayout,
+    SliceLocation,
+}
+
+opaque_attributes! {
+    AbiLayoutRef,
+    AbiParamLayoutRef,
+    StorageLayoutRef,
+}
+
+macro_rules! define_mir_ops {
+    (
+        enum $inst_name:ident {
+            $(
+                $(#[doc = $doc:expr])*
+                $(#[builder($builder:ident $(, $void:ident)?)])?
+                $variant:ident
+                $( ( $( $operand:ident : $operand_ty:ty ),+ $(,)? ) )?
+                $( { $( $(#[$field_meta:meta])* $field:ident : $field_ty:ty ),+ $(,)? } )?
+            ),+ $(,)?
+        }
+        defs {
+            $(
+                $def_variant:ident $( ( $($def_tuple:tt)* ) )? $( { $($def_struct:tt)* } )? => {
+                    mnemonic: $mnemonic:literal,
+                    result: $result:ident,
+                    phases: $phases:expr,
+                    effect: $effect:ident,
+                    traits: $traits:expr,
+                    side_effects: $side_effects:expr,
+                    category: $category:expr $(,)?
+                }
+            ),+ $(,)?
+        }
+    ) => {
+        /// The kind of a MIR instruction.
+        #[derive(Clone, Debug, PartialEq)]
+        pub(crate) enum $inst_name {
+            $(
+                $(#[doc = $doc])*
+                $variant
+                $( ( $( $operand_ty ),+ ) )?
+                $( { $( $(#[$field_meta])* $field: $field_ty ),+ } )?,
+            )+
+        }
+
+        /// Generated metadata for one MIR operation.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub(crate) struct OpDef {
+            /// Canonical textual operation name.
+            pub(crate) mnemonic: &'static str,
+            /// Value produced by the operation.
+            pub(crate) result: ResultKind,
+            /// Phases in which this operation is valid.
+            pub(crate) phases: PhaseSet,
+            /// Conservative effect classification.
+            pub(crate) effect: EffectKind,
+            /// Declarative operation properties.
+            pub(crate) traits: OpTraits,
+            /// Whether the operation must remain observable to DCE.
+            pub(crate) has_side_effects: bool,
+            /// Diagnostic category used when a phase boundary is violated.
+            pub(crate) phase_category: Option<&'static str>,
+        }
+
+        impl $inst_name {
+            /// Returns the declarative definition for this operation.
+            #[inline]
+            #[must_use]
+            pub(crate) const fn op_def(&self) -> &'static OpDef {
+                match self {
+                    $(
+                        Self::$def_variant $( ( $($def_tuple)* ) )? $( { $($def_struct)* } )? => &OpDef {
+                            mnemonic: $mnemonic,
+                            result: ResultKind::$result,
+                            phases: $phases,
+                            effect: EffectKind::$effect,
+                            traits: $traits,
+                            has_side_effects: $side_effects,
+                            phase_category: $category,
+                        },
+                    )+
+                }
+            }
+
+            /// Collects every value operand in canonical order.
+            ///
+            /// This is the canonical operand list for liveness and scheduling.
+            pub(crate) fn collect_operands<A: Array<Item = ValueId>>(
+                &self,
+                out: &mut SmallVec<A>,
+            ) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( Operands::collect($operand, out); )+ )?
+                            $( $( Operands::collect($field, out); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Visits every value operand mutably, in canonical order.
+            pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => {
+                            $( $( Operands::visit_mut($operand, &mut f); )+ )?
+                            $( $( Operands::visit_mut($field, &mut f); )+ )?
+                        }
+                    )+
+                }
+            }
+
+            /// Returns the arity and constructor of an operation that is built
+            /// from value operands alone, by textual mnemonic.
+            #[must_use]
+            pub(crate) fn operand_only(
+                mnemonic: &str,
+            ) -> Option<(usize, fn(&[ValueId]) -> Self)> {
+                match mnemonic {
+                    $( $mnemonic => build::$def_variant::operand_only(), )+
+                    _ => None,
+                }
+            }
+
+            /// Returns the rewrite-rule view of this instruction.
+            #[must_use]
+            pub(crate) fn op(&self) -> Op {
+                match self {
+                    $(
+                        Self::$variant $( ( $( $operand ),+ ) )? $( { $( $field ),+ } )? => Op::$variant
+                            $( { $( $operand: Operands::view($operand) ),+ } )?
+                            $( { $( $field: Operands::view($field) ),+ } )?,
+                    )+
+                }
+            }
+
+            /// Returns the operation's phase-boundary diagnostic category.
+            #[inline]
+            #[must_use]
+            pub(crate) fn phase_violation(
+                &self,
+                phase: MirPhase,
+                metadata: &InstructionMetadata,
+            ) -> Option<&'static str> {
+                let definition = self.op_def();
+                if !definition.phases.contains(phase) {
+                    return definition.phase_category;
+                }
+                if matches!(self, Self::Alloc { kind: AllocationKind::Object(_), .. })
+                    && phase >= MirPhase::MemoryLowered
+                {
+                    return Some("memory-object");
+                }
+                if matches!(self, Self::Alloc { .. })
+                    && phase >= MirPhase::EvmShaped
+                    && !metadata.deferred_alloc()
+                {
+                    return Some("abstract allocation");
+                }
+                None
+            }
+        }
+
+        /// Per-operation constructors from value operands, for the textual
+        /// parser and the generated builders.
+        #[allow(non_snake_case)]
+        pub(crate) mod build {
+            $(
+                pub(crate) mod $variant {
+                    use super::super::*;
+
+                    /// Whether every field is a value operand.
+                    pub(crate) const OPERAND_ONLY: bool = true
+                        $( $( && <$operand_ty as Operands>::IS_OPERAND )+ )?
+                        $( $( && <$field_ty as Operands>::IS_OPERAND )+ )?;
+
+                    /// Number of fields.
+                    pub(crate) const ARITY: usize = 0
+                        $( $( + { let _ = stringify!($operand); 1 } )+ )?
+                        $( $( + { let _ = stringify!($field); 1 } )+ )?;
+
+                    /// Builds the operation from its operands in declaration order.
+                    #[allow(unused_mut, unused_variables)]
+                    pub(crate) fn from_operands(operands: &[ValueId]) -> $inst_name {
+                        debug_assert_eq!(operands.len(), ARITY);
+                        let mut operands = operands.iter().copied();
+                        $inst_name::$variant
+                            $( ( $( <$operand_ty as Operands>::from_operand(
+                                operands.next().expect("arity")
+                            ) ),+ ) )?
+                            $( { $( $field: <$field_ty as Operands>::from_operand(
+                                operands.next().expect("arity")
+                            ) ),+ } )?
+                    }
+
+                    /// Returns the arity and constructor when every field is a value operand.
+                    pub(crate) fn operand_only() -> Option<(usize, fn(&[ValueId]) -> $inst_name)> {
+                        OPERAND_ONLY.then_some((ARITY, from_operands as fn(&[ValueId]) -> $inst_name))
+                    }
+                }
+            )+
+        }
+
+        $(
+            builder_method! {
+                $inst_name::$variant;
+                [ $( $builder $(, $void)? )? ];
+                ( $( $( $operand )+ )? );
+                { $( $( $field )+ )? }
+            }
+        )+
+
+        /// Copyable view of an instruction for rewrite rules.
+        ///
+        /// Value operands keep their identity, attributes are carried by value,
+        /// and variable-length payloads are elided.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub(crate) enum Op {
+            $(
+                $variant
+                $( { $( $operand: <$operand_ty as Operands>::View ),+ } )?
+                $( { $( $field: <$field_ty as Operands>::View ),+ } )?,
+            )+
+        }
+
+        impl Op {
+            #[cfg(test)]
+            /// Every operation with its field names and ISLE types, in declaration order.
+            const FIELDS: &'static [(&'static str, &'static [(&'static str, &'static str)])] = &[
+                $(
+                    (stringify!($variant), &[
+                        $( $( (stringify!($operand), <$operand_ty as Operands>::ISLE_TYPE), )+ )?
+                        $( $( (stringify!($field), <$field_ty as Operands>::ISLE_TYPE), )+ )?
+                    ]),
+                )+
+            ];
+
+            /// Rebuilds the instruction, unless a payload was elided from the view.
+            #[must_use]
+            pub(crate) fn into_kind(self) -> Option<$inst_name> {
+                Some(match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => $inst_name::$variant
+                            $( ( $( <$operand_ty as Operands>::from_view($operand)? ),+ ) )?
+                            $( { $( $field: <$field_ty as Operands>::from_view($field)? ),+ } )?,
+                    )+
+                })
+            }
+
+            /// Applies `f` to every value operand.
+            #[must_use]
+            pub(crate) fn map_values(self, mut f: impl FnMut(ValueId) -> ValueId) -> Self {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => Self::$variant
+                            $( { $( $operand: <$operand_ty as Operands>::map_view($operand, &mut f) ),+ } )?
+                            $( { $( $field: <$field_ty as Operands>::map_view($field, &mut f) ),+ } )?,
+                    )+
+                }
+            }
+        }
+    };
+}
+
+impl Op {
+    /// Returns the ISLE declarations of the view: its primitive types, the
+    /// `Op` enum, and one extractor per operation matching the instruction
+    /// that defines a value.
+    #[must_use]
+    #[cfg(test)]
+    pub(crate) fn isle_prelude() -> String {
+        let mut out = String::from(
+            ";; Generated from the MIR operation schema by `Op::isle_prelude`; do not edit.\n\
+             ;; `cargo nextest run -p solar-codegen isle_prelude` checks this file and\n\
+             ;; `SNAPSHOTS=overwrite` refreshes it.\n\n\
+             (type Value (primitive Value))\n\
+             (type U256 (primitive U256))\n",
+        );
+        let mut declared = vec!["Value", "U256", "u32", "u64", "bool"];
+        for (_, fields) in Self::FIELDS {
+            for (_, ty) in *fields {
+                if !declared.contains(ty) {
+                    declared.push(ty);
+                    writeln!(out, "(type {ty} (primitive {ty}))").unwrap();
+                }
+            }
+        }
+
+        out.push_str("\n(type Op extern (enum\n");
+        for (variant, fields) in Self::FIELDS {
+            write!(out, "  ({variant}").unwrap();
+            for (name, ty) in *fields {
+                write!(out, " ({name} {ty})").unwrap();
+            }
+            out.push_str(")\n");
+        }
+        out.push_str("))\n\n;; The instruction defining a value.\n(decl inst (Op) Value)\n(extern extractor inst inst_data)\n");
+
+        for (variant, fields) in Self::FIELDS {
+            let name = isle_op_name(variant);
+            write!(out, "\n(decl {name} (").unwrap();
+            for (index, (_, ty)) in fields.iter().enumerate() {
+                if index > 0 {
+                    out.push(' ');
+                }
+                out.push_str(ty);
+            }
+            write!(out, ") Value)\n(extractor ({name}").unwrap();
+            for (field, _) in *fields {
+                write!(out, " {field}").unwrap();
+            }
+            write!(out, ") (inst (Op.{variant}").unwrap();
+            for (field, _) in *fields {
+                write!(out, " {field}").unwrap();
+            }
+            out.push_str(")))\n");
+        }
+        out
+    }
+}
+
+define_mir_ops! {
+    enum InstKind {
+    // Arithmetic operations
+    /// Addition: `a + b`
+    #[builder(add)]
+    Add(a: ValueId, b: ValueId),
+    /// Subtraction: `a - b`
+    #[builder(sub)]
+    Sub(a: ValueId, b: ValueId),
+    /// Multiplication: `a * b`
+    #[builder(mul)]
+    Mul(a: ValueId, b: ValueId),
+    /// Unsigned division: `a / b`
+    #[builder(div)]
+    Div(a: ValueId, b: ValueId),
+    /// Signed division: `a / b`
+    #[builder(sdiv)]
+    SDiv(a: ValueId, b: ValueId),
+    /// Unsigned modulo: `a % b`
+    #[builder(mod_)]
+    Mod(a: ValueId, b: ValueId),
+    /// Signed modulo: `a % b`
+    #[builder(smod)]
+    SMod(a: ValueId, b: ValueId),
+    /// Exponentiation: `a ** b`
+    #[builder(exp)]
+    Exp(a: ValueId, b: ValueId),
+    /// Add modulo: `(a + b) % n`
+    #[builder(addmod)]
+    AddMod(a: ValueId, b: ValueId, n: ValueId),
+    /// Multiply modulo: `(a * b) % n`
+    #[builder(mulmod)]
+    MulMod(a: ValueId, b: ValueId, n: ValueId),
+
+    // Bitwise operations
+    /// Bitwise AND: `a & b`
+    #[builder(and)]
+    And(a: ValueId, b: ValueId),
+    /// Bitwise OR: `a | b`
+    #[builder(or)]
+    Or(a: ValueId, b: ValueId),
+    /// Bitwise XOR: `a ^ b`
+    #[builder(xor)]
+    Xor(a: ValueId, b: ValueId),
+    /// Bitwise NOT: `~a`
+    #[builder(not)]
+    Not(a: ValueId),
+    /// Count leading zero bits.
+    #[builder(clz)]
+    Clz(a: ValueId),
+    /// Left shift: `a << b`
+    #[builder(shl)]
+    Shl(shift: ValueId, value: ValueId),
+    /// Logical right shift: `a >> b`
+    #[builder(shr)]
+    Shr(shift: ValueId, value: ValueId),
+    /// Arithmetic right shift: `a >> b` (signed)
+    #[builder(sar)]
+    Sar(shift: ValueId, value: ValueId),
+    /// Extract a byte: `byte(i, x)`
+    #[builder(byte)]
+    Byte(index: ValueId, value: ValueId),
+
+    // Comparison operations
+    /// Less than (unsigned): `a < b`
+    #[builder(lt)]
+    Lt(a: ValueId, b: ValueId),
+    /// Greater than (unsigned): `a > b`
+    #[builder(gt)]
+    Gt(a: ValueId, b: ValueId),
+    /// Less than (signed): `a < b`
+    #[builder(slt)]
+    SLt(a: ValueId, b: ValueId),
+    /// Greater than (signed): `a > b`
+    #[builder(sgt)]
+    SGt(a: ValueId, b: ValueId),
+    /// Equality: `a == b`
+    #[builder(eq)]
+    Eq(a: ValueId, b: ValueId),
+    /// Check if zero: `a == 0`
+    #[builder(iszero)]
+    IsZero(a: ValueId),
+
+    // Memory operations
+    /// Load from memory: `mload(offset)`
+    #[builder(mload)]
+    MLoad(offset: ValueId),
+    /// Store to memory: `mstore(offset, value)`
+    #[builder(mstore, void)]
+    MStore(offset: ValueId, value: ValueId),
+    /// Store a single byte: `mstore8(offset, value)`
+    #[builder(mstore8, void)]
+    MStore8(offset: ValueId, value: ValueId),
+    /// Set a contiguous memory range to zero: `memory_zero(offset, size)`
+    #[builder(memory_zero, void)]
+    MemoryZero(offset: ValueId, size: ValueId),
+    /// Get memory size: `msize()`
+    MSize,
+    /// Read the free-memory pointer.
+    Fmp,
+    /// Set the free-memory pointer.
+    SetFmp(value: ValueId),
+    /// Reserve memory and return the previous free-memory pointer.
+    Alloc {
+        /// Requested byte count.
+        size: ValueId,
+        /// Semantic shape of the returned reference.
+        kind: AllocationKind,
+        /// Alignment, initialization, and failure behavior.
+        semantics: AllocationSemantics,
+    },
+    /// Read the logical length of a dynamic memory object.
+    MemoryObjectLen(object: ValueId, kind: MemoryObjectKind),
+    /// Set the logical length of a dynamic memory object.
+    SetMemoryObjectLen(object: ValueId, len: ValueId, kind: MemoryObjectKind),
+    /// Project the address of the first payload byte from an object.
+    MemoryObjectData(object: ValueId, kind: MemoryObjectKind),
+    /// Address a direct field of a struct object.
+    MemoryObjectFieldAddr {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+    },
+    /// Address an array element under the semantic object layout.
+    MemoryObjectElementAddr {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+    },
+    /// Load one direct struct field without exposing its physical address.
+    MemoryObjectLoadField {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+    },
+    /// Store one direct struct field without exposing its physical address.
+    MemoryObjectStoreField {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Load one array element without exposing its physical address.
+    MemoryObjectLoadElement {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+    },
+    /// Load one byte from a bytes object without exposing its physical address.
+    MemoryObjectLoadByte {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte index.
+        index: ValueId,
+    },
+    /// Store one array element without exposing its physical address.
+    MemoryObjectStoreElement {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Store one byte in a bytes object without exposing its physical address.
+    MemoryObjectStoreByte {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte index.
+        index: ValueId,
+        /// Low byte to store.
+        value: ValueId,
+    },
+    /// Store one word at a byte offset in a bytes object without exposing its
+    /// physical address.
+    MemoryObjectStoreWord {
+        /// Bytes object reference.
+        object: ValueId,
+        /// Runtime byte offset from the payload start.
+        offset: ValueId,
+        /// Word to store.
+        value: ValueId,
+    },
+    /// Load one word from a memory slice at a byte offset without exposing its
+    /// physical address.
+    MemorySliceLoadWord {
+        /// Memory slice reference.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
+        offset: ValueId,
+    },
+    /// Load one word from a calldata slice at a byte offset without exposing
+    /// the physical calldata address.
+    CalldataSliceLoadWord {
+        /// Calldata slice reference.
+        slice: ValueId,
+        /// Runtime byte offset from the slice start.
+        offset: ValueId,
+    },
+    /// Copy a typed slice into the payload of a dynamic memory object.
+    MemoryObjectCopyFromSlice {
+        /// Destination memory object reference.
+        object: ValueId,
+        /// Dynamic memory object kind.
+        kind: MemoryObjectKind,
+        /// Source logical slice.
+        source: ValueId,
+    },
+    /// Copy a typed slice into a byte offset in a dynamic memory object.
+    MemoryObjectCopyFromSliceAt {
+        /// Destination memory object reference.
+        object: ValueId,
+        /// Dynamic memory object kind.
+        kind: MemoryObjectKind,
+        /// Byte offset from the destination payload start.
+        offset: ValueId,
+        /// Source logical slice.
+        source: ValueId,
+    },
+    /// Copy a byte range between two dynamic memory objects.
+    MemoryObjectCopy {
+        /// Destination memory object reference.
+        destination: ValueId,
+        /// Destination memory object kind.
+        destination_kind: MemoryObjectKind,
+        /// Source memory object reference.
+        source: ValueId,
+        /// Source memory object kind.
+        source_kind: MemoryObjectKind,
+        /// Number of bytes to copy.
+        length: ValueId,
+    },
+    /// ABI-encode values into memory.
+    AbiEncode {
+        /// Storage policy for the encoded result.
+        mode: AbiEncodeMode,
+        /// Optional left-aligned four-byte selector prefix.
+        selector: Option<ValueId>,
+        /// Values corresponding to the tuple layout.
+        args: Box<[ValueId]>,
+        /// Interned semantic ABI layout.
+        layout: AbiLayoutRef,
+    },
+    /// Decode a memory-backed ABI tuple into semantic MIR values.
+    ///
+    /// The instruction result is the first tuple value. Additional values are
+    /// published through the multi-return buffer, matching ordinary MIR calls.
+    AbiDecode {
+        /// ABI-encoded bytes object.
+        data: ValueId,
+        /// Interned ABI input layout, including scalar validation types.
+        layout: AbiParamLayoutRef,
+    },
+    /// Copy a statically shaped aggregate from storage into an existing memory allocation.
+    StorageToMemory {
+        /// Base storage slot.
+        storage: ValueId,
+        /// Destination memory pointer.
+        memory: ValueId,
+        /// Aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Copy a statically shaped aggregate from memory into storage.
+    MemoryToStorage {
+        /// Base storage slot.
+        storage: ValueId,
+        /// Source memory pointer.
+        memory: ValueId,
+        /// Aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Clear every storage slot occupied by a statically shaped aggregate.
+    ClearStorage {
+        /// Base storage slot.
+        storage: ValueId,
+        /// Aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Copy memory: `mcopy(dest, src, len)`
+    #[builder(mcopy, void)]
+    MCopy(dest: ValueId, src: ValueId, len: ValueId),
+
+    // Storage operations
+    /// Load from storage: `sload(slot)`
+    #[builder(sload)]
+    SLoad(slot: ValueId),
+    /// Store to storage: `sstore(slot, value)`
+    #[builder(sstore, void)]
+    SStore(slot: ValueId, value: ValueId),
+    /// Transient load: `tload(slot)`
+    #[builder(tload)]
+    TLoad(slot: ValueId),
+    /// Transient store: `tstore(slot, value)`
+    #[builder(tstore, void)]
+    TStore(slot: ValueId, value: ValueId),
+
+    // Calldata operations
+    /// Load from calldata: `calldataload(offset)`
+    #[builder(calldataload)]
+    CalldataLoad(offset: ValueId),
+    /// Copy calldata to memory: `calldatacopy(destOffset, offset, size)`
+    #[builder(calldatacopy, void)]
+    CalldataCopy(dest: ValueId, offset: ValueId, size: ValueId),
+    /// Get calldata size: `calldatasize()`
+    CalldataSize,
+    /// Construct a logical `(pointer, length, location)` slice.
+    MakeSlice {
+        /// Address of the first element or byte.
+        ptr: ValueId,
+        /// Logical element or byte length.
+        len: ValueId,
+        /// Address space containing the slice data.
+        location: SliceLocation,
+    },
+    /// Project the data pointer from a slice.
+    #[builder(slice_ptr)]
+    SlicePtr(slice: ValueId),
+    /// Project the logical length from a slice.
+    #[builder(slice_len)]
+    SliceLen(slice: ValueId),
+    /// Address inside the current internal-call frame.
+    InternalFrameAddr(offset: u64),
+    /// Load a mutable local through its logical frame slot.
+    ///
+    /// A plain memory read: deletable when its result is dead. Ordering
+    /// against frame stores, calls, and other frame traffic is carried by
+    /// effect kinds and the alias model's `frame_location`.
+    FrameLoad {
+        /// Byte offset within the function's local region.
+        offset: u64,
+        /// Calling convention that owns the local region.
+        mode: FrameMode,
+        /// Logical value representation stored in the slot.
+        kind: FrameSlotKind,
+    },
+    /// Store a mutable local through its logical frame slot.
+    FrameStore {
+        /// Byte offset within the function's local region.
+        offset: u64,
+        /// Calling convention that owns the local region.
+        mode: FrameMode,
+        /// Logical value representation stored in the slot.
+        kind: FrameSlotKind,
+        /// Value to store.
+        value: ValueId,
+    },
+    /// Base address of the constructor's copied ABI argument blob.
+    ConstructorArgsBase,
+    /// End address of the constructor's copied ABI argument blob.
+    ConstructorArgsEnd,
+
+    // Code operations
+    /// Copy constant module data to memory.
+    DataCopy(data: DataRef, dest: ValueId, size: ValueId),
+    /// Get code size: `codesize()`
+    CodeSize,
+    /// Copy code to memory: `codecopy(destOffset, offset, size)`
+    #[builder(codecopy, void)]
+    CodeCopy(dest: ValueId, offset: ValueId, size: ValueId),
+    /// Get external code size: `extcodesize(addr)`
+    #[builder(extcodesize)]
+    ExtCodeSize(addr: ValueId),
+    /// Copy external code to memory: `extcodecopy(addr, destOffset, offset, size)`
+    ExtCodeCopy(addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId),
+    /// Get external code hash: `extcodehash(addr)`
+    #[builder(extcodehash)]
+    ExtCodeHash(addr: ValueId),
+    /// Assign an immutable during construction: `storeimmutable <name>, value`.
+    /// Lowered to constructor staging memory after MIR optimization.
+    StoreImmutable(id: ImmutableId, value: ValueId),
+    /// Read an immutable declared by the module: `loadimmutable <name>`.
+    ///
+    /// In runtime code this assembles to a typed `PUSH<N>` placeholder that the
+    /// constructor patches with the staged value before returning the runtime
+    /// code. In constructor code it reads the staging word instead.
+    LoadImmutable(id: ImmutableId),
+
+    // Return data operations
+    /// Get the current call's return data size: `returndatasize()`.
+    ///
+    /// Raw volatile query used by Yul and high-level call lowering.
+    ReturnDataSize,
+    /// Copy return data to memory: `returndatacopy(destOffset, offset, size)`
+    #[builder(returndatacopy, void)]
+    ReturnDataCopy(dest: ValueId, offset: ValueId, size: ValueId),
+
+    // Environment operations
+    /// Get caller address: `caller()`
+    Caller,
+    /// Get call value: `callvalue()`
+    CallValue,
+    /// Get origin address: `origin()`
+    Origin,
+    /// Get gas price: `gasprice()`
+    GasPrice,
+    /// Get block hash: `blockhash(blockNum)`
+    #[builder(blockhash)]
+    BlockHash(number: ValueId),
+    /// Get coinbase address: `coinbase()`
+    Coinbase,
+    /// Get block timestamp: `timestamp()`
+    Timestamp,
+    /// Get block number: `number()`
+    BlockNumber,
+    /// Get previous randao: `prevrandao()`
+    PrevRandao,
+    /// Get gas limit: `gaslimit()`
+    GasLimit,
+    /// Get beacon chain slot number: `slotnum()`
+    SlotNum,
+    /// Get chain ID: `chainid()`
+    ChainId,
+    /// Get this contract's address: `address()`
+    Address,
+    /// Get balance: `balance(addr)`
+    #[builder(balance)]
+    Balance(addr: ValueId),
+    /// Get self balance: `selfbalance()`
+    SelfBalance,
+    /// Get remaining gas: `gas()`
+    Gas,
+    /// Get base fee: `basefee()`
+    BaseFee,
+    /// Get blob base fee: `blobbasefee()`
+    BlobBaseFee,
+    /// Get blob hash: `blobhash(index)`
+    #[builder(blobhash)]
+    BlobHash(index: ValueId),
+
+    // Hashing
+    /// Keccak256 hash: `keccak256(offset, size)`
+    #[builder(keccak256)]
+    Keccak256(offset: ValueId, size: ValueId),
+    /// Keccak256 hash of a `memorybytes` object's contents:
+    /// `keccak256_bytes(object)`.
+    ///
+    /// Consumes the object reference directly, so the optimizer sees one
+    /// whole-object read instead of separate length and data-pointer
+    /// projections. `lower-memory-objects` expands it into those projections
+    /// and a physical `keccak256`.
+    #[builder(keccak256_bytes)]
+    Keccak256Bytes(object: ValueId),
+    /// Hash a fixed-width mapping key and its parent slot.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    #[builder(mapping_slot)]
+    MappingSlot(key: ValueId, slot: ValueId),
+    /// Hash a `[length][data...]` memory value and its parent mapping slot.
+    #[builder(mapping_slot_memory)]
+    MappingSlotMemory(key: ValueId, slot: ValueId),
+    /// Hash a dynamically-sized calldata value and its parent mapping slot.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    #[builder(mapping_slot_calldata)]
+    MappingSlotCalldata(key: ValueId, slot: ValueId),
+    /// Hash the slot of a dynamically-sized storage array to find its data.
+    ///
+    /// The temporary scratch memory used by its late lowering is not an
+    /// observable part of this instruction's MIR semantics.
+    #[builder(storage_array_data_slot)]
+    StorageArrayDataSlot(slot: ValueId),
+    /// Resolve one element slot in a dynamic storage array.
+    ///
+    /// The array's base slot, element index, and logical slot stride stay
+    /// semantic until the mapping-slot lowering pass expands the hash and
+    /// offset calculation.
+    StorageArrayElementSlot { slot: ValueId, index: ValueId, element_slots: u64 },
+
+    // Call operations
+    // TODO(codegen): Consider unifying external calls as one instruction with a call-kind enum
+    // and shared operands once the MIR shape stabilizes.
+    /// External call: `call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+    Call {
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// Call code: `callcode(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
+    CallCode {
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// Static call: `staticcall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
+    StaticCall {
+        gas: ValueId,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// Delegate call: `delegatecall(gas, addr, argsOffset, argsSize, retOffset, retSize)`
+    DelegateCall {
+        gas: ValueId,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    },
+    /// EOF external call: `extcall(addr, argsOffset, argsSize, value)`.
+    ExtCall { addr: ValueId, args_offset: ValueId, args_size: ValueId, value: ValueId },
+    /// EOF external delegate call: `extdelegatecall(addr, argsOffset, argsSize)`.
+    ExtDelegateCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
+    /// EOF external static call: `extstaticcall(addr, argsOffset, argsSize)`.
+    ExtStaticCall { addr: ValueId, args_offset: ValueId, args_size: ValueId },
+    /// Internal function call lowered to a direct jump.
+    InternalCall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
+
+    // Contract creation
+    /// Create contract: `create(value, offset, size)`
+    #[builder(create)]
+    Create(value: ValueId, offset: ValueId, size: ValueId),
+    /// Create2 contract: `create2(value, offset, size, salt)`
+    Create2(value: ValueId, offset: ValueId, size: ValueId, salt: ValueId),
+
+    // Log operations
+    // TODO(codegen): Consider unifying log0..log4 as one instruction with a topic list.
+    /// Log with no topics: `log0(offset, size)`
+    Log0(offset: ValueId, size: ValueId),
+    /// Log with 1 topic: `log1(offset, size, topic1)`
+    Log1(offset: ValueId, size: ValueId, topic1: ValueId),
+    /// Log with 2 topics: `log2(offset, size, topic1, topic2)`
+    Log2(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId),
+    /// Log with 3 topics: `log3(offset, size, topic1, topic2, topic3)`
+    Log3(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId),
+    /// Log with 4 topics: `log4(offset, size, topic1, topic2, topic3, topic4)`
+    Log4(offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId, topic3: ValueId, topic4: ValueId),
+
+    // SSA operations
+    /// Phi node: merge values from different predecessors.
+    Phi(incoming: Vec<(BlockId, ValueId)>),
+    /// Select: `select(cond, true_val, false_val)`
+    Select(cond: ValueId, true_val: ValueId, false_val: ValueId),
+
+    // Sign extension
+    /// Sign extend: `signextend(b, x)` - extends the sign bit from byte position b
+    #[builder(signextend)]
+    SignExtend(byte: ValueId, value: ValueId),
+}
+    defs {
+    Add(_, _) => { mnemonic: "add", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Sub(_, _) => { mnemonic: "sub", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Mul(_, _) => { mnemonic: "mul", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Div(_, _) => { mnemonic: "div", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    SDiv(_, _) => { mnemonic: "sdiv", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Mod(_, _) => { mnemonic: "mod", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    SMod(_, _) => { mnemonic: "smod", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Exp(_, _) => { mnemonic: "exp", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    AddMod(_, _, _) => { mnemonic: "addmod", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    MulMod(_, _, _) => { mnemonic: "mulmod", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    And(_, _) => { mnemonic: "and", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Or(_, _) => { mnemonic: "or", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Xor(_, _) => { mnemonic: "xor", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Not(_) => { mnemonic: "not", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Clz(_) => { mnemonic: "clz", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Shl(_, _) => { mnemonic: "shl", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Shr(_, _) => { mnemonic: "shr", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Sar(_, _) => { mnemonic: "sar", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Byte(_, _) => { mnemonic: "byte", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Lt(_, _) => { mnemonic: "lt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Gt(_, _) => { mnemonic: "gt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    SLt(_, _) => { mnemonic: "slt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    SGt(_, _) => { mnemonic: "sgt", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    Eq(_, _) => { mnemonic: "eq", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::REORDERABLE, side_effects: false, category: None },
+    IsZero(_) => { mnemonic: "iszero", result: Bool, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+
+    MLoad(_) => { mnemonic: "mload", result: Word, phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    MStore(_, _) => { mnemonic: "mstore", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    MStore8(_, _) => { mnemonic: "mstore8", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    MemoryZero(_, _) => { mnemonic: "memory_zero", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("memory zero") },
+    MSize => { mnemonic: "msize", result: Word, phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Fmp => { mnemonic: "fmp", result: MemPtr, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("abstract allocation") },
+    SetFmp(_) => { mnemonic: "set_fmp", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("abstract allocation") },
+    Alloc { .. } => { mnemonic: "alloc", result: Custom, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("abstract allocation") },
+    MemoryObjectLen(_, _) => { mnemonic: "memory_object_len", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    SetMemoryObjectLen(_, _, _) => { mnemonic: "set_memory_object_len", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    MemoryObjectData(_, _) => { mnemonic: "memory_object_data", result: MemPtr, phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MemoryObjectFieldAddr { .. } => { mnemonic: "memory_object_field_addr", result: MemPtr, phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MemoryObjectElementAddr { .. } => { mnemonic: "memory_object_element_addr", result: MemPtr, phases: PhaseSet::THROUGH_DISPATCH, effect: Pure, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MemoryObjectLoadField { .. } => { mnemonic: "memory_object_load_field", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MemoryObjectStoreField { .. } => { mnemonic: "memory_object_store_field", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    MemoryObjectLoadElement { .. } => { mnemonic: "memory_object_load_element", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MemoryObjectLoadByte { .. } => { mnemonic: "memory_object_load_byte", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MemoryObjectStoreElement { .. } => { mnemonic: "memory_object_store_element", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    MemoryObjectStoreByte { .. } => { mnemonic: "memory_object_store_byte", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    MemoryObjectStoreWord { .. } => { mnemonic: "memory_object_store_word", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    MemorySliceLoadWord { .. } => { mnemonic: "memory_slice_load_word", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    CalldataSliceLoadWord { .. } => { mnemonic: "calldata_slice_load_word", result: Word, phases: PhaseSet::THROUGH_DISPATCH, effect: EnvironmentRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MemoryObjectCopyFromSlice { .. } => { mnemonic: "memory_object_copy_from_slice", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    MemoryObjectCopyFromSliceAt { .. } => { mnemonic: "memory_object_copy_from_slice_at", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    MemoryObjectCopy { .. } => { mnemonic: "memory_object_copy", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::MEMORY_OBJECT, side_effects: true, category: Some("memory-object") },
+    AbiEncode { .. } => { mnemonic: "abi_encode", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("ABI encoding") },
+    AbiDecode { .. } => { mnemonic: "abi_decode", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("ABI decoding") },
+    StorageToMemory { .. } => { mnemonic: "storage_to_memory", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
+    MemoryToStorage { .. } => { mnemonic: "memory_to_storage", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
+    ClearStorage { .. } => { mnemonic: "clear_storage", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: Some("aggregate") },
+    MCopy(_, _, _) => { mnemonic: "mcopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+
+    SLoad(_) => { mnemonic: "sload", result: Word, phases: PhaseSet::ALL, effect: StorageRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    SStore(_, _) => { mnemonic: "sstore", result: None, phases: PhaseSet::ALL, effect: StorageWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    TLoad(_) => { mnemonic: "tload", result: Word, phases: PhaseSet::ALL, effect: TransientRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    TStore(_, _) => { mnemonic: "tstore", result: None, phases: PhaseSet::ALL, effect: TransientWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+
+    CalldataLoad(_) => { mnemonic: "calldataload", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    CalldataCopy(_, _, _) => { mnemonic: "calldatacopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    CalldataSize => { mnemonic: "calldatasize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    MakeSlice { location: SliceLocation::Memory, .. } => { mnemonic: "make_memory_slice", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    MakeSlice { location: SliceLocation::Calldata, .. } => { mnemonic: "make_calldata_slice", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    MakeSlice { location: SliceLocation::Returndata, .. } => { mnemonic: "make_returndata_slice", result: Custom, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    SlicePtr(_) => { mnemonic: "slice_ptr", result: Word, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    SliceLen(_) => { mnemonic: "slice_len", result: Word, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("slice") },
+    InternalFrameAddr(_) => { mnemonic: "internal_frame_addr", result: MemPtr, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    FrameLoad { .. } => { mnemonic: "frame_load", result: Custom, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("frame slot") },
+    FrameStore { .. } => { mnemonic: "frame_store", result: None, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: Some("frame slot") },
+    ConstructorArgsBase => { mnemonic: "constructor_args_base", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    ConstructorArgsEnd => { mnemonic: "constructor_args_end", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+
+    DataCopy(_, _, _) => { mnemonic: "data_copy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::REORDERABLE, side_effects: true, category: None },
+    CodeSize => { mnemonic: "codesize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    CodeCopy(_, _, _) => { mnemonic: "codecopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    ExtCodeSize(_) => { mnemonic: "extcodesize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    ExtCodeCopy(_, _, _, _) => { mnemonic: "extcodecopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+    ExtCodeHash(_) => { mnemonic: "extcodehash", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    StoreImmutable(..) => { mnemonic: "storeimmutable", result: None, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: ImmutableWrite, traits: OpTraits::NONE, side_effects: true, category: Some("immutable assignment") },
+    LoadImmutable(_) => { mnemonic: "loadimmutable", result: Custom, phases: PhaseSet::ALL, effect: ImmutableRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    ReturnDataSize => { mnemonic: "returndatasize", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    ReturnDataCopy(_, _, _) => { mnemonic: "returndatacopy", result: None, phases: PhaseSet::ALL, effect: MemoryWrite, traits: OpTraits::NONE, side_effects: true, category: None },
+
+    Caller => { mnemonic: "caller", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    CallValue => { mnemonic: "callvalue", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Origin => { mnemonic: "origin", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    GasPrice => { mnemonic: "gasprice", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    BlockHash(_) => { mnemonic: "blockhash", result: Bytes32, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Coinbase => { mnemonic: "coinbase", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Timestamp => { mnemonic: "timestamp", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    BlockNumber => { mnemonic: "number", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    PrevRandao => { mnemonic: "prevrandao", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    GasLimit => { mnemonic: "gaslimit", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    SlotNum => { mnemonic: "slotnum", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    ChainId => { mnemonic: "chainid", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Address => { mnemonic: "address", result: Address, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    Balance(_) => { mnemonic: "balance", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    SelfBalance => { mnemonic: "selfbalance", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Gas => { mnemonic: "gas", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    BaseFee => { mnemonic: "basefee", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    BlobBaseFee => { mnemonic: "blobbasefee", result: Word, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::REMATERIALIZABLE, side_effects: false, category: None },
+    BlobHash(_) => { mnemonic: "blobhash", result: Bytes32, phases: PhaseSet::ALL, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: None },
+
+    Keccak256(_, _) => { mnemonic: "keccak256", result: Bytes32, phases: PhaseSet::ALL, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: None },
+    Keccak256Bytes(_) => { mnemonic: "keccak256_bytes", result: Bytes32, phases: PhaseSet::THROUGH_DISPATCH, effect: MemoryRead, traits: OpTraits::MEMORY_OBJECT, side_effects: false, category: Some("memory-object") },
+    MappingSlot(_, _) => { mnemonic: "mapping_slot", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    MappingSlotMemory(_, _) => { mnemonic: "mapping_slot_memory", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: MemoryRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    MappingSlotCalldata(_, _) => { mnemonic: "mapping_slot_calldata", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: EnvironmentRead, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    StorageArrayDataSlot(_) => { mnemonic: "storage_array_data_slot", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+    StorageArrayElementSlot { .. } => { mnemonic: "storage_array_element_slot", result: Bytes32, phases: PhaseSet::THROUGH_MEMORY_LOWERED, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: Some("storage slot") },
+
+    Call { .. } => { mnemonic: "call", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    CallCode { .. } => { mnemonic: "callcode", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    StaticCall { .. } => { mnemonic: "staticcall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    DelegateCall { .. } => { mnemonic: "delegatecall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    ExtCall { .. } => { mnemonic: "extcall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    ExtDelegateCall { .. } => { mnemonic: "extdelegatecall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    ExtStaticCall { .. } => { mnemonic: "extstaticcall", result: Word, phases: PhaseSet::ALL, effect: ExternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    InternalCall { .. } => { mnemonic: "internal_call", result: Custom, phases: PhaseSet::ALL, effect: InternalCall, traits: OpTraits::NONE, side_effects: true, category: None },
+    Create(_, _, _) => { mnemonic: "create", result: Address, phases: PhaseSet::ALL, effect: Create, traits: OpTraits::NONE, side_effects: true, category: None },
+    Create2(_, _, _, _) => { mnemonic: "create2", result: Address, phases: PhaseSet::ALL, effect: Create, traits: OpTraits::NONE, side_effects: true, category: None },
+    Log0(_, _) => { mnemonic: "log0", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Log1(_, _, _) => { mnemonic: "log1", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Log2(_, _, _, _) => { mnemonic: "log2", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Log3(_, _, _, _, _) => { mnemonic: "log3", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+    Log4(_, _, _, _, _, _) => { mnemonic: "log4", result: None, phases: PhaseSet::ALL, effect: Log, traits: OpTraits::NONE, side_effects: true, category: None },
+
+    Phi(_) => { mnemonic: "phi", result: Custom, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    Select(_, _, _) => { mnemonic: "select", result: Word, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    SignExtend(_, _) => { mnemonic: "signextend", result: SignedWord, phases: PhaseSet::ALL, effect: Pure, traits: OpTraits::NONE, side_effects: false, category: None },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{AllocationKind, AllocationSemantics, ValueId};
+
+    #[test]
+    fn descriptors_drive_operation_properties() {
+        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
+        assert_eq!(add.mnemonic(), "add");
+        assert_eq!(add.effect_kind(), EffectKind::Pure);
+        assert!(add.op_def().traits.contains(OpTraits::REORDERABLE));
+        assert!(!add.has_side_effects());
+
+        let calldata_size = InstKind::CalldataSize;
+        assert!(calldata_size.op_def().traits.contains(OpTraits::REMATERIALIZABLE));
+        assert!(calldata_size.op_def().phases.contains(MirPhase::EvmShaped));
+
+        assert_eq!(add.op_def().result.default_type(), Some(MirType::uint256()));
+        assert!(
+            !InstKind::MStore(ValueId::new(0), ValueId::new(1)).op_def().result.produces_value()
+        );
+
+        let slice = InstKind::MakeSlice {
+            ptr: ValueId::new(0),
+            len: ValueId::new(1),
+            location: SliceLocation::Calldata,
+        };
+        assert_eq!(slice.mnemonic(), "make_calldata_slice");
+    }
+
+    #[test]
+    fn views_project_operands() {
+        let add = InstKind::Add(ValueId::new(0), ValueId::new(1));
+        assert_eq!(add.op(), Op::Add { a: ValueId::new(0), b: ValueId::new(1) });
+        let mapped = add.op().map_values(|value| ValueId::new(value.index() + 10));
+        assert_eq!(mapped, Op::Add { a: ValueId::new(10), b: ValueId::new(11) });
+        assert_eq!(InstKind::MSize.op(), Op::MSize);
+        assert_eq!(add.op().into_kind().as_ref(), Some(&add));
+        assert_eq!(InstKind::Phi(Vec::new()).op().into_kind(), None);
+    }
+
+    #[test]
+    fn isle_prelude_matches_schema() {
+        snapbox::assert_data_eq!(Op::isle_prelude(), snapbox::file!["../../isle/prelude.isle"]);
+    }
+
+    #[test]
+    fn descriptors_enforce_phase_boundaries() {
+        let metadata = InstructionMetadata::EMPTY;
+        let fmp = InstKind::Fmp;
+        assert_eq!(
+            fmp.phase_violation(MirPhase::EvmShaped, &metadata),
+            Some("abstract allocation")
+        );
+
+        let object_load =
+            InstKind::MemoryObjectLoadByte { object: ValueId::new(0), index: ValueId::new(1) };
+        assert_eq!(
+            object_load.phase_violation(MirPhase::MemoryLowered, &metadata),
+            Some("memory-object")
+        );
+
+        let raw_alloc = InstKind::Alloc {
+            size: ValueId::new(0),
+            kind: AllocationKind::Raw,
+            semantics: AllocationSemantics::INTERNAL,
+        };
+        assert_eq!(
+            raw_alloc.phase_violation(MirPhase::EvmShaped, &metadata),
+            Some("abstract allocation")
+        );
+    }
+}

@@ -1,12 +1,14 @@
 //! Lower semantic ABI encoding operations to memory and slice operations.
 
 use crate::{
+    memory::EvmMemoryLayout,
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
         FunctionId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation,
         Terminator, Value, ValueId, utils::resolve_replacement,
     },
     pass::MirPass,
+    target::{Cost, Target},
     transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
@@ -28,12 +30,13 @@ impl MirPass for LowerAbiEncode {
 
     fn run_pass(
         &self,
-        _gcx: Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let helpers = synthesize_array_helpers(module);
-        let mut changed = !helpers.arrays.is_empty();
+        let mut helpers = synthesize_array_helpers(module);
+        synthesize_tuple_helpers(Target::new(gcx), module, &mut helpers);
+        let mut changed = !helpers.arrays.is_empty() || !helpers.tuples.is_empty();
         for func in module.functions.iter_mut() {
             changed |= lower_function(func, &helpers);
         }
@@ -50,10 +53,102 @@ struct ArrayHelperKey {
     value_ty: MirType,
 }
 
+/// A whole encoding several sites share as one helper function, like solc's per-signature
+/// `abi_encode_tuple` functions: the same layout, storage policy, selector presence, and MIR
+/// types of the values passed.
+#[derive(Clone, PartialEq, Eq, Hash)]
+struct TupleHelperKey {
+    mode: AbiEncodeMode,
+    selector: bool,
+    types: Box<[AbiType]>,
+    arg_types: Box<[MirType]>,
+}
+
+impl TupleHelperKey {
+    fn of(
+        func: &Function,
+        mode: AbiEncodeMode,
+        selector: Option<ValueId>,
+        args: &[ValueId],
+        layout: &AbiLayout,
+    ) -> Self {
+        Self {
+            mode,
+            selector: selector.is_some(),
+            types: layout.types.clone(),
+            arg_types: args
+                .iter()
+                .map(|&arg| func.value_ty(arg).unwrap_or_else(MirType::uint256))
+                .collect(),
+        }
+    }
+}
+
 /// Shared encoder helpers available to every site in the module.
 #[derive(Default)]
 struct EncodeHelpers {
     arrays: FxHashMap<ArrayHelperKey, FunctionId>,
+    tuples: FxHashMap<TupleHelperKey, FunctionId>,
+}
+
+/// Builds `encode_abi_tuple(args.., [selector]) -> encoded` for every encoding shape at least
+/// two sites share, when the objective ranks the calls, with the protocol gas they run, above
+/// the expanded copies: under the size objective the sites call one body, under the gas
+/// objective each keeps its own.
+fn synthesize_tuple_helpers(target: Target, module: &mut Module, helpers: &mut EncodeHelpers) {
+    let mut counts = FxHashMap::<TupleHelperKey, (usize, usize)>::default();
+    for func in module.functions.iter() {
+        for inst in func.instructions() {
+            let InstKind::AbiEncode { mode, selector, args, layout } = &func.inst(inst).kind else {
+                continue;
+            };
+            let next = counts.len();
+            let count = counts
+                .entry(TupleHelperKey::of(func, *mode, *selector, args, layout))
+                .or_insert((0, next));
+            count.0 += 1;
+        }
+    }
+    let mut keys = counts
+        .into_iter()
+        .filter(|(_, (count, _))| *count >= 2)
+        .map(|(key, (count, first))| (first, count, key))
+        .collect::<Vec<_>>();
+    keys.sort_by_key(|(first, _, _)| *first);
+
+    let mut shared = Vec::new();
+    for (_, sites, key) in keys {
+        let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_tuple));
+        {
+            let mut builder = FunctionBuilder::new(&mut function);
+            let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
+            let selector = key.selector.then(|| builder.add_param(MirType::uint256()));
+            let layout = AbiLayout::new(key.types.clone());
+            let encoded = lower_encode(&mut builder, &layout, selector, &args, key.mode, helpers);
+            let result_ty = builder.func().value_ty(encoded).unwrap_or_else(MirType::uint256);
+            builder.add_return(result_ty);
+            builder.ret([encoded]);
+        }
+        let params = function.params.len();
+        let body = target.code_estimate(&function);
+        let sites = u32::try_from(sites).unwrap_or(u32::MAX);
+        // The encoding runs at every site in both shapes; the call protocol is the price of
+        // sharing it, the copies of the body the price of expanding it.
+        let frame_words = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE
+            + params as u64
+            + 1;
+        let call = target.internal_call(params, 1, frame_words);
+        let ret = target.internal_return(params, 1);
+        let with_helper = Cost::new(0, body.bytes).plus(ret).plus(call.times(sites));
+        let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
+        if target.cmp(with_helper, expanded).is_lt() {
+            shared.push((key, function));
+        }
+    }
+    for (key, function) in shared {
+        let helper = module.add_function(function);
+        helpers.tuples.insert(key, helper);
+    }
 }
 
 /// Builds `encode_abi_array(value, dest) -> tail` for every memory array layout whose
@@ -228,10 +323,20 @@ fn lower_function(func: &mut Function, helpers: &EncodeHelpers) -> bool {
                 .collect::<Vec<_>>();
             let layout = std::sync::Arc::clone(layout);
             let mode = *mode;
-            let replacement = lower_encode(&mut builder, &layout, selector, &args, mode, helpers);
-            literal_objects.extend(args.iter().copied());
+            let key = TupleHelperKey::of(builder.func(), mode, selector, &args, &layout);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
+            let replacement = match helpers.tuples.get(&key) {
+                Some(&helper) => {
+                    // encoded = internal_call @encode_abi_tuple, 1, args.., [selector]
+                    let result_ty =
+                        builder.func().value_ty(result).unwrap_or_else(MirType::uint256);
+                    let call_args = args.iter().copied().chain(selector).collect();
+                    builder.internal_call(helper, call_args, result_ty, 1)
+                }
+                None => lower_encode(&mut builder, &layout, selector, &args, mode, helpers),
+            };
+            literal_objects.extend(args.iter().copied());
             replacements.insert(result, replacement);
         }
         move_terminator(&mut builder, block, original_terminator);

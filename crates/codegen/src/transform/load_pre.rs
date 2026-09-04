@@ -77,12 +77,14 @@ use crate::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
         MemoryAddress, MemoryLocation, ModRef,
     },
+    backend::evm::op,
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
         MemoryRegion, MirType, Module, StorageAlias, Terminator, Value, ValueId,
         utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
+    target::{GasTier, Target, Warmth},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -101,12 +103,13 @@ impl MirPass for LoadPre {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
+        let target = Target::new(gcx);
         run_function_pass(module, analyses, |func, analyses| {
-            let mut eliminator = LoadRedundancyEliminator::new();
+            let mut eliminator = LoadRedundancyEliminator::new(target);
             eliminator.alias = Some(Rc::clone(&analyses.alias));
             eliminator.cfg = Some(Rc::clone(&analyses.cfg));
             eliminator.run(func).total() != 0
@@ -131,12 +134,13 @@ impl LoadPreStats {
 }
 
 /// Dataflow-based redundancy eliminator for memory-dependent reads.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct LoadRedundancyEliminator {
     /// Shared CFG snapshot for the availability dataflow.
     cfg: Option<Rc<CfgInfo>>,
     stats: LoadPreStats,
     alias: Option<Rc<AliasAnalysis>>,
+    target: Target,
 }
 
 /// A normalized key for a state-dependent read.
@@ -186,8 +190,10 @@ struct Candidate {
 /// MIR instruction count: a join-block reload executes on every predecessor
 /// path, while a compensating load only executes on the paths where the value
 /// was unavailable.
-#[derive(Clone, Copy, Debug, Default)]
-struct LoadPreCostModel;
+#[derive(Clone, Copy, Debug)]
+struct LoadPreCostModel {
+    target: Target,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct LoadPreCost {
@@ -215,16 +221,17 @@ struct LoadPreCostInput<'a> {
 }
 
 impl LoadPreCostModel {
-    const MEMORY_READ: i64 = 3;
-    const STORAGE_READ: i64 = 100;
-    const TRANSIENT_READ: i64 = 100;
-    const KECCAK_BASE: i64 = 30;
-    const KECCAK_WORD: i64 = 6;
-    const NON_LOOP_PHI_EDGE_COPY: i64 = 3;
-    const CROSS_BLOCK_OPERAND: i64 = 3;
+    const MEMORY_READ: i64 = GasTier::VeryLow.fixed_gas() as i64;
+    const TRANSIENT_READ: i64 = GasTier::Transient.fixed_gas() as i64;
+    const KECCAK_BASE: i64 = GasTier::Keccak.fixed_gas() as i64;
+    const KECCAK_WORD: i64 = GasTier::Keccak.fixed_dynamic_gas() as i64;
+    /// One `DUP` on the edge.
+    const NON_LOOP_PHI_EDGE_COPY: i64 = GasTier::VeryLow.fixed_gas() as i64;
+    /// One `DUP` to reach the operand.
+    const CROSS_BLOCK_OPERAND: i64 = GasTier::VeryLow.fixed_gas() as i64;
 
     fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
-        let read = Self::read_cost(input.key);
+        let read = self.read_cost(input.key);
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
         let inserted = read * input.insertions.len() as i64;
         let phi = if !input.needs_phi || input.loop_carried {
@@ -236,9 +243,10 @@ impl LoadPreCostModel {
         LoadPreCost { saved, inserted, phi, operands }
     }
 
-    const fn read_cost(key: LoadKey) -> i64 {
+    fn read_cost(&self, key: LoadKey) -> i64 {
         match key {
-            LoadKey::Storage(_) => Self::STORAGE_READ,
+            // A repeated storage read is warm, whatever the first access cost.
+            LoadKey::Storage(_) => self.target.opcode_gas_at(op::SLOAD, Warmth::Warm) as i64,
             LoadKey::Transient(_) => Self::TRANSIENT_READ,
             LoadKey::Memory(_) => Self::MEMORY_READ,
             LoadKey::Keccak(_, size) => match size {
@@ -420,9 +428,9 @@ struct CandidateCx<'a> {
 }
 
 impl LoadRedundancyEliminator {
-    /// Creates a new load PRE pass.
-    fn new() -> Self {
-        Self::default()
+    /// Creates a new load PRE pass pricing reads on `target`.
+    fn new(target: Target) -> Self {
+        Self { cfg: None, stats: LoadPreStats::default(), alias: None, target }
     }
 
     /// Runs load PRE to a fixed point under the rewrite budget.
@@ -818,7 +826,7 @@ impl LoadRedundancyEliminator {
             || incoming.first().is_none_or(|&(_, first)| {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
             });
-        let model = LoadPreCostModel;
+        let model = LoadPreCostModel { target: self.target };
         let cost = model.estimate(LoadPreCostInput {
             func,
             key,
@@ -989,8 +997,10 @@ impl LoadRedundancyEliminator {
                 first
             }
             _ => {
-                let (phi_inst, phi_value) = func
-                    .alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
+                let (phi_inst, phi_value) = func.alloc_value_inst(
+                    Instruction::new(InstKind::Phi(incoming), Some(result_ty))
+                        .with_debug_info_dropped(),
+                );
                 let phi_count = func.blocks[target]
                     .instructions
                     .iter()

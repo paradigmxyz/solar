@@ -129,12 +129,7 @@ fn @factory.3(arg0: calldataptr, arg1: u256) -> address [pure] {
     jumpi v41, bb1, bb10
   bb10:
     v52 = calldataload v15
-    v54 = lt 20, 20
-    v55 = sub 20, 20
-    v56 = shl 3, v55
-    v57 = shl v56, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v58 = select v54, v57, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
-    v59 = and v52, v58
+    v59 = and v52, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v60 = shr 96, v59
     jump bb7
   bb7:
@@ -247,13 +242,7 @@ fn @midWord.5(arg0: calldataptr, arg1: u256) -> bytes32 [pure] {
     jumpi v23, bb1, bb6
   bb6:
     v29 = calldataload v15
-    v31 = lt 32, 32
-    v32 = sub 32, 32
-    v33 = shl 3, v32
-    v34 = shl v33, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v35 = select v31, v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v36 = and v29, v35
-    ret v36
+    ret v29
   bb1:
     revert 0, 0
 }

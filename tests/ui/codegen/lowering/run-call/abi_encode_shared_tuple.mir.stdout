@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_shared_tuple.sol:AbiEncodeSharedTuple ===
+@module AbiEncodeSharedTuple
+fn @first(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0xa743b805, pure, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes], object, args arg0, arg1
+    ret v0
+}
+
+fn @second(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x0a9ef4d7, pure, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes], object, args arg0, arg1
+    ret v0
+}
+
+fn @tagged(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x33be8de9, pure, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = shl 224, 0xaabbccdd
+    v1 = abi_encode [word, memory_bytes], object, selector v0, args arg0, arg1
+    ret v1
+}
+
+fn @retagged(arg0: u256, arg1: memorybytes) -> memorybytes [selector=0x7e81c32c, pure, abi_params=[u256, bytes], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = shl 224, 0xaabbccdd
+    v1 = abi_encode [word, memory_bytes], object, selector v0, args arg0, arg1
+    ret v1
+}

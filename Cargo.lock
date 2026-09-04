@@ -1488,6 +1488,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cranelift-isle"
+version = "0.122.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a05337a2b02c3df00b4dd9a263a027a07b3dff49f61f7da3b5d195c21eaa633d"
+
+[[package]]
 name = "crc"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4418,6 +4424,7 @@ version = "0.2.0"
 dependencies = [
  "alloy-primitives",
  "arrayvec",
+ "cranelift-isle",
  "derive_more",
  "either",
  "memchr",

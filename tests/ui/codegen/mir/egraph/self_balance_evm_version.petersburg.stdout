@@ -1,0 +1,10 @@
+- // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (before egraph) ===
++ // === ROOT/tests/ui/codegen/mir/egraph/self_balance_evm_version.mir (after egraph) ===
+  @module InstSimplifySelfBalance
+  fn @own_balance() -> u256 {
+    bb0:
+      v0 = address
+      v1 = balance v0
+      ret v1
+  }
+  

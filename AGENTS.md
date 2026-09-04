@@ -112,6 +112,89 @@ the transition a named pass that advances the phase via
 `lower-abi` skips dynamic types), and pin it with `.mir` UI tests under
 `tests/ui/codegen/mir/`.
 
+### Operation Schema and ISLE Rules
+
+MIR operations are declared once in `crates/codegen/src/mir/op_schema.rs`.
+Each row carries the typed payload with named tuple operands, the mnemonic,
+result kind, phase set, effect, traits, and side-effect flag. The macro
+generates operand traversal, the `Op` rewrite view, the ISLE prelude, a
+constructor per operation that the textual parser uses for every operation
+built from value operands alone, and a `FunctionBuilder` method for every
+variant marked `#[builder(name)]` or `#[builder(name, void)]`. Give an
+operation custom text syntax or a custom builder only when it carries an
+attribute the generic forms cannot express.
+EVM opcodes are declared the same way in `backend/evm/op.rs`, with traits and
+availability per row and a snapshot of the whole table in `op_table.snap`.
+Add new operations to those tables only; never add a parallel `match` that
+classifies operations elsewhere.
+
+Rewrite rules are written in [ISLE](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle)
+under `crates/codegen/isle/`:
+
+- `prelude.isle` is generated from the schema. Never edit it by hand; run
+  `SNAPSHOTS=overwrite cargo nextest run -p solar-codegen isle_prelude` after
+  changing the schema, and keep the checked-in file current.
+- `evm_prelude.isle` is generated from the EVM opcode table the same way
+  (`cargo nextest run -p solar-codegen evm_isle_prelude`) and declares one
+  `$OPCODE` constant per opcode byte for EVM IR rules.
+- One rule file per pass (`egraph.isle`, `peephole.isle`), compiled by
+  `crates/codegen/build.rs` and included from a sibling `isle.rs` module that
+  implements the extractors and constructors the rules call. Register new
+  rule sets in the build script's `RULE_SETS`.
+- MIR rules match the schema-generated `Op` view of one instruction. EVM IR
+  rules match a hand-written `Inst` view of each instruction in a window of
+  the block tail, so every window extractor overlaps and every rule carries a
+  priority.
+- Rules on one operation match structurally on `Op` variants, so different
+  operations never overlap. Rules on the same operation must carry distinct
+  priorities that encode the order the checks are tried; ISLE rejects
+  ambiguous overlaps at build time.
+- Test a boolean predicate with `(if-let true (pred ...))`. A bare `(if ...)`
+  only checks that the call succeeded.
+- Keep constant folding, phi merging, and anything that needs
+  variable-length payloads in Rust; elided payloads appear as `Unit` in the
+  view. `simplify` rules return a value, `rewrite` rules return an `Op` that
+  `Op::into_kind` turns back into an instruction.
+
+The `egraph` pass (`transform/egraph.rs`) is the MIR simplification and
+value-numbering pass: an acyclic e-graph with dominator-scoped hash-consing,
+`rewrite` results kept as alternative nodes, `simplify` results merged, and
+the cheapest node per class extracted under the target cost model, all at
+the original instruction positions. Its cost is target cost plus stack
+traffic: a node costs its opcode's gas and bytes ranked under the
+optimization objective, immediates are priced as the pushes that
+materialize them, an operand is charged only when the node is its sole
+user, and a rewrite pays a `DUP` for every non-immediate value it newly
+reaches while a displaced operand stays live elsewhere. Without that term,
+rewrites after memory lowering extend live ranges the stack scheduler
+spills and measure as a loss. The pass also merges phis, deletes zero-byte
+copies, and rewrites branches on `iszero`, and runs once more after memory
+lowering. Extend it by adding rules to `egraph.isle`, bounds to `max_bits`,
+and stack-traffic terms to `Costs::node`; opcode prices belong in the gas
+schedule, never in the pass, and never match instructions in the pass
+itself.
+
+### Target Cost Model
+
+Every choice between equivalent code shapes is priced by the target cost
+model in `crates/codegen/src/target.rs`. Each opcode row in
+`backend/evm/op.rs` carries a `gas(tier)` column; `GasTier::gas` resolves
+a tier to the static gas of the selected EVM version across the fork
+schedule (EIP-150, EIP-1884, EIP-2929, and later repricings) and
+`dynamic_gas` gives the per-word or per-byte component. `op_table.snap`
+snapshots the resolved schedule for every opcode. `Target::new(gcx)`
+builds the model from the session's EVM version, optimization mode, and
+optimizer runs; it answers opcode and MIR operation costs as
+`Cost { gas, bytes }` (dynamic work sized from immediate operands when
+they are known), push materialization cost, deposit economics
+(`CODE_DEPOSIT_GAS_PER_BYTE`, `lifetime_gas`), and objective ordering
+(`objective_key`, `cmp`, `improves`). The stack scheduler plans against a
+`Target` and derives its plan ordering from `objective_key`.
+Version-independent tiers are usable in constants through
+`GasTier::fixed_gas`. Do not write gas or byte literals in passes, the
+stack scheduler, or the backend: add a tier or a query to the model and
+pin it with a unit test there.
+
 ### Visitor Pattern
 
 Use `type BreakValue = Never` if visitor never breaks. Override `visit_*` methods and always call `walk_*` to continue traversal:

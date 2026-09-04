@@ -11,16 +11,20 @@
 //! stream. The parser/printer at the bottom of the file provide a text format for
 //! tests and debugging; the IR itself is not defined by that serialization.
 
-use super::op::{self, StackOp};
+use super::{
+    DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS,
+    op::{self, StackOp},
+};
 use crate::mir::{ImmutableId, TypeSize};
 use alloy_primitives::{Bytes, U256};
 use solar_data_structures::{fmt, index::IndexVec, newtype_index};
-use solar_interface::Symbol;
+use solar_interface::{Span, Symbol};
 
 pub(in crate::backend::evm) mod builder;
 mod display;
 mod parse;
 mod passes;
+pub(crate) use passes::compact_pushes;
 pub(in crate::backend::evm) mod verify;
 
 pub(in crate::backend::evm) mod assembly;
@@ -84,6 +88,8 @@ pub struct Module {
     pub(crate) data: IndexVec<DataId, Data>,
     /// Whether gas mode is rescuing a runtime that exceeds EIP-170.
     pub(crate) enable_size_outlining: bool,
+    /// Whether passes must account for every operation's source debug information.
+    debug_info_tracked: bool,
 }
 
 impl Module {
@@ -106,7 +112,13 @@ impl Module {
     /// Creates an empty EVM IR program.
     #[must_use]
     pub(crate) fn new(name: Symbol) -> Self {
-        Self { name, blocks: IndexVec::new(), data: IndexVec::new(), enable_size_outlining: false }
+        Self {
+            name,
+            blocks: IndexVec::new(),
+            data: IndexVec::new(),
+            enable_size_outlining: false,
+            debug_info_tracked: false,
+        }
     }
 
     /// Clears the module while retaining its outer allocations.
@@ -114,6 +126,18 @@ impl Module {
         self.blocks.clear();
         self.data.clear();
         self.enable_size_outlining = false;
+        self.debug_info_tracked = false;
+    }
+
+    /// Enables source debug information auditing for optimization passes.
+    pub(crate) fn track_debug_info(&mut self) {
+        self.debug_info_tracked = true;
+    }
+
+    /// Returns whether optimization passes must account for source debug information.
+    #[must_use]
+    pub(crate) const fn debug_info_is_tracked(&self) -> bool {
+        self.debug_info_tracked
     }
 
     /// Changes the program name without clearing emitted IR.
@@ -179,6 +203,8 @@ pub(crate) struct BlockMetadata {
     pub(crate) hotness: Hotness,
     /// Whether the block belongs to a natural loop.
     pub(crate) in_loop: bool,
+    /// Source function entered by this block's leading `JUMPDEST`.
+    pub(crate) function_invoke: Option<DebugFunction>,
 }
 
 /// Block hotness metadata.
@@ -226,7 +252,26 @@ impl Instruction {
         if let Some(stack_op) = StackOp::from_single_byte_evm_opcode(opcode) {
             return Self::stack_op(stack_op);
         }
-        Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::EMPTY }
+        Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::default() }
+    }
+
+    /// Replaces this instruction's metadata explicitly.
+    #[must_use]
+    pub(crate) fn with_metadata(mut self, metadata: Metadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// Replaces this instruction's source metadata with another operation's.
+    pub(crate) fn with_source_debug(mut self, metadata: &Metadata) -> Self {
+        self.metadata.copy_source_debug_from(metadata);
+        self
+    }
+
+    /// Replaces this instruction while preserving its debug metadata.
+    pub(crate) fn replace_preserving_metadata(&mut self, replacement: Self) {
+        let metadata = std::mem::take(&mut self.metadata);
+        *self = replacement.with_metadata(metadata);
     }
 
     /// Creates a logical stack operation.
@@ -237,7 +282,7 @@ impl Instruction {
             encoding: 0,
             value: None,
             stack_op: Some(stack_op),
-            metadata: Metadata::EMPTY,
+            metadata: Metadata::default(),
         }
     }
 
@@ -286,7 +331,7 @@ impl Instruction {
             encoding: Self::ENCODED_PUSH,
             value: None,
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
         }
     }
 
@@ -320,8 +365,15 @@ impl Instruction {
             encoding,
             value: Some(value),
             stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
+            metadata: Metadata { stack: Some(StackEffect::new(0, 1)), ..Metadata::default() },
         }
+    }
+
+    /// Marks this synthetic instruction as intentionally having no source location.
+    #[must_use]
+    pub(crate) fn with_debug_info_dropped(mut self) -> Self {
+        self.metadata.mark_debug_info_dropped();
+        self
     }
 
     /// Returns the immediate carried by this push instruction, if any.
@@ -363,14 +415,17 @@ impl Instruction {
         }
     }
 
+    /// Returns the generated opcode definition for this instruction.
+    #[must_use]
+    pub(crate) const fn definition(&self) -> Option<&'static op::OpDef> {
+        op::definition(self.opcode)
+    }
+
     /// Returns the instruction mnemonic as printed in EVM IR.
     #[must_use]
     pub(crate) fn mnemonic(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| match self.stack_op {
-            Some(StackOp::Dup(_)) => f.write_str("dup"),
-            Some(StackOp::Swap(_)) => f.write_str("swap"),
-            Some(StackOp::Exchange(_, _)) => f.write_str("exchange"),
-            Some(StackOp::Pop) => f.write_str("pop"),
+            Some(stack_op) => f.write_str(stack_op.definition().mnemonic),
             None => match self.encoding {
                 Self::ENCODED_PUSH => f.write_str("push"),
                 encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
@@ -474,14 +529,25 @@ pub(crate) struct Terminator {
 impl Terminator {
     /// Creates a terminator without metadata.
     #[must_use]
-    pub(crate) const fn new(kind: TerminatorKind) -> Self {
-        Self { kind, metadata: Metadata::EMPTY, implicit_stop: false }
+    pub(crate) fn new(kind: TerminatorKind) -> Self {
+        Self { kind, metadata: Metadata::default(), implicit_stop: false }
     }
 
     /// Creates the artificial `STOP` that closes a raw assembler fragment.
     #[must_use]
-    pub(in crate::backend::evm) const fn implicit_stop() -> Self {
-        Self { kind: TerminatorKind::Op(op::STOP), metadata: Metadata::EMPTY, implicit_stop: true }
+    pub(in crate::backend::evm) fn implicit_stop() -> Self {
+        Self {
+            kind: TerminatorKind::Op(op::STOP),
+            metadata: Metadata::default(),
+            implicit_stop: true,
+        }
+    }
+
+    /// Marks this synthetic terminator as intentionally having no source location.
+    #[must_use]
+    pub(crate) fn with_debug_info_dropped(mut self) -> Self {
+        self.metadata.mark_debug_info_dropped();
+        self
     }
 }
 
@@ -514,6 +580,16 @@ impl TerminatorKind {
             Self::Jump(target) => usize::from(Some(*target) != next),
             Self::JumpI { .. } => 1,
             Self::Op(_) => 0,
+        }
+    }
+
+    /// Returns the number of stack items consumed and produced, when fixed.
+    #[must_use]
+    pub(crate) const fn stack_io(&self) -> Option<(u8, u8)> {
+        match self {
+            Self::Jump(_) => Some((0, 0)),
+            Self::JumpI { .. } | Self::IndexedJump(_) => Some((1, 0)),
+            Self::Op(opcode) => op::stack_io(*opcode),
         }
     }
 
@@ -598,11 +674,162 @@ enum PushValue {
 pub(crate) struct Metadata {
     /// Optional stack effect.
     pub(crate) stack: Option<StackEffect>,
+    /// Solidity source span associated with this machine operation.
+    source_spans: DebugSpans,
+    /// Function activation entered after this operation.
+    function_invoke: Option<DebugFunction>,
+    /// Function activation closed after this operation.
+    function_exit: Option<DebugFunctionExit>,
+    /// Legacy source-map modifier nesting depth for this operation.
+    modifier_depth: u32,
+    /// Whether the source location was preserved or intentionally dropped.
+    debug_info_handled: bool,
 }
 
 impl Metadata {
-    /// Empty metadata value.
-    pub(crate) const EMPTY: Self = Self { stack: None };
+    /// Returns the source span associated with this operation.
+    #[must_use]
+    pub(crate) fn source_span(&self) -> Option<Span> {
+        self.source_spans.first().copied()
+    }
+
+    /// Returns every source origin associated with this operation.
+    #[must_use]
+    pub(crate) fn source_spans(&self) -> &[Span] {
+        &self.source_spans
+    }
+
+    /// Sets the source span associated with this operation.
+    pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
+        self.source_spans.clear();
+        self.source_spans.extend(span.filter(|span| !span.is_dummy()));
+        self.debug_info_handled = true;
+    }
+
+    /// Sets all source origins associated with this operation.
+    pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
+        self.source_spans.clear();
+        for span in spans {
+            if !span.is_dummy() && !self.source_spans.contains(&span) {
+                self.source_spans.push(span);
+                if self.source_spans.len() == MAX_DEBUG_SPANS {
+                    break;
+                }
+            }
+        }
+        self.debug_info_handled = true;
+    }
+
+    /// Returns the legacy source-map modifier nesting depth for this operation.
+    #[must_use]
+    pub(crate) const fn modifier_depth(&self) -> u32 {
+        self.modifier_depth
+    }
+
+    /// Sets the legacy source-map modifier nesting depth for this operation.
+    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
+        self.modifier_depth = depth;
+        self.debug_info_handled = true;
+    }
+
+    /// Copies source location metadata, including legacy modifier depth.
+    pub(crate) fn copy_source_debug_from(&mut self, other: &Self) {
+        self.set_source_spans(other.source_spans().iter().copied());
+        self.modifier_depth = other.modifier_depth;
+    }
+
+    /// Absorbs another operation's debug information: its origins are added and its function
+    /// events are taken when this operation has none of its own.
+    pub(crate) fn absorb_debug_info(&mut self, other: &Self) {
+        self.merge_source_spans(other);
+        if self.function_invoke.is_none()
+            && let Some(function) = other.function_invoke()
+        {
+            self.set_function_invoke(function);
+        }
+        if self.function_exit.is_none()
+            && let Some(exit) = other.function_exit()
+        {
+            self.set_function_exit(exit);
+        }
+    }
+
+    /// Adds origins from another operation without changing machine semantics.
+    pub(crate) fn merge_source_spans(&mut self, other: &Self) {
+        let had_source_spans = !self.source_spans.is_empty();
+        for &span in other.source_spans() {
+            if self.source_spans.len() == MAX_DEBUG_SPANS {
+                break;
+            }
+            if !self.source_spans.contains(&span) {
+                self.source_spans.push(span);
+            }
+        }
+        if !had_source_spans && !self.source_spans.is_empty() {
+            self.modifier_depth = other.modifier_depth;
+        }
+        self.debug_info_handled |= other.debug_info_handled;
+    }
+
+    /// Merges all compatible debug information from an equivalent operation.
+    pub(crate) fn merge_equivalent_debug_info(&mut self, other: &Self) {
+        self.merge_source_spans(other);
+        debug_assert!(
+            self.function_invoke.is_none()
+                || other.function_invoke.is_none()
+                || self.function_invoke == other.function_invoke,
+            "cannot merge different function invocations"
+        );
+        debug_assert!(
+            self.function_exit.is_none()
+                || other.function_exit.is_none()
+                || self.function_exit == other.function_exit,
+            "cannot merge different function exits"
+        );
+        self.function_invoke = self.function_invoke.or(other.function_invoke);
+        self.function_exit = self.function_exit.or(other.function_exit);
+    }
+
+    /// Returns the function entered after this operation.
+    #[must_use]
+    pub(crate) const fn function_invoke(&self) -> Option<DebugFunction> {
+        self.function_invoke
+    }
+
+    /// Marks this operation as entering a function.
+    pub(crate) fn set_function_invoke(&mut self, function: DebugFunction) {
+        self.function_invoke = Some(function);
+        self.debug_info_handled = true;
+    }
+
+    /// Removes and returns the function entered after this operation.
+    pub(crate) fn take_function_invoke(&mut self) -> Option<DebugFunction> {
+        self.debug_info_handled = true;
+        self.function_invoke.take()
+    }
+
+    /// Returns the function activation transition on this operation.
+    #[must_use]
+    pub(crate) const fn function_exit(&self) -> Option<DebugFunctionExit> {
+        self.function_exit
+    }
+
+    /// Marks this operation as closing the active function.
+    pub(crate) fn set_function_exit(&mut self, exit: DebugFunctionExit) {
+        self.function_exit = Some(exit);
+        self.debug_info_handled = true;
+    }
+
+    /// Marks this operation as intentionally having no source location.
+    pub(crate) fn mark_debug_info_dropped(&mut self) {
+        self.set_source_span(None);
+    }
+
+    /// Returns whether source debug information was preserved or intentionally dropped.
+    #[must_use]
+    pub(crate) const fn debug_info_is_handled(&self) -> bool {
+        self.debug_info_handled
+    }
 }
 
 /// Stack effect metadata for one EVM IR operation.
@@ -625,7 +852,7 @@ impl StackEffect {
 pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<StackEffect> {
     if inst.is_encoded_push() {
         Some(StackEffect::new(0, 1))
-    } else if let Some((inputs, outputs)) = op::stack_io(inst.opcode) {
+    } else if let Some((inputs, outputs)) = inst.definition().and_then(|def| def.stack_io) {
         Some(StackEffect::new(inputs, outputs))
     } else {
         None
@@ -633,12 +860,28 @@ pub(super) fn default_instruction_stack_effect(inst: &Instruction) -> Option<Sta
 }
 
 pub(super) fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {
-    match kind {
-        TerminatorKind::JumpI { .. } => Some(StackEffect::new(1, 0)),
-        TerminatorKind::IndexedJump(_) => Some(StackEffect::new(1, 0)),
-        TerminatorKind::Jump(_) => Some(StackEffect::new(0, 0)),
-        TerminatorKind::Op(opcode) => {
-            op::stack_io(*opcode).map(|(inputs, outputs)| StackEffect::new(inputs, outputs))
-        }
+    let (inputs, outputs) = kind.stack_io()?;
+    Some(StackEffect::new(inputs, outputs))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminators_describe_control_flow() {
+        let add = Instruction::opcode(op::ADD);
+        assert_eq!(add.definition().map(|def| def.mnemonic), Some("add"));
+        assert_eq!(default_instruction_stack_effect(&add), Some(StackEffect::new(2, 1)));
+
+        let jump = TerminatorKind::Jump(BlockId::ENTRY);
+        assert_eq!(jump.stack_io(), Some((0, 0)));
+
+        let branch =
+            TerminatorKind::JumpI { then_block: BlockId::ENTRY, else_block: BlockId::ENTRY };
+        assert_eq!(default_terminator_stack_effect(&branch), Some(StackEffect::new(1, 0)));
+
+        let terminal = TerminatorKind::Op(op::RETURN);
+        assert_eq!(default_terminator_stack_effect(&terminal), Some(StackEffect::new(2, 0)));
     }
 }

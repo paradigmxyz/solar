@@ -1,0 +1,83 @@
+//@compile-flags: -Zmir-pipeline=egraph
+//@filecheck:
+@module Egraph
+
+// Equal expressions over equal operands share one definition, including
+// commutative operand orders and flipped comparisons, and the rules see the
+// numbered operands: `and v2, v2` folds to `v2` in the same pass.
+// CHECK-LABEL: {{^[ +].*}}fn @value_numbering{{[( ]}}
+// CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, arg1
+// CHECK-NOT: {{^[ +].*}}= add arg1, arg0
+// CHECK: {{^[ +].*}}[[LT:v[0-9]+]] = lt arg0, arg1
+// CHECK-NOT: {{^[ +].*}}= gt
+// CHECK: {{^[ +].*}}[[PRODUCT:v[0-9]+]] = mul [[SUM]], [[SUM]]
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[PRODUCT]], [[LT]]
+fn @value_numbering(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, arg1
+    v1 = add arg1, arg0
+    v2 = lt arg0, arg1
+    v3 = gt arg1, arg0
+    v4 = mul v0, v1
+    v5 = and v2, v3
+    v6 = add v4, v5
+    ret v6
+}
+
+// Rewrites become alternative nodes and the cheapest form is kept: a
+// multiplication by a power of two becomes a shift, and an offset of an
+// offset becomes one addition with a folded constant.
+// CHECK-LABEL: {{^[ +].*}}fn @cheapest_node{{[( ]}}
+// CHECK: {{^[ +].*}}[[SHL:v[0-9]+]] = shl 3, arg0
+// CHECK: {{^[ +].*}}[[OFF:v[0-9]+]] = add arg0, 9
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = add [[SHL]], [[OFF]]
+fn @cheapest_node(arg0: u256) -> u256 {
+  bb0:
+    v0 = mul arg0, 8
+    v1 = add arg0, 4
+    v2 = add v1, 5
+    v3 = add v0, v2
+    ret v3
+}
+
+// A dominating definition is reused in dominated blocks, while sibling
+// blocks keep their own definitions.
+// CHECK-LABEL: {{^[ +].*}}fn @dominance{{[( ]}}
+// CHECK: {{^[ +].*}}[[SUM:v[0-9]+]] = add arg0, 1
+// CHECK-NOT: {{^[ +].*}}= add arg0, 1
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mul [[SUM]], 3
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = mul [[SUM]], 3
+fn @dominance(arg0: u256, arg1: bool) -> u256 {
+  bb0:
+    v0 = add arg0, 1
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = add arg0, 1
+    v2 = mul v1, 3
+    jump bb3
+  bb2:
+    v3 = add arg0, 1
+    v4 = mul v3, 3
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v2], [bb2: v4]
+    ret v5
+}
+
+// Constant expressions fold, and instructions with effects keep their place
+// with canonical operands.
+// CHECK-LABEL: {{^[ +].*}}fn @skeleton{{[( ]}}
+// CHECK: {{^[ +].*}}[[SLOT:v[0-9]+]] = add arg0, 1
+// CHECK-NOT: {{^[ +].*}}= add
+// CHECK: {{^[ +].*}}sstore [[SLOT]], 3
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = sload [[SLOT]]
+fn @skeleton(arg0: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 1
+    v1 = add 1, 2
+    v2 = add arg0, 1
+    sstore v0, v1
+    v3 = sload v2
+    ret v3
+}

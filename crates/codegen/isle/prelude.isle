@@ -1,0 +1,526 @@
+;; Generated from the MIR operation schema by `Op::isle_prelude`; do not edit.
+;; `cargo nextest run -p solar-codegen isle_prelude` checks this file and
+;; `SNAPSHOTS=overwrite` refreshes it.
+
+(type Value (primitive Value))
+(type U256 (primitive U256))
+(type AllocationKind (primitive AllocationKind))
+(type AllocationSemantics (primitive AllocationSemantics))
+(type MemoryObjectKind (primitive MemoryObjectKind))
+(type MemoryObjectLayout (primitive MemoryObjectLayout))
+(type AbiEncodeMode (primitive AbiEncodeMode))
+(type OptionValue (primitive OptionValue))
+(type Unit (primitive Unit))
+(type SliceLocation (primitive SliceLocation))
+(type FrameMode (primitive FrameMode))
+(type FrameSlotKind (primitive FrameSlotKind))
+(type DataRef (primitive DataRef))
+(type ImmutableId (primitive ImmutableId))
+(type FunctionId (primitive FunctionId))
+
+(type Op extern (enum
+  (Add (a Value) (b Value))
+  (Sub (a Value) (b Value))
+  (Mul (a Value) (b Value))
+  (Div (a Value) (b Value))
+  (SDiv (a Value) (b Value))
+  (Mod (a Value) (b Value))
+  (SMod (a Value) (b Value))
+  (Exp (a Value) (b Value))
+  (AddMod (a Value) (b Value) (n Value))
+  (MulMod (a Value) (b Value) (n Value))
+  (And (a Value) (b Value))
+  (Or (a Value) (b Value))
+  (Xor (a Value) (b Value))
+  (Not (a Value))
+  (Clz (a Value))
+  (Shl (shift Value) (value Value))
+  (Shr (shift Value) (value Value))
+  (Sar (shift Value) (value Value))
+  (Byte (index Value) (value Value))
+  (Lt (a Value) (b Value))
+  (Gt (a Value) (b Value))
+  (SLt (a Value) (b Value))
+  (SGt (a Value) (b Value))
+  (Eq (a Value) (b Value))
+  (IsZero (a Value))
+  (MLoad (offset Value))
+  (MStore (offset Value) (value Value))
+  (MStore8 (offset Value) (value Value))
+  (MemoryZero (offset Value) (size Value))
+  (MSize)
+  (Fmp)
+  (SetFmp (value Value))
+  (Alloc (size Value) (kind AllocationKind) (semantics AllocationSemantics))
+  (MemoryObjectLen (object Value) (kind MemoryObjectKind))
+  (SetMemoryObjectLen (object Value) (len Value) (kind MemoryObjectKind))
+  (MemoryObjectData (object Value) (kind MemoryObjectKind))
+  (MemoryObjectFieldAddr (object Value) (layout MemoryObjectLayout) (field u64))
+  (MemoryObjectElementAddr (object Value) (layout MemoryObjectLayout) (index Value))
+  (MemoryObjectLoadField (object Value) (layout MemoryObjectLayout) (field u64))
+  (MemoryObjectStoreField (object Value) (layout MemoryObjectLayout) (field u64) (value Value))
+  (MemoryObjectLoadElement (object Value) (layout MemoryObjectLayout) (index Value))
+  (MemoryObjectLoadByte (object Value) (index Value))
+  (MemoryObjectStoreElement (object Value) (layout MemoryObjectLayout) (index Value) (value Value))
+  (MemoryObjectStoreByte (object Value) (index Value) (value Value))
+  (MemoryObjectStoreWord (object Value) (offset Value) (value Value))
+  (MemorySliceLoadWord (slice Value) (offset Value))
+  (CalldataSliceLoadWord (slice Value) (offset Value))
+  (MemoryObjectCopyFromSlice (object Value) (kind MemoryObjectKind) (source Value))
+  (MemoryObjectCopyFromSliceAt (object Value) (kind MemoryObjectKind) (offset Value) (source Value))
+  (MemoryObjectCopy (destination Value) (destination_kind MemoryObjectKind) (source Value) (source_kind MemoryObjectKind) (length Value))
+  (AbiEncode (mode AbiEncodeMode) (selector OptionValue) (args Unit) (layout Unit))
+  (AbiDecode (data Value) (layout Unit))
+  (StorageToMemory (storage Value) (memory Value) (layout Unit))
+  (MemoryToStorage (storage Value) (memory Value) (layout Unit))
+  (ClearStorage (storage Value) (layout Unit))
+  (MCopy (dest Value) (src Value) (len Value))
+  (SLoad (slot Value))
+  (SStore (slot Value) (value Value))
+  (TLoad (slot Value))
+  (TStore (slot Value) (value Value))
+  (CalldataLoad (offset Value))
+  (CalldataCopy (dest Value) (offset Value) (size Value))
+  (CalldataSize)
+  (MakeSlice (ptr Value) (len Value) (location SliceLocation))
+  (SlicePtr (slice Value))
+  (SliceLen (slice Value))
+  (InternalFrameAddr (offset u64))
+  (FrameLoad (offset u64) (mode FrameMode) (kind FrameSlotKind))
+  (FrameStore (offset u64) (mode FrameMode) (kind FrameSlotKind) (value Value))
+  (ConstructorArgsBase)
+  (ConstructorArgsEnd)
+  (DataCopy (data DataRef) (dest Value) (size Value))
+  (CodeSize)
+  (CodeCopy (dest Value) (offset Value) (size Value))
+  (ExtCodeSize (addr Value))
+  (ExtCodeCopy (addr Value) (dest Value) (offset Value) (size Value))
+  (ExtCodeHash (addr Value))
+  (StoreImmutable (id ImmutableId) (value Value))
+  (LoadImmutable (id ImmutableId))
+  (ReturnDataSize)
+  (ReturnDataCopy (dest Value) (offset Value) (size Value))
+  (Caller)
+  (CallValue)
+  (Origin)
+  (GasPrice)
+  (BlockHash (number Value))
+  (Coinbase)
+  (Timestamp)
+  (BlockNumber)
+  (PrevRandao)
+  (GasLimit)
+  (SlotNum)
+  (ChainId)
+  (Address)
+  (Balance (addr Value))
+  (SelfBalance)
+  (Gas)
+  (BaseFee)
+  (BlobBaseFee)
+  (BlobHash (index Value))
+  (Keccak256 (offset Value) (size Value))
+  (Keccak256Bytes (object Value))
+  (MappingSlot (key Value) (slot Value))
+  (MappingSlotMemory (key Value) (slot Value))
+  (MappingSlotCalldata (key Value) (slot Value))
+  (StorageArrayDataSlot (slot Value))
+  (StorageArrayElementSlot (slot Value) (index Value) (element_slots u64))
+  (Call (gas Value) (addr Value) (value Value) (args_offset Value) (args_size Value) (ret_offset Value) (ret_size Value))
+  (CallCode (gas Value) (addr Value) (value Value) (args_offset Value) (args_size Value) (ret_offset Value) (ret_size Value))
+  (StaticCall (gas Value) (addr Value) (args_offset Value) (args_size Value) (ret_offset Value) (ret_size Value))
+  (DelegateCall (gas Value) (addr Value) (args_offset Value) (args_size Value) (ret_offset Value) (ret_size Value))
+  (ExtCall (addr Value) (args_offset Value) (args_size Value) (value Value))
+  (ExtDelegateCall (addr Value) (args_offset Value) (args_size Value))
+  (ExtStaticCall (addr Value) (args_offset Value) (args_size Value))
+  (InternalCall (function FunctionId) (args Unit) (returns u32))
+  (Create (value Value) (offset Value) (size Value))
+  (Create2 (value Value) (offset Value) (size Value) (salt Value))
+  (Log0 (offset Value) (size Value))
+  (Log1 (offset Value) (size Value) (topic1 Value))
+  (Log2 (offset Value) (size Value) (topic1 Value) (topic2 Value))
+  (Log3 (offset Value) (size Value) (topic1 Value) (topic2 Value) (topic3 Value))
+  (Log4 (offset Value) (size Value) (topic1 Value) (topic2 Value) (topic3 Value) (topic4 Value))
+  (Phi (incoming Unit))
+  (Select (cond Value) (true_val Value) (false_val Value))
+  (SignExtend (byte Value) (value Value))
+))
+
+;; The instruction defining a value.
+(decl inst (Op) Value)
+(extern extractor inst inst_data)
+
+(decl add (Value Value) Value)
+(extractor (add a b) (inst (Op.Add a b)))
+
+(decl sub (Value Value) Value)
+(extractor (sub a b) (inst (Op.Sub a b)))
+
+(decl mul (Value Value) Value)
+(extractor (mul a b) (inst (Op.Mul a b)))
+
+(decl div (Value Value) Value)
+(extractor (div a b) (inst (Op.Div a b)))
+
+(decl sdiv (Value Value) Value)
+(extractor (sdiv a b) (inst (Op.SDiv a b)))
+
+(decl mod (Value Value) Value)
+(extractor (mod a b) (inst (Op.Mod a b)))
+
+(decl smod (Value Value) Value)
+(extractor (smod a b) (inst (Op.SMod a b)))
+
+(decl exp (Value Value) Value)
+(extractor (exp a b) (inst (Op.Exp a b)))
+
+(decl addmod (Value Value Value) Value)
+(extractor (addmod a b n) (inst (Op.AddMod a b n)))
+
+(decl mulmod (Value Value Value) Value)
+(extractor (mulmod a b n) (inst (Op.MulMod a b n)))
+
+(decl band (Value Value) Value)
+(extractor (band a b) (inst (Op.And a b)))
+
+(decl bor (Value Value) Value)
+(extractor (bor a b) (inst (Op.Or a b)))
+
+(decl bxor (Value Value) Value)
+(extractor (bxor a b) (inst (Op.Xor a b)))
+
+(decl bnot (Value) Value)
+(extractor (bnot a) (inst (Op.Not a)))
+
+(decl clz (Value) Value)
+(extractor (clz a) (inst (Op.Clz a)))
+
+(decl shl (Value Value) Value)
+(extractor (shl shift value) (inst (Op.Shl shift value)))
+
+(decl shr (Value Value) Value)
+(extractor (shr shift value) (inst (Op.Shr shift value)))
+
+(decl sar (Value Value) Value)
+(extractor (sar shift value) (inst (Op.Sar shift value)))
+
+(decl byte (Value Value) Value)
+(extractor (byte index value) (inst (Op.Byte index value)))
+
+(decl lt (Value Value) Value)
+(extractor (lt a b) (inst (Op.Lt a b)))
+
+(decl gt (Value Value) Value)
+(extractor (gt a b) (inst (Op.Gt a b)))
+
+(decl slt (Value Value) Value)
+(extractor (slt a b) (inst (Op.SLt a b)))
+
+(decl sgt (Value Value) Value)
+(extractor (sgt a b) (inst (Op.SGt a b)))
+
+(decl eq (Value Value) Value)
+(extractor (eq a b) (inst (Op.Eq a b)))
+
+(decl iszero (Value) Value)
+(extractor (iszero a) (inst (Op.IsZero a)))
+
+(decl mload (Value) Value)
+(extractor (mload offset) (inst (Op.MLoad offset)))
+
+(decl mstore (Value Value) Value)
+(extractor (mstore offset value) (inst (Op.MStore offset value)))
+
+(decl mstore8 (Value Value) Value)
+(extractor (mstore8 offset value) (inst (Op.MStore8 offset value)))
+
+(decl memoryzero (Value Value) Value)
+(extractor (memoryzero offset size) (inst (Op.MemoryZero offset size)))
+
+(decl msize () Value)
+(extractor (msize) (inst (Op.MSize)))
+
+(decl fmp () Value)
+(extractor (fmp) (inst (Op.Fmp)))
+
+(decl setfmp (Value) Value)
+(extractor (setfmp value) (inst (Op.SetFmp value)))
+
+(decl alloc (Value AllocationKind AllocationSemantics) Value)
+(extractor (alloc size kind semantics) (inst (Op.Alloc size kind semantics)))
+
+(decl memoryobjectlen (Value MemoryObjectKind) Value)
+(extractor (memoryobjectlen object kind) (inst (Op.MemoryObjectLen object kind)))
+
+(decl setmemoryobjectlen (Value Value MemoryObjectKind) Value)
+(extractor (setmemoryobjectlen object len kind) (inst (Op.SetMemoryObjectLen object len kind)))
+
+(decl memoryobjectdata (Value MemoryObjectKind) Value)
+(extractor (memoryobjectdata object kind) (inst (Op.MemoryObjectData object kind)))
+
+(decl memoryobjectfieldaddr (Value MemoryObjectLayout u64) Value)
+(extractor (memoryobjectfieldaddr object layout field) (inst (Op.MemoryObjectFieldAddr object layout field)))
+
+(decl memoryobjectelementaddr (Value MemoryObjectLayout Value) Value)
+(extractor (memoryobjectelementaddr object layout index) (inst (Op.MemoryObjectElementAddr object layout index)))
+
+(decl memoryobjectloadfield (Value MemoryObjectLayout u64) Value)
+(extractor (memoryobjectloadfield object layout field) (inst (Op.MemoryObjectLoadField object layout field)))
+
+(decl memoryobjectstorefield (Value MemoryObjectLayout u64 Value) Value)
+(extractor (memoryobjectstorefield object layout field value) (inst (Op.MemoryObjectStoreField object layout field value)))
+
+(decl memoryobjectloadelement (Value MemoryObjectLayout Value) Value)
+(extractor (memoryobjectloadelement object layout index) (inst (Op.MemoryObjectLoadElement object layout index)))
+
+(decl memoryobjectloadbyte (Value Value) Value)
+(extractor (memoryobjectloadbyte object index) (inst (Op.MemoryObjectLoadByte object index)))
+
+(decl memoryobjectstoreelement (Value MemoryObjectLayout Value Value) Value)
+(extractor (memoryobjectstoreelement object layout index value) (inst (Op.MemoryObjectStoreElement object layout index value)))
+
+(decl memoryobjectstorebyte (Value Value Value) Value)
+(extractor (memoryobjectstorebyte object index value) (inst (Op.MemoryObjectStoreByte object index value)))
+
+(decl memoryobjectstoreword (Value Value Value) Value)
+(extractor (memoryobjectstoreword object offset value) (inst (Op.MemoryObjectStoreWord object offset value)))
+
+(decl memorysliceloadword (Value Value) Value)
+(extractor (memorysliceloadword slice offset) (inst (Op.MemorySliceLoadWord slice offset)))
+
+(decl calldatasliceloadword (Value Value) Value)
+(extractor (calldatasliceloadword slice offset) (inst (Op.CalldataSliceLoadWord slice offset)))
+
+(decl memoryobjectcopyfromslice (Value MemoryObjectKind Value) Value)
+(extractor (memoryobjectcopyfromslice object kind source) (inst (Op.MemoryObjectCopyFromSlice object kind source)))
+
+(decl memoryobjectcopyfromsliceat (Value MemoryObjectKind Value Value) Value)
+(extractor (memoryobjectcopyfromsliceat object kind offset source) (inst (Op.MemoryObjectCopyFromSliceAt object kind offset source)))
+
+(decl memoryobjectcopy (Value MemoryObjectKind Value MemoryObjectKind Value) Value)
+(extractor (memoryobjectcopy destination destination_kind source source_kind length) (inst (Op.MemoryObjectCopy destination destination_kind source source_kind length)))
+
+(decl abiencode (AbiEncodeMode OptionValue Unit Unit) Value)
+(extractor (abiencode mode selector args layout) (inst (Op.AbiEncode mode selector args layout)))
+
+(decl abidecode (Value Unit) Value)
+(extractor (abidecode data layout) (inst (Op.AbiDecode data layout)))
+
+(decl storagetomemory (Value Value Unit) Value)
+(extractor (storagetomemory storage memory layout) (inst (Op.StorageToMemory storage memory layout)))
+
+(decl memorytostorage (Value Value Unit) Value)
+(extractor (memorytostorage storage memory layout) (inst (Op.MemoryToStorage storage memory layout)))
+
+(decl clearstorage (Value Unit) Value)
+(extractor (clearstorage storage layout) (inst (Op.ClearStorage storage layout)))
+
+(decl mcopy (Value Value Value) Value)
+(extractor (mcopy dest src len) (inst (Op.MCopy dest src len)))
+
+(decl sload (Value) Value)
+(extractor (sload slot) (inst (Op.SLoad slot)))
+
+(decl sstore (Value Value) Value)
+(extractor (sstore slot value) (inst (Op.SStore slot value)))
+
+(decl tload (Value) Value)
+(extractor (tload slot) (inst (Op.TLoad slot)))
+
+(decl tstore (Value Value) Value)
+(extractor (tstore slot value) (inst (Op.TStore slot value)))
+
+(decl calldataload (Value) Value)
+(extractor (calldataload offset) (inst (Op.CalldataLoad offset)))
+
+(decl calldatacopy (Value Value Value) Value)
+(extractor (calldatacopy dest offset size) (inst (Op.CalldataCopy dest offset size)))
+
+(decl calldatasize () Value)
+(extractor (calldatasize) (inst (Op.CalldataSize)))
+
+(decl makeslice (Value Value SliceLocation) Value)
+(extractor (makeslice ptr len location) (inst (Op.MakeSlice ptr len location)))
+
+(decl sliceptr (Value) Value)
+(extractor (sliceptr slice) (inst (Op.SlicePtr slice)))
+
+(decl slicelen (Value) Value)
+(extractor (slicelen slice) (inst (Op.SliceLen slice)))
+
+(decl internalframeaddr (u64) Value)
+(extractor (internalframeaddr offset) (inst (Op.InternalFrameAddr offset)))
+
+(decl frameload (u64 FrameMode FrameSlotKind) Value)
+(extractor (frameload offset mode kind) (inst (Op.FrameLoad offset mode kind)))
+
+(decl framestore (u64 FrameMode FrameSlotKind Value) Value)
+(extractor (framestore offset mode kind value) (inst (Op.FrameStore offset mode kind value)))
+
+(decl constructorargsbase () Value)
+(extractor (constructorargsbase) (inst (Op.ConstructorArgsBase)))
+
+(decl constructorargsend () Value)
+(extractor (constructorargsend) (inst (Op.ConstructorArgsEnd)))
+
+(decl datacopy (DataRef Value Value) Value)
+(extractor (datacopy data dest size) (inst (Op.DataCopy data dest size)))
+
+(decl codesize () Value)
+(extractor (codesize) (inst (Op.CodeSize)))
+
+(decl codecopy (Value Value Value) Value)
+(extractor (codecopy dest offset size) (inst (Op.CodeCopy dest offset size)))
+
+(decl extcodesize (Value) Value)
+(extractor (extcodesize addr) (inst (Op.ExtCodeSize addr)))
+
+(decl extcodecopy (Value Value Value Value) Value)
+(extractor (extcodecopy addr dest offset size) (inst (Op.ExtCodeCopy addr dest offset size)))
+
+(decl extcodehash (Value) Value)
+(extractor (extcodehash addr) (inst (Op.ExtCodeHash addr)))
+
+(decl storeimmutable (ImmutableId Value) Value)
+(extractor (storeimmutable id value) (inst (Op.StoreImmutable id value)))
+
+(decl loadimmutable (ImmutableId) Value)
+(extractor (loadimmutable id) (inst (Op.LoadImmutable id)))
+
+(decl returndatasize () Value)
+(extractor (returndatasize) (inst (Op.ReturnDataSize)))
+
+(decl returndatacopy (Value Value Value) Value)
+(extractor (returndatacopy dest offset size) (inst (Op.ReturnDataCopy dest offset size)))
+
+(decl caller () Value)
+(extractor (caller) (inst (Op.Caller)))
+
+(decl callvalue () Value)
+(extractor (callvalue) (inst (Op.CallValue)))
+
+(decl origin () Value)
+(extractor (origin) (inst (Op.Origin)))
+
+(decl gasprice () Value)
+(extractor (gasprice) (inst (Op.GasPrice)))
+
+(decl blockhash (Value) Value)
+(extractor (blockhash number) (inst (Op.BlockHash number)))
+
+(decl coinbase () Value)
+(extractor (coinbase) (inst (Op.Coinbase)))
+
+(decl timestamp () Value)
+(extractor (timestamp) (inst (Op.Timestamp)))
+
+(decl blocknumber () Value)
+(extractor (blocknumber) (inst (Op.BlockNumber)))
+
+(decl prevrandao () Value)
+(extractor (prevrandao) (inst (Op.PrevRandao)))
+
+(decl gaslimit () Value)
+(extractor (gaslimit) (inst (Op.GasLimit)))
+
+(decl slotnum () Value)
+(extractor (slotnum) (inst (Op.SlotNum)))
+
+(decl chainid () Value)
+(extractor (chainid) (inst (Op.ChainId)))
+
+(decl address () Value)
+(extractor (address) (inst (Op.Address)))
+
+(decl balance (Value) Value)
+(extractor (balance addr) (inst (Op.Balance addr)))
+
+(decl selfbalance () Value)
+(extractor (selfbalance) (inst (Op.SelfBalance)))
+
+(decl gas () Value)
+(extractor (gas) (inst (Op.Gas)))
+
+(decl basefee () Value)
+(extractor (basefee) (inst (Op.BaseFee)))
+
+(decl blobbasefee () Value)
+(extractor (blobbasefee) (inst (Op.BlobBaseFee)))
+
+(decl blobhash (Value) Value)
+(extractor (blobhash index) (inst (Op.BlobHash index)))
+
+(decl keccak256 (Value Value) Value)
+(extractor (keccak256 offset size) (inst (Op.Keccak256 offset size)))
+
+(decl keccak256bytes (Value) Value)
+(extractor (keccak256bytes object) (inst (Op.Keccak256Bytes object)))
+
+(decl mappingslot (Value Value) Value)
+(extractor (mappingslot key slot) (inst (Op.MappingSlot key slot)))
+
+(decl mappingslotmemory (Value Value) Value)
+(extractor (mappingslotmemory key slot) (inst (Op.MappingSlotMemory key slot)))
+
+(decl mappingslotcalldata (Value Value) Value)
+(extractor (mappingslotcalldata key slot) (inst (Op.MappingSlotCalldata key slot)))
+
+(decl storagearraydataslot (Value) Value)
+(extractor (storagearraydataslot slot) (inst (Op.StorageArrayDataSlot slot)))
+
+(decl storagearrayelementslot (Value Value u64) Value)
+(extractor (storagearrayelementslot slot index element_slots) (inst (Op.StorageArrayElementSlot slot index element_slots)))
+
+(decl call (Value Value Value Value Value Value Value) Value)
+(extractor (call gas addr value args_offset args_size ret_offset ret_size) (inst (Op.Call gas addr value args_offset args_size ret_offset ret_size)))
+
+(decl callcode (Value Value Value Value Value Value Value) Value)
+(extractor (callcode gas addr value args_offset args_size ret_offset ret_size) (inst (Op.CallCode gas addr value args_offset args_size ret_offset ret_size)))
+
+(decl staticcall (Value Value Value Value Value Value) Value)
+(extractor (staticcall gas addr args_offset args_size ret_offset ret_size) (inst (Op.StaticCall gas addr args_offset args_size ret_offset ret_size)))
+
+(decl delegatecall (Value Value Value Value Value Value) Value)
+(extractor (delegatecall gas addr args_offset args_size ret_offset ret_size) (inst (Op.DelegateCall gas addr args_offset args_size ret_offset ret_size)))
+
+(decl extcall (Value Value Value Value) Value)
+(extractor (extcall addr args_offset args_size value) (inst (Op.ExtCall addr args_offset args_size value)))
+
+(decl extdelegatecall (Value Value Value) Value)
+(extractor (extdelegatecall addr args_offset args_size) (inst (Op.ExtDelegateCall addr args_offset args_size)))
+
+(decl extstaticcall (Value Value Value) Value)
+(extractor (extstaticcall addr args_offset args_size) (inst (Op.ExtStaticCall addr args_offset args_size)))
+
+(decl internalcall (FunctionId Unit u32) Value)
+(extractor (internalcall function args returns) (inst (Op.InternalCall function args returns)))
+
+(decl create (Value Value Value) Value)
+(extractor (create value offset size) (inst (Op.Create value offset size)))
+
+(decl create2 (Value Value Value Value) Value)
+(extractor (create2 value offset size salt) (inst (Op.Create2 value offset size salt)))
+
+(decl log0 (Value Value) Value)
+(extractor (log0 offset size) (inst (Op.Log0 offset size)))
+
+(decl log1 (Value Value Value) Value)
+(extractor (log1 offset size topic1) (inst (Op.Log1 offset size topic1)))
+
+(decl log2 (Value Value Value Value) Value)
+(extractor (log2 offset size topic1 topic2) (inst (Op.Log2 offset size topic1 topic2)))
+
+(decl log3 (Value Value Value Value Value) Value)
+(extractor (log3 offset size topic1 topic2 topic3) (inst (Op.Log3 offset size topic1 topic2 topic3)))
+
+(decl log4 (Value Value Value Value Value Value) Value)
+(extractor (log4 offset size topic1 topic2 topic3 topic4) (inst (Op.Log4 offset size topic1 topic2 topic3 topic4)))
+
+(decl phi (Unit) Value)
+(extractor (phi incoming) (inst (Op.Phi incoming)))
+
+(decl select (Value Value Value) Value)
+(extractor (select cond true_val false_val) (inst (Op.Select cond true_val false_val)))
+
+(decl signextend (Value Value) Value)
+(extractor (signextend byte value) (inst (Op.SignExtend byte value)))

@@ -72,8 +72,6 @@ bb9:
   mstore
   dup 4
   mstore
-  swap 2
-  pop
   push 31
   push 128
   mload
@@ -84,12 +82,11 @@ bb9:
   dup 1
   push 160
   mstore
-  push 64
-  dup 4
+  swap 3
+  push 32
   add
   push 192
   mstore
-  swap 2
   pop
   pop
   iszero
@@ -384,13 +381,12 @@ bb31 [cold]:
   dup 2
   mstore
   push 4
-  dup 2
   add
   dup 1
   push 288
   mstore
-  push 36
-  dup 3
+  push 32
+  dup 2
   add
   dup 2
   dup 2
@@ -408,7 +404,7 @@ bb31 [cold]:
   dup 1
   push 160
   mstore
-  swap 1
+  dup 2
   mstore
   push 31
   push 160
@@ -420,11 +416,12 @@ bb31 [cold]:
   dup 1
   push 192
   mstore
-  swap 2
-  push 68
+  swap 1
+  push 32
   add
   push 224
   mstore
+  swap 1
   pop
   push bb33
   jumpi
@@ -449,10 +446,9 @@ bb34 [cold]:
   swap 1
   sub
   push 4
-  dup 2
   add
-  swap 1
-  push 35
+  push 31
+  dup 2
   add
   push 31
   not

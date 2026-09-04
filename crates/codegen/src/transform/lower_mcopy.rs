@@ -1,10 +1,13 @@
 //! Lower `mcopy` for EVM versions that predate Cancun.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, InstKind, Module},
+    memory::EvmMemoryLayout,
+    mir::{BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MirType, Module},
     pass::MirPass,
+    target::{Cost, Target},
     transform::utils::redirect_successor_predecessors,
 };
+use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
 /// Lowers `mcopy` to an ascending word-copy loop when the target has no
@@ -15,6 +18,11 @@ use solar_sema::Gcx;
 /// `vm.expectRevert` — consumes the precompile call instead of the intended
 /// one, breaking every pre-Cancun test that pranks before an operation
 /// involving a memory copy.
+///
+/// The loop is expanded at every site, or, when the objective ranks the
+/// bytes of the copies above the gas of the call protocol, built once as the
+/// internal function `mcopy_words(dest, src, len)` that every site calls, like
+/// solc's shared `copy_memory_to_memory` routine.
 ///
 /// The trailing partial word is copied whole. Memory objects are word-aligned
 /// and word-granular, so the overshoot lands in the padding.
@@ -38,18 +46,72 @@ impl MirPass for LowerMCopy {
         if gcx.sess.opts.evm_version.has_mcopy() {
             return false;
         }
+        let sites = module
+            .functions
+            .iter()
+            .map(|func| func.instructions().filter(|&inst| is_mcopy(func, inst)).count())
+            .sum::<usize>();
+        if sites == 0 {
+            return false;
+        }
 
-        let mut changed = false;
+        let target = Target::new(gcx);
+        let helper = shared_copy_helper(target, sites);
+        let helper = helper.map(|function| module.add_function(function));
         for func in module.functions.iter_mut() {
             if !func.blocks.is_empty() {
-                changed |= lower_function(func);
+                lower_function(func, helper);
             }
         }
-        changed
+        true
     }
 }
 
-fn lower_function(func: &mut Function) -> bool {
+fn is_mcopy(func: &Function, inst: InstId) -> bool {
+    matches!(func.inst(inst).kind, InstKind::MCopy(_, _, _))
+}
+
+/// Builds the shared copy helper when the objective ranks `sites` calls to it, with the
+/// protocol gas they run, above `sites` expanded loops.
+fn shared_copy_helper(target: Target, sites: usize) -> Option<Function> {
+    if sites < 2 {
+        return None;
+    }
+    let mut function = Function::new(Ident::with_dummy_span(sym::mcopy_words));
+    {
+        let mut builder = FunctionBuilder::new(&mut function);
+        let dest = builder.add_param(MirType::MemPtr);
+        let src = builder.add_param(MirType::MemPtr);
+        let len = builder.add_param(MirType::uint256());
+        let exit = builder.create_block();
+        emit_copy_loop(&mut builder, dest, src, len, exit);
+        builder.switch_to_block(exit);
+        builder.ret([]);
+    }
+    let params = function.params.len();
+    let body = target.code_estimate(&function);
+    let sites = u32::try_from(sites).unwrap_or(u32::MAX);
+    // The loop itself runs in both shapes; the call protocol is the price of sharing it, and
+    // the copies of the loop are the price of expanding it.
+    let frame_words =
+        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE / EvmMemoryLayout::WORD_SIZE + params as u64;
+    let call = target.internal_call(params, 0, frame_words);
+    let ret = target.internal_return(params, 0);
+    let shared = Cost::new(0, body.bytes).plus(ret).plus(call.times(sites));
+    let expanded = Cost::new(0, body.bytes.saturating_mul(sites));
+    target.cmp(shared, expanded).is_lt().then_some(function)
+}
+
+fn lower_function(func: &mut Function, helper: Option<FunctionId>) -> bool {
+    if let Some(helper) = helper {
+        let sites = func.instructions().filter(|&inst| is_mcopy(func, inst)).collect::<Vec<_>>();
+        for &inst in &sites {
+            call_copy_helper(func, inst, helper);
+        }
+        return !sites.is_empty();
+    }
+    // Expanding a copy splits its block at the copy, so the rest of the block, with any later
+    // copy, is visited as the continuation.
     let mut changed = false;
     let mut block_index = 0;
     while block_index < func.blocks.len() {
@@ -59,7 +121,7 @@ fn lower_function(func: &mut Function) -> bool {
             .iter()
             .copied()
             .enumerate()
-            .find(|(_, inst)| matches!(func.inst(*inst).kind, InstKind::MCopy(_, _, _)));
+            .find(|&(_, inst)| is_mcopy(func, inst));
         if let Some((position, inst)) = mcopy {
             lower_mcopy(func, block, position, inst);
             changed = true;
@@ -69,7 +131,15 @@ fn lower_function(func: &mut Function) -> bool {
     changed
 }
 
-fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate::mir::InstId) {
+/// Replaces an `mcopy` with a call of the shared helper.
+fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) {
+    let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
+    // internal_call @mcopy_words, 0, dest, src, len
+    func.inst_mut(inst).kind =
+        InstKind::InternalCall { function: helper, args: vec![dest, src, len].into(), returns: 0 };
+}
+
+fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: InstId) {
     let InstKind::MCopy(dest, src, len) = func.inst(inst).kind else { unreachable!() };
 
     let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -84,15 +154,26 @@ fn lower_mcopy(func: &mut Function, block: BlockId, position: usize, inst: crate
     func.blocks[continuation].terminator = old_terminator;
     redirect_successor_predecessors(func, block, continuation);
 
-    let loop_head = func.alloc_block();
-    let loop_body = func.alloc_block();
-    let tail_check = func.alloc_block();
-    let tail_block = func.alloc_block();
     let mut builder = FunctionBuilder::new(func);
+    builder.switch_to_block(block);
+    emit_copy_loop(&mut builder, dest, src, len, continuation);
+}
+
+/// Emits the word-copy loop from the builder's current block, continuing at `continuation`.
+fn emit_copy_loop(
+    builder: &mut FunctionBuilder<'_>,
+    dest: crate::mir::ValueId,
+    src: crate::mir::ValueId,
+    len: crate::mir::ValueId,
+    continuation: BlockId,
+) {
+    let loop_head = builder.create_block();
+    let loop_body = builder.create_block();
+    let tail_check = builder.create_block();
+    let tail_block = builder.create_block();
 
     // Copy the full words in a loop, then merge the partial tail word with a
     // byte mask so exactly `len` bytes change, like the identity precompile.
-    builder.switch_to_block(block);
     let zero = builder.imm(0);
     let word_size = builder.imm(32);
     let thirty_one = builder.imm(31);

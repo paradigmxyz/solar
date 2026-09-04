@@ -1,0 +1,65 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info.evmir (after outline) ===
+  @module DebugInfo
+  bb0:
+-   push 1 !metadata(span=1..5, invoke=first@1..15)
+-   pop !metadata(span=6..10)
+-   push 1 !metadata(span=1..5)
+-   pop !metadata(span=6..10)
+-   push 1 !metadata(span=1..5)
+-   pop !metadata(span=6..10)
+-   push 1 !metadata(span=1..5)
+-   pop !metadata(span=6..10)
+-   push 1 !metadata(span=1..5)
+-   pop !metadata(span=6..10)
+-   push 1 !metadata(span=1..5)
+-   pop !metadata(span=6..10)
+-   push 1 !metadata(span=1..5)
+-   pop !metadata(span=6..10)
+-   push 1 !metadata(span=1..5)
+-   pop !metadata(span=6..10)
+-   jump bb1 !metadata(span=11..15)
++   push bb3
++   jump bb2 !metadata(invoke=first@1..15)
+  bb1:
+-   push 1 !metadata(span=21..25, invoke=second@21..35)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
+-   push 1 !metadata(span=21..25)
+-   pop !metadata(span=26..30)
++   push bb4
++   jump bb2 !metadata(invoke=second@21..35)
++ bb2:
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   push 1 !metadata(spans=[1..5, 21..25])
++   pop !metadata(spans=[6..10, 26..30])
++   jump
++ bb3:
++   jump bb1 !metadata(span=11..15)
++ bb4:
+    stop !metadata(span=31..35)
+  

@@ -78,11 +78,6 @@ bb4:
   jumpi
   push 128
   shr
-  push 0
-  not
-  push 128
-  shr
-  and
   dup 2
   add
   swap 1

@@ -16,9 +16,12 @@
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
 use super::EvmPass;
-use crate::backend::evm::{
-    ir::{Instruction, Module},
-    op::{self, WORD_BYTES},
+use crate::{
+    backend::evm::{
+        ir::{Instruction, Metadata, Module},
+        op::{self, WORD_BYTES},
+    },
+    target::GasTier,
 };
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -37,8 +40,8 @@ impl EvmPass for CompactPushes {
 }
 const EVM_WORD_BITS: usize = WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = 5;
-const BASE_GAS: usize = 2;
-const VERY_LOW_GAS: usize = 3;
+const BASE_GAS: usize = GasTier::Base.fixed_gas() as usize;
+const VERY_LOW_GAS: usize = GasTier::VeryLow.fixed_gas() as usize;
 
 fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let evm_version = gcx.sess.opts.evm_version;
@@ -63,7 +66,7 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
             if matches!(materialization.recipe, CompactPush::Literal) {
                 block.instructions.push(inst);
             } else {
-                materialize_selected(&mut block.instructions, materialization);
+                materialize_selected(&mut block.instructions, materialization, &inst.metadata);
                 changed = true;
             }
         }
@@ -138,7 +141,7 @@ impl ImmediateMaterialization {
         let mut depth = 0usize;
         self.for_each(|materialized| match materialized {
             ImmediateMaterializationOp::Push(value) => {
-                let (len, gas) = literal_materialization_cost(self.evm_version, value);
+                let (len, gas) = literal_cost(self.evm_version, value);
                 metrics.encoded_len += len;
                 metrics.static_gas += gas;
                 depth += 1;
@@ -172,18 +175,26 @@ pub(super) fn materialize_immediate(
     evm_version: EvmVersion,
     value: U256,
 ) {
-    materialize_selected(instructions, ImmediateMaterialization::new(evm_version, value));
+    materialize_selected(
+        instructions,
+        ImmediateMaterialization::new(evm_version, value),
+        &Metadata::default(),
+    );
 }
 
+/// Every replacement carries the source debug information of the push it materializes.
 fn materialize_selected(
     instructions: &mut Vec<Instruction>,
     materialization: ImmediateMaterialization,
+    source: &Metadata,
 ) {
-    materialization.for_each(|op| match op {
-        ImmediateMaterializationOp::Push(value) => instructions.push(push(value)),
-        ImmediateMaterializationOp::Opcode(opcode) => {
-            instructions.push(Instruction::opcode(opcode));
-        }
+    materialization.for_each(|op| {
+        let mut replacement = match op {
+            ImmediateMaterializationOp::Push(value) => push(value),
+            ImmediateMaterializationOp::Opcode(opcode) => Instruction::opcode(opcode),
+        };
+        replacement.metadata.copy_source_debug_from(source);
+        instructions.push(replacement);
     });
 }
 
@@ -262,7 +273,8 @@ pub(crate) fn immediate_materialization_cost(
     (metrics.encoded_len, metrics.static_gas)
 }
 
-fn literal_materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
+/// Returns the byte length and gas cost of one literal `PUSHn` of `value`.
+pub(crate) fn literal_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
     (
         fixed_push_len(evm_version, push_width(evm_version, value)),
         if value.is_zero() && evm_version.has_push0() { BASE_GAS } else { VERY_LOW_GAS },

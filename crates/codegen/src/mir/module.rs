@@ -140,6 +140,8 @@ pub struct Module {
     pub(crate) is_library: bool,
     /// The lowering phase this module is in.
     pub(crate) phase: MirPhase,
+    /// Whether passes must account for every instruction's source debug information.
+    debug_info_tracked: bool,
 }
 
 impl Module {
@@ -168,7 +170,19 @@ impl Module {
             is_interface: false,
             is_library: false,
             phase: MirPhase::Built,
+            debug_info_tracked: false,
         }
+    }
+
+    /// Enables or disables source debug information auditing for optimization passes.
+    pub(crate) fn set_debug_info_tracked(&mut self, tracked: bool) {
+        self.debug_info_tracked = tracked;
+    }
+
+    /// Returns whether optimization passes must account for source debug information.
+    #[must_use]
+    pub(crate) const fn debug_info_is_tracked(&self) -> bool {
+        self.debug_info_tracked
     }
 
     /// Advances this module to a later phase.

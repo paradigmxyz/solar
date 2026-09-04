@@ -167,18 +167,18 @@ bb15:
 // CHECK: -   add
 // CHECK: +   push 67
 bb16:
-  push 31 !meta(stack=0->1)
-  push 36 !meta(stack=0->1)
-  add !meta(stack=2->1)
+  push 31 !metadata(stack=0->1)
+  push 36 !metadata(stack=0->1)
+  add !metadata(stack=2->1)
   stop
 
 // CHECK-LABEL: {{^[ +].*}}bb17:
 // CHECK: -   mul
 // CHECK: +   push 128
 bb17:
-  push 32 !meta(stack=0->1)
-  push 4 !meta(stack=0->1)
-  mul !meta(stack=2->1)
+  push 32 !metadata(stack=0->1)
+  push 4 !metadata(stack=0->1)
+  mul !metadata(stack=2->1)
   stop
 
 // Emit the compact materialization priced by the fold.

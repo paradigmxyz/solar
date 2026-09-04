@@ -160,12 +160,14 @@ fn run_passes_inner(
         }
 
         if enabled {
+            assert_debug_info_handled(module, pass_name, "before");
             analyses.begin_pass();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = pass.run_pass(gcx, module, &mut analyses);
             timer.finish("MIR", module.name, pass_name, pass_changed);
             analyses.finish_pass(pass_changed);
             changed |= pass_changed;
+            assert_debug_info_handled(module, pass_name, "after");
 
             if validate_each && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
@@ -196,6 +198,25 @@ fn run_passes_inner(
     }
 
     changed
+}
+
+fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
+    if !module.debug_info_is_tracked() {
+        return;
+    }
+    for (function, func) in module.iter_functions() {
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &inst in &body.instructions {
+                debug_assert!(
+                    func.inst(inst).metadata.debug_info_is_handled(),
+                    "MIR debug information is unclassified {when} `{pass_name}` at fn{}, bb{}, inst{}",
+                    function.index(),
+                    block.index(),
+                    inst.index(),
+                );
+            }
+        }
+    }
 }
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {

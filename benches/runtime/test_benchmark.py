@@ -95,6 +95,16 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(json.loads(overridden)["settings"]["evmVersion"], "amsterdam")
         self.assertEqual(benchmark.with_evm_version(original, None), original)
 
+    def test_optimizer_runs_override_replaces_project_setting(self) -> None:
+        original = benchmark.full_project_standard_json_input("solady-0.1.26.json.gz")
+        overridden = benchmark.with_optimizer_runs(original, 1)
+
+        self.assertEqual(json.loads(original)["settings"]["optimizer"]["runs"], 1000)
+        self.assertEqual(
+            json.loads(overridden)["settings"]["optimizer"], {"enabled": True, "runs": 1}
+        )
+        self.assertEqual(benchmark.with_optimizer_runs(original, None), original)
+
     def test_compiler_output_fingerprint_ignores_diagnostic_order(self) -> None:
         first = json.dumps(
             {

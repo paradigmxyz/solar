@@ -7,7 +7,7 @@ use solar_ast::{
     token::{Delimiter, TokenKind},
 };
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
+use solar_interface::{BytePos, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym};
 use solar_parse::{PErr, PResult};
 
 pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
@@ -21,6 +21,7 @@ struct ParsedBlockHeader {
     label: Symbol,
     hotness: Hotness,
     in_loop: bool,
+    function_invoke: Option<DebugFunction>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -52,6 +53,36 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         let mut module = Module::new(name);
         self.parse_program_body(&mut module)?;
+        let tracks_debug_info = module.blocks.iter().any(|block| {
+            block.metadata.function_invoke.is_some()
+                || block.instructions.iter().any(|inst| {
+                    inst.metadata.source_span().is_some()
+                        || inst.metadata.function_invoke().is_some()
+                        || inst.metadata.function_exit().is_some()
+                        || inst.metadata.modifier_depth() != 0
+                })
+                || block.terminator.as_ref().is_some_and(|term| {
+                    term.metadata.source_span().is_some()
+                        || term.metadata.function_invoke().is_some()
+                        || term.metadata.function_exit().is_some()
+                        || term.metadata.modifier_depth() != 0
+                })
+        });
+        if tracks_debug_info {
+            module.track_debug_info();
+            for block in &mut module.blocks {
+                for instruction in &mut block.instructions {
+                    if !instruction.metadata.debug_info_is_handled() {
+                        instruction.metadata.mark_debug_info_dropped();
+                    }
+                }
+                if let Some(terminator) = &mut block.terminator
+                    && !terminator.metadata.debug_info_is_handled()
+                {
+                    terminator.metadata.mark_debug_info_dropped();
+                }
+            }
+        }
         Ok(module)
     }
 
@@ -67,6 +98,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let block_id = self.define_block(module, header.label)?;
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
+                module.blocks[block_id].metadata.function_invoke = header.function_invoke;
                 current_block = Some(block_id);
                 continue;
             }
@@ -104,14 +136,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parser.bump();
         let mut hotness = Hotness::Hot;
         let mut in_loop = false;
-        if self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
+        let mut function_invoke = None;
+        while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
                 if self.parser.eat_keyword(sym::cold) {
                     hotness = Hotness::Cold;
                 } else if self.parser.eat_keyword(sym::Loop) {
                     in_loop = true;
+                } else if self.parser.eat_keyword(sym::invoke) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let identifier = self.parser.parse_ident()?;
+                    self.parser.expect(TokenKind::At)?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
+                    function_invoke = Some(DebugFunction {
+                        identifier,
+                        declaration: Span::new(BytePos(lo), BytePos(hi)),
+                    });
                 } else {
-                    return Err(self.parser.error("expected `cold` or `loop` block attribute"));
+                    return Err(self
+                        .parser
+                        .error("expected `cold`, `loop`, or `invoke` block attribute"));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
                     break;
@@ -122,7 +166,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         self.parser.expect(TokenKind::Colon)?;
 
-        Ok(Some(ParsedBlockHeader { label, hotness, in_loop }))
+        Ok(Some(ParsedBlockHeader { label, hotness, in_loop, function_invoke }))
     }
 
     fn current_block_label(&self) -> PResult<'sess, Option<Symbol>> {
@@ -390,11 +434,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
         let mut metadata = Metadata::default();
         if !self.parser.eat(TokenKind::Not) {
+            metadata.mark_debug_info_dropped();
             return Ok(metadata);
         }
-        self.parser.expect_keyword(sym::meta)?;
+        let name = self.parser.parse_ident()?;
+        if !matches!(name, sym::meta | sym::metadata) {
+            return Err(self.parser.error(format!("expected `metadata`, found `{name}`")));
+        }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+            metadata.mark_debug_info_dropped();
             return Ok(metadata);
         }
 
@@ -406,6 +455,49 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Arrow)?;
                 let outputs = self.parse_u8()?;
                 metadata.stack = Some(StackEffect::new(inputs, outputs));
+            } else if key == sym::span {
+                self.parser.expect(TokenKind::Eq)?;
+                let (lo, hi) = self.parser.parse_span_bounds()?;
+                metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
+            } else if key == sym::spans {
+                self.parser.expect(TokenKind::Eq)?;
+                self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+                let mut spans = Vec::new();
+                loop {
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
+                    spans.push(Span::new(BytePos(lo), BytePos(hi)));
+                    if !self.parser.eat(TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
+                metadata.set_source_spans(spans);
+            } else if key == sym::invoke {
+                self.parser.expect(TokenKind::Eq)?;
+                let identifier = self.parser.parse_ident()?;
+                self.parser.expect(TokenKind::At)?;
+                let (lo, hi) = self.parser.parse_span_bounds()?;
+                metadata.set_function_invoke(DebugFunction {
+                    identifier,
+                    declaration: Span::new(BytePos(lo), BytePos(hi)),
+                });
+            } else if key == sym::exit {
+                self.parser.expect(TokenKind::Eq)?;
+                let exit = self.parser.parse_ident()?;
+                let exit = if exit == kw::Return {
+                    DebugFunctionExit::Return
+                } else if exit == kw::Revert {
+                    DebugFunctionExit::Revert
+                } else {
+                    return Err(self.parser.error("expected `return` or `revert`"));
+                };
+                metadata.set_function_exit(exit);
+            } else if key == sym::modifier_depth {
+                self.parser.expect(TokenKind::Eq)?;
+                let depth = self.parser.parse_uint()?;
+                let depth = u32::try_from(depth)
+                    .map_err(|_| self.parser.error("modifier depth does not fit in u32"))?;
+                metadata.set_modifier_depth(depth);
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }
@@ -415,6 +507,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
+        }
+        if !metadata.debug_info_is_handled() {
+            metadata.mark_debug_info_dropped();
         }
         Ok(metadata)
     }

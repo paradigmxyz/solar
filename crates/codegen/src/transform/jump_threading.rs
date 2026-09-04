@@ -1,7 +1,7 @@
 //! Jump Threading optimization pass.
 //!
 //! This pass eliminates unnecessary jumps by threading through blocks that only contain
-//! an unconditional jump. Each eliminated JUMP instruction saves 8 gas.
+//! an unconditional jump. Each eliminated `JUMP` saves its static gas.
 //!
 //! ## Optimizations performed:
 //!
@@ -20,6 +20,7 @@ use crate::{
         utils::repair_reachability_phis,
     },
     pass::{MirPass, run_function_pass},
+    target::GasTier,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -52,7 +53,7 @@ struct JumpThreadingStats {
     branches_threaded: usize,
     /// Number of switch case targets threaded.
     switches_threaded: usize,
-    /// Estimated gas saved (8 gas per eliminated jump).
+    /// Estimated gas saved (one `JUMP` per eliminated jump).
     gas_saved: usize,
 }
 
@@ -214,7 +215,7 @@ impl JumpThreader {
                 if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
                     *target = final_target;
                     self.stats.jumps_threaded += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                 }
             }
 
@@ -232,7 +233,7 @@ impl JumpThreader {
                 }
                 if changed {
                     self.stats.branches_threaded += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                 }
             }
 
@@ -251,7 +252,7 @@ impl JumpThreader {
                 }
                 if changed {
                     self.stats.switches_threaded += 1;
-                    self.stats.gas_saved += 8;
+                    self.stats.gas_saved += GasTier::Mid.fixed_gas() as usize;
                 }
             }
 

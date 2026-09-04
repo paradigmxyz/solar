@@ -16,7 +16,7 @@ use super::{
     utils::{remap_block_order, retain_blocks},
 };
 use crate::backend::evm::{
-    ir::{Block, BlockId, Module, PushValue, Terminator, TerminatorKind},
+    ir::{Block, BlockId, Metadata, Module, PushValue, Terminator, TerminatorKind},
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
@@ -99,13 +99,21 @@ fn reserve_to<T>(values: &mut Vec<T>, capacity: usize) {
 fn truncate_after_terminal(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        let Some((at, opcode)) = block.instructions.iter().enumerate().find_map(|(at, inst)| {
-            (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((at, inst.opcode))
-        }) else {
+        let Some((at, opcode, metadata)) =
+            block.instructions.iter().enumerate().find_map(|(at, inst)| {
+                (!inst.is_encoded_push() && op::is_terminal(inst.opcode)).then_some((
+                    at,
+                    inst.opcode,
+                    inst.metadata.clone(),
+                ))
+            })
+        else {
             continue;
         };
         block.instructions.truncate(at);
-        block.terminator = Some(Terminator::new(TerminatorKind::Op(opcode)));
+        let mut terminator = Terminator::new(TerminatorKind::Op(opcode));
+        terminator.metadata = metadata;
+        block.terminator = Some(terminator);
         changed = true;
     }
     changed
@@ -114,15 +122,21 @@ fn truncate_after_terminal(module: &mut Module) -> bool {
 fn simplify_degenerate_branches(module: &mut Module) -> bool {
     let mut changed = false;
     for block in &mut module.blocks {
-        if let Some(TerminatorKind::JumpI { then_block, else_block }) =
-            block.terminator.as_ref().map(|term| &term.kind)
+        if let Some(Terminator {
+            kind: TerminatorKind::JumpI { then_block, else_block },
+            metadata,
+            ..
+        }) = block.terminator.as_ref()
             && then_block == else_block
         {
             let target = *then_block;
-            block
-                .instructions
-                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
-            block.terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
+            let metadata = metadata.clone();
+            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            pop.metadata.copy_source_debug_from(&metadata);
+            block.instructions.push(pop);
+            let mut terminator = Terminator::new(TerminatorKind::Jump(target));
+            terminator.metadata = metadata;
+            block.terminator = Some(terminator);
             changed = true;
             continue;
         }
@@ -135,10 +149,11 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && jumpi.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
         {
+            let metadata = jumpi.metadata.clone();
             block.instructions.truncate(block.instructions.len() - 2);
-            block
-                .instructions
-                .push(crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop));
+            let mut pop = crate::backend::evm::ir::Instruction::stack_op(op::StackOp::Pop);
+            pop.metadata.copy_source_debug_from(&metadata);
+            block.instructions.push(pop);
             changed = true;
         }
     }
@@ -151,6 +166,10 @@ fn redirect_jump_thunks(
     addressed: &mut DenseBitSet<BlockId>,
     order: &mut Vec<BlockId>,
 ) -> bool {
+    // A thunk is an empty block that only jumps on. Every reference to it, a direct jump label
+    // or a return address an internal call pushes for its callee to jump back to, lands on the
+    // thunk's target just as well, so the thunk itself is never needed. Preserve any debug event
+    // on the thunk by moving it to each incoming edge before removing the indirection.
     addressed.clear_to(module.blocks.len());
     for block in &module.blocks {
         for (at, inst) in block.instructions.iter().enumerate() {
@@ -166,8 +185,8 @@ fn redirect_jump_thunks(
     for (block_id, block) in module.blocks.iter_enumerated() {
         if !addressed.contains(block_id)
             && block.instructions.is_empty()
-            && let Some(TerminatorKind::Jump(target)) =
-                block.terminator.as_ref().map(|term| &term.kind)
+            && let Some(terminator) = &block.terminator
+            && let TerminatorKind::Jump(target) = &terminator.kind
         {
             thunks.insert(block_id, *target);
         }
@@ -189,19 +208,40 @@ fn redirect_jump_thunks(
         target
     };
 
+    let thunk_metadata = thunks
+        .keys()
+        .map(|&block_id| {
+            let block = &module.blocks[block_id];
+            let mut metadata = Metadata::default();
+            if let Some(function) = block.metadata.function_invoke {
+                metadata.set_function_invoke(function);
+            }
+            if let Some(terminator) = &block.terminator {
+                metadata.absorb_debug_info(&terminator.metadata);
+            }
+            (block_id, metadata)
+        })
+        .collect::<FxHashMap<_, _>>();
+
     let mut changed = false;
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if is_direct_jump_label(block, at)
-                && let Some(PushValue::Block(target)) = &mut block.instructions[at].value
+                && let Some(PushValue::Block(target)) = block.instructions[at].value
             {
-                let resolved = resolve(*target);
-                changed |= resolved != *target;
-                *target = resolved;
+                if let Some(metadata) = thunk_metadata.get(&target) {
+                    block.instructions[at].metadata.absorb_debug_info(metadata);
+                }
+                let resolved = resolve(target);
+                changed |= resolved != target;
+                block.instructions[at].value = Some(PushValue::Block(resolved));
             }
         }
         if let Some(term) = &mut block.terminator {
             term.kind.visit_targets_mut(|target| {
+                if let Some(metadata) = thunk_metadata.get(target) {
+                    term.metadata.absorb_debug_info(metadata);
+                }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
@@ -305,7 +345,14 @@ fn coalesce_blocks(
             }
 
             let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
-            let terminator = module.blocks[target].terminator.take();
+            let mut terminator = module.blocks[target].terminator.take();
+            if let Some(function) = module.blocks[target].metadata.function_invoke {
+                if let Some(instruction) = instructions.first_mut() {
+                    instruction.metadata.set_function_invoke(function);
+                } else if let Some(terminator) = &mut terminator {
+                    terminator.metadata.set_function_invoke(function);
+                }
+            }
             module.blocks[predecessor].instructions.append(&mut instructions);
             module.blocks[predecessor].terminator = terminator;
             retained.remove(target);

@@ -3,6 +3,7 @@
 use super::{self as ir};
 use crate::{
     backend::evm::{
+        DebugFunction, DebugFunctionExit,
         assembler::{ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label},
         ir::assembly::DeferredAlloc,
         op::{self, push_len},
@@ -71,6 +72,47 @@ impl<'gcx> Assembler<'gcx> {
         self.push_ir_instruction(ir::Instruction::stack_op(stack_op));
     }
 
+    /// Sets the source span attached to subsequently emitted operations.
+    pub(crate) fn set_source_span(&mut self, span: Option<solar_interface::Span>) {
+        self.program.track_debug_info();
+        self.current_source_span = span.unwrap_or(solar_interface::Span::DUMMY);
+    }
+
+    /// Sets the legacy source-map modifier nesting depth attached to new operations.
+    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
+        self.program.track_debug_info();
+        self.current_modifier_depth = depth;
+    }
+
+    /// Marks the current block as entering a source-language function.
+    pub(crate) fn mark_function_invoke(&mut self, function: DebugFunction) {
+        self.program.track_debug_info();
+        let block = self.current_block();
+        self.program.blocks[block].metadata.function_invoke = Some(function);
+    }
+
+    /// Marks the most recently emitted operation as entering a source-language function.
+    pub(crate) fn mark_last_function_invoke(&mut self, function: DebugFunction) {
+        self.program.track_debug_info();
+        let block = self.current_block.expect("function invoke requires an emitted operation");
+        let instruction = self.program.blocks[block]
+            .instructions
+            .last_mut()
+            .expect("function invoke requires an emitted operation");
+        instruction.metadata.set_function_invoke(function);
+    }
+
+    /// Marks the most recently emitted operation as closing a function activation.
+    pub(crate) fn mark_function_exit(&mut self, exit: DebugFunctionExit) {
+        self.program.track_debug_info();
+        let block = self.current_block.expect("function exit requires an emitted operation");
+        let instruction = self.program.blocks[block]
+            .instructions
+            .last_mut()
+            .expect("function exit requires an emitted operation");
+        instruction.metadata.set_function_exit(exit);
+    }
+
     /// Emits a push instruction with an immediate value.
     pub(crate) fn emit_push(&mut self, value: U256) {
         self.push_ir_instruction(ir::Instruction::push_value(value));
@@ -113,7 +155,7 @@ impl<'gcx> Assembler<'gcx> {
                 references[target] += 1;
             }
         }
-        for (_, targets) in &self.indexed_jump_relocations {
+        for (_, targets, _) in &self.indexed_jump_relocations {
             for &label in targets {
                 if let Some(&target) = self.label_blocks.get(&label) {
                     references[target] += 1;
@@ -176,7 +218,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn trace_successor(&self, block: ir::BlockId) -> Option<ir::BlockId> {
-        if self.indexed_jump_relocations.iter().any(|&(source, _)| source == block) {
+        if self.indexed_jump_relocations.iter().any(|&(source, _, _)| source == block) {
             None
         } else if let Some(target) = self.explicit_jump_target(block) {
             Some(target)
@@ -214,7 +256,7 @@ impl<'gcx> Assembler<'gcx> {
                 push_edge(&mut edges, source, target);
             }
         }
-        for (source, targets) in &self.indexed_jump_relocations {
+        for (source, targets, _) in &self.indexed_jump_relocations {
             for label in targets {
                 if let Some(&target) = self.label_blocks.get(label) {
                     push_edge(&mut edges, *source, target);
@@ -259,7 +301,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn block_has_explicit_terminator(&self, block: ir::BlockId) -> bool {
-        self.indexed_jump_relocations.iter().any(|&(source, _)| source == block)
+        self.indexed_jump_relocations.iter().any(|&(source, _, _)| source == block)
             || self.program.blocks[block]
                 .instructions
                 .last()
@@ -333,7 +375,10 @@ impl<'gcx> Assembler<'gcx> {
     pub(crate) fn emit_indexed_jump(&mut self, targets: Vec<Label>) {
         assert!(!targets.is_empty(), "indexed jump must have at least one target");
         let block = self.current_block.take().expect("indexed jump requires a current block");
-        self.indexed_jump_relocations.push((block, targets));
+        let mut metadata = ir::Metadata::default();
+        metadata.set_source_span(Some(self.current_source_span));
+        metadata.set_modifier_depth(self.current_modifier_depth);
+        self.indexed_jump_relocations.push((block, targets, metadata));
     }
 
     /// Emits a push instruction for a deferred constant.
@@ -412,7 +457,9 @@ impl<'gcx> Assembler<'gcx> {
         block
     }
 
-    fn push_ir_instruction(&mut self, instruction: ir::Instruction) -> (ir::BlockId, usize) {
+    fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
+        instruction.metadata.set_source_span(Some(self.current_source_span));
+        instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
         (block, index)
@@ -482,10 +529,12 @@ impl<'gcx> Assembler<'gcx> {
                 .get(&label)
                 .copied()
                 .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_block(target);
+            let replacement = ir::Instruction::push_block(target);
+            module.blocks[block].instructions[instruction].replace_preserving_metadata(replacement);
         }
         for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_deferred(id);
+            let replacement = ir::Instruction::push_deferred(id);
+            module.blocks[block].instructions[instruction].replace_preserving_metadata(replacement);
         }
         // Allocation placeholders expand to more than one instruction, so they
         // splice after every in-place relocation patch above. Descending
@@ -495,13 +544,14 @@ impl<'gcx> Assembler<'gcx> {
             std::cmp::Reverse((block, instruction))
         });
         for (block, instruction, id) in alloc_relocations.drain(..) {
+            let metadata = module.blocks[block].instructions[instruction].metadata.clone();
             let resolution = self
                 .deferred_allocations
                 .get(&id)
                 .copied()
                 .unwrap_or_else(|| panic!("deferred allocation {id:?} was never resolved"));
             let push = |value: U256| ir::Instruction::push_value(value);
-            let replacement = match resolution {
+            let mut replacement = match resolution {
                 DeferredAllocResolution::Static(address) => vec![push(address)],
                 DeferredAllocResolution::Dynamic(size) => vec![
                     push(U256::from(EvmMemoryLayout::FMP_SLOT)),
@@ -513,6 +563,19 @@ impl<'gcx> Assembler<'gcx> {
                     ir::Instruction::opcode(op::MSTORE),
                 ],
             };
+            for inst in &mut replacement {
+                inst.metadata.copy_source_debug_from(&metadata);
+            }
+            if let Some(function) = metadata.function_invoke()
+                && let Some(inst) = replacement.last_mut()
+            {
+                inst.metadata.set_function_invoke(function);
+            }
+            if let Some(exit) = metadata.function_exit()
+                && let Some(inst) = replacement.last_mut()
+            {
+                inst.metadata.set_function_exit(exit);
+            }
             module.blocks[block].instructions.splice(instruction..=instruction, replacement);
         }
         self.deferred_allocations.clear();
@@ -537,36 +600,45 @@ impl<'gcx> Assembler<'gcx> {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
             let block = &mut module.blocks[block_id];
-            let (terminator, remove) = if let [.., push, jump] = block.instructions.as_slice()
+            let (mut terminator, remove, metadata) = if let [.., push, jump] =
+                block.instructions.as_slice()
                 && !jump.is_encoded_push()
                 && jump.opcode == op::JUMP
                 && let Some(target) = push.pushed_block()
                 && push.is_encoded_push()
             {
-                (ir::Terminator::new(ir::TerminatorKind::Jump(target)), 2)
+                (ir::Terminator::new(ir::TerminatorKind::Jump(target)), 2, jump.metadata.clone())
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && last.opcode == op::STOP
             {
-                (ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)), 1, last.metadata.clone())
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
             {
-                (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1)
+                (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1, last.metadata.clone())
             } else {
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {
                         ir::Terminator::new(ir::TerminatorKind::Jump(target))
                     }),
                     0,
+                    ir::Metadata::default(),
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);
+            terminator.metadata.copy_source_debug_from(&metadata);
+            if let Some(function) = metadata.function_invoke() {
+                terminator.metadata.set_function_invoke(function);
+            }
+            if let Some(exit) = metadata.function_exit() {
+                terminator.metadata.set_function_exit(exit);
+            }
             block.terminator = Some(terminator);
         }
 
-        for (block, targets) in self.indexed_jump_relocations.drain(..) {
+        for (block, targets, metadata) in self.indexed_jump_relocations.drain(..) {
             let targets = targets
                 .into_iter()
                 .map(|label| {
@@ -577,8 +649,9 @@ impl<'gcx> Assembler<'gcx> {
                 })
                 .collect::<Vec<_>>()
                 .into_boxed_slice();
-            module.blocks[block].terminator =
-                Some(ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets)));
+            let mut terminator = ir::Terminator::new(ir::TerminatorKind::IndexedJump(targets));
+            terminator.metadata = metadata;
+            module.blocks[block].terminator = Some(terminator);
         }
     }
 }
@@ -591,7 +664,7 @@ pub(in crate::backend::evm) fn resolve_known_deferred_constants(
         for inst in &mut block.instructions {
             let Some(id) = inst.deferred_push() else { continue };
             if let Some(&value) = values.get(&id) {
-                *inst = ir::Instruction::push_value(value);
+                inst.replace_preserving_metadata(ir::Instruction::push_value(value));
             }
         }
     }

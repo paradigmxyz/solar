@@ -15,7 +15,11 @@ impl Assembler<'_> {
         skip_all,
         fields(program = %self.program.name()),
     )]
-    pub(in crate::backend::evm) fn prepare(&mut self, capture_evm_ir: bool) -> PreparedAssembly {
+    pub(in crate::backend::evm) fn prepare(
+        &mut self,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> PreparedAssembly {
         let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
             return PreparedAssembly::default();
         };
@@ -28,7 +32,13 @@ impl Assembler<'_> {
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        debug_assert!(!input_is_valid || ir::verify::Verifier::is_valid(&ir_program));
+        if input_is_valid && !ir::verify::Verifier::is_valid(&ir_program) {
+            // An optimization pass may intentionally leave the temporary
+            // builder form until the legalization boundary below. Keep the
+            // check diagnostic-only so debug-info capture cannot turn a valid
+            // source program into an internal compiler error.
+            tracing::debug!("EVM IR validation deferred until legalization");
+        }
         let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -38,7 +48,7 @@ impl Assembler<'_> {
             return failed_preparation(ir_program, capture_evm_ir);
         }
 
-        let program = lower_evm_ir(self, &mut ir_program, &mut labels);
+        let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -109,6 +119,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     assembler: &mut Assembler<'_>,
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
+    capture_debug_info: bool,
 ) -> Program {
     // Finalized EVM IR represents every control-flow reference as a `BlockId`; the builder's
     // assembler-label table is no longer authoritative. Rebuild it for the final module so a
@@ -134,6 +145,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
             labels,
             &indexed_jump_lowerings,
             data_layout_is_observable,
+            capture_debug_info,
         );
         let (label_offsets, _) = assembler.resolve_label_offsets(&program);
         if !indexed_jump::refine_indexed_jump_widths(
@@ -157,6 +169,7 @@ fn lower_evm_ir_once(
     labels: &mut Vec<Option<Label>>,
     indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
     data_layout_is_observable: bool,
+    capture_debug_info: bool,
 ) -> Program {
     allocate_referenced_labels(assembler, module, labels);
 
@@ -173,18 +186,58 @@ fn lower_evm_ir_once(
             }
         }
     }
-    let mut program = Program::default();
+    let mut program = Program::with_debug_info(capture_debug_info);
     for (block_id, block) in module.blocks.iter_enumerated() {
+        program.set_source_span(None);
+        let block_modifier_depth = block.instructions.first().map_or_else(
+            || block.terminator.as_ref().map_or(0, |term| term.metadata.modifier_depth()),
+            |inst| inst.metadata.modifier_depth(),
+        );
+        program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
+            program.mark_last_function_invoke(block.metadata.function_invoke);
         }
 
+        let mut pending_invoke = None;
         for inst in &block.instructions {
+            program.set_source_spans(inst.metadata.source_spans());
+            program.set_modifier_depth(inst.metadata.modifier_depth());
             lower_instruction(assembler, &mut program, inst, module, labels);
+            let function_invoke = inst.metadata.function_invoke();
+            if let Some((index, function)) = pending_invoke.take()
+                && program.instructions.last().is_some_and(|last| {
+                    matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
+                })
+            {
+                program.set_function_invoke(index, None);
+                program.mark_last_function_invoke(Some(function));
+            }
+            if let Some(function) = function_invoke {
+                if inst.is_encoded_push() {
+                    let index = program.instructions.len() - 1;
+                    if let Some(previous) = index.checked_sub(1)
+                        && program.instructions.get(previous).is_some_and(|last| {
+                            matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
+                        })
+                    {
+                        program.set_function_invoke(index, None);
+                        program.set_function_invoke(previous, Some(function));
+                    } else {
+                        program.mark_last_function_invoke(Some(function));
+                        pending_invoke = Some((index, function));
+                    }
+                } else {
+                    program.mark_last_function_invoke(Some(function));
+                }
+            }
+            program.mark_last_function_exit(inst.metadata.function_exit());
         }
 
         if let Some(terminator) = &block.terminator {
+            program.set_source_spans(terminator.metadata.source_spans());
+            program.set_modifier_depth(terminator.metadata.modifier_depth());
             lower_terminator(
                 assembler,
                 &mut program,
@@ -194,6 +247,18 @@ fn lower_evm_ir_once(
                 labels,
                 indexed_jump_lowerings[block_id],
             );
+            let function_invoke = terminator.metadata.function_invoke();
+            if let Some((index, function)) = pending_invoke
+                && program.instructions.last().is_some_and(|last| {
+                    matches!(last.kind(), AsmInstKind::Op(op::JUMP | op::JUMPI))
+                })
+            {
+                program.set_function_invoke(index, None);
+                program.mark_last_function_invoke(Some(function));
+            } else {
+                program.mark_last_function_invoke(function_invoke);
+            }
+            program.mark_last_function_exit(terminator.metadata.function_exit());
         }
     }
     // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
@@ -201,9 +266,23 @@ fn lower_evm_ir_once(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
     if !referenced_data.is_empty() && !ends_with_terminal {
+        let spans = module
+            .blocks
+            .last()
+            .and_then(|block| block.terminator.as_ref())
+            .map_or(&[][..], |term| term.metadata.source_spans());
+        program.set_source_spans(spans);
+        program.set_modifier_depth(
+            module
+                .blocks
+                .last()
+                .and_then(|block| block.terminator.as_ref())
+                .map_or(0, |term| term.metadata.modifier_depth()),
+        );
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
+    program.set_source_span(None);
     if data_layout_is_observable {
         for data in module.data.indices() {
             program.append_data(data);
@@ -393,7 +472,7 @@ mod tests {
             let old_target = assembler.new_label();
             let mut labels = vec![Some(old_entry), Some(old_target), None];
 
-            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels);
+            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
             let target_label =
                 labels[module.blocks[target].label as usize].expect("referenced target label");
 

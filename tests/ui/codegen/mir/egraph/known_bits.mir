@@ -1,0 +1,100 @@
+//@compile-flags: -Zmir-pipeline=egraph
+//@filecheck:
+@module KnownBits
+
+// A mask that keeps every bit the operand can have is dropped: comparison
+// results are one bit, `byte` eight, an opcode address 160, and a shifted
+// word as many bits as the shift leaves.
+// CHECK-LABEL: {{^[ +].*}}fn @masks_covering_known_bits{{[( ]}}
+// CHECK: {{^[ +].*}}[[LT:v[0-9]+]] = lt arg0, arg1
+// CHECK: {{^[ +].*}}[[BYTE:v[0-9]+]] = byte 31, arg0
+// CHECK: {{^[ +].*}}[[SHR:v[0-9]+]] = shr 248, arg1
+// CHECK: {{^[ +].*}}[[ADDR:v[0-9]+]] = caller
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: {{^[ +].*}}ret [[LT]], [[BYTE]], [[SHR]], [[ADDR]]
+fn @masks_covering_known_bits(arg0: u256, arg1: u256) -> (u256, u256, u256, u256) {
+  bb0:
+    v2 = lt arg0, arg1
+    v3 = and v2, 1
+    v4 = byte 31, arg0
+    v5 = and v4, 255
+    v6 = shr 248, arg1
+    v7 = and 255, v6
+    v8 = caller
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    ret v3, v5, v7, v9
+}
+
+// A mask narrower than the operand stays.
+// CHECK-LABEL: {{^[ +].*}}fn @masks_narrowing_words{{[( ]}}
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = and {{v[0-9]+}}, 127
+// CHECK: {{^[ +].*}}{{v[0-9]+}} = and arg0, 255
+fn @masks_narrowing_words(arg0: u256) -> (u256, u256) {
+  bb0:
+    v1 = byte 31, arg0
+    v2 = and v1, 127
+    v3 = and arg0, 255
+    ret v2, v3
+}
+
+// Values bounded to one bit are booleans: the double negation and the
+// comparison against one fold away. The orphaned inner negation is left to
+// dead code elimination.
+// CHECK-LABEL: {{^[ +].*}}fn @bounded_bools{{[( ]}}
+// CHECK: {{^[ +].*}}[[BIT:v[0-9]+]] = and arg0, 1
+// CHECK-NOT: {{^[ +].*}}= eq
+// CHECK: {{^[ +].*}}ret [[BIT]], [[BIT]]
+fn @bounded_bools(arg0: u256) -> (bool, bool) {
+  bb0:
+    v1 = and arg0, 1
+    v2 = iszero v1
+    v3 = iszero v2
+    v4 = eq v1, 1
+    ret v3, v4
+}
+
+// Comparisons and arithmetic decided by the bound of an operand: a byte is
+// below 256 and at most 255, so it never equals 300, is below 256, is never
+// above 255, is its own remainder modulo 256, and vanishes when divided by
+// 256 or shifted out. Sign extension from a wider byte keeps it.
+// CHECK-LABEL: {{^[ +].*}}fn @bounded_operands{{[( ]}}
+// CHECK: {{^[ +].*}}[[BYTE:v[0-9]+]] = byte 31, arg0
+// CHECK-NOT: {{^[ +].*}}= eq
+// CHECK-NOT: {{^[ +].*}}= lt
+// CHECK-NOT: {{^[ +].*}}= gt
+// CHECK-NOT: {{^[ +].*}}= mod
+// CHECK-NOT: {{^[ +].*}}= div
+// CHECK-NOT: {{^[ +].*}}= shr
+// CHECK-NOT: {{^[ +].*}}= signextend
+// CHECK: {{^[ +].*}}ret 0, 1, 0, [[BYTE]], 0, 0, [[BYTE]]
+fn @bounded_operands(arg0: u256) -> (bool, bool, bool, u256, u256, u256, u256) {
+  bb0:
+    v1 = byte 31, arg0
+    v2 = eq v1, 300
+    v3 = lt v1, 256
+    v4 = gt v1, 255
+    v5 = mod v1, 256
+    v6 = div v1, 256
+    v7 = shr 8, v1
+    v8 = signextend 1, v1
+    ret v2, v3, v4, v5, v6, v7, v8
+}
+
+// A phi is bounded by its incoming values.
+// CHECK-LABEL: {{^[ +].*}}fn @phi_bound{{[( ]}}
+// CHECK: {{^[ +].*}}[[PHI:v[0-9]+]] = phi
+// CHECK-NOT: {{^[ +].*}}= and
+// CHECK: {{^[ +].*}}ret [[PHI]]
+fn @phi_bound(arg0: u256, arg1: bool) -> u256 {
+  bb0:
+    v2 = byte 31, arg0
+    jumpi arg1, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v2], [bb2: 7]
+    v4 = and v3, 255
+    ret v4
+}
