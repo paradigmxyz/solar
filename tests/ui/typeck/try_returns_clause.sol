@@ -85,6 +85,24 @@ contract C {
         } catch {}
     }
 
+    // A location on a type that takes none is just as illegal, and the declaration is the only
+    // error: the variable's rewritten type is not what was written, so comparing it would
+    // report a second, invented mismatch.
+    function nonReferenceLocation(address a) external {
+        try I(a).one() returns (bool memory b) {
+            //~^ ERROR: data location can only be specified for array, struct or mapping types
+            b;
+        } catch {}
+        try I(a).one() returns (uint256 calldata x) {
+            //~^ ERROR: data location can only be specified for array, struct or mapping types
+            x;
+        } catch {}
+        try I(a).one() returns (bool storage c) {
+            //~^ ERROR: data location can only be specified for array, struct or mapping types
+            c;
+        } catch {}
+    }
+
     // A creation call returns the new contract, not its address.
     function creation() external {
         try new D() returns (address b) {

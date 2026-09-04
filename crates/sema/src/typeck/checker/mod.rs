@@ -1377,11 +1377,17 @@ impl<'gcx> TypeChecker<'gcx> {
             if actual == expected || actual.references_error() || expected.references_error() {
                 continue;
             }
-            // A clause variable's only valid data location is `memory`; a rejected one has
-            // already been reported and rewritten to `memory`, so its type says nothing.
-            if matches!(actual.kind, TyKind::Ref(..))
-                && var.data_location != Some(DataLocation::Memory)
-            {
+            // A clause variable's only valid data location is `memory`, and only for a type
+            // that takes one at all: `bool memory` is as illegal as `uint256[] storage`. Either
+            // way `var_type` has already reported it and rewritten the location, so the
+            // variable's type says nothing and solc reports only the declaration.
+            let bare = actual.peel_refs();
+            let valid_location = if bare.is_reference_type() || bare.has_mapping(self.gcx) {
+                Some(DataLocation::Memory)
+            } else {
+                None
+            };
+            if var.data_location != valid_location {
                 continue;
             }
             // Before Byzantium a dynamically encoded return value has no accessible type, and

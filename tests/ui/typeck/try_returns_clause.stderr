@@ -6,6 +6,24 @@ LL │         try L.slot(s) returns (uint256[] storage r) {
    │
    ╰ note: data location must be `memory` for try/catch clause, but got `storage`
 
+error: data location can only be specified for array, struct or mapping types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try I(a).one() returns (bool memory b) {
+   ╰╴                                ━━━━━━━━━━━━━
+
+error: data location can only be specified for array, struct or mapping types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try I(a).one() returns (uint256 calldata x) {
+   ╰╴                                ━━━━━━━━━━━━━━━━━━
+
+error: data location can only be specified for array, struct or mapping types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try I(a).one() returns (bool storage c) {
+   ╰╴                                ━━━━━━━━━━━━━━
+
 error[6509]: mismatched types
    ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
    │
@@ -115,5 +133,5 @@ LL │         try p() returns (bool b) {
    │
    ╰ note: a `returns` clause must repeat the callee's return types exactly
 
-error: aborting due to 13 previous errors
+error: aborting due to 16 previous errors
 
