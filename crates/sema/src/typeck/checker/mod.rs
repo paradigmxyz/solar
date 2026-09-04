@@ -1619,21 +1619,24 @@ impl<'gcx> TypeChecker<'gcx> {
         result
     }
 
-    /// Rejects a base constructor whose arguments two contracts of the
-    /// hierarchy both give.
+    /// Checks which contract of the hierarchy gives each base constructor its
+    /// arguments.
     ///
-    /// Which of the two lists the constructor would be called with is
-    /// arbitrary, so the program has no unambiguous meaning. solc reports it
-    /// as declaration error 3364 in
+    /// Two contracts giving the same base constructor arguments is declaration
+    /// error 3364: which of the two lists the constructor would be called with
+    /// is arbitrary, so the program has no unambiguous meaning. No contract
+    /// giving them is type error 3415 for a contract that can be deployed,
+    /// because the base constructor and the state-variable initializers it
+    /// runs would be skipped. solc reports both in
     /// `ContractLevelChecker::annotateBaseConstructorArguments`.
-    fn check_base_constructor_arguments_given_twice(&self, contract: &'gcx hir::Contract<'gcx>) {
+    fn check_base_constructor_arguments(&self, contract: &'gcx hir::Contract<'gcx>) {
         if contract.linearization_failed() {
             return;
         }
         for &base_id in contract.linearized_bases.iter().skip(1) {
-            if self.gcx.hir.contract(base_id).ctor.is_none() {
+            let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor else {
                 continue;
-            }
+            };
             let mut first = None;
             for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
                 let writer = self.gcx.hir.contract(writer_id);
@@ -1671,7 +1674,35 @@ impl<'gcx> TypeChecker<'gcx> {
                 err.emit();
                 break;
             }
+            if first.is_none() && contract.can_be_deployed() {
+                self.report_missing_base_constructor_arguments(contract, ctor_id);
+            }
         }
+    }
+
+    /// Rejects a deployable contract that gives a parameterized base
+    /// constructor no arguments.
+    ///
+    /// The base constructor and the state-variable initializers it runs would
+    /// be skipped, so the contract would deploy with an uninitialized base.
+    /// solc reports it as type error 3415.
+    fn report_missing_base_constructor_arguments(
+        &self,
+        contract: &'gcx hir::Contract<'gcx>,
+        ctor_id: hir::FunctionId,
+    ) {
+        let ctor = self.gcx.hir.function(ctor_id);
+        let (Some(&first), Some(&last)) = (ctor.parameters.first(), ctor.parameters.last()) else {
+            return;
+        };
+        let parameters = self.gcx.hir.variable(first).span.to(self.gcx.hir.variable(last).span);
+        self.dcx()
+            .err("no arguments passed to the base constructor")
+            .code(error_code!(3415))
+            .span(contract.span)
+            .span_note(parameters, "base constructor parameters are here")
+            .help(format!("specify the arguments or mark `{}` as abstract", contract.name.as_str()))
+            .emit();
     }
 
     /// Checks the argument list of a modifier invocation against the modifier's
@@ -3253,7 +3284,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             self.check_storage_layout_base_slot(slot);
         }
 
-        self.check_base_constructor_arguments_given_twice(contract);
+        self.check_base_constructor_arguments(contract);
 
         // Check base constructor arguments. `is Base` without parentheses
         // provides no arguments here (deferred to a derived contract, or the

@@ -190,8 +190,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             };
             let constructor = self.cx.gcx.hir.function(constructor_id);
+            // No contract of the hierarchy gave this base constructor its
+            // arguments, which the type checker rejects with 3415. Skipping
+            // the constructor would deploy an uninitialized base, so fail
+            // closed instead.
             let Some(args) = self.base_constructor_args(base_id) else {
-                continue;
+                return self
+                    .cx
+                    .report_unsupported(constructor.span, "base constructor without arguments");
             };
             let modifier = hir::Modifier {
                 span: constructor.span,
