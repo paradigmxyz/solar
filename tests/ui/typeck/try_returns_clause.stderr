@@ -1,0 +1,119 @@
+error: invalid data location `storage`
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try L.slot(s) returns (uint256[] storage r) {
+   │                                ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: data location must be `memory` for try/catch clause, but got `storage`
+
+error[6509]: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try this.f() returns (uint256, int256 x) {
+   │                               ━━━━━━━ expected `uint8`, found `uint256`
+   │
+   ╰ note: a `returns` clause must repeat the callee's return types exactly
+
+error[6509]: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try this.f() returns (uint256, int256 x) {
+   │                                        ━━━━━━━━ expected `uint256`, found `int256`
+   │
+   ╰ note: a `returns` clause must repeat the callee's return types exactly
+
+error[2800]: function returns 2 values, but the `returns` clause has 1 variable
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │           try this.g() returns (uint256 a) {
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃             a = 1;
+LL │ ┃         } catch {}
+   ╰╴┗━━━━━━━━━┛
+
+error[2800]: function returns 1 value, but the `returns` clause has 2 variables
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │           try I(a).one() returns (uint256 x, uint256 y) {
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃             x;
+LL │ ┃             y;
+LL │ ┃         } catch {}
+   ╰╴┗━━━━━━━━━┛
+
+error[2800]: function returns 0 values, but the `returns` clause has 1 variable
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │           try I(a).none() returns (uint256 x) {
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃             x;
+LL │ ┃         } catch {}
+   ╰╴┗━━━━━━━━━┛
+
+error[2800]: function returns 2 values, but the `returns` clause has 1 variable
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │           try I(a).two() returns (bool b) {
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃
+LL │ ┃             b;
+LL │ ┃         } catch {}
+   ╰╴┗━━━━━━━━━┛
+
+error[6509]: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try I(a).two() returns (bool b) {
+   │                                 ━━━━━━ expected `uint8`, found `bool`
+   │
+   ╰ note: a `returns` clause must repeat the callee's return types exactly
+
+error[6509]: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try I(a).one() returns (bool b) {
+   │                                 ━━━━━━ expected `uint256`, found `bool`
+   │
+   ╰ note: a `returns` clause must repeat the callee's return types exactly
+
+error[6509]: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try L.slot(s) returns (uint256[] memory r) {
+   │                                ━━━━━━━━━━━━━━━━━━ expected `uint256[] storage`, found `uint256[] memory`
+   │
+   ╰ note: a `returns` clause must repeat the callee's return types exactly
+
+error[6509]: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try new D() returns (address b) {
+   │                              ━━━━━━━━━ expected `contract D`, found `address`
+   │
+   ╰ note: a `returns` clause must repeat the callee's return types exactly
+
+error[2800]: function returns 1 value, but the `returns` clause has 2 variables
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │           try new D() returns (D d, uint256 x) {
+   │ ┏━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃
+LL │ ┃             d;
+LL │ ┃             x;
+LL │ ┃         } catch {}
+   ╰╴┗━━━━━━━━━┛
+
+error[6509]: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/try_returns_clause.sol:LL:CC
+   │
+LL │         try p() returns (bool b) {
+   │                          ━━━━━━ expected `uint256`, found `bool`
+   │
+   ╰ note: a `returns` clause must repeat the callee's return types exactly
+
+error: aborting due to 13 previous errors
+

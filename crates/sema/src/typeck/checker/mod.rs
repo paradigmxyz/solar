@@ -1334,6 +1334,70 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(())
     }
 
+    /// Checks a `try` statement's `returns` clause against the callee's return values.
+    ///
+    /// solc requires the clause to repeat the callee's return types exactly, without implicit
+    /// conversions and with the same data location (`TypeChecker::endVisit(TryStatement)`): the
+    /// decoder writes the callee's values straight into the clause's variables, so a differing
+    /// declaration would reinterpret them.
+    fn check_try_returns_clause(&self, try_: &'gcx hir::StmtTry<'gcx>) {
+        let clause = &try_.clauses[0];
+        if clause.args.is_empty() {
+            return;
+        }
+        let hir::ExprKind::Call(callee, ..) = try_.expr.peel_parens().kind else { return };
+        let Some(&callee_ty) = self.results.expr_types.get(&callee.id) else { return };
+        let TyKind::Fn(f) = callee_ty.kind else { return };
+
+        if f.returns.len() != clause.args.len() {
+            self.dcx()
+                .err(format!(
+                    "function returns {} value{}, but the `returns` clause has {} variable{}",
+                    f.returns.len(),
+                    pluralize!(f.returns.len()),
+                    clause.args.len(),
+                    pluralize!(clause.args.len())
+                ))
+                .code(error_code!(2800))
+                .span(clause.span)
+                .emit();
+        }
+
+        // solc still compares the pairs it has, so a count mismatch can carry a type mismatch.
+        for (&id, &expected) in std::iter::zip(clause.args, f.returns) {
+            let var = self.gcx.hir.variable(id);
+            let actual = self.gcx.type_of_item(id.into());
+            if actual == expected || actual.references_error() || expected.references_error() {
+                continue;
+            }
+            // A clause variable's only valid data location is `memory`; a rejected one has
+            // already been reported and rewritten to `memory`, so its type says nothing.
+            if matches!(actual.kind, TyKind::Ref(..))
+                && var.data_location != Some(DataLocation::Memory)
+            {
+                continue;
+            }
+            // Before Byzantium a dynamically encoded return value has no accessible type, and
+            // `check_inaccessible_dynamic_return` has already reported the binding with 6509.
+            if !self.gcx.sess.opts.evm_version.supports_returndata()
+                && !expected.encodes_as_slot()
+                && expected.is_dynamically_encoded(self.gcx)
+            {
+                continue;
+            }
+            self.dcx()
+                .err("mismatched types")
+                .code(error_code!(6509))
+                .span(var.span)
+                .span_label(
+                    var.span,
+                    TyConvertError::Incompatible.message(actual, expected, self.gcx),
+                )
+                .note("a `returns` clause must repeat the callee's return types exactly")
+                .emit();
+        }
+    }
+
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
         match returns {
             [] => self.gcx.types.unit,
@@ -3185,6 +3249,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 } else {
                     self.value_position = ValuePosition::TryReturns;
                 }
+                // The clause is checked against the call's type, so only after visiting it, as
+                // in solc's `endVisit(TryStatement)`.
+                self.walk_stmt(stmt)?;
+                self.check_try_returns_clause(try_);
+                return ControlFlow::Continue(());
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
                 let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
