@@ -235,6 +235,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 // `[[1, 2], [3, 4]]` picks up the element type of its destination.
                 let element_expected = expected.and_then(|arr| arr.base_type(self.gcx));
                 let mut common = element_expected;
+                // The seed does not always unify with the elements' own types: a storage
+                // element type has no common type with a calldata slice. Infer the
+                // unseeded common type as well and fall back to it.
+                let mut mobile_common = None;
                 let mut guar: Option<ErrorGuaranteed> = None;
                 for (i, expr) in exprs.iter().enumerate() {
                     let expr_ty = self.check_expr_with_noexpect(expr, element_expected);
@@ -249,7 +253,15 @@ impl<'gcx> TypeChecker<'gcx> {
                     } else if i == 0 {
                         common = expr_ty.mobile(self.gcx);
                     }
+                    if i == 0 {
+                        mobile_common = expr_ty.mobile(self.gcx);
+                    } else if let Some(mobile_ty) = mobile_common {
+                        mobile_common = mobile_ty.common_type(expr_ty, self.gcx);
+                    }
                 }
+                // An unnameable fallback cannot be an element type either, so keep reporting
+                // the inference failure instead of it.
+                let common = common.or_else(|| mobile_common.filter(|ty| ty.nameable()));
                 if let Some(guar) = guar {
                     return self.gcx.mk_ty_err(guar);
                 }
