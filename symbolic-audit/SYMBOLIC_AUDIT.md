@@ -97,8 +97,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/recursion_preconstantinople.sol`)
 - [ ] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
       (`symbolic-audit/interface_free_function_checks.sol`)
-- [ ] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
-      (`symbolic-audit/loop_tuple_assign_miscompile.sol`)
+- [x] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
+      (`symbolic-audit/loop_tuple_assign_miscompile.sol`; fixed in `daaf2d05`, tests in `ae814158`)
 - [ ] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
       (`symbolic-audit/storage_array_push_rvalue.sol`)
 
@@ -1448,6 +1448,37 @@ does not, and the loop body writes the tuple temporary at 160.
 
 Severity: miscompile (wrong return value) at the default optimization
 level, with no assembly involved. Highest priority of the open items.
+
+Cause and fix (`daaf2d05`): in the per-block MIR-to-EVM emission loop
+(`crates/codegen/src/backend/evm/codegen.rs`), a block whose terminator
+keeps its stack alive across an edge leaves the frame-slot stores of the
+carried values to the successor, and the successor decides which values to
+store from the availability set intersected over its predecessors'
+recorded `spill_avail_out`. A predecessor not yet emitted contributed
+nothing to that intersection, on the assumption that it would store on its
+own path; on a preserved edge that store obligation had been handed to the
+successor, so nobody stored. In the repro the `else` arm is laid out after
+the join, both arms carry `[v4, v13, v12]` into it, the join skipped the
+store of `v4` to slot 320 because the `if` arm happened to store it, and
+the `else` path multiplied an unwritten slot (`v4 * 5 = 15` off, the xor
+difference of `0x0f`). The fix stores, before the terminator, every value
+in `live_out(block) ∩ live_in(successor)` for every successor already
+emitted that the block does not reach through a loop back edge; the
+now-redundant store in the earlier arm is removed by dead-spill-store
+elimination. The defect is latent since `b424b653` and was exposed by MIR
+shape changes that moved the arm after the join. Verified with the
+harness on the repro at all three optimization levels and on the whole
+stack-pressure probe (120 random calls, gas ratio 1.003); runtime corpus
+size unchanged, UI codegen corpus +12 bytes at `-Ogas`. The review
+(`ae814158`) read the whole spill machinery, built a temporary per-slot
+value-dataflow oracle over the emitted EVM IR that flags the parent commit
+on exactly the buggy slot and is silent after the fix across `tests/ui`,
+the probes, and the semantic tests at three optimization levels, wrote 26
+adversarial join and loop shapes of which nine were also miscompiled on
+the parent, and pinned five of those layouts in a run-call test. Residual:
+`-Onone` grows up to 50 bytes per file because dead-store elimination is
+off there, and stack-only (resident argument) values are outside the
+store path by construction.
 
 ### 37. `a.push()` used as a value on a non-bytes storage array returns 0
 
