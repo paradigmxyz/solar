@@ -488,6 +488,11 @@ impl IntScalar {
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
             hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::checked(!self.data)?,
+            // Negating an unsigned value is not arithmetic that overflows but an operator the
+            // operand's type does not have, which is what solc reports for it.
+            hir::UnOpKind::Neg if ty.is_some_and(|ty| !ty.signed) => {
+                return Err(EE::NegateUnsigned);
+            }
             hir::UnOpKind::Neg => self.negate()?,
         };
         value.retype(ty)
@@ -599,6 +604,7 @@ impl IntScalar {
 pub enum EvalErrorKind {
     RecursionLimitReached,
     ArithmeticOverflow,
+    NegateUnsigned,
     DivisionByZero,
     UnsupportedLiteral,
     UnsupportedUnaryOp,
@@ -618,6 +624,7 @@ impl EvalErrorKind {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
+            Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
             Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
