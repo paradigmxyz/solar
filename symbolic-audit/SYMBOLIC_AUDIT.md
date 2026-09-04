@@ -2161,6 +2161,17 @@ Two further stateful lanes on `3d5d21f8` (findings 23 to 28 fixed):
   `fnEqDirty`, `fnRet`, `op_mcopy` clobbering the free-memory pointer,
   the three `memPtrAfter*` deltas).
 
+Rerun on `84aa90a1` (findings 23 to 31, 33, 34, 36 to 38 fixed) of all
+fourteen stateful lanes and the osaka symbolic lane: 1087 to 1145
+agreements per lane, 4 errors per lane (the three support gaps and the
+one constructor line; the six recursion errors are gone), and the same
+mismatch classes as before minus finding 28's two rows, plus at homestead
+three `gas_limit` rows where solc's own pre-EIP-150 build exhausts the
+EVM stack on deep recursion (`recursion.sol`,
+`inline_assembly_recursion.sol`, `recursive_operator.sol`). The osaka
+symbolic lane reports 1694 bounded agreements and exactly the eight
+reviewed non-bug probes; finding 36 no longer appears.
+
 ## Value-cleanup probe set
 
 `symbolic-audit/probes/` holds the probe contracts behind findings 10 to 13.
