@@ -111,6 +111,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/try_returns_clause_checks.sol`)
 - [ ] 42. An external library function returning a storage pointer is miscompiled from byzantium on: the caller gets a wrong slot
       (`symbolic-audit/library_storage_pointer_return.sol`)
+- [ ] 43. `delete` on a storage pointer local is accepted; solc rejects it with error 9767
+      (`symbolic-audit/delete_storage_pointer.sol`)
 
 ## Findings
 
@@ -1921,6 +1923,31 @@ finding-39 diagnostic's "size unknowable" note is inaccurate there.
 
 Severity: miscompile from byzantium on. Reads through the returned
 pointer see zeros and writes through it corrupt other slots.
+
+### 43. `delete` on a storage pointer local is accepted
+
+File: `symbolic-audit/delete_storage_pointer.sol`
+Found by the agent fixing finding 42 while probing `delete` through a
+returned pointer.
+
+```solidity
+uint256[] storage r = nums; delete r;
+S storage p = s; delete p;
+```
+
+| Declaration | solc | solar |
+|------|------|------|
+| `delete r` on a `uint256[] storage` pointer local | error 9767 `Built-in unary operator delete cannot be applied to type uint256[] storage pointer.` | compiles and clears `nums` |
+| `delete p` on a struct storage pointer local | error 9767 | compiles and clears `s` |
+| `delete r[1]`, `delete p.a` through the pointer | compiles | compiles, agree |
+
+solc refuses `delete` on a storage pointer because the operation would
+have to clear the referenced state variable through an alias (the
+pointer itself has no storage to reset); we accept it and lower it as a
+clear of the target. Not a divergence on valid programs: solar accepts a
+program solc refuses.
+
+Severity: missing diagnostic.
 
 ## solc-side observations
 
