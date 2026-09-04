@@ -819,17 +819,12 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
     {
         return (target.op(&kind.op(), |_| None), 1);
     }
-<<<<<<< HEAD
-    let (runtime_gas, code_size) = match kind {
+    let code = match kind {
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
         | InstKind::MemoryObjectFromPtr { .. }
-        | InstKind::WordCast(_) => (0, 0),
-        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
-=======
-    let code = match kind {
+        | InstKind::WordCast(_) => Cost::ZERO,
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => Cost::ZERO,
->>>>>>> 4acf9e693 (refactor(codegen): estimate the inliner's expansions as opcode shapes)
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {
                 Cost::ZERO
@@ -955,35 +950,28 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
             }
         }
         // Expands to length load + data pointer + physical keccak.
-<<<<<<< HEAD
-        InstKind::Keccak256Bytes(_) => (36, 5),
         // Includes allocation, argument packing, the precompile call, and result extraction.
-        InstKind::ValidateStorageBytes(_) => (80, 40),
-        InstKind::StorageBytesLoad(_) => (400, 150),
-        InstKind::StorageArrayLoad { .. } => (400, 150),
-        InstKind::StorageBytesStore(..) => (500, 180),
-        InstKind::StorageBytesStoreLiteral { bytes, .. } => (500, 180 + bytes.len()),
-        InstKind::StorageClearWords(..) => (120, 32),
-        InstKind::Erc7201(_) => (90, 30),
-        InstKind::CheckedAddMod(..) | InstKind::CheckedMulMod(..) => (32, 9),
-        InstKind::Sha256(_) | InstKind::Ripemd160(_) => (800, 64),
-        InstKind::EcRecover(..) => (900, 100),
-        InstKind::Check { .. } => (24, 8),
-        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => (40, 24),
-        InstKind::ValidateAbi(_) => (0, 0),
-        InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => (300, 128),
-        InstKind::CheckedBinary { .. } => (30, 20),
+        InstKind::ValidateStorageBytes(_) => Cost::new(80, 40),
+        InstKind::StorageBytesLoad(_) => Cost::new(400, 150),
+        InstKind::StorageArrayLoad { .. } => Cost::new(400, 150),
+        InstKind::StorageBytesStore(..) => Cost::new(500, 180),
+        InstKind::StorageBytesStoreLiteral { bytes, .. } => Cost::new(500, 180 + bytes.len() as u32),
+        InstKind::StorageClearWords(..) => Cost::new(120, 32),
+        InstKind::Erc7201(_) => Cost::new(90, 30),
+        InstKind::CheckedAddMod(..) | InstKind::CheckedMulMod(..) => Cost::new(32, 9),
+        InstKind::Sha256(_) | InstKind::Ripemd160(_) => Cost::new(800, 64),
+        InstKind::EcRecover(..) => Cost::new(900, 100),
+        InstKind::Check { .. } => Cost::new(24, 8),
+        InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => Cost::new(40, 24),
+        InstKind::ValidateAbi(_) => Cost::new(0, 0),
+        InstKind::CheckedBinary { op: crate::mir::CheckedOp::Pow, .. } => Cost::new(300, 128),
+        InstKind::CheckedBinary { .. } => Cost::new(30, 20),
         InstKind::AbiEncodePacked { parts, .. } => {
-            (60 + parts.len() as u64 * 20, 24 + parts.len() * 12)
+            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
         InstKind::ICall { function: Callee::Builtin(Builtin::Concat(_)), args: parts } => {
-            (60 + parts.len() as u64 * 20, 24 + parts.len() * 12)
+            Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
         }
-        InstKind::MappingSlot(..) => (36, 3),
-        InstKind::MappingSlotMemory(..) => (60, 8),
-        InstKind::MappingSlotCalldata(..) => (63, 9),
-        InstKind::StorageArrayDataSlot(..) => (36, 3),
-=======
         InstKind::Keccak256Bytes(_) => {
             seq(&[op::DUP1, op::MLOAD, op::SWAP1, op::ADD, op::KECCAK256])
         }
@@ -1010,7 +998,6 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
             op::KECCAK256,
         ]),
         InstKind::StorageArrayDataSlot(..) => seq(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
->>>>>>> 4acf9e693 (refactor(codegen): estimate the inliner's expansions as opcode shapes)
         InstKind::StorageArrayElementSlot { element_slots, .. } => {
             seq(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD]).plus(if *element_slots > 1 {
                 seq(&[op::MUL])
@@ -1018,29 +1005,20 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (Cost, 
                 Cost::ZERO
             })
         }
-        InstKind::AddressCall { .. } => (720, 12),
-        InstKind::ReturndataBytes => (60, 24),
-        InstKind::Send(..) => (720, 12),
-        InstKind::Transfer(..) => (740, 20),
+        InstKind::AddressCall { .. } => Cost::new(720, 12),
+        InstKind::ReturndataBytes => Cost::new(60, 24),
+        InstKind::Send(..) => Cost::new(720, 12),
+        InstKind::Transfer(..) => Cost::new(740, 20),
         InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
         | InstKind::DelegateCall { .. }
         | InstKind::ExtCall { .. }
         | InstKind::ExtDelegateCall { .. }
-<<<<<<< HEAD
-        | InstKind::ExtStaticCall { .. } => (u64::from(Target::new(gcx).opcode_gas(op::CALL)), 1),
-        InstKind::ICall { function: Callee::Function(function), args } => {
-            let returns = module.function(*function).return_components().len();
-            (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
-        }
-        InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
-=======
         | InstKind::ExtStaticCall { .. } => seq(&[op::CALL]),
-        InstKind::ICall { args, returns, .. } => target.icall(args.len(), *returns as usize, 0),
+        InstKind::ICall { function: Callee::Function(function), args } => target.icall(args.len(), module.function(*function).return_components().len(), 0),
         // A phi or a select is a stack move at the join.
         InstKind::Phi(_) | InstKind::Select(..) => seq(&[op::DUP1]),
->>>>>>> 4acf9e693 (refactor(codegen): estimate the inliner's expansions as opcode shapes)
         // Every other operation lowers to one opcode and was priced above.
         _ => {
             debug_assert!(false, "operation without a single opcode is not priced: {kind}");
