@@ -5,9 +5,17 @@
 //! the opcode table into `isle/evm_prelude.isle`. This module implements the
 //! window extractors, instruction facets, and opcode classes the rules call.
 
-use super::{Edit, is_block_push, is_removable_push, push_value, raw_opcode};
-use crate::backend::evm::{ir::Instruction, op, op::*};
+use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_value, raw_opcode};
+use crate::{
+    backend::evm::{ir::Instruction, op, op::*},
+    utils::eval,
+};
 use alloy_primitives::U256;
+use smallvec::SmallVec;
+use solar_config::EvmVersion;
+
+/// How far back a rule may simulate the block's stack.
+const MAX_STACK_WINDOW: usize = 24;
 
 /// Rewrite-rule name of the instruction tail under inspection.
 #[derive(Clone, Copy)]
@@ -79,14 +87,56 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/peephole.isle.rs"));
 }
 
+/// One word of the simulated stack: only a known zero is distinguished.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum KnownStackWord {
+    Other,
+    Zero,
+}
+
+/// A stack operation as the symbolic simulation sees it. A removable push is a
+/// stack operation for this purpose: deleting it deletes the word it pushes.
+#[derive(Clone, Copy)]
+enum SymbolicStackOp {
+    Push,
+    Physical(StackOp),
+}
+
+fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
+    if is_removable_push(inst) {
+        return Some(SymbolicStackOp::Push);
+    }
+    inst.as_stack_op().map(SymbolicStackOp::Physical)
+}
+
+/// Returns whether the sequence leaves the stack exactly as it found it.
+fn is_noop_stack_sequence(instructions: &[Instruction]) -> bool {
+    let mut depth = 0usize;
+    for inst in instructions {
+        match symbolic_stack_op(inst) {
+            Some(SymbolicStackOp::Push) => depth += 1,
+            Some(SymbolicStackOp::Physical(op)) => {
+                if depth < op.required_depth() {
+                    return false;
+                }
+                let Some(next) = depth.checked_add_signed(op.net_growth()) else { return false };
+                depth = next;
+            }
+            None => return false,
+        }
+    }
+    depth == 0
+}
+
 /// Context the rules run against: the instructions of one block so far.
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
+    evm_version: EvmVersion,
 }
 
 impl<'a> PeepContext<'a> {
-    pub(super) fn new(instructions: &'a [Instruction]) -> Self {
-        Self { instructions }
+    pub(super) fn new(instructions: &'a [Instruction], evm_version: EvmVersion) -> Self {
+        Self { instructions, evm_version }
     }
 
     /// Returns the edit to apply to the tail of the block, when a rule matches.
@@ -122,19 +172,157 @@ impl generated::Context for PeepContext<'_> {
     }
 
     fn swap_pop_chain(&mut self, _: Window) -> Option<u8> {
-        for depth in 1..16u8 {
-            let input_len = usize::from(depth) + 3;
-            let start = self.instructions.len().checked_sub(input_len)?;
-            let window = &self.instructions[start..];
-            if raw_opcode(&window[0]) == Some(op::swap(depth))
-                && window[1..input_len - 2].iter().all(|inst| raw_opcode(inst) == Some(POP))
-                && raw_opcode(&window[input_len - 2]) == Some(SWAP1)
-                && raw_opcode(&window[input_len - 1]) == Some(POP)
-            {
-                return Some(depth);
+        let instructions = self.instructions;
+        if instructions.last()?.as_stack_op() != Some(StackOp::Pop) || instructions.len() < 2 {
+            return None;
+        }
+        let end = instructions.len();
+        if instructions[end - 2].as_stack_op() != Some(StackOp::Swap(1)) {
+            return None;
+        }
+        let middle_pops = instructions[..end - 2]
+            .iter()
+            .rev()
+            .take(self.evm_version.reachable_stack_depth() - 1)
+            .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
+            .count();
+        let StackOp::Swap(depth) = (end - 2 - middle_pops)
+            .checked_sub(1)
+            .and_then(|index| instructions[index].as_stack_op())?
+        else {
+            return None;
+        };
+        if usize::from(depth) != middle_pops {
+            return None;
+        }
+        // The merged swap must still be expressible on this target.
+        let merged = depth.checked_add(1)?;
+        StackOp::Swap(merged).metrics(self.evm_version)?;
+        u8::try_from(middle_pops).ok()
+    }
+
+    fn swap_discard_chain(&mut self, _: Window) -> Option<u8> {
+        let instructions = self.instructions;
+        if instructions.last()?.as_stack_op() != Some(StackOp::Pop) {
+            return None;
+        }
+        let pops = instructions
+            .iter()
+            .rev()
+            .take(self.evm_version.reachable_stack_depth() + 1)
+            .take_while(|inst| inst.as_stack_op() == Some(StackOp::Pop))
+            .count();
+        let StackOp::Swap(depth) = (instructions.len() - pops)
+            .checked_sub(1)
+            .and_then(|index| instructions[index].as_stack_op())?
+        else {
+            return None;
+        };
+        (usize::from(depth) + 1 == pops).then_some(())?;
+        u8::try_from(pops).ok()
+    }
+
+    /// A `DUPn` whose duplicated word this block just pushed as a literal zero.
+    ///
+    /// The simulation starts after the last operation it cannot follow, keeps only
+    /// "is this word a known zero", and gives up on any operation with an overridden
+    /// stack effect.
+    fn duplicates_known_zero(&mut self, _: Window) -> Option<()> {
+        if !self.evm_version.has_push0() {
+            return None;
+        }
+        let instructions = self.instructions;
+        let StackOp::Dup(depth) = instructions.last()?.as_stack_op()? else { return None };
+        let end = instructions.len() - 1;
+        let floor = end.saturating_sub(MAX_STACK_WINDOW);
+        let start = instructions[..end]
+            .iter()
+            .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
+            .map_or(floor, |index| index + 1)
+            .max(floor);
+        if !instructions[start..end].iter().any(|inst| push_value(inst) == Some(U256::ZERO)) {
+            return None;
+        }
+        let mut stack = SmallVec::<[KnownStackWord; MAX_STACK_WINDOW + 16]>::from_elem(
+            KnownStackWord::Other,
+            usize::from(depth),
+        );
+        for inst in &instructions[start..end] {
+            if !inst.has_canonical_stack_effect() {
+                return None;
+            }
+            if inst.is_encoded_push() {
+                stack.push(if push_value(inst) == Some(U256::ZERO) {
+                    KnownStackWord::Zero
+                } else {
+                    KnownStackWord::Other
+                });
+                continue;
+            }
+            let op = inst.as_stack_op()?;
+            for _ in stack.len()..op.required_depth() {
+                stack.insert(0, KnownStackWord::Other);
+            }
+            let top = stack.len() - 1;
+            match op {
+                StackOp::Dup(depth) => stack.push(stack[top - usize::from(depth - 1)]),
+                StackOp::Swap(depth) => stack.swap(top, top - usize::from(depth)),
+                StackOp::Exchange(n, m) => stack.swap(top - usize::from(n), top - usize::from(m)),
+                StackOp::Pop => {
+                    stack.pop();
+                }
             }
         }
-        None
+        let depth = usize::from(depth);
+        (stack.len() >= depth && stack[stack.len() - depth] == KnownStackWord::Zero).then_some(())
+    }
+
+    /// Two adjacent constants and the operation over them, when materializing the
+    /// evaluated result is no worse in both bytes and gas and better in one.
+    fn fold_constants(&mut self, _: Window) -> Option<U256> {
+        let [.., lhs, rhs, instruction] = self.instructions else { return None };
+        if !lhs.has_canonical_stack_effect()
+            || !rhs.has_canonical_stack_effect()
+            || !instruction.has_canonical_stack_effect()
+        {
+            return None;
+        }
+        let lhs_value = push_value(lhs)?;
+        let rhs_value = push_value(rhs)?;
+        let opcode = raw_opcode(instruction)?;
+        let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
+        let (lhs_size, lhs_gas) = materialization_cost(self.evm_version, lhs_value);
+        let (rhs_size, rhs_gas) = materialization_cost(self.evm_version, rhs_value);
+        let (result_size, result_gas) = materialization_cost(self.evm_version, result);
+        let input_size = lhs_size + rhs_size + 1;
+        // TODO: Include the evaluated opcode's gas once opcode metadata exposes it.
+        let input_gas = lhs_gas + rhs_gas;
+        (result_size <= input_size
+            && result_gas <= input_gas
+            && (result_size < input_size || result_gas < input_gas))
+            .then_some(result)
+    }
+
+    /// The length of a trailing run of pushes and stack operations that together
+    /// leave the stack unchanged, searched from the earliest such start.
+    fn noop_stack_suffix(&mut self, _: Window) -> Option<u8> {
+        let instructions = self.instructions;
+        let end = instructions.len();
+        if end < 2 || instructions.last()?.as_stack_op() != Some(StackOp::Pop) {
+            return None;
+        }
+        let floor = end.saturating_sub(MAX_STACK_WINDOW);
+        let start = instructions[floor..end - 1]
+            .iter()
+            .rposition(|inst| symbolic_stack_op(inst).is_none())
+            .map_or(floor, |index| floor + index + 1);
+        let last_push = instructions[start..end]
+            .iter()
+            .rposition(is_removable_push)
+            .map(|index| start + index)?;
+        (start..=last_push)
+            .find(|&start| is_noop_stack_sequence(&instructions[start..]))
+            .and_then(|start| u8::try_from(end - start).ok())
     }
 
     fn dup(&mut self, inst: &Inst) -> Option<u8> {

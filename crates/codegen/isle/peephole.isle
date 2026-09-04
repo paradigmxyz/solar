@@ -28,6 +28,9 @@
 
 (type Edit extern (enum
   (Keep (len u8))
+  (OverwritePush0)
+  (DropDiscardedSwap)
+  (FoldConstants (value U256))
   (RemoveFirstKeepOne)
   (RemoveFirstKeepTwo)
   (RemoveFirstOverwrite (opcode u8))
@@ -56,9 +59,21 @@
 (extern extractor last5 last5)
 (decl last6 (Inst Inst Inst Inst Inst Inst) Window)
 (extern extractor last6 last6)
-;; `SWAPn POP*n SWAP1 POP` for `1 <= n < 16`, giving `n`.
+;; `SWAPn POP*n SWAP1 POP`, giving `n`.
 (decl swap_pop_chain (u8) Window)
 (extern extractor swap_pop_chain swap_pop_chain)
+;; `SWAPn POP*(n+1)`, giving the number of pops.
+(decl swap_discard_chain (u8) Window)
+(extern extractor swap_discard_chain swap_discard_chain)
+;; A `DUPn` that duplicates a known zero, on a target that has `PUSH0`.
+(decl duplicates_known_zero () Window)
+(extern extractor duplicates_known_zero duplicates_known_zero)
+;; Adjacent constants whose folded result is a Pareto improvement, giving that result.
+(decl fold_constants (U256) Window)
+(extern extractor fold_constants fold_constants)
+;; A trailing stack sequence whose net effect is the identity, giving its length.
+(decl noop_stack_suffix (u8) Window)
+(extern extractor noop_stack_suffix noop_stack_suffix)
 
 ;; Stack-operation facets of an instruction built as a logical stack operation.
 (decl dup (u8) Inst)
@@ -105,116 +120,134 @@
 
 (decl partial peep (Window) Rewrite)
 
+;; `... PUSH0 ... DUPn -> ... PUSH0 ... PUSH0` when the duplicate reads that zero.
+;;
+;; `PUSH0` is one byte and costs two gas, so it dominates every `DUPn` on targets that have it.
+(rule 400 (peep (duplicates_known_zero)) (rewrite 1 (Edit.OverwritePush0)))
+
 ;; `PUSH x PUSH 0 OP -> PUSH 0`, `PUSH x PUSH 1 EXP -> PUSH 1`.
-(rule 31 (peep (last3 (removable_push) (Inst.Push v) (Inst.Op opcode _)))
+(rule 350 (peep (last3 (removable_push) (Inst.Push v) (Inst.Op opcode _)))
          (if-let true (u256_is_zero v))
          (if-let true (absorbs_zero opcode))
          (rewrite 3 (Edit.RemoveFirstKeepOne)))
-(rule 30 (peep (last3 (removable_push) (Inst.Push v) (Inst.Op $EXP _)))
+(rule 340 (peep (last3 (removable_push) (Inst.Push v) (Inst.Op $EXP _)))
          (if-let true (u256_is_one v))
          (rewrite 3 (Edit.RemoveFirstKeepOne)))
 
 ;; `PUSH 0 OP -> ∅`, `PUSH 0 EQ -> ISZERO`, `PUSH 0 OP -> POP PUSH 0`,
 ;; `PUSH 1 MUL -> ∅`, `PUSH 1 EXP -> POP PUSH 1`.
-(rule 29 (peep (last2 (Inst.Push v) (Inst.Op opcode _)))
+(rule 330 (peep (last2 (Inst.Push v) (Inst.Op opcode _)))
          (if-let true (u256_is_zero v))
          (if-let true (zero_identity opcode))
          (rewrite 2 (Edit.Keep 0)))
-(rule 28 (peep (last2 (Inst.Push v) (Inst.Op $EQ _)))
+(rule 320 (peep (last2 (Inst.Push v) (Inst.Op $EQ _)))
          (if-let true (u256_is_zero v))
          (rewrite 2 (Edit.RemoveFirstOverwrite $ISZERO)))
-(rule 27 (peep (last2 (Inst.Push v) (Inst.Op opcode _)))
+(rule 310 (peep (last2 (Inst.Push v) (Inst.Op opcode _)))
          (if-let true (u256_is_zero v))
          (if-let true (absorbs_zero opcode))
          (rewrite 2 (Edit.SwapOverwrite $POP)))
-(rule 26 (peep (last2 (Inst.Push v) (Inst.Op $MUL _)))
+(rule 300 (peep (last2 (Inst.Push v) (Inst.Op $MUL _)))
          (if-let true (u256_is_one v))
          (rewrite 2 (Edit.Keep 0)))
-(rule 25 (peep (last2 (Inst.Push v) (Inst.Op $EXP _)))
+(rule 290 (peep (last2 (Inst.Push v) (Inst.Op $EXP _)))
          (if-let true (u256_is_one v))
          (rewrite 2 (Edit.SwapOverwrite $POP)))
 
+;; Fold adjacent constants when the selected result materialization is a Pareto improvement.
+(rule 285 (peep (fold_constants value)) (rewrite 3 (Edit.FoldConstants value)))
+
 ;; `PUSH x POP -> ∅`.
-(rule 24 (peep (last2 (removable_push) (Inst.Op $POP _))) (rewrite 2 (Edit.Keep 0)))
+(rule 280 (peep (last2 (removable_push) (Inst.Op $POP _))) (rewrite 2 (Edit.Keep 0)))
 
 ;; `NOT NOT -> ∅`, `DUPn POP -> ∅`, or an involutive stack operation twice -> ∅.
-(rule 23 (peep (last2 (Inst.Op $NOT _) (Inst.Op $NOT _))) (rewrite 2 (Edit.Keep 0)))
-(rule 22 (peep (last2 (dup _) (pop))) (rewrite 2 (Edit.Keep 0)))
-(rule 21 (peep (last2 (swap n) (swap n))) (rewrite 2 (Edit.Keep 0)))
-(rule 20 (peep (last2 (exchange n m) (exchange n m))) (rewrite 2 (Edit.Keep 0)))
+(rule 270 (peep (last2 (Inst.Op $NOT _) (Inst.Op $NOT _))) (rewrite 2 (Edit.Keep 0)))
+(rule 260 (peep (last2 (dup _) (pop))) (rewrite 2 (Edit.Keep 0)))
+(rule 250 (peep (last2 (swap n) (swap n))) (rewrite 2 (Edit.Keep 0)))
+(rule 240 (peep (last2 (exchange n m) (exchange n m))) (rewrite 2 (Edit.Keep 0)))
+
+;; `DUPn SWAPn -> DUPn` because the swapped values are equal.
+(rule 235 (peep (last2 (dup n) (swap n))) (rewrite 2 (Edit.Keep 1)))
 
 ;; `ISZERO ISZERO ISZERO -> ISZERO`.
-(rule 19 (peep (last3 (Inst.Op $ISZERO _) (Inst.Op $ISZERO _) (Inst.Op $ISZERO _)))
+(rule 230 (peep (last3 (Inst.Op $ISZERO _) (Inst.Op $ISZERO _) (Inst.Op $ISZERO _)))
          (rewrite 3 (Edit.OverwriteOne $ISZERO)))
 
 ;; `SWAP1 COMMUTATIVE_OP -> COMMUTATIVE_OP`.
-(rule 18 (peep (last2 (Inst.Op $SWAP1 _) (Inst.Op opcode _)))
+(rule 220 (peep (last2 (Inst.Op $SWAP1 _) (Inst.Op opcode _)))
          (if-let true (is_commutative opcode))
          (rewrite 2 (Edit.RemoveFirstKeepOne)))
 
 ;; `SWAP1 LT -> GT`, `SWAP1 GT -> LT`, `SWAP1 SLT -> SGT`, or `SWAP1 SGT -> SLT`.
-(rule 17 (peep (last2 (Inst.Op $SWAP1 _) (Inst.Op comparison _)))
+(rule 210 (peep (last2 (Inst.Op $SWAP1 _) (Inst.Op comparison _)))
          (if-let flipped (flipped_comparison comparison))
          (rewrite 2 (Edit.RemoveFirstOverwrite flipped)))
 
 ;; `DUP2 OP SWAP1 POP -> OP`.
 ;; `DUP2 OP SWAP1 POP -> SWAP1 OP`.
-(rule 16 (peep (last4 (Inst.Op $DUP2 _) (Inst.Op binop _) (Inst.Op $SWAP1 _) (Inst.Op $POP _)))
+(rule 200 (peep (last4 (Inst.Op $DUP2 _) (Inst.Op binop _) (Inst.Op $SWAP1 _) (Inst.Op $POP _)))
          (if-let true (is_commutative binop))
          (rewrite 4 (Edit.OverwriteOne binop)))
-(rule 15 (peep (last4 (Inst.Op $DUP2 _) (Inst.Op binop _) (Inst.Op $SWAP1 _) (Inst.Op $POP _)))
+(rule 190 (peep (last4 (Inst.Op $DUP2 _) (Inst.Op binop _) (Inst.Op $SWAP1 _) (Inst.Op $POP _)))
          (if-let true (is_noncommutative_binop binop))
          (rewrite 4 (Edit.OverwriteTwo binop)))
 
 ;; `DUP2 SINK POP -> SWAP1 SINK`.
-(rule 14 (peep (last3 (Inst.Op $DUP2 _) (Inst.Op opcode _) (Inst.Op $POP _)))
+(rule 180 (peep (last3 (Inst.Op $DUP2 _) (Inst.Op opcode _) (Inst.Op $POP _)))
          (if-let true (is_sink opcode))
          (rewrite 3 (Edit.OverwriteTwo opcode)))
 
 ;; `SWAPn POP*n SWAP1 POP -> SWAP(n+1) POP*(n+1)`.
-(rule 13 (peep (swap_pop_chain depth))
+(rule 170 (peep (swap_pop_chain depth))
          (rewrite (u8_add depth 3) (Edit.MergeSwapPop (u8_add depth 1))))
 
+;; `SWAPn POP*(n+1) -> POP*(n+1)` because every permuted value is discarded.
+(rule 165 (peep (swap_discard_chain pops))
+          (rewrite (u8_add pops 1) (Edit.DropDiscardedSwap)))
+
 ;; `DUP1 PUSH x MSTORE DUP1 PUSH x MSTORE -> DUP1 PUSH x MSTORE`.
-(rule 12 (peep (last6 (Inst.Op $DUP1 _) (Inst.Push a) (Inst.Op $MSTORE _)
+(rule 160 (peep (last6 (Inst.Op $DUP1 _) (Inst.Push a) (Inst.Op $MSTORE _)
                       (Inst.Op $DUP1 _) (Inst.Push a) (Inst.Op $MSTORE _)))
          (rewrite 6 (Edit.Keep 3)))
 
 ;; `PUSH x MLOAD DUP1 PUSH x MSTORE -> PUSH x MLOAD`.
-(rule 11 (peep (last5 (Inst.Push a) (Inst.Op $MLOAD _) (Inst.Op $DUP1 _) (Inst.Push a) (Inst.Op $MSTORE _)))
+(rule 150 (peep (last5 (Inst.Push a) (Inst.Op $MLOAD _) (Inst.Op $DUP1 _) (Inst.Push a) (Inst.Op $MSTORE _)))
          (rewrite 5 (Edit.Keep 2)))
 
 ;; `DUP1 PUSH x MSTORE POP PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
-(rule 10 (peep (last6 (Inst.Op $DUP1 _) (Inst.Push a) (Inst.Op $MSTORE _)
+(rule 140 (peep (last6 (Inst.Op $DUP1 _) (Inst.Push a) (Inst.Op $MSTORE _)
                       (Inst.Op $POP _) (Inst.Push a) (Inst.Op $MLOAD _)))
          (rewrite 6 (Edit.Keep 3)))
 
 ;; `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
-(rule 9 (peep (last4 (Inst.Push a) (Inst.Op $MSTORE _) (Inst.Push a) (Inst.Op $MLOAD _)))
+(rule 130 (peep (last4 (Inst.Push a) (Inst.Op $MSTORE _) (Inst.Push a) (Inst.Op $MLOAD _)))
         (rewrite 4 (Edit.ReloadStoredValue)))
 
 ;; `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.
-(rule 8 (peep (last4 (Inst.Op $DUP1 _) (any_push) (Inst.Op $MSTORE _) (Inst.Op $POP _)))
+(rule 120 (peep (last4 (Inst.Op $DUP1 _) (any_push) (Inst.Op $MSTORE _) (Inst.Op $POP _)))
         (rewrite 4 (Edit.RemoveFirstKeepTwo)))
 
 ;; `ISZERO ISZERO PUSH_REF JUMPI -> PUSH_REF JUMPI`.
-(rule 7 (peep (last4 (Inst.Op $ISZERO _) (Inst.Op $ISZERO _) (Inst.PushBlock _) (Inst.Op $JUMPI _)))
+(rule 110 (peep (last4 (Inst.Op $ISZERO _) (Inst.Op $ISZERO _) (Inst.PushBlock _) (Inst.Op $JUMPI _)))
         (rewrite 4 (Edit.DropDoubleIszero)))
 
 ;; `EQ ISZERO PUSH_REF JUMPI -> SUB PUSH_REF JUMPI`.
-(rule 6 (peep (last4 (Inst.Op $EQ _) (Inst.Op $ISZERO _) (Inst.PushBlock _) (Inst.Op $JUMPI _)))
+(rule 100 (peep (last4 (Inst.Op $EQ _) (Inst.Op $ISZERO _) (Inst.PushBlock _) (Inst.Op $JUMPI _)))
         (rewrite 4 (Edit.EqIszeroJumpi)))
+
+;; A trailing stack sequence whose net effect is the identity.
+(rule 95 (peep (noop_stack_suffix len)) (rewrite len (Edit.Keep 0)))
 
 ;; `EXCHANGE n, m SWAPn -> SWAPn SWAPm`.
 ;; `EXCHANGE n, m SWAPm -> SWAPm SWAPn`.
 ;; `SWAPn EXCHANGE n, m -> SWAPm SWAPn`.
 ;; `SWAPm EXCHANGE n, m -> SWAPn SWAPm`.
-(rule 5 (peep (last2 (exchange n m) (swap n))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
-(rule 4 (peep (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
-(rule 3 (peep (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
-(rule 2 (peep (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
+(rule 90 (peep (last2 (exchange n m) (swap n))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
+(rule 80 (peep (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
+(rule 70 (peep (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op m) (swap_op n))))
+(rule 60 (peep (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.StackOps (swap_op n) (swap_op m))))
 
 ;; `SWAPn SWAPm SWAPn -> EXCHANGE n, m`.
-(rule 1 (peep (last3 (swap first) (swap second) (swap third)))
+(rule 50 (peep (last3 (swap first) (swap second) (swap third)))
         (if-let exchange (exchange_of_swaps first second third))
         (rewrite 3 (Edit.StackOp exchange)))
