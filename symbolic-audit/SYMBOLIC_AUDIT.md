@@ -82,7 +82,7 @@ and describe behavior that no longer differs.
 - [x] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
       (`symbolic-audit/external_call_prebyzantium.sol`; fixed in `49cf1b51d`, tests in `46b9d61f8`)
 - [x] 28. `push`, `push()`, and `pop` on a storage `bytes` rewrite the whole value, so loops of them are quadratic in gas
-      (`symbolic-audit/storage_bytes_push_gas.sol`; fixed in `8f2e55ba`, review fix `3d5d21f8`)
+      (`symbolic-audit/storage_bytes_push_gas.sol`; fixed in `8f2e55ba6`, review fix `3d5d21f8`)
 - [x] 29. At homestead every external call forwards `gas()`, which a pre-EIP-150 EVM rejects, so every external call runs out of gas
       (`symbolic-audit/external_call_gas_prebyzantium.sol`; fixed in `5aebf672`, review fix `f675c760`)
 - [x] 30. `try`/`catch` with a bare `catch { }` is rejected before byzantium because the catch path emits `RETURNDATACOPY`
@@ -1150,7 +1150,7 @@ alone.
 Severity: gas. Correct results, but 2.5x to 4.7x the gas of solc on
 `bytes` growth and shrink loops.
 
-Cause and fix (`8f2e55ba`): the three operations were lowered as a
+Cause and fix (`8f2e55ba6`): the three operations were lowered as a
 whole-value round trip through `load_storage_bytes` and
 `store_storage_bytes`. They now follow solc's `array_push`,
 `array_push_zero`, and `byte_array_pop`: decode the header, and for a long
@@ -1160,7 +1160,7 @@ transition only when popping from 32 bytes, popped bytes cleared,
 `Panic(0x31)` on an empty pop and `Panic(0x41)` at the 2^64 length limit.
 The `StorageBytePush` lvalue variant is gone: `a.push() = x` is an
 ordinary packed-storage read-modify-write like `a[i]`. Re-measured on
-`8f2e55ba` at `-Ogas`, osaka:
+`8f2e55ba6` at `-Ogas`, osaka:
 
 | Call | solc gas | solar gas | ratio |
 |------|------|------|------|
@@ -2373,7 +2373,7 @@ compilers are allowed to differ.
   stateful harness's osaka EVM, which the pre-byzantium lanes run on, solc's
   code reverts cheaply with data while ours burns the whole call gas, so
   those lanes ignore revert data and the gas of failing calls. Nothing to
-  fix: matching solc would only make the mis-targeted case cheaper.
+  fix: matching solc would only make the wrongly targeted case cheaper.
 
 ## Campaign statistics
 
