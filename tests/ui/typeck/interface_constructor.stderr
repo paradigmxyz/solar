@@ -1,0 +1,32 @@
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_constructor.sol:LL:CC
+   │
+LL │     constructor() {}
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error[6482]: constructor cannot be defined in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_constructor.sol:LL:CC
+   │
+LL │     constructor() {}
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_constructor.sol:LL:CC
+   │
+LL │     constructor(uint256 x) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6482]: constructor cannot be defined in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_constructor.sol:LL:CC
+   │
+LL │     constructor(uint256 x) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7634]: constructor cannot be defined in libraries
+   ╭▸ ROOT/tests/ui/typeck/interface_constructor.sol:LL:CC
+   │
+LL │     constructor() {}
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

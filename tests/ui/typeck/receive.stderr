@@ -16,7 +16,7 @@ error: `pure` not allowed here; allowed values: payable
 LL │     receive() external pure {}
    ╰╴                       ━━━━
 
-error: libraries cannot have receive ether functions
+error[4549]: libraries cannot have receive ether functions
    ╭▸ ROOT/tests/ui/typeck/receive.sol:LL:CC
    │
 LL │     receive() external payable {}

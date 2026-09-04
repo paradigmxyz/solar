@@ -365,7 +365,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
             let func = self.hir.function(id);
             self.hir.functions[id].overrides =
-                self.lower_overrides(ast_func.header.override_.as_ref(), func.contract, true);
+                self.lower_overrides(ast_func.header.override_.as_ref(), func.contract);
 
             self.hir.functions[id].parameters = self.lower_variables(
                 *ast_func.header.parameters,
@@ -398,14 +398,16 @@ impl<'gcx> ResolveContext<'gcx> {
                                     self.hir.contract(c).linearized_bases[1..].contains(&base)
                                 }) => {}
                         hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {
+                            // A modifier on a free function is reported by
+                            // `ast_passes::AstValidator`, so solc only looks at the modifier's
+                            // contract for a function that is in one.
+                            let Some(current) = func.contract else { continue };
                             let modifier_contract = self.hir.function(f).contract;
-                            let allowed = func.contract.is_some_and(|current| {
-                                modifier_contract.is_some_and(|modifier_contract| {
-                                    self.hir
-                                        .contract(current)
-                                        .linearized_bases
-                                        .contains(&modifier_contract)
-                                })
+                            let allowed = modifier_contract.is_some_and(|modifier_contract| {
+                                self.hir
+                                    .contract(current)
+                                    .linearized_bases
+                                    .contains(&modifier_contract)
                             });
                             if !allowed {
                                 self.dcx().emit_err(modifier.name.span(), "can only use modifiers defined in the current contract or in base contracts");
@@ -670,7 +672,7 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.variables[id].initializer = init;
         self.hir.variables[id].ty = ty;
 
-        let overrides = self.lower_overrides(ast_var.override_.as_ref(), var_contract, false);
+        let overrides = self.lower_overrides(ast_var.override_.as_ref(), var_contract);
         self.hir.variables[id].overrides = overrides;
         if let Some(getter_id) = var_getter {
             self.hir.functions[getter_id].overrides = overrides;
@@ -1943,7 +1945,6 @@ impl<'gcx> ResolveContext<'gcx> {
         &mut self,
         override_: Option<&ast::Override<'_>>,
         contract: Option<hir::ContractId>,
-        is_function: bool,
     ) -> &'gcx [hir::ContractId] {
         let Some(ov) = override_ else {
             return &[];
@@ -1955,14 +1956,9 @@ impl<'gcx> ResolveContext<'gcx> {
                 continue;
             };
 
+            // A free function with an override specifier, with or without a contract list, is
+            // reported by `typeck::check_free_function`.
             let Some(c) = contract else {
-                if is_function {
-                    self.dcx()
-                        .err("free functions cannot override")
-                        .code(error_code!(1750))
-                        .span(ov.span)
-                        .emit();
-                }
                 continue;
             };
 

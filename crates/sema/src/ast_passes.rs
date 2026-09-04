@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{Session, Span, diagnostics::DiagCtxt, sym};
+use solar_interface::{Session, Span, diagnostics::DiagCtxt, error_code, sym};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -325,6 +325,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if self.contract.is_none() && func.kind.is_function() {
             if !func.is_implemented() {
                 self.dcx().emit_err(self.item_span, "free functions must be implemented");
+            }
+            // Checked here rather than in `typeck` because a modifier invocation on a free
+            // function never resolves, so it is never lowered into the HIR function.
+            if !func.header.modifiers.is_empty() {
+                self.dcx()
+                    .err("free functions cannot have modifiers")
+                    .code(error_code!(5811))
+                    .span(self.item_span)
+                    .emit();
             }
             if let Some(visibility) = func.header.visibility {
                 self.dcx()
