@@ -30,8 +30,8 @@ fn @singleArmCall(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xe22d2f
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = internal_call @mix, 1, v6
-    v12 = internal_call @mix, 1, v5
+    v11 = icall @mix, 1, v6
+    v12 = icall @mix, 1, v5
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -78,7 +78,7 @@ fn @singleArmCall(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xe22d2f
     v51 = xor v49, v50
     ret v51
   bb7:
-    v31 = internal_call @step, 2, v25, v28
+    v31 = icall @step, 2, v25, v28
     v32 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v33 = add v32, 32
     v34 = mload v33
@@ -105,7 +105,7 @@ fn @branchInLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xfa97e8d
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = internal_call @mix, 1, v6
+    v11 = icall @mix, 1, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -155,10 +155,10 @@ fn @branchInLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xfa97e8d
     v30 = eq v29, 0
     jumpi v30, bb10, bb11
   bb11:
-    v35 = internal_call @mix, 1, v23
+    v35 = icall @mix, 1, v23
     jump bb12
   bb10:
-    v31 = internal_call @step, 2, v17, v20
+    v31 = icall @step, 2, v17, v20
     v32 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v33 = add v32, 32
     v34 = mload v33
@@ -189,7 +189,7 @@ fn @earlyReturn(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x07b42de1
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = internal_call @mix, 1, v6
+    v11 = icall @mix, 1, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -235,7 +235,7 @@ fn @earlyReturn(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x07b42de1
     v58 = xor v56, v57
     ret v58
   bb7:
-    v29 = internal_call @step, 2, v24, v14
+    v29 = icall @step, 2, v24, v14
     v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v31 = add v30, 32
     v32 = mload v31
@@ -277,7 +277,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = internal_call @mix, 1, v6
+    v11 = icall @mix, 1, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -310,7 +310,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v35 = eq v34, 1
     jumpi v35, bb10, bb11
   bb11:
-    v37 = internal_call @mix, 1, v24
+    v37 = icall @mix, 1, v24
     jump bb12
   bb10:
     v36 = mul v26, v21
@@ -357,7 +357,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v75 = xor v73, v74
     ret v75
   bb16:
-    v56 = internal_call @step, 2, v49, v53
+    v56 = icall @step, 2, v49, v53
     v57 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v58 = add v57, 32
     v59 = mload v58
@@ -368,7 +368,7 @@ fn @twoBranchLoops(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x319be
     v60 = add v48, 1
     jump bb13
   bb7:
-    v29 = internal_call @step, 2, v18, v21
+    v29 = icall @step, 2, v18, v21
     v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v31 = add v30, 32
     v32 = mload v31
@@ -394,7 +394,7 @@ fn @whileTrueThenLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xd5
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = internal_call @mix, 1, v6
+    v11 = icall @mix, 1, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -421,7 +421,7 @@ fn @whileTrueThenLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xd5
   bb7:
     jump bb5
   bb6:
-    v27 = internal_call @step, 2, v15, v18
+    v27 = icall @step, 2, v15, v18
     v28 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v29 = add v28, 32
     v30 = mload v29
@@ -482,7 +482,7 @@ fn @whileTrueThenLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xd5
     v74 = xor v73, v38
     ret v74
   bb15:
-    v54 = internal_call @step, 2, v44, v49
+    v54 = icall @step, 2, v44, v49
     v55 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v56 = add v55, 32
     v57 = mload v56

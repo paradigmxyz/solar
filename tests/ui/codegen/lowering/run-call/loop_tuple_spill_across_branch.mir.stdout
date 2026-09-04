@@ -30,7 +30,7 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = internal_call @mix, 1, v6
+    v11 = icall @mix, 1, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
@@ -76,7 +76,7 @@ fn @loopTuple(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x2a5696fb, 
     v48 = xor v46, v47
     ret v48
   bb7:
-    v29 = internal_call @step, 2, v23, v26
+    v29 = icall @step, 2, v23, v26
     v30 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v31 = add v30, 32
     v32 = mload v31
@@ -102,7 +102,7 @@ fn @loopTupleInline(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xb423
     v9 = eq v8, 1
     jumpi v9, bb1, bb2
   bb2:
-    v11 = internal_call @mix, 1, v6
+    v11 = icall @mix, 1, v6
     jump bb3
   bb1:
     v10 = mul v6, v4
