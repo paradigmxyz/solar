@@ -56,6 +56,9 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) shared_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
+    /// Whether the compilation had already failed when the code generation
+    /// phase started.
+    pub(super) sema_errored: bool,
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
@@ -72,10 +75,20 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
+            sema_errored: self.sema_errored,
         }
     }
 
+    /// Reports a lowering bail-out and returns `None`.
+    ///
+    /// A bail-out is only worth reporting when the compilation would otherwise
+    /// succeed. After a sema error the bytecode is withheld anyway, and the
+    /// construct that lowering cannot handle is usually the rejected one, so
+    /// reporting it adds a second, misleading error.
     pub(super) fn report_unsupported<T>(&self, span: Span, what: &str) -> Option<T> {
+        if self.sema_errored {
+            return None;
+        }
         self.gcx
             .dcx()
             .err(format!("codegen rewrite does not support this {what} yet"))
@@ -219,7 +232,10 @@ struct FunctionLowerer<'gcx, 'ctx> {
     storage_refs: FxHashMap<VariableId, StorageAccess>,
     parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
-    constructor_arguments: FxHashMap<hir::FunctionId, Vec<ValueId>>,
+    prepared_constructors: FxHashSet<hir::FunctionId>,
+    /// The base constructor argument list chosen for each base of the contract
+    /// being constructed, in evaluation order.
+    base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>)>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
     modifier_depth: u32,
@@ -409,7 +425,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             storage_refs: FxHashMap::default(),
             parameters: Vec::new(),
             returns: Vec::new(),
-            constructor_arguments: FxHashMap::default(),
+            prepared_constructors: FxHashSet::default(),
+            base_args: Vec::new(),
             loops: Vec::new(),
             modifiers: Vec::new(),
             modifier_depth: 0,
@@ -515,7 +532,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values[index] = Some(lower(self, index, argument)?);
             }
         }
-        Some(values.into_iter().map(|value| value.expect("argument lowered")).collect())
+        // A slot stays unfilled only when the argument list does not bind every
+        // parameter, which sema reports; codegen still runs after a sema error,
+        // so bail out instead of lowering a partially bound call.
+        values.into_iter().collect()
     }
 
     fn lower_call_options(
@@ -550,6 +570,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {
         let TyKind::Enum(id) = ty.peel_refs().kind else { return };
         self.builder.validate_enum_value(self.cx.gcx.hir.enumm(id).variants.len() as u64, value);
+    }
+
+    /// Asserts that type checking registered a type for an operator expression.
+    ///
+    /// `binary` and `unary` derive the [`ArithmeticKind`] from this type, and a missing type
+    /// silently drops the overflow check instead of wrapping or panicking, so the type must be
+    /// present whenever the expression is well-formed.
+    #[track_caller]
+    fn assert_operand_ty_registered(&self, expr: &hir::Expr<'_>) {
+        debug_assert!(
+            self.cx.gcx.type_of_expr(expr.id).is_some() || self.cx.gcx.dcx().has_errors().is_err(),
+            "operator expression has no registered type: {:?}",
+            expr.span
+        );
     }
 
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -594,6 +628,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             ExprKind::Binary(lhs, op, rhs) => {
+                self.assert_operand_ty_registered(expr);
                 if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
@@ -683,6 +718,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.imm(U256::ZERO))
             }
             ExprKind::Unary(op, value) => {
+                self.assert_operand_ty_registered(expr);
                 if matches!(
                     op.kind,
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec

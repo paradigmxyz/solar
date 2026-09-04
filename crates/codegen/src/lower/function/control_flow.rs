@@ -279,14 +279,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(try_stmt.expr.span, "try target");
         };
         let Some((returns_clause, catch_clauses)) = try_stmt.clauses.split_first() else {
-            return self.cx.report_unsupported(try_stmt.expr.span, "try/catch clauses");
+            return self.cx.report_unsupported(try_stmt.expr.span, "try/catch clause list");
         };
         if catch_clauses.is_empty() {
-            return self.cx.report_unsupported(try_stmt.expr.span, "try/catch clauses");
+            return self.cx.report_unsupported(try_stmt.expr.span, "try/catch clause list");
         }
         let creation_binding = if matches!(target.callee, TryCallee::Creation { .. }) {
             if returns_clause.name.is_some() || returns_clause.args.len() > 1 {
-                return self.cx.report_unsupported(returns_clause.span, "try return bindings");
+                return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             }
             returns_clause.args.first().copied()
         } else {
@@ -294,7 +294,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 || (!returns_clause.args.is_empty()
                     && returns_clause.args.len() != target.return_types.len())
             {
-                return self.cx.report_unsupported(returns_clause.span, "try return bindings");
+                return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             }
             None
         };
@@ -329,7 +329,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         if args.len() != target.parameter_types.len() {
-            return self.cx.report_unsupported(args.span, "try arguments");
+            return self.cx.report_unsupported(args.span, "try argument list");
         }
 
         let (success, creation_value) = if let TryCallee::Creation { ty, contract_id } =
@@ -439,7 +439,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(binding) = creation_binding {
             // success.address = address
             let Some(value) = creation_value else {
-                return self.cx.report_unsupported(returns_clause.span, "try return bindings");
+                return self.cx.report_unsupported(returns_clause.span, "try return binding list");
             };
             self.values.insert(binding, value);
         } else if !target.return_types.is_empty() {

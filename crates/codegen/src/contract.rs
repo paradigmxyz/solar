@@ -165,6 +165,9 @@ pub fn generate_contract_bytecodes(
         evm_ir: capture_evm_ir,
         runtime_data,
         debug_info: capture_debug_info,
+        // Snapshot this once, before any contract is lowered: a report emitted
+        // by one contract's lowering must not silence another's.
+        sema_errored: gcx.dcx().has_errors().is_err(),
     };
     let mut requested = contracts.clone();
     requested.union_with(capture_mir);
@@ -228,6 +231,8 @@ struct ContractCaptures<'a> {
     evm_ir: &'a ContractSelection,
     runtime_data: Option<&'a RuntimeDataFn<'a>>,
     debug_info: &'a ContractSelection,
+    /// Whether the compilation had already failed when this phase started.
+    sema_errored: bool,
 }
 
 struct ContractGraph {
@@ -354,7 +359,8 @@ fn generate_contract_bytecode(
             )
         })
         .collect();
-    let mut module = lower::lower_contract(gcx, contract_id, &child_bytecodes);
+    let mut module =
+        lower::lower_contract(gcx, contract_id, &child_bytecodes, captures.sema_errored);
     gcx.dcx().has_errors()?;
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)

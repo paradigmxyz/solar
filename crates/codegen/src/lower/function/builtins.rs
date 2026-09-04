@@ -231,7 +231,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (false, 2, Some(returndata)) => Some(vec![success, returndata]),
             (false, _, Some(returndata)) => Some(vec![returndata]),
             (false, _, None) => {
-                self.cx.report_unsupported(expr.span, "low-level call return values")
+                self.cx.report_unsupported(expr.span, "low-level call return value list")
             }
         }
     }

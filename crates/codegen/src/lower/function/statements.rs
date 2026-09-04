@@ -428,7 +428,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<PreparedRevertPayload> {
         let parameters = self.cx.gcx.item_parameters(hir::ItemId::Error(error_id));
         if args.len() != parameters.len() {
-            return self.cx.report_unsupported(args.span, "error arguments");
+            return self.cx.report_unsupported(args.span, "error argument list");
         }
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Error(error_id));
@@ -487,7 +487,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(());
         }
         if args.len() != event.parameters.len() {
-            return self.cx.report_unsupported(args.span, "event arguments");
+            return self.cx.report_unsupported(args.span, "event argument list");
         }
 
         let parameter_names =
@@ -621,7 +621,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             &[topic1, topic2, topic3, topic4] => {
                 self.builder.log4(data_ptr, data_size, topic1, topic2, topic3, topic4)
             }
-            _ => return self.cx.report_unsupported(args.span, "event topics"),
+            _ => return self.cx.report_unsupported(args.span, "event topic list"),
         }
         Some(())
     }

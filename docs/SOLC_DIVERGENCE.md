@@ -106,6 +106,29 @@ does not represent an option-bearing function value as a separate HIR node.
 Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
 [#1269](https://github.com/paradigmxyz/solar/pull/1269#discussion_r3846737698).
 
+### TYPECK-004: Named arguments in base constructor and modifier invocations
+
+Status: intentional.
+
+Difference: `solc` parses the argument list of an inheritance specifier, of a
+base constructor call in a constructor header, and of a modifier invocation as
+a plain expression list, so `contract D is Base({b: 1, a: 2})` and
+`function f() m({b: 3, a: 4})` are parse errors there (ParserError 6933,
+"Expected primary expression"). `solar` accepts the named form in all three
+positions and binds the arguments by parameter name. In each of them the list
+gets the same checks as a named function call's: argument types, arity,
+duplicate names, and names that no parameter has.
+
+Rationale: the restriction is a shortcoming of `solc`'s grammar rather than a
+language rule; these lists denote calls to a constructor or a modifier, and the
+named form has one unambiguous meaning. We deliberately support this extended
+form. Every program `solc` accepts here has the same meaning in `solar`.
+
+Coverage: `tests/ui/typeck/base_arguments.sol`,
+`tests/ui/typeck/modifier_arguments.sol`,
+`tests/ui/codegen/lowering/base_constructor_args.sol`, and
+`tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

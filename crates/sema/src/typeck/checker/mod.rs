@@ -1206,6 +1206,97 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Rejects a base constructor whose arguments two contracts of the
+    /// hierarchy both give.
+    ///
+    /// Which of the two lists the constructor would be called with is
+    /// arbitrary, so the program has no unambiguous meaning. solc reports it
+    /// as declaration error 3364 in
+    /// `ContractLevelChecker::annotateBaseConstructorArguments`.
+    fn check_base_constructor_arguments_given_twice(&self, contract: &'gcx hir::Contract<'gcx>) {
+        if contract.linearization_failed() {
+            return;
+        }
+        for &base_id in contract.linearized_bases.iter().skip(1) {
+            if self.gcx.hir.contract(base_id).ctor.is_none() {
+                continue;
+            }
+            let mut first = None;
+            for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
+                let writer = self.gcx.hir.contract(writer_id);
+                // One contract gives a base at most one argument list; giving
+                // two is reported where the lists are resolved.
+                let Some(index) =
+                    writer.linearized_bases.iter().skip(1).position(|&id| id == base_id)
+                else {
+                    continue;
+                };
+                let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
+                else {
+                    continue;
+                };
+                if modifier.args.is_empty() {
+                    continue;
+                }
+                let Some((first_index, first_span)) = first else {
+                    first = Some((writer_index, modifier.span));
+                    continue;
+                };
+                let err = self
+                    .dcx()
+                    .err("base constructor arguments given twice")
+                    .code(error_code!(3364));
+                // Point at a list of this contract when it wrote one, the way
+                // solc prefers a location inside the contract being checked.
+                let err = if first_index == 0 {
+                    err.span(first_span).span_note(modifier.span, "second argument list is here")
+                } else {
+                    err.span(contract.name.span)
+                        .span_note(first_span, "first argument list is here")
+                        .span_note(modifier.span, "second argument list is here")
+                };
+                err.emit();
+                break;
+            }
+        }
+    }
+
+    /// Checks the argument list of a modifier invocation against the modifier's
+    /// parameters.
+    ///
+    /// A modifier invocation denotes a call, so its arguments get the same
+    /// arity, name, and type checks as a function call's. Without them a
+    /// mismatched or duplicated argument reaches codegen, which has no way to
+    /// bind it.
+    fn check_modifier_invocation_args(
+        &mut self,
+        modifier: &'gcx hir::Modifier<'gcx>,
+        param_tys: &[Ty<'gcx>],
+    ) {
+        // A modifier invocation without an argument list gives no arguments,
+        // so it only type checks for a modifier without parameters.
+        if modifier.args.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for modifier invocation: {} arguments given but expected {}",
+                    modifier.args.len(),
+                    param_tys.len()
+                ))
+                .code(error_code!(2973))
+                .span(modifier.span)
+                .emit();
+            for arg in modifier.args.exprs() {
+                let _ = self.check_expr_once(arg);
+            }
+            return;
+        }
+        let param_names = modifier
+            .id
+            .as_function()
+            .map(|id| CallableParamSource::Function { id, skips_receiver: false });
+        let _ = self.check_call_args(modifier.span, &modifier.args, param_tys, param_names);
+    }
+
     fn check_builtin_call_args(
         &mut self,
         call_span: Span,
@@ -2702,10 +2793,16 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        // A base constructor call in a constructor header is checked with the
+        // contract's other base argument lists, in `visit_contract`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
         }
-        self.walk_modifier(modifier)
+        let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
+            return self.walk_modifier(modifier);
+        };
+        self.check_modifier_invocation_args(modifier, param_tys);
+        ControlFlow::Continue(())
     }
 
     fn visit_contract(
@@ -2716,37 +2813,59 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             self.check_storage_layout_base_slot(slot);
         }
 
-        // Check base constructor arguments
+        self.check_base_constructor_arguments_given_twice(contract);
+
+        // Check base constructor arguments. `is Base` without parentheses
+        // provides no arguments here (deferred to a derived contract, or the
+        // contract is abstract), so only validate when arguments are given.
         for (&base_id, modifier) in
             contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
         {
-            // Get constructor parameters if the base has a constructor
-            let base_contract = self.gcx.hir.contract(base_id);
-            if let Some(ctor_id) = base_contract.ctor {
-                let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
-                // Check if arguments were provided and validate count. `is Base`
-                // without parentheses provides no arguments here (deferred to a
-                // derived contract, or the contract is abstract), so only
-                // validate when arguments are actually given.
-                if let Some(modifier) = modifier
-                    && !modifier.args.is_dummy()
-                {
-                    let arg_count = modifier.args.exprs().len();
-                    if arg_count != ctor_param_types.len() {
-                        self.dcx().emit_err(modifier.span, format!(
+            if let Some(modifier) = modifier
+                && !modifier.args.is_dummy()
+            {
+                // A base without a constructor takes no arguments.
+                let ctor_id = self.gcx.hir.contract(base_id).ctor;
+                let ctor_param_types =
+                    ctor_id.map_or(&[][..], |ctor_id| self.gcx.item_parameter_types(ctor_id));
+                let arg_count = modifier.args.len();
+                if arg_count != ctor_param_types.len() {
+                    self.dcx().emit_err(
+                        modifier.span,
+                        format!(
                             "wrong number of arguments for base constructor: expected {}, found {}",
                             ctor_param_types.len(),
                             arg_count
-                        ));
-                    } else {
-                        for (arg_expr, expected_arg_ty) in
-                            modifier.args.exprs().zip(ctor_param_types.iter())
-                        {
-                            let actual_arg_ty = self.with_construction_context(|this| {
-                                this.check_expr_kind(arg_expr, Some(*expected_arg_ty))
-                            });
-                            let _ = self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
-                        }
+                        ),
+                    );
+                } else if let hir::CallArgsKind::Named(named_args) = modifier.args.kind
+                    && let Some(ctor_id) = ctor_id
+                {
+                    // Named arguments bind by parameter name, the way codegen
+                    // binds them; pairing them positionally checks them against
+                    // the wrong parameter type.
+                    self.with_construction_context(|this| {
+                        let _ = this.check_named_call_args(
+                            modifier.span,
+                            modifier.args.span,
+                            named_args,
+                            ctor_param_types,
+                            Some(CallableParamSource::Function {
+                                id: ctor_id,
+                                skips_receiver: false,
+                            }),
+                        );
+                    });
+                } else {
+                    for (arg_expr, &expected_arg_ty) in modifier.args.exprs().zip(ctor_param_types)
+                    {
+                        // Register the argument's own type, not just the types
+                        // of its subexpressions: codegen reads it to select
+                        // checked arithmetic and other type-directed lowering.
+                        let actual_arg_ty = self.with_construction_context(|this| {
+                            this.check_expr_with_noexpect(arg_expr, Some(expected_arg_ty))
+                        });
+                        let _ = self.check_expected(arg_expr, actual_arg_ty, expected_arg_ty);
                     }
                 }
             }
