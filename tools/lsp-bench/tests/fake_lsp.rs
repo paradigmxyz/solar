@@ -95,8 +95,9 @@ scenarios:
           path: Main.sol
           anchor: call
           expected_text: add
-      - kind: probe
-        name: completion
+      - kind: warm
+        warmup: 0
+        samples: 1
         probe:
           kind: completion
           path: Main.sol
@@ -279,6 +280,17 @@ scenarios:
         .find(|sample| sample["workload"] == "smoke")
         .unwrap();
     assert_eq!(smoke["observations"]["diagnostic_publications"], 1);
+    assert!(smoke["timings_ms"]["ready_ms"].is_number());
+    assert!(
+        smoke["correctness"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|result| { result["probe"] == "ready" && result["ok"] == true })
+    );
+    let measured_requests = smoke["observations"]["requests"].as_array().unwrap();
+    assert_eq!(measured_requests.len(), 1);
+    assert_eq!(measured_requests[0]["method"], "textDocument/completion");
     let server_requests = smoke["observations"]["server_requests"].as_array().unwrap();
     for method in [
         "window/workDoneProgress/create",

@@ -41,51 +41,6 @@ profiles:
     cold_samples: 8
     lifecycle_samples: 8
     timeout_ms: 30000
-    scenarios:
-      - synthetic-cold-ready
-      - synthetic-warm-hover
-      - synthetic-warm-definition
-      - synthetic-warm-references
-      - synthetic-warm-completion
-      - synthetic-warm-document-symbol
-      - synthetic-incremental-edit-save
-      - synthetic-symbol-rename
-      - synthetic-file-create-rename-delete
-      - synthetic-cache-fresh
-      - synthetic-cache-reuse
-      - synthetic-cache-invalidated
-      - v4-core-cold-ready
-      - v4-core-warm-hover
-      - v4-core-warm-definition
-      - v4-core-warm-references
-      - v4-core-warm-completion
-      - v4-core-warm-document-symbol
-      - v4-core-incremental-edit-save
-      - v4-core-symbol-rename
-      - v4-core-file-create-rename-delete
-      - v4-core-cache-fresh
-      - v4-core-cache-reuse
-      - v4-core-cache-invalidated
-      - aave-v3-origin-cold-ready
-      - aave-v3-origin-warm-hover
-      - aave-v3-origin-warm-definition
-      - aave-v3-origin-warm-references
-      - aave-v3-origin-warm-completion
-      - aave-v3-origin-warm-document-symbol
-      - aave-v3-origin-incremental-edit-save
-      - aave-v3-origin-cache-fresh
-      - aave-v3-origin-cache-reuse
-      - aave-v3-origin-cache-invalidated
-      - optimism-bedrock-cold-ready
-      - optimism-bedrock-warm-hover
-      - optimism-bedrock-warm-definition
-      - optimism-bedrock-warm-references
-      - optimism-bedrock-warm-completion
-      - optimism-bedrock-warm-document-symbol
-      - optimism-bedrock-incremental-edit-save
-      - optimism-bedrock-cache-fresh
-      - optimism-bedrock-cache-reuse
-      - optimism-bedrock-cache-invalidated
 
 scenarios:
   - id: synthetic-cold-ready
@@ -113,15 +68,7 @@ scenarios:
     steps:
       - kind: open
         path: Main.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: hover
-          path: Main.sol
-          anchor: call-member-position
-          expected_text: double
       - kind: warm
-        name: hover
         probe:
           kind: hover
           path: Main.sol
@@ -135,16 +82,7 @@ scenarios:
     steps:
       - kind: open
         path: Main.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: definition
-          path: Main.sol
-          anchor: call-member-position
-          expected_path: Math.sol
-          expected_anchor: math-double
       - kind: warm
-        name: definition
         probe:
           kind: definition
           path: Main.sol
@@ -159,20 +97,7 @@ scenarios:
     steps:
       - kind: open
         path: Main.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: references
-          path: Main.sol
-          anchor: call-member-position
-          min_count: 2
-          expected_locations:
-            - path: Main.sol
-              anchor: call-member-position
-            - path: Math.sol
-              anchor: math-double
       - kind: warm
-        name: references
         probe:
           kind: references
           path: Main.sol
@@ -191,15 +116,7 @@ scenarios:
     steps:
       - kind: open
         path: Main.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: completion
-          path: Main.sol
-          anchor: completion-double
-          expected_label: double
       - kind: warm
-        name: completion
         probe:
           kind: completion
           path: Main.sol
@@ -213,15 +130,7 @@ scenarios:
     steps:
       - kind: open
         path: Main.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: document-symbol
-          path: Main.sol
-          min_count: 3
-          expected_name: Main
       - kind: warm
-        name: document-symbol
         probe:
           kind: document-symbol
           path: Main.sol
@@ -407,15 +316,7 @@ scenarios:
     steps:
       - kind: open
         path: src/PoolManager.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: hover
-          path: src/PoolManager.sol
-          anchor: pool-manager
-          expected_text: PoolManager
       - kind: warm
-        name: hover
         probe:
           kind: hover
           path: src/PoolManager.sol
@@ -429,16 +330,7 @@ scenarios:
     steps:
       - kind: open
         path: src/PoolManager.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: definition
-          path: src/PoolManager.sol
-          anchor: pool-manager-interface-use
-          expected_path: src/interfaces/IPoolManager.sol
-          expected_anchor: pool-manager-interface
       - kind: warm
-        name: definition
         probe:
           kind: definition
           path: src/PoolManager.sol
@@ -453,20 +345,7 @@ scenarios:
     steps:
       - kind: open
         path: src/PoolManager.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: references
-          path: src/PoolManager.sol
-          anchor: pool-manager-interface-use
-          min_count: 2
-          expected_locations:
-            - path: src/PoolManager.sol
-              anchor: pool-manager-interface-use
-            - path: src/interfaces/IPoolManager.sol
-              anchor: pool-manager-interface
       - kind: warm
-        name: references
         probe:
           kind: references
           path: src/PoolManager.sol
@@ -485,15 +364,7 @@ scenarios:
     steps:
       - kind: open
         path: src/PoolManager.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: completion
-          path: src/PoolManager.sol
-          anchor: pool-manager-completion
-          expected_label: beforeInitialize
       - kind: warm
-        name: completion
         probe:
           kind: completion
           path: src/PoolManager.sol
@@ -507,15 +378,7 @@ scenarios:
     steps:
       - kind: open
         path: src/PoolManager.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: document-symbol
-          path: src/PoolManager.sol
-          min_count: 5
-          expected_name: PoolManager
       - kind: warm
-        name: document-symbol
         probe:
           kind: document-symbol
           path: src/PoolManager.sol
@@ -702,15 +565,7 @@ scenarios:
     steps:
       - kind: open
         path: src/contracts/protocol/pool/Pool.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: hover
-          path: src/contracts/protocol/pool/Pool.sol
-          anchor: aave-pool
-          expected_text: Pool
       - kind: warm
-        name: hover
         probe:
           kind: hover
           path: src/contracts/protocol/pool/Pool.sol
@@ -724,16 +579,7 @@ scenarios:
     steps:
       - kind: open
         path: src/contracts/protocol/pool/Pool.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: definition
-          path: src/contracts/protocol/pool/Pool.sol
-          anchor: aave-supply-import
-          expected_path: src/contracts/protocol/libraries/logic/SupplyLogic.sol
-          expected_anchor: aave-supply-library
       - kind: warm
-        name: definition
         probe:
           kind: definition
           path: src/contracts/protocol/pool/Pool.sol
@@ -748,20 +594,7 @@ scenarios:
     steps:
       - kind: open
         path: src/contracts/protocol/pool/Pool.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: references
-          path: src/contracts/protocol/pool/Pool.sol
-          anchor: aave-supply-import
-          min_count: 2
-          expected_locations:
-            - path: src/contracts/protocol/pool/Pool.sol
-              anchor: aave-supply-import
-            - path: src/contracts/protocol/libraries/logic/SupplyLogic.sol
-              anchor: aave-supply-library
       - kind: warm
-        name: references
         probe:
           kind: references
           path: src/contracts/protocol/pool/Pool.sol
@@ -780,15 +613,7 @@ scenarios:
     steps:
       - kind: open
         path: src/contracts/protocol/pool/Pool.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: completion
-          path: src/contracts/protocol/pool/Pool.sol
-          anchor: aave-completion
-          expected_label: getPoolConfigurator
       - kind: warm
-        name: completion
         probe:
           kind: completion
           path: src/contracts/protocol/pool/Pool.sol
@@ -802,15 +627,7 @@ scenarios:
     steps:
       - kind: open
         path: src/contracts/protocol/pool/Pool.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: document-symbol
-          path: src/contracts/protocol/pool/Pool.sol
-          min_count: 5
-          expected_name: Pool
       - kind: warm
-        name: document-symbol
         probe:
           kind: document-symbol
           path: src/contracts/protocol/pool/Pool.sol
@@ -936,15 +753,7 @@ scenarios:
     steps:
       - kind: open
         path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: hover
-          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-          anchor: optimism-portal
-          expected_text: OptimismPortal2
       - kind: warm
-        name: hover
         probe:
           kind: hover
           path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
@@ -958,16 +767,7 @@ scenarios:
     steps:
       - kind: open
         path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: definition
-          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-          anchor: optimism-safe-call-import
-          expected_path: packages/contracts-bedrock/src/libraries/SafeCall.sol
-          expected_anchor: optimism-safe-call-library
       - kind: warm
-        name: definition
         probe:
           kind: definition
           path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
@@ -982,20 +782,7 @@ scenarios:
     steps:
       - kind: open
         path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: references
-          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-          anchor: optimism-safe-call-import
-          min_count: 2
-          expected_locations:
-            - path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-              anchor: optimism-safe-call-import
-            - path: packages/contracts-bedrock/src/libraries/SafeCall.sol
-              anchor: optimism-safe-call-library
       - kind: warm
-        name: references
         probe:
           kind: references
           path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
@@ -1014,15 +801,7 @@ scenarios:
     steps:
       - kind: open
         path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: completion
-          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-          anchor: optimism-completion
-          expected_label: paused
       - kind: warm
-        name: completion
         probe:
           kind: completion
           path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
@@ -1036,15 +815,7 @@ scenarios:
     steps:
       - kind: open
         path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-      - kind: probe
-        name: ready
-        probe:
-          kind: document-symbol
-          path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol
-          min_count: 5
-          expected_name: OptimismPortal2
       - kind: warm
-        name: document-symbol
         probe:
           kind: document-symbol
           path: packages/contracts-bedrock/src/L1/OptimismPortal2.sol

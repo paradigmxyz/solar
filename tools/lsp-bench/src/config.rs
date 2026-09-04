@@ -115,23 +115,11 @@ pub(crate) struct SourceSpec {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct InstallSpec {
-    pub(crate) kind: String,
-    #[serde(default)]
-    pub(crate) url: Option<String>,
-    #[serde(default)]
-    pub(crate) command: Option<String>,
-    #[serde(default)]
-    pub(crate) args: Vec<String>,
-    #[serde(default)]
-    pub(crate) manifest: Option<PathBuf>,
-    #[serde(default)]
-    pub(crate) manifest_sha256: Option<String>,
-    #[serde(default)]
-    pub(crate) python_version: Option<String>,
-    #[serde(default)]
-    pub(crate) target: Option<String>,
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(crate) enum InstallSpec {
+    Npm { manifest: PathBuf, manifest_sha256: String },
+    Archive { url: String },
+    Binary { url: String },
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -249,7 +237,6 @@ pub(crate) enum StepSpec {
         probe: Option<ProbeSpec>,
     },
     Warm {
-        name: String,
         probe: ProbeSpec,
         #[serde(default)]
         warmup: Option<usize>,
@@ -285,6 +272,12 @@ pub(crate) enum StepSpec {
         #[serde(default)]
         invalidate: Option<DiskReplacementSpec>,
     },
+}
+
+impl StepSpec {
+    pub(crate) const fn execution_step_count(&self) -> usize {
+        if matches!(self, Self::Warm { .. }) { 2 } else { 1 }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -454,120 +447,21 @@ impl Config {
                 validate_source(source, &format!("server `{}`", server.id))?;
             }
             if let Some(install) = &mut server.install {
-                match install.kind.as_str() {
-                    "none" => {
-                        if install.url.is_some()
-                            || install.command.is_some()
-                            || !install.args.is_empty()
-                            || install.manifest.is_some()
-                            || install.manifest_sha256.is_some()
-                            || install.python_version.is_some()
-                            || install.target.is_some()
-                        {
-                            bail!("server `{}` `none` install cannot define options", server.id)
-                        }
-                    }
-                    "npm" => {
-                        if install.url.is_some()
-                            || install.command.is_some()
-                            || !install.args.is_empty()
-                            || install.python_version.is_some()
-                            || install.target.is_some()
-                        {
-                            bail!("server `{}` npm install must use its locked manifest", server.id)
-                        }
-                        let manifest = install.manifest.as_mut().with_context(|| {
-                            format!("server `{}` npm install requires a locked manifest", server.id)
-                        })?;
+                match install {
+                    InstallSpec::Npm { manifest, manifest_sha256 } => {
                         validate_relative_path(manifest, "npm install manifest")?;
                         *manifest = resolve_path(&base, manifest);
-                        let digest = install.manifest_sha256.as_deref().with_context(|| {
-                            format!(
-                                "server `{}` npm install requires a manifest SHA-256",
-                                server.id
-                            )
-                        })?;
-                        validate_sha256(digest, &format!("server `{}` npm manifest", server.id))?;
+                        validate_sha256(
+                            manifest_sha256,
+                            &format!("server `{}` npm manifest", server.id),
+                        )?;
                     }
-                    "pip" => {
-                        if install.url.is_some() || !install.args.is_empty() {
-                            bail!(
-                                "server `{}` pip install does not accept arbitrary arguments",
-                                server.id
-                            )
-                        }
-                        if install.command.as_ref().is_none_or(|command| command.trim().is_empty())
-                        {
-                            bail!("server `{}` pip install requires a Python command", server.id)
-                        }
-                        let manifest = install.manifest.as_mut().with_context(|| {
-                            format!("server `{}` pip install requires a locked manifest", server.id)
-                        })?;
-                        validate_relative_path(manifest, "pip install manifest")?;
-                        *manifest = resolve_path(&base, manifest);
-                        let digest = install.manifest_sha256.as_deref().with_context(|| {
-                            format!(
-                                "server `{}` pip install requires a manifest SHA-256",
-                                server.id
-                            )
-                        })?;
-                        validate_sha256(digest, &format!("server `{}` pip manifest", server.id))?;
-                        if install
-                            .python_version
-                            .as_ref()
-                            .is_none_or(|version| !is_python_minor_version(version))
-                        {
-                            bail!(
-                                "server `{}` pip install requires a `major.minor` Python version",
-                                server.id
-                            )
-                        }
-                        if install.target.as_deref() != Some("x86_64-unknown-linux-gnu") {
-                            bail!(
-                                "server `{}` pip install target must be `x86_64-unknown-linux-gnu`",
-                                server.id
-                            )
-                        }
+                    InstallSpec::Archive { url } | InstallSpec::Binary { url }
+                        if url.trim().is_empty() =>
+                    {
+                        bail!("server `{}` install URL cannot be empty", server.id)
                     }
-                    "archive" | "binary" => {
-                        if install.command.is_some()
-                            || !install.args.is_empty()
-                            || install.manifest.is_some()
-                            || install.manifest_sha256.is_some()
-                            || install.python_version.is_some()
-                            || install.target.is_some()
-                        {
-                            bail!(
-                                "server `{}` {} install must use its structured URL",
-                                server.id,
-                                install.kind
-                            )
-                        }
-                        if install.url.as_ref().is_none_or(|url| url.trim().is_empty()) {
-                            bail!(
-                                "server `{}` {} install requires a structured URL",
-                                server.id,
-                                install.kind
-                            )
-                        }
-                    }
-                    "cargo" => {
-                        if install.command.is_none() {
-                            bail!("server `{}` cargo install command is missing", server.id)
-                        }
-                        if install.url.is_some()
-                            || install.manifest.is_some()
-                            || install.manifest_sha256.is_some()
-                            || install.python_version.is_some()
-                            || install.target.is_some()
-                        {
-                            bail!(
-                                "server `{}` cargo install cannot define a download URL or package manifest",
-                                server.id
-                            )
-                        }
-                    }
-                    kind => bail!("server `{}` has unsupported install kind `{kind}`", server.id),
+                    InstallSpec::Archive { .. } | InstallSpec::Binary { .. } => {}
                 }
             }
             if let Some(artifact) = &server.artifact
@@ -575,11 +469,9 @@ impl Config {
             {
                 validate_sha256(digest, &format!("server `{}` artifact", server.id))?;
             }
-            if server
-                .install
-                .as_ref()
-                .is_some_and(|install| matches!(install.kind.as_str(), "archive" | "binary"))
-            {
+            if server.install.as_ref().is_some_and(|install| {
+                matches!(install, InstallSpec::Archive { .. } | InstallSpec::Binary { .. })
+            }) {
                 server
                     .artifact
                     .as_ref()
@@ -595,7 +487,10 @@ impl Config {
             if let Some(artifact) = &mut server.artifact {
                 artifact.path = resolve_path(&base, &artifact.path);
             }
-            if server.install.as_ref().is_some_and(|install| install.kind == "binary")
+            if server
+                .install
+                .as_ref()
+                .is_some_and(|install| matches!(install, InstallSpec::Binary { .. }))
                 && server.artifact.as_ref().is_none_or(|artifact| artifact.path != server.command)
             {
                 bail!("server `{}` binary command must be its pinned artifact", server.id)
@@ -722,11 +617,8 @@ impl Config {
                 bail!("workload `{}` restart must have steps before and after it", workload.id)
             }
             for step in &workload.steps {
-                if let StepSpec::Warm { name, samples: Some(0), .. } = step {
-                    bail!(
-                        "workload `{}` warm step `{name}` sample count must be greater than zero",
-                        workload.id
-                    )
+                if let StepSpec::Warm { samples: Some(0), .. } = step {
+                    bail!("workload `{}` warm sample count must be greater than zero", workload.id)
                 }
                 validate_step_paths(step)?;
                 let fixture = config
@@ -858,15 +750,6 @@ fn validate_sha256(digest: &str, kind: &str) -> Result<()> {
         bail!("{kind} SHA-256 must contain exactly 64 hexadecimal characters")
     }
     Ok(())
-}
-
-fn is_python_minor_version(version: &str) -> bool {
-    let Some((major, minor)) = version.split_once('.') else { return false };
-    !major.is_empty()
-        && !minor.is_empty()
-        && !minor.contains('.')
-        && major.bytes().all(|byte| byte.is_ascii_digit())
-        && minor.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn validate_compiler(compiler: &CompilerSpec, kind: &str) -> Result<()> {
@@ -1251,7 +1134,7 @@ mod tests {
         let path = directory.path().join("benchmark.yaml");
         fs::write(
             &path,
-            "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: mixed-warm\n    fixture: fixture\n    steps:\n      - kind: warm\n        name: first\n        probe:\n          kind: document-symbol\n          path: Main.sol\n      - kind: warm\n        name: second\n        probe:\n          kind: document-symbol\n          path: Main.sol\n",
+            "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: mixed-warm\n    fixture: fixture\n    steps:\n      - kind: warm\n        probe:\n          kind: document-symbol\n          path: Main.sol\n      - kind: warm\n        probe:\n          kind: document-symbol\n          path: Main.sol\n",
         )
         .unwrap();
 
@@ -1267,7 +1150,7 @@ mod tests {
             fs::write(
                 &path,
                 format!(
-                    "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: zero-samples\n    fixture: fixture\n    steps:\n      - kind: warm\n        name: measured\n        warmup: {warmup}\n        samples: 0\n        probe:\n          kind: document-symbol\n          path: Main.sol\n"
+                    "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: zero-samples\n    fixture: fixture\n    steps:\n      - kind: warm\n        warmup: {warmup}\n        samples: 0\n        probe:\n          kind: document-symbol\n          path: Main.sol\n"
                 ),
             )
             .unwrap();
@@ -1283,7 +1166,7 @@ mod tests {
         let path = directory.path().join("benchmark.yaml");
         fs::write(
             &path,
-            "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: no-warmup\n    fixture: fixture\n    steps:\n      - kind: warm\n        name: measured\n        warmup: 0\n        samples: 1\n        probe:\n          kind: document-symbol\n          path: Main.sol\n",
+            "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: no-warmup\n    fixture: fixture\n    steps:\n      - kind: warm\n        warmup: 0\n        samples: 1\n        probe:\n          kind: document-symbol\n          path: Main.sol\n",
         )
         .unwrap();
 
@@ -1345,23 +1228,21 @@ mod tests {
         let path = directory.path().join("benchmark.yaml");
         fs::write(
             &path,
-            "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: npm\n      command: npm\n      args: [install, package@1.0.0]\nfixtures: []\nscenarios: []\n",
+            "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: npm\n      manifest: npm\n      manifest_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n      command: npm\n      args: [install, package@1.0.0]\nfixtures: []\nscenarios: []\n",
         )
         .unwrap();
 
-        let error = Config::load(&path).unwrap_err().to_string();
-        assert!(error.contains("locked manifest"), "{error}");
+        let error = format!("{:#}", Config::load(&path).unwrap_err());
+        assert!(error.contains("unknown field"), "{error}");
 
-        fs::create_dir(directory.path().join("npm")).unwrap();
-        fs::write(directory.path().join("npm/package-lock.json"), "{}").unwrap();
         fs::write(
             &path,
             "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: npm\n      manifest: npm\nfixtures: []\nscenarios: []\n",
         )
         .unwrap();
 
-        let error = Config::load(&path).unwrap_err().to_string();
-        assert!(error.contains("manifest SHA-256"), "{error}");
+        let error = format!("{:#}", Config::load(&path).unwrap_err());
+        assert!(error.contains("missing field `manifest_sha256`"), "{error}");
     }
 
     #[test]
@@ -1390,55 +1271,14 @@ mod tests {
             fs::write(
                 &path,
                 format!(
-                    "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: {kind}\n      command: sh\n      args: [-c, download-and-run]\n    artifact:\n      path: artifact\n      sha256: {}\nfixtures: []\nscenarios: []\n",
+                    "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: {kind}\n      url: https://example.invalid/artifact\n      command: sh\n      args: [-c, download-and-run]\n    artifact:\n      path: artifact\n      sha256: {}\nfixtures: []\nscenarios: []\n",
                     "a".repeat(64)
                 ),
             )
             .unwrap();
 
-            let error = Config::load(&path).unwrap_err().to_string();
-            assert!(error.contains("structured URL"), "{kind}: {error}");
+            let error = format!("{:#}", Config::load(&path).unwrap_err());
+            assert!(error.contains("unknown field"), "{kind}: {error}");
         }
-    }
-
-    #[test]
-    fn pip_install_requires_a_hashed_platform_lock() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("benchmark.yaml");
-        fs::write(
-            &path,
-            "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: pip\n      command: python3\n      manifest: requirements.txt\n      python_version: '3.12'\n      target: x86_64-unknown-linux-gnu\nfixtures: []\nscenarios: []\n",
-        )
-        .unwrap();
-
-        let error = Config::load(&path).unwrap_err().to_string();
-        assert!(error.contains("manifest SHA-256"), "{error}");
-
-        fs::write(
-            &path,
-            "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: pip\n      command: python3\n      manifest: requirements.txt\n      manifest_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n      python_version: '3.12'\n      target: x86_64-unknown-linux-gnu\nfixtures: []\nscenarios: []\n",
-        )
-        .unwrap();
-
-        let config = Config::load(&path).unwrap();
-        let install = config.servers[0].install.as_ref().unwrap();
-        assert_eq!(
-            install.manifest.as_deref(),
-            Some(directory.path().join("requirements.txt").as_path())
-        );
-    }
-
-    #[test]
-    fn pip_install_rejects_unstructured_commands() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("benchmark.yaml");
-        fs::write(
-            &path,
-            "version: 1\nservers:\n  - id: server\n    command: server\n    install:\n      kind: pip\n      command: sh\n      args: [-c, pip-install]\n      manifest: requirements.txt\n      manifest_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n      python_version: '3.12'\n      target: x86_64-unknown-linux-gnu\nfixtures: []\nscenarios: []\n",
-        )
-        .unwrap();
-
-        let error = Config::load(&path).unwrap_err().to_string();
-        assert!(error.contains("does not accept arbitrary arguments"), "{error}");
     }
 }

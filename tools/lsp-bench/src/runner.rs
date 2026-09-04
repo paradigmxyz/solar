@@ -988,14 +988,12 @@ impl<'a> Session<'a> {
                         self.probe("save-ready", probe)?;
                     }
                 }
-                StepSpec::Warm { name, probe, warmup, samples } => {
+                StepSpec::Warm { probe, warmup, samples } => {
                     self.warm(
-                        name,
                         probe,
                         warmup.unwrap_or(profile.warmup),
                         samples.unwrap_or(profile.samples),
-                    )
-                    .map_err(anyhow::Error::from)?;
+                    )?;
                 }
                 StepSpec::Rename { path, anchor, new_name, expected_edits, probe } => {
                     self.rename_symbol(path, anchor, new_name, expected_edits, probe.as_ref())?;
@@ -1433,13 +1431,8 @@ impl<'a> Session<'a> {
         }
     }
 
-    fn warm(
-        &mut self,
-        _name: &str,
-        probe: &ProbeSpec,
-        warmup: usize,
-        samples: usize,
-    ) -> std::result::Result<(), WorkloadError> {
+    fn warm(&mut self, probe: &ProbeSpec, warmup: usize, samples: usize) -> Result<()> {
+        self.probe("ready", probe)?;
         for _ in 0..warmup {
             self.probe_once(probe, false, false)?;
         }
@@ -3515,12 +3508,7 @@ scenarios:
         };
 
         let cold = workload(vec![StepSpec::Probe { name: "cold-ready".into(), probe: symbols() }]);
-        let warm = workload(vec![StepSpec::Warm {
-            name: "symbols".into(),
-            probe: symbols(),
-            warmup: None,
-            samples: None,
-        }]);
+        let warm = workload(vec![StepSpec::Warm { probe: symbols(), warmup: None, samples: None }]);
         let lifecycle = workload(vec![StepSpec::Open { path: "Main.sol".into() }]);
 
         assert_eq!(profile.repetitions_for(&cold), 3);

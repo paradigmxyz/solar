@@ -27,8 +27,6 @@ use std::os::unix::fs::PermissionsExt;
 
 const REQUIRED_FIXTURES: [&str; 4] = ["synthetic", "v4-core", "aave-v3-origin", "optimism-bedrock"];
 pub(crate) const VERSION_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
-const PIP_CLOSURE_DOWNLOAD_ARGS: [&str; 5] =
-    ["download", "--no-cache-dir", "--no-deps", "--require-hashes", "--dest"];
 
 pub(crate) struct PrepareOptions {
     pub(crate) config: PathBuf,
@@ -370,13 +368,14 @@ fn check_server(server: &ServerSpec) -> Vec<Check> {
 }
 
 fn check_install_manifest(server: &ServerSpec) -> Option<Check> {
-    let install = server.install.as_ref()?;
-    let manifest = server_install_manifest_path(install)?;
+    let InstallSpec::Npm { manifest, manifest_sha256 } = server.install.as_ref()? else {
+        return None;
+    };
     Some(check_file_digest(
         "server-install-manifest",
         &server.id,
-        &manifest,
-        install.manifest_sha256.as_deref(),
+        &manifest.join("package-lock.json"),
+        Some(manifest_sha256),
     ))
 }
 
@@ -422,15 +421,6 @@ fn check_installed_closure(server: &ServerSpec, manifest_dir: &Path) -> Option<C
             format!("expected {expected}, found {actual}")
         },
     })
-}
-
-pub(crate) fn server_install_manifest_path(install: &InstallSpec) -> Option<PathBuf> {
-    let manifest = install.manifest.as_deref()?;
-    match install.kind.as_str() {
-        "npm" => Some(manifest.join("package-lock.json")),
-        "pip" => Some(manifest.to_owned()),
-        _ => None,
-    }
 }
 
 /// Revalidate immutable server inputs immediately before benchmark execution.
@@ -928,28 +918,17 @@ fn publish_environment_checks(config_path: &Path) -> Vec<Check> {
 }
 
 fn prepare_server(server: &ServerSpec, manifest_dir: &Path) -> Result<()> {
-    let source_root = server_source_root(manifest_dir, &server.id);
     if let Some(source) = &server.source {
-        prepare_checkout(source, &source_root)?;
+        prepare_checkout(source, &server_source_root(manifest_dir, &server.id))?;
     }
     let Some(install) = &server.install else { return Ok(()) };
-    if install.kind == "none" {
-        return Ok(());
-    }
     let artifact_root = server_artifact_root(manifest_dir, &server.id);
     fs::create_dir_all(&artifact_root)?;
-    match install.kind.as_str() {
-        "npm" => {
-            let manifest = install
-                .manifest
-                .as_deref()
-                .with_context(|| format!("server `{}` npm manifest is missing", server.id))?;
-            let expected_sha256 = install.manifest_sha256.as_deref().with_context(|| {
-                format!("server `{}` npm manifest SHA-256 is missing", server.id)
-            })?;
+    match install {
+        InstallSpec::Npm { manifest, manifest_sha256 } => {
             verify_file_sha256(
                 &manifest.join("package-lock.json"),
-                expected_sha256,
+                manifest_sha256,
                 "npm package lock",
             )?;
             for name in ["package.json", "package-lock.json"] {
@@ -973,33 +952,8 @@ fn prepare_server(server: &ServerSpec, manifest_dir: &Path) -> Result<()> {
                 bail!("server `{}` install command exited with {status}", server.id)
             }
         }
-        "pip" => prepare_pip_server(server, install, &artifact_root)?,
-        "archive" => prepare_archive_server(server, install, &artifact_root)?,
-        "binary" => prepare_binary_server(server, install)?,
-        "cargo" => {
-            let program = install
-                .command
-                .as_deref()
-                .with_context(|| format!("server `{}` install command is missing", server.id))?;
-            let args = install
-                .args
-                .iter()
-                .map(|arg| {
-                    arg.replace("{source}", &source_root.display().to_string())
-                        .replace("{target}", &artifact_root.display().to_string())
-                })
-                .collect::<Vec<_>>();
-            let status = restricted_command(program)
-                .args(args)
-                .current_dir(if source_root.is_dir() { &source_root } else { manifest_dir })
-                .stdin(Stdio::null())
-                .status()
-                .with_context(|| format!("failed to install server `{}`", server.id))?;
-            if !status.success() {
-                bail!("server `{}` install command exited with {status}", server.id)
-            }
-        }
-        kind => bail!("server `{}` has unsupported install kind `{kind}`", server.id),
+        InstallSpec::Archive { url } => prepare_archive_server(server, url, &artifact_root)?,
+        InstallSpec::Binary { url } => prepare_binary_server(server, url)?,
     }
     if let Some(artifact) = &server.artifact
         && let Some(expected) = artifact.sha256.as_deref()
@@ -1029,15 +983,7 @@ fn prepare_server(server: &ServerSpec, manifest_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn prepare_archive_server(
-    server: &ServerSpec,
-    install: &InstallSpec,
-    artifact_root: &Path,
-) -> Result<()> {
-    let url = install
-        .url
-        .as_deref()
-        .with_context(|| format!("server `{}` archive URL is missing", server.id))?;
+fn prepare_archive_server(server: &ServerSpec, url: &str, artifact_root: &Path) -> Result<()> {
     let artifact = server
         .artifact
         .as_ref()
@@ -1129,11 +1075,7 @@ fn prepare_archive_server(
     Ok(())
 }
 
-fn prepare_binary_server(server: &ServerSpec, install: &InstallSpec) -> Result<()> {
-    let url = install
-        .url
-        .as_deref()
-        .with_context(|| format!("server `{}` binary URL is missing", server.id))?;
+fn prepare_binary_server(server: &ServerSpec, url: &str) -> Result<()> {
     let artifact = server
         .artifact
         .as_ref()
@@ -1155,136 +1097,6 @@ fn prepare_binary_server(server: &ServerSpec, install: &InstallSpec) -> Result<(
     Ok(())
 }
 
-fn prepare_pip_server(
-    server: &ServerSpec,
-    install: &InstallSpec,
-    artifact_root: &Path,
-) -> Result<()> {
-    let manifest = install
-        .manifest
-        .as_deref()
-        .with_context(|| format!("server `{}` pip manifest is missing", server.id))?;
-    let expected_sha256 = install
-        .manifest_sha256
-        .as_deref()
-        .with_context(|| format!("server `{}` pip manifest SHA-256 is missing", server.id))?;
-    verify_file_sha256(manifest, expected_sha256, "pip manifest")?;
-
-    if std::env::consts::OS != "linux" || std::env::consts::ARCH != "x86_64" {
-        bail!(
-            "server `{}` pip lock targets x86_64 Linux, found {} {}",
-            server.id,
-            std::env::consts::OS,
-            std::env::consts::ARCH
-        )
-    }
-    let python = install
-        .command
-        .as_deref()
-        .with_context(|| format!("server `{}` Python command is missing", server.id))?;
-    let expected_python = install
-        .python_version
-        .as_deref()
-        .with_context(|| format!("server `{}` Python version is missing", server.id))?;
-    let actual_python = inspect_python_minor(python)?;
-    if actual_python != expected_python {
-        bail!(
-            "server `{}` pip lock requires Python {expected_python}, found {actual_python}",
-            server.id
-        )
-    }
-
-    let wheelhouse = artifact_root.join("wheelhouse");
-    reset_directory(&wheelhouse)?;
-    // The lock includes hashed source distributions for packages without Python 3.12 wheels.
-    let status = pip_command(python)
-        .args(PIP_CLOSURE_DOWNLOAD_ARGS)
-        .arg(&wheelhouse)
-        .args(["--requirement"])
-        .arg(manifest)
-        .stdin(Stdio::null())
-        .status()
-        .with_context(|| format!("failed to download server `{}` Python closure", server.id))?;
-    if !status.success() {
-        bail!("server `{}` Python closure download exited with {status}", server.id)
-    }
-
-    let venv = artifact_root.join("venv");
-    if venv.exists() {
-        fs::remove_dir_all(&venv)
-            .with_context(|| format!("failed to remove stale venv `{}`", venv.display()))?;
-    }
-    let status = restricted_command(python)
-        .args(["-m", "venv"])
-        .arg(&venv)
-        .stdin(Stdio::null())
-        .status()
-        .with_context(|| format!("failed to create server `{}` Python venv", server.id))?;
-    if !status.success() {
-        bail!("server `{}` Python venv creation exited with {status}", server.id)
-    }
-
-    let venv_python = venv.join("bin/python");
-    let status = pip_command(&venv_python)
-        .args([
-            "install",
-            "--no-cache-dir",
-            "--no-index",
-            "--no-deps",
-            "--require-hashes",
-            "--find-links",
-        ])
-        .arg(&wheelhouse)
-        .args(["--requirement"])
-        .arg(manifest)
-        .env("PIP_NO_INDEX", "1")
-        .env("PIP_FIND_LINKS", &wheelhouse)
-        .stdin(Stdio::null())
-        .status()
-        .with_context(|| format!("failed to install server `{}` Python closure", server.id))?;
-    if !status.success() {
-        bail!("server `{}` offline Python install exited with {status}", server.id)
-    }
-    let status = pip_command(&venv_python)
-        .arg("check")
-        .stdin(Stdio::null())
-        .status()
-        .with_context(|| format!("failed to check server `{}` Python closure", server.id))?;
-    if !status.success() {
-        bail!("server `{}` Python dependency check exited with {status}", server.id)
-    }
-    Ok(())
-}
-
-fn pip_command(command: impl AsRef<Path>) -> Command {
-    let mut process = restricted_command(command.as_ref());
-    process.args(["-m", "pip", "--disable-pip-version-check"]).env("PIP_CONFIG_FILE", "/dev/null");
-    process
-}
-
-fn inspect_python_minor(command: &str) -> Result<String> {
-    let mut process = restricted_command(command);
-    process.args(["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"]);
-    let output =
-        run_command_with_bounded_output(process, Path::new(command), VERSION_PROBE_TIMEOUT)
-            .with_context(|| format!("failed to inspect Python command `{command}`"))?;
-    if output.timed_out {
-        bail!("timed out waiting for Python version command `{command}`")
-    }
-    if output.forced_kill {
-        bail!("Python version command `{command}` left descendants running")
-    }
-    if !output.status.success() {
-        bail!("Python version command `{command}` exited with {}", output.status)
-    }
-    let version = String::from_utf8(output.stdout).context("Python version is not UTF-8")?;
-    let version = version.trim();
-    if version.is_empty() {
-        bail!("Python version command `{command}` produced no output")
-    }
-    Ok(version.to_owned())
-}
-
 fn verify_file_sha256(path: &Path, expected: &str, kind: &str) -> Result<()> {
     if !path.is_file() {
         bail!("{kind} `{}` was not found", path.display())
@@ -1294,15 +1106,6 @@ fn verify_file_sha256(path: &Path, expected: &str, kind: &str) -> Result<()> {
         bail!("{kind} `{}` has SHA-256 {actual}, expected {expected}", path.display())
     }
     Ok(())
-}
-
-fn reset_directory(path: &Path) -> Result<()> {
-    if path.exists() {
-        fs::remove_dir_all(path)
-            .with_context(|| format!("failed to remove stale directory `{}`", path.display()))?;
-    }
-    fs::create_dir_all(path)
-        .with_context(|| format!("failed to create directory `{}`", path.display()))
 }
 
 fn server_source_root(manifest_dir: &Path, id: &str) -> PathBuf {
@@ -1317,7 +1120,9 @@ fn server_installed_closure_root(server: &ServerSpec, manifest_dir: &Path) -> Op
     server
         .install
         .as_ref()
-        .is_some_and(|install| matches!(install.kind.as_str(), "npm" | "pip" | "archive"))
+        .is_some_and(|install| {
+            matches!(install, InstallSpec::Npm { .. } | InstallSpec::Archive { .. })
+        })
         .then(|| server_artifact_root(manifest_dir, &server.id))
 }
 
@@ -1625,16 +1430,8 @@ mod tests {
         let manifest_dir = root.path().join("tools/lsp-bench");
         fs::create_dir_all(&manifest_dir).unwrap();
         let mut server = server_spec();
-        server.install = Some(InstallSpec {
-            kind: "npm".into(),
-            url: None,
-            command: None,
-            args: Vec::new(),
-            manifest: None,
-            manifest_sha256: None,
-            python_version: None,
-            target: None,
-        });
+        server.install =
+            Some(InstallSpec::Archive { url: "https://example.invalid/server.tar.gz".into() });
         let closure = server_artifact_root(&manifest_dir, &server.id);
         fs::create_dir_all(closure.join("node_modules/dependency")).unwrap();
         let dependency = closure.join("node_modules/dependency/index.js");
@@ -1662,16 +1459,8 @@ mod tests {
         let manifest_dir = root.path().join("tools/lsp-bench");
         fs::create_dir_all(&manifest_dir).unwrap();
         let mut server = server_spec();
-        server.install = Some(InstallSpec {
-            kind: "archive".into(),
-            url: Some("https://example.invalid/server.tar.gz".into()),
-            command: None,
-            args: Vec::new(),
-            manifest: None,
-            manifest_sha256: None,
-            python_version: None,
-            target: None,
-        });
+        server.install =
+            Some(InstallSpec::Archive { url: "https://example.invalid/server.tar.gz".into() });
         let closure = server_artifact_root(&manifest_dir, &server.id);
         fs::create_dir_all(&closure).unwrap();
         server.command = closure.join("server");
@@ -1708,16 +1497,8 @@ mod tests {
         let manifest_dir = root.path().join("tools/lsp-bench");
         fs::create_dir_all(&manifest_dir).unwrap();
         let mut server = server_spec();
-        server.install = Some(InstallSpec {
-            kind: "npm".into(),
-            url: None,
-            command: None,
-            args: Vec::new(),
-            manifest: None,
-            manifest_sha256: None,
-            python_version: None,
-            target: None,
-        });
+        server.install =
+            Some(InstallSpec::Archive { url: "https://example.invalid/server.tar.gz".into() });
         let closure = server_artifact_root(&manifest_dir, &server.id);
         fs::create_dir_all(closure.join("node_modules/.bin")).unwrap();
         for package in ["first", "second"] {
@@ -1840,34 +1621,6 @@ mod tests {
     }
 
     #[test]
-    fn pip_manifest_is_verified_before_any_installer_command() {
-        let root = tempfile::tempdir().unwrap();
-        let manifest = root.path().join("requirements.txt");
-        fs::write(&manifest, "eth-wake==4.9.0\n").unwrap();
-        let install = InstallSpec {
-            kind: "pip".into(),
-            url: None,
-            command: Some("missing-python-command".into()),
-            args: Vec::new(),
-            manifest: Some(manifest),
-            manifest_sha256: Some("00".repeat(32)),
-            python_version: Some("3.12".into()),
-            target: Some("x86_64-unknown-linux-gnu".into()),
-        };
-
-        let error =
-            prepare_pip_server(&server_spec(), &install, root.path()).unwrap_err().to_string();
-        assert!(error.contains("pip manifest"), "{error}");
-        assert!(error.contains("has SHA-256"), "{error}");
-    }
-
-    #[test]
-    fn pip_closure_download_accepts_hashed_source_distributions() {
-        assert!(PIP_CLOSURE_DOWNLOAD_ARGS.contains(&"--require-hashes"));
-        assert!(!PIP_CLOSURE_DOWNLOAD_ARGS.iter().any(|arg| arg.starts_with("--only-binary")));
-    }
-
-    #[test]
     fn npm_manifest_is_verified_before_any_installer_command() {
         let root = tempfile::tempdir().unwrap();
         let manifest_dir = root.path().join("tools/lsp-bench");
@@ -1877,16 +1630,7 @@ mod tests {
         fs::write(manifest.join("package.json"), "{}").unwrap();
         fs::write(manifest.join("package-lock.json"), "{}").unwrap();
         let mut server = server_spec();
-        server.install = Some(InstallSpec {
-            kind: "npm".into(),
-            url: None,
-            command: None,
-            args: Vec::new(),
-            manifest: Some(manifest),
-            manifest_sha256: Some("00".repeat(32)),
-            python_version: None,
-            target: None,
-        });
+        server.install = Some(InstallSpec::Npm { manifest, manifest_sha256: "00".repeat(32) });
 
         let error = prepare_server(&server, &manifest_dir).unwrap_err().to_string();
         assert!(error.contains("npm package lock"), "{error}");
@@ -1920,16 +1664,8 @@ mod tests {
         let artifact_root = server_artifact_root(&manifest_dir, "server");
         let mut server = server_spec();
         server.command = artifact_root.join("server");
-        server.install = Some(InstallSpec {
-            kind: "archive".into(),
-            url: Some(format!("file://{}", archive.display())),
-            command: None,
-            args: Vec::new(),
-            manifest: None,
-            manifest_sha256: None,
-            python_version: None,
-            target: None,
-        });
+        server.install =
+            Some(InstallSpec::Archive { url: format!("file://{}", archive.display()) });
         server.artifact = Some(ArtifactSpec {
             path: artifact_root.join("server.tar.gz"),
             sha256: Some(sha256_path(&archive).unwrap()),
@@ -1961,16 +1697,7 @@ mod tests {
         let artifact_root = server_artifact_root(&manifest_dir, "server");
         let mut server = server_spec();
         server.command = artifact_root.join("server");
-        server.install = Some(InstallSpec {
-            kind: "binary".into(),
-            url: Some(format!("file://{}", source.display())),
-            command: None,
-            args: Vec::new(),
-            manifest: None,
-            manifest_sha256: None,
-            python_version: None,
-            target: None,
-        });
+        server.install = Some(InstallSpec::Binary { url: format!("file://{}", source.display()) });
         server.artifact = Some(ArtifactSpec {
             path: server.command.clone(),
             sha256: Some(sha256_path(&source).unwrap()),

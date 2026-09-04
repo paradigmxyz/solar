@@ -1,7 +1,7 @@
 //! Machine-readable samples and summaries for cross-server runs.
 
 use crate::{
-    config::{Config, TransportSpec},
+    config::{Config, InstallSpec, StepSpec, TransportSpec},
     lifecycle::VERSION_PROBE_TIMEOUT,
     process::{
         MemoryAccounting, Observations, ProcessAccounting, ProcessMetrics, restricted_command,
@@ -428,7 +428,7 @@ pub(crate) fn summarize(input: SummaryInput<'_>) -> SummaryReport {
                     id: workload.id.clone(),
                     fixture: workload.fixture.clone(),
                     methods: workload.methods.clone(),
-                    step_count: workload.steps.len(),
+                    step_count: workload.steps.iter().map(StepSpec::execution_step_count).sum(),
                     repetitions: *workload_repetitions.get(&workload.id)?,
                 })
             })
@@ -459,7 +459,7 @@ fn command_output_with_timeout(command: &str, args: &[&str], timeout: Duration) 
 
 fn requires_npm_runtime(config: &Config, servers: &[ServerMetadata]) -> bool {
     config.servers.iter().any(|spec| {
-        spec.install.as_ref().is_some_and(|install| install.kind == "npm")
+        spec.install.as_ref().is_some_and(|install| matches!(install, InstallSpec::Npm { .. }))
             && servers.iter().any(|server| server.id == spec.id)
     })
 }
@@ -1229,7 +1229,7 @@ mod tests {
     fn warm_summaries_exclude_whole_session_resource_totals() {
         let directory = tempfile::tempdir().unwrap();
         let config_path = directory.path().join("benchmark.yaml");
-        fs::write(&config_path, "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: cold\n    fixture: fixture\n    steps:\n      - kind: probe\n        name: cold-ready\n        probe:\n          kind: document-symbol\n          path: Main.sol\n  - id: warm\n    fixture: fixture\n    steps:\n      - kind: warm\n        name: hover\n        probe:\n          kind: document-symbol\n          path: Main.sol\n").unwrap();
+        fs::write(&config_path, "version: 1\nservers:\n  - id: server\n    command: server\nfixtures:\n  - id: fixture\n    root: .\nscenarios:\n  - id: cold\n    fixture: fixture\n    steps:\n      - kind: probe\n        name: cold-ready\n        probe:\n          kind: document-symbol\n          path: Main.sol\n  - id: warm\n    fixture: fixture\n    steps:\n      - kind: warm\n        probe:\n          kind: document-symbol\n          path: Main.sol\n").unwrap();
         let config = Config::load(&config_path).unwrap();
         let metrics = process_metrics(
             ProcessAccounting::CgroupV2ProcessTree,

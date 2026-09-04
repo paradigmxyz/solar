@@ -158,7 +158,7 @@ jobs:
           set -euo pipefail
           test "$RUNNER_OS" = Linux
           test "$(uname -m)" = x86_64
-          for command in cargo curl git lscpu node npm rustc sha256sum tar; do
+          for command in cargo curl git node npm rustc sha256sum tar; do
             command -v "$command"
           done
 
@@ -172,36 +172,6 @@ jobs:
       - name: Prepare core4 and synthetic fixture
         run: >-
           target/release/solar-lsp-bench prepare --fixture synthetic --server solar --server asyncswap --server nomic-foundation --server solc
-
-      - name: Record provenance
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p target/lsp-bench/provenance
-          {
-            echo "repository=$(git rev-parse HEAD)"
-            echo "pr_number=${{ needs.resolve.outputs.pr_number }}"
-            echo "base_sha=${{ needs.resolve.outputs.base_sha }}"
-            echo "head_sha=${{ needs.resolve.outputs.head_sha }}"
-            echo "merge_sha=${{ needs.resolve.outputs.merge_sha }}"
-            echo "runner_name=$RUNNER_NAME"
-            echo "runner_os=$RUNNER_OS"
-            echo "runner_arch=$RUNNER_ARCH"
-            echo "image_os=${ImageOS-}"
-            echo "image_version=${ImageVersion-}"
-            uname -a
-            lscpu
-            rustc --version --verbose
-            cargo --version --verbose
-            node --version
-            npm --version
-            sha256sum \
-              tools/lsp-bench/benchmark.yaml \
-              tools/lsp-bench/servers.lock.yaml \
-              tools/lsp-bench/fixtures.lock.yaml
-          } > target/lsp-bench/provenance/environment.txt
-          npm --prefix target/lsp-bench/servers/nomic-foundation ls --all --json \
-            > target/lsp-bench/provenance/nomic-foundation-npm-tree.json || true
 
       - name: Run cross-server PR smoke comparison
         shell: bash
