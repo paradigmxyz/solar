@@ -17,8 +17,10 @@ use normalize_path::NormalizePath;
 use serde_json as _;
 use solar_config::{EvmVersion, ImportRemapping, LspArgs};
 use std::{
+    fmt,
     ops::ControlFlow,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tower::ServiceBuilder;
 
@@ -28,8 +30,39 @@ pub struct LaunchConfig {
     default_forge_path: Option<PathBuf>,
     /// Foundry profile selected by the embedding host, if any.
     selected_profile: Option<String>,
-    /// Effective Foundry workspace configurations supplied by the embedding host.
-    foundry_workspace_configs: Vec<FoundryWorkspaceConfig>,
+    /// Effective Foundry workspace configuration source supplied by the embedding host.
+    foundry_workspace_config_source: FoundryWorkspaceConfigSource,
+}
+
+type FoundryWorkspaceConfigLoadResult = Result<FoundryWorkspaceConfig, String>;
+
+#[derive(Clone)]
+pub(crate) struct FoundryWorkspaceConfigLoader(
+    Arc<dyn Fn(&Path) -> FoundryWorkspaceConfigLoadResult + Send + Sync>,
+);
+
+impl FoundryWorkspaceConfigLoader {
+    fn load(&self, workspace_root: &Path) -> FoundryWorkspaceConfigLoadResult {
+        (self.0)(workspace_root)
+    }
+}
+
+impl fmt::Debug for FoundryWorkspaceConfigLoader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("FoundryWorkspaceConfigLoader(..)")
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum FoundryWorkspaceConfigSource {
+    Static(Vec<FoundryWorkspaceConfig>),
+    Loader(FoundryWorkspaceConfigLoader),
+}
+
+impl Default for FoundryWorkspaceConfigSource {
+    fn default() -> Self {
+        Self::Static(Vec::new())
+    }
 }
 
 /// Effective Foundry configuration for one workspace supplied by an embedding host.
@@ -41,9 +74,10 @@ pub struct LaunchConfig {
 /// [`ImportRemapping`] values and are passed through unchanged. These values are already resolved
 /// by the host, including any inherited profiles and remappings. When this configuration matches a
 /// workspace, the language server uses these values as-is: it does not parse the local profile,
-/// read `remappings.txt`, or autodetect library remappings. The snapshot is captured when
-/// [`LaunchConfig`] is built and is reused for rediscovery during that LSP session; rebuild the
-/// launch configuration when Foundry configuration changes.
+/// read `remappings.txt`, or autodetect library remappings. By default, the snapshot is captured
+/// when [`LaunchConfig`] is built and reused for rediscovery during that LSP session. Embedding
+/// hosts that support configuration reloads can supply a loader through
+/// [`LaunchConfig::with_foundry_workspace_config_loader`].
 #[derive(Clone, Debug)]
 pub struct FoundryWorkspaceConfig {
     /// Absolute directory containing the workspace manifest.
@@ -150,14 +184,24 @@ impl FoundryWorkspaceConfig {
         self.evm_version
     }
 
-    fn into_normalized(mut self) -> Self {
-        self.workspace_root = normalize_foundry_workspace_root(self.workspace_root);
+    fn into_normalized(self) -> Self {
+        self.try_into_normalized().unwrap_or_else(|error| panic!("{error}"))
+    }
+
+    fn try_into_normalized(mut self) -> Result<Self, String> {
+        if !self.workspace_root.is_absolute() {
+            return Err(format!(
+                "Foundry workspace config root must be absolute: `{}`",
+                self.workspace_root.display()
+            ));
+        }
+        self.workspace_root = self.workspace_root.normalize();
         let root = &self.workspace_root;
         self.source_roots = resolve_foundry_workspace_paths(root, self.source_roots);
         self.flycheck_source_roots =
             resolve_foundry_workspace_paths(root, self.flycheck_source_roots);
         self.include_paths = resolve_foundry_workspace_paths(root, self.include_paths);
-        self
+        Ok(self)
     }
 }
 
@@ -192,14 +236,19 @@ impl LaunchConfig {
     /// Panics if the workspace root is not absolute.
     pub fn with_foundry_workspace_config(mut self, config: FoundryWorkspaceConfig) -> Self {
         let config = config.into_normalized();
-        if let Some(existing) = self
-            .foundry_workspace_configs
-            .iter_mut()
-            .find(|existing| existing.workspace_root == config.workspace_root)
+        let FoundryWorkspaceConfigSource::Static(configs) =
+            &mut self.foundry_workspace_config_source
+        else {
+            self.foundry_workspace_config_source =
+                FoundryWorkspaceConfigSource::Static(vec![config]);
+            return self;
+        };
+        if let Some(existing) =
+            configs.iter_mut().find(|existing| existing.workspace_root == config.workspace_root)
         {
             *existing = config;
         } else {
-            self.foundry_workspace_configs.push(config);
+            configs.push(config);
         }
         self
     }
@@ -215,6 +264,27 @@ impl LaunchConfig {
         self
     }
 
+    /// Sets a callback that refreshes host-resolved Foundry workspace configurations.
+    ///
+    /// The callback runs once for every Foundry workspace root encountered during initial
+    /// discovery and each later rediscovery. It receives the exact normalized workspace root and
+    /// must return a configuration for that same root. Returning an error aborts that discovery
+    /// pass so the last successfully discovered workspaces remain active.
+    ///
+    /// This replaces any static configurations previously supplied on this builder. Likewise,
+    /// supplying a static configuration after this method replaces the loader.
+    pub fn with_foundry_workspace_config_loader<F, E>(mut self, loader: F) -> Self
+    where
+        F: Fn(&Path) -> Result<FoundryWorkspaceConfig, E> + Send + Sync + 'static,
+        E: fmt::Display,
+    {
+        self.foundry_workspace_config_source =
+            FoundryWorkspaceConfigSource::Loader(FoundryWorkspaceConfigLoader(Arc::new(
+                move |workspace_root| loader(workspace_root).map_err(|error| error.to_string()),
+            )));
+        self
+    }
+
     pub(crate) fn default_forge_path(&self) -> Option<&Path> {
         self.default_forge_path.as_deref()
     }
@@ -223,19 +293,17 @@ impl LaunchConfig {
         self.selected_profile.as_deref()
     }
 
+    #[cfg(test)]
     pub(crate) fn foundry_workspace_configs(&self) -> &[FoundryWorkspaceConfig] {
-        &self.foundry_workspace_configs
+        match &self.foundry_workspace_config_source {
+            FoundryWorkspaceConfigSource::Static(configs) => configs,
+            FoundryWorkspaceConfigSource::Loader(_) => &[],
+        }
     }
-}
 
-fn normalize_foundry_workspace_root(path: impl Into<PathBuf>) -> PathBuf {
-    let path = path.into();
-    assert!(
-        path.is_absolute(),
-        "Foundry workspace config root must be absolute: `{}`",
-        path.display()
-    );
-    path.normalize()
+    pub(crate) fn foundry_workspace_config_source(&self) -> &FoundryWorkspaceConfigSource {
+        &self.foundry_workspace_config_source
+    }
 }
 
 fn resolve_foundry_workspace_paths(root: &Path, paths: Vec<PathBuf>) -> Vec<PathBuf> {
@@ -317,6 +385,7 @@ fn new_router_with_state(mut this: GlobalState) -> Router<GlobalState> {
         })
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .event::<global_state::WorkspaceDiscoveryReady>(GlobalState::on_workspace_discovery_ready)
+        .event::<global_state::WorkspaceDiscoveryFailed>(GlobalState::on_workspace_discovery_failed)
         .event::<global_state::DeferredSourceFileEventsReady>(
             GlobalState::on_deferred_source_file_events_ready,
         )
