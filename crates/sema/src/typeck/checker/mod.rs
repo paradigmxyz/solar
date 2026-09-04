@@ -118,6 +118,16 @@ enum Discarded {
     Components(DenseBitSet<usize>),
 }
 
+/// The first contract of a hierarchy that gives one base constructor its arguments.
+struct Provider {
+    /// The provider's position in the checked contract's linearization.
+    index: usize,
+    /// The span of the argument list.
+    span: Span,
+    /// Whether a second provider was already reported for this base.
+    reported: bool,
+}
+
 #[derive(Clone, Copy)]
 enum NotLvalueReason {
     Constant,
@@ -1633,48 +1643,63 @@ impl<'gcx> TypeChecker<'gcx> {
         if contract.linearization_failed() {
             return;
         }
-        for &base_id in contract.linearized_bases.iter().skip(1) {
-            let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor else {
-                continue;
-            };
-            let mut first = None;
-            for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
-                let writer = self.gcx.hir.contract(writer_id);
-                // One contract gives a base at most one argument list; giving
-                // two is reported where the lists are resolved.
-                let Some(index) =
-                    writer.linearized_bases.iter().skip(1).position(|&id| id == base_id)
-                else {
+        // One writer at a time, rather than searching every writer's
+        // linearization for every base: a writer's argument lists are already
+        // aligned with its own linearized bases, so zipping the two names the
+        // base each list targets without a search. Recording the first
+        // provider of each base in a map then makes the whole hierarchy one
+        // pass over the writers.
+        let mut providers = FxHashMap::<hir::ContractId, Provider>::default();
+        for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
+            let writer = self.gcx.hir.contract(writer_id);
+            for (&base_id, modifier) in
+                writer.linearized_bases.iter().skip(1).zip(writer.linearized_bases_args)
+            {
+                // An empty list gives no arguments, so a list written for the
+                // same base further up the hierarchy still applies. One
+                // contract gives a base at most one argument list; giving two
+                // is reported where the lists are resolved.
+                let Some(modifier) = modifier.filter(|modifier| !modifier.args.is_empty()) else {
                     continue;
                 };
-                let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
-                else {
-                    continue;
-                };
-                if modifier.args.is_empty() {
+                // A base without a constructor takes no arguments; the wrong
+                // argument count is reported on the list itself.
+                if self.gcx.hir.contract(base_id).ctor.is_none() {
                     continue;
                 }
-                let Some((first_index, first_span)) = first else {
-                    first = Some((writer_index, modifier.span));
+                let Some(provider) = providers.get_mut(&base_id) else {
+                    providers.insert(
+                        base_id,
+                        Provider { index: writer_index, span: modifier.span, reported: false },
+                    );
                     continue;
                 };
+                if std::mem::replace(&mut provider.reported, true) {
+                    continue;
+                }
                 let err = self
                     .dcx()
                     .err("base constructor arguments given twice")
                     .code(error_code!(3364));
                 // Point at a list of this contract when it wrote one, the way
                 // solc prefers a location inside the contract being checked.
-                let err = if first_index == 0 {
-                    err.span(first_span).span_note(modifier.span, "second argument list is here")
+                let err = if provider.index == 0 {
+                    err.span(provider.span).span_note(modifier.span, "second argument list is here")
                 } else {
                     err.span(contract.name.span)
-                        .span_note(first_span, "first argument list is here")
+                        .span_note(provider.span, "first argument list is here")
                         .span_note(modifier.span, "second argument list is here")
                 };
                 err.emit();
-                break;
             }
-            if first.is_none() && contract.can_be_deployed() {
+        }
+        if !contract.can_be_deployed() {
+            return;
+        }
+        for &base_id in contract.linearized_bases.iter().skip(1) {
+            if let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor
+                && !providers.contains_key(&base_id)
+            {
                 self.report_missing_base_constructor_arguments(contract, ctor_id);
             }
         }
