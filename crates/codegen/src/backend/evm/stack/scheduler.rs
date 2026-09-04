@@ -102,7 +102,7 @@ use super::{
 use crate::{
     analysis::Liveness,
     backend::evm::{
-        ir::{ImmediateMaterialization, compact_pushes, immediate_materialization_cost},
+        ir::{ImmediateMaterialization, immediate_materialization_cost},
         op::StackOp,
     },
     mir::{ArgIdx, BlockId, Function, InstKind, Value, ValueId},
@@ -346,10 +346,6 @@ impl OperandCostModel {
 
 /// One very-low instruction without an immediate.
 const VERY_LOW: Cost = Cost::new(GasTier::VeryLow.fixed_gas(), 1);
-/// One `PUSH1`.
-const PUSH1: Cost = Cost::new(GasTier::VeryLow.fixed_gas(), 2);
-/// One `PUSH2`.
-const PUSH2: Cost = Cost::new(GasTier::VeryLow.fixed_gas(), 3);
 
 #[derive(Clone, Copy)]
 struct OperandPlanningContext<'a> {
@@ -453,12 +449,6 @@ impl ScheduleCost {
 
     fn of_op(op: &ScheduledOp, evm_version: EvmVersion, cost_model: OperandCostModel) -> Self {
         Self::default().with_op(op, evm_version, cost_model)
-    }
-
-    /// Estimated cost of duplicating a resident value and storing it through
-    /// the active spill-address convention.
-    pub(crate) fn spill_store(cost_model: OperandCostModel) -> Self {
-        Self::memory_store(cost_model)
     }
 
     fn with_op(

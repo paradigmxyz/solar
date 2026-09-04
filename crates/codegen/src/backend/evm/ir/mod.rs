@@ -645,17 +645,6 @@ impl TerminatorKind {
             Self::Op(_) => {}
         }
     }
-
-    /// Returns the canonical name, including the opcode name for an `op` terminator.
-    #[must_use]
-    pub(crate) fn mnemonic(&self) -> &'static str {
-        match self {
-            Self::Jump(_) => "jump",
-            Self::JumpI { .. } => "jumpi",
-            Self::IndexedJump(_) => "indexed_jump",
-            Self::Op(opcode) => op::mnemonic(*opcode).unwrap_or("terminal"),
-        }
-    }
 }
 
 impl fmt::Display for TerminatorKind {
@@ -887,14 +876,12 @@ mod tests {
 
         let jump = TerminatorKind::Jump(BlockId::ENTRY);
         assert_eq!(jump.stack_io(), Some((0, 0)));
-        assert_eq!(jump.mnemonic(), "jump");
 
         let branch =
             TerminatorKind::JumpI { then_block: BlockId::ENTRY, else_block: BlockId::ENTRY };
         assert_eq!(default_terminator_stack_effect(&branch), Some(StackEffect::new(1, 0)));
 
         let terminal = TerminatorKind::Op(op::RETURN);
-        assert_eq!(terminal.mnemonic(), "return");
         assert_eq!(default_terminator_stack_effect(&terminal), Some(StackEffect::new(2, 0)));
     }
 }

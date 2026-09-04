@@ -14,12 +14,8 @@
 //! an execution.
 
 use crate::{
-    backend::evm::{
-        ir::compact_pushes,
-        op,
-        select::{self, OpcodeLowering},
-    },
-    mir::{EffectKind, Function, InstKind, Op, Value, ValueId},
+    backend::evm::{ir::compact_pushes, op, select},
+    mir::{Function, Op, Value, ValueId},
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -512,7 +508,7 @@ impl Target {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, Value};
+    use crate::mir::{Function, Immediate, InstKind, Value};
     use solar_interface::Ident;
 
     #[test]

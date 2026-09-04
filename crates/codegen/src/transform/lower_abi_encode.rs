@@ -121,8 +121,7 @@ fn synthesize_tuple_helpers(target: Target, module: &mut Module, helpers: &mut E
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_tuple));
         {
             let mut builder = FunctionBuilder::new(&mut function);
-            let args =
-                key.arg_types.iter().map(|ty| builder.add_param(ty.clone())).collect::<Vec<_>>();
+            let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
             let selector = key.selector.then(|| builder.add_param(MirType::uint256()));
             let layout = AbiLayout::new(key.types.clone());
             let encoded = lower_encode(&mut builder, &layout, selector, &args, key.mode, helpers);

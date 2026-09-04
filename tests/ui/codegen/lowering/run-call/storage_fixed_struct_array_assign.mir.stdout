@@ -3,10 +3,10 @@
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 1
-    memory_object_store_field memorystruct<3>, v0, 1, 2
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 1
+    memory_object_store_field memorystruct<3>, v0, 1, 2
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = sload 24 !metadata(storage=slot(24))
     v4 = lt v3, 4
@@ -59,10 +59,10 @@ fn @testDynamicIndex() -> (u256, u256, u256) [selector=0x8fa50415, view, abi_par
 fn @testConstantIndex() -> (u256, u256, u256) [selector=0xb6aa0fa8, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 1
-    memory_object_store_field memorystruct<3>, v0, 1, 2
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 1
+    memory_object_store_field memorystruct<3>, v0, 1, 2
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = lt 3, 4
     v4 = iszero v3
@@ -99,10 +99,10 @@ fn @testConstantIndex() -> (u256, u256, u256) [selector=0xb6aa0fa8, abi_params=[
 fn @testFromMemory() -> (u256, u256, u256) [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 1
-    memory_object_store_field memorystruct<3>, v0, 1, 2
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 1
+    memory_object_store_field memorystruct<3>, v0, 1, 2
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = sload 24 !metadata(storage=slot(24))
     v4 = add v3, 1
@@ -148,10 +148,10 @@ fn @testFromMemory() -> (u256, u256, u256) [selector=0xfebd1e0e, abi_params=[], 
 fn @testNested() -> (u256, u256, u256) [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 8
-    memory_object_store_field memorystruct<3>, v0, 1, 9
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 8
+    memory_object_store_field memorystruct<3>, v0, 1, 9
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = sload 24 !metadata(storage=slot(24))
     v4 = lt v3, 2

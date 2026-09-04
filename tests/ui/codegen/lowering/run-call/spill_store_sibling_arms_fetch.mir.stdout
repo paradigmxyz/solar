@@ -3,9 +3,9 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v0, 0, 10
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<2>, v0, 0, 10
     memory_object_store_field memorystruct<2>, v0, 1, v2
     v3 = mapping_slot 1, 0
     v4 = memory_object_load_field memorystruct<2>, v0, 0
@@ -19,9 +19,9 @@ fn @constructor() [constructor] {
     v11 = or v9, v10
     sstore v5, v11 !metadata(storage=offset(v3, 1))
     v12 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v12, 0, 20
     v13 = eq 0, 0
     v14 = iszero v13
+    memory_object_store_field memorystruct<2>, v12, 0, 20
     memory_object_store_field memorystruct<2>, v12, 1, v14
     v15 = mapping_slot 2, 0
     v16 = memory_object_load_field memorystruct<2>, v12, 0
@@ -35,9 +35,9 @@ fn @constructor() [constructor] {
     v23 = or v21, v22
     sstore v17, v23 !metadata(storage=offset(v15, 1))
     v24 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
-    memory_object_store_field memorystruct<2>, v24, 0, 30
     v25 = eq 1, 0
     v26 = iszero v25
+    memory_object_store_field memorystruct<2>, v24, 0, 30
     memory_object_store_field memorystruct<2>, v24, 1, v26
     v27 = mapping_slot 3, 0
     v28 = memory_object_load_field memorystruct<2>, v24, 0

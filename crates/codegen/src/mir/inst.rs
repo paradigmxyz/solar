@@ -728,16 +728,6 @@ impl InstKind {
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         self.op_def().effect
     }
-
-    /// Returns whether this is a stable, nullary environment read that is cheap
-    /// enough to rematerialize at every use.
-    ///
-    /// `BlockNumber` is deliberately excluded: instrumented EVMs can update it
-    /// across a call, so its MIR value must preserve the original evaluation.
-    #[must_use]
-    pub(crate) const fn is_always_rematerializable(&self) -> bool {
-        self.op_def().traits.contains(super::OpTraits::REMATERIALIZABLE)
-    }
 }
 
 impl fmt::Display for InstKind {
