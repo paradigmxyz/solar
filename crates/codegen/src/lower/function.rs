@@ -552,7 +552,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         diagnostic: &'static str,
     ) -> Option<LoweredCallOptions> {
         // zero = 0
-        // gas = gas()
+        // gas = gas() if can_overcharge_gas_for_call
         // value = zero
         // for option { gas/value = lower(option.value) }
         let zero = self.builder.imm(U256::ZERO);
