@@ -1311,7 +1311,8 @@ impl<'gcx> TypeChecker<'gcx> {
     /// solc requires the clause to repeat the callee's return types exactly, without implicit
     /// conversions and with the same data location (`TypeChecker::endVisit(TryStatement)`): the
     /// decoder writes the callee's values straight into the clause's variables, so a differing
-    /// declaration would reinterpret them.
+    /// declaration would reinterpret them. Only an external, delegate, or creation call decodes
+    /// anything, and solc checks the clause of no other callee.
     fn check_try_returns_clause(&self, try_: &'gcx hir::StmtTry<'gcx>) {
         let clause = &try_.clauses[0];
         if clause.args.is_empty() {
@@ -1320,6 +1321,12 @@ impl<'gcx> TypeChecker<'gcx> {
         let hir::ExprKind::Call(callee, ..) = try_.expr.peel_parens().kind else { return };
         let Some(&callee_ty) = self.results.expr_types.get(&callee.id) else { return };
         let TyKind::Fn(f) = callee_ty.kind else { return };
+        // solc reaches the clause only for the callee kinds `try` accepts, returning after 2536
+        // for any other one. The return values of the rest are not what the clause would bind:
+        // a builtin's are not even always a type, so comparing them says nothing.
+        if !matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall | TyFnKind::Creation) {
+            return;
+        }
 
         if f.returns.len() != clause.args.len() {
             self.dcx()
