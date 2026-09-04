@@ -99,8 +99,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/interface_free_function_checks.sol`)
 - [x] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
       (`symbolic-audit/loop_tuple_assign_miscompile.sol`; fixed in `daaf2d05`, tests in `ae814158`)
-- [ ] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
-      (`symbolic-audit/storage_array_push_rvalue.sol`)
+- [x] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
+      (`symbolic-audit/storage_array_push_rvalue.sol`; fixed in `7176fe3d`, review fix `84aa90a1`)
 - [x] 38. At `-Ogas` the backend puts a jump between homestead's `sub(gas(), 50)` and a shared CALL block, so the reserve is short and the call throws
       (`symbolic-audit/call_gas_reserve_split.sol`; fixed in `58ab6626`, review fix `595abb4c`)
 - [ ] 39. A pre-byzantium external call whose dynamic return value is unused is rejected; solc compiles it
@@ -1666,6 +1666,31 @@ value there. Storage effects and the appended length agree.
 
 Severity: miscompile of a returned value, reachable only with an
 assembly-written slot. Low.
+
+Cause and fix (`7176fe3d`): `lower_storage_array_push` ended with a zero
+immediate for every form. For the no-argument form on a value-type
+element it now returns the ordinary storage load of the appended element
+access, so packed byte ranges, `bool`/enum/address/`bytesN` cleanups and
+sign extension apply; aggregate elements still bind references. A bare
+`a.push();` must not emit the load: the fixer measured that a dead
+symbolic-slot load, although removed by DCE, stopped the length from
+staying in a value across `while (a.length < n) a.push();` (+13% gas),
+so expression-statement lowering records the discarded expression and
+the push skips the read. Verified with the harness on the repro
+(`dirtyThenPush`, `dirtyThenPush8`, `pushClean`) and random sequences over
+the repro, the aliasing, dirty-storage, and deep-struct probes, and a
+type zoo at three optimization levels; bare-push loops are byte-identical
+to the parent commit. The review (`84aa90a1`) found that the discard
+check matched only the statement's own expression, so a push inside a
+discarded tuple `(a.push(), b.push());` or ternary still read the
+element, and for an enum element that read runs the range check, which
+DCE cannot remove: a dirty enum slot then panicked with 0x21 where solc
+succeeds. The check now walks the discarded spine (parentheses, tuple
+components, ternary branches). It also verified the skip is required for
+correctness, not only gas (an unconditional read makes a bare `e.push();`
+over a dirty enum slot revert), probed nested, struct-member, mapping,
+storage-pointer, inherited, and constructor shapes, and added eight
+run-call cases including the enum tuple and ternary.
 
 ### 38. At `-Ogas` a jump separates homestead's `sub(gas(), 50)` from a shared CALL block
 
