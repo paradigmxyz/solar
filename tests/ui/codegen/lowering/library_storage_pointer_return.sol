@@ -88,7 +88,7 @@ contract C {
 
     // Two return words share one output area, and the second one is the slot.
     // HOMESTEAD-LABEL: fn @pair
-    // HOMESTEAD: delegatecall {{.*}}, 64
+    // HOMESTEAD: delegatecall {{.*}}, [[IN:v[0-9]+]], {{v[0-9]+}}, [[IN]], 64
     // OSAKA-LABEL: fn @pair
     // OSAKA: abi_decode [u256, storageptr]
     function pair() external view returns (uint256, uint256) {
