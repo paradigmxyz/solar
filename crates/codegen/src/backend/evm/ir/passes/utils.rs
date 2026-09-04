@@ -28,10 +28,10 @@ impl MachineInstKey {
     }
 }
 
-/// Returns whether `index` may become a block boundary in `instructions`.
+/// Returns whether the boundary at `index` in `instructions` may be disturbed.
 ///
 /// The boundary right after a `keep_with_next` instruction is not a legal split point, so no
-/// transform may start a block, outline a run, or share a tail there.
+/// transform may start a block, outline a run, share a tail, or insert an instruction there.
 pub(super) fn is_split_point(instructions: &[Instruction], index: usize) -> bool {
     debug_assert!(index <= instructions.len());
     index == 0 || !instructions[index - 1].keeps_with_next()
