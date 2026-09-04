@@ -1,9 +1,13 @@
-//@ revisions: homestead homesteadGas homesteadSize byzantium osaka
+//@ revisions: homestead homesteadGas homesteadSize byzantium byzantiumGas byzantiumSize osaka osakaGas osakaSize
 //@[homestead] compile-flags: -O none --evm-version homestead
 //@[homesteadGas] compile-flags: -O gas --evm-version homestead
 //@[homesteadSize] compile-flags: -O size --evm-version homestead
 //@[byzantium] compile-flags: -O none --evm-version byzantium
+//@[byzantiumGas] compile-flags: -O gas --evm-version byzantium
+//@[byzantiumSize] compile-flags: -O size --evm-version byzantium
 //@[osaka] compile-flags: -O none --evm-version osaka
+//@[osakaGas] compile-flags: -O gas --evm-version osaka
+//@[osakaSize] compile-flags: -O size --evm-version osaka
 //@ run-call: g 0 => 1
 //@ run-call: g 5 => 6
 //@ run-call: g 300 => 301
