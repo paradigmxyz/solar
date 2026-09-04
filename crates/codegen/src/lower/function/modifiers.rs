@@ -85,10 +85,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let incoming_returns = self.snapshot_bindings(&self.returns);
         let local_ids = self.modifier_local_ids(modifier_body);
         let saved_locals = self.snapshot_bindings(&local_ids);
+        // Named arguments name the parameters of the modifier the invocation
+        // statically refers to, which is the declaration the type checker
+        // validated them against. An override's signature does not carry
+        // parameter names, so resolving them against the virtually selected
+        // implementation instead would reorder same-typed arguments whenever
+        // the override renames its parameters.
         let parameter_names = match modifier.args.kind {
             hir::CallArgsKind::Named(_) => {
+                let Some(declared_id) = modifier.id.as_function() else {
+                    return self.cx.report_unsupported(modifier.span, "modifier target");
+                };
                 Some(self.cx.gcx.callable_param_names(CallableParamSource::Function {
-                    id: modifier_id,
+                    id: declared_id,
                     skips_receiver: false,
                 }))
             }
