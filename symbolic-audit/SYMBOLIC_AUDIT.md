@@ -109,8 +109,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/interface_member_checks.sol`)
 - [ ] 41. A `try` `returns` clause with mismatched variable types or count is accepted; solc reports 6509 and 2800
       (`symbolic-audit/try_returns_clause_checks.sol`)
-- [ ] 42. An external library function returning a storage pointer is miscompiled from byzantium on: the caller gets a wrong slot
-      (`symbolic-audit/library_storage_pointer_return.sol`)
+- [x] 42. An external library function returning a storage pointer is miscompiled from byzantium on: the caller gets a wrong slot
+      (`symbolic-audit/library_storage_pointer_return.sol`; fixed in `35ae83f1`, review follow-up `8b1538be`)
 - [ ] 43. `delete` on a storage pointer local is accepted; solc rejects it with error 9767
       (`symbolic-audit/delete_storage_pointer.sol`)
 
@@ -1923,6 +1923,34 @@ finding-39 diagnostic's "size unknowable" note is inaccurate there.
 
 Severity: miscompile from byzantium on. Reads through the returned
 pointer see zeros and writes through it corrupt other slots.
+
+Cause and fix (`35ae83f1`; its subject line runs 54 characters, left as
+committed): `TypeLowerer::abi_return_type`, `abi_return_param_type`, and
+`abi_return_shapes` rewrote every reference return to memory before
+deciding its ABI shape, so the storage arm of `abi_return_shapes_inner`
+only ever saw mappings. A new `Ty::encodes_as_slot` (storage reference or
+mapping) and `TypeLowerer::return_encoding_ty` make the library wrapper
+return a word and the caller decode a word for such returns, share the
+rule with parameter encoding, and exempt slot-encoded returns from
+finding 39's inaccessible-value check. Selectors and the ABI JSON are
+unchanged; over the UI codegen corpus only the new test's bytecode
+differs (4356 comparisons). Verified with `tools/libdiff.py` on the repro
+at osaka, byzantium, and homestead at three optimization levels and on a
+16-shape probe (dynamic array, `bytes`, `string`, plain and
+mapping-carrying structs, a mapping pointer, a `(uint256, pointer)` pair,
+a pointer relayed between two libraries, `delete` through the pointer,
+attached calls), all agreeing, plus a Foundry project under
+`tests/foundry/library-storage-pointers/` pinning solc's values. The
+review (`8b1538be`) confirmed the rule against solc's `encodingType` and
+`decodingType` for arrays, structs, and mappings, removed the last
+memory rewrite of an external call's reference returns in `values.rs`
+(bytecode-neutral), probed mapping-value pointers, struct `bytes` members
+written through the pointer, loops relaying pointers, `public` library
+functions, packed `uint8[]` and static `uint256[3]` pointers, and
+`keccak256`/`encodePacked` of the returned array, all agreeing at three
+versions and two optimizer settings. Residual: finding 41 lets `try
+L.arrRef(x) returns (uint256[] memory r)` bind a slot as a memory
+pointer where solc rejects the clause.
 
 ### 43. `delete` on a storage pointer local is accepted
 
