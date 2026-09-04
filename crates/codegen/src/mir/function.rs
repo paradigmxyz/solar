@@ -12,7 +12,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, StdEntry},
 };
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, Symbol};
 use solar_sema::hir::{StateMutability, Visibility};
 
 /// A function in the MIR.
@@ -22,6 +22,10 @@ pub(crate) struct Function {
     pub(crate) name: MangledSymbol,
     /// Source span of the function name.
     pub(crate) name_span: Span,
+    /// Source span of the complete function declaration.
+    pub(crate) declaration_span: Span,
+    /// Source-language identifier retained independently of the MIR symbol.
+    pub(crate) debug_identifier: Option<Symbol>,
     /// Function selector (4 bytes, for external functions).
     pub(crate) selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -77,6 +81,8 @@ impl Function {
         Self {
             name: MangledSymbol::new(name.name),
             name_span: name.span,
+            declaration_span: name.span,
+            debug_identifier: None,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),

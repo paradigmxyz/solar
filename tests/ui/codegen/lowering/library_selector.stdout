@@ -1,0 +1,51 @@
+// === ROOT/tests/ui/codegen/lowering/library_selector.sol:L ===
+@module L
+@phase evm-shaped
+fn @f() [selector=0xb3de648b, pure] {
+  bb0:
+    v0 = calldatasize
+    v1 = lt v0, 36
+    jumpi v1, bb1, bb2
+  bb2:
+    mstore 128, arg0
+    returndata 128, 32
+  bb1:
+    revert 0, 0
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0xb3de648b => bb2]
+  bb2:
+    tail_call @f
+  bb3:
+    revert 0, 0
+}
+
+// === ROOT/tests/ui/codegen/lowering/library_selector.sol:C ===
+@module C
+@phase evm-shaped
+fn @sel() [selector=0x41c910e1, pure] {
+  bb0:
+    mstore 128, 0xb3de648b00000000000000000000000000000000000000000000000000000000
+    returndata 128, 32
+}
+
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    jumpi v0, bb3, bb1
+  bb1:
+    v1 = calldataload 0
+    v2 = shr 224, v1
+    switch v2, default bb3, [0x41c910e1 => bb2]
+  bb2:
+    tail_call @sel
+  bb3:
+    revert 0, 0
+}

@@ -2,7 +2,7 @@
 @module TryErrorTarget
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @revert_error, 0, 5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     invalid
 }
 
@@ -87,7 +87,7 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
   bb9:
     jump bb10
   bb8:
-    v24 = internal_call @try_decode_error_message, 1, v16, v17
+    v24 = icall @try_decode_error_message, 1, v16, v17
     jump bb10
   bb10:
     v25 = phi [bb8: v24], [bb9: 0]

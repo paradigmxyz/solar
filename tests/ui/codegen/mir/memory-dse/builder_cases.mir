@@ -231,15 +231,15 @@ fn @memory_write_barrier() -> u256 {
     ret v0
 }
 
-// CHECK-LABEL: @internal_call_barrier
+// CHECK-LABEL: @icall_barrier
 // CHECK: {{^ +}}mstore [[ADDR:[0-9]+]], 42
-// CHECK: {{^ +}}internal_call @callee
+// CHECK: {{^ +}}icall @callee
 // CHECK: {{^ +}}[[LOAD:v[0-9]+]] = mload [[ADDR]]
 // CHECK: {{^ +}}ret [[LOAD]]
-fn @internal_call_barrier() -> u256 {
+fn @icall_barrier() -> u256 {
   bb0:
     mstore 128, 42
-    internal_call @callee, 0
+    icall @callee, 0
     v0 = mload 128
     ret v0
 }

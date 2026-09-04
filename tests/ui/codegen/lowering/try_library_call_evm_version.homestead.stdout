@@ -1,0 +1,96 @@
+// === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
+@module TryLib
+fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul 2, arg0
+    v1 = iszero arg0
+    v2 = div v0, arg0
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @noop(arg0: u256) [selector=0x67190395, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLibraryCall ===
+@module TryLibraryCall
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = fmp
+    v1 = add v0, 32
+    mstore v1, 0
+    v2 = abi_encode [word], selector 0xeee9720600000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = gas
+    v8 = sub v7, 50
+    v9 = delegatecall v8, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v3, v4, v3, 32
+    jumpi v9, bb3, bb4
+  bb4:
+    jumpi 1, bb6, bb7
+  bb7:
+    revert 0, 0
+  bb6:
+    jump bb5
+  bb3:
+    v10 = add v3, 0
+    v11 = mload v10
+    v12 = add v3, 0
+    v13 = mload v12
+    sstore 0, v13 !metadata(storage=slot(0))
+    jump bb5
+  bb5:
+    v14 = phi [bb3: v13], [bb6: 7]
+    ret v14
+  bb1:
+    revert 0, 0
+}
+
+fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], selector 0x6719039500000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = extcodesize 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d
+    v4 = iszero v3
+    jumpi v4, bb1, bb2
+  bb2:
+    v5 = gas
+    v6 = sub v5, 50
+    v7 = delegatecall v6, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v1, v2, v1, 0
+    jumpi v7, bb3, bb4
+  bb4:
+    jumpi 1, bb6, bb7
+  bb7:
+    revert 0, 0
+  bb6:
+    jump bb5
+  bb3:
+    sstore 0, 1 !metadata(storage=slot(0))
+    jump bb5
+  bb5:
+    v8 = phi [bb3: 1], [bb6: 7]
+    ret v8
+  bb1:
+    revert 0, 0
+}

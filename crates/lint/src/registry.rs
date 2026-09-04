@@ -7,7 +7,7 @@ pub(crate) type EarlyLintFactory =
 
 /// Factory for a HIR lint pass.
 pub(crate) type LateLintFactory =
-    Arc<dyn for<'hir> Fn(PhantomData<&'hir ()>) -> Box<dyn LateLintPass<'hir>> + Send + Sync>;
+    Arc<dyn for<'gcx> Fn(PhantomData<&'gcx ()>) -> Box<dyn LateLintPass<'gcx>> + Send + Sync>;
 
 /// Factory for a project-wide lint pass.
 pub(crate) type ProjectLintFactory =
@@ -38,7 +38,7 @@ impl LintPassFactory<EarlyLintFactory> {
 }
 
 impl LintPassFactory<LateLintFactory> {
-    pub(crate) fn create_late<'hir>(&self) -> Box<dyn LateLintPass<'hir>> {
+    pub(crate) fn create_late<'gcx>(&self) -> Box<dyn LateLintPass<'gcx>> {
         (self.factory)(PhantomData)
     }
 }
@@ -86,7 +86,7 @@ impl LintRegistry {
     /// Registers a constructor for an owned HIR pass.
     pub fn register_late_pass<P, F>(&mut self, lint_ids: &'static [&'static str], factory: F)
     where
-        P: for<'hir> LateLintPass<'hir> + 'static,
+        P: for<'gcx> LateLintPass<'gcx> + 'static,
         F: Fn() -> P + Send + Sync + 'static,
     {
         self.register_late(lint_ids, Arc::new(move |_| Box::new(factory())));

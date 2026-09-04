@@ -14,7 +14,14 @@ contract C {
     uint[zeroPublic + 1] public oneArray;
 
     uint[bigLiteral] public big;
-    uint[bigLiteral + 1] public tooBig1; //~ ERROR: array length cannot be negative
+    uint[bigLiteral + 1] public tooBig1; //~ ERROR: failed to evaluate constant: arithmetic overflow
+
+    int constant signedTwo = 7 / 3;
+    int constant signedNegTwo = (-7) / 3;
+
+    int8 constant maxInt8 = 127;
+    int8 constant minInt8 = -128;
+    uint8 constant maxUint8 = 255;
 
     uint private stateVar = 69;
     uint public stateVarPublic = 420;
@@ -26,10 +33,20 @@ contract C {
     function b(uint[x] memory) public {}
     function c(uint[x * 2] memory) public {}
     function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
-    //~^ ERROR: mismatched types
-    function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: array length cannot be negative
+    function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d5(uint[signedTwo] memory) public {}
+    function d6(uint[-signedNegTwo] memory) public {}
+    function d7(uint[signedNegTwo] memory) public {} //~ ERROR: array length cannot be negative
+    function d8(uint[maxInt8] memory) public {}
+    function d9(uint[maxUint8] memory) public {}
+    function d10(uint[-(minInt8 + 1)] memory) public {}
+    function d11(uint[maxInt8 + 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d12(uint[-minInt8] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d13(uint[maxUint8 + 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d14(uint[(maxInt8 + 1) - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d15(uint[maxUint8 * 2 / 2] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
     function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
 

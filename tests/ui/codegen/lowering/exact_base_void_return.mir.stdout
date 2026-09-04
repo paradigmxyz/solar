@@ -5,7 +5,7 @@
 @module Derived
 fn @f(arg0: bool) -> u256 [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[word]] {
   bb0:
-    internal_call @gate, 0, arg0
+    icall @gate, 0, arg0
     sstore 0, 2 !metadata(storage=slot(0))
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0

@@ -4,9 +4,10 @@ use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, 
 use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkProject, BenchmarkRequest,
-    BenchmarkResponse, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
-    BenchmarkWorkspaceReports, benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkOpenDocuments, BenchmarkProject,
+    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    benchmark_selection_ranges,
 };
 use std::{fs, hint::black_box, path::PathBuf};
 
@@ -16,6 +17,8 @@ const AGGREGATION_BATCH_COUNT: usize = 4;
 const AGGREGATION_FUNCTION_COUNT: usize = 64;
 const PATH_INDEX_QUERY_COUNT: usize = 1024;
 const PATH_INDEX_WORKSPACE_COUNT: usize = 16;
+const OPEN_DOCUMENT_COUNT: usize = 16;
+const OPEN_DOCUMENT_BYTES: usize = 256 * 1024;
 const UNIFAP_PROJECT: &str = "unifap-v2";
 const UNIFAP_ROUTER: &str = "src/UnifapV2Router.sol";
 const UNIFAP_PAIR: &str = "src/UnifapV2Pair.sol";
@@ -264,6 +267,25 @@ fn selection_range(c: &mut Criterion) {
     group.finish();
 }
 
+fn open_document_selection_range(c: &mut Criterion) {
+    let positions = [Position::new(0, 0)];
+    let requests =
+        BenchmarkSelectionRangeRequests::new(OPTIMISM_SOURCE.to_owned(), positions.iter().copied());
+    let expected = benchmark_selection_ranges(OPTIMISM_SOURCE.to_owned(), &positions)
+        .expect("the benchmark position should be valid");
+    let ranges = requests.run().expect("the benchmark position should be valid");
+    assert_eq!(ranges, expected);
+    assert_eq!(ranges.len(), positions.len());
+    assert!(ranges[0].range.start <= positions[0] && positions[0] < ranges[0].range.end);
+
+    let mut group = c.benchmark_group("lsp/open-document-selection-range");
+    group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
+    group.bench_function("optimism", |b| {
+        b.iter(|| black_box(black_box(&requests).run()));
+    });
+    group.finish();
+}
+
 fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
     let source = OPTIMISM_SOURCE.to_owned();
     assert_eq!(BenchmarkDocumentUpdate::from_source(source.clone()).apply(), 1);
@@ -298,6 +320,19 @@ fn workspace_diagnostic_hot_paths(c: &mut Criterion) {
         );
     }
     reports.finish();
+}
+
+fn open_document_analysis_batches(c: &mut Criterion) {
+    let documents = BenchmarkOpenDocuments::new(OPEN_DOCUMENT_COUNT, OPEN_DOCUMENT_BYTES);
+    // Prime the initial snapshot so timing measures reuse across later analysis epochs.
+    assert!(documents.build_analysis_batches() >= documents.source_bytes());
+
+    let mut group = c.benchmark_group("lsp/open-document-analysis-batches");
+    group.throughput(Throughput::Bytes(documents.source_bytes() as u64));
+    group.bench_function(format!("{OPEN_DOCUMENT_COUNT}x{OPEN_DOCUMENT_BYTES}"), |b| {
+        b.iter(|| black_box(documents.build_analysis_batches()))
+    });
+    group.finish();
 }
 
 fn workspace_path_queries(c: &mut Criterion) {
@@ -504,7 +539,9 @@ criterion_group!(
     symbol_table_aggregation,
     burst_hover,
     selection_range,
+    open_document_selection_range,
     workspace_diagnostic_hot_paths,
+    open_document_analysis_batches,
     workspace_path_queries,
     unifap_benches
 );

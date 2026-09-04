@@ -7,7 +7,7 @@
 //@ run-call: dynamicDefaults => 0, 96, 96, 0
 //@ run-call: nestedDynamicDefaults => 96, 96, 96, true
 //@ run-call: defaultBytesReturn => 0x
-//@ run-call: defaultThroughInternalCall => true
+//@ run-call: defaultThroughICall => true
 //@ run-call: fixedArrayDynamicDefaults => 64, 96, 96
 //@ run-call: nestedStaticDefaults => 192
 //@ run-call: literalBytes => 0x31
@@ -88,7 +88,7 @@ contract UninitializedMemoryAllocation {
 
     function defaultBytesReturn() external pure returns (bytes memory data) {}
 
-    function defaultThroughInternalCall() external pure returns (bool) {
+    function defaultThroughICall() external pure returns (bool) {
         bytes memory data;
         return isEmpty(data);
     }

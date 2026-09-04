@@ -2,13 +2,13 @@
 @module Test
 fn @run() -> u256 [selector=0xc0406226, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @outer, 1
+    v0 = icall @outer, 1
     ret v0
 }
 
 fn @outer() -> u256 [pure] {
   bb0:
-    v0 = internal_call @pair, 2
+    v0 = icall @pair, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2

@@ -18,7 +18,7 @@ contract C {
 
     // recursive function returning a memory struct
     // CHECK-LABEL: fn @build(
-    // CHECK: internal_call @build, 1,
+    // CHECK: icall @build, 1,
     // CHECK: alloc memorystruct<2>
     // CHECK: memory_object_store_field memorystruct<2>
     // CHECK: ret
@@ -43,7 +43,7 @@ contract C {
     // CHECK-LABEL: fn @fillImpl{{[( ]}}
     // CHECK: memory_object_store_element memoryarray<1>, arg0, arg1
     // CHECK: [[NEXT:v[0-9]+]] = add arg1, 1
-    // CHECK: [[RESULT:v[0-9]+]] = internal_call @fillImpl, 1, arg0, [[NEXT]]
+    // CHECK: [[RESULT:v[0-9]+]] = icall @fillImpl, 1, arg0, [[NEXT]]
     // CHECK: ret [[RESULT]]
     // CHECK: ret arg0
     function fillImpl(uint256[] memory a, uint256 i) internal pure returns (uint256[] memory) {
@@ -54,7 +54,7 @@ contract C {
 
     // CHECK-LABEL: fn @squares{{[( ]}}
     // CHECK: alloc memoryarray<1>, exact, zeroed, panic
-    // CHECK: internal_call @fillImpl, 1, {{v[0-9]+}}, 0
+    // CHECK: icall @fillImpl, 1, {{v[0-9]+}}, 0
     // CHECK: ret
     function squares(uint256 n) public pure returns (uint256[] memory) {
         return fillImpl(new uint256[](n), 0);

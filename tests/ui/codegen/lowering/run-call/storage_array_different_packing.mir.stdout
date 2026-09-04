@@ -53,7 +53,7 @@ fn @test() -> (bytes10, bytes10, bytes10, bytes10, bytes10) [selector=0xf8a8fd6d
   bb15:
     jump bb12
   bb12:
-    v78 = internal_call @load_storage_packed_array_8_2, 1, 0
+    v78 = icall @load_storage_packed_array_8_2, 1, 0
     v79 = memory_object_len memoryarray, v78
     v80 = sload 1 !metadata(storage=slot(1))
     v81 = gt v80, v79

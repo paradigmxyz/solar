@@ -1,7 +1,7 @@
 //@compile-flags: -Zdump=evm-ir-runtime --pretty-json
 //@ filecheck:
 
-contract InternalCallFrameDealloc {
+contract ICallFrameDealloc {
     // CHECK: push 0xb3de648b
     // CHECK: eq
     // CHECK-NEXT: push [[BODY:bb[0-9]+]]

@@ -6,7 +6,7 @@
 // CHECK: {{^[ +].*}}jumpi bb1, bb2
 bb0:
   push 0
-  calldataload !meta(source=dispatch)
+  calldataload !metadata(source=dispatch)
   push 0x371303c0
   eq
   jumpi bb1, bb2
@@ -16,7 +16,7 @@ bb0:
 // CHECK: {{^[ +].*}}jump bb3
 bb1:
   push 0
-  sload !meta(alias=storage0)
+  sload !metadata(alias=storage0)
   jump bb3
 
 // CHECK-LABEL: {{^[ +].*}}bb2 [cold]:
@@ -24,7 +24,7 @@ bb1:
 bb2 [cold]:
   push 0
   push 0
-  revert !meta(source=fallback)
+  revert !metadata(source=fallback)
 
 // CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}return

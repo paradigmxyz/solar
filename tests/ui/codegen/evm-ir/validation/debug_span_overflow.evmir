@@ -1,0 +1,5 @@
+@module DebugSpanOverflow
+
+bb0:
+  push 1 !metadata(span=4294967296..5) //~ ERROR: integer `4294967296` does not fit in u32
+  stop

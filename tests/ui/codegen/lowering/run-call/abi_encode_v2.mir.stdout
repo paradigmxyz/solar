@@ -14,14 +14,14 @@ fn @f1() -> memorybytes [selector=0xc27fc305, pure, abi_params=[], abi_returns=[
 
 fn @f2() -> memorybytes [selector=0x9942ec6f, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     ret v1
 }
 
 fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [word, memory_bytes, word], object, args 1, v0, 2
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 3
@@ -50,7 +50,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
     v20 = iszero v19
     jumpi v20, bb3, bb4
   bb4:
-    v21 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v21 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v22 = memory_object_load_element memorybytes, v21, 0
     v23 = memory_object_len memorybytes, v21
     v24 = lt v23, 1
@@ -73,7 +73,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
   bb6:
     v37 = memory_object_load_byte memorybytes, v2, 0
     v38 = shl 248, v37
-    v39 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v39 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v40 = memory_object_load_element memorybytes, v39, 0
     v41 = memory_object_len memorybytes, v39
     v42 = lt v41, 1
@@ -97,7 +97,7 @@ fn @f3() -> memorybytes [selector=0xaaf05f3d, pure, abi_params=[], abi_returns=[
 
 fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     sstore 0, 7 !metadata(storage=slot(0))
     v1 = add 0, 1
     v2 = sload v1 !metadata(storage=slot(1))
@@ -123,7 +123,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v14 = sload 0 !metadata(storage=slot(0))
     memory_object_store_field memorystruct<2>, v13, 0, v14
     v15 = add 0, 1
-    v16 = internal_call @load_storage_word_array, 1, v15
+    v16 = icall @load_storage_word_array, 1, v15
     memory_object_store_field memorystruct<2>, v13, 1, v16
     v17 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
     v18 = alloc memorybytes, exact, uninitialized, infallible, 64
@@ -153,7 +153,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     v36 = iszero v35
     jumpi v36, bb6, bb7
   bb7:
-    v37 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v37 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v38 = memory_object_load_element memorybytes, v37, 0
     v39 = memory_object_len memorybytes, v37
     v40 = lt v39, 1
@@ -176,7 +176,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
   bb9:
     v53 = memory_object_load_byte memorybytes, v18, 0
     v54 = shl 248, v53
-    v55 = internal_call @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v55 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
     v56 = memory_object_load_element memorybytes, v55, 0
     v57 = memory_object_len memorybytes, v55
     v58 = lt v57, 1
@@ -204,7 +204,7 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
 
 fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
+    v0 = icall @literal_bytes_word, 1, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
     v1 = abi_encode [memory_bytes], object, args v0
     v2 = keccak256_bytes v0
     v3 = eq v2, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45

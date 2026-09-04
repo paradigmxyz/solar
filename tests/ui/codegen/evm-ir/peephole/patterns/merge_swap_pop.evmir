@@ -117,7 +117,7 @@ bb5:
 // CHECK: {{^[ +].*}}swap 16
 // CHECK: {{^[ +].*}}swap 1
 bb6:
-  callf !meta(stack=0->18)
+  callf !metadata(stack=0->18)
   swap 16
   pop
   pop

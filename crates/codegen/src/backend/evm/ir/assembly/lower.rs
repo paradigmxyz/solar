@@ -15,7 +15,11 @@ impl Assembler<'_> {
         skip_all,
         fields(program = %self.program.name()),
     )]
-    pub(in crate::backend::evm) fn prepare(&mut self, capture_evm_ir: bool) -> PreparedAssembly {
+    pub(in crate::backend::evm) fn prepare(
+        &mut self,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> PreparedAssembly {
         let Some((mut ir_program, mut labels)) = self.finish_evm_ir() else {
             return PreparedAssembly::default();
         };
@@ -28,7 +32,10 @@ impl Assembler<'_> {
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
         }
-        debug_assert!(!input_is_valid || ir::verify::Verifier::is_valid(&ir_program));
+        debug_assert!(
+            !input_is_valid || ir::verify::Verifier::is_valid(&ir_program),
+            "EVM IR pipeline invalidated a valid module"
+        );
         let _legalized = ir::legalize_shifts(self.gcx, &mut ir_program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -38,7 +45,7 @@ impl Assembler<'_> {
             return failed_preparation(ir_program, capture_evm_ir);
         }
 
-        let program = lower_evm_ir(self, &mut ir_program, &mut labels);
+        let program = lower_evm_ir(self, &mut ir_program, &mut labels, capture_debug_info);
         validate_program_evm_version(self, &program);
         if self.gcx.dcx().err_count() != errors_before {
             return failed_preparation(ir_program, capture_evm_ir);
@@ -109,6 +116,7 @@ pub(in crate::backend::evm) fn lower_evm_ir(
     assembler: &mut Assembler<'_>,
     module: &mut ir::Module,
     labels: &mut Vec<Option<Label>>,
+    capture_debug_info: bool,
 ) -> Program {
     // Finalized EVM IR represents every control-flow reference as a `BlockId`; the builder's
     // assembler-label table is no longer authoritative. Rebuild it for the final module so a
@@ -134,7 +142,12 @@ pub(in crate::backend::evm) fn lower_evm_ir(
             labels,
             &indexed_jump_lowerings,
             data_layout_is_observable,
+            capture_debug_info,
         );
+        // Without indexed tables, only final bytecode emission needs resolved offsets.
+        if tables.is_empty() {
+            return program;
+        }
         let (label_offsets, _) = assembler.resolve_label_offsets(&program);
         if !indexed_jump::refine_indexed_jump_widths(
             module,
@@ -157,6 +170,7 @@ fn lower_evm_ir_once(
     labels: &mut Vec<Option<Label>>,
     indexed_jump_lowerings: &IndexVec<BlockId, indexed_jump::IndexedJumpLowering>,
     data_layout_is_observable: bool,
+    capture_debug_info: bool,
 ) -> Program {
     allocate_referenced_labels(assembler, module, labels);
 
@@ -173,18 +187,48 @@ fn lower_evm_ir_once(
             }
         }
     }
-    let mut program = Program::default();
+    let mut program = Program::with_debug_info(capture_debug_info);
+    let mut pending_block_invoke = None;
     for (block_id, block) in module.blocks.iter_enumerated() {
+        program.set_source_span(None);
+        let block_modifier_depth = block.instructions.first().map_or_else(
+            || block.terminator.as_ref().map_or(0, |term| term.metadata.modifier_depth()),
+            |inst| inst.metadata.modifier_depth(),
+        );
+        program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
+        if let Some(function) = block.metadata.function_invoke {
+            debug_assert!(
+                pending_block_invoke.is_none() || pending_block_invoke == Some(function),
+                "an instruction-free block cannot enter two functions"
+            );
+            pending_block_invoke = Some(function);
+        }
         if let Some(label) = labels.get(original).copied().flatten() {
             program.define_label(label);
+            program.mark_last_function_invoke(pending_block_invoke.take());
         }
 
         for inst in &block.instructions {
+            program.set_source_spans(inst.metadata.source_spans());
+            program.set_modifier_depth(inst.metadata.modifier_depth());
+            let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
+            if first < program.instructions.len()
+                && let Some(function) = pending_block_invoke.take()
+            {
+                program.set_function_invoke(first, Some(function));
+            }
+            if let Some(function) = inst.metadata.function_invoke() {
+                program.mark_last_function_invoke(Some(function));
+            }
+            program.mark_last_function_exit(inst.metadata.function_exit());
         }
 
         if let Some(terminator) = &block.terminator {
+            program.set_source_spans(terminator.metadata.source_spans());
+            program.set_modifier_depth(terminator.metadata.modifier_depth());
+            let first = program.instructions.len();
             lower_terminator(
                 assembler,
                 &mut program,
@@ -194,6 +238,15 @@ fn lower_evm_ir_once(
                 labels,
                 indexed_jump_lowerings[block_id],
             );
+            if first < program.instructions.len()
+                && let Some(function) = pending_block_invoke.take()
+            {
+                program.set_function_invoke(first, Some(function));
+            }
+            if let Some(function) = terminator.metadata.function_invoke() {
+                program.mark_last_function_invoke(Some(function));
+            }
+            program.mark_last_function_exit(terminator.metadata.function_exit());
         }
     }
     // Keep opaque data unreachable from physical fallthrough, including malformed internal IR.
@@ -201,9 +254,23 @@ fn lower_evm_ir_once(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
     if !referenced_data.is_empty() && !ends_with_terminal {
+        let spans = module
+            .blocks
+            .last()
+            .and_then(|block| block.terminator.as_ref())
+            .map_or(&[][..], |term| term.metadata.source_spans());
+        program.set_source_spans(spans);
+        program.set_modifier_depth(
+            module
+                .blocks
+                .last()
+                .and_then(|block| block.terminator.as_ref())
+                .map_or(0, |term| term.metadata.modifier_depth()),
+        );
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
+    program.set_source_span(None);
     if data_layout_is_observable {
         for data in module.data.indices() {
             program.append_data(data);
@@ -393,7 +460,7 @@ mod tests {
             let old_target = assembler.new_label();
             let mut labels = vec![Some(old_entry), Some(old_target), None];
 
-            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels);
+            let program = lower_evm_ir(&mut assembler, &mut module, &mut labels, false);
             let target_label =
                 labels[module.blocks[target].label as usize].expect("referenced target label");
 

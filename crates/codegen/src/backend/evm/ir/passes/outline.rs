@@ -13,6 +13,9 @@
 //! selected without overlap, and new blocks and labels are installed through the normal EVM IR CFG
 //! representation.
 //!
+//! Replacing a site splits its block around the run, so both ends of a candidate run must be
+//! boundaries `keep_with_next` allows to become block boundaries.
+//!
 //! Enumerating all substrings is potentially quadratic, so the implementation cuts runs at unique
 //! instructions, hashes slices from prefix tables, and applies a module-wide candidate budget.
 //! Large modules shorten the maximum considered run rather than allowing unbounded compile time.
@@ -22,7 +25,7 @@
 use super::{
     EvmPass,
     compact_pushes::selected_len,
-    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound},
+    utils::{FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point},
 };
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, PushValue, Terminator, TerminatorKind},
@@ -92,7 +95,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
     let mut candidates = FxHashMap::<MachineInstSlice<'_>, SmallVec<[Site; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for start in 0..block.instructions.len() {
-            if !hashes.repeats(block_id, start) {
+            if !hashes.repeats(block_id, start) || !is_split_point(&block.instructions, start) {
                 continue;
             }
             let mut delta = 0i32;
@@ -123,7 +126,11 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 // before the shared stub's fixed overhead. A run no larger than that site can
                 // never save bytes regardless of its occurrence count, so do not intern it.
                 let can_amortize = run_size > 7 + inputs as usize;
-                if len >= MIN_MACHINE_RUN && can_amortize && (closed || open_size_run) {
+                if len >= MIN_MACHINE_RUN
+                    && can_amortize
+                    && (closed || open_size_run)
+                    && is_split_point(&block.instructions, end + 1)
+                {
                     let key = MachineInstSlice {
                         hash: hashes.range(block_id, start, end),
                         insts: &block.instructions[start..=end],
@@ -181,8 +188,10 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             continue;
         }
         let first = free[0];
-        let body =
+        let mut body =
             module.blocks[first.block].instructions[first.start..first.start + first.len].to_vec();
+        merge_site_source_spans(module, &mut body, &free);
+        clear_function_invokes(&mut body);
         let run_size = lower_bound(gcx, &body);
         let stub_size = 1 + run_size + usize::from(first.outputs) + 1;
         let site_size = (if free.len() >= 4 { 7 } else { 8 }) + usize::from(first.inputs);
@@ -225,9 +234,12 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
-            stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            stub.instructions.push(
+                Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped(),
+            );
         }
-        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
+        stub.terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
         stubs.push(module.add_block(stub));
     }
     let mut edits = OutlineEdits::default();
@@ -263,6 +275,9 @@ fn outline_parametric_machine_runs(
         FxHashMap::<ParamMachineInstSlice<'_>, SmallVec<[ParamSite; 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for start in 0..block.instructions.len() {
+            if !is_split_point(&block.instructions, start) {
+                continue;
+            }
             let mut delta = 0i32;
             let mut inputs = 0i32;
             let mut immediate_pushes = 0usize;
@@ -285,6 +300,7 @@ fn outline_parametric_machine_runs(
                     || !matches!(outputs, 0 | 1)
                     || immediate_pushes == 0
                     || immediate_pushes > MAX_PARAMETERS * 2
+                    || !is_split_point(&block.instructions, end + 1)
                 {
                     continue;
                 }
@@ -363,7 +379,10 @@ fn outline_parametric_machine_runs(
         if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
             continue;
         }
-        let Some(stub_body) = parameterize_body(first_body, &parameters) else { continue };
+        let mut merged_body = first_body.to_vec();
+        merge_param_site_source_spans(module, &mut merged_body, &free);
+        clear_function_invokes(&mut merged_body);
+        let Some(stub_body) = parameterize_body(&merged_body, &parameters) else { continue };
         let inline_size = free
             .iter()
             .map(|site| {
@@ -426,21 +445,25 @@ fn outline_parametric_machine_runs(
         let mut stub = Block::new(labels.next().expect("reserved one label per outline stub"));
         stub.instructions = group.body.clone();
         for depth in 1..=group.outputs {
-            stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            stub.instructions.push(
+                Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped(),
+            );
         }
-        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
+        stub.terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
         stubs.push(module.add_block(stub));
     }
     let mut edits = FxHashMap::<BlockId, SmallVec<[ParamEdit; 1]>>::default();
     for (group, stub) in chosen.into_iter().zip(stubs) {
         for site in group.sites {
             let source = &module.blocks[site.block].instructions;
-            let prefix = group
+            let mut prefix = group
                 .parameters
                 .iter()
                 .rev()
                 .map(|&index| source[site.start + index].clone())
-                .collect();
+                .collect::<Vec<_>>();
+            clear_function_invokes(&mut prefix);
             edits.entry(site.block).or_default().push(ParamEdit {
                 start: site.start,
                 len: site.len,
@@ -471,7 +494,9 @@ fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<I
                 return None;
             }
             for swap in 1..=depth {
-                result.push(Instruction::stack_op(op::StackOp::Swap(swap as u8)));
+                result.push(
+                    Instruction::stack_op(op::StackOp::Swap(swap as u8)).with_debug_info_dropped(),
+                );
             }
             delta += 1;
             continue;
@@ -515,6 +540,9 @@ fn split_parametric_outline_site(
     edit: &ParamEdit,
     continuation_label: u32,
 ) {
+    let function_invoke = range_function_invoke(
+        &module.blocks[block].instructions[edit.start..edit.start + edit.len],
+    );
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.instructions = module.blocks[block].instructions.split_off(edit.start + edit.len);
@@ -522,13 +550,19 @@ fn split_parametric_outline_site(
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     module.blocks[block].instructions.extend(edit.prefix.iter().cloned());
-    module.blocks[block].instructions.push(Instruction::push_block(continuation));
+    module.blocks[block]
+        .instructions
+        .push(Instruction::push_block(continuation).with_debug_info_dropped());
     for depth in (1..=edit.inputs).rev() {
         module.blocks[block]
             .instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
     }
-    module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(edit.stub)));
+    let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped();
+    if let Some(function) = function_invoke {
+        terminator.metadata.set_function_invoke(function);
+    }
+    module.blocks[block].terminator = Some(terminator);
 }
 
 fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState) -> bool {
@@ -538,6 +572,8 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             if inst.is_encoded_push()
                 && inst.deferred_push().is_none()
                 && inst.immutable_push().is_none()
+                && is_split_point(&block.instructions, index)
+                && is_split_point(&block.instructions, index + 1)
                 && let Some(PushValue::Immediate(value)) = &inst.value
             {
                 sites.entry(*value).or_default().push((block_id, index));
@@ -576,18 +612,61 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
 
     let mut edits = OutlineEdits::default();
     for (value, _) in values {
+        let occurrences = &sites[&value];
         let mut stub = Block::new(labels.next().expect("reserved one label per push stub"));
-        stub.instructions.push(Instruction::push_value(value));
-        stub.instructions.push(Instruction::stack_op(op::StackOp::Swap(1)));
-        stub.terminator = Some(Terminator::new(TerminatorKind::Op(op::JUMP)));
+        let mut push = Instruction::push_value(value).with_debug_info_dropped();
+        for &(block, index) in occurrences {
+            push.metadata.merge_source_spans(&module.blocks[block].instructions[index].metadata);
+        }
+        stub.instructions.push(push);
+        stub.instructions
+            .push(Instruction::stack_op(op::StackOp::Swap(1)).with_debug_info_dropped());
+        stub.terminator =
+            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
         let stub = module.add_block(stub);
-        for &(block, index) in &sites[&value] {
+        for &(block, index) in occurrences {
             edits.entry(block).or_default().push((index, 1, stub, 0));
         }
     }
     apply_outline_edits(module, edits, &mut labels);
     debug_assert!(labels.next().is_none());
     true
+}
+
+fn merge_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[Site]) {
+    for site in sites {
+        let instructions =
+            &module.blocks[site.block].instructions[site.start..site.start + site.len];
+        for (body_instruction, site_instruction) in body.iter_mut().zip(instructions) {
+            body_instruction.metadata.merge_source_spans(&site_instruction.metadata);
+        }
+    }
+}
+
+fn merge_param_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[ParamSite]) {
+    for site in sites {
+        let instructions =
+            &module.blocks[site.block].instructions[site.start..site.start + site.len];
+        for (body_instruction, site_instruction) in body.iter_mut().zip(instructions) {
+            body_instruction.metadata.merge_source_spans(&site_instruction.metadata);
+        }
+    }
+}
+
+fn clear_function_invokes(instructions: &mut [Instruction]) {
+    for instruction in instructions {
+        instruction.metadata.take_function_invoke();
+    }
+}
+
+fn range_function_invoke(
+    instructions: &[Instruction],
+) -> Option<crate::backend::evm::DebugFunction> {
+    let mut functions =
+        instructions.iter().filter_map(|instruction| instruction.metadata.function_invoke());
+    let function = functions.next();
+    debug_assert!(functions.all(|other| Some(other) == function));
+    function
 }
 
 fn apply_outline_edits(
@@ -622,19 +701,27 @@ fn split_outline_site(
     inputs: u16,
     continuation_label: u32,
 ) {
+    let function_invoke =
+        range_function_invoke(&module.blocks[block].instructions[start..start + len]);
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
-    module.blocks[block].instructions.push(Instruction::push_block(continuation));
+    module.blocks[block]
+        .instructions
+        .push(Instruction::push_block(continuation).with_debug_info_dropped());
     for depth in (1..=inputs).rev() {
         module.blocks[block]
             .instructions
-            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)));
+            .push(Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped());
     }
-    module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(stub)));
+    let mut terminator = Terminator::new(TerminatorKind::Jump(stub)).with_debug_info_dropped();
+    if let Some(function) = function_invoke {
+        terminator.metadata.set_function_invoke(function);
+    }
+    module.blocks[block].terminator = Some(terminator);
 }
 
 fn whitelisted_effect(inst: &Instruction) -> Option<(u16, u16, u16)> {

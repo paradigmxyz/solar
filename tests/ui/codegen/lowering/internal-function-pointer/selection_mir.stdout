@@ -9,7 +9,7 @@ fn @choose(arg0: bool, arg1: u256) -> u256 [selector=0xced8609d, abi_params=[boo
     jump bb3
   bb3:
     v0 = phi [bb1: 2], [bb2: 3]
-    v1 = internal_call @internal_dispatcher_p_u256_r_u256, 1, v0, arg1
+    v1 = icall @internal_dispatcher_p_u256_r_u256, 1, v0, arg1
     ret v1
 }
 
@@ -41,14 +41,14 @@ fn @decrement(arg0: u256) -> u256 [pure] {
 
 fn @callConstant(arg0: u256) -> u256 [selector=0x0560cf94, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @internal_dispatcher_p_u256_r_u256, 1, 2, arg0
+    v0 = icall @internal_dispatcher_p_u256_r_u256, 1, 2, arg0
     ret v0
 }
 
 fn @throughCast(arg0: u256) -> u256 [selector=0x090ff363, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @castViewToPure, 1, 7
-    v1 = internal_call @internal_dispatcher_p_u256_r_u256, 1, v0, arg0
+    v0 = icall @castViewToPure, 1, 7
+    v1 = icall @internal_dispatcher_p_u256_r_u256, 1, v0, arg0
     ret v1
 }
 
@@ -93,12 +93,12 @@ fn @internal_dispatcher_p_u256_r_u256(arg0: function, arg1: u256) -> u256 [funct
     mstore 4, 81 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v5 = internal_call @incrementView, 1, arg1
+    v5 = icall @incrementView, 1, arg1
     ret v5
   bb3:
-    v3 = internal_call @decrement, 1, arg1
+    v3 = icall @decrement, 1, arg1
     ret v3
   bb1:
-    v1 = internal_call @increment, 1, arg1
+    v1 = icall @increment, 1, arg1
     ret v1
 }

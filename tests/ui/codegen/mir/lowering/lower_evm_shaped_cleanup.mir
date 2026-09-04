@@ -13,7 +13,7 @@ fn @entry() {
 }
 fn @caller() {
   bb0:
-    internal_call fn2, 0
+    icall fn2, 0
     jump bb1
   bb1:
     v0 = add 1, 2

@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorInternalCall (creation) ===
-// === ConstructorInternalCall_deployment ===
-@module ConstructorInternalCall_deployment
+// === ROOT/tests/ui/codegen/lowering/constructor_internal_call.sol:ConstructorICall (creation) ===
+// === ConstructorICall_deployment ===
+@module ConstructorICall_deployment
 bb0:
   push 314
   codesize
@@ -203,8 +203,8 @@ bb11:
   push 0
   return
 
-// === ConstructorInternalCall_runtime ===
-@module ConstructorInternalCall_runtime
+// === ConstructorICall_runtime ===
+@module ConstructorICall_runtime
 bb0:
   callvalue
   push bb3

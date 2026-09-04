@@ -484,11 +484,11 @@ fn duplicates_known_zero(instructions: &[Instruction]) -> bool {
         return false;
     };
     let end = instructions.len() - 1;
-    let start = instructions[..end]
+    let floor = end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW);
+    let start = instructions[floor..end]
         .iter()
         .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
-        .map_or(end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW), |index| index + 1)
-        .max(end.saturating_sub(MAX_STACK_PEEPHOLE_WINDOW));
+        .map_or(floor, |index| floor + index + 1);
     if !instructions[start..end].iter().any(|inst| inst.concrete_immediate() == Some(U256::ZERO)) {
         return false;
     }
@@ -674,12 +674,12 @@ impl Edit {
                 materialize_immediate(instructions, evm_version, value);
             }
             Self::StackOp(stack_op) => {
-                instructions[start] = Instruction::stack_op(stack_op);
+                instructions[start] = Instruction::stack_op(stack_op).with_debug_info_dropped();
                 instructions.truncate(start + 1);
             }
             Self::StackOps(first, second) => {
-                instructions[start] = Instruction::stack_op(first);
-                instructions[start + 1] = Instruction::stack_op(second);
+                instructions[start] = Instruction::stack_op(first).with_debug_info_dropped();
+                instructions[start + 1] = Instruction::stack_op(second).with_debug_info_dropped();
                 instructions.truncate(start + 2);
             }
         }

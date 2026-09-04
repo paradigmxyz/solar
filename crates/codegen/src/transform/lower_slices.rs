@@ -61,7 +61,9 @@ fn slice_param_ptr_type(location: SliceLocation) -> MirType {
 
 /// Allocates a word-typed instruction and its result value, returning both.
 fn new_word_inst(func: &mut Function, kind: InstKind) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(kind, Some(MirType::uint256())))
+    func.alloc_value_inst(
+        Instruction::new(kind, Some(MirType::uint256())).with_debug_info_dropped(),
+    )
 }
 
 /// Allocates a `make_slice` instruction and its slice-typed result value.
@@ -71,10 +73,13 @@ fn new_slice_inst(
     len: ValueId,
     location: SliceLocation,
 ) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(
-        InstKind::MakeSlice { ptr, len, location },
-        Some(MirType::Slice(location)),
-    ))
+    func.alloc_value_inst(
+        Instruction::new(
+            InstKind::MakeSlice { ptr, len, location },
+            Some(MirType::Slice(location)),
+        )
+        .with_debug_info_dropped(),
+    )
 }
 
 fn split_slice_phis(
@@ -331,9 +336,7 @@ impl LowerSlices {
             builder.switch_to_block(block_id);
             for inst_id in instructions {
                 let call = match &builder.func().inst(inst_id).kind {
-                    InstKind::InternalCall { function, args, .. } => {
-                        Some((*function, args.to_vec()))
-                    }
+                    InstKind::ICall { function, args, .. } => Some((*function, args.to_vec())),
                     _ => None,
                 };
                 if let Some((callee, args)) = call
@@ -346,7 +349,7 @@ impl LowerSlices {
                             signature.get(ArgIdx::new(index)).copied().unwrap_or(ParamRepr::Word);
                         Self::expand_physical_value(&mut builder, arg, repr, &mut expanded);
                     }
-                    let InstKind::InternalCall { args, .. } =
+                    let InstKind::ICall { args, .. } =
                         &mut builder.func_mut().inst_mut(inst_id).kind
                     else {
                         unreachable!()
@@ -375,7 +378,7 @@ impl LowerSlices {
             for inst_id in instructions {
                 builder.func_mut().blocks[block_id].instructions.push(inst_id);
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
-                    InstKind::InternalCall { function, returns, .. } => {
+                    InstKind::ICall { function, returns, .. } => {
                         signatures.get(&function).and_then(|signature| {
                             (usize::try_from(returns).ok() == Some(signature.len()))
                                 .then(|| {
@@ -399,8 +402,7 @@ impl LowerSlices {
                 .expect("MIR return count fits in u32");
 
                 let instruction = builder.func_mut().inst_mut(inst_id);
-                let InstKind::InternalCall { returns: call_returns, .. } = &mut instruction.kind
-                else {
+                let InstKind::ICall { returns: call_returns, .. } = &mut instruction.kind else {
                     unreachable!()
                 };
                 changed |= *call_returns != returns;
@@ -682,7 +684,7 @@ impl LowerSlices {
             for (caller_id, caller) in module.functions.iter_enumerated() {
                 for inst_id in caller.instructions() {
                     let inst = caller.inst(inst_id);
-                    let InstKind::InternalCall { function: callee, args, .. } = &inst.kind else {
+                    let InstKind::ICall { function: callee, args, .. } = &inst.kind else {
                         continue;
                     };
                     for index in module.function(*callee).params.indices() {

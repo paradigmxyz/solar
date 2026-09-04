@@ -68,13 +68,13 @@ fn @giveInternal(arg0: bytes4) -> bytes4 [pure] {
 
 fn @viaInternal() -> bytes4 [selector=0xf1c8352f, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
-    v0 = internal_call @giveInternal, 1, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v0 = icall @giveInternal, 1, 0x1122334400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
 fn @viaLibrary() -> bytes4 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word<bytes4>]] {
   bb0:
-    v0 = internal_call @give, 1, 0x2122232400000000000000000000000000000000000000000000000000000000
+    v0 = icall @give, 1, 0x2122232400000000000000000000000000000000000000000000000000000000
     ret v0
 }
 
@@ -134,7 +134,7 @@ fn @bytesObjectCast() -> bytes4 [selector=0x3edbb59d, pure, abi_params=[], abi_r
 
 fn @returnedBytesObjectCast() -> u256 [selector=0x28a9d934, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @returnBytes, 2
+    v0 = icall @returnBytes, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = memory_object_load_element memoryfixedarray<2, 1>, v1, 1
     v3 = memory_object_load_element memorybytes, v2, 0

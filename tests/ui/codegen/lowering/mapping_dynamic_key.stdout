@@ -164,7 +164,7 @@ fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) [selector=0xf5
 
 fn @setSkey(arg0: memorybytes) [selector=0x7be4f4f1, abi_params=[bytes], abi_returns=[]] {
   bb0:
-    internal_call @store_storage_bytes, 0, 3, arg0
+    icall @store_storage_bytes, 0, 3, arg0
     stop
 }
 
@@ -282,7 +282,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

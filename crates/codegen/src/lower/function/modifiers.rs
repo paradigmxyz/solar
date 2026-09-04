@@ -160,19 +160,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(modifier.span, "base constructor body");
         };
         if modifier.args.len() != constructor.parameters.len() {
-            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
+            return self.cx.report_unsupported(modifier.span, "base constructor argument list");
         }
         let contract_id = constructor.contract;
-        let Some(values) = self.constructor_arguments.remove(&constructor_id) else {
-            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
-        };
-        if values.len() != constructor.parameters.len() {
-            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
+        // The parameters are already bound: `prepare_base_constructor_arguments`
+        // lowered every base's argument list into this frame and left the
+        // bindings live, so that an argument list which assigns to a parameter
+        // is visible to the body that owns it. Rebinding from the initially
+        // lowered arguments here would undo such an assignment.
+        if !self.prepared_constructors.remove(&constructor_id) {
+            return self.cx.report_unsupported(modifier.span, "base constructor argument list");
         }
         let saved_parameters = self.snapshot_bindings(constructor.parameters);
-        for (&parameter, value) in constructor.parameters.iter().zip(values) {
-            self.values.insert(parameter, value);
-        }
 
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();
@@ -199,13 +198,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(context) = self.modifiers.pop() else {
             return self.cx.report_unsupported(span, "modifier placeholder");
         };
+        self.builder.replace_modifier_depth(self.modifier_depth);
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         self.restore_bindings(&context.parameters);
         self.restore_bindings(&context.returns);
         self.push_return_target(continuation);
+        self.modifier_depth = self.modifier_depth.saturating_add(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
+        self.modifier_depth = self.modifier_depth.saturating_sub(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         result?;
         if !self.is_terminated() {
             self.record_return_state();
@@ -216,6 +220,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // bindings, in contrast, carry the selected body's result onward.
         self.restore_bindings(&context.parameters);
         self.modifiers.push(context);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         Some(())
     }
 }

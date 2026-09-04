@@ -6,7 +6,7 @@ LL │         addr.staticcall("");
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: typed catch clause requires Byzantium-compatible EVM
+error[1812]: typed catch clause requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/typeck/evm_version/byzantium.sol:LL:CC
    │
 LL │           } catch Error(string memory) {
@@ -17,7 +17,7 @@ LL │ ┃         } catch Panic(uint256) {
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: typed catch clause requires Byzantium-compatible EVM
+error[1812]: typed catch clause requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/typeck/evm_version/byzantium.sol:LL:CC
    │
 LL │           } catch Panic(uint256) {
@@ -28,13 +28,13 @@ LL │ ┃         } catch (bytes memory) {
    │
    ╰ help: compile with `--evm-version byzantium` or newer
 
-error: typed catch clause requires Byzantium-compatible EVM
+error[9908]: typed catch clause requires Byzantium-compatible EVM
    ╭▸ ROOT/tests/ui/typeck/evm_version/byzantium.sol:LL:CC
    │
 LL │           } catch (bytes memory) {
    │ ┏━━━━━━━━━━━┛
 LL │ ┃
-LL │ ┃         } catch {
+LL │ ┃         }
    │ ┗━━━━━━━━━┛
    │
    ╰ help: compile with `--evm-version byzantium` or newer

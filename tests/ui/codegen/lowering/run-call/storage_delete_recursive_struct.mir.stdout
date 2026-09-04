@@ -64,7 +64,7 @@ fn @clearNested() [selector=0xdcbc9943, abi_params=[], abi_returns=[word, word, 
     v44 = and 3, 0xffffffff
     v45 = or v43, v44
     sstore v27, v45 !metadata(storage=symbolic(v27))
-    internal_call @clear_recursive_storage_0, 0, 0
+    icall @clear_recursive_storage_0, 0, 0
     v46 = sload 0 !metadata(storage=slot(0))
     mstore 0, v46 !metadata(memory=scratch)
     v47 = add 0, 1
@@ -137,7 +137,7 @@ fn @clearMutual() [selector=0x5baf460d, abi_params=[], abi_returns=[word, word, 
     v30 = and 3, 0xffffffff
     v31 = or v29, v30
     sstore v13, v31 !metadata(storage=symbolic(v13))
-    internal_call @clear_recursive_storage_1, 0, 2
+    icall @clear_recursive_storage_1, 0, 2
     v32 = sload 2 !metadata(storage=slot(2))
     mstore 0, v32 !metadata(memory=scratch)
     v33 = add 2, 1
@@ -177,7 +177,7 @@ fn @clear_recursive_storage_0(arg0: u256) {
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
     v6 = add v4, v5
-    internal_call @clear_recursive_storage_0, 0, v6
+    icall @clear_recursive_storage_0, 0, v6
     v7 = add v2, 1
     jump bb1
 }
@@ -199,7 +199,7 @@ fn @clear_recursive_storage_1(arg0: u256) {
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
     v6 = add v4, v5
-    internal_call @clear_recursive_storage_2, 0, v6
+    icall @clear_recursive_storage_2, 0, v6
     v7 = add v2, 1
     jump bb1
 }
@@ -221,7 +221,7 @@ fn @clear_recursive_storage_2(arg0: u256) {
     v4 = storage_array_data_slot v0
     v5 = mul v2, 2
     v6 = add v4, v5
-    internal_call @clear_recursive_storage_1, 0, v6
+    icall @clear_recursive_storage_1, 0, v6
     v7 = add v2, 1
     jump bb1
 }

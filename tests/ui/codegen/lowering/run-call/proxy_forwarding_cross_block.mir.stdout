@@ -216,7 +216,7 @@ fn @fixedRange() -> u256 [selector=0x5d040bd2, abi_params=[], abi_returns=[word]
   bb13:
     ret 1
   bb12:
-    internal_call @revert_error, 0, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 5, 0x6669786564000000000000000000000000000000000000000000000000000000
     invalid
   bb5:
     revert 0, 0
@@ -309,7 +309,7 @@ fn @crossBlock() -> u256 [selector=0xb0694ed5, abi_params=[], abi_returns=[word]
   bb13:
     ret 1
   bb12:
-    internal_call @revert_error, 0, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
+    icall @revert_error, 0, 11, 0x63726f737320626c6f636b000000000000000000000000000000000000000000
     invalid
   bb5:
     revert 0, 0
@@ -378,13 +378,13 @@ fn @dynamicRevert() -> u256 [selector=0x5dbb0715, abi_params=[], abi_returns=[wo
   bb12:
     ret 1
   bb11:
-    internal_call @revert_error, 0, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 7, 0x7061796c6f616400000000000000000000000000000000000000000000000000
     invalid
   bb9:
-    internal_call @revert_error, 0, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 6, 0x6c656e6774680000000000000000000000000000000000000000000000000000
     invalid
   bb7:
-    internal_call @revert_error, 0, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 7, 0x7375636365737300000000000000000000000000000000000000000000000000
     invalid
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -461,7 +461,7 @@ fn @helper(arg0: u256) -> u256 [selector=0xdabf7ec4, pure, abi_params=[u256], ab
 
 fn @entry() -> u256 [selector=0x67f239dd, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @helper, 1, 42
+    v0 = icall @helper, 1, 42
     ret v0
 }
 
@@ -475,7 +475,7 @@ fn @buffer() -> u256 [pure] {
 
 fn @forward(arg0: address, arg1: calldataslice) -> bool [selector=0x6fadcf72, abi_params=[address, bytes], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @buffer, 1
+    v0 = icall @buffer, 1
     v1 = slice_len arg1
     v2 = slice_ptr arg1
     v3 = add v0, 64

@@ -3,7 +3,7 @@
   @module InlineTinyLeaves
   fn @tiny_caller(arg0: u256) -> u256 {
     bb0:
--     v0 = internal_call @tiny, 1, arg0
+-     v0 = icall @tiny, 1, arg0
 -     ret v0
 +     jump bb2
 +   bb2:
@@ -28,7 +28,7 @@
   
   fn @large_caller(arg0: u256) -> u256 {
     bb0:
--     v0 = internal_call @large, 1, arg0
+-     v0 = icall @large, 1, arg0
 -     ret v0
 +     jump bb2
 +   bb2:
@@ -55,7 +55,7 @@
   
   fn @storage_identity_caller(arg0: storageptr) -> storageptr {
     bb0:
--     v0 = internal_call @storage_identity, 1, arg0
+-     v0 = icall @storage_identity, 1, arg0
 -     ret v0
 +     jump bb2
 +   bb2:
@@ -72,7 +72,7 @@
   
   fn @decode_caller(arg0: memorybytes) -> memoryarray {
     bb0:
-      v0 = internal_call @decode_dynamic, 1, arg0
+      v0 = icall @decode_dynamic, 1, arg0
       ret v0
   }
   

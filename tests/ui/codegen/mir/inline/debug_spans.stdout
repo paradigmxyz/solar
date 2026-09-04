@@ -1,0 +1,22 @@
+- // === ROOT/tests/ui/codegen/mir/inline/debug_spans.mir (before inline) ===
++ // === ROOT/tests/ui/codegen/mir/inline/debug_spans.mir (after inline) ===
+  @module InlineDebugSpans
+  fn @caller(arg0: u256) -> u256 {
+    bb0:
+-     v0 = icall @callee, 1, arg0 !metadata(span=10..20)
+-     ret v0
++     jump bb2
++   bb2:
++     v1 = add arg0, 1 !metadata(span=100..110)
++     jump bb1
++   bb1:
++     v2 = phi [bb2: v1]
++     ret v2
+  }
+  
+  fn @callee(arg0: u256) -> u256 {
+    bb0:
+      v0 = add arg0, 1 !metadata(span=100..110)
+      ret v0
+  }
+  

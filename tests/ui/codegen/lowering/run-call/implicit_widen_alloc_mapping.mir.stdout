@@ -12,7 +12,7 @@ fn @injectSigned(arg0: u256) -> i8 [pure] {
 
 fn @newLength(arg0: u256) -> u256 [selector=0x09661d83, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @inject, 1, arg0
+    v0 = icall @inject, 1, arg0
     v1 = and v0, 255
     v2 = mul v1, 1
     v3 = iszero 1
@@ -46,7 +46,7 @@ fn @newLength(arg0: u256) -> u256 [selector=0x09661d83, pure, abi_params=[u256],
 
 fn @newBytesLength(arg0: u256) -> u256 [selector=0x4f901bea, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @inject, 1, arg0
+    v0 = icall @inject, 1, arg0
     v1 = and v0, 255
     v2 = add v1, 63
     v3 = lt v2, v1
@@ -68,7 +68,7 @@ fn @mappingKey(arg0: u256) -> u256 [selector=0xaf28bd9d, abi_params=[u256], abi_
   bb0:
     v0 = mapping_slot 1, 0
     sstore v0, 7 !metadata(storage=symbolic(v0))
-    v1 = internal_call @inject, 1, arg0
+    v1 = icall @inject, 1, arg0
     v2 = and v1, 255
     v3 = mapping_slot v2, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
@@ -80,7 +80,7 @@ fn @signedMappingKey(arg0: u256) -> u256 [selector=0x6962ed4e, abi_params=[u256]
     v0 = sub 0, 1
     v1 = mapping_slot v0, 1
     sstore v1, 7 !metadata(storage=symbolic(v1))
-    v2 = internal_call @injectSigned, 1, arg0
+    v2 = icall @injectSigned, 1, arg0
     v3 = signextend 0, v2
     v4 = mapping_slot v3, 1
     v5 = sload v4 !metadata(storage=symbolic(v4))

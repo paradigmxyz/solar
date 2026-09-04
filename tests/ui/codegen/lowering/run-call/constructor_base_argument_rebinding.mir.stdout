@@ -1,0 +1,57 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_rebinding.sol:ScalarRebind ===
+@module ScalarRebind
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    sstore 0, 7 !metadata(storage=slot(0))
+    jump bb1
+  bb1:
+    sstore 1, 7 !metadata(storage=slot(1))
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb4
+  bb4:
+    stop
+}
+
+fn @b() -> u256 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @a() -> u256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_rebinding.sol:StorageRebind ===
+@module StorageRebind
+fn @constructor() [constructor] {
+  bb0:
+    sstore 1, 1 !metadata(storage=slot(1))
+    jump bb1
+  bb1:
+    sstore 1, 2 !metadata(storage=slot(1))
+    jump bb3
+  bb3:
+    jump bb2
+  bb2:
+    jump bb4
+  bb4:
+    stop
+}
+
+fn @first() -> u256 [selector=0x3df4ddf4, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @second() -> u256 [selector=0x5a8ac02d, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}

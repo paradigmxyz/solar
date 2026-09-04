@@ -56,6 +56,9 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) shared_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
+    /// Whether the compilation had already failed when the code generation
+    /// phase started.
+    pub(super) sema_errored: bool,
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
@@ -72,10 +75,20 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
+            sema_errored: self.sema_errored,
         }
     }
 
+    /// Reports a lowering bail-out and returns `None`.
+    ///
+    /// A bail-out is only worth reporting when the compilation would otherwise
+    /// succeed. After a sema error the bytecode is withheld anyway, and the
+    /// construct that lowering cannot handle is usually the rejected one, so
+    /// reporting it adds a second, misleading error.
     pub(super) fn report_unsupported<T>(&self, span: Span, what: &str) -> Option<T> {
+        if self.sema_errored {
+            return None;
+        }
         self.gcx
             .dcx()
             .err(format!("codegen rewrite does not support this {what} yet"))
@@ -219,13 +232,48 @@ struct FunctionLowerer<'gcx, 'ctx> {
     storage_refs: FxHashMap<VariableId, StorageAccess>,
     parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
-    constructor_arguments: FxHashMap<hir::FunctionId, Vec<ValueId>>,
+    prepared_constructors: FxHashSet<hir::FunctionId>,
+    /// The base constructor argument list chosen for each base of the contract
+    /// being constructed, in evaluation order.
+    base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>)>,
     loops: Vec<LoopTargets>,
     modifiers: Vec<ModifierContext<'gcx>>,
+    modifier_depth: u32,
     return_targets: Vec<ReturnTarget>,
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
+    /// The expressions being lowered whose values nothing observes: a discarded expression
+    /// statement, and the tuple declaration and assignment components that have no target.
+    ///
+    /// Lowering an expression that has to read storage to produce its value can skip the read
+    /// here. Only the discarded expression itself and the tuple components and conditional
+    /// branches that just hand their value up to it qualify: every other subexpression feeds the
+    /// value it belongs to.
+    discarded_exprs: Vec<hir::ExprId>,
+}
+
+/// The lowered `{gas: ..., value: ...}` options of an external call.
+#[derive(Clone, Copy)]
+struct LoweredCallOptions {
+    /// The `gas` operand, or `None` when the call forwards the gas left on a target that predates
+    /// EIP-150.
+    ///
+    /// Such a target aborts a call whose gas argument exceeds the gas left, so the operand has to
+    /// withhold the call's own costs and only [`FunctionLowerer::call_gas`] materializes it,
+    /// immediately before the call. Every other case is materialized here: an explicit
+    /// `{gas: ...}` because its expression must run in source order, and `gas()` because
+    /// EIP-150 caps the forwarded gas anyway.
+    gas: Option<ValueId>,
+    /// The `value` operand, zero when the call sends no value.
+    value: ValueId,
+    /// Whether the call has an explicit `{value: ...}` option.
+    ///
+    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, like
+    /// solc's `valueSet`, because the amount is not known to be zero.
+    value_set: bool,
+    /// A zero immediate, reusable by the caller.
+    zero: ValueId,
 }
 
 #[derive(Clone, Copy)]
@@ -297,8 +345,6 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-    StorageByte { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
-    StorageBytePush { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
 }
 
 #[derive(Clone, Copy)]
@@ -408,13 +454,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             storage_refs: FxHashMap::default(),
             parameters: Vec::new(),
             returns: Vec::new(),
-            constructor_arguments: FxHashMap::default(),
+            prepared_constructors: FxHashSet::default(),
+            base_args: Vec::new(),
             loops: Vec::new(),
             modifiers: Vec::new(),
+            modifier_depth: 0,
             return_targets: Vec::new(),
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
+            discarded_exprs: Vec::new(),
         }
     }
 
@@ -513,7 +562,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values[index] = Some(lower(self, index, argument)?);
             }
         }
-        Some(values.into_iter().map(|value| value.expect("argument lowered")).collect())
+        // A slot stays unfilled only when the argument list does not bind every
+        // parameter, which sema reports; codegen still runs after a sema error,
+        // so bail out instead of lowering a partially bound call.
+        values.into_iter().collect()
     }
 
     fn lower_call_options(
@@ -521,28 +573,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         options: Option<&hir::CallOptions<'_>>,
         allow_value: bool,
         diagnostic: &'static str,
-    ) -> Option<(ValueId, ValueId, ValueId)> {
+    ) -> Option<LoweredCallOptions> {
         // zero = 0
-        // gas = gas()
+        // gas = gas() if can_overcharge_gas_for_call
         // value = zero
         // for option { gas/value = lower(option.value) }
         let zero = self.builder.imm(U256::ZERO);
-        let mut gas = self.builder.gas();
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
+        let mut gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         let mut value = zero;
+        let mut value_set = false;
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
                     self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
                 match option.name.name {
-                    kw::Gas => gas = option_value,
-                    sym::value if allow_value => value = option_value,
+                    kw::Gas => gas = Some(option_value),
+                    sym::value if allow_value => {
+                        value = option_value;
+                        value_set = true;
+                    }
                     _ => {
                         return self.cx.report_unsupported(option.name.span, diagnostic);
                     }
                 }
             }
         }
-        Some((gas, value, zero))
+        Some(LoweredCallOptions { gas, value, value_set, zero })
     }
 
     fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {
@@ -550,7 +607,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.validate_enum_value(self.cx.gcx.hir.enumm(id).variants.len() as u64, value);
     }
 
+    /// Asserts that type checking registered a type for an operator expression.
+    ///
+    /// `binary` and `unary` derive the [`ArithmeticKind`] from this type, and a missing type
+    /// silently drops the overflow check instead of wrapping or panicking, so the type must be
+    /// present whenever the expression is well-formed.
+    #[track_caller]
+    fn assert_operand_ty_registered(&self, expr: &hir::Expr<'_>) {
+        debug_assert!(
+            self.cx.gcx.type_of_expr(expr.id).is_some() || self.cx.gcx.dcx().has_errors().is_err(),
+            "operator expression has no registered type: {:?}",
+            expr.span
+        );
+    }
+
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        let previous = self.builder.replace_source_span(expr.span);
+        let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
+        let result = self.lower_expr_inner(expr);
+        self.builder.replace_modifier_depth(previous_modifier_depth);
+        self.builder.replace_source_span(previous);
+        result
+    }
+
+    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         // value = const_eval(expr)
         if int_literal_expr_contains_wide(self.cx.gcx, expr).is_some_and(|wide| wide)
             && let Ok(value) = self.cx.gcx.try_eval_const(expr)
@@ -583,6 +663,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             ExprKind::Binary(lhs, op, rhs) => {
+                self.assert_operand_ty_registered(expr);
                 if matches!(op.kind, BinOpKind::And | BinOpKind::Or) {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
@@ -672,6 +753,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.builder.imm(U256::ZERO))
             }
             ExprKind::Unary(op, value) => {
+                self.assert_operand_ty_registered(expr);
                 if matches!(
                     op.kind,
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
@@ -876,7 +958,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
 
             // for target {
             //     if function_id == target {
-            //         results = internal_call(target, arguments)
+            //         results = icall(target, arguments)
             //         return results
             //     }
             // }
@@ -904,10 +986,10 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
-                    builder.internal_call_void(mir_id, call_arguments, 0);
+                    builder.icall_void(mir_id, call_arguments, 0);
                     builder.ret([]);
                 } else {
-                    let result = builder.internal_call(
+                    let result = builder.icall(
                         mir_id,
                         call_arguments,
                         shape.returns[0],

@@ -229,6 +229,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
+        let tracks_debug_info = module.iter_functions().any(|(_, func)| {
+            func.instructions().any(|inst| {
+                let metadata = &func.inst(inst).metadata;
+                metadata.source_span().is_some() || metadata.modifier_depth() != 0
+            })
+        });
+        if tracks_debug_info {
+            module.set_debug_info_tracked(true);
+            for function_id in module.functions.indices() {
+                let function = &mut module.functions[function_id];
+                let instructions = function.instructions().collect::<Vec<_>>();
+                for instruction in instructions {
+                    let metadata = &mut function.inst_mut(instruction).metadata;
+                    if !metadata.debug_info_is_handled() {
+                        metadata.mark_debug_info_dropped();
+                    }
+                }
+            }
+        }
         Ok(module)
     }
 
@@ -307,8 +326,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 FunctionRefTarget::Instruction(inst) => {
                     let result_ty = module.functions[*function].returns.first().copied();
                     let instruction = module.functions[owner].inst_mut(inst);
-                    let InstKind::InternalCall { function: target, returns, .. } =
-                        &mut instruction.kind
+                    let InstKind::ICall { function: target, returns, .. } = &mut instruction.kind
                     else {
                         unreachable!()
                     };
@@ -1241,8 +1259,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::span => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let (lo, hi) = self.parse_span_bounds()?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
                     metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
+                }
+                sym::modifier_depth => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let value = self.parser.parse_uint()?;
+                    metadata.set_modifier_depth(self.u256_to_u32(value)?);
                 }
                 _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
             }
@@ -1255,39 +1278,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         Ok(metadata)
-    }
-
-    fn parse_span_bounds(&mut self) -> PResult<'sess, (u32, u32)> {
-        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            && let Some(lo) = symbol.as_str().strip_suffix('.')
-        {
-            let lo = lo.parse().map_err(|_| self.parser.error("invalid span start"))?;
-            self.parser.bump();
-            let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            else {
-                return Err(self.parser.error("expected span end"));
-            };
-            let Some(hi) = symbol.as_str().strip_prefix('.') else {
-                return Err(self.parser.error("expected span end"));
-            };
-            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
-            self.parser.bump();
-            return Ok((lo, hi));
-        }
-
-        let lo = self.parser.parse_uint()?;
-        let lo = self.u256_to_u32(lo)?;
-        self.parser.expect(TokenKind::Dot)?;
-        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            && let Some(hi) = symbol.as_str().strip_prefix('.')
-        {
-            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
-            self.parser.bump();
-            return Ok((lo, hi));
-        }
-        self.parser.expect(TokenKind::Dot)?;
-        let hi = self.parser.parse_uint()?;
-        Ok((lo, self.u256_to_u32(hi)?))
     }
 
     fn parse_storage_alias(
@@ -1354,7 +1344,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::transient_write => EffectKind::TransientWrite,
             sym::environment_read => EffectKind::EnvironmentRead,
             sym::external_call => EffectKind::ExternalCall,
-            sym::internal_call => EffectKind::InternalCall,
+            sym::icall => EffectKind::ICall,
             kw::Create => EffectKind::Create,
             sym::log => EffectKind::Log,
             sym::immutable_read => EffectKind::ImmutableRead,
@@ -1782,7 +1772,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let pending_call = matches!(
                     builder.func().value(data),
                     Value::Inst(inst)
-                        if matches!(builder.func().inst(*inst).kind, InstKind::InternalCall { .. })
+                        if matches!(builder.func().inst(*inst).kind, InstKind::ICall { .. })
                 );
                 if !matches!(data_ty, Some(MirType::MemoryObject(MemoryObjectKind::Bytes)))
                     && !(data_ty == Some(MirType::MemPtr)
@@ -1942,7 +1932,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 => MirType::uint256()),
             kw::Extstaticcall => struct_inst!(ExtStaticCall { addr, args_offset, args_size }
                 => MirType::uint256()),
-            sym::internal_call => {
+            sym::icall => {
                 let function = self.parse_function_id()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let returns = self.parser.parse_uint()?.to::<u32>();
@@ -1951,7 +1941,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     args.push(self.parse_value(builder)?);
                 }
                 let result_ty = (returns > 0).then(MirType::uint256);
-                (InstKind::InternalCall { function, args: args.into(), returns }, result_ty)
+                (InstKind::ICall { function, args: args.into(), returns }, result_ty)
             }
             sym::internal_frame_addr => {
                 let offset = self.parser.parse_uint()?.to::<u64>();

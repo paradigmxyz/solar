@@ -1,0 +1,21 @@
+//@ filecheck:
+// CHECK: "sourceMap":
+// CHECK-SAME: :0
+// CHECK-SAME: :1
+// CHECK-SAME: :2
+{
+  "language": "Solidity",
+  "sources": {
+    "Modifier.sol": {
+      "content": "pragma solidity ^0.8.0; contract Modifier { uint256 public value; modifier outer() { value = 3; _; value = 4; } modifier guarded(uint256 next) { require(next != 0); value = 1; _; value = next; } function set(uint256 next) external outer guarded(next) { value = next; } }"
+    }
+  },
+  "settings": {
+    "optimizer": { "enabled": false },
+    "outputSelection": {
+      "*": {
+        "*": ["evm.deployedBytecode.sourceMap"]
+      }
+    }
+  }
+}

@@ -34,7 +34,7 @@ fn @storageIndex(arg0: u256) -> u256 [selector=0xe1f98cd0, abi_params=[u256], ab
     v14 = add v13, v10
     sstore v14, 3 !metadata(storage=symbolic(v14))
     sstore 0, v11 !metadata(storage=slot(0))
-    v15 = internal_call @inject, 1, arg0
+    v15 = icall @inject, 1, arg0
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = lt v15, v16
     v18 = iszero v17

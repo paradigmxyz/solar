@@ -85,7 +85,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // value = load_storage(member_slot)
             return self.load_storage_access(expr, access);
         }
-        if name.name == sym::length {
+        // A declaration named `length` wins over the builtin member, the way
+        // name resolution bound it: `enum E { length }` has `E.length`.
+        if name.name == sym::length
+            && self.cx.gcx.resolved_expr(expr).and_then(|resolved| resolved.as_variable()).is_none()
+        {
             let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
             if matches!(
                 receiver_ty.peel_refs().kind,
@@ -187,9 +191,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(self.builder.sload(access.slot))
                     }
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                        // length = load_storage_bytes(slot).len
-                        let object = self.load_storage_bytes(access.slot);
-                        Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                        // length = storage_bytes_length(slot)
+                        Some(self.storage_bytes_length(access.slot))
                     }
                     _ => self.cx.report_unsupported(span, what),
                 };

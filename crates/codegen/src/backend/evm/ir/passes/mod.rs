@@ -188,6 +188,7 @@ fn run_passes_inner(
         }
 
         if enabled {
+            assert_debug_info_handled(module, pass_name, "before");
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = pass.run_pass(gcx, module);
@@ -199,6 +200,7 @@ fn run_passes_inner(
             if validate_each && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
             }
+            assert_debug_info_handled(module, pass_name, "after");
         }
 
         if let Some(before) = before {
@@ -216,6 +218,28 @@ fn validate_module_after_pass(module: &Module, pass_name: &str) {
     super::verify::Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module_shape(module);
     if dcx.has_errors().is_err() {
         panic!("EVM IR validation failed after `{pass_name}`");
+    }
+}
+
+fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
+    if !module.debug_info_is_tracked() {
+        return;
+    }
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        for (index, inst) in block.instructions.iter().enumerate() {
+            debug_assert!(
+                inst.metadata.debug_info_is_handled(),
+                "EVM IR debug information is unclassified {when} `{pass_name}` at bb{}, instruction {index}",
+                block_id.index(),
+            );
+        }
+        if let Some(term) = &block.terminator {
+            debug_assert!(
+                term.metadata.debug_info_is_handled(),
+                "EVM IR terminator debug information is unclassified {when} `{pass_name}` at bb{}",
+                block_id.index(),
+            );
+        }
     }
 }
 

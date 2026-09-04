@@ -40,8 +40,8 @@ fn @build() -> memoryfixedarray [pure] {
 
 fn @sumSecond() -> u256 [selector=0xee09deba, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @build, 1
-    v1 = internal_call @sumElement1, 1, v0
+    v0 = icall @build, 1
+    v1 = icall @sumElement1, 1, v0
     ret v1
 }
 
@@ -108,7 +108,7 @@ fn @sumElement1(arg0: memoryfixedarray) -> u256 [pure] {
 
 fn @twoAsserts() -> u256 [selector=0xb2d66aee, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @build, 1
+    v0 = icall @build, 1
     v1 = lt 0, 2
     v2 = iszero v1
     jumpi v2, bb1, bb2

@@ -2,8 +2,8 @@
 @module ConstructorModifierBase
 fn @constructor() [constructor] {
   bb0:
-    internal_call @f2, 0
-    internal_call @f1, 0
+    icall @f2, 0
+    icall @f1, 0
     jump bb2
   bb2:
     jump bb1
@@ -13,7 +13,7 @@ fn @constructor() [constructor] {
 
 fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @f3, 0
+    icall @f3, 0
     jumpi 0, bb2, bb3
   bb3:
     jump bb4
@@ -69,7 +69,7 @@ fn @f4() [selector=0xc3f90202, abi_params=[], abi_returns=[]] {
 
 fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @f3, 0
+    icall @f3, 0
     jumpi 0, bb2, bb3
   bb3:
     jump bb4
@@ -102,8 +102,8 @@ fn @getData() -> u256 [selector=0x3bc5de30, view, abi_params=[], abi_returns=[wo
 
 fn @constructor() [constructor] {
   bb0:
-    internal_call @f4, 0
-    internal_call @f1, 0
+    icall @f4, 0
+    icall @f1, 0
     jump bb3
   bb3:
     jump bb2

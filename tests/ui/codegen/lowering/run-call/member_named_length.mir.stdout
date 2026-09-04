@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/member_named_length.sol:MemberNamedLength ===
+@module MemberNamedLength
+fn @variant() -> u256 [selector=0x05bc64eb, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 2
+}
+
+fn @field() -> u256 [selector=0x4f28bf0e, abi_params=[], abi_returns=[word]] {
+  bb0:
+    sstore 1, 9 !metadata(storage=slot(1))
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+fn @arrayLength() -> u256 [selector=0xe554482e, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 7 !metadata(storage=symbolic(v4))
+    sstore 0, v1 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -51,7 +51,7 @@ fn @f() -> (u256, storageptr) [view] {
 
 fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @f, 2
+    v0 = icall @f, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -86,7 +86,7 @@ fn @test_g() -> (u256, u256) [selector=0xc51b800f, abi_params=[], abi_returns=[w
 
 fn @test_h() -> u256 [selector=0xeafd81e0, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @f, 2
+    v0 = icall @f, 2
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2

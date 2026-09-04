@@ -33,7 +33,7 @@ fn @f2(arg0: u256) -> u256 [selector=0xbf3724af, abi_params=[u256], abi_returns=
     v0 = address
     v1 = shl 32, v0
     v2 = or v1, 0x7cf5dab0
-    v3 = internal_call @eval, 1, v2, arg0
+    v3 = icall @eval, 1, v2, arg0
     ret v3
 }
 

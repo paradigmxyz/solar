@@ -18,9 +18,9 @@ fn @getCanary() -> storageptr [pure] {
 
 fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
-    v0 = internal_call @getCanary, 1
+    v0 = icall @getCanary, 1
     sstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=symbolic(v0))
-    v1 = internal_call @getBoundaryArray, 1
+    v1 = icall @getBoundaryArray, 1
     jump bb1
   bb1:
     v2 = phi [bb0: 0], [bb19: v2]
@@ -33,7 +33,7 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
   bb5:
     jump bb2
   bb2:
-    v88 = internal_call @getDest, 1
+    v88 = icall @getDest, 1
     v89 = lt 0, 1
     v90 = iszero v89
     jumpi v90, bb16, bb20

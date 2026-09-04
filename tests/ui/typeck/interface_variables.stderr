@@ -1,0 +1,32 @@
+error[8274]: variables cannot be declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_variables.sol:LL:CC
+   │
+LL │     uint a;
+   ╰╴    ━━━━━━━
+
+error[8274]: variables cannot be declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_variables.sol:LL:CC
+   │
+LL │     uint256 internal_;
+   ╰╴    ━━━━━━━━━━━━━━━━━━
+
+error[8274]: variables cannot be declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_variables.sol:LL:CC
+   │
+LL │     uint256 public x;
+   ╰╴    ━━━━━━━━━━━━━━━━━
+
+error[8274]: variables cannot be declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_variables.sol:LL:CC
+   │
+LL │     uint256 constant CST = 1;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[8274]: variables cannot be declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_variables.sol:LL:CC
+   │
+LL │     uint256 immutable IMM = 2;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

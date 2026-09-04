@@ -9,6 +9,7 @@ use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
+use solar_interface::Span;
 
 /// Solidity's built-in `Panic(uint256)` error codes.
 #[repr(u8)]
@@ -92,6 +93,10 @@ pub(crate) struct FunctionBuilder<'a> {
     current_block: BlockId,
     /// Revert blocks shared within this function.
     revert_blocks: RevertBlocks,
+    /// Source span attached to instructions emitted in the current lowering scope.
+    current_source_span: Span,
+    /// Legacy source-map modifier nesting depth attached to new instructions.
+    current_modifier_depth: u32,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -111,7 +116,23 @@ impl CountedLoop {
 impl<'a> FunctionBuilder<'a> {
     /// Creates a new function builder.
     pub(crate) fn new(func: &'a mut Function) -> Self {
-        Self { func, current_block: BlockId::ENTRY, revert_blocks: RevertBlocks::default() }
+        Self {
+            func,
+            current_block: BlockId::ENTRY,
+            revert_blocks: RevertBlocks::default(),
+            current_source_span: Span::DUMMY,
+            current_modifier_depth: 0,
+        }
+    }
+
+    /// Replaces the source span attached to newly emitted instructions.
+    pub(crate) fn replace_source_span(&mut self, span: Span) -> Span {
+        std::mem::replace(&mut self.current_source_span, span)
+    }
+
+    /// Replaces the modifier nesting depth attached to newly emitted instructions.
+    pub(crate) fn replace_modifier_depth(&mut self, depth: u32) -> u32 {
+        std::mem::replace(&mut self.current_modifier_depth, depth)
     }
 
     /// Returns the current block.
@@ -363,6 +384,8 @@ impl<'a> FunctionBuilder<'a> {
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
         inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
+        inst.metadata.set_debug_source_span(Some(self.current_source_span));
+        inst.metadata.set_modifier_depth(self.current_modifier_depth);
         inst
     }
 
@@ -883,24 +906,6 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_void_inst(InstKind::MemoryObjectCopyFromSliceAt { object, kind, offset, source });
     }
 
-    /// Copies a byte range between two dynamic memory objects.
-    pub(crate) fn memory_object_copy(
-        &mut self,
-        destination: ValueId,
-        destination_kind: crate::mir::MemoryObjectKind,
-        source: ValueId,
-        source_kind: crate::mir::MemoryObjectKind,
-        length: ValueId,
-    ) {
-        self.emit_void_inst(InstKind::MemoryObjectCopy {
-            destination,
-            destination_kind,
-            source,
-            source_kind,
-            length,
-        });
-    }
-
     fn alloc_kind(
         &mut self,
         size: ValueId,
@@ -1153,7 +1158,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an internal function call.
-    pub(crate) fn internal_call(
+    pub(crate) fn icall(
         &mut self,
         function: FunctionId,
         args: Vec<ValueId>,
@@ -1161,21 +1166,13 @@ impl<'a> FunctionBuilder<'a> {
         returns: usize,
     ) -> ValueId {
         let returns = u32::try_from(returns).expect("too many internal call return values");
-        self.emit_inst(
-            InstKind::InternalCall { function, args: args.into(), returns },
-            Some(result_ty),
-        )
+        self.emit_inst(InstKind::ICall { function, args: args.into(), returns }, Some(result_ty))
     }
 
     /// Emits an internal function call whose result, if any, is not used as a value.
-    pub(crate) fn internal_call_void(
-        &mut self,
-        function: FunctionId,
-        args: Vec<ValueId>,
-        returns: usize,
-    ) {
+    pub(crate) fn icall_void(&mut self, function: FunctionId, args: Vec<ValueId>, returns: usize) {
         let returns = u32::try_from(returns).expect("too many internal call return values");
-        self.emit_void_inst(InstKind::InternalCall { function, args: args.into(), returns });
+        self.emit_void_inst(InstKind::ICall { function, args: args.into(), returns });
     }
 
     /// Emits an address inside the current internal-call frame.

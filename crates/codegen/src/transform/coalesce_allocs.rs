@@ -162,7 +162,7 @@ fn preserves_group(func: &Function, inst_id: InstId) -> bool {
             _ => false,
         },
         EffectKind::ExternalCall
-        | EffectKind::InternalCall
+        | EffectKind::ICall
         | EffectKind::Create
         | EffectKind::Log
         | EffectKind::ImmutableRead

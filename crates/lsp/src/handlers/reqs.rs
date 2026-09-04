@@ -139,13 +139,19 @@ pub(crate) fn selection_range(
 
     async move {
         let (vfs_path, path, positions) = request?;
-        let source =
-            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let ranges = tokio::task::spawn_blocking(move || {
-            crate::selection_range::selection_ranges(source, &positions)
-        })
-        .await
-        .map_err(selection_range_task_failed)?
+        let open_source = { vfs.read().get_file_selection_range_source(&vfs_path) };
+        let ranges = if let Some(source) = open_source {
+            tokio::task::spawn_blocking(move || source.selection_ranges(&positions))
+                .await
+                .map_err(selection_range_task_failed)?
+        } else {
+            let source = tokio::fs::read_to_string(path).await.map_err(document_read_failed)?;
+            tokio::task::spawn_blocking(move || {
+                crate::selection_range::selection_ranges(source, &positions)
+            })
+            .await
+            .map_err(selection_range_task_failed)?
+        }
         .ok_or_else(|| {
             ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid selection range position")
         })?;

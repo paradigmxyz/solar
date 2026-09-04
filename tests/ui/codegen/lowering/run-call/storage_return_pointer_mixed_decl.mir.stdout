@@ -8,7 +8,7 @@ fn @g() -> (u256, storageptr, u256) {
 
 fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb0:
-    v0 = internal_call @g, 3
+    v0 = icall @g, 3
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -39,7 +39,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb8:
     jump bb9
   bb9:
-    v15 = internal_call @g, 3
+    v15 = icall @g, 3
     v16 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v17 = add v16, 32
     v18 = mload v17
@@ -52,7 +52,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb11:
     jump bb12
   bb12:
-    v24 = internal_call @g, 3
+    v24 = icall @g, 3
     v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v26 = add v25, 32
     v27 = mload v26
@@ -64,7 +64,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb14:
     jump bb15
   bb15:
-    v32 = internal_call @g, 3
+    v32 = icall @g, 3
     v33 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v34 = add v33, 32
     v35 = mload v34

@@ -108,7 +108,7 @@ contract CheckedArithmeticPanic {
     }
 
     // CHECK-LABEL: fn @unchecked_call{{[( ]}}
-    // CHECK: internal_call @checked_inner, 1, arg0, arg1
+    // CHECK: icall @checked_inner, 1, arg0, arg1
     function unchecked_call(uint256 a, uint256 b) public pure returns (uint256) {
         unchecked {
             return checked_inner(a, b);

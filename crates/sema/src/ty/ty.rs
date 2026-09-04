@@ -302,6 +302,15 @@ impl<'gcx> Ty<'gcx> {
         .is_break()
     }
 
+    /// Returns `true` if the type takes a data location.
+    ///
+    /// This is solc's `hasReferenceOrMappingType`, which every data-location rule is written
+    /// against. The mapping half is redundant, since a reference type is anything that can
+    /// contain a mapping, but it keeps the predicate recognizable against the upstream rules.
+    pub fn has_reference_or_mapping_type(self, gcx: Gcx<'gcx>) -> bool {
+        self.is_reference_type() || self.has_mapping(gcx)
+    }
+
     /// Returns `true` if this type contains a library contract type.
     pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
         self.visit_with_structs(gcx, &mut |ty| match ty.kind {
@@ -542,14 +551,30 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
+    /// Returns `true` if the type crosses an ABI boundary as its storage slot number, as solc's
+    /// `ArrayType::encodingType`, `StructType::encodingType` and `MappingType::encodingType`.
+    ///
+    /// Such a value is a single static word in both directions, so it is neither dynamically
+    /// encoded nor encoded from memory.
+    pub fn encodes_as_slot(self) -> bool {
+        self.is_ref_at(DataLocation::Storage)
+            || matches!(self.peel_refs().kind, TyKind::Mapping(..))
+    }
+
+    /// Returns `true` if the type's ABI encoding carries a tail, as solc's
+    /// `Type::isDynamicallyEncoded`.
+    ///
+    /// Only the encoded type matters, so references are looked through: a struct's own fields and
+    /// an array's element type are reference types wherever they are aggregates themselves.
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
-        match self.kind {
+        let this = self.peel_refs();
+        match this.kind {
             TyKind::Struct(id) => {
-                self.is_recursive(gcx)
+                this.is_recursive(gcx)
                     || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
-            _ => self.is_dynamically_sized(),
+            _ => this.is_dynamically_sized(),
         }
     }
 
@@ -876,6 +901,29 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
+    /// Returns `true` if a value of this type can be copied into a direct storage value of the
+    /// given type.
+    ///
+    /// A copy into storage happens element-wise, so it only requires the element types to be
+    /// implicitly convertible, and a fixed-size array may be shorter than its destination. This
+    /// is less restrictive than a reference conversion, which cannot change the element type.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/ast/Types.cpp#L1637-L1645>
+    pub fn can_copy_to_storage_value(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        let from = self.peel_refs();
+        let to = other.peel_refs();
+        match (from.kind, to.kind) {
+            (TyKind::DynArray(from), TyKind::DynArray(to))
+            | (TyKind::Array(from, _), TyKind::DynArray(to)) => {
+                from.can_copy_to_storage_value(to, gcx)
+            }
+            (TyKind::Array(from, from_len), TyKind::Array(to, to_len)) => {
+                from_len <= to_len && from.can_copy_to_storage_value(to, gcx)
+            }
+            _ => from.convert_implicit_to(to, gcx),
+        }
+    }
+
     /// Returns `true` if the type is explicitly convertible to the given type.
     ///
     /// Prefer using [`Ty::try_convert_explicit_to`] if you need to handle the error case.
@@ -1088,9 +1136,10 @@ impl<'gcx> Ty<'gcx> {
             TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
             TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
-            // TODO: basetype.is_dynamically_encoded
             TyKind::Slice(ty)
-                if ty.data_stored_in(DataLocation::Calldata) && ty.is_dynamically_sized() =>
+                if ty.data_stored_in(DataLocation::Calldata)
+                    && ty.peel_refs().is_dynamically_sized()
+                    && !ty.base_type(gcx).is_some_and(|base| base.is_dynamically_encoded(gcx)) =>
             {
                 ty
             }

@@ -1,0 +1,38 @@
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_function_implementation.sol:LL:CC
+   │
+LL │ ┏     function f() external pure {
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_function_implementation.sol:LL:CC
+   │
+LL │     function f() external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_function_implementation.sol:LL:CC
+   │
+LL │     fallback() external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_function_implementation.sol:LL:CC
+   │
+LL │     receive() external payable {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_function_implementation.sol:LL:CC
+   │
+LL │ ┏     function g() external pure {
+LL │ ┃         assembly {
+LL │ ┃             function inner() -> r { r := 1 }
+LL │ ┃             pop(inner())
+LL │ ┃         }
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 5 previous errors
+

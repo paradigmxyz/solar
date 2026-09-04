@@ -262,11 +262,17 @@ pub(crate) fn did_change_workspace_folders(
     let added_paths =
         params.event.added.into_iter().filter_map(|workspace| workspace.uri.to_file_path().ok());
 
-    let config = Arc::make_mut(&mut state.config);
-    for path in &removed_paths {
-        config.remove_workspace(path);
+    let previous_roots = state.config.workspace_roots().to_vec();
+    {
+        let config = Arc::make_mut(&mut state.config);
+        for path in &removed_paths {
+            config.remove_workspace(path);
+        }
+        config.add_workspaces(added_paths);
     }
-    config.add_workspaces(added_paths);
+    if state.config.workspace_roots() != previous_roots {
+        state.record_workspace_root_change(previous_roots);
+    }
 
     state.reindex_after_removing_paths(removed_paths);
     state.reregister_watched_files();

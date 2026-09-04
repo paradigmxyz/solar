@@ -557,8 +557,8 @@ fn display_inst_kind<'a>(
         InstKind::ClearStorage { storage, layout } => {
             write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
         }
-        InstKind::InternalCall { function, args, returns } => {
-            write!(f, "internal_call {}, {returns}", display_function_ref(*function, module))?;
+        InstKind::ICall { function, args, returns } => {
+            write!(f, "icall {}, {returns}", display_function_ref(*function, module))?;
             if !args.is_empty() {
                 write!(f, ", {}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
             }
@@ -746,7 +746,9 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
         if let Some(hir_expr) = metadata.hir_expr() {
             fields.push(MetadataField::Hir(hir_expr));
         }
-        if let Some(span) = metadata.source_span() {
+        if metadata.displays_source_span()
+            && let Some(span) = metadata.source_span()
+        {
             fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
         }
         if metadata.unchecked() {

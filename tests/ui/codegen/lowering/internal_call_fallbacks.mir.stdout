@@ -1,8 +1,8 @@
-// === ROOT/tests/ui/codegen/lowering/internal_call_fallbacks.sol:InternalCallFallbacks ===
-@module InternalCallFallbacks
+// === ROOT/tests/ui/codegen/lowering/internal_call_fallbacks.sol:ICallFallbacks ===
+@module ICallFallbacks
 fn @recurse(arg0: u256) -> u256 [selector=0xb2041d21, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @a, 1, arg0
+    v0 = icall @a, 1, arg0
     ret v0
 }
 
@@ -15,7 +15,7 @@ fn @a(arg0: u256) -> u256 {
     v2 = lt arg0, 1
     jumpi v2, bb4, bb5
   bb5:
-    v3 = internal_call @b, 1, v1
+    v3 = icall @b, 1, v1
     jump bb3
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -37,7 +37,7 @@ fn @b(arg0: u256) -> u256 {
     v2 = lt arg0, 1
     jumpi v2, bb4, bb5
   bb5:
-    v3 = internal_call @a, 1, v1
+    v3 = icall @a, 1, v1
     jump bb3
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -52,7 +52,7 @@ fn @b(arg0: u256) -> u256 {
 
 fn @multi(arg0: u256) -> (u256, u256) [selector=0x645444bd, pure, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @pair, 2, arg0
+    v0 = icall @pair, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -74,7 +74,7 @@ fn @pair(arg0: u256) -> (u256, u256) [pure] {
 
 fn @callVoid(arg0: u256) [selector=0xf42b07b1, pure, abi_params=[u256], abi_returns=[]] {
   bb0:
-    internal_call @branchingVoid, 0, arg0
+    icall @branchingVoid, 0, arg0
     stop
 }
 
@@ -90,7 +90,7 @@ fn @branchingVoid(arg0: u256) [pure] {
     v3 = lt arg0, 1
     jumpi v3, bb4, bb5
   bb5:
-    internal_call @branchingVoid, 0, v2
+    icall @branchingVoid, 0, v2
     jump bb3
   bb3:
     stop
@@ -102,7 +102,7 @@ fn @branchingVoid(arg0: u256) [pure] {
 
 fn @callEntry(arg0: u256) -> u256 [selector=0x7a7de4a9, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @entry, 1, arg0
+    v0 = icall @entry, 1, arg0
     ret v0
 }
 

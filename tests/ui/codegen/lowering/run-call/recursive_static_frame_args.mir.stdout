@@ -2,7 +2,7 @@
 @module RecursiveStaticFrameArgs
 fn @permute(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xa733caae, pure, abi_params=[u256, u256, u256], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @recurse, 1, arg0, arg1, arg2
+    v0 = icall @recurse, 1, arg0, arg1, arg2
     ret v0
 }
 
@@ -19,6 +19,6 @@ fn @recurse(arg0: u256, arg1: u256, arg2: u256) -> u256 {
     ret v5
   bb1:
     v2 = sub arg2, 1
-    v3 = internal_call @recurse, 1, arg1, arg0, v2
+    v3 = icall @recurse, 1, arg1, arg0, v2
     ret v3
 }

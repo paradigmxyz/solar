@@ -568,7 +568,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
   bb35:
     v116 = storage_array_data_slot v97
     v117 = add v116, v114
-    v118 = internal_call @load_storage_packed_array_1_0, 1, v117
+    v118 = icall @load_storage_packed_array_1_0, 1, v117
     memory_object_store_element memoryarray<1>, v113, v114, v118
     v119 = add v114, 1
     jump bb34
@@ -684,7 +684,7 @@ fn @from_storage() -> memoryarray [selector=0x904f60db, abi_params=[], abi_retur
   bb6:
     v18 = storage_array_data_slot 1
     v19 = add v18, v16
-    v20 = internal_call @load_storage_packed_array_1_0, 1, v19
+    v20 = icall @load_storage_packed_array_1_0, 1, v19
     memory_object_store_element memoryarray<1>, v15, v16, v20
     v21 = add v16, 1
     jump bb5
@@ -780,7 +780,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
   bb35:
     v116 = storage_array_data_slot v97
     v117 = add v116, v114
-    v118 = internal_call @load_storage_packed_array_1_0, 1, v117
+    v118 = icall @load_storage_packed_array_1_0, 1, v117
     memory_object_store_element memoryarray<1>, v113, v114, v118
     v119 = add v114, 1
     jump bb34
@@ -896,7 +896,7 @@ fn @from_storage_ptr() -> memoryarray [selector=0x764eb525, abi_params=[], abi_r
   bb6:
     v18 = storage_array_data_slot 1
     v19 = add v18, v16
-    v20 = internal_call @load_storage_packed_array_1_0, 1, v19
+    v20 = icall @load_storage_packed_array_1_0, 1, v19
     memory_object_store_element memoryarray<1>, v15, v16, v20
     v21 = add v16, 1
     jump bb5
@@ -992,7 +992,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
   bb35:
     v116 = storage_array_data_slot v97
     v117 = add v116, v114
-    v118 = internal_call @load_storage_packed_array_1_0, 1, v117
+    v118 = icall @load_storage_packed_array_1_0, 1, v117
     memory_object_store_element memoryarray<1>, v113, v114, v118
     v119 = add v114, 1
     jump bb34
@@ -1108,7 +1108,7 @@ fn @from_memory() -> memoryarray [selector=0x841ae8f5, abi_params=[], abi_return
   bb6:
     v18 = storage_array_data_slot 1
     v19 = add v18, v16
-    v20 = internal_call @load_storage_packed_array_1_0, 1, v19
+    v20 = icall @load_storage_packed_array_1_0, 1, v19
     memory_object_store_element memoryarray<1>, v15, v16, v20
     v21 = add v16, 1
     jump bb5
@@ -1210,7 +1210,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
   bb49:
     v166 = storage_array_data_slot v147
     v167 = add v166, v164
-    v168 = internal_call @load_storage_packed_array_1_0, 1, v167
+    v168 = icall @load_storage_packed_array_1_0, 1, v167
     memory_object_store_element memoryarray<1>, v163, v164, v168
     v169 = add v164, 1
     jump bb48
@@ -1412,7 +1412,7 @@ fn @from_calldata(arg0: calldataslice) -> memoryarray [selector=0xbc57f638, abi_
 
 fn @from_address_storage() -> memoryarray [selector=0x2c88d24b, view, abi_params=[], abi_returns=[memory_array<word<u160>>], abi_return_params=[array<_, address>]] {
   bb0:
-    v0 = internal_call @load_storage_packed_array_20_0, 1, 2
+    v0 = icall @load_storage_packed_array_20_0, 1, 2
     ret v0
 }
 

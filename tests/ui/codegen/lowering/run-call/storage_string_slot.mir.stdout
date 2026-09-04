@@ -11,8 +11,8 @@ fn @lengthThroughRef() -> u256 [selector=0xeaac3ffa, abi_params=[], abi_returns=
     mstore v1, 0x6161616161616161616161616161616161616161616161616161616161616161
     v2 = add v1, 32
     mstore v2, 0x6161616161616161000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 32, v0
-    v3 = internal_call @length, 1, 32
+    icall @store_storage_bytes, 0, 32, v0
+    v3 = icall @length, 1, 32
     ret v3
 }
 
@@ -24,8 +24,8 @@ fn @returnThroughRef() -> u256 [selector=0x49589c2a, abi_params=[], abi_returns=
     mstore v1, 0x6161616161616161616161616161616161616161616161616161616161616161
     v2 = add v1, 32
     mstore v2, 0x6161616161616161000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 32, v0
-    v3 = internal_call @read, 1, 32
+    icall @store_storage_bytes, 0, 32, v0
+    v3 = icall @read, 1, 32
     v4 = memory_object_len memorybytes, v3
     ret v4
 }
@@ -42,44 +42,7 @@ fn @length(arg0: storageptr) -> u256 [view] {
     v7 = eq v2, v6
     jumpi v7, bb1, bb2
   bb2:
-    v8 = add v5, 31
-    v9 = div v8, 32
-    v10 = add v5, 63
-    v11 = lt v10, v5
-    jumpi v11, bb3, bb4
-  bb4:
-    v12 = not 31
-    v13 = and v10, v12
-    v14 = alloc memorybytes, exact, uninitialized, panic, v13
-    set_memory_object_len memorybytes, v14, v5
-    jumpi v2, bb6, bb5
-  bb5:
-    v15 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    memory_object_store_word memorybytes, v14, 0, v15
-    jump bb7
-  bb6:
-    v16 = storage_array_data_slot arg0
-    jump bb8
-  bb8:
-    v17 = phi [bb6: 0], [bb9: v22]
-    v18 = lt v17, v9
-    jumpi v18, bb9, bb10
-  bb10:
-    jump bb7
-  bb7:
-    v23 = memory_object_len memorybytes, v14
-    ret v23
-  bb9:
-    v19 = add v16, v17
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = mul v17, 32
-    memory_object_store_word memorybytes, v14, v21, v20
-    v22 = add v17, 1
-    jump bb8
-  bb3:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 65 !metadata(memory=scratch)
-    revert 0, 36
+    ret v5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
@@ -186,7 +149,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

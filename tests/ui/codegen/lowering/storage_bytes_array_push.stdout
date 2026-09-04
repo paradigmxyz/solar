@@ -44,7 +44,7 @@ fn @pushStr() [selector=0xe6e6accc] {
     mstore 0, 0 !metadata(memory=scratch)
     v23 = keccak256 0, 32 !metadata(memory=scratch)
     v4 = add v23, v0
-    internal_call @store_storage_bytes, 0, v4, v19
+    icall @store_storage_bytes, 0, v4, v19
     sstore 0, v1 !metadata(storage=slot(0))
     stop
   bb1:
@@ -126,7 +126,7 @@ fn @blobAt() [selector=0x8f236983, view] {
     mstore 0, 2 !metadata(memory=scratch)
     v34 = keccak256 0, 32 !metadata(memory=scratch)
     v4 = add v34, arg0
-    v5 = internal_call @load_storage_bytes, 1, v4
+    v5 = icall @load_storage_bytes, 1, v4
     v11 = mload 64 !metadata(memory=scratch)
     v12 = add v11, 32
     v13 = sub v12, v11
@@ -218,7 +218,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memptr) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8

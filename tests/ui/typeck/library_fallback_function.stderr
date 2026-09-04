@@ -1,0 +1,20 @@
+error[5982]: libraries cannot have fallback functions
+   ╭▸ ROOT/tests/ui/typeck/library_fallback_function.sol:LL:CC
+   │
+LL │     fallback() external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error[4549]: libraries cannot have receive ether functions
+   ╭▸ ROOT/tests/ui/typeck/library_fallback_function.sol:LL:CC
+   │
+LL │     receive() external payable {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7708]: library functions cannot be payable
+   ╭▸ ROOT/tests/ui/typeck/library_fallback_function.sol:LL:CC
+   │
+LL │     receive() external payable {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

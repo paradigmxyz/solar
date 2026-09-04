@@ -42,7 +42,7 @@
 - fn @givesAddresses() -> memoryarray [selector=0x0dead002, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesAddresses() [selector=0x0dead002] {
     bb0:
-      v0 = internal_call @canonicalAddresses, 1
+      v0 = icall @canonicalAddresses, 1
 -     ret v0
 +     v1 = abi_encode [memory_array<word>], args v0
 +     v2 = slice_ptr v1
@@ -53,7 +53,7 @@
 - fn @givesAddressesAgain() -> memoryarray [selector=0x0dead003, abi_returns=[memory_array<word>], abi_return_params=[array<_, address>]] {
 + fn @givesAddressesAgain() [selector=0x0dead003] {
     bb0:
-      v0 = internal_call @canonicalAddresses, 1
+      v0 = icall @canonicalAddresses, 1
 -     ret v0
 +     v1 = abi_encode [memory_array<word>], args v0
 +     v2 = slice_ptr v1
@@ -74,7 +74,7 @@
     bb3:
       ret v0
     bb2:
-      v4 = internal_call @canonicalAddresses, 1
+      v4 = icall @canonicalAddresses, 1
       memory_object_store_element memoryarray<1>, v0, v2, v4
       v5 = add v2, 1
       jump bb1
@@ -83,7 +83,7 @@
 - fn @givesAddressArrays() -> memoryarray [selector=0x0dead005, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesAddressArrays() [selector=0x0dead005] {
     bb0:
-      v0 = internal_call @canonicalAddressArrays, 1
+      v0 = icall @canonicalAddressArrays, 1
 -     ret v0
 +     v1 = abi_encode [memory_array<memory_array<word>>], args v0
 +     v2 = slice_ptr v1
@@ -94,7 +94,7 @@
 - fn @givesAddressArraysAgain() -> memoryarray [selector=0x0dead006, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesAddressArraysAgain() [selector=0x0dead006] {
     bb0:
-      v0 = internal_call @canonicalAddressArrays, 1
+      v0 = icall @canonicalAddressArrays, 1
 -     ret v0
 +     v1 = abi_encode [memory_array<memory_array<word>>], args v0
 +     v2 = slice_ptr v1
@@ -115,7 +115,7 @@
     bb3:
       ret v0
     bb2:
-      v4 = internal_call @canonicalAddresses, 1
+      v4 = icall @canonicalAddresses, 1
       memory_object_store_element memoryarray<1>, v4, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       memory_object_store_element memoryarray<1>, v0, v2, v4
       v5 = add v2, 1
@@ -125,9 +125,9 @@
 - fn @givesDirtyAddressArrays() -> memoryarray [selector=0x0dead007, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesDirtyAddressArrays() [selector=0x0dead007] {
     bb0:
-      v0 = internal_call @dirtyAddressArrays, 1
+      v0 = icall @dirtyAddressArrays, 1
 -     ret v0
-+     v1 = internal_call @cleanup_return.12, 1, v0
++     v1 = icall @cleanup_return.12, 1, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2
@@ -137,9 +137,9 @@
 - fn @givesDirtyAddressArraysAgain() -> memoryarray [selector=0x0dead008, abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, address>>]] {
 + fn @givesDirtyAddressArraysAgain() [selector=0x0dead008] {
     bb0:
-      v0 = internal_call @dirtyAddressArrays, 1
+      v0 = icall @dirtyAddressArrays, 1
 -     ret v0
-+     v1 = internal_call @cleanup_return.12, 1, v0
++     v1 = icall @cleanup_return.12, 1, v0
 +     v2 = abi_encode [memory_array<memory_array<word>>], args v1
 +     v3 = slice_ptr v2
 +     v4 = slice_len v2

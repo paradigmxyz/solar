@@ -41,6 +41,11 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     check_payable_fallback_without_receive(gcx, id);
     check_external_type_clashes(gcx, id);
     check_receive_function(gcx, id);
+    check_library_functions(gcx, id);
+    check_interface_members(gcx, id);
+    for f_id in gcx.hir.contract(id).functions() {
+        check_payable_function(gcx, gcx.hir.function(f_id));
+    }
     for using in gcx.hir.contract(id).usings {
         check_using_directive(gcx, using);
     }
@@ -51,6 +56,11 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
 fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
     check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
     check_break_continue(gcx, id);
+    for f_id in gcx.hir.source(id).items.iter().filter_map(ItemId::as_function) {
+        let f = gcx.hir.function(f_id);
+        check_free_function(gcx, f);
+        check_payable_function(gcx, f);
+    }
     for using in gcx.hir.source(id).usings {
         check_using_directive(gcx, using);
     }
@@ -325,13 +335,35 @@ fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool 
     key(a) == key(b)
 }
 
+/// Checks that every declaration without a body is allowed to have none.
+///
+/// References:
+/// - functions: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L448-L460>
+/// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
+/// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L300-L301>
 fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
 
     for f_id in contract.functions() {
         let f = gcx.hir.function(f_id);
 
-        if f.marked_virtual && f.visibility == Visibility::Private {
+        // Modifiers are not functions in solc, so they get their own error instead of the
+        // function ones below, and they are never implicitly `virtual` in an interface.
+        if f.kind.is_modifier() {
+            if f.body.is_none() && !f.marked_virtual {
+                gcx.dcx()
+                    .err("modifiers without implementation must be marked `virtual`")
+                    .code(error_code!(8063))
+                    .span(f.span)
+                    .emit();
+            }
+            continue;
+        }
+
+        // In an interface, solc's `virtual` chain stops at the implicitly-`virtual` warning
+        // reported by `check_interface_members`.
+        let virtual_private = f.marked_virtual && f.visibility == Visibility::Private;
+        if virtual_private && !contract.kind.is_interface() {
             gcx.dcx()
                 .err("`virtual` and `private` cannot be used together")
                 .code(error_code!(3942))
@@ -372,7 +404,10 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     if contract.kind.is_library() {
         if let Some(receive) = contract.receive {
             gcx.dcx()
-                .emit_err(gcx.item_span(receive), "libraries cannot have receive ether functions");
+                .err("libraries cannot have receive ether functions")
+                .code(error_code!(4549))
+                .span(gcx.item_span(receive))
+                .emit();
         }
         return;
     }
@@ -407,6 +442,186 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
                 .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
         }
     }
+}
+
+/// Checks restrictions that only apply to functions declared in a library.
+///
+/// References:
+/// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
+/// - constructor: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L444-L446>
+/// - `fallback`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L2016-L2017>
+/// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L282-L291>
+fn check_library_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    if !contract.kind.is_library() {
+        return;
+    }
+
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
+
+        // Modifiers are not functions in solc, so they get their own error instead of the
+        // function ones below.
+        if f.kind.is_modifier() {
+            if f.marked_virtual {
+                gcx.dcx()
+                    .err("modifiers in a library cannot be `virtual`")
+                    .code(error_code!(3275))
+                    .span(f.span)
+                    .emit();
+            }
+            continue;
+        }
+
+        // A `private virtual` function is reported by `check_unimplemented_functions` instead.
+        if f.marked_virtual && f.visibility != Visibility::Private {
+            gcx.dcx()
+                .err("library functions cannot be `virtual`")
+                .code(error_code!(7801))
+                .span(f.span)
+                .emit();
+        }
+
+        // A library `receive` gets its own error in `check_receive_function`.
+        if f.is_constructor() {
+            gcx.dcx()
+                .err("constructor cannot be defined in libraries")
+                .code(error_code!(7634))
+                .span(f.span)
+                .emit();
+        } else if f.kind.is_fallback() {
+            gcx.dcx()
+                .err("libraries cannot have fallback functions")
+                .code(error_code!(5982))
+                .span(f.span)
+                .emit();
+        }
+    }
+}
+
+/// Checks restrictions that only apply to members declared in an interface.
+///
+/// References:
+/// - functions: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L432-L443>
+/// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L318>
+/// - modifiers: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L292-L297>
+/// - variables: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/PostTypeChecker.cpp#L391-L401>
+fn check_interface_members(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    if !contract.kind.is_interface() {
+        return;
+    }
+
+    // Iterate over the items in declaration order to report them in the same order solc does.
+    for &item in contract.items {
+        match item {
+            ItemId::Function(f_id) => {
+                let f = gcx.hir.function(f_id);
+
+                // Modifiers are not functions in solc, so they get their own error instead of the
+                // function ones below.
+                if f.kind.is_modifier() {
+                    gcx.dcx()
+                        .err("modifiers cannot be defined or declared in interfaces")
+                        .code(error_code!(6408))
+                        .span(f.span)
+                        .emit();
+                    continue;
+                }
+
+                // Getters have no declaration of their own in solc, and are always lowered as an
+                // implemented `external` function here; the variable they belong to is rejected
+                // below instead. Yul functions from inline assembly are items too, but they
+                // belong to the function that contains them, which is reported on its own.
+                if f.is_getter() || f.is_yul {
+                    continue;
+                }
+
+                // `virtual` is implied here, and ends solc's `virtual` chain: see
+                // `check_library_functions` and `check_unimplemented_functions`.
+                if f.marked_virtual {
+                    gcx.dcx()
+                        .warn("interface functions are implicitly `virtual`")
+                        .code(error_code!(5815))
+                        .span(f.span)
+                        .emit();
+                }
+
+                if f.body.is_some() {
+                    gcx.dcx()
+                        .err("functions in interfaces cannot have an implementation")
+                        .code(error_code!(4726))
+                        .span(f.span)
+                        .emit();
+                }
+
+                if f.is_constructor() {
+                    gcx.dcx()
+                        .err("constructor cannot be defined in interfaces")
+                        .code(error_code!(6482))
+                        .span(f.span)
+                        .emit();
+                } else if f.visibility != Visibility::External {
+                    gcx.dcx()
+                        .err("functions in interfaces must be declared `external`")
+                        .code(error_code!(1560))
+                        .span(f.span)
+                        .emit();
+                }
+            }
+            // Parameters and struct fields are not items, so every variable item declared in an
+            // interface is rejected, `constant` ones included.
+            ItemId::Variable(v_id) => {
+                let v = gcx.hir.variable(v_id);
+                gcx.dcx()
+                    .err("variables cannot be declared in interfaces")
+                    .code(error_code!(8274))
+                    .span(v.span)
+                    .emit();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Checks restrictions that only apply to free functions.
+///
+/// References:
+/// - `virtual`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L306-L309>
+/// - `override`: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L319-L320>
+fn check_free_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if f.marked_virtual {
+        gcx.dcx()
+            .err("free functions cannot be `virtual`")
+            .code(error_code!(4493))
+            .span(f.span)
+            .emit();
+    }
+
+    if f.override_ {
+        gcx.dcx().err("free functions cannot override").code(error_code!(1750)).span(f.span).emit();
+    }
+}
+
+/// Checks which functions are allowed to be `payable`.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/8a079791d9cca7a6c03fd6a8429b93aa3bddefed/libsolidity/analysis/TypeChecker.cpp#L325-L333>
+fn check_payable_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if f.state_mutability != StateMutability::Payable {
+        return;
+    }
+
+    let (msg, code) =
+        if f.contract.is_some_and(|contract| gcx.hir.contract(contract).kind.is_library()) {
+            ("library functions cannot be payable", error_code!(7708))
+        } else if f.is_free() {
+            ("free functions cannot be payable", error_code!(9559))
+        } else if f.is_ordinary() && !f.is_part_of_external_interface() {
+            ("`internal` and `private` functions cannot be payable", error_code!(5587))
+        } else {
+            return;
+        };
+    gcx.dcx().err(msg).code(code).span(f.span).emit();
 }
 
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.

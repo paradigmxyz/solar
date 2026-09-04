@@ -1,13 +1,13 @@
 //@compile-flags: -Zdump=mir
 
 contract AbiHeadSizeOverflow {
-    function oversized( //~ ERROR: codegen rewrite does not support this function parameter shape yet
+    function oversized(
         uint256[18446744073709551616] calldata values //~ ERROR: type too large for calldata
     ) external pure returns (uint256) {
         return values[0];
     }
 
-    function oversizedDynamicReturn() //~ ERROR: codegen rewrite does not support this function return shape yet
+    function oversizedDynamicReturn()
         external
         pure
         returns (uint256[][18446744073709551616] memory values) //~ ERROR: type too large for memory

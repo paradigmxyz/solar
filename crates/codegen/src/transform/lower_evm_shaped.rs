@@ -2,11 +2,11 @@
 //!
 //! Real lowered external bodies keep their encode fused: they terminate with
 //! `RETURN`/`REVERT` and never return to a caller. After the ABI and dispatch
-//! phases, wrappers still reach such bodies through `internal_call`, which
+//! phases, wrappers still reach such bodies through `icall`, which
 //! models a returning edge that does not exist — the same dishonesty the
 //! dispatch phase removed from its own case blocks.
 //!
-//! This pass rewrites a resultless `internal_call` to a callee that cannot
+//! This pass rewrites a resultless `icall` to a callee that cannot
 //! return (no reachable `ret` or `stop` terminator) into a
 //! [`Terminator::TailCall`], dropping the dead remainder of the block. The
 //! module comes out in the `evm-shaped` phase: every call edge either returns
@@ -85,7 +85,7 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
     let has_candidate = module.functions.iter().any(|func| {
         func.instructions().any(|inst_id| {
             let inst = func.inst(inst_id);
-            inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
+            inst.result_ty.is_none() && matches!(inst.kind, InstKind::ICall { .. })
         })
     });
     if has_candidate {
@@ -126,7 +126,7 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                     insts.iter().enumerate().find_map(|(position, &inst_id)| {
                         let inst = func.inst(inst_id);
                         if inst.result_ty.is_none()
-                            && let InstKind::InternalCall { function, args, .. } = &inst.kind
+                            && let InstKind::ICall { function, args, .. } = &inst.kind
                             && tail_callable.contains(*function)
                             && (args.is_empty() || !constructor_reachable.contains(func_id))
                         {

@@ -1,0 +1,58 @@
+error: no visibility specified
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function f();
+   │     ━━━━━━━━━━━━━
+   │
+   ╰ help: add `external` to the declaration
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function f() public;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function g() internal;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function h() private;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━
+
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     function f();
+   ╰╴    ━━━━━━━━━━━━━
+
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     constructor() {}
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error[6482]: constructor cannot be defined in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     constructor() {}
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error[6408]: modifiers cannot be defined or declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     modifier m() { _; }
+   ╰╴    ━━━━━━━━━━━━━━━━━━━
+
+error[8274]: variables cannot be declared in interfaces
+   ╭▸ ROOT/tests/ui/typeck/interface_function_visibility.sol:LL:CC
+   │
+LL │     uint256 public x;
+   ╰╴    ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 9 previous errors
+

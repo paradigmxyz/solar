@@ -24,8 +24,8 @@ contract MultiReturnNamedInit {
     }
 
     // CHECK-LABEL: fn @readTwice{{[( ]}}
-    // CHECK: internal_call @readU64, 2, arg0, 0
-    // CHECK: internal_call @readU64, 2, arg0, 8
+    // CHECK: icall @readU64, 2, arg0, 0
+    // CHECK: icall @readU64, 2, arg0, 8
     function readTwice(bytes calldata data) external pure returns (uint64 first, uint64 second) {
         (first,) = readU64(data, 0);
         (second,) = readU64(data, 8);

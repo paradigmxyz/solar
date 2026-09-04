@@ -80,7 +80,7 @@ fn runtime_reachable_functions(module: &Module) -> DenseBitSet<FunctionId> {
     while let Some(func_id) = worklist.pop_front() {
         let func = module.function(func_id);
         for inst_id in func.instructions() {
-            if let InstKind::InternalCall { function, .. } = func.inst(inst_id).kind
+            if let InstKind::ICall { function, .. } = func.inst(inst_id).kind
                 && reachable.insert(function)
             {
                 worklist.push_back(function);

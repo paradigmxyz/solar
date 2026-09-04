@@ -22,7 +22,7 @@ bb1:
 bb2:
   pop
   push 0xbeef
-  selfdestruct !meta(source=admin-path)
+  selfdestruct !metadata(source=admin-path)
 
 // CHECK-LABEL: {{^[ +].*}}bb3 [cold]:
 // CHECK: {{^[ +].*}}invalid

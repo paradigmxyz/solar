@@ -7,7 +7,7 @@ fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
 
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
+    icall @revert_error, 0, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
 }
 

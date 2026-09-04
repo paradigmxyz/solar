@@ -57,7 +57,7 @@ fn @depth(arg0: u256) -> u256 [pure] {
     v2 = lt arg0, 1
     jumpi v2, bb4, bb5
   bb5:
-    v3 = internal_call @depth, 1, v1
+    v3 = icall @depth, 1, v1
     v4 = add v3, 1
     v5 = lt v4, v3
     jumpi v5, bb4, bb6
@@ -76,7 +76,7 @@ fn @check(arg0: bool) [pure] {
     v0 = iszero arg0
     jumpi v0, bb1, bb2
   bb2:
-    v1 = internal_call @depth, 1, 2
+    v1 = icall @depth, 1, 2
     v2 = eq v1, 2
     v3 = iszero v2
     jumpi v3, bb1, bb3
@@ -106,7 +106,7 @@ fn @probe(arg0: u256) -> u256 [selector=0xdb082440, view, abi_params=[u256], abi
     set_memory_object_len memorybytes, v12, v7
     v13 = make_returndata_slice 0, v7
     memory_object_copy_from_slice memorybytes, v12, v13
-    internal_call @check, 0, v6
+    icall @check, 0, v6
     v14 = abi_decode [u256], v12
     ret v14
   bb1:

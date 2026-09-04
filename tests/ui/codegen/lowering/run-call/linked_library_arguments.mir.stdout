@@ -5,19 +5,19 @@
 @module LinkedLibraryArgs
 fn @test_value() -> u256 [selector=0x130d6dc5, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @add, 1, 40, 2
+    v0 = icall @add, 1, 40, 2
     ret v0
 }
 
 fn @test_storage_view() -> u256 [selector=0x210fb3eb, view, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @get, 1, 0
+    v0 = icall @get, 1, 0
     ret v0
 }
 
 fn @test_storage_write() -> u256 [selector=0x66f2b6c3, abi_params=[], abi_returns=[word]] {
   bb0:
-    internal_call @bump, 0, 0
+    icall @bump, 0, 0
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
@@ -38,7 +38,7 @@ fn @test_multi() -> (u256, u256) [selector=0x255f2946, pure, abi_params=[], abi_
     jumpi v6, bb1, bb3
   bb3:
     memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = internal_call @pick, 2, v0
+    v7 = icall @pick, 2, v0
     v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v9 = add v8, 32
     v10 = mload v9
@@ -51,7 +51,7 @@ fn @test_multi() -> (u256, u256) [selector=0x255f2946, pure, abi_params=[], abi_
 
 fn @test_calldata(arg0: calldataslice) -> u256 [selector=0x46370830, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @first, 1, arg0
+    v0 = icall @first, 1, arg0
     ret v0
 }
 
@@ -71,7 +71,7 @@ fn @test_using() -> u256 [selector=0xd6c053d5, pure, abi_params=[], abi_returns=
     jumpi v6, bb1, bb3
   bb3:
     memory_object_store_element memoryarray<1>, v0, 1, 8
-    v7 = internal_call @pick, 2, v0
+    v7 = icall @pick, 2, v0
     v8 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v9 = add v8, 32
     v10 = mload v9

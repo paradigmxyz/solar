@@ -72,12 +72,14 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             }
 
+            let metadata = block.instructions[index].metadata.clone();
             let replacement = [
                 Instruction::push_value(length),
                 Instruction::push_value(source),
                 Instruction::push_value(destination),
                 Instruction::opcode(op::MCOPY),
-            ];
+            ]
+            .map(|inst| inst.with_source_debug(&metadata));
             edits.push((index, count * COPY_INSTRUCTIONS, replacement));
             groups += 1;
             words += count;

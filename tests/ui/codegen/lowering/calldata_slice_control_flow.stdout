@@ -2,7 +2,7 @@
 @module CalldataSliceControlFlow
 fn @trimLen(arg0: calldataslice) -> u256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @_trim, 1, arg0
+    v0 = icall @_trim, 1, arg0
     v1 = slice_len v0
     ret v1
 }
@@ -46,7 +46,7 @@ fn @forward(arg0: calldataslice) -> u256 [selector=0xd948d468, pure, abi_params=
     v10 = slice_ptr v8
     v11 = slice_len v8
     v12 = make_calldata_slice v10, v9
-    v13 = internal_call @_sum, 1, v12, v3
+    v13 = icall @_sum, 1, v12, v3
     ret v13
 }
 
@@ -75,7 +75,7 @@ fn @_sum(arg0: calldataslice, arg1: calldataslice) -> u256 [pure] {
 
 fn @explicitTrim(arg0: calldataslice) -> u256 [selector=0xc127ee09, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @_explicitTrim, 1, arg0
+    v0 = icall @_explicitTrim, 1, arg0
     v1 = slice_len v0
     ret v1
 }
@@ -108,7 +108,7 @@ fn @_explicitTrim(arg0: calldataslice) -> calldataslice [pure] {
 
 fn @headTail(arg0: calldataslice) -> (u256, u256) [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @_split, 2, arg0
+    v0 = icall @_split, 2, arg0
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 64
     v3 = mload v2

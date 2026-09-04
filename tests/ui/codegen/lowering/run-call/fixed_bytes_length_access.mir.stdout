@@ -16,7 +16,7 @@ fn @f(arg0: bytes32) -> (u256, u256, u256) [selector=0xd7da973a, view, abi_param
 
 fn @sideEffect() -> (u256, u256) [selector=0x3a058265, abi_params=[], abi_returns=[word, word]] {
   bb0:
-    v0 = internal_call @makeBytes, 1
+    v0 = icall @makeBytes, 1
     v1 = sload 1 !metadata(storage=slot(1))
     ret 4, v1
 }

@@ -15,13 +15,13 @@ fn @discarded(arg0: u256) -> u256 {
 
 // A returned call result is not effect-free, so the recursive call protocol remains intact.
 // CHECK-LABEL: fn @recursive(arg0: bool, arg1: u256) -> u256
-// CHECK: v0 = internal_call @recursive, 1, 0, arg1
+// CHECK: v0 = icall @recursive, 1, 0, arg1
 // CHECK: ret v0
 fn @recursive(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    v0 = internal_call fn1, 1, false, arg1
+    v0 = icall fn1, 1, false, arg1
     ret v0
   bb2:
     sstore 1, arg1
@@ -35,14 +35,14 @@ fn @kept(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @entry() -> u256
-// CHECK: internal_call @discarded, 0, 7
-// CHECK: v0 = internal_call @recursive, 1, 1, 8
-// CHECK: internal_call @kept, 1, 9
+// CHECK: icall @discarded, 0, 7
+// CHECK: v0 = icall @recursive, 1, 1, 8
+// CHECK: icall @kept, 1, 9
 fn @entry() -> u256 [selector=0x01020304] {
   bb0:
-    v0 = internal_call fn0, 1, 7
-    v1 = internal_call fn1, 1, true, 8
-    v2 = internal_call fn2, 1, 9
+    v0 = icall fn0, 1, 7
+    v1 = icall fn1, 1, true, 8
+    v2 = icall fn2, 1, 9
     ret v2
 }
 

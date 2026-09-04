@@ -43,5 +43,25 @@ LL │     function f() public;
    │     ━━━━━━━━━━━━━━━━━━━━
    ╰ help: implement all functions
 
-error: aborting due to 5 previous errors
+error[8063]: modifiers without implementation must be marked `virtual`
+   ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
+   │
+LL │     modifier m();
+   ╰╴    ━━━━━━━━━━━━━
+
+error[3656]: contract `M` has unimplemented functions
+   ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
+   │
+LL │ contract M {
+   │ ┬─────── ━
+   │ │
+   │ help: mark the contract as abstract: `abstract contract`
+   ╰╴
+note: unimplemented modifier `m` defined in `M`
+   ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
+   │
+LL │     modifier m();
+   ╰╴    ━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
 

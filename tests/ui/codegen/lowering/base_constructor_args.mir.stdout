@@ -9,7 +9,7 @@ fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word
 fn @constructor(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
   bb0:
     sstore 0, arg0 !metadata(storage=slot(0))
-    internal_call @store_storage_bytes, 0, 1, arg1
+    icall @store_storage_bytes, 0, 1, arg1
     stop
 }
 
@@ -58,7 +58,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -125,13 +125,20 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
 fn @constructor(arg0: u256, arg1: memorybytes) [constructor, abi_params=[u256, bytes]] {
   bb0:
     v0 = add arg0, 1
-    sstore 0, v0 !metadata(storage=slot(0))
-    internal_call @store_storage_bytes, 0, 1, arg1
-    jump bb1
-  bb1:
-    jump bb2
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
   bb2:
+    sstore 0, v0 !metadata(storage=slot(0))
+    icall @store_storage_bytes, 0, 1, arg1
+    jump bb3
+  bb3:
+    jump bb4
+  bb4:
     stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
@@ -185,7 +192,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -252,22 +259,36 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
     v0 = mul arg0, 2
-    v1 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v1, 2
-    v2 = memory_object_data memorybytes, v1
-    mstore v2, 0x6f6b000000000000000000000000000000000000000000000000000000000000
-    v3 = add v0, 1
-    sstore 0, v3 !metadata(storage=slot(0))
-    internal_call @store_storage_bytes, 0, 1, v1
-    jump bb1
-  bb1:
-    jump bb3
-  bb3:
-    jump bb2
+    v1 = iszero 2
+    v2 = div v0, 2
+    v3 = eq v2, arg0
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
   bb2:
+    v6 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v6, 2
+    v7 = memory_object_data memorybytes, v6
+    mstore v7, 0x6f6b000000000000000000000000000000000000000000000000000000000000
+    v8 = add v0, 1
+    v9 = lt v8, v0
+    jumpi v9, bb1, bb3
+  bb3:
+    sstore 0, v8 !metadata(storage=slot(0))
+    icall @store_storage_bytes, 0, 1, v6
     jump bb4
   bb4:
+    jump bb6
+  bb6:
+    jump bb5
+  bb5:
+    jump bb7
+  bb7:
     stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
 }
 
 fn @labelHash() -> bytes32 [selector=0x7e0a41bc, view, abi_params=[], abi_returns=[word]] {
@@ -377,7 +398,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -471,10 +492,10 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
 @module ConstructorArgumentOrder
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @record, 1, 1
-    v1 = internal_call @record, 1, 3
-    v2 = internal_call @record, 1, 2
-    v3 = internal_call @record, 1, 4
+    v0 = icall @record, 1, 1
+    v1 = icall @record, 1, 3
+    v2 = icall @record, 1, 2
+    v3 = icall @record, 1, 4
     jump bb1
   bb1:
     jump bb2
@@ -565,7 +586,7 @@ fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
 @module ConstructorInitializationOrder
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @touch, 1
+    v0 = icall @touch, 1
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -702,7 +723,7 @@ fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @g, 1
+    v0 = icall @g, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -724,7 +745,7 @@ fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @g, 1
+    v0 = icall @g, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -746,7 +767,7 @@ fn @overridden() -> u256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=
 
 fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @overridden, 1
+    v0 = icall @overridden, 1
     ret v0
 }
 
@@ -759,13 +780,13 @@ fn @overridden() -> u256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=
 
 fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @overridden, 1
+    v0 = icall @overridden, 1
     ret v0
 }
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @g, 1
+    v0 = icall @g, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -787,13 +808,13 @@ fn @overridden() -> u256 [selector=0x275a4dcc, pure, abi_params=[], abi_returns=
 
 fn @g() -> u256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word]] {
   bb0:
-    v0 = internal_call @overridden, 1
+    v0 = icall @overridden, 1
     ret v0
 }
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @g, 1
+    v0 = icall @g, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
   bb1:
@@ -804,15 +825,15 @@ fn @constructor() [constructor] {
 @module DomainBase
 fn @constructor(arg0: memorybytes, arg1: memorybytes) [constructor, abi_params=[bytes, bytes]] {
   bb0:
-    internal_call @store_storage_bytes, 0, 0, arg0
-    internal_call @store_storage_bytes, 0, 1, arg1
+    icall @store_storage_bytes, 0, 0, arg0
+    icall @store_storage_bytes, 0, 1, arg1
     stop
 }
 
 fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
-    v0 = internal_call @load_storage_bytes, 1, 0
-    v1 = internal_call @load_storage_bytes, 1, 1
+    v0 = icall @load_storage_bytes, 1, 0
+    v1 = icall @load_storage_bytes, 1, 1
     ret v0, v1
 }
 
@@ -861,7 +882,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -986,8 +1007,8 @@ fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
     set_memory_object_len memorybytes, v0, 1
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x3100000000000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 0, arg0
-    internal_call @store_storage_bytes, 0, 1, v0
+    icall @store_storage_bytes, 0, 0, arg0
+    icall @store_storage_bytes, 0, 1, v0
     jump bb1
   bb1:
     jump bb2
@@ -997,8 +1018,8 @@ fn @constructor(arg0: memorybytes) [constructor, abi_params=[bytes]] {
 
 fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
-    v0 = internal_call @load_storage_bytes, 1, 0
-    v1 = internal_call @load_storage_bytes, 1, 1
+    v0 = icall @load_storage_bytes, 1, 0
+    v1 = icall @load_storage_bytes, 1, 1
     ret v0, v1
 }
 
@@ -1047,7 +1068,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -1180,21 +1201,21 @@ fn @constructor() [constructor] {
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x546f6b656e000000000000000000000000000000000000000000000000000000
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v2, 1
+    set_memory_object_len memorybytes, v2, 5
     v3 = memory_object_data memorybytes, v2
-    mstore v3, 0x3100000000000000000000000000000000000000000000000000000000000000
+    mstore v3, 0x546f6b656e000000000000000000000000000000000000000000000000000000
     v4 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v4, 5
+    set_memory_object_len memorybytes, v4, 3
     v5 = memory_object_data memorybytes, v4
-    mstore v5, 0x546f6b656e000000000000000000000000000000000000000000000000000000
+    mstore v5, 0x544b4e0000000000000000000000000000000000000000000000000000000000
     v6 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v6, 3
+    set_memory_object_len memorybytes, v6, 1
     v7 = memory_object_data memorybytes, v6
-    mstore v7, 0x544b4e0000000000000000000000000000000000000000000000000000000000
+    mstore v7, 0x3100000000000000000000000000000000000000000000000000000000000000
     jump bb1
   bb1:
-    internal_call @store_storage_bytes, 0, 0, v0
-    internal_call @store_storage_bytes, 0, 1, v2
+    icall @store_storage_bytes, 0, 0, v0
+    icall @store_storage_bytes, 0, 1, v6
     jump bb2
   bb2:
     jump bb4
@@ -1208,8 +1229,8 @@ fn @constructor() [constructor] {
 
 fn @domain() -> (memorybytes, memorybytes) [selector=0xc2fb26a6, view, abi_params=[], abi_returns=[memory_bytes, memory_bytes]] {
   bb0:
-    v0 = internal_call @load_storage_bytes, 1, 0
-    v1 = internal_call @load_storage_bytes, 1, 1
+    v0 = icall @load_storage_bytes, 1, 0
+    v1 = icall @load_storage_bytes, 1, 1
     ret v0, v1
 }
 
@@ -1258,7 +1279,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
@@ -1372,5 +1393,67 @@ fn @load_storage_bytes(arg0: u256) -> memorybytes {
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 34 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseA ===
+@module WriterBaseA
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterBaseB ===
+@module WriterBaseB
+fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
+  bb0:
+    stop
+}
+
+// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:WriterDerived ===
+@module WriterDerived
+fn @constructor() [constructor] {
+  bb0:
+    v0 = icall @trace, 1, 1
+    v1 = icall @trace, 1, 2
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    jump bb4
+  bb4:
+    jump bb3
+  bb3:
+    jump bb5
+  bb5:
+    stop
+}
+
+fn @order() -> u256 [selector=0xbf15071d, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @trace(arg0: u256) -> u256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = mul v0, 10
+    v2 = iszero 10
+    v3 = div v1, 10
+    v4 = eq v3, v0
+    v5 = or v2, v4
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = add v1, arg0
+    v8 = lt v7, v1
+    jumpi v8, bb1, bb3
+  bb3:
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret arg0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
 }

@@ -666,7 +666,7 @@ fn watched_file_specs_add_only_approved_dependency_parents() {
             crate::workspace::Workspace::load_foundry_bounded(
                 project.path("/workspace/foundry.toml"),
                 &[project.path("/workspace")],
-                crate::workspace::FoundryConfigContext::default(),
+                &mut crate::workspace::FoundryConfigContext::default(),
             )
             .unwrap(),
         ],
@@ -1284,7 +1284,7 @@ async fn synchronous_discovery_refreshes_watched_file_specs_before_analysis() {
     state.config = Arc::new(config);
     *state.watched_file_registration.desired_specs.lock() = Some(initial_specs);
 
-    state.rediscover_workspaces();
+    state.rediscover_workspaces().unwrap();
 
     let specs = state.watched_file_registration.desired_specs.lock();
     assert!(
