@@ -41,7 +41,7 @@ bb28 [cold]:
   push 65
   jump bb29
 bb4:
-  push 608
+  push 640
   push 64
   mstore
   push 68
@@ -68,7 +68,7 @@ bb4:
   gt
   push bb3
   jumpi
-  push 448
+  push 480
   dup 2
   calldataload
   dup 2

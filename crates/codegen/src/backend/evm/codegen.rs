@@ -47,7 +47,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::cell::OnceCell;
+use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry};
 
 mod switch;
 
@@ -290,7 +290,7 @@ fn union_values(first: &[ValueId], second: &[ValueId]) -> Vec<ValueId> {
     union
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SpillLiveRange {
     start: usize,
     end: usize,
@@ -5491,7 +5491,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = cross_block_live;
-            let ranges = Self::spill_live_ranges(func, liveness, colorable);
+            let recomputable =
+                cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
+            let ranges = Self::spill_live_ranges(func, liveness, colorable, &recomputable);
             let interferences =
                 Self::parallel_phi_interferences(func, liveness, colorable, &self.block_copies);
 
@@ -5557,10 +5559,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         values
     }
 
+    /// Returns the per-block interval of each colorable value's slot, keyed by block.
+    ///
+    /// The interval spans the points where the slot has to hold the value: its live-in and
+    /// live-out ends, the instructions that define and consume it, and the range of every value
+    /// the scheduler may rebuild from it. A rebuild materializes its operands where it happens,
+    /// which for an operand with a slot is a load from that slot, so an operand's slot has to
+    /// survive as long as the rebuilt value's, not only until liveness drops the operand.
     fn spill_live_ranges(
         func: &Function,
         liveness: &Liveness,
         colorable: &DenseBitSet<ValueId>,
+        recomputable: &DenseBitSet<ValueId>,
     ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
         let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
         let mut operands = SmallVec::<[ValueId; 8]>::new();
@@ -5603,7 +5613,73 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        Self::extend_recomputed_operand_ranges(func, colorable, recomputable, &mut ranges);
         ranges
+    }
+
+    /// Widens every operand's range over the range of the values rebuilt from it.
+    ///
+    /// A rebuild is only chosen where the rebuilt value is needed, so the rebuilt value's own
+    /// range covers every point an operand can be read at. Rebuilding is transitive and passes
+    /// through values that never own a slot themselves, so the requirement propagates over the
+    /// whole recomputable operand graph and only lands on the colorable values at the end.
+    fn extend_recomputed_operand_ranges(
+        func: &Function,
+        colorable: &DenseBitSet<ValueId>,
+        recomputable: &DenseBitSet<ValueId>,
+        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+    ) {
+        let mut required = ranges.clone();
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+        let mut worklist: Vec<ValueId> =
+            recomputable.iter().filter(|&value| !required[value].is_empty()).collect();
+        while let Some(value) = worklist.pop() {
+            let crate::mir::Value::Inst(inst_id) = func.value(value) else { continue };
+            operands.clear();
+            func.inst(*inst_id).kind.collect_operands(&mut operands);
+            let value_required = required[value].clone();
+            for &operand in &operands {
+                if !recomputable.contains(operand) && !colorable.contains(operand) {
+                    continue;
+                }
+                let mut grew = false;
+                for (&block, &range) in &value_required {
+                    grew |= Self::merge_spill_live_range(&mut required[operand], block, range);
+                }
+                if grew && recomputable.contains(operand) {
+                    worklist.push(operand);
+                }
+            }
+        }
+
+        for value in colorable.iter() {
+            for (&block, &range) in &required[value] {
+                Self::merge_spill_live_range(&mut ranges[value], block, range);
+            }
+        }
+    }
+
+    /// Unions `range` into a value's interval for `block`, reporting whether it grew.
+    fn merge_spill_live_range(
+        ranges: &mut FxHashMap<BlockId, SpillLiveRange>,
+        block: BlockId,
+        range: SpillLiveRange,
+    ) -> bool {
+        match ranges.entry(block) {
+            StdEntry::Occupied(mut entry) => {
+                let merged = SpillLiveRange {
+                    start: entry.get().start.min(range.start),
+                    end: entry.get().end.max(range.end),
+                };
+                let grew = merged != *entry.get();
+                entry.insert(merged);
+                grew
+            }
+            StdEntry::Vacant(entry) => {
+                entry.insert(range);
+                true
+            }
+        }
     }
 
     /// Records spill-slot conflicts introduced by simultaneous phi edge copies.
