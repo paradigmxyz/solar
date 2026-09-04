@@ -34,7 +34,7 @@ error[9908]: typed catch clause requires Byzantium-compatible EVM
 LL │           } catch (bytes memory) {
    │ ┏━━━━━━━━━━━┛
 LL │ ┃
-LL │ ┃         } catch {
+LL │ ┃         }
    │ ┗━━━━━━━━━┛
    │
    ╰ help: compile with `--evm-version byzantium` or newer

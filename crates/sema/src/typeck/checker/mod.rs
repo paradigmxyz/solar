@@ -1334,25 +1334,59 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(())
     }
 
+    /// Checks a `try` statement, as in solc's `TypeChecker::endVisit(TryStatement)`.
+    ///
+    /// Must run after the called expression has been checked: every clause is checked against
+    /// the callee's type.
+    fn check_try(&self, try_: &'gcx hir::StmtTry<'gcx>) {
+        let Some(f) = self.check_try_target(try_) else { return };
+        self.check_try_returns_clause(try_, f);
+        self.check_try_catch_clauses(try_);
+    }
+
+    /// Checks that a `try` statement's target is a call whose failure the statement can catch,
+    /// returning the called function's type.
+    ///
+    /// Only an external call, a delegate call, and a contract creation call have a revert of
+    /// their own to catch and return data to decode; every other callee either cannot fail
+    /// separately from the caller or has no return data. solc reports 5347 for a target that is
+    /// not a function call at all and 2536 for a call of another kind, with the same message,
+    /// and checks no clause of either.
+    fn check_try_target(&self, try_: &'gcx hir::StmtTry<'gcx>) -> Option<&'gcx TyFn<'gcx>> {
+        let expr = try_.expr.peel_parens();
+        if let hir::ExprKind::Call(callee, ..) = expr.kind
+            && let Some(&callee_ty) = self.results.expr_types.get(&callee.id)
+        {
+            // A callee that failed to check says nothing about the statement.
+            if callee_ty.references_error() {
+                return None;
+            }
+            if let TyKind::Fn(f) = callee_ty.kind
+                && matches!(
+                    f.kind,
+                    TyFnKind::External | TyFnKind::DelegateCall | TyFnKind::Creation
+                )
+            {
+                return Some(f);
+            }
+        }
+        self.dcx()
+            .err("`try` can only be used with external function calls and contract creation calls")
+            .code(error_code!(2536))
+            .span(try_.expr.span)
+            .emit();
+        None
+    }
+
     /// Checks a `try` statement's `returns` clause against the callee's return values.
     ///
     /// solc requires the clause to repeat the callee's return types exactly, without implicit
     /// conversions and with the same data location (`TypeChecker::endVisit(TryStatement)`): the
     /// decoder writes the callee's values straight into the clause's variables, so a differing
-    /// declaration would reinterpret them. Only an external, delegate, or creation call decodes
-    /// anything, and solc checks the clause of no other callee.
-    fn check_try_returns_clause(&self, try_: &'gcx hir::StmtTry<'gcx>) {
+    /// declaration would reinterpret them.
+    fn check_try_returns_clause(&self, try_: &'gcx hir::StmtTry<'gcx>, f: &'gcx TyFn<'gcx>) {
         let clause = &try_.clauses[0];
         if clause.args.is_empty() {
-            return;
-        }
-        let hir::ExprKind::Call(callee, ..) = try_.expr.peel_parens().kind else { return };
-        let Some(&callee_ty) = self.results.expr_types.get(&callee.id) else { return };
-        let TyKind::Fn(f) = callee_ty.kind else { return };
-        // solc reaches the clause only for the callee kinds `try` accepts, returning after 2536
-        // for any other one. The return values of the rest are not what the clause would bind:
-        // a builtin's are not even always a type, so comparing them says nothing.
-        if !matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall | TyFnKind::Creation) {
             return;
         }
 
@@ -1408,6 +1442,117 @@ impl<'gcx> TypeChecker<'gcx> {
                 )
                 .note("a `returns` clause must repeat the callee's return types exactly")
                 .emit();
+        }
+    }
+
+    /// Checks a `try` statement's `catch` clauses.
+    ///
+    /// Each clause decodes one shape of revert data, so its parameter list is fixed: the
+    /// `Error(string)` and `Panic(uint256)` builtin errors carry exactly their own argument, and
+    /// a low-level clause takes the raw return data as `bytes memory` or nothing at all. Only
+    /// one clause of each kind can ever run, so a second one is dead and solc rejects it
+    /// (`TypeChecker::endVisit(TryStatement)`).
+    fn check_try_catch_clauses(&self, try_: &'gcx hir::StmtTry<'gcx>) {
+        let supports_returndata = self.gcx.sess.opts.evm_version.supports_returndata();
+        // A clause takes exactly the one argument its error carries. A parameter whose data
+        // location was rejected has already been reported and rewritten, so its type matches
+        // and solc reports only the declaration.
+        let takes = |clause: &hir::TryCatchClause<'gcx>, ty| {
+            let &[arg] = clause.args else { return false };
+            self.gcx.type_of_item(arg.into()) == ty
+        };
+        let mut error_clause = None;
+        let mut panic_clause = None;
+        let mut low_level_clause = None;
+        for clause in &try_.clauses[1..] {
+            let name = clause.name.map(|name| name.name);
+            // `Error` and `Panic` are the only clause names there are, at every EVM version.
+            if !matches!(name, None | Some(sym::Error | sym::Panic)) {
+                self.dcx()
+                    .err("invalid catch clause name")
+                    .code(error_code!(3542))
+                    .span(clause.span)
+                    .help("expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`")
+                    .emit();
+                continue;
+            }
+
+            let first = match name {
+                None => &mut low_level_clause,
+                Some(sym::Error) => &mut error_clause,
+                _ => &mut panic_clause,
+            };
+            if let Some(first) = *first {
+                let (code, kind) = match name {
+                    None => (error_code!(5320), "a low-level"),
+                    Some(sym::Error) => (error_code!(1036), "an `Error`"),
+                    _ => (error_code!(6732), "a `Panic`"),
+                };
+                self.dcx()
+                    .err(format!("this `try` statement already has {kind} catch clause"))
+                    .code(code)
+                    .span(clause.span)
+                    .span_note(first, "the first clause is here")
+                    .emit();
+            } else {
+                *first = Some(clause.span);
+            }
+
+            match name {
+                // A bare `catch { }` needs no return data and stays accepted.
+                None if clause.args.is_empty() => {}
+                None => {
+                    if !takes(clause, self.gcx.types.bytes_ref.memory) {
+                        self.dcx()
+                            .err("invalid low-level catch clause parameters")
+                            .code(error_code!(6231))
+                            .span(clause.span)
+                            .help("expected `catch (bytes memory ...) { ... }` or `catch { ... }`")
+                            .emit();
+                    }
+                    if !supports_returndata {
+                        self.evm_version_error(
+                            clause.span,
+                            "typed catch clause",
+                            EvmVersion::Byzantium,
+                        )
+                        .code(error_code!(9908))
+                        .emit();
+                    }
+                }
+                Some(name) => {
+                    if !supports_returndata {
+                        self.evm_version_error(
+                            clause.span,
+                            "typed catch clause",
+                            EvmVersion::Byzantium,
+                        )
+                        .code(error_code!(1812))
+                        .emit();
+                    }
+                    let (ty, code, help) = if name == sym::Error {
+                        (
+                            self.gcx.types.string_ref.memory,
+                            error_code!(2943),
+                            "expected `catch Error(string memory ...) { ... }`",
+                        )
+                    } else {
+                        (
+                            self.gcx.types.uint(256),
+                            error_code!(1271),
+                            "expected `catch Panic(uint ...) { ... }`",
+                        )
+                    };
+                    if !takes(clause, ty) {
+                        self.dcx()
+                            .err(format!("invalid `{name}` catch clause parameters"))
+                            .code(code)
+                            .span(clause.span)
+                            .help(help)
+                            .emit();
+                    }
+                }
+            }
         }
     }
 
@@ -3215,45 +3360,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Try(try_) => {
-                let supports_returndata = self.gcx.sess.opts.evm_version.supports_returndata();
-                for clause in &try_.clauses[1..] {
-                    // `Error` and `Panic` are the only clause names there are, at every EVM
-                    // version.
-                    if let Some(name) = clause.name
-                        && name.name != sym::Error
-                        && name.name != sym::Panic
-                    {
-                        self.dcx()
-                            .err("invalid catch clause name")
-                            .code(error_code!(3542))
-                            .span(clause.span)
-                            .help(
-                                "expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`",
-                            )
-                            .emit();
-                        continue;
-                    }
-                    if supports_returndata {
-                        continue;
-                    }
-                    // A bare `catch { }` needs no return data and stays accepted; solc
-                    // reports 1812 for `catch Error`/`catch Panic` and 9908 for
-                    // `catch (bytes memory)`.
-                    let code = if clause.name.is_some() {
-                        error_code!(1812)
-                    } else if !clause.args.is_empty() {
-                        error_code!(9908)
-                    } else {
-                        continue;
-                    };
-                    self.evm_version_error(
-                        clause.span,
-                        "typed catch clause",
-                        EvmVersion::Byzantium,
-                    )
-                    .code(code)
-                    .emit();
-                }
                 // A `returns` clause binds the call's values; without one they are discarded.
                 // Binding an inaccessible one is the mismatch solc reports as 6509, and the
                 // walk below checks the call expression before any clause body.
@@ -3262,10 +3368,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 } else {
                     self.value_position = ValuePosition::TryReturns;
                 }
-                // The clause is checked against the call's type, so only after visiting it, as
-                // in solc's `endVisit(TryStatement)`.
+                // The clauses are checked against the call's type, so only after visiting it,
+                // as in solc's `endVisit(TryStatement)`.
                 self.walk_stmt(stmt)?;
-                self.check_try_returns_clause(try_);
+                self.check_try(try_);
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {

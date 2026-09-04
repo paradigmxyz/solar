@@ -125,20 +125,24 @@ contract C {
         } catch {}
     }
 
-    // Only an external, delegate, or creation call decodes return values into the clause.
-    // solc rejects every other callee outright and compares nothing, so neither do we: a
-    // builtin's return values are not even always a type.
+    // Only an external, delegate, or creation call decodes return values into the clause. Every
+    // other callee is rejected outright and its clause compared to nothing: a builtin's return
+    // values are not even always a type. See `try_catch_clause_checks.sol`.
     function otherCallees(bytes memory d) external {
         try internal_() returns (bool b) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
             b;
         } catch {}
         try abi.decode(d, (uint256)) returns (uint256 x) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
             x;
         } catch {}
         try gasleft() returns (bool b) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
             b;
         } catch {}
         try address(this).call("") returns (uint256 ok) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
             ok;
         } catch {}
     }
