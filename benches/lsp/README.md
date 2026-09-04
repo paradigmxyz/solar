@@ -83,6 +83,9 @@ The displayed base and head values are means of those per-session percentiles;
 they are descriptive values, not percentiles from 100 pooled request samples.
 Within each order stratum, the renderer pairs base and head session summaries
 and computes an exact, deterministic paired-bootstrap 95% confidence interval.
+It represents each replacement count vector once with its multinomial weight, so
+the interval uses the same ordered-resample distribution without a random or
+asymptotic approximation.
 A metric is a regression only when the lower bounds for both absolute and
 percentage changes, for both p50 and p95, in both order strata, reach at least
 1.0 ms and 10 percent. An improvement requires the corresponding upper bounds
