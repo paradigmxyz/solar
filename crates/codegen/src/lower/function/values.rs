@@ -306,9 +306,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     rhs => {
                         let place = self.resolve_lvalue_place(element)?;
-                        if let LValuePlace::StorageBytePush { slot, object, .. } = &place {
-                            self.store_storage_bytes(*slot, *object)?;
-                        }
                         PreparedTupleAssignment::Value { place, rhs }
                     }
                 })
@@ -323,15 +320,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         for assignment in assignments.into_iter().rev() {
             match assignment {
-                PreparedTupleAssignment::Value { mut place, rhs } => {
-                    if let LValuePlace::StorageByte { slot, index, ty, .. }
-                    | LValuePlace::StorageBytePush { slot, index, ty, .. } = place
-                    {
-                        // Place resolution materializes storage bytes. Reload before each write so
-                        // aliased byte targets do not restore a stale copy.
-                        let object = self.load_storage_bytes(slot);
-                        place = LValuePlace::StorageByte { slot, object, index, ty };
-                    }
+                PreparedTupleAssignment::Value { place, rhs } => {
                     let (value, source_ty) = match rhs {
                         TupleAssignmentRhs::Materialized { value, source_ty, .. } => {
                             (value, source_ty)
@@ -455,7 +444,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         };
                         values.push((lhs, value));
                     } else {
-                        self.lower_expr(rhs)?;
+                        // The assignment drops this component, so its value needs no read.
+                        self.lower_discarded_expr(rhs)?;
                     }
                 }
                 continue;

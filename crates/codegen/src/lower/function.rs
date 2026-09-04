@@ -243,6 +243,14 @@ struct FunctionLowerer<'gcx, 'ctx> {
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
+    /// The expressions being lowered whose values nothing observes: a discarded expression
+    /// statement, and the tuple declaration and assignment components that have no target.
+    ///
+    /// Lowering an expression that has to read storage to produce its value can skip the read
+    /// here. Only the discarded expression itself and the tuple components and conditional
+    /// branches that just hand their value up to it qualify: every other subexpression feeds the
+    /// value it belongs to.
+    discarded_exprs: Vec<hir::ExprId>,
 }
 
 #[derive(Clone, Copy)]
@@ -314,8 +322,6 @@ enum LValuePlace<'gcx> {
     MemoryField { object: ValueId, layout: MemoryObjectLayout, field: u64, ty: Ty<'gcx> },
     MemoryElement { object: ValueId, layout: MemoryObjectLayout, index: ValueId, ty: Ty<'gcx> },
     MemoryByte { object: ValueId, index: ValueId, ty: Ty<'gcx> },
-    StorageByte { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
-    StorageBytePush { slot: ValueId, object: ValueId, index: ValueId, ty: Ty<'gcx> },
 }
 
 #[derive(Clone, Copy)]
@@ -434,6 +440,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,
+            discarded_exprs: Vec::new(),
         }
     }
 

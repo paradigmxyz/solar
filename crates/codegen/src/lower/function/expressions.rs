@@ -191,9 +191,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(self.builder.sload(access.slot))
                     }
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                        // length = load_storage_bytes(slot).len
-                        let object = self.load_storage_bytes(access.slot);
-                        Some(self.builder.memory_object_len(object, MemoryObjectKind::Bytes))
+                        // length = storage_bytes_length(slot)
+                        Some(self.storage_bytes_length(access.slot))
                     }
                     _ => self.cx.report_unsupported(span, what),
                 };
