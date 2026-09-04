@@ -23,6 +23,12 @@ fn @shortAgg() [selector=0x391c2d28, pure, abi_params=[], abi_returns=[]] {
     returndata 0, 36
 }
 
+fn @shortFour() [selector=0xfb8720fc, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 0, 0x1122334455667788990011223344556677889900112233445566778899001122 !metadata(memory=scratch)
+    returndata 0, 4
+}
+
 fn @emptySingle() -> u256 [selector=0x52635aa1, abi_params=[], abi_returns=[word]] {
   bb0:
     mstore 0, 42 !metadata(memory=scratch)
@@ -318,6 +324,57 @@ fn @partialAgg() -> memoryfixedarray [selector=0xbf0809fa, abi_params=[], abi_re
     mcopy v3, v7, 64
     v14 = abi_decode [array<2, u256>], v2
     ret v14
+  bb1:
+    revert 0, 0
+}
+
+fn @dirtyFour() -> (u256, u256, u256, u256) [selector=0x42fc804f, abi_params=[], abi_returns=[word, word, word, word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = not 0
+    v2 = add v0, 32
+    mstore v2, v1
+    v3 = add v0, 64
+    mstore v3, 0xdeadbeef
+    v4 = add v0, 96
+    mstore v4, 0x1234
+    v5 = address
+    v6 = fmp
+    v7 = add v6, 128
+    mstore v7, 0
+    v8 = abi_encode [], selector 0xfb8720fc00000000000000000000000000000000000000000000000000000000
+    v9 = slice_ptr v8
+    v10 = slice_len v8
+    v11 = extcodesize v5
+    v12 = iszero v11
+    jumpi v12, bb1, bb2
+  bb2:
+    v13 = gas
+    v14 = sub v13, 50
+    v15 = call v14, v5, 0, v9, v10, v9, 128
+    jumpi v15, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v16 = add v9, 0
+    v17 = mload v16
+    v18 = add v9, 32
+    v19 = mload v18
+    v20 = add v9, 64
+    v21 = mload v20
+    v22 = add v9, 96
+    v23 = mload v22
+    frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
+    v24 = add v9, 0
+    v25 = mload v24
+    v26 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v27 = add v26, 32
+    v28 = mload v27
+    v29 = add v26, 64
+    v30 = mload v29
+    v31 = add v26, 96
+    v32 = mload v31
+    ret v25, v28, v30, v32
   bb1:
     revert 0, 0
 }

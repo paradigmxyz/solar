@@ -14,6 +14,7 @@
 //@ run-call: ShortReturns::partialSingle => 0x1122334400000000000000000000000000000000000000000000000000000000
 //@ run-call: ShortReturns::partialPair => 0x1122334455667788990011223344556677889900112233445566778899001122, 0
 //@ run-call: ShortReturns::partialAgg => [0x1122334455667788990011223344556677889900112233445566778899001122, 0]
+//@ run-call: ShortReturns::dirtyFour => 0x1122334400000000000000000000000000000000000000000000000000000000, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xdeadbeef, 0x1234
 
 // Before Byzantium a callee that returns fewer bytes than it declares cannot be detected: there
 // is no `RETURNDATASIZE` to compare against, so the decoded values are whatever the output area
@@ -30,6 +31,7 @@ interface Target {
     function shortWord() external returns (uint256);
     function shortPair() external returns (uint256, uint256);
     function shortAgg() external returns (uint256[2] memory);
+    function shortFour() external returns (uint256, uint256, uint256, uint256);
 }
 
 // Every call targets this contract itself, whose fallback returns no data at all and whose
@@ -55,6 +57,13 @@ contract ShortReturns {
         assembly {
             mstore(0, 0x1122334455667788990011223344556677889900112233445566778899001122)
             return(0, 36)
+        }
+    }
+
+    function shortFour() external pure {
+        assembly {
+            mstore(0, 0x1122334455667788990011223344556677889900112233445566778899001122)
+            return(0, 4)
         }
     }
 
@@ -128,5 +137,24 @@ contract ShortReturns {
 
     function partialAgg() external returns (uint256[2] memory) {
         return Target(address(this)).shortAgg();
+    }
+
+    // The words the callee leaves untouched are read back as whatever memory above the free
+    // pointer already held, which is what the touch above the output area preserves: a store
+    // inside the area would hand back zeros where solc hands back the assembly's writes.
+    // HOMESTEAD-LABEL: fn @dirtyFour
+    // HOMESTEAD: [[AREA:v[0-9]+]] = fmp
+    // HOMESTEAD: [[ABOVE:v[0-9]+]] = add [[AREA]], 128
+    // HOMESTEAD: mstore [[ABOVE]], 0
+    // HOMESTEAD: [[INPUT:v[0-9]+]] = slice_ptr
+    // HOMESTEAD: call {{.*}}, [[INPUT]], {{v[0-9]+}}, [[INPUT]], 128
+    function dirtyFour() external returns (uint256, uint256, uint256, uint256) {
+        assembly {
+            let p := mload(0x40)
+            mstore(add(p, 32), not(0))
+            mstore(add(p, 64), 0xdeadbeef)
+            mstore(add(p, 96), 0x1234)
+        }
+        return Target(address(this)).shortFour();
     }
 }
