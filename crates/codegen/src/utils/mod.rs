@@ -10,6 +10,21 @@ pub(crate) mod eval;
 /// Covers Homestead's call and new-account costs plus setup emitted after `GAS`.
 const PRE_TANGERINE_PRECOMPILE_GAS_RESERVE: u64 = 25_100;
 
+/// Homestead's `CALL` base cost plus the `SUB` and the call setup emitted after `GAS`.
+///
+/// Mirrors solc's `GasCosts::callGas(homestead) + 10`.
+const PRE_TANGERINE_CALL_GAS_RESERVE: u64 = 50;
+
+/// Extra gas a pre-Tangerine call is charged for transferring value.
+///
+/// Mirrors solc's `GasCosts::callValueTransferGas`.
+const PRE_TANGERINE_VALUE_TRANSFER_GAS_RESERVE: u64 = 9_000;
+
+/// Extra gas a pre-Tangerine call is charged for creating the callee's account.
+///
+/// Mirrors solc's `GasCosts::callNewAccountGas`.
+const PRE_TANGERINE_NEW_ACCOUNT_GAS_RESERVE: u64 = 25_000;
+
 pub(crate) fn display_data_name(name: Symbol, index: usize) -> impl fmt::Display {
     fmt::from_fn(move |f| write!(f, "{name}_{index}"))
 }
@@ -45,4 +60,33 @@ pub(crate) fn precompile_gas(
         let reserved = builder.imm(PRE_TANGERINE_PRECOMPILE_GAS_RESERVE);
         builder.sub(gas, reserved)
     }
+}
+
+/// Returns the `gas` operand of an external call that forwards the gas left, on a target that
+/// predates EIP-150.
+///
+/// There a gas argument larger than the gas left aborts the call instead of being capped at all
+/// but a 64th of it, so the operand withholds everything the `CALL` itself is charged, like
+/// solc's `gasNeededByCaller`: the call base cost, the value-transfer cost when the call sends
+/// value, and the account-creation cost when the callee is not already known to exist.
+///
+/// Everything emitted between the `GAS` and the call runs on the withheld gas, so the caller must
+/// materialize this immediately before the call, with the argument encoding and the memory the
+/// call needs already done.
+pub(crate) fn pre_tangerine_call_gas(
+    builder: &mut FunctionBuilder<'_>,
+    sends_value: bool,
+    may_create_account: bool,
+) -> ValueId {
+    // gas = sub(gas(), reserve)
+    let mut reserve = PRE_TANGERINE_CALL_GAS_RESERVE;
+    if sends_value {
+        reserve += PRE_TANGERINE_VALUE_TRANSFER_GAS_RESERVE;
+    }
+    if may_create_account {
+        reserve += PRE_TANGERINE_NEW_ACCOUNT_GAS_RESERVE;
+    }
+    let gas = builder.gas();
+    let reserve = builder.imm(reserve);
+    builder.sub(gas, reserve)
 }

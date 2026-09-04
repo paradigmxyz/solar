@@ -12,10 +12,8 @@
 //@ run-call-fail: NoCodeReturnCalls::aggregate => 0x
 //@ run-call-fail: NoCodeReturnCalls::directNoReturn => 0x
 //@ run-call-fail: NoCodeReturnCalls::pointerNoReturn => 0x
-// Before Tangerine Whistle a call cannot request all the remaining gas, so the
-// succeeding cases skip the homestead revision.
-//@[tangerineWhistle,spuriousDragon,byzantium,osaka] run-call: NoCodeReturnCalls::live => 42
-//@[tangerineWhistle,spuriousDragon,byzantium,osaka] run-call: NoCodeReturnCalls::liveAggregate => 1, 2
+//@ run-call: NoCodeReturnCalls::live => 42
+//@ run-call: NoCodeReturnCalls::liveAggregate => 1, 2
 
 interface NoCodeTarget {
     function value() external returns (uint256);

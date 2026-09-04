@@ -348,8 +348,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
-            let (gas, call_value, zero) =
-                self.lower_call_options(*call_opts, true, "try call option")?;
+            let options = self.lower_call_options(*call_opts, true, "try call option")?;
+            let (call_value, zero) = (options.value, options.zero);
             let (mut values, mut types) =
                 if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
                     let capacity = args.len() + usize::from(receiver.is_some());
@@ -411,6 +411,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if check_code {
                 self.revert_if_no_code(address);
             }
+            // The code check above is emitted at every version that needs the reserve, so the
+            // call cannot create the callee's account.
+            // gas = gas() | sub(gas(), reserve)
+            let gas = self.call_gas(options.gas, options.value_set, false);
             // ok = delegatecall|staticcall|call(gas, address, input, 0, 0)
             let success = match target.callee {
                 TryCallee::LinkedLibrary { .. } => {

@@ -260,6 +260,29 @@ struct FunctionLowerer<'gcx, 'ctx> {
     discarded_exprs: Vec<hir::ExprId>,
 }
 
+/// The lowered `{gas: ..., value: ...}` options of an external call.
+#[derive(Clone, Copy)]
+struct LoweredCallOptions {
+    /// The `gas` operand, or `None` when the call forwards the gas left on a target that predates
+    /// EIP-150.
+    ///
+    /// Such a target aborts a call whose gas argument exceeds the gas left, so the operand has to
+    /// withhold the call's own costs and only [`FunctionLowerer::call_gas`] materializes it,
+    /// immediately before the call. Every other case is materialized here: an explicit
+    /// `{gas: ...}` because its expression must run in source order, and `gas()` because
+    /// EIP-150 caps the forwarded gas anyway.
+    gas: Option<ValueId>,
+    /// The `value` operand, zero when the call sends no value.
+    value: ValueId,
+    /// Whether the call has an explicit `{value: ...}` option.
+    ///
+    /// A pre-EIP-150 call reserves the value-transfer cost whenever the option is there, like
+    /// solc's `valueSet`, because the amount is not known to be zero.
+    value_set: bool,
+    /// A zero immediate, reusable by the caller.
+    zero: ValueId,
+}
+
 #[derive(Clone, Copy)]
 struct CallArgumentParams<'a> {
     count: usize,
@@ -558,28 +581,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         options: Option<&hir::CallOptions<'_>>,
         allow_value: bool,
         diagnostic: &'static str,
-    ) -> Option<(ValueId, ValueId, ValueId)> {
+    ) -> Option<LoweredCallOptions> {
         // zero = 0
         // gas = gas()
         // value = zero
         // for option { gas/value = lower(option.value) }
         let zero = self.builder.imm(U256::ZERO);
-        let mut gas = self.builder.gas();
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
+        let mut gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
         let mut value = zero;
+        let mut value_set = false;
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
                     self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
                 match option.name.name {
-                    kw::Gas => gas = option_value,
-                    sym::value if allow_value => value = option_value,
+                    kw::Gas => gas = Some(option_value),
+                    sym::value if allow_value => {
+                        value = option_value;
+                        value_set = true;
+                    }
                     _ => {
                         return self.cx.report_unsupported(option.name.span, diagnostic);
                     }
                 }
             }
         }
-        Some((gas, value, zero))
+        Some(LoweredCallOptions { gas, value, value_set, zero })
     }
 
     fn validate_enum(&mut self, ty: Ty<'gcx>, value: ValueId) {
