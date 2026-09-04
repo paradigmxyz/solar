@@ -105,8 +105,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/call_gas_reserve_split.sol`; fixed in `58ab6626`, review fix `595abb4c`)
 - [x] 39. A pre-byzantium external call whose dynamic return value is unused is rejected; solc compiles it
       (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`; fixed in `e679031a`, review fix `6b9e9d80`)
-- [ ] 40. Interface constructors, implemented or `virtual` interface functions, interface modifiers and variables, and `virtual` library modifiers are accepted; solc reports 6482, 4726, 5815, 6408, 8274, 3275
-      (`symbolic-audit/interface_member_checks.sol`)
+- [x] 40. Interface constructors, implemented or `virtual` interface functions, interface modifiers and variables, and `virtual` library modifiers are accepted; solc reports 6482, 4726, 5815, 6408, 8274, 3275
+      (`symbolic-audit/interface_member_checks.sol`; fixed in `97329055`, review fix `6f2a1206`)
 - [ ] 41. A `try` `returns` clause with mismatched variable types or count is accepted; solc reports 6509 and 2800
       (`symbolic-audit/try_returns_clause_checks.sol`)
 - [x] 42. An external library function returning a storage pointer is miscompiled from byzantium on: the caller gets a wrong slot
@@ -1858,6 +1858,31 @@ emitted, and that the `Contract::functions()` doc comment in
 fallback while the lowering pushes every function into `items`.
 
 Severity: missing diagnostics.
+
+Fix (`97329055`): a `check_interface_members` pass walks an interface's
+items in declaration order and reports 4726, 6482, 6408, 8274, and the
+5815 warning (silenceable with `--allow=5815`; 3942 no longer fires
+inside interfaces, where solc's chain stops at 5815); `virtual` library
+modifiers get 3275 instead of the function message; 1750 moved to the
+free-function checks so a bare `override` fires too; 5811 is emitted at
+AST level, before the resolver's own error; and the library `receive`
+error carries 4549. The repro reports 4726, 6482, 4726, 6408, 8274, 5815,
+3275 in solc's order (with `-j1`); six of the eight new tests are 1-1
+ports; the UI suite and `cargo tq solc-solidity` pass; all 175
+interface-declaring archive files report nothing new. solc reports 8274
+from `PostTypeChecker`, which it skips once any error exists, so we
+report a superset on files with other errors. The review (`6f2a1206`)
+compared conditions and order against solc's source, ran the whole
+2575-file single-source pool against solc's codes for the touched
+diagnostics (one intentional difference, the 8274 superset), added 8063
+for bodiless modifiers (a ported test had silently dropped it, and
+modifiers are not functions in solc's chain), removed a double report
+next to 5811, and corrected the `Contract::functions()` doc comment.
+Residual gaps it listed: the deprecation warning 8429, a spurious 3656
+"has unimplemented functions" on libraries, `using for` in an interface
+and the free-function modifier resolution errors without solc's codes
+(9088, 9428, 4659), and `public` `fallback`/`receive` in an interface
+being a parse error for us.
 
 ### 41. A `try` `returns` clause with mismatched types or count is accepted
 
