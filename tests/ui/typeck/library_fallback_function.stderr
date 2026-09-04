@@ -4,7 +4,7 @@ error[5982]: libraries cannot have fallback functions
 LL │     fallback() external {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
 
-error: libraries cannot have receive ether functions
+error[4549]: libraries cannot have receive ether functions
    ╭▸ ROOT/tests/ui/typeck/library_fallback_function.sol:LL:CC
    │
 LL │     receive() external payable {}

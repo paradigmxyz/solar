@@ -1,0 +1,28 @@
+error[5811]: free functions cannot have modifiers
+   ╭▸ ROOT/tests/ui/typeck/free_function_modifiers.sol:LL:CC
+   │
+LL │ ┏ function fun() C.someModifier {
+LL │ ┃
+LL │ ┃ }
+   ╰╴┗━┛
+
+error[5811]: free functions cannot have modifiers
+   ╭▸ ROOT/tests/ui/typeck/free_function_modifiers.sol:LL:CC
+   │
+LL │ function fun2() fun {}
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use modifiers defined in the current contract or in base contracts
+   ╭▸ ROOT/tests/ui/typeck/free_function_modifiers.sol:LL:CC
+   │
+LL │ function fun() C.someModifier {
+   ╰╴               ━━━━━━━━━━━━━━
+
+error: expected modifier, found function
+   ╭▸ ROOT/tests/ui/typeck/free_function_modifiers.sol:LL:CC
+   │
+LL │ function fun2() fun {}
+   ╰╴                ━━━
+
+error: aborting due to 4 previous errors
+

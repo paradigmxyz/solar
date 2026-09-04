@@ -10,5 +10,13 @@ error: functions in interfaces cannot have modifiers
 LL │     function j() external x;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error[6408]: modifiers cannot be defined or declared in interfaces
+   ╭▸ ROOT/tests/ui/resolve/func_modifiers.sol:LL:CC
+   │
+LL │ ┏     modifier x() {
+LL │ ┃         _;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 3 previous errors
 

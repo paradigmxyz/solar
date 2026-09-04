@@ -28,8 +28,10 @@ interface K {
 // variable is `external`, so none of them may report this one.
 interface L {
     constructor() {}
-    modifier m() { _; }
-    uint256 public x;
+    //~^ ERROR: functions in interfaces cannot have an implementation
+    //~| ERROR: constructor cannot be defined in interfaces
+    modifier m() { _; } //~ ERROR: modifiers cannot be defined or declared in interfaces
+    uint256 public x; //~ ERROR: variables cannot be declared in interfaces
 }
 
 // The restriction only applies to interfaces.
