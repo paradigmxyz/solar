@@ -40,6 +40,14 @@ Options:
           [default: gas]
           [possible values: none, gas, size]
 
+      --revert-strings <REVERT_STRINGS>
+          Strip revert (and require) reason strings or add additional debugging information.
+          
+          `verboseDebug` is not implemented, matching solc.
+          
+          [default: default]
+          [possible values: default, strip, debug, verboseDebug]
+
       --libraries <NAME=ADDRESS>
           Library addresses for linking, as `LibraryName=0xADDRESS`.
           

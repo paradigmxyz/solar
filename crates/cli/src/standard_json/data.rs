@@ -86,9 +86,8 @@ pub(super) struct Settings<'a> {
     pub(super) metadata: MetadataSettings,
     #[serde(borrow, default)]
     pub(super) libraries: Libraries<'a>,
-    // Debug output is not supported yet.
-    // #[serde(borrow, default)]
-    // debug: Option<CowValue<'a>>,
+    #[serde(borrow, default)]
+    pub(super) debug: Option<DebugSettings<'a>>,
     //
     // Not supported.
     // #[serde(borrow, default)]
@@ -99,6 +98,20 @@ pub(super) struct Settings<'a> {
     // via_ir: Option<bool>,
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
+}
+
+/// The solc Standard JSON `settings.debug` object.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct DebugSettings<'a> {
+    /// Revert reason string handling; parsed and validated in `compile`.
+    #[serde(borrow)]
+    pub(super) revert_strings: Option<CowStr<'a>>,
+    /// Debug info components to include in the IR output.
+    ///
+    /// We do not emit Yul IR, so the components only get validated.
+    #[serde(borrow)]
+    pub(super) debug_info: Option<Vec<CowStr<'a>>>,
 }
 
 /// The solc Standard JSON `settings.metadata` object.
@@ -850,6 +863,17 @@ mod tests {
             serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":"ipfs"}"#).unwrap();
         assert_eq!(explicit.bytecode_hash.value, MetadataHash::Ipfs);
         assert!(explicit.bytecode_hash.is_explicit);
+    }
+
+    #[test]
+    fn debug_rejects_unknown_keys() {
+        assert!(serde_json::from_str::<DebugSettings<'_>>(r#"{"verbose":true}"#).is_err());
+        let debug = serde_json::from_str::<DebugSettings<'_>>(
+            r#"{"revertStrings":"strip","debugInfo":["location","snippet"]}"#,
+        )
+        .unwrap();
+        assert_eq!(debug.revert_strings.as_deref(), Some("strip"));
+        assert_eq!(debug.debug_info.as_deref().map(<[_]>::len), Some(2));
     }
 
     #[test]

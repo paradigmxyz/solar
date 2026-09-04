@@ -2,9 +2,9 @@
 
 use super::{
     data::{
-        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
-        MetadataHash, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
-        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
+        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, CowStr, EvmOutput,
+        FxIndexMap, MetadataHash, OffsetLength, OutputSelection, OutputSelectionFlags,
+        ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
         print_standard_json_stats, strip_json_comments,
     },
     metadata::Metadata,
@@ -14,7 +14,7 @@ use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, RuntimeDataFn};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
-    OptimizationMode,
+    OptimizationMode, RevertStrings,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
@@ -136,6 +136,34 @@ fn finish_standard_json_output<'a>(
     crate::emit::to_json(out, &output, opts.pretty_json).map_err(Into::into)
 }
 
+/// Validates `settings.debug.debugInfo` like solc's `DebugInfoSelection`.
+///
+/// The components only affect Yul IR output, which we do not emit, so they are checked and
+/// otherwise ignored.
+fn check_debug_info_selection(dcx: &DiagCtxt, components: &[CowStr<'_>]) {
+    let mut location = false;
+    let mut snippet = false;
+    for component in components {
+        match component.as_ref() {
+            "*" => {
+                location = true;
+                snippet = true;
+            }
+            "location" => location = true,
+            "snippet" => snippet = true,
+            "ast-id" | "ethdebug" => {}
+            component => {
+                dcx.err(format!("invalid value `{component}` in `settings.debug.debugInfo`"))
+                    .emit();
+            }
+        }
+    }
+    if snippet && !location {
+        dcx.err("to use `snippet` with `settings.debug.debugInfo` you must also select `location`")
+            .emit();
+    }
+}
+
 fn compile(
     input: CompilerInput<'_>,
     opts: &mut CompileOpts,
@@ -157,6 +185,7 @@ fn compile(
         optimizer,
         metadata,
         libraries,
+        debug,
     } = &settings;
 
     if !metadata.append_cbor
@@ -204,6 +233,28 @@ fn compile(
             Err(_) => {
                 dcx.err(format!("invalid compiler stage `{stage}`")).emit();
             }
+        }
+    }
+    if let Some(debug) = debug {
+        if let Some(revert_strings) = debug.revert_strings.as_deref() {
+            match RevertStrings::from_str(revert_strings) {
+                Ok(RevertStrings::VerboseDebug) => {
+                    dcx.err(
+                        "only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now",
+                    )
+                    .emit();
+                }
+                Ok(revert_strings) => opts.revert_strings = revert_strings,
+                Err(_) => {
+                    dcx.err(format!(
+                        "invalid value `{revert_strings}` for `settings.debug.revertStrings`"
+                    ))
+                    .emit();
+                }
+            }
+        }
+        if let Some(debug_info) = &debug.debug_info {
+            check_debug_info_selection(&dcx, debug_info);
         }
     }
     if dcx.has_errors().is_err() {

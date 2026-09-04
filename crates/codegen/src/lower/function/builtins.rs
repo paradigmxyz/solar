@@ -584,7 +584,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
                 let condition = required.first()?;
                 let condition = self.lower_expr(condition)?;
+                // The message is evaluated regardless of the condition, like a function call
+                // argument. With `--revert-strings strip`, only its side effects are kept.
                 let message = match message {
+                    Some(message) if self.strips_revert_string(message)? => None,
                     Some(message) => Some(self.prepare_revert_payload(message)?),
                     None => None,
                 };
@@ -607,7 +610,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::RevertMsg => {
                 let message = &self.builtin_args::<1>(builtin, &args)?[0];
-                self.lower_revert_payload(message)?;
+                if self.strips_revert_string(message)? {
+                    // revert(0, 0)
+                    let zero = self.builder.imm(U256::ZERO);
+                    self.builder.revert(zero, zero);
+                } else {
+                    self.lower_revert_payload(message)?;
+                }
             }
             Builtin::Selfdestruct => {
                 let address = &self.builtin_args::<1>(builtin, &args)?[0];

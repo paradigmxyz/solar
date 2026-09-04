@@ -1,0 +1,95 @@
+// === ROOT/tests/ui/codegen/lowering/revert_strings_strip.sol:RevertStringsStrip ===
+@module RevertStringsStrip
+fn @requireMessage(arg0: u256) -> u256 [selector=0x4b3ab45a, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 1
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0
+  bb1:
+    revert 0, 0
+}
+
+fn @requireConstantMessage(arg0: u256) -> u256 [selector=0x3f891fde, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 1
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0
+  bb1:
+    revert 0, 0
+}
+
+fn @revertMessage() [selector=0x9d667c99, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    revert 0, 0
+}
+
+fn @revertDynamicMessage(arg0: u256) [selector=0xaaa17e88, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    v0 = and arg0, 255
+    v1 = add v0, 48
+    v2 = gt v1, 255
+    jumpi v2, bb1, bb2
+  bb2:
+    v3 = shl 248, v1
+    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v5 = not 31
+    v6 = and 70, v5
+    v7 = alloc memorybytes, exact, uninitialized, infallible, v6
+    set_memory_object_len memorybytes, v7, 7
+    memory_object_store_word memorybytes, v7, 0, 0x76616c7565200000000000000000000000000000000000000000000000000000
+    memory_object_store_word memorybytes, v7, 6, v4
+    revert 0, 0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @bump() -> memorybytes {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    v3 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v3, 6
+    v4 = memory_object_data memorybytes, v3
+    mstore v4, 0x62756d7065640000000000000000000000000000000000000000000000000000
+    ret v3
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @requireSideEffects() -> u256 [selector=0x0b84f921, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @bump, 1
+    v1 = iszero 1
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = sload 0 !metadata(storage=slot(0))
+    ret v2
+  bb1:
+    revert 0, 0
+}
+
+fn @revertSideEffects() [selector=0x03d865f9, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = internal_call @bump, 1
+    revert 0, 0
+}
+
+fn @customError(arg0: u256) [selector=0x2509f77c, pure, abi_params=[u256], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode [word], selector 0xcb362b3400000000000000000000000000000000000000000000000000000000, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    revert v1, v2
+}

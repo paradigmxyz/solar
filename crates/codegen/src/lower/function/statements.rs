@@ -274,6 +274,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
+    /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
+    ///
+    /// Custom error payloads are never stripped. A non-constant reason string is still
+    /// evaluated for its side effects, matching solc, and only the payload is dropped.
+    pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
+        if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
+            return Some(false);
+        }
+        if let ExprKind::Call(callee, ..) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Error(_))) = self.cx.gcx.resolved_expr(callee)
+        {
+            return Some(false);
+        }
+        if self.constant_string_bytes(expr).is_none() {
+            // Evaluate the reason string and discard the value.
+            self.lower_expr(expr)?;
+        }
+        Some(true)
+    }
+
     pub(super) fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
         let payload = self.prepare_revert_payload(expr)?;
         self.emit_revert_payload(payload);

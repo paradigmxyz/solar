@@ -206,3 +206,19 @@ No intentional divergences documented yet.
   index type before checking bounds. This preserves the normal implicit
   conversion rule for narrow values.
 - Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`.
+
+### CODEGEN-006: `revertStrings: debug` adds no compiler-generated messages
+
+- ID: CODEGEN-006
+- Status: parity debt
+- Difference: `--revert-strings debug` and Standard JSON
+  `settings.debug.revertStrings: "debug"` are accepted and behave like
+  `default`. `solc` additionally attaches reason strings such as
+  "ABI decoding: invalid tuple offset" to its own internally generated
+  reverts. `strip` matches `solc`, and `verboseDebug` is rejected as
+  unimplemented by both compilers.
+- Rationale: compiler-generated reverts are emitted as plain `revert(0, 0)` or
+  panics, and the extra strings only aid debugging. Rejecting the setting would
+  block projects that enable it for `solc`.
+- Coverage: `tests/ui/standard-json/debug/`,
+  `tests/ui/codegen/lowering/revert_strings_strip.sol`.
