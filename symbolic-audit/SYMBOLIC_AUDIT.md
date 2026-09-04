@@ -96,7 +96,7 @@ and describe behavior that no longer differs.
 - [x] 34. Any recursive internal function is rejected before constantinople by the post-legalization stack verifier
       (`symbolic-audit/recursion_preconstantinople.sol`; fixed in `000c5698`, tests in `6ebfe5a2`)
 - [x] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
-      (`symbolic-audit/interface_free_function_checks.sol`; fixed in `ffe5e017`)
+      (`symbolic-audit/interface_free_function_checks.sol`; fixed in `ffe5e017`, tests in `30ad7e60`)
 - [x] 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value (`stack_pressure.sol` `f2`, `f12`)
       (`symbolic-audit/loop_tuple_assign_miscompile.sol`; fixed in `daaf2d05`, tests in `ae814158`)
 - [x] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
@@ -1574,7 +1574,13 @@ repro reports 1560, 1560, 4493 and nothing else; solc's five
 syntax tests are ported 1-1, the UI suite and `cargo tq solc-solidity`
 pass, and all 149 interface files across the project archives still
 compile. The fixer listed the neighbouring checks still missing; they are
-finding 40.
+finding 40. The review (`30ad7e60`) checked both conditions and their
+order against solc's source and 0.8.36 on hand-written probes, 159
+archive interface files, and 95 corpus files (identical 1560/4493 counts
+on the same three files as solc), and pinned the constructor/modifier
+guard and the error order with tests. It found one more gap for finding
+40: a free function with a bare `override` is accepted (1750 fires only
+for `override(A)`).
 
 ### 36. `-Ogas` regression: a loop assigning a tuple after a branch returns a wrong value
 
@@ -1811,6 +1817,7 @@ solc 0.8.36 with Standard JSON error codes.
 | `uint256 public x;` in an interface | error 8274 `Variables cannot be declared in interfaces.` | compiles |
 | `function g() external virtual;` in an interface | warning 5815 `Interface functions are implicitly "virtual"` | silent |
 | `modifier n() virtual { _; }` in a library | error 3275 `Modifiers in a library cannot be virtual.` | error 7801 `library functions cannot be `virtual`` (the function message on a modifier) |
+| `function f() override {}` as a free function (bare `override`) | error 1750 | compiles (1750 fires only for `override(A)`; found by the finding-35 review) |
 
 Not codegen divergences: solar accepts programs solc refuses, and one
 rejection carries the wrong code and wording. The fixer also noted that
