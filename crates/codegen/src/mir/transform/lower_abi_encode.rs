@@ -154,8 +154,7 @@ fn synthesize_tuple_helpers(
         {
             let mut builder =
                 FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
-            let args =
-                key.arg_types.iter().map(|ty| builder.add_param(ty.clone())).collect::<Vec<_>>();
+            let args = key.arg_types.iter().map(|ty| builder.add_param(*ty)).collect::<Vec<_>>();
             let selector = key.selector.then(|| builder.add_param(MirType::uint256()));
             let layout = AbiLayout::new(key.types.clone());
             let encoded = lower_encode(&mut builder, &layout, selector, &args, key.mode, helpers);

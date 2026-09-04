@@ -3,10 +3,10 @@
 fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 1
-    memory_object_store_field memorystruct<3>, v0, 1, 2
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 1
+    memory_object_store_field memorystruct<3>, v0, 1, 2
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = sload 24 !metadata(storage=slot(24))
     v4 = lt v3, 4
@@ -47,7 +47,7 @@ fn @read(arg0: u256) -> (u256, u256, u256) [view] {
 
 fn @testDynamicIndex() -> (u256, u256, u256) [selector=0x8fa50415, view, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
-    v0 = internal_call @read, 3, 3
+    v0 = icall @read, 3, 3
     v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v2 = add v1, 32
     v3 = mload v2
@@ -59,10 +59,10 @@ fn @testDynamicIndex() -> (u256, u256, u256) [selector=0x8fa50415, view, abi_par
 fn @testConstantIndex() -> (u256, u256, u256) [selector=0xb6aa0fa8, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 1
-    memory_object_store_field memorystruct<3>, v0, 1, 2
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 1
+    memory_object_store_field memorystruct<3>, v0, 1, 2
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = lt 3, 4
     v4 = iszero v3
@@ -83,7 +83,7 @@ fn @testConstantIndex() -> (u256, u256, u256) [selector=0xb6aa0fa8, abi_params=[
     v15 = and v11, 255
     v16 = or v14, v15
     sstore v10, v16 !metadata(storage=offset(v5, 2))
-    v17 = internal_call @read, 3, 9
+    v17 = icall @read, 3, 9
     v18 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v19 = add v18, 32
     v20 = mload v19
@@ -99,10 +99,10 @@ fn @testConstantIndex() -> (u256, u256, u256) [selector=0xb6aa0fa8, abi_params=[
 fn @testFromMemory() -> (u256, u256, u256) [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 1
-    memory_object_store_field memorystruct<3>, v0, 1, 2
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 1
+    memory_object_store_field memorystruct<3>, v0, 1, 2
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = sload 24 !metadata(storage=slot(24))
     v4 = add v3, 1
@@ -128,7 +128,7 @@ fn @testFromMemory() -> (u256, u256, u256) [selector=0xfebd1e0e, abi_params=[], 
     v18 = and v14, 255
     v19 = or v17, v18
     sstore v13, v19 !metadata(storage=offset(v8, 2))
-    v20 = internal_call @read, 3, 6
+    v20 = icall @read, 3, 6
     v21 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v22 = add v21, 32
     v23 = mload v22
@@ -148,10 +148,10 @@ fn @testFromMemory() -> (u256, u256, u256) [selector=0xfebd1e0e, abi_params=[], 
 fn @testNested() -> (u256, u256, u256) [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
-    memory_object_store_field memorystruct<3>, v0, 0, 8
-    memory_object_store_field memorystruct<3>, v0, 1, 9
     v1 = eq 1, 0
     v2 = iszero v1
+    memory_object_store_field memorystruct<3>, v0, 0, 8
+    memory_object_store_field memorystruct<3>, v0, 1, 9
     memory_object_store_field memorystruct<3>, v0, 2, v2
     v3 = sload 24 !metadata(storage=slot(24))
     v4 = lt v3, 2
@@ -181,7 +181,7 @@ fn @testNested() -> (u256, u256, u256) [selector=0xfbd4b8cc, abi_params=[], abi_
     v22 = or v20, v21
     sstore v16, v22 !metadata(storage=offset(v12, 2))
     v23 = add 12, 9
-    v24 = internal_call @read, 3, v23
+    v24 = icall @read, 3, v23
     v25 = frame_load multi_return, word, 0 !metadata(memory=scratch)
     v26 = add v25, 32
     v27 = mload v26

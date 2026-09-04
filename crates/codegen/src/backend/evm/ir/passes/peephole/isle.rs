@@ -8,7 +8,7 @@
 use super::{Edit, is_block_push, is_removable_push, materialization_cost, push_value, raw_opcode};
 use crate::{
     backend::evm::{ir::Instruction, op, op::*},
-    utils::eval,
+    mir::utils::eval,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
