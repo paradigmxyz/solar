@@ -92,20 +92,16 @@ not preserved.
 Coverage: `tests/ui/typeck/view_pure_checker/yul_functions.sol` and
 `tests/ui/typeck/view_pure_checker/yul_parity.sol`.
 
-### TYPECK-002: Call-option function values outside a call
+### TYPECK-002: Standalone call-option function values
 
 Status: intentional.
 
-Difference: `solc` types `f{gas: ...}` as the function type with the option bits
-set, so such a value can also be assigned, passed, and returned, and only its
-conversion to a plain function type is rejected. `solar` accepts call options
-only where the value they produce is discarded: in a call, before a member
-access such as `.address` or `.selector`, and in an expression statement.
-Anywhere else it rejects them.
+Difference: `solc` permits call options such as `{gas: ...}` and `{value: ...}`
+to form a function value, including when accessing its `.address` or `.selector`
+member. `solar` requires call options to be part of a call expression.
 
-Rationale: `solar` does not represent the option bits in the function type, so
-it cannot tell a discarded `gas` or `value` from an applied one, and dropping
-them silently would change a later call.
+Rationale: `solar` models call options on HIR call expressions and intentionally
+does not represent an option-bearing function value as a separate HIR node.
 
 Coverage: `tests/ui/typeck/function_calls/call_options_standalone.sol` and
 [#1269](https://github.com/paradigmxyz/solar/pull/1269#discussion_r3846737698).
