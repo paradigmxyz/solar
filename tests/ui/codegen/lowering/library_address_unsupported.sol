@@ -14,7 +14,9 @@ contract C {
         return address(L);
     }
 
-    // A library function's selector needs no address, and still lowers.
+    // A library function's selector needs no address, and still lowers: a
+    // silent bail-out here would be reported as a second error, and
+    // `library_selector.sol` pins the MIR it lowers to.
     function sel() public pure returns (bytes4) {
         return L.f.selector;
     }

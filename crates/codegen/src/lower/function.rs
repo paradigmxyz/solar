@@ -56,6 +56,9 @@ pub(super) struct LoweringContext<'gcx, 'ctx> {
     pub(super) shared_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) shared_word_literals: &'ctx FxHashSet<ByteSymbol>,
     pub(super) share_storage_bytes: bool,
+    /// Whether the compilation had already failed when the code generation
+    /// phase started.
+    pub(super) sema_errored: bool,
 }
 
 impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
@@ -72,6 +75,7 @@ impl<'gcx, 'ctx> LoweringContext<'gcx, 'ctx> {
             shared_literals: self.shared_literals,
             shared_word_literals: self.shared_word_literals,
             share_storage_bytes: self.share_storage_bytes,
+            sema_errored: self.sema_errored,
         }
     }
 
