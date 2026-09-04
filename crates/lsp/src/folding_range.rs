@@ -506,7 +506,7 @@ fn has_blank_line_between(bytes: impl IntoIterator<Item = u8>) -> bool {
 }
 
 fn folding_range(
-    index: &proto::LspPositionIndex<'_>,
+    index: &proto::LspPositionIndex<&Rope>,
     candidate: Candidate,
 ) -> Option<FoldingRange> {
     let start = index.position_at_byte(candidate.range.start)?;

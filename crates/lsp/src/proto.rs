@@ -13,6 +13,7 @@ use solar_interface::{
     diagnostics::{Diag, Level},
     source_map::SourceFile,
 };
+use std::borrow::Borrow;
 
 #[derive(Debug)]
 pub(crate) enum Initialize {}
@@ -113,36 +114,27 @@ pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Rang
 }
 
 /// Maps between byte offsets and LSP UTF-16 positions for one document.
-pub(crate) struct LspPositionIndex<'a> {
-    rope: &'a Rope,
+pub(crate) struct LspPositionIndex<R> {
+    rope: R,
     line_starts: Vec<usize>,
 }
 
-impl<'a> LspPositionIndex<'a> {
+impl<'a> LspPositionIndex<&'a Rope> {
     pub(crate) fn new(rope: &'a Rope) -> Self {
-        let mut line_starts = Vec::with_capacity(rope.line_len() + 1);
-        line_starts.push(0);
+        Self { rope, line_starts: collect_line_starts(rope) }
+    }
+}
 
-        let mut bytes = rope.bytes().enumerate().peekable();
-        while let Some((offset, byte)) = bytes.next() {
-            let next_line = match byte {
-                b'\r' => {
-                    let mut next_line = offset + 1;
-                    if bytes.peek().is_some_and(|(_, byte)| *byte == b'\n') {
-                        bytes.next();
-                        next_line += 1;
-                    }
-                    Some(next_line)
-                }
-                b'\n' => Some(offset + 1),
-                _ => None,
-            };
-            if let Some(next_line) = next_line {
-                line_starts.push(next_line);
-            }
-        }
-
+impl LspPositionIndex<Rope> {
+    pub(crate) fn from_rope(rope: Rope) -> Self {
+        let line_starts = collect_line_starts(&rope);
         Self { rope, line_starts }
+    }
+}
+
+impl<R: Borrow<Rope>> LspPositionIndex<R> {
+    pub(crate) fn rope(&self) -> &Rope {
+        self.rope.borrow()
     }
 
     pub(crate) fn checked_text_range(
@@ -161,26 +153,24 @@ impl<'a> LspPositionIndex<'a> {
     }
 
     fn byte_position_clamped(&self, position: lsp_types::Position) -> usize {
+        let rope = self.rope();
         let line = usize::try_from(position.line).unwrap_or(usize::MAX);
         let start = self.line_starts.get(line).copied().unwrap_or_else(|| {
-            if position.line > self.rope.line_len() as u32 {
-                0
-            } else {
-                self.rope.byte_of_line(line)
-            }
+            if position.line > rope.line_len() as u32 { 0 } else { rope.byte_of_line(line) }
         });
-        let start_utf16 = self.rope.utf16_code_unit_of_byte(start);
-        self.rope.byte_of_utf16_code_unit(start_utf16 + position.character as usize)
+        let start_utf16 = rope.utf16_code_unit_of_byte(start);
+        rope.byte_of_utf16_code_unit(start_utf16 + position.character as usize)
     }
 
     fn byte_position(&self, position: lsp_types::Position) -> Option<usize> {
+        let rope = self.rope();
         let line = usize::try_from(position.line).ok()?;
         let start = *self.line_starts.get(line)?;
         let end = self.line_end(line);
         let target = usize::try_from(position.character).ok()?;
         let mut utf16 = 0;
         let mut byte = start;
-        for ch in self.rope.byte_slice(start..end).chars() {
+        for ch in rope.byte_slice(start..end).chars() {
             if utf16 == target {
                 return Some(byte);
             }
@@ -195,7 +185,8 @@ impl<'a> LspPositionIndex<'a> {
     }
 
     pub(crate) fn position_at_byte(&self, byte: usize) -> Option<lsp_types::Position> {
-        if byte > self.rope.byte_len() || !self.rope.is_char_boundary(byte) {
+        let rope = self.rope();
+        if byte > rope.byte_len() || !rope.is_char_boundary(byte) {
             return None;
         }
         let line = self.line_starts.partition_point(|&start| start <= byte).checked_sub(1)?;
@@ -204,27 +195,54 @@ impl<'a> LspPositionIndex<'a> {
             return None;
         }
         let character =
-            self.rope.byte_slice(start..byte).chars().map(|ch| ch.len_utf16()).sum::<usize>();
+            rope.byte_slice(start..byte).chars().map(|ch| ch.len_utf16()).sum::<usize>();
         Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
     }
 
     pub(crate) fn byte_len(&self) -> usize {
-        self.rope.byte_len()
+        self.rope().byte_len()
     }
 
     fn line_end(&self, line: usize) -> usize {
+        let rope = self.rope();
         let Some(&next_start) = self.line_starts.get(line + 1) else {
-            return self.rope.byte_len();
+            return rope.byte_len();
         };
-        if self.rope.byte(next_start - 1) == b'\n'
+        if rope.byte(next_start - 1) == b'\n'
             && next_start >= 2
-            && self.rope.byte(next_start - 2) == b'\r'
+            && rope.byte(next_start - 2) == b'\r'
         {
             next_start - 2
         } else {
             next_start - 1
         }
     }
+}
+
+fn collect_line_starts(rope: &Rope) -> Vec<usize> {
+    let mut line_starts = Vec::with_capacity(rope.line_len() + 1);
+    line_starts.push(0);
+
+    let mut bytes = rope.bytes().enumerate().peekable();
+    while let Some((offset, byte)) = bytes.next() {
+        let next_line = match byte {
+            b'\r' => {
+                let mut next_line = offset + 1;
+                if bytes.peek().is_some_and(|(_, byte)| *byte == b'\n') {
+                    bytes.next();
+                    next_line += 1;
+                }
+                Some(next_line)
+            }
+            b'\n' => Some(offset + 1),
+            _ => None,
+        };
+        if let Some(next_line) = next_line {
+            line_starts.push(next_line);
+        }
+    }
+
+    line_starts
 }
 
 /// Converts an LSP UTF-16 range to a byte range, rejecting invalid positions.

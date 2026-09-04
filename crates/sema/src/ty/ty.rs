@@ -901,6 +901,29 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
+    /// Returns `true` if a value of this type can be copied into a direct storage value of the
+    /// given type.
+    ///
+    /// A copy into storage happens element-wise, so it only requires the element types to be
+    /// implicitly convertible, and a fixed-size array may be shorter than its destination. This
+    /// is less restrictive than a reference conversion, which cannot change the element type.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/ast/Types.cpp#L1637-L1645>
+    pub fn can_copy_to_storage_value(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        let from = self.peel_refs();
+        let to = other.peel_refs();
+        match (from.kind, to.kind) {
+            (TyKind::DynArray(from), TyKind::DynArray(to))
+            | (TyKind::Array(from, _), TyKind::DynArray(to)) => {
+                from.can_copy_to_storage_value(to, gcx)
+            }
+            (TyKind::Array(from, from_len), TyKind::Array(to, to_len)) => {
+                from_len <= to_len && from.can_copy_to_storage_value(to, gcx)
+            }
+            _ => from.convert_implicit_to(to, gcx),
+        }
+    }
+
     /// Returns `true` if the type is explicitly convertible to the given type.
     ///
     /// Prefer using [`Ty::try_convert_explicit_to`] if you need to handle the error case.
@@ -1113,9 +1136,10 @@ impl<'gcx> Ty<'gcx> {
             TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
             TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
-            // TODO: basetype.is_dynamically_encoded
             TyKind::Slice(ty)
-                if ty.data_stored_in(DataLocation::Calldata) && ty.is_dynamically_sized() =>
+                if ty.data_stored_in(DataLocation::Calldata)
+                    && ty.peel_refs().is_dynamically_sized()
+                    && !ty.base_type(gcx).is_some_and(|base| base.is_dynamically_encoded(gcx)) =>
             {
                 ty
             }
