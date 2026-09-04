@@ -3,12 +3,16 @@
 //! The rewrite rules are written in ISLE in `isle/peephole.isle`; this module
 //! drives them over each block and applies the edits they return.
 
-use super::EvmPass;
+use super::{
+    EvmPass,
+    compact_pushes::{immediate_materialization_cost, materialize_immediate},
+};
 use crate::backend::evm::{
-    ir::{Instruction, Module, PushValue, TerminatorKind},
+    ir::{Instruction, Module, PushValue},
     op,
 };
 use alloy_primitives::U256;
+use solar_config::EvmVersion;
 use solar_sema::Gcx;
 use std::fmt;
 use tracing::trace;
@@ -54,27 +58,21 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-fn optimize_module(_gcx: Gcx<'_>, module: &mut Module) -> bool {
+fn optimize_module(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let evm_version = gcx.sess.opts.evm_version;
     let mut changed = false;
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        let mut rewrites = optimize(&mut block.instructions, &mut scratch, block.label);
-        // `STOP` does not observe the stack, so trailing cleanup `POP`s only spend gas.
-        if matches!(
-            block.terminator.as_ref().map(|term| &term.kind),
-            Some(TerminatorKind::Op(op::STOP))
-        ) {
-            while block.instructions.last().is_some_and(|inst| raw_opcode(inst) == Some(op::POP)) {
-                block.instructions.pop();
-                rewrites += 1;
-            }
-        }
+        // Dead stack traffic before a terminator that cannot observe it is dead-code
+        // elimination's to remove; this pass only rewrites what it can see locally.
+        let rewrites = optimize(evm_version, &mut block.instructions, &mut scratch, block.label);
         changed |= rewrites != 0;
     }
     changed
 }
 
 fn optimize(
+    evm_version: EvmVersion,
     instructions: &mut Vec<Instruction>,
     scratch: &mut Vec<Instruction>,
     block: u32,
@@ -85,27 +83,35 @@ fn optimize(
     let mut rewrites = 0;
     for inst in scratch.drain(..) {
         instructions.push(inst);
-        while try_peephole(instructions, block) {
+        while try_peephole(evm_version, instructions, block) {
             rewrites += 1;
         }
     }
     rewrites
 }
 
-fn try_peephole(instructions: &mut Vec<Instruction>, block: u32) -> bool {
-    let Some(isle::Rewrite { skip, edit }) = isle::PeepContext::new(instructions).peep() else {
+fn try_peephole(evm_version: EvmVersion, instructions: &mut Vec<Instruction>, block: u32) -> bool {
+    let Some(isle::Rewrite { skip, edit }) =
+        isle::PeepContext::new(instructions, evm_version).peep()
+    else {
         return false;
     };
-    rewrite(instructions, usize::from(skip), edit, block)
+    rewrite(evm_version, instructions, usize::from(skip), edit, block)
 }
 
 // Keep trace formatting out of the hot matcher's stack frame.
 #[inline(never)]
-fn rewrite(instructions: &mut Vec<Instruction>, skip: usize, edit: Edit, block: u32) -> bool {
+fn rewrite(
+    evm_version: EvmVersion,
+    instructions: &mut Vec<Instruction>,
+    skip: usize,
+    edit: Edit,
+    block: u32,
+) -> bool {
     let start = instructions.len() - skip;
     let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
         .then(|| instructions[start..].to_vec());
-    edit.apply(instructions, start);
+    edit.apply(evm_version, instructions, start);
     if let Some(input) = input {
         trace!(
             target: TRACE_TARGET,
@@ -125,6 +131,8 @@ enum Edit {
     Keep {
         len: u8,
     },
+    /// Replace a duplicate of a known zero with `PUSH0`.
+    OverwritePush0,
     RemoveFirstKeepOne,
     RemoveFirstKeepTwo,
     RemoveFirstOverwrite {
@@ -143,6 +151,12 @@ enum Edit {
     MergeSwapPop {
         depth: u8,
     },
+    /// Drop a swap whose permuted words are all discarded by the pops that follow.
+    DropDiscardedSwap,
+    /// Replace an evaluated constant expression with its materialized result.
+    FoldConstants {
+        value: U256,
+    },
     ReloadStoredValue,
     DropDoubleIszero,
     EqIszeroJumpi,
@@ -156,9 +170,21 @@ enum Edit {
 }
 
 impl Edit {
-    fn apply(self, instructions: &mut Vec<Instruction>, start: usize) {
+    fn apply(self, evm_version: EvmVersion, instructions: &mut Vec<Instruction>, start: usize) {
         match self {
             Self::Keep { len } => instructions.truncate(start + usize::from(len)),
+            Self::OverwritePush0 => {
+                let metadata = std::mem::take(&mut instructions[start].metadata);
+                instructions[start] = Instruction::push_value(U256::ZERO);
+                instructions[start].metadata = metadata;
+            }
+            Self::DropDiscardedSwap => {
+                instructions.remove(start);
+            }
+            Self::FoldConstants { value } => {
+                instructions.truncate(start);
+                materialize_immediate(instructions, evm_version, value);
+            }
             Self::RemoveFirstKeepOne => {
                 instructions.remove(start);
                 instructions.truncate(start + 1);
@@ -186,7 +212,7 @@ impl Edit {
             }
             Self::MergeSwapPop { depth } => {
                 let end = instructions.len();
-                overwrite_raw(&mut instructions[start], op::swap(depth));
+                overwrite_stack_op(&mut instructions[start], op::StackOp::Swap(depth));
                 overwrite_raw(&mut instructions[end - 2], op::POP);
                 instructions.truncate(end - 1);
             }
@@ -226,6 +252,18 @@ fn overwrite_raw(inst: &mut Instruction, opcode: u8) {
     inst.metadata.stack = None;
 }
 
+fn overwrite_stack_op(inst: &mut Instruction, stack_op: op::StackOp) {
+    let metadata = std::mem::take(&mut inst.metadata);
+    *inst = Instruction::stack_op(stack_op);
+    inst.metadata = metadata;
+    inst.metadata.stack = None;
+}
+
+/// Returns the byte length and static gas of the selected materialization of `value`.
+pub(super) fn materialization_cost(evm_version: EvmVersion, value: U256) -> (usize, usize) {
+    immediate_materialization_cost(evm_version, value)
+}
+
 fn raw_opcode(inst: &Instruction) -> Option<u8> {
     inst.as_evm_opcode()
 }
@@ -247,10 +285,6 @@ fn is_block_push(inst: &Instruction) -> bool {
 
 fn is_removable_push(inst: &Instruction) -> bool {
     inst.is_encoded_push() && inst.deferred_push().is_none()
-}
-
-pub(super) fn is_removable_copy(inst: &Instruction) -> bool {
-    is_removable_push(inst) || matches!(inst.as_stack_op(), Some(op::StackOp::Dup(_)))
 }
 
 struct InstructionSequence<'a>(&'a [Instruction]);
