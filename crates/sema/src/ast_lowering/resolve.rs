@@ -612,6 +612,18 @@ impl<'gcx> ResolveContext<'gcx> {
                 .position(|&l| l == base_id)
                 .expect("base contract not found");
 
+            // Both forms parse their arguments as a plain expression list in
+            // solc, so `Base({a: 1})` is a parse error there. Report it here
+            // instead, where a base constructor call is already told apart
+            // from an ordinary modifier invocation.
+            if let hir::CallArgsKind::Named(_) = base.args.kind {
+                self.sess
+                    .dcx
+                    .err("base constructor arguments cannot be named")
+                    .span(base.args.span)
+                    .help("pass the arguments positionally")
+                    .emit();
+            }
             if is_ctor && base.args.is_dummy() {
                 // bad: `contract is C` ... `constructor() C`
                 //  ok: `contract is C` ... `constructor() C()`

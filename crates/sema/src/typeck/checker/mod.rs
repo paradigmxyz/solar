@@ -2722,44 +2722,30 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         for (&base_id, modifier) in
             contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
         {
+            // Named arguments are rejected during resolution, so there is no
+            // parameter to pair each of them with here.
             if let Some(modifier) = modifier
                 && !modifier.args.is_dummy()
+                && let hir::CallArgsKind::Unnamed(args) = modifier.args.kind
             {
                 // A base without a constructor takes no arguments.
-                let ctor_id = self.gcx.hir.contract(base_id).ctor;
-                let ctor_param_types =
-                    ctor_id.map_or(&[][..], |ctor_id| self.gcx.item_parameter_types(ctor_id));
-                let arg_count = modifier.args.len();
-                if arg_count != ctor_param_types.len() {
+                let ctor_param_types = self
+                    .gcx
+                    .hir
+                    .contract(base_id)
+                    .ctor
+                    .map_or(&[][..], |ctor_id| self.gcx.item_parameter_types(ctor_id));
+                if args.len() != ctor_param_types.len() {
                     self.dcx().emit_err(
                         modifier.span,
                         format!(
                             "wrong number of arguments for base constructor: expected {}, found {}",
                             ctor_param_types.len(),
-                            arg_count
+                            args.len()
                         ),
                     );
-                } else if let hir::CallArgsKind::Named(named_args) = modifier.args.kind
-                    && let Some(ctor_id) = ctor_id
-                {
-                    // Named arguments bind by parameter name, the way codegen
-                    // binds them; pairing them positionally checks them against
-                    // the wrong parameter type.
-                    self.with_construction_context(|this| {
-                        let _ = this.check_named_call_args(
-                            modifier.span,
-                            modifier.args.span,
-                            named_args,
-                            ctor_param_types,
-                            Some(CallableParamSource::Function {
-                                id: ctor_id,
-                                skips_receiver: false,
-                            }),
-                        );
-                    });
                 } else {
-                    for (arg_expr, &expected_arg_ty) in modifier.args.exprs().zip(ctor_param_types)
-                    {
+                    for (arg_expr, &expected_arg_ty) in args.iter().zip(ctor_param_types) {
                         // Register the argument's own type, not just the types
                         // of its subexpressions: codegen reads it to select
                         // checked arithmetic and other type-directed lowering.

@@ -587,68 +587,6 @@ fn @touch() -> u256 {
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedBase ===
-@module NamedBase
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
-fn @constructor(arg0: u256, arg1: u256) [constructor, abi_params=[u256, u256]] {
-  bb0:
-    v0 = mul arg0, 10
-    v1 = iszero 10
-    v2 = div v0, 10
-    v3 = eq v2, arg0
-    v4 = or v1, v3
-    v5 = iszero v4
-    jumpi v5, bb1, bb2
-  bb2:
-    v6 = add v0, arg1
-    v7 = lt v6, v0
-    jumpi v7, bb1, bb3
-  bb3:
-    sstore 0, v6 !metadata(storage=slot(0))
-    stop
-  bb1:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-}
-
-// === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:NamedDerived ===
-@module NamedDerived
-fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
-  bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    ret v0
-}
-
-fn @constructor() [constructor] {
-  bb0:
-    v0 = mul 1, 10
-    v1 = iszero 10
-    v2 = div v0, 10
-    v3 = eq v2, 1
-    v4 = or v1, v3
-    v5 = iszero v4
-    jumpi v5, bb2, bb3
-  bb3:
-    v6 = add v0, 2
-    v7 = lt v6, v0
-    jumpi v7, bb2, bb4
-  bb4:
-    sstore 0, v6 !metadata(storage=slot(0))
-    jump bb1
-  bb1:
-    stop
-  bb2:
-    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 17 !metadata(memory=scratch)
-    revert 0, 36
-}
-
 // === ROOT/tests/ui/codegen/lowering/base_constructor_args.sol:ReturningBase ===
 @module ReturningBase
 fn @value() -> u256 [selector=0x3fa4f245, view, abi_params=[], abi_returns=[word]] {
