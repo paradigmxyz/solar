@@ -107,6 +107,28 @@ contract C {
         } catch {}
     }
 
+    // Only an external, delegate, or creation call decodes return values into the clause.
+    // solc rejects every other callee outright and compares nothing, so neither do we: a
+    // builtin's return values are not even always a type.
+    function otherCallees(bytes memory d) external {
+        try internal_() returns (bool b) {
+            b;
+        } catch {}
+        try abi.decode(d, (uint256)) returns (uint256 x) {
+            x;
+        } catch {}
+        try gasleft() returns (bool b) {
+            b;
+        } catch {}
+        try address(this).call("") returns (uint256 ok) {
+            ok;
+        } catch {}
+    }
+
+    function internal_() internal pure returns (uint256) {
+        return 1;
+    }
+
     // Valid companions: the same types, a creation call, no `returns` clause at all, and a
     // mixed static and dynamic return.
     function valid(address a) external {
