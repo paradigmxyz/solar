@@ -107,8 +107,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/dynamic_return_unused_prebyzantium.sol`; fixed in `e679031a`, review fix `6b9e9d80`)
 - [x] 40. Interface constructors, implemented or `virtual` interface functions, interface modifiers and variables, and `virtual` library modifiers are accepted; solc reports 6482, 4726, 5815, 6408, 8274, 3275
       (`symbolic-audit/interface_member_checks.sol`; fixed in `97329055`, review fix `6f2a1206`)
-- [ ] 41. A `try` `returns` clause with mismatched variable types or count is accepted; solc reports 6509 and 2800
-      (`symbolic-audit/try_returns_clause_checks.sol`)
+- [x] 41. A `try` `returns` clause with mismatched variable types or count is accepted; solc reports 6509 and 2800
+      (`symbolic-audit/try_returns_clause_checks.sol`; fixed in `3b021aa0`, review fix `7e95f4de`)
 - [x] 42. An external library function returning a storage pointer is miscompiled from byzantium on: the caller gets a wrong slot
       (`symbolic-audit/library_storage_pointer_return.sol`; fixed in `35ae83f1`, review follow-up `8b1538be`)
 - [ ] 43. `delete` on a storage pointer local is accepted; solc rejects it with error 9767
@@ -1909,6 +1909,24 @@ Not a codegen divergence on valid programs: solar accepts programs solc
 refuses.
 
 Severity: missing diagnostics.
+
+Fix (`3b021aa0`): `check_try_returns_clause` runs after the `try`
+statement is walked and compares the clause with the callee's return
+types from the called expression's function type: a count mismatch is
+2800 on the success clause, a type mismatch is 6509 on the variable with
+exact interned-type identity including data location (solc allows no
+conversion there), `try new C()` binds the contract type, and two skips
+avoid double reports with the declaration-location error and with finding
+39's pre-byzantium check. The repro reports 6509 and 2800 at solc's
+spans; solc's `invalid_returns.sol` and `returns_mismatch.sol` are ported
+1-1; all 22 semantic tests using `try` still agree with solc. The review
+(`7e95f4de`) validated the whole test file against solc byte for byte (12
+diagnostics, identical codes, order, and spans), probed twelve more valid
+binding shapes and the pre-byzantium interaction, and found that the
+check also ran for callees solc rejects with 2536 (an internal call,
+`abi.decode`, and other non-external callees), producing a confusing
+6509 there; it is now limited to external, library, and creation calls.
+The remaining `tryCatch/` gaps are finding 44.
 
 ### 42. An external library function returning a storage pointer is miscompiled
 
