@@ -206,10 +206,10 @@ pub(super) fn lower(
                 // that no unsupported construct reaches the runtime as
                 // `INVALID`. The delta is taken around this function alone:
                 // asking whether the compilation has failed would let one
-                // function's report hide the next one's gap. A compilation
-                // that had already failed withholds the bytecode anyway, and
-                // its bail-outs are usually consequences of the failure.
-                if !context.sema_errored && gcx.dcx().err_count() == errors_before {
+                // function's report hide the next one's gap. A bail-out from a
+                // compilation that had already failed is skipped by
+                // `report_unsupported` itself.
+                if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(function.span, "function");
                 }
                 let mut builder = FunctionBuilder::new(context.module.function_mut(mir_id));
@@ -234,7 +234,7 @@ pub(super) fn lower(
             let Some(mut mir) =
                 function::lower_synthetic_constructor(context.reborrow(), contract_id)
             else {
-                if !context.sema_errored && gcx.dcx().err_count() == errors_before {
+                if gcx.dcx().err_count() == errors_before {
                     let _: Option<()> = context.report_unsupported(contract.name.span, "contract");
                 }
                 FunctionBuilder::new(context.module.function_mut(mir_id)).invalid();

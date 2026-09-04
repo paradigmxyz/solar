@@ -160,7 +160,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(modifier.span, "base constructor body");
         };
         if modifier.args.len() != constructor.parameters.len() {
-            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
+            return self.cx.report_unsupported(modifier.span, "base constructor argument list");
         }
         let contract_id = constructor.contract;
         // The parameters are already bound: `prepare_base_constructor_arguments`
@@ -169,7 +169,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // is visible to the body that owns it. Rebinding from the initially
         // lowered arguments here would undo such an assignment.
         if !self.prepared_constructors.remove(&constructor_id) {
-            return self.cx.report_unsupported(modifier.span, "base constructor arguments");
+            return self.cx.report_unsupported(modifier.span, "base constructor argument list");
         }
         let saved_parameters = self.snapshot_bindings(constructor.parameters);
 

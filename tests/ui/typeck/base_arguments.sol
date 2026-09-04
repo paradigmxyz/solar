@@ -2,10 +2,10 @@
 //@[bin] compile-flags: --emit=bin
 //~[bin]? WARN: code generation is experimental
 // The `bin` revision keeps codegen running on a source with rejected base
-// argument lists: a rejected list must not reach lowering as a panic.
+// argument lists: a rejected list must not reach lowering as a panic, and
+// lowering adds no diagnostics of its own after the rejection.
 contract Base {
-    constructor(uint, int) {} //~[bin] ERROR: codegen rewrite does not support this base constructor arguments yet
-    //~[bin]^ ERROR: codegen rewrite does not support this base constructor arguments yet
+    constructor(uint, int) {}
 }
 contract Derived is Base(2, 3) { }
 contract Derived1 is Base {
@@ -20,8 +20,7 @@ contract Derived5 is Base { constructor() Base(2) {} } //~ ERROR: wrong number o
 contract Derived6 is Base { constructor() Base("a", 1) {} } //~ ERROR: mismatched types
 
 contract NamedBase {
-    constructor(uint8 a, uint256 b) {} //~[bin] ERROR: codegen rewrite does not support this base constructor arguments yet
-    //~[bin]^ ERROR: codegen rewrite does not support this named base constructor argument yet
+    constructor(uint8 a, uint256 b) {}
 }
 contract Named1 is NamedBase({b: 1, a: 2}) { }
 contract Named2 is NamedBase {

@@ -54,29 +54,5 @@ LL │ contract NoCtor3 is NoCtorBase { constructor() NoCtorBase(2) {} }
 
 warning[2264]: code generation is experimental
 
-error: codegen rewrite does not support this base constructor arguments yet
-   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
-   │
-LL │     constructor(uint, int) {}
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: codegen rewrite does not support this base constructor arguments yet
-   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
-   │
-LL │     constructor(uint, int) {}
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: codegen rewrite does not support this named base constructor argument yet
-   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
-   │
-LL │     constructor(uint8 a, uint256 b) {}
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: codegen rewrite does not support this base constructor arguments yet
-   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
-   │
-LL │     constructor(uint8 a, uint256 b) {}
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: aborting due to 13 previous errors; 1 warning emitted
+error: aborting due to 9 previous errors; 1 warning emitted
 

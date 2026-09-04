@@ -246,7 +246,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })
             .unwrap_or((&[], Vec::new().into()));
         if args.len() != parameters.len() {
-            return self.cx.report_unsupported(args.span, "constructor arguments");
+            return self.cx.report_unsupported(args.span, "constructor argument list");
         }
 
         let arguments = self.lower_call_arguments(
@@ -327,7 +327,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Vec<ValueId>> {
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
-            return self.cx.report_unsupported(args.span, "external function arguments");
+            return self.cx.report_unsupported(args.span, "external function argument list");
         }
         let function_value = self.lower_expr(callee)?;
         // address, selector = split_function_pointer(function)
@@ -409,7 +409,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         if args.len() != function.parameters.len() {
-            return self.cx.report_unsupported(expr.span, "internal function arguments");
+            return self.cx.report_unsupported(expr.span, "internal function argument list");
         }
         let function_value = self.lower_expr(callee)?;
         let parameter_names = self
@@ -846,7 +846,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let function = self.cx.gcx.hir.function(function_id);
         if args.len() != function.parameters.len() {
-            return self.cx.report_unsupported(expr.span, "external function arguments");
+            return self.cx.report_unsupported(expr.span, "external function argument list");
         }
         let address = self.lower_expr(receiver)?;
         let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
@@ -1011,7 +1011,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let function = self.cx.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
         if args.len() + receiver_count != function.parameters.len() {
-            return self.cx.report_unsupported(expr.span, "library arguments");
+            return self.cx.report_unsupported(expr.span, "library argument list");
         }
         let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
             id: function_id,

@@ -107,7 +107,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let constructor = self.cx.gcx.hir.function(constructor_id);
             if args.len() != constructor.parameters.len() {
-                return self.cx.report_unsupported(constructor.span, "base constructor arguments");
+                return self
+                    .cx
+                    .report_unsupported(constructor.span, "base constructor argument list");
             }
             let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
                 id: constructor_id,
