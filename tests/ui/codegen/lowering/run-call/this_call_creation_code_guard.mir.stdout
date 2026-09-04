@@ -1,0 +1,357 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationHelper ===
+@module CreationHelper
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    internal_call @helper, 0
+    stop
+}
+
+fn @helper() {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDirect ===
+@module CreationDirect
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationModifier ===
+@module CreationModifier
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb2, bb3
+  bb3:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb5, bb4
+  bb4:
+    revert_returndata
+  bb5:
+    jump bb6
+  bb6:
+    jump bb1
+  bb1:
+    stop
+  bb2:
+    revert 0, 0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationBase ===
+@module CreationBase
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    stop
+  bb1:
+    revert 0, 0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:CreationDerived ===
+@module CreationDerived
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize v0
+    v6 = iszero v5
+    jumpi v6, bb2, bb3
+  bb3:
+    v7 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v7, bb5, bb4
+  bb4:
+    revert_returndata
+  bb5:
+    jump bb1
+  bb1:
+    jump bb6
+  bb6:
+    stop
+  bb2:
+    revert 0, 0
+}
+
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Runtime ===
+@module Runtime
+fn @seen() -> u256 [selector=0xd99aa8e2, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @helper() {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = abi_encode [], selector 0x5fb1149200000000000000000000000000000000000000000000000000000000
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = call v1, v0, 0, v3, v4, 0, 0
+    jumpi v5, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+fn @viaHelper() -> u256 [selector=0x9c6f4ff5, abi_params=[], abi_returns=[word]] {
+  bb0:
+    internal_call @helper, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+fn @setIt() [selector=0x5fb11492, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = add v0, 1
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    sstore 0, v1 !metadata(storage=slot(0))
+    stop
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/this_call_creation_code_guard.sol:Deployer ===
+@module Deployer
+data:
+  CreationHelper_initcode_0: hex"60c06040526097565b5a8060a051606001528060a051606001526040518060a051608001528060a05160800152602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060a051604001523b1515606e575f5ffd5b8160a051606001528060a051608001525f5f6004835f3087f19150506095573d5f5f3e3d5ffd5b565b3460ca5760405160a05181602001528060a05260a00160405260b66008565b60a05160405260a0516020015160a05260ce565b5f5ffd5b608d8060d85f395ff3346028575f3560e01c80635fb11492146020578063d99aa8e2146024576028565b603e565b602c565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050156083577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
+  CreationDirect_initcode_1: hex"610120604052346081575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b1515605d575f5ffd5b8160e05280610100525f5f6004835f3087f1915050607d573d5f5f3e3d5ffd5b6085565b5f5ffd5b608d80608f5f395ff3346028575f3560e01c80635fb11492146020578063d99aa8e2146024576028565b603e565b602c565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050156083577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
+  CreationModifier_initcode_2: hex"610120604052346089575a8060e0528060e05260405180610100528061010052602081016040527f5fb114920000000000000000000000000000000000000000000000000000000081526004810150308060c0523b15156065576061565b608d565b5f5ffd5b8160e05280610100525f5f6004835f3087f19150506085573d5f5f3e3d5ffd5b605d565b5f5ffd5b608d8060975f395ff3346028575f3560e01c80635fb11492146020578063d99aa8e2146024576028565b603e565b602c565b5f5ffd5b5f546080526020608001608090036080f35b5f54600181018060805280608052818110915050156083577f4e487b71000000000000000000000000000000000000000000000000000000005f52601160045260245ffd5b608051806080525f55"
+
+fn @viaHelper() [selector=0x9c6f4ff5, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 388, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CreationHelper_initcode_0, v3, 357
+    v4 = slice_ptr v0
+    v5 = add v3, 357
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 357
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 315, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CreationDirect_initcode_1, v3, 284
+    v4 = slice_ptr v0
+    v5 = add v3, 284
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 284
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+fn @viaModifier() [selector=0xb93fa0d6, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 323, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CreationModifier_initcode_2, v3, 292
+    v4 = slice_ptr v0
+    v5 = add v3, 292
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 292
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
+
+fn @viaBase() [selector=0x0f982f84, abi_params=[], abi_returns=[]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 323, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy CreationModifier_initcode_2, v3, 292
+    v4 = slice_ptr v0
+    v5 = add v3, 292
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 292
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    stop
+}
