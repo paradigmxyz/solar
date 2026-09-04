@@ -17,39 +17,56 @@
 //! The walk instead propagates a range of entry depths per block and checks each bound where it
 //! is the worst case. Operand availability (`dup`, `swap`, `pop`, and every instruction's inputs)
 //! is monotone in the entry depth, so it is checked at the block's minimum; the 1024-word stack
-//! limit is checked at the maximum. This is as strong as visiting every distinct depth, and it is
-//! bounded: minimums only fall and maximums only rise.
+//! limit is checked at the maximum.
 //!
-//! What makes recursion compile is that the maximum is split by how many cycle-closing edges the
-//! path carrying it has crossed, where the cycle-closing edges are those of one depth-first walk
-//! from the entry, so removing them leaves a DAG. A block keeps an ingress maximum, over paths
-//! that cross none of them, and a post-cycle maximum, over paths that cross exactly one. Crossing
-//! a cycle-closing edge promotes the ingress maximum to the target's post-cycle maximum and drops
-//! the post-cycle maximum. So every new ingress maximum is still propagated through one complete
+//! What makes recursion compile is that both bounds are split by how many cycle-closing edges the
+//! walk that carried them has crossed, where the cycle-closing edges are those of one depth-first
+//! walk from the entry, so removing them leaves a DAG. A block keeps an ingress bound, over walks
+//! that cross none of them, and a post-cycle bound, over walks that cross exactly one. Crossing a
+//! cycle-closing edge promotes each ingress bound to the target's post-cycle bound and drops the
+//! post-cycle bound. So every new ingress bound is still propagated through one complete
 //! traversal of the cycle and checked there, and only a second traversal is cut. Both halves are
 //! least fixed points over the same DAG, the second seeded from the first, so the walk terminates
 //! structurally rather than by a depth or iteration bound, and its result does not depend on the
 //! order the worklist happens to run in.
 //!
-//! Cutting the second traversal is the only sound choice available statically, because the
-//! recursion depth of a legal program is a runtime property; exceeding the stack limit through it
-//! is a runtime failure, exactly as it is for solc. It also draws the boundary in the right
-//! place. A path can only be cut at its second cycle-closing edge if the depth it carries was
-//! itself produced by going around a cycle, since an acyclic path reaching any block reaches it
-//! in the ingress maximum. That depth is precisely the runtime-dependent quantity the walk
-//! declines to bound, so what stays unchecked is growth accumulated across recursion and nothing
-//! else: a deterministic overflow on a single pass, including one whose high-depth ingress
-//! arrives at a cycle over an edge the depth-first walk classified as cycle-closing, is reported.
-//! The residual cost is that a cycle whose body is not stack-balanced is reported only if one
-//! pass through it already overflows.
+//! Cutting the second traversal is the only sound choice available statically, because how many
+//! rounds a cycle runs is a runtime property; exceeding the stack limit through it is a runtime
+//! failure, exactly as it is for solc. The two bounds are cut alike, so a cycle that drops a word
+//! every round is no more rejected than one that leaves a word behind: both are drift the walk
+//! declines to accumulate.
+//!
+//! What this guarantees is one complete traversal of every cycle per new ingress bound: any
+//! violation a single pass produces is reported, including a pass whose high-depth ingress arrives
+//! at a cycle over an edge the depth-first walk happened to classify as cycle-closing. What it
+//! does not guarantee is anything about a walk that goes around a cycle twice. That is not
+//! confined to going around one cycle twice, because the propagated bounds are per block and not
+//! per path, and a simple path through an irreducible CFG can cross two cycle-closing edges: the
+//! excess left unchecked at a block is bounded by the difference between its post-cycle and its
+//! ingress bound at the second-to-last cycle-closing edge on the walk, which for a composition of
+//! separate drifting cycles is the drift the earlier ones accumulated.
+//! `two_cycle_stack_overflow.evmir` is the residual case, two individually safe drifting cycles
+//! composed into one finite path that overflows: catching it needs the bounds carried across more
+//! than one cycle-closing edge, which cannot be done without also accumulating recursion depth
+//! and rejecting valid programs.
+//!
+//! Because one block is walked once per bound it receives, and a block with a broken stack
+//! operation is normally broken at every one of them, stack-operation diagnostics are reported
+//! once per block and message rather than once per entry depth.
 
 use super::*;
 use crate::backend::evm::{op, stack::MAX_STACK_DEPTH};
 use solar_config::EvmVersion;
-use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use solar_sema::Gcx;
-use std::fmt;
+use std::{collections::hash_map::Entry, fmt};
+
+/// Stack-operation diagnostics already reported, keyed by block and message.
+type ReportedErrors = FxHashMap<(BlockId, String), ErrorGuaranteed>;
 
 /// EVM IR verifier.
 pub(super) struct Verifier<'a> {
@@ -91,6 +108,28 @@ impl<'a> Verifier<'a> {
     #[track_caller]
     fn error_in_block(&self, block: BlockId, msg: impl fmt::Display) -> ErrorGuaranteed {
         self.error(format_args!("block {}: {msg}", block.index()))
+    }
+
+    /// Reports `msg` for `block` unless the same message was already reported for it.
+    ///
+    /// The stack-operation walk enters a block once per entry depth it propagates, and a block
+    /// whose stack operations are wrong is normally wrong at every one of them. Keying on the
+    /// message keeps two genuinely different problems in one block visible while reporting each
+    /// of them once, and the recorded guarantee is the one the first report produced.
+    #[track_caller]
+    fn error_in_block_once(
+        &self,
+        reported: &mut ReportedErrors,
+        block: BlockId,
+        msg: impl fmt::Display,
+    ) -> ErrorGuaranteed {
+        match reported.entry((block, msg.to_string())) {
+            Entry::Occupied(entry) => *entry.get(),
+            Entry::Vacant(entry) => {
+                let guar = self.error(format_args!("block {}: {}", block.index(), entry.key().1));
+                *entry.insert(guar)
+            }
+        }
     }
 
     pub(super) fn verify_module(&self, module: &Module) {
@@ -322,6 +361,7 @@ impl<'a> Verifier<'a> {
     /// See the module documentation for the bounds the walk propagates and for why only the
     /// post-cycle maximum stops at a cycle-closing edge.
     fn verify_stack_ops(&self, module: &Module) {
+        let mut reported = ReportedErrors::default();
         let cycle_edges = cycle_edges(module);
         let empty = EntryDepths::default();
         let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![empty; module.blocks.len()]);
@@ -335,7 +375,10 @@ impl<'a> Verifier<'a> {
             let mut valid = true;
             for (index, inst) in block.instructions.iter().enumerate() {
                 if inst.is_physical_stack_op() {
-                    if self.apply_physical_stack_op(block_id, inst, &mut stack).is_err() {
+                    if self
+                        .apply_physical_stack_op(&mut reported, block_id, inst, &mut stack)
+                        .is_err()
+                    {
                         valid = false;
                         break;
                     }
@@ -343,7 +386,10 @@ impl<'a> Verifier<'a> {
                     let effect = inst
                         .effective_stack_effect()
                         .expect("instruction stack effect must be known after shape validation");
-                    if self.apply_effect(block_id, inst.mnemonic(), effect, &mut stack).is_err() {
+                    if self
+                        .apply_effect(&mut reported, block_id, inst.mnemonic(), effect, &mut stack)
+                        .is_err()
+                    {
                         valid = false;
                         break;
                     }
@@ -360,7 +406,12 @@ impl<'a> Verifier<'a> {
                 let lowering_growth = term.kind.lowering_stack_growth(module.next_block(block_id));
                 if lowering_growth != 0
                     && self
-                        .ensure_stack_limit(block_id, &term.kind, stack + lowering_growth)
+                        .ensure_stack_limit(
+                            &mut reported,
+                            block_id,
+                            &term.kind,
+                            stack + lowering_growth,
+                        )
                         .is_err()
                 {
                     valid = false;
@@ -368,7 +419,9 @@ impl<'a> Verifier<'a> {
                     let effect = default_terminator_stack_effect(&term.kind)
                         .or(term.metadata.stack)
                         .expect("terminator stack effect must be known after shape validation");
-                    valid = self.apply_effect(block_id, &term.kind, effect, &mut stack).is_ok();
+                    valid = self
+                        .apply_effect(&mut reported, block_id, &term.kind, effect, &mut stack)
+                        .is_ok();
                 }
             }
             if !valid {
@@ -387,6 +440,7 @@ impl<'a> Verifier<'a> {
 
     fn apply_effect(
         &self,
+        reported: &mut ReportedErrors,
         block_id: BlockId,
         name: impl fmt::Display,
         effect: StackEffect,
@@ -394,7 +448,8 @@ impl<'a> Verifier<'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let inputs = usize::from(effect.inputs);
         if *stack < inputs {
-            return Err(self.error_in_block(
+            return Err(self.error_in_block_once(
+                reported,
                 block_id,
                 format_args!(
                     "`{name}` consumes {} stack words but only {} are available",
@@ -403,11 +458,12 @@ impl<'a> Verifier<'a> {
             ));
         }
         *stack = *stack - inputs + usize::from(effect.outputs);
-        self.ensure_stack_limit(block_id, name, *stack)
+        self.ensure_stack_limit(reported, block_id, name, *stack)
     }
 
     fn apply_physical_stack_op(
         &self,
+        reported: &mut ReportedErrors,
         block_id: BlockId,
         inst: &Instruction,
         stack: &mut usize,
@@ -416,7 +472,8 @@ impl<'a> Verifier<'a> {
         let name = match stack_op {
             op::StackOp::Dup(n) => {
                 if *stack < usize::from(n) {
-                    return Err(self.error_in_block(
+                    return Err(self.error_in_block_once(
+                        reported,
                         block_id,
                         format_args!("`dup {n}` reaches depth {n} but the stack has {}", *stack),
                     ));
@@ -426,7 +483,8 @@ impl<'a> Verifier<'a> {
             }
             op::StackOp::Swap(n) => {
                 if *stack < usize::from(n) + 1 {
-                    return Err(self.error_in_block(
+                    return Err(self.error_in_block_once(
+                        reported,
                         block_id,
                         format_args!("`swap {n}` reaches depth {n} but the stack has {}", *stack),
                     ));
@@ -435,7 +493,8 @@ impl<'a> Verifier<'a> {
             }
             op::StackOp::Exchange(_, m) => {
                 if *stack < usize::from(m) + 1 {
-                    return Err(self.error_in_block(
+                    return Err(self.error_in_block_once(
+                        reported,
                         block_id,
                         format_args!("`exchange` reaches depth {m} but the stack has {}", *stack),
                     ));
@@ -444,23 +503,29 @@ impl<'a> Verifier<'a> {
             }
             op::StackOp::Pop => {
                 if *stack == 0 {
-                    return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
+                    return Err(self.error_in_block_once(
+                        reported,
+                        block_id,
+                        "`pop` on an empty stack",
+                    ));
                 }
                 *stack -= 1;
                 "pop"
             }
         };
-        self.ensure_stack_limit(block_id, name, *stack)
+        self.ensure_stack_limit(reported, block_id, name, *stack)
     }
 
     fn ensure_stack_limit(
         &self,
+        reported: &mut ReportedErrors,
         block_id: BlockId,
         name: impl fmt::Display,
         depth: usize,
     ) -> Result<(), ErrorGuaranteed> {
         if depth > MAX_STACK_DEPTH {
-            Err(self.error_in_block(
+            Err(self.error_in_block_once(
+                reported,
                 block_id,
                 format_args!(
                     "`{name}` grows the stack to {depth} words, exceeding the limit of {MAX_STACK_DEPTH}"
@@ -529,13 +594,15 @@ impl<'a> Verifier<'a> {
 
 /// The entry depths the stack-operation walk has propagated into a block.
 ///
-/// The maximum is split by how many cycle-closing edges the path reached the block over, so that
-/// growth carried around a cycle can be cut without also discarding a first arrival that merely
+/// Both bounds are split by how many cycle-closing edges the walk reached the block over, so that
+/// drift carried around a cycle can be cut without also discarding a first arrival that merely
 /// happens to come in over a cycle-closing edge. See the module documentation.
 #[derive(Clone, Copy, Debug, Default)]
 struct EntryDepths {
-    /// Lowest entry depth over any path, cycle-closing edges included.
-    min: Option<usize>,
+    /// Lowest entry depth over paths that cross no cycle-closing edge.
+    ingress_min: Option<usize>,
+    /// Lowest entry depth over paths that cross exactly one cycle-closing edge.
+    cycle_min: Option<usize>,
     /// Highest entry depth over paths that cross no cycle-closing edge.
     ingress_max: Option<usize>,
     /// Highest entry depth over paths that cross exactly one cycle-closing edge.
@@ -545,42 +612,48 @@ struct EntryDepths {
 impl EntryDepths {
     /// The depths of the entry block, which is always reached at depth zero.
     const fn entry() -> Self {
-        Self { min: Some(0), ingress_max: Some(0), cycle_max: None }
+        Self { ingress_min: Some(0), cycle_min: None, ingress_max: Some(0), cycle_max: None }
     }
 
     /// Merges `depth` into the bounds named by `bounds`, returning the ones it moved.
     fn merge(&mut self, depth: usize, bounds: Bounds) -> Bounds {
-        let mut raised = Bounds::default();
-        if bounds.min && self.min.is_none_or(|min| depth < min) {
-            self.min = Some(depth);
-            raised.min = true;
+        let mut moved = Bounds::default();
+        if bounds.ingress_min && self.ingress_min.is_none_or(|min| depth < min) {
+            self.ingress_min = Some(depth);
+            moved.ingress_min = true;
+        }
+        if bounds.cycle_min && self.cycle_min.is_none_or(|min| depth < min) {
+            self.cycle_min = Some(depth);
+            moved.cycle_min = true;
         }
         if bounds.ingress_max && self.ingress_max.is_none_or(|max| depth > max) {
             self.ingress_max = Some(depth);
-            raised.ingress_max = true;
+            moved.ingress_max = true;
         }
         if bounds.cycle_max && self.cycle_max.is_none_or(|max| depth > max) {
             self.cycle_max = Some(depth);
-            raised.cycle_max = true;
+            moved.cycle_max = true;
         }
-        raised
+        moved
     }
 }
 
 /// Which of a block's [`EntryDepths`] a walk item stands for.
 ///
 /// One item can stand for several at once, which is the common case: straight-line code enters
-/// every block at one depth, so all three bounds travel together and each block is walked once.
+/// every block at one depth, so all four bounds travel together and each block is walked once.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct Bounds {
-    min: bool,
+    ingress_min: bool,
+    cycle_min: bool,
     ingress_max: bool,
     cycle_max: bool,
 }
 
 impl Bounds {
     /// The bounds the entry block starts with.
-    const ENTRY: Self = Self { min: true, ingress_max: true, cycle_max: false };
+    const ENTRY: Self =
+        Self { ingress_min: true, cycle_min: false, ingress_max: true, cycle_max: false };
 
     fn is_empty(self) -> bool {
         self == Self::default()
@@ -588,12 +661,18 @@ impl Bounds {
 
     /// The bounds this item still stands for after crossing one control-flow edge.
     ///
-    /// A cycle-closing edge promotes the ingress maximum to the post-cycle maximum and drops the
-    /// post-cycle maximum: one traversal of the cycle is checked, a second is not. The minimum
-    /// crosses every edge, which terminates because depths cannot fall below zero.
+    /// A cycle-closing edge promotes each ingress bound to the matching post-cycle bound and
+    /// drops the post-cycle bounds: one traversal of the cycle is checked, a second is not. The
+    /// two bounds are treated alike so that a cycle which drops a word every round is no more
+    /// rejected than one which leaves a word behind.
     const fn across(self, closes_cycle: bool) -> Self {
         if closes_cycle {
-            Self { min: self.min, ingress_max: false, cycle_max: self.ingress_max }
+            Self {
+                ingress_min: false,
+                cycle_min: self.ingress_min,
+                ingress_max: false,
+                cycle_max: self.ingress_max,
+            }
         } else {
             self
         }

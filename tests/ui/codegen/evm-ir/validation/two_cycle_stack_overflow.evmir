@@ -1,0 +1,39 @@
+// The residual gap of the one-traversal rule: two cycles, each safe for a single pass, composed
+// into one finite path whose modeled depth exceeds the limit. The bounds are per block and cross
+// only one cycle-closing edge, so the drift `bb1`'s cycle carries into `bb4`'s is not
+// accumulated. Catching this needs bounds carried across a second cycle-closing edge, which also
+// accumulates recursion depth and would reject the valid program in `recursive_call_cycle.evmir`.
+@module module
+
+bb0:
+  jump bb1
+
+bb1:
+  push 0
+  calldataload
+  jumpi bb2, bb3
+
+bb2:
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->255)
+  jump bb1
+
+bb3:
+  jump bb4
+
+bb4:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  calldataload
+  jumpi bb5, bb6
+
+bb5:
+  op_0c !meta(stack=0->255)
+  op_0c !meta(stack=0->251)
+  jump bb4
+
+bb6:
+  stop

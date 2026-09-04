@@ -1,0 +1,23 @@
+// The mirror image of `cycle_stack_drift.evmir`: a cycle that drops a word every round is
+// accepted, because how many rounds it runs is the same runtime property that decides whether a
+// growing cycle overflows. Only the first traversal is checked, which is enough to report a pass
+// that already underflows, as `cycle_stack_underflow.evmir` covers.
+@module module
+
+bb0:
+  push 0
+  push 0
+  push 0
+  jump bb1
+
+bb1:
+  push 0
+  mload
+  jumpi bb2, bb3
+
+bb2:
+  pop
+  jump bb1
+
+bb3:
+  stop
