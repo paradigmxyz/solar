@@ -1,0 +1,262 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_dynamic_argument_expansion.sol:WideCallee ===
+@module WideCallee
+fn @six(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = add v0, 4
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    ret v1, 1, 2, 3, 4, 5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @sixString(arg0: memorybytes) -> (u256, u256, u256, u256, u256, u256) [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    v1 = add v0, 4
+    v2 = lt v1, v0
+    jumpi v2, bb1, bb2
+  bb2:
+    ret v1, 1, 2, 3, 4, 5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+// === ROOT/tests/ui/codegen/lowering/run-call/pre_byzantium_dynamic_argument_expansion.sol:WideCalls ===
+@module WideCalls
+data:
+  WideCallee_initcode_0: hex"346010576103578060166000396000f35b60006000fe346047576000357c010000000000000000000000000000000000000000000000000000000090048063a52f51f114603e578063b84d18fb146043576047565b610111565b604c565b600080fe5b6102c0604052602436101560f55760f0565b6101605180610160525160048101806101405280610140528181109150501560af577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fe5b610140518061014052608052602060800160018152602090016002815260209001600381526020900160048152602090016005815260209001608090036080f35b600080fe5b60fe60046101db565b6101a0518061016052806101605250605e565b6102c060405260243610156101bd576101b8565b61016051806101605251600481018061014052806101405281811091505015610177577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fe5b610140518061014052608052602060800160018152602090016002815260209001600381526020900160048152602090016005815260209001608090036080f35b600080fe5b6101c760046101db565b6101a0518061016052806101605250610125565b610180526101805135806102a052600401806101e052806101e0526020810167ffffffffffffffff6102a0511136806101c05282119150171561021e575b600080fe5b806101e052358061020052806102005260206101e0510180610220528061022052603f820180610240528061024052828061020052811015610289577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fe5b601f1981169050604051806102605280610260528181018061028052915081610280528061026052811067ffffffffffffffff821181179050156102f657610328565b602061026051016101e0513580610200526101e0516020018061022052823750610260516101a052565b80610280526040528161020052818061020052610260515280610220528061022052360381119050156102cc57610219565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fe"
+
+fn @plainCall() -> u256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 908, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy WideCallee_initcode_0, v3, 877
+    v4 = slice_ptr v0
+    v5 = add v3, 877
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 877
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v7, 0
+    v8 = memory_object_data memorybytes, v7
+    v9 = fmp
+    v10 = add v9, 192
+    mstore v10, 0
+    v11 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v7
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = extcodesize v6
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = gas
+    v17 = sub v16, 50
+    v18 = call v17, v6, 0, v12, v13, v12, 192
+    jumpi v18, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v19 = add v12, 0
+    v20 = mload v19
+    v21 = add v12, 32
+    v22 = mload v21
+    v23 = add v12, 64
+    v24 = mload v23
+    v25 = add v12, 96
+    v26 = mload v25
+    v27 = add v12, 128
+    v28 = mload v27
+    v29 = add v12, 160
+    v30 = mload v29
+    frame_store multi_return, word, 0, v12 !metadata(memory=scratch)
+    v31 = add v12, 0
+    v32 = mload v31
+    v33 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v34 = add v33, 32
+    v35 = mload v34
+    v36 = add v33, 64
+    v37 = mload v36
+    v38 = add v33, 96
+    v39 = mload v38
+    v40 = add v33, 128
+    v41 = mload v40
+    v42 = add v33, 160
+    v43 = mload v42
+    v44 = add v32, v43
+    v45 = lt v44, v32
+    jumpi v45, bb7, bb8
+  bb8:
+    ret v44
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @tryCall() -> u256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 908, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy WideCallee_initcode_0, v3, 877
+    v4 = slice_ptr v0
+    v5 = add v3, 877
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 877
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v7, 0
+    v8 = memory_object_data memorybytes, v7
+    v9 = fmp
+    v10 = add v9, 192
+    mstore v10, 0
+    v11 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v7
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = extcodesize v6
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = gas
+    v17 = sub v16, 50
+    v18 = call v17, v6, 0, v12, v13, v12, 192
+    jumpi v18, bb5, bb6
+  bb6:
+    jumpi 1, bb10, bb11
+  bb11:
+    revert 0, 0
+  bb10:
+    jump bb7
+  bb5:
+    v19 = add v12, 0
+    v20 = mload v19
+    v21 = add v12, 32
+    v22 = mload v21
+    v23 = add v12, 64
+    v24 = mload v23
+    v25 = add v12, 96
+    v26 = mload v25
+    v27 = add v12, 128
+    v28 = mload v27
+    v29 = add v12, 160
+    v30 = mload v29
+    frame_store multi_return, word, 0, v12 !metadata(memory=scratch)
+    v31 = add v12, 0
+    v32 = mload v31
+    v33 = add v12, 32
+    v34 = mload v33
+    v35 = add v12, 64
+    v36 = mload v35
+    v37 = add v12, 96
+    v38 = mload v37
+    v39 = add v12, 128
+    v40 = mload v39
+    v41 = add v12, 160
+    v42 = mload v41
+    v43 = add v32, v42
+    v44 = lt v43, v32
+    jumpi v44, bb8, bb9
+  bb9:
+    jump bb7
+  bb7:
+    v45 = phi [bb9: v43], [bb10: 7]
+    ret v45
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}
+
+fn @stringCall() -> u256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode []
+    v1 = not 31
+    v2 = and 908, v1
+    v3 = alloc raw, exact, uninitialized, infallible, v2
+    data_copy WideCallee_initcode_0, v3, 877
+    v4 = slice_ptr v0
+    v5 = add v3, 877
+    mcopy v5, v4, 0 !metadata(memory=heap)
+    v6 = create 0, v3, 877
+    jumpi v6, bb2, bb1
+  bb1:
+    revert_returndata
+  bb2:
+    v7 = alloc memorybytes, exact, uninitialized, infallible, 32
+    set_memory_object_len memorybytes, v7, 0
+    v8 = memory_object_data memorybytes, v7
+    v9 = fmp
+    v10 = add v9, 192
+    mstore v10, 0
+    v11 = abi_encode [memory_bytes], selector 0xa52f51f100000000000000000000000000000000000000000000000000000000, args v7
+    v12 = slice_ptr v11
+    v13 = slice_len v11
+    v14 = extcodesize v6
+    v15 = iszero v14
+    jumpi v15, bb3, bb4
+  bb4:
+    v16 = gas
+    v17 = sub v16, 50
+    v18 = call v17, v6, 0, v12, v13, v12, 192
+    jumpi v18, bb6, bb5
+  bb5:
+    revert_returndata
+  bb6:
+    v19 = add v12, 0
+    v20 = mload v19
+    v21 = add v12, 32
+    v22 = mload v21
+    v23 = add v12, 64
+    v24 = mload v23
+    v25 = add v12, 96
+    v26 = mload v25
+    v27 = add v12, 128
+    v28 = mload v27
+    v29 = add v12, 160
+    v30 = mload v29
+    frame_store multi_return, word, 0, v12 !metadata(memory=scratch)
+    v31 = add v12, 0
+    v32 = mload v31
+    v33 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v34 = add v33, 32
+    v35 = mload v34
+    v36 = add v33, 64
+    v37 = mload v36
+    v38 = add v33, 96
+    v39 = mload v38
+    v40 = add v33, 128
+    v41 = mload v40
+    v42 = add v33, 160
+    v43 = mload v42
+    v44 = add v32, v43
+    v45 = lt v44, v32
+    jumpi v45, bb7, bb8
+  bb8:
+    ret v44
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb3:
+    revert 0, 0
+}

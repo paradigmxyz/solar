@@ -14,9 +14,12 @@ contract StorageBytesElements {
     }
 
     // CHECK-LABEL: fn @poke{{[( ]}}
+    // CHECK: sload 0
     // CHECK: storage_array_data_slot 0
-    // CHECK: memory_object_store_byte memorybytes
-    // CHECK: icall @store_storage_bytes, 0, 0,
+    // CHECK: [[WORD:v[0-9]+]] = phi
+    // CHECK: sload [[WORD]]
+    // CHECK: sstore [[WORD]]
+    // CHECK-NOT: store_storage_bytes
     function poke() public {
         b[5] = 0xAA;
     }

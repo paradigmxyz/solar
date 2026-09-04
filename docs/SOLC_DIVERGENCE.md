@@ -131,6 +131,46 @@ Coverage: `tests/ui/typeck/inline_array_reference_elements.sol`,
 `tests/ui/typeck/array_push_element_locations.sol`, and
 `tests/ui/codegen/lowering/run-call/nested_array_storage_memory.sol`.
 
+### TYPECK-004: Named arguments in base constructor and modifier invocations
+
+Status: intentional.
+
+Difference: `solc` parses the argument list of an inheritance specifier, of a
+base constructor call in a constructor header, and of a modifier invocation as
+a plain expression list, so `contract D is Base({b: 1, a: 2})` and
+`function f() m({b: 3, a: 4})` are parse errors there (ParserError 6933,
+"Expected primary expression"). `solar` accepts the named form in all three
+positions and binds the arguments by parameter name. In each of them the list
+gets the same checks as a named function call's: argument types, arity,
+duplicate names, and names that no parameter has.
+
+Rationale: the restriction is a shortcoming of `solc`'s grammar rather than a
+language rule; these lists denote calls to a constructor or a modifier, and the
+named form has one unambiguous meaning. We deliberately support this extended
+form. Every program `solc` accepts here has the same meaning in `solar`.
+
+Coverage: `tests/ui/typeck/base_arguments.sol`,
+`tests/ui/typeck/modifier_arguments.sol`,
+`tests/ui/codegen/lowering/base_constructor_args.sol`, and
+`tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`.
+
+### TYPECK-005: Parenthesized `try` targets
+
+Status: intentional.
+
+Difference: `solc` requires a `try` statement's target to be a call
+syntactically and reports 5347 ("Try can only be used with external function
+calls and contract creation calls") for `try (c.f()) { ... }`, because the
+parenthesized expression is a tuple rather than a call. `solar` peels the
+parentheses and compiles the statement as if they were not written.
+
+Rationale: parentheses do not change the call they wrap, so the statement has
+one unambiguous meaning; rejecting it would be a grammar restriction rather
+than a language rule. The checker and lowering peel them identically, so an
+accepted statement always compiles.
+
+Coverage: `tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol`.
+
 ## Contract-Level Checks
 
 No intentional divergences documented yet.

@@ -11,11 +11,13 @@ use alloy_primitives::U256;
 use solar_ast::{
     DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
-use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
+use solar_data_structures::{
+    Never, bit_set::DenseBitSet, map::FxHashMap, pluralize, smallvec::SmallVec,
+};
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -68,6 +70,52 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
+    /// The value components the enclosing statement discards, by expression.
+    ///
+    /// Only populated before Byzantium, where a dynamically encoded external return value is
+    /// inaccessible and only a discarded one is legal.
+    discarded: FxHashMap<hir::ExprId, Discarded>,
+    /// Where the value of the expression being checked is used.
+    value_position: ValuePosition,
+}
+
+/// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
+/// call's inaccessible dynamically encoded return value.
+///
+/// solc gives such a call an inaccessible dynamic type and then reports the ordinary conversion
+/// error of the position the value is used in, and every position has a code of its own.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum ValuePosition {
+    /// Any other expression, a member access on the value included, which solc reports as 7407.
+    #[default]
+    Expression,
+    /// A variable declaration's initializer, which solc reports as 9574.
+    VariableDeclaration,
+    /// A `return` statement's value, which solc reports as 6359.
+    Return,
+    /// A call argument, which solc reports as 9553.
+    Argument,
+    /// A `try ... returns` clause's binding, which solc reports as 6509.
+    TryReturns,
+}
+
+/// How a variable reaches the variable checks, which decides who owns its initializer.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum VarSource {
+    /// The variable is checked on its own and carries its initializer, if it has one.
+    Standalone,
+    /// The variable is one target of a declaration statement whose initializer the caller has
+    /// already checked. A destructuring target has no initializer of its own, because the
+    /// initializer belongs to the statement rather than to any one target.
+    DeclStatement,
+}
+
+/// The components of an expression's value that a statement discards.
+enum Discarded {
+    /// The whole value, as in an expression statement or a `try` without a `returns` clause.
+    All,
+    /// The components a tuple destructuring drops, by index.
+    Components(DenseBitSet<usize>),
 }
 
 #[derive(Clone, Copy)]
@@ -94,6 +142,8 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
+            discarded: FxHashMap::default(),
+            value_position: ValuePosition::default(),
         }
     }
 
@@ -102,11 +152,21 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn emit_evm_version_error(&self, span: Span, feature: &str, required: EvmVersion) {
+        self.evm_version_error(span, feature, required).emit();
+    }
+
+    /// Builds the diagnostic for a feature the target EVM version does not have. Callers that
+    /// mirror a solc diagnostic attach its code before emitting.
+    fn evm_version_error(
+        &self,
+        span: Span,
+        feature: &str,
+        required: EvmVersion,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         self.dcx()
             .err(format!("{feature} requires {required:?}-compatible EVM"))
             .span(span)
             .help(format!("compile with `--evm-version {required}` or newer"))
-            .emit();
     }
 
     fn check_res_evm_version(&self, res: hir::Res, span: Span) {
@@ -391,6 +451,9 @@ impl<'gcx> TypeChecker<'gcx> {
                         if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                         }
+                        // Keep the declared return type: the value is unusable, but an error
+                        // type here would only hide the checks its uses still go through.
+                        let _ = self.check_inaccessible_dynamic_return(expr, f);
                         self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
@@ -851,6 +914,15 @@ impl<'gcx> TypeChecker<'gcx> {
         lhs_ty: Ty<'gcx>,
         rhs: &'gcx hir::Expr<'gcx>,
     ) {
+        if let hir::ExprKind::Tuple(components) = lhs.peel_parens().kind {
+            let mut dropped = DenseBitSet::new_empty(components.len());
+            for (index, component) in components.iter().enumerate() {
+                if component.is_none() {
+                    dropped.insert(index);
+                }
+            }
+            self.discard(rhs, Discarded::Components(dropped));
+        }
         let rhs_ty = self.check_expr(rhs);
         self.check_tuple_assign_rhs_components(lhs, lhs_ty, rhs, rhs_ty);
     }
@@ -1204,6 +1276,320 @@ impl<'gcx> TypeChecker<'gcx> {
         Err(err)
     }
 
+    /// Records the components of `expr`'s value that the enclosing statement discards.
+    ///
+    /// Does nothing from Byzantium on, where every return value is accessible.
+    fn discard(&mut self, expr: &'gcx hir::Expr<'gcx>, discarded: Discarded) {
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            return;
+        }
+        let expr = expr.peel_parens();
+        // The components of a tuple expression are values of their own, so a discarded one is
+        // discarded whole, however deeply the tuples nest.
+        if let hir::ExprKind::Tuple(exprs) = expr.kind {
+            for (index, expr) in exprs.iter().enumerate() {
+                if let Some(expr) = expr
+                    && match &discarded {
+                        Discarded::All => true,
+                        Discarded::Components(components) => components.contains(index),
+                    }
+                {
+                    self.discard(expr, Discarded::All);
+                }
+            }
+            return;
+        }
+        self.discarded.insert(expr.id, discarded);
+    }
+
+    /// Rejects a use of an external call's dynamically encoded return value before Byzantium.
+    ///
+    /// Without `RETURNDATASIZE` the size of such a value is unknowable, so solc gives it an
+    /// inaccessible dynamic type (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the
+    /// call itself is legal and only reading the value is not. The other return values stay
+    /// accessible, so a tuple destructuring that drops the dynamic ones is legal too.
+    ///
+    /// solc reports the ordinary conversion error of the position the value is used in, so the
+    /// code comes from [`ValuePosition`] rather than being one code for every use.
+    fn check_inaccessible_dynamic_return(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+        f: &'gcx TyFn<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.gcx.sess.opts.evm_version.supports_returndata()
+            || !matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall)
+        {
+            return Ok(());
+        }
+        let discarded = self.discarded.get(&expr.id);
+        if matches!(discarded, Some(Discarded::All)) {
+            return Ok(());
+        }
+        for (index, ty) in f.returns.iter().enumerate() {
+            // A storage reference is decoded as its slot number (`ArrayType::decodingType`,
+            // and `Type::decodingType` through `encodingType` for structs and mappings), so it
+            // stays accessible at every version.
+            if ty.encodes_as_slot()
+                || !ty.is_dynamically_encoded(self.gcx)
+                || matches!(discarded, Some(Discarded::Components(components)) if components.contains(index))
+            {
+                continue;
+            }
+            let code = match self.value_position {
+                ValuePosition::Expression => error_code!(7407),
+                ValuePosition::VariableDeclaration => error_code!(9574),
+                ValuePosition::Return => error_code!(6359),
+                ValuePosition::Argument => error_code!(9553),
+                ValuePosition::TryReturns => error_code!(6509),
+            };
+            return Err(self
+                .dcx()
+                .err("cannot use the dynamically encoded return value of an external call")
+                .code(code)
+                .span(expr.span)
+                .note(format!(
+                    "the call returns `{}`, whose size is unknowable without `RETURNDATASIZE`",
+                    ty.display(self.gcx)
+                ))
+                .help("discard the value, or compile with `--evm-version byzantium` or newer")
+                .emit());
+        }
+        Ok(())
+    }
+
+    /// Checks a `try` statement, as in solc's `TypeChecker::endVisit(TryStatement)`.
+    ///
+    /// Must run after the called expression has been checked: every clause is checked against
+    /// the callee's type.
+    fn check_try(&self, try_: &'gcx hir::StmtTry<'gcx>) {
+        let Some(f) = self.check_try_target(try_) else { return };
+        self.check_try_returns_clause(try_, f);
+        self.check_try_catch_clauses(try_);
+    }
+
+    /// Checks that a `try` statement's target is a call whose failure the statement can catch,
+    /// returning the called function's type.
+    ///
+    /// Only an external call, a delegate call, and a contract creation call have a revert of
+    /// their own to catch and return data to decode; every other callee either cannot fail
+    /// separately from the caller or has no return data. solc reports the same message under two
+    /// codes and checks no clause of either: 5347 for a target that is not a call, and 2536 for a
+    /// call of another kind.
+    fn check_try_target(&self, try_: &'gcx hir::StmtTry<'gcx>) -> Option<&'gcx TyFn<'gcx>> {
+        // solc requires the target to be a call syntactically, so it rejects `try (c.f())`.
+        // Parentheses do not change the call they wrap, so we accept it; lowering peels them
+        // the same way, so an accepted statement compiles. See TYPECK-005 in
+        // `docs/SOLC_DIVERGENCE.md`.
+        let expr = try_.expr.peel_parens();
+        let callee_ty = match expr.kind {
+            hir::ExprKind::Call(callee, ..) => self.results.expr_types.get(&callee.id).copied(),
+            _ => None,
+        };
+        if let Some(callee_ty) = callee_ty {
+            // A callee that failed to check says nothing about the statement.
+            if callee_ty.references_error() {
+                return None;
+            }
+            if let TyKind::Fn(f) = callee_ty.kind
+                && matches!(
+                    f.kind,
+                    TyFnKind::External | TyFnKind::DelegateCall | TyFnKind::Creation
+                )
+            {
+                return Some(f);
+            }
+        }
+        // A type conversion and a struct construction are calls in the grammar only: their
+        // callee names a type rather than a callable, and solc reports them with 5347 like a
+        // target that is no call at all.
+        let is_call = callee_ty.is_some_and(|ty| !matches!(ty.kind, TyKind::Type(_)));
+        let code = if is_call { error_code!(2536) } else { error_code!(5347) };
+        self.dcx()
+            .err("`try` can only be used with external function calls and contract creation calls")
+            .code(code)
+            .span(try_.expr.span)
+            .emit();
+        None
+    }
+
+    /// Checks a `try` statement's `returns` clause against the callee's return values.
+    ///
+    /// solc requires the clause to repeat the callee's return types exactly, without implicit
+    /// conversions and with the same data location (`TypeChecker::endVisit(TryStatement)`): the
+    /// decoder writes the callee's values straight into the clause's variables, so a differing
+    /// declaration would reinterpret them.
+    fn check_try_returns_clause(&self, try_: &'gcx hir::StmtTry<'gcx>, f: &'gcx TyFn<'gcx>) {
+        let clause = &try_.clauses[0];
+        if clause.args.is_empty() {
+            return;
+        }
+
+        if f.returns.len() != clause.args.len() {
+            self.dcx()
+                .err(format!(
+                    "function returns {} value{}, but the `returns` clause has {} variable{}",
+                    f.returns.len(),
+                    pluralize!(f.returns.len()),
+                    clause.args.len(),
+                    pluralize!(clause.args.len())
+                ))
+                .code(error_code!(2800))
+                .span(clause.span)
+                .emit();
+        }
+
+        // solc still compares the pairs it has, so a count mismatch can carry a type mismatch.
+        for (&id, &expected) in std::iter::zip(clause.args, f.returns) {
+            let var = self.gcx.hir.variable(id);
+            let actual = self.gcx.type_of_item(id.into());
+            if actual == expected || actual.references_error() || expected.references_error() {
+                continue;
+            }
+            // A clause variable's only valid data location is `memory`, and only for a type
+            // that takes one at all: `bool memory` is as illegal as `uint256[] storage`. Either
+            // way `var_type` has already reported it and rewritten the location, so the
+            // variable's type says nothing and solc reports only the declaration.
+            let bare = actual.peel_refs();
+            let valid_location = if bare.has_reference_or_mapping_type(self.gcx) {
+                Some(DataLocation::Memory)
+            } else {
+                None
+            };
+            if var.data_location != valid_location {
+                continue;
+            }
+            // Before Byzantium a dynamically encoded return value has no accessible type, and
+            // `check_inaccessible_dynamic_return` has already reported the binding with 6509.
+            if !self.gcx.sess.opts.evm_version.supports_returndata()
+                && !expected.encodes_as_slot()
+                && expected.is_dynamically_encoded(self.gcx)
+            {
+                continue;
+            }
+            self.dcx()
+                .err("mismatched types")
+                .code(error_code!(6509))
+                .span(var.span)
+                .span_label(
+                    var.span,
+                    TyConvertError::Incompatible.message(actual, expected, self.gcx),
+                )
+                .note("a `returns` clause must repeat the callee's return types exactly")
+                .emit();
+        }
+    }
+
+    /// Checks a `try` statement's `catch` clauses.
+    ///
+    /// Each clause decodes one shape of revert data, so its parameter list is fixed: the
+    /// `Error(string)` and `Panic(uint256)` builtin errors carry exactly their own argument, and
+    /// a low-level clause takes the raw return data as `bytes memory` or nothing at all. Only
+    /// one clause of each kind can ever run, so a second one is dead and solc rejects it
+    /// (`TypeChecker::endVisit(TryStatement)`).
+    fn check_try_catch_clauses(&self, try_: &'gcx hir::StmtTry<'gcx>) {
+        let supports_returndata = self.gcx.sess.opts.evm_version.supports_returndata();
+        // A clause takes exactly the one argument its error carries. A parameter whose data
+        // location was rejected has already been reported and rewritten, so its type matches
+        // and solc reports only the declaration.
+        let takes = |clause: &hir::TryCatchClause<'gcx>, ty| {
+            let &[arg] = clause.args else { return false };
+            self.gcx.type_of_item(arg.into()) == ty
+        };
+        let mut error_clause = None;
+        let mut panic_clause = None;
+        let mut low_level_clause = None;
+        for clause in &try_.clauses[1..] {
+            let name = clause.name.map(|name| name.name);
+            // `Error` and `Panic` are the only clause names there are, at every EVM version.
+            if !matches!(name, None | Some(sym::Error | sym::Panic)) {
+                self.dcx()
+                    .err("invalid catch clause name")
+                    .code(error_code!(3542))
+                    .span(clause.span)
+                    .help("expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`")
+                    .emit();
+                continue;
+            }
+
+            let first = match name {
+                None => &mut low_level_clause,
+                Some(sym::Error) => &mut error_clause,
+                _ => &mut panic_clause,
+            };
+            if let Some(first) = *first {
+                let (code, kind) = match name {
+                    None => (error_code!(5320), "a low-level"),
+                    Some(sym::Error) => (error_code!(1036), "an `Error`"),
+                    _ => (error_code!(6732), "a `Panic`"),
+                };
+                self.dcx()
+                    .err(format!("this `try` statement already has {kind} catch clause"))
+                    .code(code)
+                    .span(clause.span)
+                    .span_note(first, "the first clause is here")
+                    .emit();
+            } else {
+                *first = Some(clause.span);
+            }
+
+            match name {
+                // A bare `catch { }` needs no return data and stays accepted.
+                None if clause.args.is_empty() => {}
+                None => {
+                    if !takes(clause, self.gcx.types.bytes_ref.memory) {
+                        self.dcx()
+                            .err("invalid low-level catch clause parameters")
+                            .code(error_code!(6231))
+                            .span(clause.span)
+                            .help("expected `catch (bytes memory ...) { ... }` or `catch { ... }`")
+                            .emit();
+                    }
+                    if !supports_returndata {
+                        self.evm_version_error(
+                            clause.span,
+                            "typed catch clause",
+                            EvmVersion::Byzantium,
+                        )
+                        .code(error_code!(9908))
+                        .emit();
+                    }
+                }
+                Some(name) => {
+                    if !supports_returndata {
+                        self.evm_version_error(
+                            clause.span,
+                            "typed catch clause",
+                            EvmVersion::Byzantium,
+                        )
+                        .code(error_code!(1812))
+                        .emit();
+                    }
+                    let (ty, code, help) = if name == sym::Error {
+                        (
+                            self.gcx.types.string_ref.memory,
+                            error_code!(2943),
+                            "expected `catch Error(string memory ...) { ... }`",
+                        )
+                    } else {
+                        (
+                            self.gcx.types.uint(256),
+                            error_code!(1271),
+                            "expected `catch Panic(uint ...) { ... }`",
+                        )
+                    };
+                    if !takes(clause, ty) {
+                        self.dcx()
+                            .err(format!("invalid `{name}` catch clause parameters"))
+                            .code(code)
+                            .span(clause.span)
+                            .help(help)
+                            .emit();
+                    }
+                }
+            }
+        }
+    }
+
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
         match returns {
             [] => self.gcx.types.unit,
@@ -1219,14 +1605,109 @@ impl<'gcx> TypeChecker<'gcx> {
         param_tys: &[Ty<'gcx>],
         param_names: Option<CallableParamSource>,
     ) -> Result<(), ErrorGuaranteed> {
-        match args.kind {
+        // An argument's conversion error is solc's 9553, whichever position the call itself is in.
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::Argument);
+        let result = match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
                 self.check_positional_call_args(call_span, args.span, exprs, param_tys)
             }
             hir::CallArgsKind::Named(named_args) => {
                 self.check_named_call_args(call_span, args.span, named_args, param_tys, param_names)
             }
+        };
+        self.value_position = prev;
+        result
+    }
+
+    /// Rejects a base constructor whose arguments two contracts of the
+    /// hierarchy both give.
+    ///
+    /// Which of the two lists the constructor would be called with is
+    /// arbitrary, so the program has no unambiguous meaning. solc reports it
+    /// as declaration error 3364 in
+    /// `ContractLevelChecker::annotateBaseConstructorArguments`.
+    fn check_base_constructor_arguments_given_twice(&self, contract: &'gcx hir::Contract<'gcx>) {
+        if contract.linearization_failed() {
+            return;
         }
+        for &base_id in contract.linearized_bases.iter().skip(1) {
+            if self.gcx.hir.contract(base_id).ctor.is_none() {
+                continue;
+            }
+            let mut first = None;
+            for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
+                let writer = self.gcx.hir.contract(writer_id);
+                // One contract gives a base at most one argument list; giving
+                // two is reported where the lists are resolved.
+                let Some(index) =
+                    writer.linearized_bases.iter().skip(1).position(|&id| id == base_id)
+                else {
+                    continue;
+                };
+                let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
+                else {
+                    continue;
+                };
+                if modifier.args.is_empty() {
+                    continue;
+                }
+                let Some((first_index, first_span)) = first else {
+                    first = Some((writer_index, modifier.span));
+                    continue;
+                };
+                let err = self
+                    .dcx()
+                    .err("base constructor arguments given twice")
+                    .code(error_code!(3364));
+                // Point at a list of this contract when it wrote one, the way
+                // solc prefers a location inside the contract being checked.
+                let err = if first_index == 0 {
+                    err.span(first_span).span_note(modifier.span, "second argument list is here")
+                } else {
+                    err.span(contract.name.span)
+                        .span_note(first_span, "first argument list is here")
+                        .span_note(modifier.span, "second argument list is here")
+                };
+                err.emit();
+                break;
+            }
+        }
+    }
+
+    /// Checks the argument list of a modifier invocation against the modifier's
+    /// parameters.
+    ///
+    /// A modifier invocation denotes a call, so its arguments get the same
+    /// arity, name, and type checks as a function call's. Without them a
+    /// mismatched or duplicated argument reaches codegen, which has no way to
+    /// bind it.
+    fn check_modifier_invocation_args(
+        &mut self,
+        modifier: &'gcx hir::Modifier<'gcx>,
+        param_tys: &[Ty<'gcx>],
+    ) {
+        // A modifier invocation without an argument list gives no arguments,
+        // so it only type checks for a modifier without parameters.
+        if modifier.args.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for modifier invocation: {} arguments given but expected {}",
+                    modifier.args.len(),
+                    param_tys.len()
+                ))
+                .code(error_code!(2973))
+                .span(modifier.span)
+                .emit();
+            for arg in modifier.args.exprs() {
+                let _ = self.check_expr_once(arg);
+            }
+            return;
+        }
+        let param_names = modifier
+            .id
+            .as_function()
+            .map(|id| CallableParamSource::Function { id, skips_receiver: false });
+        let _ = self.check_call_args(modifier.span, &modifier.args, param_tys, param_names);
     }
 
     fn check_builtin_call_args(
@@ -1981,6 +2462,18 @@ impl<'gcx> TypeChecker<'gcx> {
         param_tys: &[Ty<'gcx>],
         param_names: Option<CallableParamSource>,
     ) -> bool {
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::Argument);
+        let matches = self.call_args_match_inner(args, param_tys, param_names);
+        self.value_position = prev;
+        matches
+    }
+
+    fn call_args_match_inner(
+        &mut self,
+        args: &hir::CallArgs<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_names: Option<CallableParamSource>,
+    ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => self.positional_call_args_match(exprs, param_tys),
             hir::CallArgsKind::Named(named_args) => {
@@ -2279,11 +2772,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
     #[must_use]
     fn check_var(&mut self, id: hir::VariableId) -> Ty<'gcx> {
-        self.check_var_(id, true)
+        self.check_var_(id, VarSource::Standalone)
     }
 
     #[must_use]
-    fn check_var_(&mut self, id: hir::VariableId, expect: bool) -> Ty<'gcx> {
+    fn check_var_(&mut self, id: hir::VariableId, source: VarSource) -> Ty<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
@@ -2301,7 +2794,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     var.span,
                     "types in storage containing (nested) mappings cannot be assigned to",
                 );
-            } else if expect {
+            } else if source == VarSource::Standalone {
                 let _ = if var.is_state_variable() {
                     self.with_construction_context(|this| {
                         let init_ty = this.check_expr_with_noexpect(init, Some(ty));
@@ -2346,9 +2839,12 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         }
 
-        // Uninitialized local mapping variables are invalid (error 4182).
+        // Uninitialized local mapping variables are invalid (error 4182). A destructuring
+        // target's initializer belongs to the declaration statement, so only a standalone
+        // declaration without one is uninitialized.
         if var.kind == hir::VarKind::Statement
             && var.initializer.is_none()
+            && source == VarSource::Standalone
             && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
         {
             self.dcx()
@@ -2416,7 +2912,19 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let expected =
             if let &[Some(id)] = decls { Some(self.gcx.type_of_item(id.into())) } else { None };
+        if decls.len() > 1 {
+            let mut dropped = DenseBitSet::new_empty(decls.len());
+            for (index, decl) in decls.iter().enumerate() {
+                if decl.is_none() {
+                    dropped.insert(index);
+                }
+            }
+            self.discard(init, Discarded::Components(dropped));
+        }
+        // A declaration's conversion error is solc's 9574.
+        let prev = std::mem::replace(&mut self.value_position, ValuePosition::VariableDeclaration);
         let ty = self.check_expr_with_noexpect(init, expected);
+        self.value_position = prev;
         let value_types =
             if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
 
@@ -2443,7 +2951,7 @@ impl<'gcx> TypeChecker<'gcx> {
         };
         for ((&var, &ty), &expr) in decls.iter().zip(value_types).zip(exprs) {
             let (Some(var), Some(expr)) = (var, expr) else { continue };
-            let var_ty = self.check_var_(var, false);
+            let var_ty = self.check_var_(var, VarSource::DeclStatement);
             let _ = self.check_expected(expr, ty, var_ty);
         }
         // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1219
@@ -2725,10 +3233,16 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        // A base constructor call in a constructor header is checked with the
+        // contract's other base argument lists, in `visit_contract`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
         }
-        self.walk_modifier(modifier)
+        let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
+            return self.walk_modifier(modifier);
+        };
+        self.check_modifier_invocation_args(modifier, param_tys);
+        ControlFlow::Continue(())
     }
 
     fn visit_contract(
@@ -2739,37 +3253,59 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             self.check_storage_layout_base_slot(slot);
         }
 
-        // Check base constructor arguments
+        self.check_base_constructor_arguments_given_twice(contract);
+
+        // Check base constructor arguments. `is Base` without parentheses
+        // provides no arguments here (deferred to a derived contract, or the
+        // contract is abstract), so only validate when arguments are given.
         for (&base_id, modifier) in
             contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
         {
-            // Get constructor parameters if the base has a constructor
-            let base_contract = self.gcx.hir.contract(base_id);
-            if let Some(ctor_id) = base_contract.ctor {
-                let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
-                // Check if arguments were provided and validate count. `is Base`
-                // without parentheses provides no arguments here (deferred to a
-                // derived contract, or the contract is abstract), so only
-                // validate when arguments are actually given.
-                if let Some(modifier) = modifier
-                    && !modifier.args.is_dummy()
-                {
-                    let arg_count = modifier.args.exprs().len();
-                    if arg_count != ctor_param_types.len() {
-                        self.dcx().emit_err(modifier.span, format!(
+            if let Some(modifier) = modifier
+                && !modifier.args.is_dummy()
+            {
+                // A base without a constructor takes no arguments.
+                let ctor_id = self.gcx.hir.contract(base_id).ctor;
+                let ctor_param_types =
+                    ctor_id.map_or(&[][..], |ctor_id| self.gcx.item_parameter_types(ctor_id));
+                let arg_count = modifier.args.len();
+                if arg_count != ctor_param_types.len() {
+                    self.dcx().emit_err(
+                        modifier.span,
+                        format!(
                             "wrong number of arguments for base constructor: expected {}, found {}",
                             ctor_param_types.len(),
                             arg_count
-                        ));
-                    } else {
-                        for (arg_expr, expected_arg_ty) in
-                            modifier.args.exprs().zip(ctor_param_types.iter())
-                        {
-                            let actual_arg_ty = self.with_construction_context(|this| {
-                                this.check_expr_kind(arg_expr, Some(*expected_arg_ty))
-                            });
-                            let _ = self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
-                        }
+                        ),
+                    );
+                } else if let hir::CallArgsKind::Named(named_args) = modifier.args.kind
+                    && let Some(ctor_id) = ctor_id
+                {
+                    // Named arguments bind by parameter name, the way codegen
+                    // binds them; pairing them positionally checks them against
+                    // the wrong parameter type.
+                    self.with_construction_context(|this| {
+                        let _ = this.check_named_call_args(
+                            modifier.span,
+                            modifier.args.span,
+                            named_args,
+                            ctor_param_types,
+                            Some(CallableParamSource::Function {
+                                id: ctor_id,
+                                skips_receiver: false,
+                            }),
+                        );
+                    });
+                } else {
+                    for (arg_expr, &expected_arg_ty) in modifier.args.exprs().zip(ctor_param_types)
+                    {
+                        // Register the argument's own type, not just the types
+                        // of its subexpressions: codegen reads it to select
+                        // checked arithmetic and other type-directed lowering.
+                        let actual_arg_ty = self.with_construction_context(|this| {
+                            this.check_expr_with_noexpect(arg_expr, Some(expected_arg_ty))
+                        });
+                        let _ = self.check_expected(arg_expr, actual_arg_ty, expected_arg_ty);
                     }
                 }
             }
@@ -2827,6 +3363,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        // Every statement sets the position of the values it uses itself, so no position outlives
+        // the statement that set it.
+        self.value_position = ValuePosition::Expression;
         match stmt.kind {
             hir::StmtKind::DeclSingle(var) => {
                 let init = self.gcx.hir.variable(var).initializer;
@@ -2855,17 +3394,19 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Try(try_) => {
-                if !self.gcx.sess.opts.evm_version.supports_returndata() {
-                    for clause in &try_.clauses[1..] {
-                        if clause.name.is_some() || !clause.args.is_empty() {
-                            self.emit_evm_version_error(
-                                clause.span,
-                                "typed catch clause",
-                                EvmVersion::Byzantium,
-                            );
-                        }
-                    }
+                // A `returns` clause binds the call's values; without one they are discarded.
+                // Binding an inaccessible one is the mismatch solc reports as 6509, and the
+                // walk below checks the call expression before any clause body.
+                if try_.clauses[0].args.is_empty() {
+                    self.discard(&try_.expr, Discarded::All);
+                } else {
+                    self.value_position = ValuePosition::TryReturns;
                 }
+                // The clauses are checked against the call's type, so only after visiting it,
+                // as in solc's `endVisit(TryStatement)`.
+                self.walk_stmt(stmt)?;
+                self.check_try(try_);
+                return ControlFlow::Continue(());
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
                 let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
@@ -2923,6 +3464,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
+            hir::StmtKind::Expr(expr) => {
+                // An expression statement discards its value.
+                self.discard(expr, Discarded::All);
+            }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
                     self.function.map(|id| self.gcx.hir.function(id).returns).unwrap_or_default();
@@ -2935,7 +3480,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                                 ids.iter().map(|&id| self.gcx.type_of_item(id.into())),
                             )),
                         };
+                    // A return value's conversion error is solc's 6359.
+                    let prev = std::mem::replace(&mut self.value_position, ValuePosition::Return);
                     let actual = self.check_expr_with_noexpect(expr, Some(expected));
+                    self.value_position = prev;
                     let _ = self.check_return_expected(expr, actual, expected);
                 } else if !returns.is_empty() {
                     self.dcx().emit_err(stmt.span, "return arguments required");

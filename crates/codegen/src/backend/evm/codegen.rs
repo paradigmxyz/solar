@@ -47,7 +47,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
-use std::cell::OnceCell;
+use std::{cell::OnceCell, collections::hash_map::Entry as StdEntry};
 
 mod switch;
 
@@ -255,6 +255,18 @@ struct StackPhiBranch {
     union: Vec<ValueId>,
 }
 
+/// Returns true when a planned entry layout hands `value` to `block` on the stack, so the block
+/// reads it from there and it needs no spill slot.
+fn planned_entry_carries(
+    stack_phi_plan: &StackPhiPlan,
+    global_stack_plan: &GlobalStackPlan,
+    block: BlockId,
+    value: ValueId,
+) -> bool {
+    stack_phi_plan.entries.get(&block).is_some_and(|entry| entry.contains(&value))
+        || global_stack_plan.entry(block).is_some_and(|entry| entry.contains(&value))
+}
+
 struct BranchPhiShape {
     then_results: Vec<ValueId>,
     else_results: Vec<ValueId>,
@@ -278,7 +290,7 @@ fn union_values(first: &[ValueId], second: &[ValueId]) -> Vec<ValueId> {
     union
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SpillLiveRange {
     start: usize,
     end: usize,
@@ -4144,7 +4156,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             // availability over emitted forward predecessors (loop back edges
             // are exempt: a value redefined around a loop is handled by the
             // carried-phi invalidation, and its pre-loop store stays valid; a
-            // predecessor emitted later stores organically on its own path).
+            // predecessor emitted later stores every value live across the edge
+            // before jumping here, including the ones a preserved stack edge
+            // would otherwise leave to this block).
             let mut avail_in: Option<FxHashSet<ValueId>> = None;
             for &pred in func.blocks[block_id].predecessors.iter() {
                 if store_cfg.dominators().dominates(block_id, pred) {
@@ -4323,6 +4337,81 @@ impl<'gcx> EvmCodegen<'gcx> {
                 for value in std::mem::take(&mut pinned_hazard_values) {
                     if live_out.contains(value) && !hazard_carried.contains(&value) {
                         self.spill_value_if_needed(func, value);
+                    }
+                }
+            }
+
+            // A preserved stack edge hands its carried values to the successor,
+            // which stores the ones it drops. An already-emitted successor
+            // chose those stores without seeing this path, so it cannot take
+            // the obligation over: store everything live across the edge here,
+            // which is what the store-availability intersection assumes a
+            // later-emitted predecessor does. Back edges are exempt for the
+            // same reason that intersection skips them.
+            //
+            // Only a planned edge can preserve into an already-emitted block:
+            // its successor rebuilds the layout from the plan at its own entry,
+            // whichever order the two were emitted in. Fallthrough, jump, and
+            // branch preservation all require a single-predecessor target that
+            // is still ahead, other than an arm whose live-ins are immediates,
+            // and an unpreserved terminator spills every live-out value at
+            // block end regardless, so storing here would only move that store
+            // earlier at the cost of a deeper `dup`.
+            //
+            //   dup depth(value)
+            //   push slot(value)
+            //   mstore
+            let planned_stack_edge = stack_phi_plan.edges.contains_key(&block_id)
+                || stack_phi_plan.branch_edges.contains_key(&block_id)
+                || block.terminator.as_ref().is_some_and(|term| {
+                    global_stack_plan.edge_layout(func, term).is_some()
+                        || global_stack_plan.branch_layouts(term).is_some()
+                        || global_stack_plan.switch_layouts(term).is_some()
+                });
+            let emitted_successors = block
+                .terminator
+                .as_ref()
+                .filter(|_| planned_stack_edge)
+                .map(Terminator::successors)
+                .unwrap_or_default();
+            for successor in emitted_successors {
+                if block_pos.get(&successor).is_some_and(|&target| target < pos)
+                    && !store_cfg.dominators().dominates(successor, block_id)
+                {
+                    let live_in = liveness.live_in(successor);
+                    for value in liveness.live_out(block_id) {
+                        if live_in.contains(value) {
+                            // `spill_value_if_needed` stores nothing for a value that is
+                            // neither on the stack nor validly stored, and re-emitting one
+                            // here is not an option: the pushed word would deepen the
+                            // stack the preserved layout is built from. It never has to.
+                            // Such a value is one the plan carries into the successor,
+                            // which rebuilds it from its recorded entry layout and wants no
+                            // memory home; anything that has to travel in memory is still
+                            // on the stack, already stored, or holds its slot on every
+                            // emitted path into this block at this point.
+                            //
+                            // A value that arrives only from a forward predecessor further
+                            // down the stream is the exception: that predecessor stores its
+                            // live-out values when it is emitted, later in the stream but
+                            // earlier at runtime, so the home is owed rather than missing
+                            // and there is nothing to check here yet.
+                            debug_assert!(
+                                self.has_spill_home(func, value)
+                                    || planned_entry_carries(
+                                        &stack_phi_plan,
+                                        &global_stack_plan,
+                                        successor,
+                                        value,
+                                    )
+                                    || !Self::forward_predecessors_emitted(
+                                        func, &store_cfg, &block_pos, block_id, pos,
+                                    ),
+                                "{value:?} lives across the edge from {block_id:?} to \
+                                 already-emitted {successor:?} with no home"
+                            );
+                            self.spill_value_if_needed(func, value);
+                        }
                     }
                 }
             }
@@ -5412,7 +5501,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // downstream block sharing and regressed aggregate CI bytecode despite smaller frames.
         if self.gcx.sess.opts.optimization.is_gas() {
             let colorable = cross_block_live;
-            let ranges = Self::spill_live_ranges(func, liveness, colorable);
+            let recomputable =
+                cross_block_values(func, |value| !self.scheduler.is_stack_only_value(value));
+            let ranges = Self::spill_live_ranges(func, liveness, colorable, &recomputable);
             let interferences =
                 Self::parallel_phi_interferences(func, liveness, colorable, &self.block_copies);
 
@@ -5478,10 +5569,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         values
     }
 
+    /// Returns the per-block interval of each colorable value's slot, keyed by block.
+    ///
+    /// The interval spans the points where the slot has to hold the value: its live-in and
+    /// live-out ends, the instructions that define and consume it, and the range of every value
+    /// the scheduler may rebuild from it. A rebuild materializes its operands where it happens,
+    /// which for an operand with a slot is a load from that slot, so an operand's slot has to
+    /// survive as long as the rebuilt value's, not only until liveness drops the operand.
     fn spill_live_ranges(
         func: &Function,
         liveness: &Liveness,
         colorable: &DenseBitSet<ValueId>,
+        recomputable: &DenseBitSet<ValueId>,
     ) -> IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>> {
         let mut ranges = index_vec![FxHashMap::default(); func.num_values()];
         let mut operands = SmallVec::<[ValueId; 8]>::new();
@@ -5524,7 +5623,73 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
+        Self::extend_recomputed_operand_ranges(func, colorable, recomputable, &mut ranges);
         ranges
+    }
+
+    /// Widens every operand's range over the range of the values rebuilt from it.
+    ///
+    /// A rebuild is only chosen where the rebuilt value is needed, so the rebuilt value's own
+    /// range covers every point an operand can be read at. Rebuilding is transitive and passes
+    /// through values that never own a slot themselves, so the requirement propagates over the
+    /// whole recomputable operand graph and only lands on the colorable values at the end.
+    fn extend_recomputed_operand_ranges(
+        func: &Function,
+        colorable: &DenseBitSet<ValueId>,
+        recomputable: &DenseBitSet<ValueId>,
+        ranges: &mut IndexVec<ValueId, FxHashMap<BlockId, SpillLiveRange>>,
+    ) {
+        let mut required = ranges.clone();
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+        let mut worklist: Vec<ValueId> =
+            recomputable.iter().filter(|&value| !required[value].is_empty()).collect();
+        while let Some(value) = worklist.pop() {
+            let crate::mir::Value::Inst(inst_id) = func.value(value) else { continue };
+            operands.clear();
+            func.inst(*inst_id).kind.collect_operands(&mut operands);
+            let value_required = required[value].clone();
+            for &operand in &operands {
+                if !recomputable.contains(operand) && !colorable.contains(operand) {
+                    continue;
+                }
+                let mut grew = false;
+                for (&block, &range) in &value_required {
+                    grew |= Self::merge_spill_live_range(&mut required[operand], block, range);
+                }
+                if grew && recomputable.contains(operand) {
+                    worklist.push(operand);
+                }
+            }
+        }
+
+        for value in colorable.iter() {
+            for (&block, &range) in &required[value] {
+                Self::merge_spill_live_range(&mut ranges[value], block, range);
+            }
+        }
+    }
+
+    /// Unions `range` into a value's interval for `block`, reporting whether it grew.
+    fn merge_spill_live_range(
+        ranges: &mut FxHashMap<BlockId, SpillLiveRange>,
+        block: BlockId,
+        range: SpillLiveRange,
+    ) -> bool {
+        match ranges.entry(block) {
+            StdEntry::Occupied(mut entry) => {
+                let merged = SpillLiveRange {
+                    start: entry.get().start.min(range.start),
+                    end: entry.get().end.max(range.end),
+                };
+                let grew = merged != *entry.get();
+                entry.insert(merged);
+                grew
+            }
+            StdEntry::Vacant(entry) => {
+                entry.insert(range);
+                true
+            }
+        }
     }
 
     /// Records spill-slot conflicts introduced by simultaneous phi edge copies.
@@ -5902,6 +6067,51 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn stack_access_limit(&self) -> usize {
         self.gcx.sess.opts.evm_version.reachable_stack_depth()
+    }
+
+    /// Returns true when `val` is reachable from a successor block: it is on the stack, it has a
+    /// valid store, its slot is available on every emitted path into this block, or
+    /// [`Self::spill_value_if_needed`] gives it no slot in the first place because it is
+    /// stack-only, rematerializable, or reloadable from its argument address.
+    fn has_spill_home(&self, func: &Function, val: ValueId) -> bool {
+        self.scheduler.stack.contains(val)
+            || self.scheduler.spills.is_stored(val)
+            || self.spill_store_available(val)
+            || self.scheduler.is_stack_only_value(val)
+            || !Self::can_own_spill_slot(func, val)
+            || Self::is_reloadable_argument_address(func, val)
+    }
+
+    /// Returns true when `val`'s slot holds it on every emitted forward path
+    /// into the current block.
+    ///
+    /// The scheduler's stored flag is one function-wide bit, so it is the
+    /// weaker record of the two. A block that carries a value in on the stack
+    /// while the slot is not available there clears the bit, which is right for
+    /// that block but also forgets the store for the blocks whose predecessors
+    /// all did write the slot. The store-availability intersection is the
+    /// per-path record and still names the value there, so a cleared bit alone
+    /// does not mean the value lost its memory home.
+    fn spill_store_available(&self, val: ValueId) -> bool {
+        self.scheduler.spills.get(val).is_some()
+            && self.spill_available.as_ref().is_some_and(|available| available.contains(&val))
+    }
+
+    /// Returns whether every forward predecessor of `block`, which sits at `pos` in the emission
+    /// order, was already emitted. Only then does a value live into `block` have to own a home
+    /// already: a predecessor emitted later stores its live-out values when its own turn comes,
+    /// which is later in the stream but earlier at runtime.
+    fn forward_predecessors_emitted(
+        func: &Function,
+        store_cfg: &CfgInfo,
+        block_pos: &FxHashMap<BlockId, usize>,
+        block: BlockId,
+        pos: usize,
+    ) -> bool {
+        func.blocks[block].predecessors.iter().all(|&pred| {
+            store_cfg.dominators().dominates(block, pred)
+                || block_pos.get(&pred).is_some_and(|&pred_pos| pred_pos < pos)
+        })
     }
 
     /// Spills an instruction result if it is on the stack and not already stored.
@@ -11111,9 +11321,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
 
         if let Some(subtracted) = late.subtracted {
+            // push <reserve>
+            // gas !metadata(keep_with_next)
+            // sub !metadata(keep_with_next)
+            //
+            // Before EIP-150 a call asking for more gas than is left throws, so the reserve only
+            // keeps solc's 10-gas margin while nothing but the `SUB` runs between the `GAS` and
+            // the call. Keeping both with the next instruction stops every backend transform from
+            // making that boundary a block boundary, and with it from inserting a jump.
+            let keep_with_call = !self.gcx.sess.opts.evm_version.can_overcharge_gas_for_call();
             self.asm.emit_push(subtracted);
             self.asm.emit_op(op::GAS);
+            if keep_with_call {
+                self.asm.keep_last_with_next();
+            }
             self.asm.emit_op(op::SUB);
+            if keep_with_call {
+                self.asm.keep_last_with_next();
+            }
         } else {
             self.asm.emit_op(op::GAS);
         }

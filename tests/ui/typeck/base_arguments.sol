@@ -1,3 +1,9 @@
+//@ revisions: sema bin
+//@[bin] compile-flags: --emit=bin
+//~[bin]? WARN: code generation is experimental
+// The `bin` revision keeps codegen running on a source with rejected base
+// argument lists: a rejected list must not reach lowering as a panic, and
+// lowering adds no diagnostics of its own after the rejection.
 contract Base {
     constructor(uint, int) {}
 }
@@ -12,3 +18,21 @@ contract Derived3 is Base() { } //~ ERROR: wrong number of arguments for base co
 contract Derived4 is Base(1) { } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 contract Derived5 is Base { constructor() Base(2) {} } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 contract Derived6 is Base { constructor() Base("a", 1) {} } //~ ERROR: mismatched types
+
+contract NamedBase {
+    constructor(uint8 a, uint256 b) {}
+}
+contract Named1 is NamedBase({b: 1, a: 2}) { }
+contract Named2 is NamedBase {
+    constructor(uint8 x, uint256 y) NamedBase({b: y + 1, a: x + 1}) {}
+}
+contract Named3 is NamedBase({nope: 1, b: 2}) { } //~ ERROR: named argument `nope` does not match function declaration
+contract Named4 is NamedBase({a: 1, a: 2}) { } //~ ERROR: duplicate named argument `a`
+contract Named5 is NamedBase({a: 1}) { } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
+
+contract NoCtorBase {
+    uint256 x;
+}
+contract NoCtor1 is NoCtorBase() { }
+contract NoCtor2 is NoCtorBase(1) { } //~ ERROR: wrong number of arguments for base constructor: expected 0, found 1
+contract NoCtor3 is NoCtorBase { constructor() NoCtorBase(2) {} } //~ ERROR: wrong number of arguments for base constructor: expected 0, found 1

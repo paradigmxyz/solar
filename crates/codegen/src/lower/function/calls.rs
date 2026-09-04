@@ -3,15 +3,36 @@
 use super::*;
 
 #[derive(Clone, Copy)]
-struct ExternalReturnPlan {
+pub(super) struct ExternalReturnPlan {
     static_buffer: Option<(ValueId, ValueId, ValueId)>,
     offset: ValueId,
     size: ValueId,
+    /// Whether the output area overlays the input area, as it does before Byzantium.
+    overlays_input: bool,
     decode_returndata: bool,
 }
 
+impl ExternalReturnPlan {
+    /// A plan for a call that declares no output area and decodes its return values from the
+    /// return data, which only exists from Byzantium on.
+    fn returndata(zero: ValueId) -> Self {
+        Self {
+            static_buffer: None,
+            offset: zero,
+            size: zero,
+            overlays_input: false,
+            decode_returndata: true,
+        }
+    }
+
+    /// The `(offset, size)` output-area operands of the call the plan was built for.
+    pub(super) fn output_area(&self) -> (ValueId, ValueId) {
+        (self.offset, self.size)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ExternalReturnMode {
+pub(super) enum ExternalReturnMode {
     First,
     All,
 }
@@ -20,6 +41,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn uses_static_call(&self, state_mutability: hir::StateMutability) -> bool {
         matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
             && self.cx.gcx.sess.opts.evm_version.has_static_call()
+    }
+
+    /// Returns `true` if a call expecting `returns` return values must check that the callee has
+    /// code.
+    ///
+    /// A call that expects return data needs no check from Byzantium on: a code-less callee
+    /// returns nothing, so the return-data length check reverts anyway. Before Byzantium there is
+    /// no `RETURNDATASIZE` and nothing subsumes the check, so every call needs it. This is solc's
+    /// rule, `encodedHeadSize == 0 || !supportsReturndata()`, and it holds for every receiver:
+    /// `this` is no exception, because the executing code and `address(this)` come apart under
+    /// `DELEGATECALL`, where the account may well have no code of its own.
+    pub(super) fn needs_code_check(&self, returns: usize) -> bool {
+        returns == 0 || !self.cx.gcx.sess.opts.evm_version.supports_returndata()
+    }
+
+    /// Returns the `gas` operand of an external call, materializing the pre-EIP-150 reserve when
+    /// [`LoweredCallOptions::gas`] left it to the call site.
+    ///
+    /// `may_create_account` says whether the call can create the callee's account, which a
+    /// pre-EIP-150 `CALL` charges the caller for. Emit this immediately before the call: on such
+    /// a target everything after the `GAS` runs on the withheld gas.
+    pub(super) fn call_gas(
+        &mut self,
+        gas: Option<ValueId>,
+        sends_value: bool,
+        may_create_account: bool,
+    ) -> ValueId {
+        gas.unwrap_or_else(|| {
+            crate::utils::pre_tangerine_call_gas(&mut self.builder, sends_value, may_create_account)
+        })
     }
 
     pub(super) fn lower_user_operator(
@@ -246,7 +297,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             })
             .unwrap_or((&[], Vec::new().into()));
         if args.len() != parameters.len() {
-            return self.cx.report_unsupported(args.span, "constructor arguments");
+            return self.cx.report_unsupported(args.span, "constructor argument list");
         }
 
         let arguments = self.lower_call_arguments(
@@ -327,13 +378,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Vec<ValueId>> {
         let arg_exprs = self.builtin_arg_exprs(Builtin::AbiEncode, &args)?;
         if arg_exprs.len() != function.parameters.len() {
-            return self.cx.report_unsupported(args.span, "external function arguments");
+            return self.cx.report_unsupported(args.span, "external function argument list");
         }
         let function_value = self.lower_expr(callee)?;
         // address, selector = split_function_pointer(function)
         let (address, selector) = self.split_external_function_pointer(function_value);
 
-        let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
+        let options = self.lower_call_options(call_opts, true, "call option")?;
 
         let values_and_types = self.lower_argument_exprs(
             CallArgumentParams { count: arg_exprs.len(), names: None, reverse: false },
@@ -343,18 +394,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
         )?;
         let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
+        let return_tys = self.external_return_types(function.returns);
+        let returns = return_tys.len();
+        // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
+        let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
+        // mstore(add(fmp(), ret_size), 0)
+        self.touch_call_output_area(options.gas, &return_tys, overlay_buffer.is_some());
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let return_tys = function.returns;
-        let returns = return_tys.len();
-        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let return_plan = self.plan_return_buffer(input, zero, return_tys);
-        if returns == 0 {
+        // ret_offset, ret_size, decode = plan_return_buffer(returns)
+        let return_plan = self.plan_return_buffer(input, options.zero, &return_tys, overlay_buffer);
+        if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
+        // The code check above is emitted at every version that needs the reserve, so the call
+        // cannot create the callee's account.
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(options.gas, options.value_set, false);
         // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
         let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(
@@ -369,7 +428,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.call(
                 gas,
                 address,
-                call_value,
+                options.value,
                 input,
                 input_size,
                 return_plan.offset,
@@ -381,7 +440,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // results = decode_buffer | decode_returndata | load_words(ret_offset)
         self.finish_external_call(
             return_plan,
-            return_tys,
+            &return_tys,
             callee.span,
             ExternalReturnMode::All,
             "codegen cannot decode external function-pointer returndata before Byzantium",
@@ -409,7 +468,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<ValueId> {
         if args.len() != function.parameters.len() {
-            return self.cx.report_unsupported(expr.span, "internal function arguments");
+            return self.cx.report_unsupported(expr.span, "internal function argument list");
         }
         let function_value = self.lower_expr(callee)?;
         let parameter_names = self
@@ -846,10 +905,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let function = self.cx.gcx.hir.function(function_id);
         if args.len() != function.parameters.len() {
-            return self.cx.report_unsupported(expr.span, "external function arguments");
+            return self.cx.report_unsupported(expr.span, "external function argument list");
         }
         let address = self.lower_expr(receiver)?;
-        let (gas, call_value, zero) = self.lower_call_options(call_opts, true, "call option")?;
+        let options = self.lower_call_options(call_opts, true, "call option")?;
         let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
             id: function_id,
             skips_receiver: false,
@@ -865,27 +924,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "external function argument",
             false,
         )?;
+        let return_tys = function
+            .returns
+            .iter()
+            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
+            .collect::<Vec<_>>();
+        let return_tys = self.external_return_types(&return_tys);
+        let returns = return_tys.len();
+        // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
+        let overlay_buffer = self.alloc_overlay_return_buffer(&return_tys);
+        // mstore(add(fmp(), ret_size), 0)
+        self.touch_call_output_area(options.gas, &return_tys, overlay_buffer.is_some());
         let selector = self.cx.gcx.function_selector(function_id).0;
         let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let return_tys = function
-            .returns
-            .iter()
-            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
-            .collect::<Vec<_>>();
-        let returns = return_tys.len();
-        // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let return_plan = self.plan_return_buffer(input, zero, &return_tys);
-        if returns == 0
-            && (self.builder.func().attributes.is_constructor
-                || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This))
-        {
+        // ret_offset, ret_size, decode = plan_return_buffer(returns)
+        let return_plan = self.plan_return_buffer(input, options.zero, &return_tys, overlay_buffer);
+        if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
         }
+        // The code check above is emitted at every version that needs the reserve, so the call
+        // cannot create the callee's account.
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(options.gas, options.value_set, false);
         // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
         let success = if self.uses_static_call(function.state_mutability) {
             self.builder.staticcall(
@@ -900,7 +965,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.call(
                 gas,
                 address,
-                call_value,
+                options.value,
                 input,
                 input_size,
                 return_plan.offset,
@@ -917,7 +982,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExternalReturnMode::First,
             "codegen cannot decode external function returndata before Byzantium",
         )?;
-        Some(values.into_iter().next().unwrap_or(zero))
+        Some(values.into_iter().next().unwrap_or(options.zero))
     }
 
     pub(super) fn lower_abi_call_arguments(
@@ -993,7 +1058,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source = self.cx.gcx.hir.source(contract.source).file.name.display().to_string();
 
         let name = contract.name.as_str_in(self.cx.gcx.sess).to_string();
-        let hash = keccak256(format!("{source}:{name}"));
+        // The source map keeps absolute file names under `-Zui-testing` (the UI runner relies
+        // on them), so hash only the file name there; otherwise the placeholder would change
+        // with the checkout path and no blessed output could pin it.
+        let hashed_source = if self.cx.gcx.sess.opts.unstable.ui_testing
+            && let Some(file_name) = std::path::Path::new(&source).file_name()
+        {
+            file_name.to_string_lossy().into_owned()
+        } else {
+            source.clone()
+        };
+        let hash = keccak256(format!("{hashed_source}:{name}"));
         let mut placeholder = <[u8; 20]>::try_from(&hash[..20]).unwrap();
         placeholder[0] |= 0x80;
         self.cx.module.add_library_link(LibraryLink { source, name, placeholder });
@@ -1011,7 +1086,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let function = self.cx.gcx.hir.function(function_id);
         let receiver_count = usize::from(receiver.is_some());
         if args.len() + receiver_count != function.parameters.len() {
-            return self.cx.report_unsupported(expr.span, "library arguments");
+            return self.cx.report_unsupported(expr.span, "library argument list");
         }
         let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
             id: function_id,
@@ -1041,7 +1116,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types.insert(0, ty);
         }
 
+        let evm_version = self.cx.gcx.sess.opts.evm_version;
+        let return_types = function
+            .returns
+            .iter()
+            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
+            .collect::<Vec<_>>();
+        let return_types = self.external_return_types(&return_types);
+        // buffer = alloc_overlay_return_buffer(returns)
         // input = abi_encode(selector, args)
+        let overlay_buffer = self.alloc_overlay_return_buffer(&return_types);
+        // A library call takes no call options, so its gas operand is never already materialized.
+        // mstore(add(fmp(), ret_size), 0)
+        self.touch_call_output_area(None, &return_types, overlay_buffer.is_some());
         let selector = self.cx.gcx.function_selector(function_id).0;
         let selector = self.builder.imm(U256::from_be_slice(&selector) << 224);
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
@@ -1050,30 +1137,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_size = self.builder.slice_len(encoded);
         let zero = self.builder.imm(U256::ZERO);
         let address = self.builder.imm(address);
-        let gas = self.builder.gas();
-        if function.returns.is_empty() {
+        let gas = evm_version.can_overcharge_gas_for_call().then(|| self.builder.gas());
+        // From Byzantium on the return values come out of the return data; before it the
+        // delegatecall writes them into an output area overlaying its input and the success path
+        // reads them back from there, as solc's static output size does.
+        // ret_offset, ret_size = plan_return_buffer(returns)
+        let return_plan = if evm_version.supports_returndata() {
+            ExternalReturnPlan::returndata(zero)
+        } else {
+            self.plan_return_buffer(input, zero, &return_types, overlay_buffer)
+        };
+        if self.needs_code_check(return_types.len()) {
             self.revert_if_no_code(address);
         }
-        // ok = delegatecall(gas, library, input, 0, 0)
-        let success = self.builder.delegatecall(gas, address, input, input_size, zero, zero);
+        // A delegatecall transfers no value and creates no account, so the pre-EIP-150 reserve is
+        // the call's base cost alone.
+        // gas = gas() | sub(gas(), reserve)
+        let gas = self.call_gas(gas, false, false);
+        // ok = delegatecall(gas, library, input, ret_offset, ret_size)
+        let success = self.builder.delegatecall(
+            gas,
+            address,
+            input,
+            input_size,
+            return_plan.offset,
+            return_plan.size,
+        );
         // if !ok { revert(0, returndatasize()) }
         self.revert_external_call(success);
-        if function.returns.is_empty() {
+        if return_types.is_empty() {
             return Some(zero);
         }
-        // result = abi_decode(returndata)
-        let return_types = function
-            .returns
-            .iter()
-            .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
-            .collect::<Vec<_>>();
+        // result = load_words(ret_offset) | abi_decode(buffer) | abi_decode(returndata)
         let values = self.finish_external_call(
-            ExternalReturnPlan {
-                static_buffer: None,
-                offset: zero,
-                size: zero,
-                decode_returndata: true,
-            },
+            return_plan,
             &return_types,
             expr.span,
             ExternalReturnMode::First,
@@ -1109,44 +1206,172 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .then(|| AbiParamLayout::new(types.into_boxed_slice()))
     }
 
-    fn plan_return_buffer(
+    /// Replaces every dynamically encoded return type with a word before Byzantium.
+    ///
+    /// Without `RETURNDATASIZE` the size of such a value is unknowable, so solc types it as an
+    /// inaccessible dynamic type whose decoding type is `uint256`
+    /// (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the call reserves a word for it
+    /// in its output area and nothing decodes it, because the type checker rejects every use of
+    /// the value. The remaining return values stay accessible, as in solc.
+    pub(super) fn external_return_types(&mut self, return_tys: &[Ty<'gcx>]) -> Vec<Ty<'gcx>> {
+        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            return return_tys.to_vec();
+        }
+        return_tys
+            .iter()
+            .map(|&ty| {
+                if self.types.abi_return_type(ty).is_some_and(|abi| abi.is_dynamic()) {
+                    self.cx.gcx.types.uint(256)
+                } else {
+                    ty
+                }
+            })
+            .collect()
+    }
+
+    /// Allocates the buffer a pre-Byzantium call decodes its static aggregate returns from, which
+    /// has to be in place before the arguments the output area overlays are encoded.
+    ///
+    /// Every allocation the encoding and the decoding make lands above the arguments, so it can
+    /// land inside the output area as well. A buffer taken before them sits below the arguments
+    /// instead, which keeps it disjoint from the area it is copied out of.
+    pub(super) fn alloc_overlay_return_buffer(
+        &mut self,
+        return_tys: &[Ty<'gcx>],
+    ) -> Option<(ValueId, ValueId, ValueId)> {
+        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            return None;
+        }
+        // buffer = bytes(head_size(static))
+        let layout = self.static_aggregate_return_layout(return_tys.iter().copied())?;
+        self.alloc_static_return_buffer(&layout, true)
+    }
+
+    pub(super) fn plan_return_buffer(
         &mut self,
         input: ValueId,
         zero: ValueId,
         return_tys: &[Ty<'gcx>],
+        overlay_buffer: Option<(ValueId, ValueId, ValueId)>,
     ) -> ExternalReturnPlan {
+        let returns = return_tys.len();
+        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
+        let decode_returndata = return_tys.iter().any(|&ty| {
+            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
+        });
+        let words = (returns as u64).saturating_mul(32);
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            // Before Byzantium the output area overlays the input area, as solc's
+            // `appendExternalFunctionCall` lays out an ordinary call: a code-bearing callee that
+            // returns fewer bytes than it declares cannot be detected without `RETURNDATASIZE`,
+            // so the decoding reads the selector and arguments the call left behind rather than
+            // whatever untouched memory a buffer of its own would hold.
+            // offset = input
+            // size = head_size(static) | returns * 32
+            let size_bytes = self.pre_byzantium_output_size(return_tys, overlay_buffer.is_some());
+            let (offset, size, size_bytes) = match size_bytes {
+                Some(size_bytes) => (input, self.builder.imm(size_bytes), size_bytes),
+                None => (zero, zero, 0),
+            };
+            return ExternalReturnPlan {
+                static_buffer: overlay_buffer.filter(|_| size_bytes != 0),
+                offset,
+                size,
+                overlays_input: true,
+                decode_returndata,
+            };
+        }
         // static = static_aggregate_layout(returns)
         // buffer = static ? alloc_static_buffer(static) : none
         // decode = any_return_is_nonword
         // offset = static.data ? static.data : (!decode && returns > 1 ? input : zero)
         // size = static.size ? static.size : (decode ? 0 : returns * 32)
-        let returns = return_tys.len();
-        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
-        let static_return_buffer =
-            static_return.as_ref().and_then(|layout| self.alloc_static_return_buffer(layout));
-        let decode_returndata = return_tys.iter().any(|&ty| {
-            self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
-        });
-        let ret_offset = static_return_buffer.as_ref().map_or_else(
-            || if !decode_returndata && returns > 1 { input } else { zero },
-            |(_, data, _)| *data,
-        );
-        let ret_size = if let Some((_, _, size)) = static_return_buffer.as_ref() {
-            *size
+        let static_return_buffer = static_return
+            .as_ref()
+            .and_then(|layout| self.alloc_static_return_buffer(layout, false));
+        let (ret_offset, ret_size) = if let Some((_, data, size)) = static_return_buffer {
+            (data, size)
         } else if decode_returndata {
-            zero
+            (zero, zero)
         } else {
-            self.builder.imm((returns as u64).saturating_mul(32))
+            let offset = if returns > 1 { input } else { zero };
+            (offset, self.builder.imm(words))
         };
         ExternalReturnPlan {
             static_buffer: static_return_buffer,
             offset: ret_offset,
             size: ret_size,
+            overlays_input: false,
             decode_returndata,
         }
     }
 
-    fn finish_external_call(
+    /// The size in bytes of the output area a pre-Byzantium call declares, which overlays the
+    /// call's input area.
+    ///
+    /// This is solc's `ReturnInfo::estimatedReturnSize`: the head size of the static return
+    /// values, and nothing for a dynamically encoded one, which `finish_external_call` reports as
+    /// unsupported before Byzantium.
+    fn pre_byzantium_output_size(
+        &mut self,
+        return_tys: &[Ty<'gcx>],
+        has_overlay_buffer: bool,
+    ) -> Option<u64> {
+        let static_return = self.static_aggregate_return_layout(return_tys.iter().copied());
+        match &static_return {
+            Some(layout) => has_overlay_buffer.then(|| layout.checked_head_size()).flatten(),
+            None => {
+                let decode_returndata = return_tys.iter().any(|&ty| {
+                    self.types.abi_return_type(ty).is_some_and(|ty| !matches!(ty, AbiType::Word(_)))
+                });
+                (!decode_returndata).then(|| (return_tys.len() as u64).saturating_mul(32))
+            }
+        }
+    }
+
+    /// Touches the word above a call's output area so that the memory the call needs is already
+    /// expanded when its `gas` operand is computed.
+    ///
+    /// A pre-EIP-150 `CALL` is charged the expansion of its input and output areas out of the gas
+    /// left before the forwarded gas is checked against the remainder, and the reserve
+    /// [`crate::utils::pre_tangerine_call_gas`] withholds only leaves seven gas for it. solc
+    /// touches the word above the area in `appendExternalFunctionCall`, and this is the same
+    /// store: the area starts at the free-memory pointer, so writing at that pointer plus the
+    /// output size covers every word the call can expand memory to, whatever the arguments
+    /// encode to.
+    ///
+    /// The store has to precede the argument encoding, which is what keeps it from clobbering an
+    /// argument the call still has to send. The word it writes is above the output area, so it is
+    /// either overwritten by the arguments or free memory the call leaves alone.
+    ///
+    /// Nothing is emitted where the gas operand is already materialized: an explicit
+    /// `{gas: ...}` is the caller's business, and from EIP-150 on the forwarded gas is capped
+    /// anyway, so the call cannot be aborted by an overcharge.
+    pub(super) fn touch_call_output_area(
+        &mut self,
+        gas: Option<ValueId>,
+        return_tys: &[Ty<'gcx>],
+        has_overlay_buffer: bool,
+    ) {
+        if gas.is_some() || self.cx.gcx.sess.opts.evm_version.can_overcharge_gas_for_call() {
+            return;
+        }
+        let Some(size_bytes) = self.pre_byzantium_output_size(return_tys, has_overlay_buffer)
+        else {
+            return;
+        };
+        if size_bytes == 0 {
+            return;
+        }
+        // mstore(add(fmp(), ret_size), 0)
+        let area = self.builder.fmp();
+        let size = self.builder.imm(size_bytes);
+        let above = self.builder.add(area, size);
+        let zero = self.builder.imm(U256::ZERO);
+        self.builder.mstore(above, zero);
+    }
+
+    pub(super) fn finish_external_call(
         &mut self,
         plan: ExternalReturnPlan,
         return_tys: &[Ty<'gcx>],
@@ -1159,9 +1384,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if returns == 0 {
             return Some(Vec::new());
         }
-        let data = if let Some((data, _, size)) = static_buffer {
+        let source = if let Some((object, data, size)) = static_buffer {
             self.revert_if_short_returndata(size);
-            Some(data)
+            if plan.overlays_input {
+                // The output area overlays the arguments, so the values move out of it before the
+                // decoding allocates over them.
+                // mcopy(data, ret_offset, ret_size)
+                self.builder.mcopy(data, offset, size);
+            }
+            Some(object)
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
@@ -1170,16 +1401,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             None
         };
-        if let Some(data) = data {
+        if let Some(source) = source {
             return if mode == ExternalReturnMode::All {
-                self.lower_abi_decode_values(data, return_tys, span)
+                self.lower_abi_decode_values(source, return_tys, span)
             } else {
-                self.lower_decoded_return_value(data, return_tys, span).map(|value| vec![value])
+                self.lower_decoded_return_value(source, return_tys, span).map(|value| vec![value])
             };
         }
-        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
-            self.validate_static_returndata(offset, return_tys);
-        }
+        self.validate_static_returndata(offset, return_tys);
         if returns > 1 {
             self.builder.frame_store(0, FrameMode::MultiReturn, FrameSlotKind::Word, offset);
         }
@@ -1215,15 +1444,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(values.into_iter().next().expect("external return list is not empty"))
     }
 
+    /// Allocates the buffer a call decodes its static aggregate return values from.
+    ///
+    /// `as_bytes` allocates a bytes object, which the decoding reads in place; a single return
+    /// value otherwise decodes out of a raw buffer, which the decoding copies into a bytes object
+    /// of its own.
     fn alloc_static_return_buffer(
         &mut self,
         layout: &AbiParamLayout,
+        as_bytes: bool,
     ) -> Option<(ValueId, ValueId, ValueId)> {
         // size = head_size(layout)
         // buffer = bytes(size) if multiple_returns else raw(size)
         // return (buffer, data, size)
         let size = layout.checked_head_size()?;
-        if layout.types.len() != 1 {
+        if as_bytes || layout.types.len() != 1 {
             let object_size = self.builder.imm(size.checked_add(EvmMemoryLayout::WORD_SIZE)?);
             let object = self.builder.alloc_object(
                 object_size,
@@ -1241,6 +1476,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn revert_if_short_returndata(&mut self, expected: ValueId) {
+        // Before Byzantium the returned length is unobservable, so there is nothing to compare
+        // against; `revert_if_no_code` guards the code-less callee instead.
+        if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            return;
+        }
         let actual = self.current_returndata_size();
         let short = self.builder.lt(actual, expected);
         self.builder.revert_if(short);

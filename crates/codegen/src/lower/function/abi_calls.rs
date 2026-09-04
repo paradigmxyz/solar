@@ -4,7 +4,7 @@ use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn is_storage_parameter(ty: Ty<'gcx>) -> bool {
-        ty.is_ref_at(DataLocation::Storage) || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+        ty.encodes_as_slot()
     }
 
     pub(super) fn needs_calldata_materialization(&self, value: ValueId, ty: &AbiType) -> bool {

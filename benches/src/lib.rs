@@ -218,7 +218,12 @@ fn ensure_contract_bytecode(
     for dep in gcx.contract_bytecode_dependencies(contract_id).iter() {
         ensure_contract_bytecode(gcx, dep, bytecodes)?;
     }
-    let mut module = codegen::lower::lower_contract(gcx, contract_id, bytecodes);
+    let mut module = codegen::lower::lower_contract(
+        gcx,
+        contract_id,
+        bytecodes,
+        gcx.dcx().has_errors().is_err(),
+    );
     gcx.dcx().has_errors()?;
     let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
     bytecodes.insert(

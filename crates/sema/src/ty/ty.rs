@@ -302,6 +302,15 @@ impl<'gcx> Ty<'gcx> {
         .is_break()
     }
 
+    /// Returns `true` if the type takes a data location.
+    ///
+    /// This is solc's `hasReferenceOrMappingType`, which every data-location rule is written
+    /// against. The mapping half is redundant, since a reference type is anything that can
+    /// contain a mapping, but it keeps the predicate recognizable against the upstream rules.
+    pub fn has_reference_or_mapping_type(self, gcx: Gcx<'gcx>) -> bool {
+        self.is_reference_type() || self.has_mapping(gcx)
+    }
+
     /// Returns `true` if this type contains a library contract type.
     pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
         self.visit_with_structs(gcx, &mut |ty| match ty.kind {
@@ -542,18 +551,30 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
-    /// Returns `true` if the ABI encoding of the type is dynamic.
+    /// Returns `true` if the type crosses an ABI boundary as its storage slot number, as solc's
+    /// `ArrayType::encodingType`, `StructType::encodingType` and `MappingType::encodingType`.
     ///
-    /// The data location does not affect the encoding, so references are peeled first.
+    /// Such a value is a single static word in both directions, so it is neither dynamically
+    /// encoded nor encoded from memory.
+    pub fn encodes_as_slot(self) -> bool {
+        self.is_ref_at(DataLocation::Storage)
+            || matches!(self.peel_refs().kind, TyKind::Mapping(..))
+    }
+
+    /// Returns `true` if the type's ABI encoding carries a tail, as solc's
+    /// `Type::isDynamicallyEncoded`.
+    ///
+    /// Only the encoded type matters, so references are looked through: a struct's own fields and
+    /// an array's element type are reference types wherever they are aggregates themselves.
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
-        let inner = self.peel_refs();
-        match inner.kind {
+        let this = self.peel_refs();
+        match this.kind {
             TyKind::Struct(id) => {
-                inner.is_recursive(gcx)
+                this.is_recursive(gcx)
                     || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
-            _ => inner.is_dynamically_sized(),
+            _ => this.is_dynamically_sized(),
         }
     }
 

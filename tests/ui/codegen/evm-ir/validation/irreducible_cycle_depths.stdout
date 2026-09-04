@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/evm-ir/validation/irreducible_cycle_depths.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/validation/irreducible_cycle_depths.evmir (after none) ===
+  @module module
+  bb0:
+    push 1
+    jumpi bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    push 0
+    jump bb4
+  bb3:
+    push 1
+    jumpi bb4, bb5
+  bb4:
+    push 1
+    jumpi bb3, bb5
+  bb5:
+    stop
+  

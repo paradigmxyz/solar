@@ -144,6 +144,10 @@ pub(in crate::backend::evm) fn lower_evm_ir(
             data_layout_is_observable,
             capture_debug_info,
         );
+        // Without indexed tables, only final bytecode emission needs resolved offsets.
+        if tables.is_empty() {
+            return program;
+        }
         let (label_offsets, _) = assembler.resolve_label_offsets(&program);
         if !indexed_jump::refine_indexed_jump_widths(
             module,

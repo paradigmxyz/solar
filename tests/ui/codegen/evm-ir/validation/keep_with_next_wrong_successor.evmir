@@ -1,0 +1,40 @@
+//~? ERROR: EVM IR verification failed: block 0: `sub` is kept with the next instruction, which must be a call, not `dup`
+//~? ERROR: EVM IR verification failed: block 1: `gas` is kept with the next instruction, which must be a `sub` kept with the call, not `dup`
+//~? ERROR: EVM IR verification failed: block 2: `mload` cannot be kept with a next instruction
+@module module
+
+// The only sequence `keep_with_next` glues is a pre-EIP-150 call's `GAS`-relative reserve,
+// `push <reserve>; gas; sub; <call>`, whose margin pays for the `sub` and the call setup alone.
+// Forbidding the boundary is no use unless the successor is still the call, so an instruction
+// inserted anywhere inside the sequence is rejected, and so is the flag on an instruction the
+// verifier has no rule for.
+bb0:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 50
+  gas !meta(keep_with_next)
+  sub !meta(keep_with_next)
+  dup1
+  call
+  pop
+  pop
+  stop
+
+bb1:
+  push 50
+  gas !meta(keep_with_next)
+  dup1
+  sub
+  pop
+  pop
+  stop
+
+bb2:
+  push 0
+  mload !meta(keep_with_next)
+  pop
+  stop

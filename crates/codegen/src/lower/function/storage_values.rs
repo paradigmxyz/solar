@@ -560,20 +560,80 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some((access, new_length))
     }
 
-    pub(super) fn grow_storage_bytes(&mut self, slot: ValueId) -> (ValueId, ValueId) {
-        let old = self.load_storage_bytes(slot);
-        let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
+    /// Appends one zeroed byte to a storage `bytes`/`string` value in place and
+    /// returns the access for the appended element, like solc's
+    /// `array_push_zero` for byte arrays.
+    ///
+    /// The growth follows Solidity's short/long layout: a value that already is
+    /// long only gets a new header, a value that crosses 32 bytes moves its 31
+    /// data bytes into the data area, and a value that stays short keeps its
+    /// data in the header. The appended byte is zeroed by the header rewrite in
+    /// the short cases and by the data area already being clear in the long
+    /// ones, so no extra store is needed.
+    pub(super) fn grow_storage_bytes(&mut self, slot: ValueId) -> StorageAccess {
+        // data = sload(slot)
+        // old_length = extract_length(data)
+        // new_length = old_length + 1
+        // if new_length > 2**64 { panic(MemoryAllocationOverflow) }
+        let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let one = self.builder.imm(1);
-        let length = self.builder.checked_add(old_length, one);
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
-        self.builder.memory_object_copy(
-            object,
-            MemoryObjectKind::Bytes,
-            old,
-            MemoryObjectKind::Bytes,
-            old_length,
-        );
-        (object, old_length)
+        let new_length = self.builder.add(old_length, one);
+        let max_length = self.builder.imm(U256::from(1u64) << 64);
+        let too_long = self.builder.gt(new_length, max_length);
+        self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
+
+        let long_block = self.builder.create_block();
+        let short_block = self.builder.create_block();
+        let transition_block = self.builder.create_block();
+        let packed_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        let last_byte = self.builder.imm(31);
+        let is_long = self.builder.gt(old_length, last_byte);
+        self.builder.branch(is_long, long_block, short_block);
+
+        // if old_length > 31 {
+        //     sstore(slot, new_length << 1 | 1)
+        //     word_slot = storage_array_data_slot(slot) + old_length / 32
+        // }
+        self.builder.switch_to_block(long_block);
+        let header = long_storage_bytes_header(&mut self.builder, new_length);
+        self.builder.sstore(slot, header);
+        let long_slot = long_storage_bytes_byte_slot(&mut self.builder, slot, old_length);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(short_block);
+        let at_boundary = self.builder.eq(old_length, last_byte);
+        self.builder.branch(at_boundary, transition_block, packed_block);
+
+        // if old_length == 31 {
+        //     data_slot = storage_array_data_slot(slot)
+        //     sstore(data_slot, data & not(0xff))
+        //     sstore(slot, new_length << 1 | 1)
+        // }
+        self.builder.switch_to_block(transition_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let byte_mask = self.builder.imm(0xff);
+        let keep_mask = self.builder.not(byte_mask);
+        let moved = self.builder.and(data, keep_mask);
+        self.builder.sstore(data_slot, moved);
+        let header = long_storage_bytes_header(&mut self.builder, new_length);
+        self.builder.sstore(slot, header);
+        self.builder.jump(merge_block);
+
+        // if old_length < 31 { sstore(slot, mask(data, new_length) | new_length * 2) }
+        self.builder.switch_to_block(packed_block);
+        let header = short_storage_bytes_header(&mut self.builder, data, new_length);
+        self.builder.sstore(slot, header);
+        self.builder.jump(merge_block);
+
+        // word_slot = phi(long_slot, data_slot, slot)
+        self.builder.switch_to_block(merge_block);
+        let word_slot = self.builder.phi(vec![
+            (long_block, long_slot),
+            (transition_block, data_slot),
+            (packed_block, slot),
+        ]);
+        storage_bytes_byte_access_at(&mut self.builder, word_slot, old_length)
     }
 
     pub(super) fn lower_storage_array_push(
@@ -590,10 +650,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             receiver_ty.kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            // old = load_storage_bytes(slot)
-            // object = alloc_bytes(old.len + 1)
-            // object[old.len] = byte
-            // store_storage_bytes(slot, object)
             return self.lower_storage_bytes_push(receiver, argument);
         }
         let Some((base, element)) = self.storage_array_base(receiver) else {
@@ -645,31 +701,116 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )?;
         }
         self.builder.sstore(base.slot, new_length);
+        // A plain `push()` writes nothing, and its value is the appended element, which keeps
+        // whatever the slot already held. Aggregate elements are reached as a reference through
+        // `storage_access`, so only value-typed elements are read back here, and only where the
+        // value is observed: a bare `a.push();` would just read the slot it grew into.
+        //
+        // r = load(element_slot)
+        if argument.is_none()
+            && !self.discarded_exprs.contains(&expr.id)
+            && self.types.memory_layout(element).is_none()
+        {
+            return self.load_storage_value(element, element_access, expr.span);
+        }
         Some(self.builder.imm(U256::ZERO))
     }
 
+    /// Appends one byte to a storage `bytes`/`string` value in place, like
+    /// solc's `array_push` for byte arrays.
     fn lower_storage_bytes_push(
         &mut self,
         receiver: &hir::Expr<'_>,
         argument: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
-        // old = load_storage_bytes(slot)
-        // object = alloc_bytes(old.len + 1); copy(old)
-        // object[old.len] = byte
-        // store_storage_bytes(slot, object)
         let Some(access) = self.storage_access(receiver) else {
             return self.cx.report_unsupported(receiver.span, "storage access");
         };
-        let value = if let Some(argument) = argument {
-            let value = self.lower_typed_expr(argument, self.cx.gcx.types.fixed_bytes(1))?;
-            let shift = self.builder.imm(248);
-            self.builder.shr(shift, value)
-        } else {
-            self.builder.imm(0)
+        let slot = access.slot;
+        let byte_ty = self.cx.gcx.types.fixed_bytes(1);
+        let Some(argument) = argument else {
+            // The zero byte a plain `push()` appends is written by the growth itself, so the
+            // appended element only has to be read back to produce the call's value.
+            let element = self.grow_storage_bytes(slot);
+            return self.load_storage_value(byte_ty, element, receiver.span);
         };
-        let (object, index) = self.grow_storage_bytes(access.slot);
-        self.builder.memory_object_store_byte(object, index, value);
-        self.store_storage_bytes(access.slot, object)?;
+        let value = self.lower_typed_expr(argument, byte_ty)?;
+
+        // data = sload(slot)
+        // old_length = extract_length(data)
+        // if !(old_length < 2**64) { panic(MemoryAllocationOverflow) }
+        let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
+        let max_length = self.builder.imm(U256::from(1u64) << 64);
+        let in_range = self.builder.lt(old_length, max_length);
+        let too_long = self.builder.iszero(in_range);
+        self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
+
+        let long_block = self.builder.create_block();
+        let short_block = self.builder.create_block();
+        let transition_block = self.builder.create_block();
+        let packed_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        let last_byte = self.builder.imm(31);
+        let is_long = self.builder.gt(old_length, last_byte);
+        self.builder.branch(is_long, long_block, short_block);
+
+        // if old_length > 31 {
+        //     sstore(slot, data + 2)
+        //     word_slot = storage_array_data_slot(slot) + old_length / 32
+        //     store_byte(word_slot, 31 - old_length % 32, value)
+        // }
+        self.builder.switch_to_block(long_block);
+        let two = self.builder.imm(2);
+        let grown = self.builder.add(data, two);
+        self.builder.sstore(slot, grown);
+        let word_slot = long_storage_bytes_byte_slot(&mut self.builder, slot, old_length);
+        let element = storage_bytes_byte_access_at(&mut self.builder, word_slot, old_length);
+        self.store_storage_value(byte_ty, element, value, receiver.span)?;
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(short_block);
+        let at_boundary = self.builder.eq(old_length, last_byte);
+        self.builder.branch(at_boundary, transition_block, packed_block);
+
+        // if old_length == 31 {
+        //     sstore(storage_array_data_slot(slot), data & not(0xff) | byte(0, value))
+        //     sstore(slot, 65)
+        // }
+        self.builder.switch_to_block(transition_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let byte_mask = self.builder.imm(0xff);
+        let keep_mask = self.builder.not(byte_mask);
+        let moved = self.builder.and(data, keep_mask);
+        let zero = self.builder.imm(0);
+        let byte = self.builder.byte(zero, value);
+        let word = self.builder.or(moved, byte);
+        self.builder.sstore(data_slot, word);
+        let header = self.builder.imm(65);
+        self.builder.sstore(slot, header);
+        self.builder.jump(merge_block);
+
+        // if old_length < 31 {
+        //     shift = 8 * (31 - old_length)
+        //     sstore(slot, (data + 2) & not(0xff << shift) | byte(0, value) << shift)
+        // }
+        self.builder.switch_to_block(packed_block);
+        let two = self.builder.imm(2);
+        let grown = self.builder.add(data, two);
+        let free_bytes = self.builder.sub(last_byte, old_length);
+        let bits = self.builder.imm(8);
+        let shift = self.builder.mul(free_bytes, bits);
+        let byte_mask = self.builder.imm(0xff);
+        let shifted_mask = self.builder.shl(shift, byte_mask);
+        let keep_mask = self.builder.not(shifted_mask);
+        let cleared = self.builder.and(grown, keep_mask);
+        let zero = self.builder.imm(0);
+        let byte = self.builder.byte(zero, value);
+        let shifted = self.builder.shl(shift, byte);
+        let header = self.builder.or(cleared, shifted);
+        self.builder.sstore(slot, header);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
         Some(self.builder.imm(U256::ZERO))
     }
 
@@ -689,28 +830,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(access) = self.storage_access(receiver) else {
                 return self.cx.report_unsupported(receiver.span, "storage access");
             };
-
-            // if old.len == 0 { panic(EmptyArrayPop) }
-            // object = copy(old, old.len - 1)
-            // store_storage_bytes(slot, object)
-            let old = self.load_storage_bytes(access.slot);
-            let old_length = self.builder.memory_object_len(old, MemoryObjectKind::Bytes);
-            let zero = self.builder.imm(0);
-            let empty = self.builder.eq(old_length, zero);
-            self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
-            let one = self.builder.imm(1);
-            let length = self.builder.sub(old_length, one);
-            let object =
-                self.builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_ZEROED);
-            self.builder.memory_object_copy(
-                object,
-                MemoryObjectKind::Bytes,
-                old,
-                MemoryObjectKind::Bytes,
-                length,
-            );
-            self.store_storage_bytes(access.slot, object)?;
-            return Some(zero);
+            return self.lower_storage_bytes_pop(access.slot, expr.span);
         }
 
         let Some((base, element)) = self.storage_array_base(receiver) else {
@@ -730,6 +850,75 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let access =
             self.storage_array_element_access(base.slot, last, element, true, expr.span)?;
         self.clear_storage_access(element, access, expr.span)?;
+        Some(zero)
+    }
+
+    /// Removes the last byte of a storage `bytes`/`string` value in place, like
+    /// solc's `byte_array_pop`.
+    ///
+    /// A value that stays short or long only rewrites its header, plus the data
+    /// word holding the removed byte when it is long; the long-to-short
+    /// transition at 32 bytes moves the remaining 31 bytes back into the header
+    /// and clears the data word.
+    fn lower_storage_bytes_pop(&mut self, slot: ValueId, span: Span) -> Option<ValueId> {
+        // data = sload(slot)
+        // old_length = extract_length(data)
+        // if old_length == 0 { panic(EmptyArrayPop) }
+        let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
+        let zero = self.builder.imm(0);
+        let empty = self.builder.eq(old_length, zero);
+        self.builder.panic_if(empty, PanicCode::EmptyArrayPop);
+
+        let transition_block = self.builder.create_block();
+        let resize_block = self.builder.create_block();
+        let packed_block = self.builder.create_block();
+        let long_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        let word_size = self.builder.imm(32);
+        let at_boundary = self.builder.eq(old_length, word_size);
+        self.builder.branch(at_boundary, transition_block, resize_block);
+
+        // if old_length == 32 {
+        //     data_slot = storage_array_data_slot(slot)
+        //     sstore(slot, mask(sload(data_slot), 31) | 62)
+        //     sstore(data_slot, 0)
+        // }
+        self.builder.switch_to_block(transition_block);
+        let data_slot = self.builder.storage_array_data_slot(slot);
+        let word = self.builder.sload(data_slot);
+        let last_byte = self.builder.imm(31);
+        let header = short_storage_bytes_header(&mut self.builder, word, last_byte);
+        self.builder.sstore(slot, header);
+        self.builder.sstore(data_slot, zero);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(resize_block);
+        let one = self.builder.imm(1);
+        let new_length = self.builder.sub(old_length, one);
+        let is_short = self.builder.lt(old_length, word_size);
+        self.builder.branch(is_short, packed_block, long_block);
+
+        // if old_length < 32 { sstore(slot, mask(data, new_length) | new_length * 2) }
+        self.builder.switch_to_block(packed_block);
+        let header = short_storage_bytes_header(&mut self.builder, data, new_length);
+        self.builder.sstore(slot, header);
+        self.builder.jump(merge_block);
+
+        // if old_length > 32 {
+        //     word_slot = storage_array_data_slot(slot) + new_length / 32
+        //     store_byte(word_slot, 31 - new_length % 32, 0)
+        //     sstore(slot, data - 2)
+        // }
+        self.builder.switch_to_block(long_block);
+        let word_slot = long_storage_bytes_byte_slot(&mut self.builder, slot, new_length);
+        let element = storage_bytes_byte_access_at(&mut self.builder, word_slot, new_length);
+        self.clear_storage_access(self.cx.gcx.types.fixed_bytes(1), element, span)?;
+        let two = self.builder.imm(2);
+        let shrunk = self.builder.sub(data, two);
+        self.builder.sstore(slot, shrunk);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
         Some(zero)
     }
 
@@ -1228,6 +1417,48 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.icall(helper, vec![slot], MirType::MemoryObject(MemoryObjectKind::Bytes), 1)
     }
 
+    /// Reads the length of a storage `bytes`/`string` value from its header slot.
+    pub(super) fn storage_bytes_length(&mut self, slot: ValueId) -> ValueId {
+        // length = extract_length(sload(slot))
+        let (_, _, length) = decode_storage_bytes_header(&mut self.builder, slot);
+        length
+    }
+
+    /// Resolves one element of a storage `bytes`/`string` value to the single
+    /// word that holds it, after bounds-checking the index.
+    ///
+    /// A short value keeps its data in the header slot, a long value keeps word
+    /// `index / 32` at `storage_array_data_slot(slot) + index / 32`. The element
+    /// is byte `index % 32` of that word, counted from the most significant
+    /// byte, so the packed-word offset is `31 - index % 32`.
+    pub(super) fn storage_bytes_byte_access(
+        &mut self,
+        slot: ValueId,
+        index: ValueId,
+    ) -> StorageAccess {
+        // length = extract_length(sload(slot))
+        // bounds_check(index, length)
+        let (_, is_long, length) = decode_storage_bytes_header(&mut self.builder, slot);
+        self.builder.bounds_check(index, length);
+
+        // word_slot = is_long ? storage_array_data_slot(slot) + index / 32 : slot
+        let long_block = self.builder.create_block();
+        let short_block = self.builder.create_block();
+        let merge_block = self.builder.create_block();
+        self.builder.branch(is_long, long_block, short_block);
+
+        self.builder.switch_to_block(long_block);
+        let long_slot = long_storage_bytes_byte_slot(&mut self.builder, slot, index);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(short_block);
+        self.builder.jump(merge_block);
+
+        self.builder.switch_to_block(merge_block);
+        let word_slot = self.builder.phi(vec![(long_block, long_slot), (short_block, slot)]);
+        storage_bytes_byte_access_at(&mut self.builder, word_slot, index)
+    }
+
     pub(super) fn store_storage_bytes(&mut self, slot: ValueId, object: ValueId) -> Option<()> {
         // store_storage_bytes(slot, object)
         let clear_helper = self.storage_clear_helper();
@@ -1699,6 +1930,79 @@ fn decode_storage_bytes_header(
     let invalid_encoding = builder.eq(is_long, short_length);
     builder.panic_if(invalid_encoding, PanicCode::StorageEncoding);
     (header, is_long, length)
+}
+
+/// Keeps only the first `length` bytes of a storage `bytes` header word, like
+/// solc's `mask_bytes_dynamic`.
+fn mask_storage_bytes_data(
+    builder: &mut FunctionBuilder<'_>,
+    data: ValueId,
+    length: ValueId,
+) -> ValueId {
+    // mask = not((1 << (8 * (32 - length))) - 1)
+    // masked = data & mask
+    let word_size = builder.imm(32);
+    let unused_bytes = builder.sub(word_size, length);
+    let bits = builder.imm(8);
+    let shift = builder.mul(unused_bytes, bits);
+    let one = builder.imm(1);
+    let high_bit = builder.shl(shift, one);
+    let low_mask = builder.sub(high_bit, one);
+    let data_mask = builder.not(low_mask);
+    builder.and(data, data_mask)
+}
+
+/// Builds the header word of a short storage `bytes` value of `length` bytes,
+/// like solc's `extract_used_part_and_set_length_of_short_byte_array`.
+fn short_storage_bytes_header(
+    builder: &mut FunctionBuilder<'_>,
+    data: ValueId,
+    length: ValueId,
+) -> ValueId {
+    // header = mask(data, length) | length * 2
+    let masked = mask_storage_bytes_data(builder, data, length);
+    let two = builder.imm(2);
+    let tag = builder.mul(length, two);
+    builder.or(masked, tag)
+}
+
+/// Builds the header word of a long storage `bytes` value of `length` bytes.
+fn long_storage_bytes_header(builder: &mut FunctionBuilder<'_>, length: ValueId) -> ValueId {
+    // header = length << 1 | 1
+    let one = builder.imm(1);
+    let shifted = builder.shl(one, length);
+    builder.or(shifted, one)
+}
+
+/// The data-area slot holding byte `index` of a long storage `bytes` value,
+/// like solc's `long_byte_array_index_access_no_checks`.
+fn long_storage_bytes_byte_slot(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    index: ValueId,
+) -> ValueId {
+    // word_slot = storage_array_data_slot(slot) + index / 32
+    let data_slot = builder.storage_array_data_slot(slot);
+    let word_shift = builder.imm(5);
+    let word_index = builder.shr(word_shift, index);
+    builder.add(data_slot, word_index)
+}
+
+/// The packed access for byte `index` of a storage `bytes` value inside
+/// `word_slot`. Bytes are counted from the most significant one, so the
+/// packed-word offset is `31 - index % 32`.
+fn storage_bytes_byte_access_at(
+    builder: &mut FunctionBuilder<'_>,
+    word_slot: ValueId,
+    index: ValueId,
+) -> StorageAccess {
+    // offset = 31 - index % 32
+    let last_byte = builder.imm(31);
+    let index_in_word = builder.and(index, last_byte);
+    let offset = builder.sub(last_byte, index_in_word);
+    let location =
+        StorageLocation::packed_word(TypeSize::new_int_bits(8), StorageEncoding::FixedBytes);
+    StorageAccess { slot: word_slot, location, offset: Some(offset) }
 }
 
 fn lower_storage_bytes_inline(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId {

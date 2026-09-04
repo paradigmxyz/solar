@@ -5,6 +5,10 @@
 //! keeps the first body and redirects later copies to it. CFG simplification
 //! then redirects references and removes the temporary jump thunks. Block hotness does not affect
 //! equivalence; a hot redirect promotes the shared body so later layout keeps it on the hot path.
+//!
+//! The body key includes each instruction's `keep_with_next` flag, so the surviving copy cannot
+//! drop a constraint one of the redirected copies carried. A shared body is entered at its own
+//! block boundary, which is legal by construction, so the pass needs no other split check.
 
 use super::{EvmPass, utils::is_terminal_boundary};
 use crate::backend::evm::ir::{
@@ -91,6 +95,7 @@ fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
             encoding: inst.encoding,
             value: inst.value,
             stack_op: inst.as_stack_op(),
+            keep_with_next: inst.keeps_with_next(),
         })
         .collect();
     Some(TerminalBlockKey { instructions, terminator: terminator.clone() })
@@ -108,4 +113,5 @@ struct TerminalInstructionKey {
     encoding: u8,
     value: Option<PushValue>,
     stack_op: Option<crate::backend::evm::op::StackOp>,
+    keep_with_next: bool,
 }
