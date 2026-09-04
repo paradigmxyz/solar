@@ -97,13 +97,12 @@ impl<'ast> EarlyLintPass<'ast> for TestEarlyPass {
 #[derive(Default)]
 struct TestLatePass;
 
-impl<'hir> LateLintPass<'hir> for TestLatePass {
+impl<'gcx> LateLintPass<'gcx> for TestLatePass {
     fn check_contract(
         &mut self,
         ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
-        contract: &'hir hir::Contract<'hir>,
+        _gcx: Gcx<'gcx>,
+        contract: &'gcx hir::Contract<'gcx>,
     ) {
         ctx.emit(&LATE, contract.span);
     }
@@ -129,21 +128,15 @@ impl RecordingLatePass {
     }
 }
 
-impl<'hir> LateLintPass<'hir> for RecordingLatePass {
-    fn check_nested_item(
-        &mut self,
-        _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _id: hir::ItemId,
-    ) {
+impl<'gcx> LateLintPass<'gcx> for RecordingLatePass {
+    fn check_nested_item(&mut self, _ctx: &LintContext<'_, '_>, _gcx: Gcx<'gcx>, _id: hir::ItemId) {
         self.record(|counts| counts.nested_item += 1);
     }
 
     fn check_nested_contract(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _gcx: Gcx<'hir>,
-        _hir: &'hir hir::Hir<'hir>,
+        _gcx: Gcx<'gcx>,
         _id: hir::ContractId,
     ) {
         self.record(|counts| counts.nested_contract += 1);
@@ -152,7 +145,7 @@ impl<'hir> LateLintPass<'hir> for RecordingLatePass {
     fn check_nested_function(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
+        _gcx: Gcx<'gcx>,
         _id: hir::FunctionId,
     ) {
         self.record(|counts| counts.nested_function += 1);
@@ -161,7 +154,7 @@ impl<'hir> LateLintPass<'hir> for RecordingLatePass {
     fn check_nested_var(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
+        _gcx: Gcx<'gcx>,
         _id: hir::VariableId,
     ) {
         self.record(|counts| counts.nested_var += 1);
@@ -170,8 +163,8 @@ impl<'hir> LateLintPass<'hir> for RecordingLatePass {
     fn check_modifier(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _modifier: &'hir hir::Modifier<'hir>,
+        _gcx: Gcx<'gcx>,
+        _modifier: &'gcx hir::Modifier<'gcx>,
     ) {
         self.record(|counts| counts.modifier += 1);
     }
@@ -179,8 +172,8 @@ impl<'hir> LateLintPass<'hir> for RecordingLatePass {
     fn check_call_args(
         &mut self,
         _ctx: &LintContext<'_, '_>,
-        _hir: &'hir hir::Hir<'hir>,
-        _args: &'hir hir::CallArgs<'hir>,
+        _gcx: Gcx<'gcx>,
+        _args: &'gcx hir::CallArgs<'gcx>,
     ) {
         self.record(|counts| counts.call_args += 1);
     }
@@ -485,7 +478,7 @@ fn calls_late_hooks_for_nested_items_modifiers_and_call_args() {
         let ctx = LintContext::new(gcx.sess, &policy, false, false, None);
         let mut passes: Vec<Box<dyn LateLintPass<'_>>> =
             vec![Box::new(RecordingLatePass { counts: counts.clone() })];
-        let mut visitor = LateLintVisitor::new(&ctx, &mut passes, gcx, &gcx.hir);
+        let mut visitor = LateLintVisitor::new(&ctx, &mut passes, gcx);
         let _ = hir::Visit::visit_nested_source(&mut visitor, source_id);
     });
 
