@@ -255,6 +255,18 @@ struct StackPhiBranch {
     union: Vec<ValueId>,
 }
 
+/// Returns true when a planned entry layout hands `value` to `block` on the stack, so the block
+/// reads it from there and it needs no spill slot.
+fn planned_entry_carries(
+    stack_phi_plan: &StackPhiPlan,
+    global_stack_plan: &GlobalStackPlan,
+    block: BlockId,
+    value: ValueId,
+) -> bool {
+    stack_phi_plan.entries.get(&block).is_some_and(|entry| entry.contains(&value))
+        || global_stack_plan.entry(block).is_some_and(|entry| entry.contains(&value))
+}
+
 struct BranchPhiShape {
     then_results: Vec<ValueId>,
     else_results: Vec<ValueId>,
@@ -4337,11 +4349,31 @@ impl<'gcx> EvmCodegen<'gcx> {
             // later-emitted predecessor does. Back edges are exempt for the
             // same reason that intersection skips them.
             //
+            // Only a planned edge can preserve into an already-emitted block:
+            // its successor rebuilds the layout from the plan at its own entry,
+            // whichever order the two were emitted in. Fallthrough, jump, and
+            // branch preservation all require a single-predecessor target that
+            // is still ahead, other than an arm whose live-ins are immediates,
+            // and an unpreserved terminator spills every live-out value at
+            // block end regardless, so storing here would only move that store
+            // earlier at the cost of a deeper `dup`.
+            //
             //   dup depth(value)
             //   push slot(value)
             //   mstore
-            let emitted_successors =
-                block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+            let planned_stack_edge = stack_phi_plan.edges.contains_key(&block_id)
+                || stack_phi_plan.branch_edges.contains_key(&block_id)
+                || block.terminator.as_ref().is_some_and(|term| {
+                    global_stack_plan.edge_layout(func, term).is_some()
+                        || global_stack_plan.branch_layouts(term).is_some()
+                        || global_stack_plan.switch_layouts(term).is_some()
+                });
+            let emitted_successors = block
+                .terminator
+                .as_ref()
+                .filter(|_| planned_stack_edge)
+                .map(Terminator::successors)
+                .unwrap_or_default();
             for successor in emitted_successors {
                 if block_pos.get(&successor).is_some_and(|&target| target < pos)
                     && !store_cfg.dominators().dominates(successor, block_id)
@@ -4349,6 +4381,25 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let live_in = liveness.live_in(successor);
                     for value in liveness.live_out(block_id) {
                         if live_in.contains(value) {
+                            // `spill_value_if_needed` stores nothing for a value that is
+                            // neither on the stack nor validly stored, and re-emitting one
+                            // here is not an option: the pushed word would deepen the
+                            // stack the preserved layout is built from. It never has to.
+                            // Such a value is one the plan carries into the successor,
+                            // which rebuilds it from its recorded entry layout and wants no
+                            // memory home; anything that has to travel in memory is still
+                            // on the stack or already stored at this point.
+                            debug_assert!(
+                                self.has_spill_home(func, value)
+                                    || planned_entry_carries(
+                                        &stack_phi_plan,
+                                        &global_stack_plan,
+                                        successor,
+                                        value,
+                                    ),
+                                "{value:?} lives across the edge from {block_id:?} to \
+                                 already-emitted {successor:?} with no home"
+                            );
                             self.spill_value_if_needed(func, value);
                         }
                     }
@@ -5930,6 +5981,17 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     fn stack_access_limit(&self) -> usize {
         self.gcx.sess.opts.evm_version.reachable_stack_depth()
+    }
+
+    /// Returns true when `val` is reachable from a successor block: it is on the stack, it has a
+    /// valid store, or [`Self::spill_value_if_needed`] gives it no slot in the first place because
+    /// it is stack-only, rematerializable, or reloadable from its argument address.
+    fn has_spill_home(&self, func: &Function, val: ValueId) -> bool {
+        self.scheduler.stack.contains(val)
+            || self.scheduler.spills.is_stored(val)
+            || self.scheduler.is_stack_only_value(val)
+            || !Self::can_own_spill_slot(func, val)
+            || Self::is_reloadable_argument_address(func, val)
     }
 
     /// Spills an instruction result if it is on the stack and not already stored.
