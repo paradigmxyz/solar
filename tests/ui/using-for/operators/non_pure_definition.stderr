@@ -1,3 +1,11 @@
+error[9559]: free functions cannot be payable
+   ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
+   │
+LL │ ┏ function mul(U a, U b) payable returns (U) {
+LL │ ┃     return a;
+LL │ ┃ }
+   ╰╴┗━┛
+
 error: only pure free functions can be used to define operators
    ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
    │
@@ -40,5 +48,5 @@ LL │ ┃     return a;
 LL │ ┃ }
    ╰╴┗━┛
 
-error: aborting due to 3 previous errors
+error: aborting due to 4 previous errors
 
