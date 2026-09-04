@@ -63,6 +63,29 @@ contract StoragePointersTest {
         assert(c.attachedLen() == 2);
     }
 
+    function test_memberArrLen() public view {
+        assert(c.memberArrLen() == 1);
+    }
+
+    function test_memberWrite() public {
+        (uint256 v, uint256 guard) = c.memberWrite(0, 9);
+        assert(v == 9);
+        assert(guard == 77);
+    }
+
+    function test_valuePush() public {
+        (uint256 length, uint256 guard) = c.valuePush(1, 8);
+        assert(length == 2);
+        assert(guard == 77);
+        assert(c.valueFirst(1) == 6);
+    }
+
+    function test_gridPop() public {
+        (uint256 length, uint256 guard) = c.gridPop();
+        assert(length == 1);
+        assert(guard == 77);
+    }
+
     function test_attachedPush() public {
         (uint256 length, uint256 guard) = c.attachedPush(7);
         assert(length == 3);

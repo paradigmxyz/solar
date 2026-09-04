@@ -9,6 +9,11 @@ library StoragePointerLib {
         uint256 b;
     }
 
+    struct Nested {
+        uint256[] arr;
+        mapping(uint256 => uint256[]) byKey;
+    }
+
     function arrRef(uint256[] storage a) external pure returns (uint256[] storage) {
         return a;
     }
@@ -28,6 +33,19 @@ library StoragePointerLib {
     function firstOf(uint256[] storage a) external view returns (uint256) {
         return a[0];
     }
+
+    // A pointer to a nested object is one slot word too.
+    function memberArr(Nested storage n) external view returns (uint256[] storage) {
+        return n.arr;
+    }
+
+    function valueArr(Nested storage n, uint256 key) external view returns (uint256[] storage) {
+        return n.byKey[key];
+    }
+
+    function element(uint256[][] storage aa, uint256 i) external view returns (uint256[] storage) {
+        return aa[i];
+    }
 }
 
 contract StoragePointers {
@@ -36,6 +54,8 @@ contract StoragePointers {
     uint256[] internal nums;
     bytes internal bs;
     StoragePointerLib.Plain internal plain;
+    StoragePointerLib.Nested internal nested;
+    uint256[][] internal grid;
     uint256 internal guard;
 
     constructor() {
@@ -44,6 +64,11 @@ contract StoragePointers {
         bs = hex"aabbcc";
         plain.a = 11;
         plain.b = 12;
+        nested.arr.push(4);
+        nested.byKey[1].push(6);
+        grid.push();
+        grid[0].push(1);
+        grid[0].push(2);
         guard = 77;
     }
 
@@ -98,5 +123,28 @@ contract StoragePointers {
     function attachedPush(uint256 v) external returns (uint256, uint256) {
         nums.arrRef().push(v);
         return (nums.length, guard);
+    }
+
+    function memberArrLen() external view returns (uint256) {
+        return StoragePointerLib.memberArr(nested).length;
+    }
+
+    function memberWrite(uint256 i, uint256 v) external returns (uint256, uint256) {
+        StoragePointerLib.memberArr(nested)[i] = v;
+        return (nested.arr[i], guard);
+    }
+
+    function valuePush(uint256 key, uint256 v) external returns (uint256, uint256) {
+        StoragePointerLib.valueArr(nested, key).push(v);
+        return (nested.byKey[key].length, guard);
+    }
+
+    function valueFirst(uint256 key) external view returns (uint256) {
+        return StoragePointerLib.valueArr(nested, key)[0];
+    }
+
+    function gridPop() external returns (uint256, uint256) {
+        StoragePointerLib.element(grid, 0).pop();
+        return (grid[0].length, guard);
     }
 }
