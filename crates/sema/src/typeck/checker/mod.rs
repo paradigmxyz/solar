@@ -2879,26 +2879,40 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Try(try_) => {
-                if !self.gcx.sess.opts.evm_version.supports_returndata() {
-                    for clause in &try_.clauses[1..] {
-                        // A bare `catch { }` needs no return data and stays accepted; solc
-                        // reports 1812 for `catch Error`/`catch Panic` and 9908 for
-                        // `catch (bytes memory)`.
-                        let code = if clause.name.is_some() {
-                            error_code!(1812)
-                        } else if !clause.args.is_empty() {
-                            error_code!(9908)
-                        } else {
-                            continue;
-                        };
-                        self.evm_version_error(
-                            clause.span,
-                            "typed catch clause",
-                            EvmVersion::Byzantium,
-                        )
+                let supports_returndata = self.gcx.sess.opts.evm_version.supports_returndata();
+                for clause in &try_.clauses[1..] {
+                    // `Error` and `Panic` are the only clause names there are, at every EVM
+                    // version.
+                    if let Some(name) = clause.name
+                        && name.name != sym::Error
+                        && name.name != sym::Panic
+                    {
+                        self.dcx()
+                            .err("invalid catch clause name")
+                            .code(error_code!(3542))
+                            .span(clause.span)
+                            .help(
+                                "expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`",
+                            )
+                            .emit();
+                        continue;
+                    }
+                    if supports_returndata {
+                        continue;
+                    }
+                    // A bare `catch { }` needs no return data and stays accepted; solc
+                    // reports 1812 for `catch Error`/`catch Panic` and 9908 for
+                    // `catch (bytes memory)`.
+                    let code = if clause.name.is_some() {
+                        error_code!(1812)
+                    } else if !clause.args.is_empty() {
+                        error_code!(9908)
+                    } else {
+                        continue;
+                    };
+                    self.evm_version_error(clause.span, "typed catch clause", EvmVersion::Byzantium)
                         .code(code)
                         .emit();
-                    }
                 }
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
