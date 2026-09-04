@@ -46,6 +46,7 @@ pub(crate) fn emit_requested(
     compiler: &mut CompilerRef<'_>,
     bytecode_contracts: ContractSelection,
     runtime_data: Option<&RuntimeDataFn<'_>>,
+    capture_debug_info: ContractSelection,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
     if !gcx.sess.opts.language.is_source() {
@@ -74,7 +75,8 @@ pub(crate) fn emit_requested(
     }
     let generate_artifacts = !generated_bytecode_contracts.is_empty()
         || !capture_mir.is_empty()
-        || !capture_evm_ir.is_empty();
+        || !capture_evm_ir.is_empty()
+        || !capture_debug_info.is_empty();
     let artifacts = if generate_artifacts {
         Some(generate_contract_bytecodes(
             gcx,
@@ -82,6 +84,7 @@ pub(crate) fn emit_requested(
             &capture_mir,
             &capture_evm_ir,
             runtime_data,
+            &capture_debug_info,
         )?)
     } else {
         None

@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info_push.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info_push.evmir (after outline) ===
+  @module DebugInfoPush
+  bb0:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(span=1..5, invoke=first@1..10)
+-   pop !metadata(span=6..10)
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(span=11..15, invoke=second@11..20)
++   push bb3
++   jump bb1 !metadata(invoke=first@1..10)
++ bb1:
++   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(spans=[1..5, 11..15])
++   swap 1
++   jump
++ bb2:
+    pop !metadata(span=16..20)
+    stop !metadata(span=21..25)
++ bb3:
++   pop !metadata(span=6..10)
++   push bb2
++   jump bb1 !metadata(invoke=second@11..20)
+  

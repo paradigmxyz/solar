@@ -5,9 +5,9 @@
 // CHECK-COUNT-5: {{^[ +].*}}push 0
 // CHECK: {{^[ +].*}}stop
 bb0:
-  push 0 !meta(type=u256)
-  push 0 !meta(ty=u256)
-  push 0 !meta(result_ty=u256)
-  push 0 !meta(mir_type=u256)
-  push 0 !meta(marker)
+  push 0 !metadata(type=u256)
+  push 0 !metadata(ty=u256)
+  push 0 !metadata(result_ty=u256)
+  push 0 !metadata(mir_type=u256)
+  push 0 !metadata(marker)
   stop

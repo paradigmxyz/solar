@@ -2,16 +2,23 @@
 
 use super::{
     data::{
-        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EvmOutput, FxIndexMap,
-        MetadataHash, OffsetLength, OutputSelection, OutputSelectionFlags, ReadCallbackResult,
-        Settings, SourceOutput, StandardJsonReadCallback, optimizer_settings,
-        print_standard_json_stats, strip_json_comments,
+        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EthdebugCodePointer,
+        EthdebugCompilation, EthdebugCompiler, EthdebugContext, EthdebugContract,
+        EthdebugEnvironment, EthdebugFunctionExit, EthdebugFunctionInvoke, EthdebugId,
+        EthdebugInstruction, EthdebugInvocationTarget, EthdebugOperation, EthdebugOutput,
+        EthdebugProgram, EthdebugRange, EthdebugReference, EthdebugResources, EthdebugSource,
+        EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength, OutputSelection,
+        OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback,
+        optimizer_settings, print_standard_json_stats, strip_json_comments,
     },
     metadata::Metadata,
 };
 use crate::bytecode::MaybeHexBytecode;
 use serde_json::json;
-use solar_codegen::{ContractArtifact, ContractSelection, RuntimeDataFn};
+use solar_codegen::{
+    ContractArtifact, ContractSelection, RuntimeDataFn,
+    backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction},
+};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
     OptimizationMode,
@@ -266,10 +273,16 @@ fn compile(
 
                 let gcx = compiler.gcx();
                 let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
+                let debug_info_contracts = requested_debug_info_contracts(gcx, output_selection);
                 let needs_metadata = output_selection.requests_metadata()
                     || metadata.append_cbor && !bytecode_contracts.is_empty();
                 let contract_metadata = needs_metadata.then(|| Metadata::new(gcx, &settings));
 
+                let source_map_outputs = OutputSelectionFlags::BYTECODE_SOURCE_MAP
+                    | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP;
+                let source_map_encoder =
+                    contract_output_requested(gcx, output_selection, source_map_outputs)
+                        .then(|| crate::source_map::SourceMapEncoder::new(gcx));
                 crate::commands::compile::warn_experimental_codegen(
                     gcx.sess,
                     !bytecode_contracts.is_empty(),
@@ -278,10 +291,22 @@ fn compile(
                     .as_ref()
                     .map(|metadata| |contract_id| metadata.runtime_data(contract_id));
                 let runtime_data = runtime_data.as_ref().map(|data| data as &RuntimeDataFn<'_>);
-                let bytecodes =
-                    crate::emit::emit_requested(compiler, bytecode_contracts, runtime_data)?;
+                let bytecodes = crate::emit::emit_requested(
+                    compiler,
+                    bytecode_contracts,
+                    runtime_data,
+                    debug_info_contracts,
+                )?;
 
                 gcx.dcx().has_errors()?;
+
+                let global_ethdebug = output_selection.global();
+                let ethdebug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
+                    | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
+                let compilation_requested = !global_ethdebug.is_empty()
+                    || contract_output_requested(gcx, output_selection, ethdebug_outputs);
+                let compilation = compilation_requested.then(|| make_ethdebug_compilation(gcx));
+                let compilation_id = compilation.as_ref().map(ethdebug_compilation_id);
 
                 for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                     let source = gcx.hir.source(contract.source);
@@ -294,6 +319,8 @@ fn compile(
                         contract_selection,
                         bytecodes.as_ref(),
                         contract_metadata.as_ref(),
+                        compilation_id,
+                        source_map_encoder.as_ref(),
                     );
                     if !contract_output.is_empty() {
                         output
@@ -301,6 +328,25 @@ fn compile(
                             .entry(source_name)
                             .or_default()
                             .insert(contract_name.to_string(), contract_output);
+                    }
+                }
+
+                if let Some(compilation) = compilation {
+                    let mut ethdebug = EthdebugOutput::default();
+                    if global_ethdebug.contains(OutputSelectionFlags::ETHDEBUG_RESOURCES) {
+                        ethdebug.resources = Some(EthdebugResources {
+                            compilation: compilation.clone(),
+                            types: Default::default(),
+                            pointers: Default::default(),
+                        });
+                    }
+                    // A program always references its compilation resource. Emit it
+                    // even when the caller selected only a per-contract program.
+                    if compilation_requested {
+                        ethdebug.compilation = Some(compilation);
+                    }
+                    if ethdebug.resources.is_some() || ethdebug.compilation.is_some() {
+                        output.ethdebug = Some(ethdebug);
                     }
                 }
 
@@ -419,6 +465,8 @@ fn make_contract_output<'gcx>(
     output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, ContractArtifact>>,
     metadata: Option<&Metadata<'_, '_, 'gcx>>,
+    compilation_id: Option<&str>,
+    source_map_encoder: Option<&crate::source_map::SourceMapEncoder>,
 ) -> ContractOutput<'gcx> {
     let mut output = ContractOutput::default();
 
@@ -458,16 +506,36 @@ fn make_contract_output<'gcx>(
     let artifact = bytecodes.and_then(|bytecodes| bytecodes.get(&contract_id));
     let bytecode_outputs = OutputSelectionFlags::BYTECODE_OBJECT
         | OutputSelectionFlags::BYTECODE_OPCODES
-        | OutputSelectionFlags::BYTECODE_LINK_REFERENCES;
+        | OutputSelectionFlags::BYTECODE_SOURCE_MAP
+        | OutputSelectionFlags::BYTECODE_LINK_REFERENCES
+        | OutputSelectionFlags::BYTECODE_ETHDEBUG;
     if output_selection.intersects(bytecode_outputs) {
-        evm.bytecode = Some(make_bytecode_output(gcx, artifact, output_selection, false));
+        evm.bytecode = Some(make_bytecode_output(
+            gcx,
+            contract_id,
+            artifact,
+            output_selection,
+            compilation_id,
+            source_map_encoder,
+            false,
+        ));
     }
     let deployed_bytecode_outputs = OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT
         | OutputSelectionFlags::DEPLOYED_BYTECODE_OPCODES
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
         | OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
-        | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES;
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
     if output_selection.intersects(deployed_bytecode_outputs) {
-        evm.deployed_bytecode = Some(make_bytecode_output(gcx, artifact, output_selection, true));
+        evm.deployed_bytecode = Some(make_bytecode_output(
+            gcx,
+            contract_id,
+            artifact,
+            output_selection,
+            compilation_id,
+            source_map_encoder,
+            true,
+        ));
     }
     if !evm.is_empty() {
         output.evm = Some(evm);
@@ -478,8 +546,11 @@ fn make_contract_output<'gcx>(
 
 fn make_bytecode_output(
     gcx: Gcx<'_>,
+    contract_id: ContractId,
     artifact: Option<&ContractArtifact>,
     output_selection: OutputSelectionFlags,
+    compilation_id: Option<&str>,
+    source_map_encoder: Option<&crate::source_map::SourceMapEncoder>,
     deployed: bool,
 ) -> BytecodeOutput {
     let object_flag = if deployed {
@@ -496,6 +567,16 @@ fn make_bytecode_output(
         OutputSelectionFlags::DEPLOYED_BYTECODE_LINK_REFERENCES
     } else {
         OutputSelectionFlags::BYTECODE_LINK_REFERENCES
+    };
+    let source_map_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP
+    } else {
+        OutputSelectionFlags::BYTECODE_SOURCE_MAP
+    };
+    let ethdebug_flag = if deployed {
+        OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
+    } else {
+        OutputSelectionFlags::BYTECODE_ETHDEBUG
     };
     let bytecode =
         artifact.map(|artifact| if deployed { &artifact.runtime } else { &artifact.deployment });
@@ -518,6 +599,21 @@ fn make_bytecode_output(
             gcx.sess.opts.evm_version,
         ));
     }
+    if output_selection.contains(source_map_flag) {
+        let debug_info = artifact.and_then(|artifact| {
+            if deployed {
+                artifact.runtime_debug_info.as_deref()
+            } else {
+                artifact.deployment_debug_info.as_deref()
+            }
+        });
+        output.source_map = Some(match (source_map_encoder, debug_info) {
+            (Some(encoder), Some(info)) => {
+                encoder.encode(gcx, bytecode.map_or(&[], |bytecode| bytecode.as_ref()), info)
+            }
+            _ => String::new(),
+        });
+    }
     if output_selection.contains(link_references_flag) {
         let references = artifact.into_iter().flat_map(|artifact| {
             if deployed {
@@ -536,6 +632,12 @@ fn make_bytecode_output(
                 .push(OffsetLength { start: reference.start, length: 20 });
         }
         output.link_references = Some(by_source);
+    }
+    if output_selection.contains(ethdebug_flag)
+        && let (Some(artifact), Some(compilation_id)) = (artifact, compilation_id)
+    {
+        output.ethdebug =
+            make_ethdebug_program(gcx, contract_id, artifact, compilation_id, deployed);
     }
     if deployed
         && output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES)
@@ -559,11 +661,258 @@ fn make_bytecode_output(
     output
 }
 
+fn make_ethdebug_compilation(gcx: Gcx<'_>) -> EthdebugCompilation {
+    let language = if gcx.sess.opts.language.is_yul() { "Yul" } else { "Solidity" };
+    let sources = gcx
+        .hir
+        .source_ids()
+        .map(|source_id| {
+            let source = gcx.hir.source(source_id);
+            EthdebugSource {
+                id: EthdebugId::Number(source_id.index() as u32),
+                path: standard_json_source_name(&source.file.name),
+                contents: source.file.src.as_ref().clone(),
+                language: language.to_owned(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let version = solar_config::version::SEMVER_VERSION.to_owned();
+    let mut identity = String::from("ethdebug-solar-compilation-v1");
+    // A compilation ID names the complete source-to-bytecode context, not only
+    // the source files. Include every code-generation setting that can change
+    // instruction offsets or operations so programs cannot cross-reference a
+    // different artifact accidentally.
+    append_length_prefixed(&mut identity, solar_config::version::SHORT_VERSION);
+    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.language));
+    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.evm_version));
+    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.optimization));
+    append_length_prefixed(
+        &mut identity,
+        &gcx.sess.opts.optimizer_runs.map_or_else(|| "none".to_owned(), |runs| runs.to_string()),
+    );
+    let mut remappings =
+        gcx.sess.opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>();
+    remappings.sort_unstable();
+    append_length_prefixed(&mut identity, &remappings.len().to_string());
+    for remapping in remappings {
+        append_length_prefixed(&mut identity, &remapping);
+    }
+    let mut libraries = gcx.sess.opts.libraries.iter().map(ToString::to_string).collect::<Vec<_>>();
+    libraries.sort_unstable();
+    append_length_prefixed(&mut identity, &libraries.len().to_string());
+    for library in libraries {
+        append_length_prefixed(&mut identity, &library);
+    }
+    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.mir_pipeline));
+    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.evm_ir_pipeline));
+    append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.unstable.switch_lowering));
+    append_length_prefixed(
+        &mut identity,
+        &format!(
+            "{:?}:{:?}:{:?}",
+            gcx.sess.opts.unstable.switch_max_gas_code_growth,
+            gcx.sess.opts.unstable.switch_max_bit_slice_gas_code_growth,
+            gcx.sess.opts.unstable.codegen_all_functions,
+        ),
+    );
+    append_length_prefixed(&mut identity, &version);
+    append_length_prefixed(&mut identity, &sources.len().to_string());
+    for source in &sources {
+        let EthdebugId::Number(id) = source.id else { unreachable!() };
+        append_length_prefixed(&mut identity, &id.to_string());
+        append_length_prefixed(&mut identity, &source.path);
+        append_length_prefixed(&mut identity, &source.contents);
+        append_length_prefixed(&mut identity, &source.language);
+    }
+    let digest = alloy_primitives::keccak256(identity.as_bytes());
+    let id = format!("solar-{}", alloy_primitives::hex::encode(digest.as_slice()));
+
+    EthdebugCompilation {
+        id: EthdebugId::Text(id),
+        compiler: EthdebugCompiler { name: "solar".to_owned(), version },
+        sources,
+    }
+}
+
+fn append_length_prefixed(output: &mut String, value: &str) {
+    output.push_str(&value.len().to_string());
+    output.push(':');
+    output.push_str(value);
+}
+
+fn ethdebug_compilation_id(compilation: &EthdebugCompilation) -> &str {
+    let EthdebugId::Text(id) = &compilation.id else { unreachable!() };
+    id
+}
+
+fn make_ethdebug_program(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+    artifact: &ContractArtifact,
+    compilation_id: &str,
+    deployed: bool,
+) -> Option<EthdebugProgram> {
+    let debug_info = if deployed {
+        artifact.runtime_debug_info.as_ref()?
+    } else {
+        artifact.deployment_debug_info.as_ref()?
+    };
+    let bytecode = if deployed { artifact.runtime.as_ref() } else { artifact.deployment.as_ref() };
+    let contract = gcx.hir.contract(contract_id);
+    let source_ids = gcx
+        .hir
+        .source_ids()
+        .map(|source_id| (gcx.hir.source(source_id).file.start_pos.0, source_id.index() as u32))
+        .collect::<FxHashMap<_, _>>();
+    let definition_range = gcx
+        .sess
+        .source_map()
+        .span_to_range(contract.span)
+        .ok()
+        .map(|range| EthdebugRange { offset: range.start, length: range.end - range.start });
+
+    let instructions = debug_info
+        .iter()
+        .enumerate()
+        .map(|(index, instruction)| {
+            let mnemonic = solar_codegen::backend::evm::opcode_mnemonic(instruction.opcode)
+                .expect("assembled opcode should have a mnemonic")
+                .to_ascii_uppercase();
+            let arguments = push_argument(bytecode, instruction)
+                .map(|argument| format!("0x{}", alloy_primitives::hex::encode(argument)))
+                .into_iter()
+                .collect();
+            EthdebugInstruction {
+                offset: instruction.offset as usize,
+                operation: EthdebugOperation { mnemonic, arguments },
+                context: make_ethdebug_context(
+                    gcx,
+                    &source_ids,
+                    bytecode,
+                    debug_info.get(index.wrapping_sub(1)),
+                    instruction,
+                ),
+            }
+        })
+        .collect();
+
+    Some(EthdebugProgram {
+        compilation: EthdebugReference { id: EthdebugId::Text(compilation_id.to_owned()) },
+        contract: EthdebugContract {
+            name: contract.name.to_string(),
+            definition: EthdebugSourceRange {
+                source: EthdebugReference {
+                    id: EthdebugId::Number(contract.source.index() as u32),
+                },
+                range: definition_range,
+            },
+        },
+        environment: if deployed { EthdebugEnvironment::Call } else { EthdebugEnvironment::Create },
+        instructions,
+    })
+}
+
+fn push_argument<'a>(bytecode: &'a [u8], instruction: &DebugInstruction) -> Option<&'a [u8]> {
+    let width = instruction.opcode.checked_sub(0x5f)? as usize;
+    if !(1..=32).contains(&width) {
+        return None;
+    }
+    let start = instruction.offset as usize + 1;
+    let end = start.checked_add(width)?;
+    bytecode.get(start..end)
+}
+
+fn make_ethdebug_context(
+    gcx: Gcx<'_>,
+    source_ids: &FxHashMap<u32, u32>,
+    bytecode: &[u8],
+    previous: Option<&DebugInstruction>,
+    instruction: &DebugInstruction,
+) -> Option<EthdebugContext> {
+    let mut contexts = instruction
+        .source_spans
+        .iter()
+        .filter_map(|&span| make_ethdebug_source_range(gcx, source_ids, span))
+        .map(|code| EthdebugContext {
+            code: Some(code),
+            pick: Vec::new(),
+            invoke: None,
+            r#return: None,
+            revert: None,
+        })
+        .collect::<Vec<_>>();
+    let (code, pick) = match contexts.len() {
+        0 => (None, Vec::new()),
+        1 => (contexts.pop().and_then(|context| context.code), Vec::new()),
+        _ => (None, contexts),
+    };
+    let invoke = instruction.function_invoke.and_then(|function| {
+        make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
+    });
+    let (r#return, revert) = match instruction.function_exit {
+        Some(DebugFunctionExit::Return) => (Some(EthdebugFunctionExit {}), None),
+        Some(DebugFunctionExit::Revert) => (None, Some(EthdebugFunctionExit {})),
+        None => (None, None),
+    };
+    if code.is_none()
+        && pick.is_empty()
+        && invoke.is_none()
+        && r#return.is_none()
+        && revert.is_none()
+    {
+        None
+    } else {
+        Some(EthdebugContext { code, pick, invoke, r#return, revert })
+    }
+}
+
+fn make_ethdebug_function_invoke(
+    gcx: Gcx<'_>,
+    source_ids: &FxHashMap<u32, u32>,
+    bytecode: &[u8],
+    previous: Option<&DebugInstruction>,
+    function: DebugFunction,
+    instruction: &DebugInstruction,
+) -> Option<EthdebugFunctionInvoke> {
+    let target = crate::source_map::static_jump_target(bytecode, previous, instruction)
+        .or_else(|| (instruction.opcode == 0x5b).then_some(instruction.offset as usize))
+        .map(|target| EthdebugInvocationTarget {
+            pointer: EthdebugCodePointer { location: "code", offset: target, length: 1 },
+        });
+    Some(EthdebugFunctionInvoke {
+        identifier: (function.identifier != solar_interface::sym::_anonymous)
+            .then(|| function.identifier.to_string()),
+        declaration: make_ethdebug_source_range(gcx, source_ids, function.declaration)?,
+        jump: true,
+        target,
+    })
+}
+
+fn make_ethdebug_source_range(
+    gcx: Gcx<'_>,
+    source_ids: &FxHashMap<u32, u32>,
+    span: solar_interface::Span,
+) -> Option<EthdebugSourceRange> {
+    let source = gcx.sess.source_map().span_to_source(span).ok()?;
+    let source_id = *source_ids.get(&source.file.start_pos.0)?;
+    Some(EthdebugSourceRange {
+        source: EthdebugReference { id: EthdebugId::Number(source_id) },
+        range: Some(EthdebugRange {
+            offset: source.data.start,
+            length: source.data.end - source.data.start,
+        }),
+    })
+}
+
 fn requested_bytecode_contracts(
     gcx: solar_sema::Gcx<'_>,
     output_selection: &OutputSelection<'_>,
 ) -> ContractSelection {
-    let bytecode_outputs = OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE;
+    let bytecode_outputs = OutputSelectionFlags::BYTECODE
+        | OutputSelectionFlags::DEPLOYED_BYTECODE
+        | OutputSelectionFlags::BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
     if output_selection.all().intersects(bytecode_outputs) {
         return ContractSelection::All;
     }
@@ -582,4 +931,45 @@ fn requested_bytecode_contracts(
         }
     }
     contracts
+}
+
+fn requested_debug_info_contracts(
+    gcx: solar_sema::Gcx<'_>,
+    output_selection: &OutputSelection<'_>,
+) -> ContractSelection {
+    let debug_outputs = OutputSelectionFlags::BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG
+        | OutputSelectionFlags::BYTECODE_SOURCE_MAP
+        | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP;
+    if output_selection.all().intersects(debug_outputs) {
+        return ContractSelection::All;
+    }
+
+    let mut contracts = ContractSelection::empty(gcx);
+    for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+            continue;
+        }
+
+        let source = gcx.hir.source(contract.source);
+        let source_name = standard_json_source_name(&source.file.name);
+        if output_selection.contract(&source_name, contract.name.as_str()).intersects(debug_outputs)
+        {
+            contracts.insert(contract_id);
+        }
+    }
+    contracts
+}
+
+fn contract_output_requested(
+    gcx: solar_sema::Gcx<'_>,
+    output_selection: &OutputSelection<'_>,
+    outputs: OutputSelectionFlags,
+) -> bool {
+    output_selection.all().intersects(outputs)
+        || gcx.hir.contracts().any(|contract| {
+            let source = gcx.hir.source(contract.source);
+            let source_name = standard_json_source_name(&source.file.name);
+            output_selection.contract(&source_name, contract.name.as_str()).intersects(outputs)
+        })
 }

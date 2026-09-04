@@ -18,6 +18,8 @@ pub(crate) struct InstructionMetadata {
     storage_alias: Option<Box<StorageAlias>>,
     /// Source span that produced this instruction, when the lowerer can preserve it.
     source_span: Span,
+    /// Legacy source-map modifier nesting depth for this instruction.
+    modifier_depth: u32,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
     hir_expr: Option<hir::ExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
@@ -32,6 +34,7 @@ impl InstructionMetadata {
         storage_alias: None,
         hir_expr: None,
         source_span: Span::DUMMY,
+        modifier_depth: 0,
         loop_depth: 0,
         flags: MetadataFlags::EMPTY,
     };
@@ -66,7 +69,45 @@ impl InstructionMetadata {
 
     /// Sets the source span that produced this instruction.
     pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
+        let span = span.filter(|span| !span.is_dummy());
         self.source_span = span.unwrap_or(Span::DUMMY);
+        self.flags.set_display_source_span(span.is_some());
+        self.flags.set_debug_info_handled();
+    }
+
+    /// Sets source debug information without adding it to canonical MIR text.
+    pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
+        self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
+        self.flags.set_debug_info_handled();
+    }
+
+    /// Returns the source-map modifier nesting depth for this instruction.
+    #[must_use]
+    pub(crate) const fn modifier_depth(&self) -> u32 {
+        self.modifier_depth
+    }
+
+    /// Sets the source-map modifier nesting depth for this instruction.
+    pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
+        self.modifier_depth = depth;
+        self.flags.set_debug_info_handled();
+    }
+
+    /// Marks this instruction as intentionally having no source location.
+    pub(crate) fn mark_debug_info_dropped(&mut self) {
+        self.set_debug_source_span(None);
+    }
+
+    /// Returns whether source debug information was preserved or intentionally dropped.
+    #[must_use]
+    pub(crate) fn debug_info_is_handled(&self) -> bool {
+        self.flags.debug_info_is_handled()
+    }
+
+    /// Returns whether canonical MIR text should include the source span.
+    #[must_use]
+    pub(crate) fn displays_source_span(&self) -> bool {
+        self.flags.displays_source_span()
     }
 
     /// Returns the proven memory region.
@@ -153,6 +194,8 @@ impl MetadataFlags {
     const DEFERRED_ALLOC: u16 = 0b1_0000_0000;
     const ABI_VALIDATION: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
+    const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
+    const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -224,6 +267,26 @@ impl MetadataFlags {
         } else {
             self.0 &= !Self::PRESERVES_FMP;
         }
+    }
+
+    fn displays_source_span(self) -> bool {
+        self.0 & Self::DISPLAY_SOURCE_SPAN != 0
+    }
+
+    fn set_display_source_span(&mut self, display: bool) {
+        if display {
+            self.0 |= Self::DISPLAY_SOURCE_SPAN;
+        } else {
+            self.0 &= !Self::DISPLAY_SOURCE_SPAN;
+        }
+    }
+
+    fn debug_info_is_handled(self) -> bool {
+        self.0 & Self::DEBUG_INFO_HANDLED != 0
+    }
+
+    fn set_debug_info_handled(&mut self) {
+        self.0 |= Self::DEBUG_INFO_HANDLED;
     }
 
     fn effect(self) -> Option<EffectKind> {
@@ -579,6 +642,13 @@ impl Instruction {
     #[must_use]
     pub(crate) const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
         Self { kind, result_ty, result: None, metadata: InstructionMetadata::EMPTY }
+    }
+
+    /// Marks this synthetic instruction as intentionally having no source location.
+    #[must_use]
+    pub(crate) fn with_debug_info_dropped(mut self) -> Self {
+        self.metadata.mark_debug_info_dropped();
+        self
     }
 
     /// Returns the value allocated for this instruction's result.
@@ -2076,7 +2146,7 @@ mod tests {
         }
 
         assert_size::<InstKind>(str!["40"]);
-        assert_size::<InstructionMetadata>(str!["24"]);
-        assert_size::<Instruction>(str!["72"]);
+        assert_size::<InstructionMetadata>(str!["32"]);
+        assert_size::<Instruction>(str!["80"]);
     }
 }

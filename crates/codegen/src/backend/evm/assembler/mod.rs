@@ -10,6 +10,7 @@
 use super::op::WORD_BYTES;
 use crate::{
     backend::evm::{
+        DebugFunction, DebugFunctionExit, DebugInstruction,
         ir::{self, assembly},
         op,
     },
@@ -17,7 +18,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{Symbol, sym};
+use solar_interface::{Span, Symbol, sym};
 use solar_sema::Gcx;
 
 mod id_counter;
@@ -60,6 +61,8 @@ pub(crate) struct AssembledCode {
     pub immutable_refs: Vec<ImmutableRef>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
+    /// Final instruction offsets and source spans.
+    pub debug_info: Option<Vec<DebugInstruction>>,
 }
 
 /// The bytecode artifact currently being assembled.
@@ -105,6 +108,10 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend::evm) program_is_finalized: bool,
     /// Block currently receiving emitted instructions.
     pub(in crate::backend::evm) current_block: Option<ir::BlockId>,
+    /// Source span attached to newly emitted EVM IR operations.
+    pub(in crate::backend::evm) current_source_span: Span,
+    /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
+    pub(in crate::backend::evm) current_modifier_depth: u32,
     /// Original assembler label attached to each EVM IR block.
     pub(in crate::backend::evm) block_labels: Vec<Option<Label>>,
     /// Defined assembler labels and their EVM IR blocks.
@@ -118,7 +125,8 @@ pub(crate) struct Assembler<'gcx> {
     /// Unresolved deferred constants emitted as push operands.
     pub(in crate::backend::evm) deferred_relocations: Vec<(ir::BlockId, usize, DeferredConst)>,
     /// Indexed jumps whose possible targets are assembler labels.
-    pub(in crate::backend::evm) indexed_jump_relocations: Vec<(ir::BlockId, Vec<Label>)>,
+    pub(in crate::backend::evm) indexed_jump_relocations:
+        Vec<(ir::BlockId, Vec<Label>, ir::Metadata)>,
     /// Interned push immediates too large for inline storage.
     pub(in crate::backend::evm) push_values: LocalInterner<U256, PushValueId>,
     /// Interned immutable placeholders.
@@ -155,6 +163,8 @@ impl<'gcx> Assembler<'gcx> {
             program: ir::Module::new(sym::asm),
             program_is_finalized: false,
             current_block: None,
+            current_source_span: Span::DUMMY,
+            current_modifier_depth: 0,
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
             cold_labels: GrowableBitSet::new_empty(),
@@ -179,6 +189,8 @@ impl<'gcx> Assembler<'gcx> {
         self.program.clear();
         self.program_is_finalized = false;
         self.current_block = None;
+        self.current_source_span = Span::DUMMY;
+        self.current_modifier_depth = 0;
         self.block_labels.clear();
         self.label_blocks.clear();
         self.cold_labels.clear();
@@ -254,7 +266,16 @@ impl<'gcx> Assembler<'gcx> {
 
     #[must_use]
     pub(crate) fn assemble_with_evm_ir(&mut self, capture_evm_ir: bool) -> AssembledCode {
-        let prepared = self.prepare(capture_evm_ir);
+        self.assemble_with_captures(capture_evm_ir, false)
+    }
+
+    #[must_use]
+    pub(crate) fn assemble_with_captures(
+        &mut self,
+        capture_evm_ir: bool,
+        capture_debug_info: bool,
+    ) -> AssembledCode {
+        let prepared = self.prepare(capture_evm_ir, capture_debug_info);
         let result = self.assemble_prepared(&prepared, &[]);
         self.clear();
         result
@@ -291,7 +312,9 @@ impl<'gcx> Assembler<'gcx> {
                         let value = self.deferred_values.get(&id).copied().unwrap_or_else(|| {
                             panic!("deferred constant {id:?} was never resolved")
                         });
+                        let metadata = inst.metadata.clone();
                         *inst = ir::Instruction::push_value(value);
+                        inst.metadata = metadata;
                     }
                 }
             }
@@ -375,7 +398,7 @@ impl<'gcx> Assembler<'gcx> {
         let mut label_offsets = FxHashMap::default();
         let mut data_offsets = FxHashMap::default();
         let mut new_widths = FxHashMap::default();
-        let out = BytecodeAssembler::new(self.gcx);
+        let out = BytecodeAssembler::new(self.gcx, false);
 
         for (idx, inst) in program.instructions.iter().enumerate() {
             match inst.kind() {
@@ -452,21 +475,28 @@ impl<'gcx> Assembler<'gcx> {
         data_offsets: FxHashMap<ir::DataId, usize>,
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
-        let mut out = BytecodeAssembler::new(self.gcx);
+        let mut out = BytecodeAssembler::new(self.gcx, program.source_spans.is_some());
         for (idx, inst) in program.instructions.iter().enumerate() {
+            let source_spans =
+                program.source_spans.as_ref().map_or(&[][..], |spans| spans[idx].as_slice());
+            let function_invoke =
+                program.function_invokes.as_ref().and_then(|invokes| invokes[idx]);
+            let function_exit = program.function_exits.as_ref().and_then(|exits| exits[idx]);
+            let modifier_depth = program.modifier_depths.as_ref().map_or(0, |depths| depths[idx]);
+            out.set_function_events(function_invoke, function_exit);
+            out.set_modifier_depth(modifier_depth);
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
-                    out.emit_op(opcode);
+                    out.emit_op(opcode, source_spans);
                 }
                 AsmInstKind::OpImmediate(opcode, immediate) => {
-                    out.emit_op(opcode);
-                    out.emit_op(immediate);
+                    out.emit_op_immediate(opcode, immediate, source_spans);
                 }
                 AsmInstKind::PushInline(value) => {
-                    out.emit_push_value(U256::from(value));
+                    out.emit_push_value(U256::from(value), source_spans);
                 }
                 AsmInstKind::Push(index) => {
-                    out.emit_push_value(self.push_value(index));
+                    out.emit_push_value(self.push_value(index), source_spans);
                 }
                 AsmInstKind::PushLabel(label) => {
                     let target_offset = label_offsets
@@ -474,14 +504,14 @@ impl<'gcx> Assembler<'gcx> {
                         .copied()
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
-                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                    out.emit_push_fixed_width(U256::from(target_offset), width, source_spans);
                 }
                 AsmInstKind::PushLabelFixed(label, width) => {
                     let target_offset = label_offsets
                         .get(&label)
                         .copied()
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                    out.emit_push_fixed_width(U256::from(target_offset), width, source_spans);
                 }
                 AsmInstKind::PushPackedLabels(labels) => {
                     let labels = &program.packed_labels[labels];
@@ -509,21 +539,21 @@ impl<'gcx> Assembler<'gcx> {
                         value |= target << (index * usize::from(labels.label_width) * 8);
                     }
                     let width = labels.labels.len() * usize::from(labels.label_width);
-                    out.emit_push_fixed_width(value, width as u8);
+                    out.emit_push_fixed_width(value, width as u8, source_spans);
                 }
                 AsmInstKind::PushData(data) => {
                     let target_offset = resolve_data_offset(program, &data_offsets, data);
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
-                    out.emit_push_fixed_width(U256::from(target_offset), width);
+                    out.emit_push_fixed_width(U256::from(target_offset), width, source_spans);
                 }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred values must be resolved before assembly");
                 }
                 AsmInstKind::PushImmutable(id) => {
-                    out.emit_push_immutable(self.immutable_push(id));
+                    out.emit_push_immutable(self.immutable_push(id), source_spans);
                 }
                 AsmInstKind::Label(_) => {
-                    out.emit_op(op::JUMPDEST);
+                    out.emit_op(op::JUMPDEST, source_spans);
                 }
                 AsmInstKind::Data(data) => {
                     out.bytecode.extend_from_slice(&program.data[data].bytes);
@@ -565,26 +595,61 @@ struct BytecodeAssembler<'gcx> {
     gcx: Gcx<'gcx>,
     bytecode: Vec<u8>,
     immutable_refs: Vec<ImmutableRef>,
+    debug_info: Option<Vec<DebugInstruction>>,
+    function_invoke: Option<DebugFunction>,
+    function_exit: Option<DebugFunctionExit>,
+    modifier_depth: u32,
 }
 
 impl<'gcx> BytecodeAssembler<'gcx> {
-    fn new(gcx: Gcx<'gcx>) -> Self {
-        Self { gcx, bytecode: Vec::new(), immutable_refs: Vec::new() }
+    fn new(gcx: Gcx<'gcx>, capture_debug_info: bool) -> Self {
+        Self {
+            gcx,
+            bytecode: Vec::new(),
+            immutable_refs: Vec::new(),
+            debug_info: capture_debug_info.then(Vec::new),
+            function_invoke: None,
+            function_exit: None,
+            modifier_depth: 0,
+        }
     }
 
-    fn emit_op(&mut self, opcode: u8) {
+    fn set_function_events(
+        &mut self,
+        invoke: Option<DebugFunction>,
+        exit: Option<DebugFunctionExit>,
+    ) {
+        self.function_invoke = invoke;
+        self.function_exit = exit;
+    }
+
+    fn set_modifier_depth(&mut self, depth: u32) {
+        self.modifier_depth = depth;
+    }
+
+    fn emit_op(&mut self, opcode: u8, source_spans: &[Span]) {
+        let offset = self.bytecode.len();
         self.bytecode.push(opcode);
+        self.record_instruction(offset, source_spans);
     }
 
-    fn emit_push_immutable(&mut self, push: ImmutablePush) {
+    fn emit_op_immediate(&mut self, opcode: u8, immediate: u8, source_spans: &[Span]) {
+        let offset = self.bytecode.len();
+        self.bytecode.extend([opcode, immediate]);
+        self.record_instruction(offset, source_spans);
+    }
+
+    fn emit_push_immutable(&mut self, push: ImmutablePush, source_spans: &[Span]) {
+        let offset = self.bytecode.len();
         self.immutable_refs.push(ImmutableRef {
             id: push.id,
-            code_offset: self.bytecode.len(),
+            code_offset: offset,
             type_size: push.type_size,
         });
         let byte_width = push.type_size.bytes();
         self.bytecode.push(op::push(byte_width));
         self.bytecode.extend(std::iter::repeat_n(0, usize::from(byte_width)));
+        self.record_instruction(offset, source_spans);
     }
 
     fn encoded_push_len(&self, value: U256) -> usize {
@@ -592,23 +657,24 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     }
 
     /// Emits a PUSH instruction with automatically sized width.
-    fn emit_push_value(&mut self, value: U256) {
-        self.emit_push_fixed_width(value, self.push_width(value));
+    fn emit_push_value(&mut self, value: U256, source_spans: &[Span]) {
+        self.emit_push_fixed_width(value, self.push_width(value), source_spans);
     }
 
     /// Emits a PUSH instruction with a specific width.
-    fn emit_push_fixed_width(&mut self, value: U256, width: u8) {
+    fn emit_push_fixed_width(&mut self, value: U256, width: u8, source_spans: &[Span]) {
         assert!(self.push_width(value) <= width, "value does not fit fixed PUSH width");
+        let offset = self.bytecode.len();
         if width == 0 {
             self.emit_push_zero();
-            return;
+        } else {
+            self.bytecode.push(op::push(width));
+
+            let bytes = value.to_be_bytes::<WORD_BYTES>();
+            let start = WORD_BYTES - width as usize;
+            self.bytecode.extend_from_slice(&bytes[start..]);
         }
-
-        self.bytecode.push(op::push(width));
-
-        let bytes = value.to_be_bytes::<WORD_BYTES>();
-        let start = WORD_BYTES - width as usize;
-        self.bytecode.extend_from_slice(&bytes[start..]);
+        self.record_instruction(offset, source_spans);
     }
 
     fn emit_push_zero(&mut self) {
@@ -638,7 +704,24 @@ impl<'gcx> BytecodeAssembler<'gcx> {
     }
 
     fn finish(self) -> AssembledCode {
-        AssembledCode { bytecode: self.bytecode, immutable_refs: self.immutable_refs, evm_ir: None }
+        AssembledCode {
+            bytecode: self.bytecode,
+            immutable_refs: self.immutable_refs,
+            evm_ir: None,
+            debug_info: self.debug_info,
+        }
+    }
+
+    fn record_instruction(&mut self, offset: usize, source_spans: &[Span]) {
+        let Some(debug_info) = &mut self.debug_info else { return };
+        debug_info.push(DebugInstruction {
+            offset: offset.try_into().expect("EVM bytecode offset exceeds u32"),
+            opcode: self.bytecode[offset],
+            source_spans: source_spans.iter().copied().collect(),
+            function_invoke: self.function_invoke,
+            function_exit: self.function_exit,
+            modifier_depth: self.modifier_depth,
+        });
     }
 }
 

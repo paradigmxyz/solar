@@ -131,16 +131,31 @@ impl Normalizer {
             while source.peek().is_some_and(|&(index, _)| index < normalization.start) {
                 instructions.push(source.next().unwrap().1);
             }
+            // Replacements take the replaced operations' debug information positionally; a
+            // longer output repeats the last original's, a shorter one absorbs the leftovers.
             let mut original = source.by_ref().take(normalization.end - normalization.start);
+            let first = instructions.len();
             for op in normalization.output {
                 let mut replacement = Instruction::stack_op(op);
-                if let Some((_, mut inst)) = original.next() {
-                    replacement.metadata = std::mem::take(&mut inst.metadata);
-                    replacement.metadata.stack = None;
+                match original.next() {
+                    Some((_, mut inst)) => {
+                        replacement.metadata = std::mem::take(&mut inst.metadata);
+                        replacement.metadata.stack = None;
+                    }
+                    None => match instructions.last() {
+                        Some(last) if instructions.len() > first => {
+                            replacement.metadata.copy_source_debug_from(&last.metadata);
+                        }
+                        _ => replacement.metadata.mark_debug_info_dropped(),
+                    },
                 }
                 instructions.push(replacement);
             }
-            original.for_each(drop);
+            for (_, inst) in original {
+                if let Some(last) = instructions.last_mut() {
+                    last.metadata.absorb_debug_info(&inst.metadata);
+                }
+            }
         }
         instructions.extend(source.map(|(_, inst)| inst));
         true

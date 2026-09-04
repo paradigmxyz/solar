@@ -746,7 +746,9 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
         if let Some(hir_expr) = metadata.hir_expr() {
             fields.push(MetadataField::Hir(hir_expr));
         }
-        if let Some(span) = metadata.source_span() {
+        if metadata.displays_source_span()
+            && let Some(span) = metadata.source_span()
+        {
             fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
         }
         if metadata.unchecked() {

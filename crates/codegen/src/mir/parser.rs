@@ -229,6 +229,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
+        let tracks_debug_info = module.iter_functions().any(|(_, func)| {
+            func.instructions().any(|inst| {
+                let metadata = &func.inst(inst).metadata;
+                metadata.source_span().is_some() || metadata.modifier_depth() != 0
+            })
+        });
+        if tracks_debug_info {
+            module.set_debug_info_tracked(true);
+            for function_id in module.functions.indices() {
+                let function = &mut module.functions[function_id];
+                let instructions = function.instructions().collect::<Vec<_>>();
+                for instruction in instructions {
+                    let metadata = &mut function.inst_mut(instruction).metadata;
+                    if !metadata.debug_info_is_handled() {
+                        metadata.mark_debug_info_dropped();
+                    }
+                }
+            }
+        }
         Ok(module)
     }
 
@@ -1240,8 +1259,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::span => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let (lo, hi) = self.parse_span_bounds()?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
                     metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
+                }
+                sym::modifier_depth => {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let value = self.parser.parse_uint()?;
+                    metadata.set_modifier_depth(self.u256_to_u32(value)?);
                 }
                 _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
             }
@@ -1254,39 +1278,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         Ok(metadata)
-    }
-
-    fn parse_span_bounds(&mut self) -> PResult<'sess, (u32, u32)> {
-        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            && let Some(lo) = symbol.as_str().strip_suffix('.')
-        {
-            let lo = lo.parse().map_err(|_| self.parser.error("invalid span start"))?;
-            self.parser.bump();
-            let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            else {
-                return Err(self.parser.error("expected span end"));
-            };
-            let Some(hi) = symbol.as_str().strip_prefix('.') else {
-                return Err(self.parser.error("expected span end"));
-            };
-            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
-            self.parser.bump();
-            return Ok((lo, hi));
-        }
-
-        let lo = self.parser.parse_uint()?;
-        let lo = self.u256_to_u32(lo)?;
-        self.parser.expect(TokenKind::Dot)?;
-        if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.parser.token().kind
-            && let Some(hi) = symbol.as_str().strip_prefix('.')
-        {
-            let hi = hi.parse().map_err(|_| self.parser.error("invalid span end"))?;
-            self.parser.bump();
-            return Ok((lo, hi));
-        }
-        self.parser.expect(TokenKind::Dot)?;
-        let hi = self.parser.parse_uint()?;
-        Ok((lo, self.u256_to_u32(hi)?))
     }
 
     fn parse_storage_alias(

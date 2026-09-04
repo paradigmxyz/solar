@@ -1,10 +1,13 @@
 //! Merge profitable suffixes of machine-level terminal blocks.
 //!
-//! The pass groups blocks by their terminator and indexes representative tails
-//! in reverse. This finds each block's longest shared suffix without comparing
-//! it with every earlier block. It then splits profitable suffixes into shared
-//! tail blocks until no new merges remain. Each candidate includes the cost of its new jumps and
-//! labels, and the pass keeps address-taken or otherwise incompatible entries separate.
+//! The pass groups blocks by their machine terminator and indexes representative
+//! tails in reverse. This finds each block's longest shared suffix without
+//! comparing it with every earlier block. It then splits profitable suffixes
+//! into shared tail blocks until no new merges remain. Each candidate includes
+//! the cost of its new jumps and labels, and the pass keeps address-taken or
+//! otherwise incompatible entries separate. Debug metadata never participates
+//! in equivalence: path-specific function activations stay on the original
+//! blocks or the jumps that replace their instruction suffixes.
 
 use super::{
     EvmPass,
@@ -203,7 +206,11 @@ impl RunState {
             let mut previous_tail = None;
             for &common in commons.iter() {
                 let mut tail = Block::new(labels.next().expect("reserved one label per tail"));
-                tail.metadata = metadata;
+                tail.metadata.hotness = metadata.hotness;
+                tail.metadata.in_loop = metadata.in_loop
+                    || group.sites.iter().any(|&(site, site_common)| {
+                        site_common >= common && module.blocks[site].metadata.in_loop
+                    });
                 if !metadata.hotness.is_cold()
                     || max_hot_common.is_some_and(|hot_common| common <= hot_common)
                 {
@@ -212,10 +219,41 @@ impl RunState {
                 tail.instructions = instructions
                     [instructions.len() - common..instructions.len() - previous_common]
                     .to_vec();
+                for instruction in &mut tail.instructions {
+                    instruction.metadata.take_function_invoke();
+                }
+                for &(site, site_common) in &group.sites {
+                    if site_common < common {
+                        continue;
+                    }
+                    let site_instructions = &module.blocks[site].instructions;
+                    let site_segment = &site_instructions[site_instructions.len() - common
+                        ..site_instructions.len() - previous_common];
+                    for (instruction, site_instruction) in
+                        tail.instructions.iter_mut().zip(site_segment)
+                    {
+                        instruction.metadata.merge_source_spans(&site_instruction.metadata);
+                    }
+                }
                 tail.terminator = previous_tail.map_or_else(
                     || terminator.clone(),
-                    |target| Some(Terminator::new(TerminatorKind::Jump(target))),
+                    |target| {
+                        Some(
+                            Terminator::new(TerminatorKind::Jump(target)).with_debug_info_dropped(),
+                        )
+                    },
                 );
+                if previous_tail.is_none()
+                    && let Some(tail_terminator) = &mut tail.terminator
+                {
+                    for &(site, site_common) in &group.sites {
+                        if site_common >= common
+                            && let Some(site_terminator) = &module.blocks[site].terminator
+                        {
+                            tail_terminator.metadata.merge_source_spans(&site_terminator.metadata);
+                        }
+                    }
+                }
                 let tail = module.add_block(tail);
                 tails.push((common, tail));
                 previous_common = common;
@@ -223,24 +261,51 @@ impl RunState {
             }
 
             let &(max_common, max_tail) = tails.last().expect("merge group must have a tail");
+            let representative_invoke = suffix_function_invoke(
+                &module.blocks[group.representative].instructions,
+                max_common,
+            );
             module.blocks[group.representative]
                 .instructions
                 .truncate(instructions.len() - max_common);
-            module.blocks[group.representative].terminator =
-                Some(Terminator::new(TerminatorKind::Jump(max_tail)));
+            let mut terminator =
+                Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
+            if let Some(function) = representative_invoke {
+                terminator.metadata.set_function_invoke(function);
+            }
+            module.blocks[group.representative].terminator = Some(terminator);
             for &(block, common) in &group.sites {
                 let tail = tails
                     .binary_search_by_key(&common, |&(known, _)| known)
                     .map(|index| tails[index].1)
                     .expect("tail must exist for every merge site");
                 let len = module.blocks[block].instructions.len();
+                let function_invoke =
+                    suffix_function_invoke(&module.blocks[block].instructions, common);
                 module.blocks[block].instructions.truncate(len - common);
-                module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(tail)));
+                let mut terminator =
+                    Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped();
+                if let Some(function) = function_invoke {
+                    terminator.metadata.set_function_invoke(function);
+                }
+                module.blocks[block].terminator = Some(terminator);
             }
         }
         debug_assert!(labels.next().is_none());
         true
     }
+}
+
+fn suffix_function_invoke(
+    instructions: &[crate::backend::evm::ir::Instruction],
+    len: usize,
+) -> Option<crate::backend::evm::DebugFunction> {
+    let mut functions = instructions[instructions.len() - len..]
+        .iter()
+        .filter_map(|instruction| instruction.metadata.function_invoke());
+    let function = functions.next();
+    debug_assert!(functions.all(|other| Some(other) == function));
+    function
 }
 
 fn is_candidate(block: &Block) -> bool {

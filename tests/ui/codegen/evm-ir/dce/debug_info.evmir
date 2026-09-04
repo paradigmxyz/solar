@@ -1,0 +1,12 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=dce
+//@ filecheck:
+@module DebugInfo
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: - dup 1 !metadata(span=6..10)
+// CHECK: - pop !metadata(span=11..15)
+bb0:
+  push 7 !metadata(span=1..5)
+  dup 1 !metadata(span=6..10)
+  pop !metadata(span=11..15)
+  stop !metadata(span=16..20)

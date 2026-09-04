@@ -199,13 +199,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(context) = self.modifiers.pop() else {
             return self.cx.report_unsupported(span, "modifier placeholder");
         };
+        self.builder.replace_modifier_depth(self.modifier_depth);
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
         self.restore_bindings(&context.parameters);
         self.restore_bindings(&context.returns);
         self.push_return_target(continuation);
+        self.modifier_depth = self.modifier_depth.saturating_add(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
+        self.modifier_depth = self.modifier_depth.saturating_sub(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         result?;
         if !self.is_terminated() {
             self.record_return_state();
@@ -216,6 +221,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // bindings, in contrast, carry the selected body's result onward.
         self.restore_bindings(&context.parameters);
         self.modifiers.push(context);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         Some(())
     }
 }

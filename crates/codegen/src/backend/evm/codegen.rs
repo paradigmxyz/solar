@@ -7,6 +7,7 @@
 //! - EVM IR optimization, relocation, and byte encoding
 
 use super::{
+    DebugFunction, DebugFunctionExit, DebugInstruction,
     assembler::{
         ArtifactKind, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
         PreparedAssembly,
@@ -68,6 +69,7 @@ const STACK_ARG_ROTATION_LIMIT: usize = 16;
 struct GeneratedCode {
     bytecode: Vec<u8>,
     evm_ir: Option<ir::Module>,
+    debug_info: Option<Vec<DebugInstruction>>,
 }
 
 struct PreparedDeploymentPrefix {
@@ -2422,6 +2424,7 @@ pub struct EvmCodegen<'gcx> {
     switch_gas_code_growth_remaining: usize,
     capture_mir: bool,
     capture_evm_ir: bool,
+    capture_debug_info: bool,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -2488,6 +2491,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             switch_gas_code_growth_remaining,
             capture_mir: false,
             capture_evm_ir: false,
+            capture_debug_info: false,
         }
     }
 
@@ -2684,6 +2688,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Controls whether generated artifacts include final EVM IR.
     pub fn set_capture_evm_ir(&mut self, capture: bool) {
         self.capture_evm_ir = capture;
+    }
+
+    /// Controls whether generated artifacts include final instruction locations.
+    pub fn set_capture_debug_info(&mut self, capture: bool) {
+        self.capture_debug_info = capture;
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.
@@ -2898,6 +2907,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir: runtime_code.evm_ir,
+            deployment_debug_info: deploy_code.debug_info,
+            runtime_debug_info: runtime_code.debug_info,
         }
     }
 
@@ -3163,6 +3174,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     }
                     let label = self.function_labels[&func_id];
                     self.asm.define_label(label);
+                    self.mark_debug_function_invoke(func);
                     self.in_internal_function = true;
                     self.generate_function_body(func_id, func);
                     self.in_internal_function = false;
@@ -3178,6 +3190,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // non-final STOP.
             let constructor_exit = self.asm.new_label();
             self.constructor_exit = Some(constructor_exit);
+            self.mark_debug_function_invoke(ctor);
             self.generate_function_body(ctor_id, ctor);
             let constructor_spill_size = self.record_function_spill_size(ctor_id);
             self.asm.set_deferred_const(
@@ -3221,7 +3234,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.emit_op(op::REVERT);
         }
         PreparedDeploymentPrefix {
-            assembly: self.asm.prepare(self.capture_evm_ir),
+            assembly: self.asm.prepare(self.capture_evm_ir, self.capture_debug_info),
             constructor_arg_offset,
             runtime_offset,
         }
@@ -3239,7 +3252,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         deferred_values.push((prepared.runtime_offset, U256::from(runtime_offset)));
         let result = self.asm.assemble_prepared(&prepared.assembly, &deferred_values);
-        GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir }
+        GeneratedCode {
+            bytecode: result.bytecode,
+            evm_ir: result.evm_ir,
+            debug_info: result.debug_info,
+        }
     }
 
     /// Runs the canonical MIR optimization pipeline on the module.
@@ -3305,7 +3322,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             self.asm.set_enable_size_outlining(code_size_rescue);
 
-            let result = self.asm.assemble_with_evm_ir(self.capture_evm_ir);
+            let result =
+                self.asm.assemble_with_captures(self.capture_evm_ir, self.capture_debug_info);
             if may_need_code_size_rescue
                 && !code_size_rescue
                 && let Some(limit) = runtime_code_size_limit
@@ -3325,7 +3343,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 result
             };
             self.runtime_immutable_refs = result.immutable_refs;
-            return GeneratedCode { bytecode: result.bytecode, evm_ir: result.evm_ir };
+            return GeneratedCode {
+                bytecode: result.bytecode,
+                evm_ir: result.evm_ir,
+                debug_info: result.debug_info,
+            };
         }
     }
 
@@ -3604,6 +3626,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
+            self.mark_debug_function_invoke(func);
             self.in_internal_function = false;
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.generate_function_body(func_id, func);
@@ -3621,6 +3644,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
+            self.mark_debug_function_invoke(func);
             self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
             self.current_internal_function = Some(func_id);
@@ -3639,6 +3663,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         let spill_size = u64::from(self.scheduler.spills.spill_area_size());
         self.function_spill_sizes.insert(func_id, spill_size);
         spill_size
+    }
+
+    fn mark_debug_function_invoke(&mut self, func: &Function) {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && let Some(identifier) = func.debug_identifier
+        {
+            self.asm.mark_function_invoke(DebugFunction {
+                identifier,
+                declaration: func.declaration_span,
+            });
+        }
+    }
+
+    fn mark_debug_function_exit(&mut self, func: &Function, exit: DebugFunctionExit) {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && func.debug_identifier.is_some()
+        {
+            self.asm.mark_function_exit(exit);
+        }
     }
 
     /// Returns the exact spill area recorded for `func_id` after emission.
@@ -4055,6 +4100,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
+            if self.capture_debug_info {
+                let modifier_depth = block
+                    .instructions
+                    .first()
+                    .map(|&inst_id| func.inst(inst_id).metadata.modifier_depth())
+                    .unwrap_or(0);
+                self.asm.set_modifier_depth(modifier_depth);
+            }
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
             preserved_fallthrough = None;
             let label = self.block_labels[&block_id];
@@ -4177,6 +4230,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                     continue;
                 }
 
+                if self.capture_debug_info {
+                    self.asm.set_source_span(inst.metadata.source_span());
+                    self.asm.set_modifier_depth(inst.metadata.modifier_depth());
+                }
+
                 // A whole-calldata-forwarding clobber overwrites the low memory
                 // the spill area lives in. Reload every value live across it
                 // onto the stack while the slot is still valid, and drop the
@@ -4246,6 +4304,9 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.spill_value_if_needed(func, result);
                     }
                 }
+            }
+            if self.capture_debug_info {
+                self.asm.set_source_span(None);
             }
 
             // Every clobber in this block has now been emitted, so its spill
@@ -4440,6 +4501,13 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
 
             // Generate terminator. An edge-specific resident branch owns its cleanup and jumps.
+            if self.capture_debug_info {
+                let metadata =
+                    block.instructions.last().map(|&inst_id| &func.inst(inst_id).metadata);
+                self.asm.set_source_span(metadata.and_then(|metadata| metadata.source_span()));
+                self.asm
+                    .set_modifier_depth(metadata.map_or(0, |metadata| metadata.modifier_depth()));
+            }
             if let (
                 Some(union),
                 Some((then_layout, else_layout)),
@@ -4478,6 +4546,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             } else if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term, fallthrough, preserve_stack);
+            }
+            if self.capture_debug_info {
+                self.asm.set_source_span(None);
+                self.asm.set_modifier_depth(0);
             }
             self.scheduler.spills.release_block_locals();
             if preserve_stack_to_fallthrough {
@@ -11791,6 +11863,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_stack_op(StackOp::Swap(depth as u8));
             }
             self.asm.emit_op(op::JUMP);
+            self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             self.scheduler.clear_stack();
             return;
         }
@@ -11808,15 +11881,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The caller's return address is the untracked value at the bottom of
         // the stack; after popping every tracked value it is on top.
         self.asm.emit_op(op::JUMP);
+        self.mark_debug_function_exit(func, DebugFunctionExit::Return);
     }
 
-    fn emit_external_stop(&mut self) {
+    fn emit_external_stop(&mut self, func: &Function) {
         if let Some(exit) = self.constructor_exit {
             self.emit_push_label(exit);
             self.asm.emit_op(op::JUMP);
         } else {
             self.asm.emit_op(op::STOP);
         }
+        self.mark_debug_function_exit(func, DebugFunctionExit::Return);
     }
 
     fn emit_revert_returndata(&mut self) {
@@ -11956,6 +12031,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let label = self.function_labels[function];
                 self.emit_push_label(label);
                 self.asm.emit_op(op::JUMP);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
@@ -12046,13 +12122,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
 
                 assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
-                self.emit_external_stop();
+                self.emit_external_stop(func);
             }
 
             Terminator::Revert { offset, size } => {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.asm.emit_op(op::REVERT);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Revert);
             }
 
             Terminator::RevertReturndata => self.emit_revert_returndata(),
@@ -12064,19 +12141,21 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.asm.emit_op(op::RETURN);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 
             Terminator::Stop => {
                 if self.in_internal_function {
                     self.emit_internal_return(func, &[]);
                 } else {
-                    self.emit_external_stop();
+                    self.emit_external_stop(func);
                 }
             }
 
             Terminator::SelfDestruct { recipient } => {
                 self.emit_value(func, *recipient);
                 self.asm.emit_op(op::SELFDESTRUCT);
+                self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
 
             Terminator::Invalid => {
@@ -12099,6 +12178,10 @@ pub struct EvmArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+    /// Final deployment-prefix instruction locations.
+    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    /// Final runtime instruction locations.
+    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
 }
 
 impl crate::backend::Backend for EvmCodegen<'_> {

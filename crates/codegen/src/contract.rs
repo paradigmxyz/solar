@@ -2,7 +2,7 @@
 
 use crate::{
     Backend, EvmCodegen,
-    backend::evm::{self, ir},
+    backend::evm::{self, DebugInstruction, ir},
     lower,
     mir::{LibraryLink, Module},
     pass::run_pipeline,
@@ -50,6 +50,10 @@ pub struct ContractArtifact {
     pub deployment_evm_ir: Option<ir::Module>,
     /// Final runtime EVM IR immediately before byte emission.
     pub runtime_evm_ir: Option<ir::Module>,
+    /// Final deployment-prefix instruction locations.
+    pub deployment_debug_info: Option<Vec<DebugInstruction>>,
+    /// Final runtime instruction locations.
+    pub runtime_debug_info: Option<Vec<DebugInstruction>>,
 }
 
 /// An immutable placeholder in runtime bytecode.
@@ -146,22 +150,26 @@ impl ContractSelection {
 /// configured and final MIR otherwise.
 /// Contracts in `capture_evm_ir` retain their final EVM IR in the returned artifact.
 /// Values returned by `runtime_data` are emitted as trailing runtime program data.
+/// Contracts in `capture_debug_info` retain final instruction locations.
 pub fn generate_contract_bytecodes(
     gcx: Gcx<'_>,
     contracts: &ContractSelection,
     capture_mir: &ContractSelection,
     capture_evm_ir: &ContractSelection,
     runtime_data: Option<&RuntimeDataFn<'_>>,
+    capture_debug_info: &ContractSelection,
 ) -> Result<FxHashMap<ContractId, ContractArtifact>> {
     let captures = ContractCaptures {
         bytecode: contracts,
         mir: capture_mir,
         evm_ir: capture_evm_ir,
         runtime_data,
+        debug_info: capture_debug_info,
     };
     let mut requested = contracts.clone();
     requested.union_with(capture_mir);
     requested.union_with(capture_evm_ir);
+    requested.union_with(capture_debug_info);
     let graph = ContractGraph::discover(gcx, &requested)?;
     let contract_count = gcx.hir.contract_ids().len();
     let artifacts =
@@ -219,6 +227,7 @@ struct ContractCaptures<'a> {
     mir: &'a ContractSelection,
     evm_ir: &'a ContractSelection,
     runtime_data: Option<&'a RuntimeDataFn<'a>>,
+    debug_info: &'a ContractSelection,
 }
 
 struct ContractGraph {
@@ -350,6 +359,7 @@ fn generate_contract_bytecode(
     let capture_mir = captures.mir.contains(contract_id);
     let needs_backend = captures.bytecode.contains(contract_id)
         || captures.evm_ir.contains(contract_id)
+        || captures.debug_info.contains(contract_id)
         || !graph.dependents[contract_id].is_empty();
     let runtime_data =
         captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
@@ -359,9 +369,11 @@ fn generate_contract_bytecode(
         && gcx.sess.opts.unstable.mir_pipeline.is_none();
     let built_mir = (capture_built && needs_backend).then(|| module.clone());
     let artifact = if needs_backend {
+        module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
         let mut codegen = EvmCodegen::new(gcx);
         codegen.set_capture_mir(capture_mir && !capture_built);
         codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
+        codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
         let artifact = codegen.lower_module(&mut module);
         gcx.dcx().has_errors()?;
         artifact
@@ -459,6 +471,8 @@ fn generate_contract_bytecode(
         mir,
         deployment_evm_ir: artifact.deployment_evm_ir,
         runtime_evm_ir: artifact.runtime_evm_ir,
+        deployment_debug_info: artifact.deployment_debug_info,
+        runtime_debug_info: artifact.runtime_debug_info,
     })
 }
 

@@ -1310,7 +1310,13 @@ impl<'a> InlineCloner<'a> {
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id).clone();
-                let instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
+                let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
+                if inst.metadata.displays_source_span() {
+                    instruction.metadata.set_source_span(inst.metadata.source_span());
+                } else {
+                    instruction.metadata.set_debug_source_span(inst.metadata.source_span());
+                }
+                instruction.metadata.set_modifier_depth(inst.metadata.modifier_depth());
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst(instruction);
                     self.value_map.insert(callee_result, new_result);
@@ -1455,8 +1461,9 @@ fn build_return_values(
             .iter()
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
-        let (phi, value) =
-            caller.alloc_value_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
+        let (phi, value) = caller.alloc_value_inst(
+            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_info_dropped(),
+        );
         caller.blocks[continuation].instructions.insert(index, phi);
         values.push(value);
     }

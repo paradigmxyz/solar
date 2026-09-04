@@ -19,11 +19,11 @@
     sub
     stop
   bb2:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->2)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->2)
 +   push 1
     calldatasize
     calldatasize
@@ -33,10 +33,10 @@
     sub
     stop
   bb3:
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
-    callf !meta(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
+    callf !metadata(stack=0->255)
     push 0
 +   push 1
 +   push 2
