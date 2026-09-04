@@ -76,7 +76,7 @@ and describe behavior that no longer differs.
 - [x] 24. Storage-reference argument to a base constructor lowers to `invalid` or is rejected
       (`symbolic-audit/base_constructor_storage_arg.sol`; fixed in `5967d1929`)
 - [x] 25. Five valid programs from the solc semantic tests are rejected by the type checker
-      (see the item; the repros are the upstream test files; fixed in `b8b912c89`, `d37f90e4f`, `32a1778b9`, `b36cba5e5`, `af388943c`, and `40d523c80` for the transient gap)
+      (see the item; the repros are the upstream test files; fixed in `b8b912c89`, `d37f90e4f`, `32a1778b9`, `b36cba5e5`, and `40d523c80` for the transient gap; the call-option case `af388943c` was reverted in `f1e6c705`: it is the intentional divergence TYPECK-002)
 - [x] 26. Indexing a storage `bytes` loads the whole array into memory, making indexed loops quadratic in gas
       (`symbolic-audit/storage_bytes_index_gas.sol`; fixed in `92a20464d`)
 - [x] 27. Pre-byzantium external calls with return values have no `extcodesize` guard, so a code-less callee returns zeros
@@ -986,6 +986,19 @@ own type as it does in solc (`8ee9a58c0`), and `this.g{gas: 5};` as a bare
 statement was rejected (`cb8683cf5`). It documented the one remaining
 divergence in this area, nested array literals assigned to a wider memory
 array, as `TYPECK-003` in `docs/SOLC_DIVERGENCE.md`.
+
+Correction (2026-09-04): the call-option change was wrong to make.
+`TYPECK-002` in `docs/SOLC_DIVERGENCE.md` already recorded, as an
+intentional divergence, that call options must be part of a call
+expression and that no option-bearing function value is modelled in HIR;
+`af388943c`, `cb8683cf5`, and the doc refresh `0873113d` overrode that
+decision. All three are reverted in `e0f0c15d`, `888e5f06`, and
+`f1e6c705`, so `this.g{gas: 42}.address` and `this.g{gas: 5};` are
+rejected again with "call options must be part of a call expression",
+`TYPECK-002` is back to its original text, and the upstream test
+`stack_height_check_on_adding_gas_variable_to_function.sol` stays a
+documented divergence rather than a fixed gap. The other four programs
+of this item remain fixed.
 
 ### 26. Indexing a storage `bytes` loads the whole array into memory
 
