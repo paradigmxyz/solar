@@ -1,0 +1,22 @@
+// The first traversal of a cycle still lowers a block's minimum entry depth, so an underflow one
+// round produces is reported: `bb1` is entered at depth 2 from `bb0` and at depth 0 through the
+// cycle edge from `bb2`, and operand availability is checked at the minimum.
+//~? ERROR: EVM IR verification failed: block 1: `pop` on an empty stack
+@module module
+
+bb0:
+  push 0
+  push 0
+  jump bb1
+
+bb1:
+  pop
+  push 1
+  jumpi bb2, bb3
+
+bb2:
+  pop
+  jump bb1
+
+bb3:
+  stop

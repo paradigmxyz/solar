@@ -1,0 +1,30 @@
+- // === ROOT/tests/ui/codegen/evm-ir/validation/two_cycle_stack_overflow.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/validation/two_cycle_stack_overflow.evmir (after none) ===
+  @module module
+  bb0:
+    jump bb1
+  bb1:
+    push 0
+    calldataload
+    jumpi bb2, bb3
+  bb2:
+    op_0c !metadata(stack=0->255)
+    op_0c !metadata(stack=0->255)
+    jump bb1
+  bb3:
+    jump bb4
+  bb4:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    calldataload
+    jumpi bb5, bb6
+  bb5:
+    op_0c !metadata(stack=0->255)
+    op_0c !metadata(stack=0->251)
+    jump bb4
+  bb6:
+    stop
+  

@@ -1,0 +1,170 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/loop_state_chain_spill_home.sol:LoopStateChainSpillHome ===
+@module LoopStateChainSpillHome
+fn @pin() -> u256 [selector=0xcf25b09f, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @threeStates(arg0: u256) -> u256 [selector=0x0ce294ff, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb23: v14]
+    v1 = phi [bb0: 0], [bb23: v15]
+    v2 = phi [bb0: 0], [bb23: v2]
+    v3 = phi [bb0: arg0], [bb23: v3]
+    v4 = lt v1, v3
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v5 = eq v0, 0
+    jumpi v5, bb7, bb8
+  bb8:
+    v8 = eq v0, 1
+    jumpi v8, bb13, bb14
+  bb14:
+    v11 = eq v0, 2
+    jumpi v11, bb19, bb20
+  bb20:
+    jump bb21
+  bb19:
+    jump bb21
+  bb21:
+    v12 = phi [bb19: 3], [bb20: v0]
+    jump bb15
+  bb13:
+    v9 = eq v1, 5
+    jumpi v9, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    jump bb18
+  bb18:
+    v10 = phi [bb16: 2], [bb17: v0]
+    jump bb15
+  bb15:
+    v13 = phi [bb18: v10], [bb21: v12]
+    jump bb9
+  bb7:
+    v6 = eq v1, 3
+    jumpi v6, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    jump bb12
+  bb12:
+    v7 = phi [bb10: 1], [bb11: v0]
+    jump bb9
+  bb9:
+    v14 = phi [bb12: v7], [bb15: v13]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v15 = add v1, 1
+    v16 = lt v15, v1
+    jumpi v16, bb22, bb23
+  bb23:
+    jump bb1
+  bb22:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @fourStates(arg0: u256) -> u256 [selector=0xcb11e62b, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb32: v0]
+    v1 = phi [bb0: 0], [bb32: v20]
+    v2 = phi [bb0: 0], [bb32: v2]
+    v3 = phi [bb0: 0], [bb32: v21]
+    v4 = lt v3, v0
+    jumpi v4, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v1
+  bb4:
+    v5 = eq v1, 0
+    jumpi v5, bb7, bb8
+  bb8:
+    v8 = eq v1, 1
+    jumpi v8, bb13, bb14
+  bb14:
+    v11 = eq v1, 2
+    jumpi v11, bb19, bb20
+  bb20:
+    v14 = eq v1, 3
+    jumpi v14, bb25, bb26
+  bb26:
+    jump bb27
+  bb25:
+    v15 = eq v3, 13
+    jumpi v15, bb28, bb29
+  bb29:
+    jump bb30
+  bb28:
+    jump bb30
+  bb30:
+    v16 = phi [bb28: 0], [bb29: v1]
+    jump bb27
+  bb27:
+    v17 = phi [bb30: v16], [bb26: v1]
+    jump bb21
+  bb19:
+    v12 = eq v3, 11
+    jumpi v12, bb22, bb23
+  bb23:
+    jump bb24
+  bb22:
+    jump bb24
+  bb24:
+    v13 = phi [bb22: 3], [bb23: v1]
+    jump bb21
+  bb21:
+    v18 = phi [bb24: v13], [bb27: v17]
+    jump bb15
+  bb13:
+    v9 = eq v3, 5
+    jumpi v9, bb16, bb17
+  bb17:
+    jump bb18
+  bb16:
+    jump bb18
+  bb18:
+    v10 = phi [bb16: 2], [bb17: v1]
+    jump bb15
+  bb15:
+    v19 = phi [bb18: v10], [bb21: v18]
+    jump bb9
+  bb7:
+    v6 = eq v3, 3
+    jumpi v6, bb10, bb11
+  bb11:
+    jump bb12
+  bb10:
+    jump bb12
+  bb12:
+    v7 = phi [bb10: 1], [bb11: v1]
+    jump bb9
+  bb9:
+    v20 = phi [bb12: v7], [bb15: v19]
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v21 = add v3, 1
+    v22 = lt v21, v3
+    jumpi v22, bb31, bb32
+  bb32:
+    jump bb1
+  bb31:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

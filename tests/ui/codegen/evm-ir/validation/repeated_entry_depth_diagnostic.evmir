@@ -1,0 +1,20 @@
+// `bb3` is walked twice, once for the minimum entry depth `bb2` gives it and once for the maximum
+// `bb1` does, and its `pop` sequence underflows at both. The block reports the message once.
+//~? ERROR: EVM IR verification failed: block 3: `pop` on an empty stack
+@module module
+
+bb0:
+  push 1
+  jumpi bb1, bb2
+
+bb1:
+  push 0
+  jump bb3
+
+bb2:
+  jump bb3
+
+bb3:
+  pop
+  pop
+  stop
