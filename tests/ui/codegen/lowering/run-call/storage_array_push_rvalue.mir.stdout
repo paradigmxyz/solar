@@ -808,7 +808,7 @@ fn @pointerRvalue(arg0: u256) -> (u256, u256) [selector=0xd6c30975, abi_params=[
     mstore 0, 0 !metadata(memory=scratch)
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
-    v1 = internal_call @pushThrough, 1, 0
+    v1 = icall @pushThrough, 1, 0
     v2 = sload 0 !metadata(storage=slot(0))
     ret v1, v2
 }

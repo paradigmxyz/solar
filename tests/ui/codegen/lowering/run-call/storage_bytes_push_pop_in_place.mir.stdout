@@ -178,7 +178,7 @@ fn @pushOne(arg0: bytes1) [selector=0x5da02415, abi_params=[bytes1], abi_returns
 
 fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[]] {
   bb0:
-    internal_call @_push, 0, 1
+    icall @_push, 0, 1
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -256,8 +256,8 @@ fn @popOne() [selector=0x53b8a6c6, abi_params=[], abi_returns=[]] {
 
 fn @pushRange(arg0: u256) -> memorybytes [selector=0xcac9de04, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
-    internal_call @_push, 0, arg0
-    v0 = internal_call @load_storage_bytes, 1, 0
+    icall @_push, 0, arg0
+    v0 = icall @load_storage_bytes, 1, 0
     ret v0
 }
 
@@ -274,7 +274,7 @@ fn @pushZero(arg0: u256) -> (memorybytes, u256) [selector=0xb0e28d5e, abi_params
   bb5:
     jump bb2
   bb2:
-    v45 = internal_call @load_storage_bytes, 1, 0
+    v45 = icall @load_storage_bytes, 1, 0
     v46 = sload 0 !metadata(storage=slot(0))
     v47 = and v46, 1
     v48 = eq v47, 1
@@ -378,7 +378,7 @@ fn @pushAssign(arg0: u256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
   bb5:
     jump bb2
   bb2:
-    v52 = internal_call @load_storage_bytes, 1, 0
+    v52 = icall @load_storage_bytes, 1, 0
     ret v52
   bb4:
     v4 = add v1, 1
@@ -473,7 +473,7 @@ fn @pushAssign(arg0: u256) -> memorybytes [selector=0xbcb447d8, abi_params=[u256
 
 fn @popTo(arg0: u256, arg1: u256) -> (memorybytes, u256) [selector=0x6203376f, abi_params=[u256, u256], abi_returns=[memory_bytes, word]] {
   bb0:
-    internal_call @_push, 0, arg0
+    icall @_push, 0, arg0
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb17: v0]
@@ -486,7 +486,7 @@ fn @popTo(arg0: u256, arg1: u256) -> (memorybytes, u256) [selector=0x6203376f, a
   bb5:
     jump bb2
   bb2:
-    v53 = internal_call @load_storage_bytes, 1, 0
+    v53 = icall @load_storage_bytes, 1, 0
     v54 = sload 0 !metadata(storage=slot(0))
     v55 = and v54, 1
     v56 = eq v55, 1
@@ -588,7 +588,7 @@ fn @popTo(arg0: u256, arg1: u256) -> (memorybytes, u256) [selector=0x6203376f, a
 
 fn @slots(arg0: u256, arg1: u256) -> (bytes32, bytes32, bytes32) [selector=0xec823b6d, abi_params=[u256, u256], abi_returns=[word, word, word]] {
   bb0:
-    internal_call @_push, 0, arg0
+    icall @_push, 0, arg0
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb17: v0]
@@ -986,7 +986,7 @@ fn @interleaved(arg0: u256) -> (u256, u256, u256, u256) [selector=0x8a27da89, ab
 
 fn @popEmptyAfter(arg0: u256) [selector=0x7b110cfa, abi_params=[u256], abi_returns=[]] {
   bb0:
-    internal_call @_push, 0, arg0
+    icall @_push, 0, arg0
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb17: v0]
@@ -1322,7 +1322,7 @@ fn @structPushPop(arg0: u256) -> (memorybytes, u256) [selector=0x9c0e8d6f, abi_p
     jump bb26
   bb26:
     v99 = add 1, 1
-    v100 = internal_call @load_storage_bytes, 1, v99
+    v100 = icall @load_storage_bytes, 1, v99
     v101 = sload 1 !metadata(storage=slot(1))
     ret v100, v101
   bb20:
@@ -1498,7 +1498,7 @@ fn @mappingPushPop(arg0: u256) -> memorybytes [selector=0x9881887b, abi_params=[
     jump bb26
   bb26:
     v98 = mapping_slot 7, 3
-    v99 = internal_call @load_storage_bytes, 1, v98
+    v99 = icall @load_storage_bytes, 1, v98
     ret v99
   bb20:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -1597,7 +1597,7 @@ fn @mappingPushPop(arg0: u256) -> memorybytes [selector=0x9881887b, abi_params=[
 
 fn @pointerPushPop(arg0: u256) -> memorybytes [selector=0x3a6f6ba7, abi_params=[u256], abi_returns=[memory_bytes]] {
   bb0:
-    v0 = internal_call @_pushPop, 1, 0, arg0
+    v0 = icall @_pushPop, 1, 0, arg0
     ret v0
 }
 
@@ -1678,7 +1678,7 @@ fn @_pushPop(arg0: storageptr, arg1: u256) -> memorybytes {
     sstore v62, 0 !metadata(storage=symbolic(v62))
     jump bb26
   bb26:
-    v97 = internal_call @load_storage_bytes, 1, v3
+    v97 = icall @load_storage_bytes, 1, v3
     ret v97
   bb20:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

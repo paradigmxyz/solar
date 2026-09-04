@@ -20,7 +20,7 @@ fn @_fill(arg0: u256) {
   bb7:
     jump bb4
   bb4:
-    internal_call @store_storage_bytes, 0, 0, v6
+    icall @store_storage_bytes, 0, 0, v6
     stop
   bb6:
     v9 = add v7, 1
@@ -105,7 +105,7 @@ fn @at(arg0: u256) -> bytes1 [selector=0xe0886f90, view, abi_params=[u256], abi_
 
 fn @readSingle() -> (u8, u256) [selector=0xf6f3185a, abi_params=[], abi_returns=[word<u8>, word]] {
   bb0:
-    internal_call @_fill, 0, 1
+    icall @_fill, 0, 1
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -161,7 +161,7 @@ fn @readSingle() -> (u8, u256) [selector=0xf6f3185a, abi_params=[], abi_returns=
 
 fn @readEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x0ecdc808, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -325,7 +325,7 @@ fn @readEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x0ecdc808, abi_pa
 
 fn @writeEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x633fe221, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word<u8>, word<u8>, word]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = shl 248, 170
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 1
@@ -567,7 +567,7 @@ fn @writeEdges(arg0: u256) -> (u8, u8, u8, u8, u256) [selector=0x633fe221, abi_p
 
 fn @bumpAll(arg0: u256) -> (u256, u256) [selector=0x583a2887, abi_params=[u256], abi_returns=[word, word]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb22: v0]
@@ -767,7 +767,7 @@ fn @bumpAll(arg0: u256) -> (u256, u256) [selector=0x583a2887, abi_params=[u256],
 
 fn @compoundEdges(arg0: u256) -> (u8, u8, u256) [selector=0xd8df6f4c, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -953,7 +953,7 @@ fn @compoundEdges(arg0: u256) -> (u8, u8, u256) [selector=0xd8df6f4c, abi_params
 
 fn @deleteLast(arg0: u256) -> (u8, u8, u256) [selector=0x32a309a7, abi_params=[u256], abi_returns=[word<u8>, word<u8>, word]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = sub arg0, 1
     v1 = lt arg0, 1
     jumpi v1, bb1, bb2
@@ -1093,7 +1093,7 @@ fn @deleteLast(arg0: u256) -> (u8, u8, u256) [selector=0x32a309a7, abi_params=[u
 
 fn @rawByte(arg0: u256) -> u256 [selector=0xa88f9005, abi_params=[u256], abi_returns=[word]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = sub arg0, 1
     v1 = lt arg0, 1
     jumpi v1, bb1, bb2
@@ -1150,7 +1150,7 @@ fn @shortString() -> (u8, u8, u256) [selector=0x2f9c7ab1, abi_params=[], abi_ret
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 1, v0
+    icall @store_storage_bytes, 0, 1, v0
     v2 = sload 1 !metadata(storage=slot(1))
     v3 = and v2, 1
     v4 = eq v3, 1
@@ -1244,7 +1244,7 @@ fn @longString() -> (u8, u8, u256) [selector=0x68a55dc0, abi_params=[], abi_retu
     mstore v1, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435
     v2 = add v1, 32
     mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 1, v0
+    icall @store_storage_bytes, 0, 1, v0
     v3 = sload 1 !metadata(storage=slot(1))
     v4 = and v3, 1
     v5 = eq v4, 1
@@ -1336,7 +1336,7 @@ fn @writeShortString() -> (u8, u8, u256) [selector=0x9aa67864, abi_params=[], ab
     set_memory_object_len memorybytes, v0, 5
     v1 = memory_object_data memorybytes, v0
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 1, v0
+    icall @store_storage_bytes, 0, 1, v0
     v2 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v2, 1
     v3 = memory_object_data memorybytes, v2
@@ -1478,7 +1478,7 @@ fn @writeLongString() -> (u8, u8, u256) [selector=0x233b60b4, abi_params=[], abi
     mstore v1, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435
     v2 = add v1, 32
     mstore v2, 0x3600000000000000000000000000000000000000000000000000000000000000
-    internal_call @store_storage_bytes, 0, 1, v0
+    icall @store_storage_bytes, 0, 1, v0
     v3 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v3, 1
     v4 = memory_object_data memorybytes, v3
@@ -1614,7 +1614,7 @@ fn @writeLongString() -> (u8, u8, u256) [selector=0x233b60b4, abi_params=[], abi
 
 fn @readOob(arg0: u256) -> u8 [selector=0x4043349b, abi_params=[u256], abi_returns=[word<u8>]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -1660,7 +1660,7 @@ fn @readOob(arg0: u256) -> u8 [selector=0x4043349b, abi_params=[u256], abi_retur
 
 fn @writeOob(arg0: u256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = shl 248, 1
     v1 = sload 0 !metadata(storage=slot(0))
     v2 = and v1, 1
@@ -1711,7 +1711,7 @@ fn @writeOob(arg0: u256) [selector=0x4621e8f8, abi_params=[u256], abi_returns=[]
 
 fn @deleteOob(arg0: u256) [selector=0xfb2fda33, abi_params=[u256], abi_returns=[]] {
   bb0:
-    internal_call @_fill, 0, arg0
+    icall @_fill, 0, arg0
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 1
     v2 = eq v1, 1
@@ -1804,7 +1804,7 @@ fn @store_storage_bytes(arg0: u256, arg1: memorybytes) {
     v19 = and v2, v18
     jumpi v19, bb5, bb6
   bb5:
-    internal_call @clear_storage_words, 0, arg0, v17, v12
+    icall @clear_storage_words, 0, arg0, v17, v12
     jump bb6
   bb6:
     jumpi v16, bb7, bb8
