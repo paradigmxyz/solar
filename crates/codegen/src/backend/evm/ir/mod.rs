@@ -682,10 +682,11 @@ pub(crate) struct Metadata {
     /// the gas consumed between two instructions is observable, such as a pre-EIP-150 call's
     /// `GAS`-relative gas reserve.
     ///
-    /// The flag records only that the pair is glued, not what it is glued to, so verification can
-    /// reject a block that ends with a flagged instruction but cannot tell that a transform
-    /// swapped the successor for another instruction. Transforms therefore check the boundary
-    /// themselves, through `is_split_point`.
+    /// The flag records only that the pair is glued, not what it is glued to, so verification
+    /// checks the reserve by shape instead: a glued `GAS` has to reach a glued `SUB` and a glued
+    /// `SUB` the call itself, which rejects an instruction inserted into the sequence as well as
+    /// a block that ends inside it. Transforms still check the boundary themselves, through
+    /// `is_split_point`, rather than leaving a split for the verifier to catch.
     pub(crate) keep_with_next: bool,
     /// Solidity source span associated with this machine operation.
     source_spans: DebugSpans,

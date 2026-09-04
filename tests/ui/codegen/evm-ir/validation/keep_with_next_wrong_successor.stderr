@@ -1,0 +1,8 @@
+error: EVM IR verification failed: block 0: `sub` is kept with the next instruction, which must be a call, not `dup`
+
+error: EVM IR verification failed: block 1: `gas` is kept with the next instruction, which must be a `sub` kept with the call, not `dup`
+
+error: EVM IR verification failed: block 2: `mload` cannot be kept with a next instruction
+
+error: aborting due to 3 previous errors
+
