@@ -185,7 +185,7 @@ impl<'a> Validator<'a> {
             });
 
             // ----- Walk instructions in this block -----
-            let block_preds: Vec<BlockId> = block.predecessors.iter().copied().collect();
+            let block_preds = &block.predecessors;
             for &inst_id in &block.instructions {
                 if inst_id.index() >= num_insts {
                     self.emit_at_block(
@@ -288,7 +288,7 @@ impl<'a> Validator<'a> {
                         }
                     }
                     // Every predecessor must appear in the incoming list.
-                    for pred in &block_preds {
+                    for pred in block_preds {
                         if !incoming.iter().any(|(b, _)| b == pred) {
                             self.emit_at_inst(
                                 format_args!(
@@ -633,12 +633,11 @@ impl<'a> Validator<'a> {
             // callee that never returns (an outlined revert stub) delivers
             // nothing, and an external caller's MIR signature does not model
             // its ABI returns, so both are exempt.
-            let callee_can_return = callee.blocks.iter().any(|block| {
-                matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
-            });
             if func.selector.is_none()
-                && callee_can_return
                 && func.returns.len() != callee.returns.len()
+                && callee.blocks.iter().any(|block| {
+                    matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
+                })
             {
                 self.emit(format_args!(
                     "tail_call to `{}` returns {} value(s), caller signature expects {}",
