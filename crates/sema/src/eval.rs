@@ -340,6 +340,11 @@ impl IntTy {
         }
     }
 
+    /// Returns the widest integer type of the given signedness.
+    fn full_width(signed: bool) -> Self {
+        Self { signed, size: TypeSize::new_int_bits(256) }
+    }
+
     /// Returns the type both `self` and `other` implicitly convert to, if any.
     ///
     /// Integer types only convert implicitly to wider types of the same signedness.
@@ -512,10 +517,22 @@ impl IntScalar {
     /// in the common type of both operands. A literal operand adopts the other operand's type
     /// when it fits in it; otherwise, and for operands without a common type, the result stays
     /// untyped because the type checker already rejects such operands.
+    ///
+    /// A shift or exponentiation whose left operand is a literal and whose right operand is
+    /// typed is the exception: the type checker gives the literal its mobile type, which for
+    /// these operators is the full-width integer type of the literal's sign, so the operation is
+    /// performed in `uint256` or `int256` rather than at full precision. Keeping it unbounded
+    /// would fold `(1 << SHIFT) >> SHIFT` to `1` where the EVM shifts the bit out and yields `0`,
+    /// and would let an exponentiation that reverts with `Panic(0x11)` at runtime evaluate to a
+    /// value wider than a word.
     fn binop_ty(l: &Self, r: &Self, op: hir::BinOpKind) -> Option<IntTy> {
         use hir::BinOpKind::*;
         match op {
-            Shl | Shr | Sar | Pow => l.ty,
+            Shl | Shr | Sar | Pow => match (l.ty, r.ty) {
+                (Some(ty), _) => Some(ty),
+                (None, Some(_)) => Some(IntTy::full_width(l.data.is_negative())),
+                (None, None) => None,
+            },
             _ => match (l.ty, r.ty) {
                 (None, None) => None,
                 (Some(ty), None) => ty.contains(&r.data).then_some(ty),

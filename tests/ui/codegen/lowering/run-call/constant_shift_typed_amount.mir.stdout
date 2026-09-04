@@ -1,0 +1,85 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/constant_shift_typed_amount.sol:C ===
+@module C
+fn @shl255() -> u256 [selector=0xcc0960fa, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 0x8000000000000000000000000000000000000000000000000000000000000000
+}
+
+fn @round255() -> u256 [selector=0xc640ed0c, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
+fn @shl256() -> u256 [selector=0x6f0a6f55, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = shl 256, 1
+    ret v0
+}
+
+fn @round256() -> u256 [selector=0x18bce979, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = shl 256, 1
+    v1 = shr 256, v0
+    ret v1
+}
+
+fn @shr256() -> u256 [selector=0xe3729ce8, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 0
+}
+
+fn @negativeShl() -> i256 [selector=0x23aa9ca8, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+}
+
+fn @negativePow() -> i256 [selector=0x31bd6b2c, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 256
+}
+
+fn @pow() -> u256 [selector=0xef7e1e89, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    ret 0x19a1
+}
+
+fn @pow256() -> u256 [selector=0x7ae45de1, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 1], [bb6: v12]
+    v1 = phi [bb0: 2], [bb6: v14]
+    v2 = phi [bb0: 256], [bb6: v13]
+    v3 = gt v2, 0
+    jumpi v3, bb2, bb3
+  bb3:
+    ret v0
+  bb2:
+    v4 = and v2, 1
+    v5 = mul v0, v1
+    v6 = iszero v1
+    v7 = div v5, v1
+    v8 = eq v7, v0
+    v9 = or v6, v8
+    v10 = iszero v9
+    v11 = and v4, v10
+    jumpi v11, bb4, bb5
+  bb5:
+    v12 = select v4, v5, v0
+    v13 = shr 1, v2
+    v14 = mul v1, v1
+    v15 = iszero v1
+    v16 = div v14, v1
+    v17 = eq v16, v1
+    v18 = or v15, v17
+    v19 = iszero v18
+    v20 = gt v13, 0
+    v21 = and v20, v19
+    jumpi v21, bb4, bb6
+  bb6:
+    jump bb1
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
