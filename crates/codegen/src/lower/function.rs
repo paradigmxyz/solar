@@ -233,12 +233,13 @@ struct FunctionLowerer<'gcx, 'ctx> {
     /// contract has no code of its own yet. Functions shared with the runtime object are
     /// copied into the creation code, so this is `true` for them as well.
     in_creation_code: bool,
-    /// The expression of the expression statement being lowered, whose value nothing observes.
+    /// The expressions of the expression statement being lowered, whose values nothing observes.
     ///
     /// Lowering an expression that has to read storage to produce its value can skip the read
-    /// here. Only the statement's own expression qualifies: every subexpression feeds the value
-    /// it belongs to.
-    discarded_expr: Option<hir::ExprId>,
+    /// here. Only the statement's own expression and the tuple components and conditional
+    /// branches that just hand their value up to it qualify: every other subexpression feeds the
+    /// value it belongs to.
+    discarded_exprs: Vec<hir::ExprId>,
 }
 
 /// The lowered `{gas: ..., value: ...}` options of an external call.
@@ -450,7 +451,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             unchecked: false,
             in_inline_assembly: false,
             in_creation_code: false,
-            discarded_expr: None,
+            discarded_exprs: Vec::new(),
         }
     }
 
