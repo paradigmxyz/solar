@@ -1958,7 +1958,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     let mut has_reference_or_mapping_type_slot = None;
     let mut has_reference_or_mapping_type = || {
         *has_reference_or_mapping_type_slot
-            .get_or_insert_with(|| ty.is_reference_type() || ty.has_mapping(gcx))
+            .get_or_insert_with(|| ty.has_reference_or_mapping_type(gcx))
     };
 
     let mut func_vis = None;

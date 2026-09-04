@@ -302,6 +302,15 @@ impl<'gcx> Ty<'gcx> {
         .is_break()
     }
 
+    /// Returns `true` if the type takes a data location.
+    ///
+    /// This is solc's `hasReferenceOrMappingType`, which every data-location rule is written
+    /// against. The mapping half is redundant, since a reference type is anything that can
+    /// contain a mapping, but it keeps the predicate recognizable against the upstream rules.
+    pub fn has_reference_or_mapping_type(self, gcx: Gcx<'gcx>) -> bool {
+        self.is_reference_type() || self.has_mapping(gcx)
+    }
+
     /// Returns `true` if this type contains a library contract type.
     pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
         self.visit_with_structs(gcx, &mut |ty| match ty.kind {

@@ -1427,7 +1427,7 @@ impl<'gcx> TypeChecker<'gcx> {
             // way `var_type` has already reported it and rewritten the location, so the
             // variable's type says nothing and solc reports only the declaration.
             let bare = actual.peel_refs();
-            let valid_location = if bare.is_reference_type() || bare.has_mapping(self.gcx) {
+            let valid_location = if bare.has_reference_or_mapping_type(self.gcx) {
                 Some(DataLocation::Memory)
             } else {
                 None
