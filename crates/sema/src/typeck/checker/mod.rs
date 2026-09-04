@@ -1206,6 +1206,61 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Rejects a base constructor whose arguments two contracts of the
+    /// hierarchy both give.
+    ///
+    /// Which of the two lists the constructor would be called with is
+    /// arbitrary, so the program has no unambiguous meaning. solc reports it
+    /// as declaration error 3364 in
+    /// `ContractLevelChecker::annotateBaseConstructorArguments`.
+    fn check_base_constructor_arguments_given_twice(&self, contract: &'gcx hir::Contract<'gcx>) {
+        if contract.linearization_failed() {
+            return;
+        }
+        for &base_id in contract.linearized_bases.iter().skip(1) {
+            if self.gcx.hir.contract(base_id).ctor.is_none() {
+                continue;
+            }
+            let mut first = None;
+            for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
+                let writer = self.gcx.hir.contract(writer_id);
+                // One contract gives a base at most one argument list; giving
+                // two is reported where the lists are resolved.
+                let Some(index) =
+                    writer.linearized_bases.iter().skip(1).position(|&id| id == base_id)
+                else {
+                    continue;
+                };
+                let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
+                else {
+                    continue;
+                };
+                if modifier.args.is_empty() {
+                    continue;
+                }
+                let Some((first_index, first_span)) = first else {
+                    first = Some((writer_index, modifier.span));
+                    continue;
+                };
+                let err = self
+                    .dcx()
+                    .err("base constructor arguments given twice")
+                    .code(error_code!(3364));
+                // Point at a list of this contract when it wrote one, the way
+                // solc prefers a location inside the contract being checked.
+                let err = if first_index == 0 {
+                    err.span(first_span).span_note(modifier.span, "second argument list is here")
+                } else {
+                    err.span(contract.name.span)
+                        .span_note(first_span, "first argument list is here")
+                        .span_note(modifier.span, "second argument list is here")
+                };
+                err.emit();
+                break;
+            }
+        }
+    }
+
     /// Checks the argument list of a modifier invocation against the modifier's
     /// parameters.
     ///
@@ -2757,6 +2812,8 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         if let Some(slot) = contract.layout {
             self.check_storage_layout_base_slot(slot);
         }
+
+        self.check_base_constructor_arguments_given_twice(contract);
 
         // Check base constructor arguments. `is Base` without parentheses
         // provides no arguments here (deferred to a derived contract, or the
