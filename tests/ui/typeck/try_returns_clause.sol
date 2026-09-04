@@ -19,6 +19,25 @@ library L {
     function slot(uint256[] storage s) external returns (uint256[] storage) {
         return s;
     }
+
+    // A clause parameter is declared in the clause's own scope, so a library function does not
+    // widen its locations the way it widens its own parameters'.
+    function inLibrary(address a) internal {
+        try I(a).arr() returns (uint256[] storage r) {
+            //~^ ERROR: invalid data location `storage`
+            r;
+        } catch {}
+    }
+}
+
+// A constructor's parameters may be `storage` pointers; a clause's may not.
+contract Constructing {
+    constructor(address a) {
+        try I(a).arr() returns (uint256[] storage r) {
+            //~^ ERROR: invalid data location `storage`
+            r;
+        } catch {}
+    }
 }
 
 contract Mismatch {
@@ -149,6 +168,14 @@ contract C {
 
     function internal_() internal pure returns (uint256) {
         return 1;
+    }
+
+    // Nor does an internal function, whose own parameters may be `storage` pointers.
+    function inInternal(address a) internal {
+        try I(a).arr() returns (uint256[] storage r) {
+            //~^ ERROR: invalid data location `storage`
+            r;
+        } catch {}
     }
 
     // Valid companions: the same types, a creation call, no `returns` clause at all, and a
