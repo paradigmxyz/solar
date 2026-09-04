@@ -44,6 +44,12 @@ error: free functions must be implemented
 LL │ function xyz();
    ╰╴━━━━━━━━━━━━━━━
 
+error[4726]: functions in interfaces cannot have an implementation
+   ╭▸ ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
+   │
+LL │     function c() {}
+   ╰╴    ━━━━━━━━━━━━━━━
+
 error[1560]: functions in interfaces must be declared `external`
    ╭▸ ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    │
@@ -56,5 +62,5 @@ error: receive ether function must be defined as `external`
 LL │     receive() payable {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 8 previous errors
+error: aborting due to 9 previous errors
 

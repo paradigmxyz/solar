@@ -14,7 +14,7 @@ contract C {
 }
 
 interface I {
-    function f() external virtual;
+    function f() external virtual; //~ WARN: interface functions are implicitly `virtual`
 }
 
 library L {

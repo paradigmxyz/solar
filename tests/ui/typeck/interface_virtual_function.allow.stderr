@@ -1,0 +1,14 @@
+error[1560]: functions in interfaces must be declared `external`
+   ╭▸ ROOT/tests/ui/typeck/interface_virtual_function.sol:LL:CC
+   │
+LL │     function foo() private virtual;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[3942]: `virtual` and `private` cannot be used together
+   ╭▸ ROOT/tests/ui/typeck/interface_virtual_function.sol:LL:CC
+   │
+LL │     function bar() private virtual {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
