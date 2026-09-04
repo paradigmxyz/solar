@@ -1349,14 +1349,16 @@ impl<'gcx> TypeChecker<'gcx> {
     ///
     /// Only an external call, a delegate call, and a contract creation call have a revert of
     /// their own to catch and return data to decode; every other callee either cannot fail
-    /// separately from the caller or has no return data. solc reports 5347 for a target that is
-    /// not a function call at all and 2536 for a call of another kind, with the same message,
-    /// and checks no clause of either.
+    /// separately from the caller or has no return data. solc reports the same message under two
+    /// codes and checks no clause of either: 5347 for a target that is not a call, and 2536 for a
+    /// call of another kind.
     fn check_try_target(&self, try_: &'gcx hir::StmtTry<'gcx>) -> Option<&'gcx TyFn<'gcx>> {
         let expr = try_.expr.peel_parens();
-        if let hir::ExprKind::Call(callee, ..) = expr.kind
-            && let Some(&callee_ty) = self.results.expr_types.get(&callee.id)
-        {
+        let callee_ty = match expr.kind {
+            hir::ExprKind::Call(callee, ..) => self.results.expr_types.get(&callee.id).copied(),
+            _ => None,
+        };
+        if let Some(callee_ty) = callee_ty {
             // A callee that failed to check says nothing about the statement.
             if callee_ty.references_error() {
                 return None;
@@ -1370,9 +1372,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 return Some(f);
             }
         }
+        // A type conversion and a struct construction are calls in the grammar only: their
+        // callee names a type rather than a callable, and solc reports them with 5347 like a
+        // target that is no call at all.
+        let is_call = callee_ty.is_some_and(|ty| !matches!(ty.kind, TyKind::Type(_)));
+        let code = if is_call { error_code!(2536) } else { error_code!(5347) };
         self.dcx()
             .err("`try` can only be used with external function calls and contract creation calls")
-            .code(error_code!(2536))
+            .code(code)
             .span(try_.expr.span)
             .emit();
         None

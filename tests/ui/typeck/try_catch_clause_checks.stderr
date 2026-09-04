@@ -35,8 +35,32 @@ LL │         try gasleft() returns (uint256 v) {
 error[2536]: `try` can only be used with external function calls and contract creation calls
    ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
    │
+LL │         try new bytes(4) returns (bytes memory b) {
+   ╰╴            ━━━━━━━━━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
 LL │         try I(a) returns (I i) {
    ╰╴            ━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try uint256(x) returns (uint256 v) {
+   ╰╴            ━━━━━━━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try S(1) returns (S memory s) {
+   ╰╴            ━━━━
+
+error[5347]: `try` can only be used with external function calls and contract creation calls
+   ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
+   │
+LL │         try x++ returns (uint256 v) {
+   ╰╴            ━━━
 
 error[2536]: `try` can only be used with external function calls and contract creation calls
    ╭▸ ROOT/tests/ui/typeck/try_catch_clause_checks.sol:LL:CC
@@ -144,5 +168,5 @@ LL │         } catch Custom(uint256) {}
    │
    ╰ help: expected `catch (...)`, `catch Error(...)`, or `catch Panic(...)`
 
-error: aborting due to 17 previous errors
+error: aborting due to 21 previous errors
 

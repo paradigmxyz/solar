@@ -6,6 +6,10 @@ interface I {
     function f() external returns (uint256);
 }
 
+struct S {
+    uint256 a;
+}
+
 contract C {
     function internal_() internal returns (uint256) {
         return 1;
@@ -13,7 +17,7 @@ contract C {
 
     // Only an external call, a delegate call, and a contract creation call have a revert of
     // their own to catch. An internal call, a builtin, and a type conversion do not, and the
-    // clauses of such a statement are not checked at all.
+    // clauses of such a statement are not checked at all. A call of another kind is 2536.
     function target(address a, bytes memory d) external {
         try internal_() returns (uint256 v) {
             //~^ ERROR: `try` can only be used with external function calls and contract creation calls
@@ -27,9 +31,30 @@ contract C {
             //~^ ERROR: `try` can only be used with external function calls and contract creation calls
             v;
         } catch {}
+        try new bytes(4) returns (bytes memory b) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
+            b;
+        } catch {}
+    }
+
+    // A target that is no call at all is 5347, and so are the two constructs that are calls in
+    // the grammar only: a type conversion and a struct construction.
+    function targetNotACall(address a, uint256 x) external {
         try I(a) returns (I i) {
             //~^ ERROR: `try` can only be used with external function calls and contract creation calls
             i;
+        } catch {}
+        try uint256(x) returns (uint256 v) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
+            v;
+        } catch {}
+        try S(1) returns (S memory s) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
+            s;
+        } catch {}
+        try x++ returns (uint256 v) {
+            //~^ ERROR: `try` can only be used with external function calls and contract creation calls
+            v;
         } catch {}
     }
 
