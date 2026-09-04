@@ -1384,15 +1384,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if returns == 0 {
             return Some(Vec::new());
         }
-        let data = if let Some((data, buffer, size)) = static_buffer {
+        let source = if let Some((object, data, size)) = static_buffer {
             self.revert_if_short_returndata(size);
             if plan.overlays_input {
                 // The output area overlays the arguments, so the values move out of it before the
                 // decoding allocates over them.
-                // mcopy(buffer, ret_offset, ret_size)
-                self.builder.mcopy(buffer, offset, size);
+                // mcopy(data, ret_offset, ret_size)
+                self.builder.mcopy(data, offset, size);
             }
-            Some(data)
+            Some(object)
         } else if decode_returndata {
             if !self.cx.gcx.sess.opts.evm_version.supports_returndata() {
                 return report_error(self.cx.gcx, span, unsupported_returndata);
@@ -1401,11 +1401,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         } else {
             None
         };
-        if let Some(data) = data {
+        if let Some(source) = source {
             return if mode == ExternalReturnMode::All {
-                self.lower_abi_decode_values(data, return_tys, span)
+                self.lower_abi_decode_values(source, return_tys, span)
             } else {
-                self.lower_decoded_return_value(data, return_tys, span).map(|value| vec![value])
+                self.lower_decoded_return_value(source, return_tys, span).map(|value| vec![value])
             };
         }
         self.validate_static_returndata(offset, return_tys);

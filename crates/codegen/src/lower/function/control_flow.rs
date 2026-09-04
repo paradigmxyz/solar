@@ -340,12 +340,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         // Before Byzantium only a bare `catch { }` is lowerable: there is no return data for a
-        // typed clause to match or bind, and the type checker already rejected one.
+        // typed clause to match or bind. The type checker rejects one, so this reports rather
+        // than bailing silently, which would leave the caller without a diagnostic.
         let supports_returndata = self.cx.gcx.sess.opts.evm_version.supports_returndata();
         if !supports_returndata
-            && catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty())
+            && let Some(clause) =
+                catch_clauses.iter().find(|clause| clause.name.is_some() || !clause.args.is_empty())
         {
-            return None;
+            return self.cx.report_unsupported(clause.span, "typed catch clause");
         }
         if args.len() != target.parameter_types.len() {
             return self.cx.report_unsupported(args.span, "try argument list");
