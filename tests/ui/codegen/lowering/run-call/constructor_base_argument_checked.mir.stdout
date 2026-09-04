@@ -112,7 +112,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]]
 
 fn @constructor() [constructor] {
   bb0:
-    v0 = internal_call @two, 1
+    v0 = icall @two, 1
     v1 = mul v0, 3
     v2 = iszero 3
     v3 = div v1, 3
@@ -275,7 +275,7 @@ fn @two() -> u256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word]]
 @module CheckedBaseArgElement
 fn @constructor(arg0: u256) [constructor, abi_params=[u256]] {
   bb0:
-    v0 = internal_call @table, 1
+    v0 = icall @table, 1
     v1 = lt arg0, 2
     v2 = iszero v1
     jumpi v2, bb1, bb2
