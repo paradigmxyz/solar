@@ -115,8 +115,9 @@ base constructor call in a constructor header, and of a modifier invocation as
 a plain expression list, so `contract D is Base({b: 1, a: 2})` and
 `function f() m({b: 3, a: 4})` are parse errors there (ParserError 6933,
 "Expected primary expression"). `solar` accepts the named form in all three
-positions and binds the arguments by parameter name, with the same
-duplicate-name, unknown-name, and arity checks as a named function call.
+positions and binds the arguments by parameter name. In each of them the list
+gets the same checks as a named function call's: argument types, arity,
+duplicate names, and names that no parameter has.
 
 Rationale: the restriction is a shortcoming of `solc`'s grammar rather than a
 language rule; these lists denote calls to a constructor or a modifier, and the
@@ -124,6 +125,7 @@ named form has one unambiguous meaning. We deliberately support this extended
 form. Every program `solc` accepts here has the same meaning in `solar`.
 
 Coverage: `tests/ui/typeck/base_arguments.sol`,
+`tests/ui/typeck/modifier_arguments.sol`,
 `tests/ui/codegen/lowering/base_constructor_args.sol`, and
 `tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`.
 
