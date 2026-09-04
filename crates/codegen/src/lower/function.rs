@@ -515,7 +515,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 values[index] = Some(lower(self, index, argument)?);
             }
         }
-        Some(values.into_iter().map(|value| value.expect("argument lowered")).collect())
+        // A slot stays unfilled only when the argument list does not bind every
+        // parameter, which sema reports; codegen still runs after a sema error,
+        // so bail out instead of lowering a partially bound call.
+        values.into_iter().collect()
     }
 
     fn lower_call_options(

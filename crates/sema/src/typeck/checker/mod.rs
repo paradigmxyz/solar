@@ -1206,6 +1206,42 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Checks the argument list of a modifier invocation against the modifier's
+    /// parameters.
+    ///
+    /// A modifier invocation denotes a call, so its arguments get the same
+    /// arity, name, and type checks as a function call's. Without them a
+    /// mismatched or duplicated argument reaches codegen, which has no way to
+    /// bind it.
+    fn check_modifier_invocation_args(
+        &mut self,
+        modifier: &'gcx hir::Modifier<'gcx>,
+        param_tys: &[Ty<'gcx>],
+    ) {
+        // A modifier invocation without an argument list gives no arguments,
+        // so it only type checks for a modifier without parameters.
+        if modifier.args.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for modifier invocation: {} arguments given but expected {}",
+                    modifier.args.len(),
+                    param_tys.len()
+                ))
+                .code(error_code!(2973))
+                .span(modifier.span)
+                .emit();
+            for arg in modifier.args.exprs() {
+                let _ = self.check_expr_once(arg);
+            }
+            return;
+        }
+        let param_names = modifier
+            .id
+            .as_function()
+            .map(|id| CallableParamSource::Function { id, skips_receiver: false });
+        let _ = self.check_call_args(modifier.span, &modifier.args, param_tys, param_names);
+    }
+
     fn check_builtin_call_args(
         &mut self,
         call_span: Span,
@@ -2702,10 +2738,16 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        // A base constructor call in a constructor header is checked with the
+        // contract's other base argument lists, in `visit_contract`.
         if matches!(modifier.id, hir::ItemId::Contract(_)) {
             return ControlFlow::Continue(());
         }
-        self.walk_modifier(modifier)
+        let Some(param_tys) = self.gcx.item_parameter_types_opt(modifier.id) else {
+            return self.walk_modifier(modifier);
+        };
+        self.check_modifier_invocation_args(modifier, param_tys);
+        ControlFlow::Continue(())
     }
 
     fn visit_contract(
