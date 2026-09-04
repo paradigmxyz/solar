@@ -6,7 +6,6 @@
 contract Base {
     constructor(uint, int) {} //~[bin] ERROR: codegen rewrite does not support this base constructor arguments yet
     //~[bin]^ ERROR: codegen rewrite does not support this base constructor arguments yet
-    //~[bin]^^ ERROR: codegen rewrite does not support this base constructor arguments yet
 }
 contract Derived is Base(2, 3) { }
 contract Derived1 is Base {

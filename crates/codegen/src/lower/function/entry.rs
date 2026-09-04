@@ -77,6 +77,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Lowers every base constructor's argument list into the derived
     /// constructor's frame, before any base constructor body is lowered.
     ///
+    /// The lists are evaluated in the order
+    /// [`base_constructor_arg_lists`](Self::base_constructor_arg_lists)
+    /// returns them, and the chosen list for each base is recorded for the
+    /// body lowering that follows.
+    ///
     /// The bindings stay live: an argument expression may assign to a
     /// constructor parameter, and, because every argument list is evaluated
     /// before the first base body runs, that assignment is visible to the
@@ -84,22 +89,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// would lower each body from the parameter values the arguments started
     /// with instead.
     fn prepare_base_constructor_arguments(&mut self, contract_id: hir::ContractId) -> Option<()> {
-        let bases = self.cx.gcx.hir.contract(contract_id).linearized_bases;
-        let mut prepared = FxHashSet::default();
-        for (index, &base_id) in bases.iter().skip(1).enumerate() {
-            if !prepared.insert(base_id) {
-                continue;
+        self.base_args = self.base_constructor_arg_lists(contract_id);
+        // A base constructor without parameters is called with no arguments,
+        // whether or not any contract wrote a list for it.
+        for &base_id in self.cx.gcx.hir.contract(contract_id).linearized_bases.iter().skip(1) {
+            if let Some(constructor_id) = self.cx.gcx.hir.contract(base_id).ctor
+                && self.cx.gcx.hir.function(constructor_id).parameters.is_empty()
+                && !self.base_args.iter().any(|&(id, _)| id == base_id)
+            {
+                self.base_args.push((base_id, hir::CallArgs::default()));
             }
+        }
+        for index in 0..self.base_args.len() {
+            let (base_id, args) = self.base_args[index];
             let Some(constructor_id) = self.cx.gcx.hir.contract(base_id).ctor else {
                 continue;
             };
             let constructor = self.cx.gcx.hir.function(constructor_id);
-            let Some(args) = self
-                .base_constructor_args(contract_id, base_id, index)
-                .or_else(|| constructor.parameters.is_empty().then(hir::CallArgs::default))
-            else {
-                continue;
-            };
             if args.len() != constructor.parameters.len() {
                 return self.cx.report_unsupported(constructor.span, "base constructor arguments");
             }
@@ -173,7 +179,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lowered: &mut FxHashSet<hir::ContractId>,
     ) -> Option<()> {
         let bases = self.cx.gcx.hir.contract(contract_id).linearized_bases;
-        for (index, &base_id) in bases.iter().skip(1).enumerate().rev() {
+        for &base_id in bases.iter().skip(1).rev() {
             if !lowered.insert(base_id) {
                 continue;
             }
@@ -182,10 +188,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             };
             let constructor = self.cx.gcx.hir.function(constructor_id);
-            let Some(args) = self
-                .base_constructor_args(contract_id, base_id, index)
-                .or_else(|| constructor.parameters.is_empty().then(hir::CallArgs::default))
-            else {
+            let Some(args) = self.base_constructor_args(base_id) else {
                 continue;
             };
             let modifier = hir::Modifier {
@@ -199,38 +202,43 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn base_constructor_args(
+    /// Returns the base constructor argument lists of `contract_id`'s
+    /// hierarchy, in evaluation order.
+    ///
+    /// solc evaluates the lists grouped by the contract that wrote them, the
+    /// most derived writer first, and inside one writer in that writer's own
+    /// inheritance order; see `IRGenerator::evaluateConstructorArguments`,
+    /// which evaluates a writer's lists at the top of that writer's
+    /// constructor before the next constructor in the chain runs. Ordering the
+    /// lists by the base they target instead runs their side effects in a
+    /// different order.
+    fn base_constructor_arg_lists(
         &self,
         contract_id: hir::ContractId,
-        base_id: hir::ContractId,
-        index: usize,
-    ) -> Option<hir::CallArgs<'gcx>> {
-        let contract = self.cx.gcx.hir.contract(contract_id);
-        let mut empty = None;
-        if let Some(modifier) = contract.linearized_bases_args.get(index).copied().flatten() {
-            if !modifier.args.is_empty() {
-                return Some(modifier.args);
-            }
-            empty = Some(modifier.args);
-        }
-
-        for &ancestor_id in contract.linearized_bases.iter().skip(1) {
-            let ancestor = self.cx.gcx.hir.contract(ancestor_id);
-            let Some(ancestor_index) =
-                ancestor.linearized_bases.iter().skip(1).position(|&id| id == base_id)
-            else {
-                continue;
-            };
-            if let Some(modifier) =
-                ancestor.linearized_bases_args.get(ancestor_index).copied().flatten()
-            {
-                if !modifier.args.is_empty() {
-                    return Some(modifier.args);
+    ) -> Vec<(hir::ContractId, hir::CallArgs<'gcx>)> {
+        let hir = &self.cx.gcx.hir;
+        let mut lists = Vec::new();
+        for &writer_id in hir.contract(contract_id).linearized_bases {
+            let writer = hir.contract(writer_id);
+            for (index, &base_id) in writer.linearized_bases.iter().skip(1).enumerate() {
+                // An empty list gives no arguments, so a list written for the
+                // same base further up the hierarchy still applies.
+                if let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
+                    && !modifier.args.is_empty()
+                    && !lists.iter().any(|&(id, _)| id == base_id)
+                {
+                    lists.push((base_id, modifier.args));
                 }
-                empty.get_or_insert(modifier.args);
             }
         }
-        empty
+        lists
+    }
+
+    pub(super) fn base_constructor_args(
+        &self,
+        base_id: hir::ContractId,
+    ) -> Option<hir::CallArgs<'gcx>> {
+        self.base_args.iter().find(|&&(id, _)| id == base_id).map(|&(_, args)| args)
     }
 
     pub(super) fn finish(&mut self, returns: &[VariableId]) -> Option<()> {
