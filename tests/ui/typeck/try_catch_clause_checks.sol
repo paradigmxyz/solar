@@ -4,10 +4,17 @@
 
 interface I {
     function f() external returns (uint256);
+
+    function pay() external payable returns (uint256);
 }
 
 struct S {
     uint256 a;
+}
+
+// A payable constructor, so a creation call can carry a `value` option.
+contract Created {
+    constructor() payable {}
 }
 
 contract C {
@@ -150,5 +157,17 @@ contract C {
             c;
         } catch {}
         try this.valid(a) {} catch {}
+    }
+
+    // Call options are part of the call expression, so an option-bearing target is checked
+    // like any other: the callee's kind decides, and the clauses are checked against it.
+    function validCallOptions(I i, uint256 v, bytes32 s, uint256 g) external payable {
+        try i.pay{value: v}() returns (uint256 x) {
+            x;
+        } catch {}
+        try new Created{value: v, salt: s}() returns (Created c) {
+            c;
+        } catch {}
+        try this.validCallOptions{gas: g}(i, v, s, g) {} catch {}
     }
 }
