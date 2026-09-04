@@ -158,7 +158,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(source_types) = source_types
                 .filter(|types| types.len() == values.len() && values.len() == returns.len())
             else {
-                return Some(values);
+                // Without one source type per lowered value per declared return there is no way
+                // to tell which value needs which conversion, and a storage reference among them
+                // would travel on as a raw slot word.
+                return self.cx.report_unsupported(expr.span, "return value arity");
             };
             return values
                 .into_iter()
@@ -200,9 +203,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // A component the callee returned as a storage reference arrives as the slot word, which
         // is not a memory pointer; copy the object out of storage instead of returning the slot.
         // object = load_storage_object(target_ty, slot)
-        if source_ty.is_ref_at(DataLocation::Storage)
-            && self.types.memory_layout(target_ty).is_some()
-        {
+        if source_ty.is_ref_at(DataLocation::Storage) {
+            // A target without a memory layout has nowhere to hold the copy, so there is no
+            // conversion to emit and the slot word must not be handed on as a memory pointer.
+            if self.types.memory_layout(target_ty).is_none() {
+                return self.cx.report_unsupported(span, "storage reference return");
+            }
             return self.load_storage_object(target_ty, value, span);
         }
         let value = if target_ty.is_ref_at(DataLocation::Memory) {
