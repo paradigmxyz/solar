@@ -603,7 +603,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let (value, source_ty) = if self.types.memory_layout(element).is_some() {
                 let memory_ty = element.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 let value = self.lower_typed_expr(argument, memory_ty)?;
-                (self.materialize_memory_argument(memory_ty, value, argument.span)?, memory_ty)
+                // The copy into storage converts element-wise, so the source type has to be
+                // the argument's own type: a shorter fixed array then copies only the
+                // elements it has and the destination's remaining ones are zero-filled. A
+                // storage source is the exception, because `lower_typed_expr` already loaded
+                // it as an object of the destination type.
+                let source_ty = self
+                    .cx
+                    .gcx
+                    .type_of_expr(argument.id)
+                    .filter(|ty| !ty.is_ref_at(DataLocation::Storage))
+                    .map(|ty| ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory))
+                    .filter(|&ty| self.types.memory_layout(ty).is_some())
+                    .unwrap_or(memory_ty);
+                (self.materialize_memory_argument(memory_ty, value, argument.span)?, source_ty)
             } else {
                 let value = self.lower_typed_expr(argument, element)?;
                 // `lower_typed_expr` already applies the destination type. Re-coercing
