@@ -18,12 +18,29 @@
 //! is the worst case. Operand availability (`dup`, `swap`, `pop`, and every instruction's inputs)
 //! is monotone in the entry depth, so it is checked at the block's minimum; the 1024-word stack
 //! limit is checked at the maximum. This is as strong as visiting every distinct depth, and it is
-//! bounded: minimums only fall, maximums only rise, and a maximum may not rise across an edge
-//! that closes a cycle. Cutting the growth there is what makes recursion compile, and it is the
-//! only sound choice available statically, because the recursion depth of a legal program is a
-//! runtime property; exceeding the stack limit through it is a runtime failure, exactly as it is
-//! for solc. The cost is that the limit is checked per pass through a cycle rather than
-//! accumulated around it, so a cycle whose body is not stack-balanced is reported only if one
+//! bounded: minimums only fall and maximums only rise.
+//!
+//! What makes recursion compile is that the maximum is split by how many cycle-closing edges the
+//! path carrying it has crossed, where the cycle-closing edges are those of one depth-first walk
+//! from the entry, so removing them leaves a DAG. A block keeps an ingress maximum, over paths
+//! that cross none of them, and a post-cycle maximum, over paths that cross exactly one. Crossing
+//! a cycle-closing edge promotes the ingress maximum to the target's post-cycle maximum and drops
+//! the post-cycle maximum. So every new ingress maximum is still propagated through one complete
+//! traversal of the cycle and checked there, and only a second traversal is cut. Both halves are
+//! least fixed points over the same DAG, the second seeded from the first, so the walk terminates
+//! structurally rather than by a depth or iteration bound, and its result does not depend on the
+//! order the worklist happens to run in.
+//!
+//! Cutting the second traversal is the only sound choice available statically, because the
+//! recursion depth of a legal program is a runtime property; exceeding the stack limit through it
+//! is a runtime failure, exactly as it is for solc. It also draws the boundary in the right
+//! place. A path can only be cut at its second cycle-closing edge if the depth it carries was
+//! itself produced by going around a cycle, since an acyclic path reaching any block reaches it
+//! in the ingress maximum. That depth is precisely the runtime-dependent quantity the walk
+//! declines to bound, so what stays unchecked is growth accumulated across recursion and nothing
+//! else: a deterministic overflow on a single pass, including one whose high-depth ingress
+//! arrives at a cycle over an edge the depth-first walk classified as cycle-closing, is reported.
+//! The residual cost is that a cycle whose body is not stack-balanced is reported only if one
 //! pass through it already overflows.
 
 use super::*;
@@ -302,15 +319,15 @@ impl<'a> Verifier<'a> {
 
     /// Checks physical stack operations along generated direct control-flow edges.
     ///
-    /// See the module documentation for the bounds the walk propagates and for why cycle edges
-    /// are not allowed to raise a block's maximum entry depth.
+    /// See the module documentation for the bounds the walk propagates and for why only the
+    /// post-cycle maximum stops at a cycle-closing edge.
     fn verify_stack_ops(&self, module: &Module) {
         let cycle_edges = cycle_edges(module);
-        let mut entry_depths =
-            IndexVec::<BlockId, Option<DepthBounds>>::from_vec(vec![None; module.blocks.len()]);
-        entry_depths[BlockId::ENTRY] = Some(DepthBounds::exact(0));
-        let mut pending = vec![(BlockId::ENTRY, 0)];
-        while let Some((block_id, mut stack)) = pending.pop() {
+        let empty = EntryDepths::default();
+        let mut entry_depths = IndexVec::<BlockId, _>::from_vec(vec![empty; module.blocks.len()]);
+        entry_depths[BlockId::ENTRY] = EntryDepths::entry();
+        let mut pending = vec![(BlockId::ENTRY, 0, Bounds::ENTRY)];
+        while let Some((block_id, mut stack, bounds)) = pending.pop() {
             let block = &module.blocks[block_id];
             let term =
                 block.terminator.as_ref().expect("terminator must exist after shape validation");
@@ -359,24 +376,10 @@ impl<'a> Verifier<'a> {
             }
             term.kind.visit_targets(|target| physical_targets.push((target, stack)));
             for (target, depth) in physical_targets {
-                match &mut entry_depths[target] {
-                    None => {
-                        entry_depths[target] = Some(DepthBounds::exact(depth));
-                        pending.push((target, depth));
-                    }
-                    Some(bounds) => {
-                        // A cycle edge may lower the minimum, which terminates because depths
-                        // are non-negative, but it may not raise the maximum: one round of a
-                        // recursive call leaves its return address behind, so following the
-                        // growth would never converge.
-                        if depth < bounds.min {
-                            bounds.min = depth;
-                            pending.push((target, depth));
-                        } else if depth > bounds.max && !cycle_edges.contains(&(block_id, target)) {
-                            bounds.max = depth;
-                            pending.push((target, depth));
-                        }
-                    }
+                let out = bounds.across(cycle_edges.contains(&(block_id, target)));
+                let raised = entry_depths[target].merge(depth, out);
+                if !raised.is_empty() {
+                    pending.push((target, depth, raised));
                 }
             }
         }
@@ -524,17 +527,76 @@ impl<'a> Verifier<'a> {
     }
 }
 
-/// The range of stack depths a block has been entered with by the stack-operation walk.
-#[derive(Clone, Copy, Debug)]
-struct DepthBounds {
-    min: usize,
-    max: usize,
+/// The entry depths the stack-operation walk has propagated into a block.
+///
+/// The maximum is split by how many cycle-closing edges the path reached the block over, so that
+/// growth carried around a cycle can be cut without also discarding a first arrival that merely
+/// happens to come in over a cycle-closing edge. See the module documentation.
+#[derive(Clone, Copy, Debug, Default)]
+struct EntryDepths {
+    /// Lowest entry depth over any path, cycle-closing edges included.
+    min: Option<usize>,
+    /// Highest entry depth over paths that cross no cycle-closing edge.
+    ingress_max: Option<usize>,
+    /// Highest entry depth over paths that cross exactly one cycle-closing edge.
+    cycle_max: Option<usize>,
 }
 
-impl DepthBounds {
-    /// Bounds for a block entered at a single depth so far.
-    const fn exact(depth: usize) -> Self {
-        Self { min: depth, max: depth }
+impl EntryDepths {
+    /// The depths of the entry block, which is always reached at depth zero.
+    const fn entry() -> Self {
+        Self { min: Some(0), ingress_max: Some(0), cycle_max: None }
+    }
+
+    /// Merges `depth` into the bounds named by `bounds`, returning the ones it moved.
+    fn merge(&mut self, depth: usize, bounds: Bounds) -> Bounds {
+        let mut raised = Bounds::default();
+        if bounds.min && self.min.is_none_or(|min| depth < min) {
+            self.min = Some(depth);
+            raised.min = true;
+        }
+        if bounds.ingress_max && self.ingress_max.is_none_or(|max| depth > max) {
+            self.ingress_max = Some(depth);
+            raised.ingress_max = true;
+        }
+        if bounds.cycle_max && self.cycle_max.is_none_or(|max| depth > max) {
+            self.cycle_max = Some(depth);
+            raised.cycle_max = true;
+        }
+        raised
+    }
+}
+
+/// Which of a block's [`EntryDepths`] a walk item stands for.
+///
+/// One item can stand for several at once, which is the common case: straight-line code enters
+/// every block at one depth, so all three bounds travel together and each block is walked once.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Bounds {
+    min: bool,
+    ingress_max: bool,
+    cycle_max: bool,
+}
+
+impl Bounds {
+    /// The bounds the entry block starts with.
+    const ENTRY: Self = Self { min: true, ingress_max: true, cycle_max: false };
+
+    fn is_empty(self) -> bool {
+        self == Self::default()
+    }
+
+    /// The bounds this item still stands for after crossing one control-flow edge.
+    ///
+    /// A cycle-closing edge promotes the ingress maximum to the post-cycle maximum and drops the
+    /// post-cycle maximum: one traversal of the cycle is checked, a second is not. The minimum
+    /// crosses every edge, which terminates because depths cannot fall below zero.
+    const fn across(self, closes_cycle: bool) -> Self {
+        if closes_cycle {
+            Self { min: self.min, ingress_max: false, cycle_max: self.ingress_max }
+        } else {
+            self
+        }
     }
 }
 
