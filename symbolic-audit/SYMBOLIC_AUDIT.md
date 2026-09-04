@@ -91,8 +91,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/library_call_prebyzantium.sol`)
 - [ ] 32. Loop-carried values round-trip through memory frame slots on every iteration, so tight loops cost 1.25x to 1.7x solc
       (`symbolic-audit/loop_carried_frame_slots.sol`)
-- [ ] 33. `this.f()` in an internal function reached from the constructor skips the `extcodesize` guard, so deployment succeeds where solc reverts
-      (`symbolic-audit/this_call_from_constructor_helper.sol`)
+- [x] 33. `this.f()` in an internal function reached from the constructor skips the `extcodesize` guard, so deployment succeeds where solc reverts
+      (`symbolic-audit/this_call_from_constructor_helper.sol`; fixed in `e638b191`, tests in `ffb4d4bf`)
 - [ ] 34. Any recursive internal function is rejected before constantinople by the post-legalization stack verifier
       (`symbolic-audit/recursion_preconstantinople.sol`)
 - [ ] 35. `virtual` free functions and non-`external` interface functions are accepted; solc rejects them with errors 4493 and 1560
@@ -1323,16 +1323,44 @@ contract R {
 | `Runtime.viaHelper()`, the same helper at runtime | `seen() == 1` | `seen() == 1` |
 | all of the above at homestead | same | same |
 
-Both compilers skip the `extcodesize` guard for `this.f()` in runtime code,
-where the contract's own code is known to exist. solc keeps the guard in
-creation code (the constructor and everything it calls). Our lowering
-disables the bypass only when the *current* MIR function is the
+We skip the `extcodesize` guard for `this.f()` in runtime code, where the
+contract's own code is known to exist. solc has no `this` special case at
+all (`checkExtcodesize` in `appendExternalFunctionCall` depends only on
+the return size, the EVM version, and `revertStrings`), so it guards the
+call in creation code too, where the contract has no code yet. Our
+lowering disabled the bypass only when the *current* MIR function was the
 constructor, so an internal helper compiled into the creation object still
-skips the guard, the `CALL` to the code-less address succeeds with no
-effect, and the deployment goes through where solc's reverts.
+skipped the guard, the `CALL` to the code-less address succeeded with no
+effect, and the deployment went through where solc's reverts. The
+runtime bypass itself is sound (the code exists) and only saves gas
+relative to solc.
 
 Severity: miscompile at every EVM version. A deployment that solc rejects
 succeeds silently with the call dropped.
+
+Cause and fix (`e638b191`): creation and runtime code are not separate
+MIR; the backend's `prepare_deployment_prefix` emits a second copy of
+every function reachable from the constructor into the creation prefix,
+so the constructor attribute of the current function said nothing about
+the object a helper would run in. The fix exposes the creation half of the
+call graph that sema already computes (`Gcx::contract_creation_functions`:
+base constructors, their modifiers and inheritance arguments, state
+variable initializers, and everything they reach), records it as
+`in_creation_code` on the function lowerer, and routes the direct-call and
+`try` sites through one `needs_receiver_code_check`. A function shared by
+both objects keeps the guard in both copies, which matches solc's gas at
+runtime (`Shared::runIt` 44 373 vs 44 548). Re-verified: all five repro
+contracts agree at osaka and homestead, `R` now failing to deploy on both
+sides. The review (`ffb4d4bf`) checked the creation set against solc's
+creation object, probed initializer callees, base-constructor modifiers,
+internal and external function pointers, `try` with a bare `catch` (the
+guard reverts before the call on both sides, the catch does not run),
+`address(this).call` (unguarded on both), free and library functions,
+`new` of a contract whose constructor calls `this`, and a shared helper,
+all agreeing, and pinned the `try`, initializer, and shared-helper paths
+in a run-call test. Residual: internal function-pointer dispatchers carry
+runtime-only targets into the creation object without the guard, reachable
+only with a forged pointer id.
 
 ### 34. Any recursive internal function is rejected before constantinople
 
@@ -1731,6 +1759,25 @@ as too large for codegen; a rational literal expression; and a bare
 `abi.encode;` expression statement), 1 constructor expectation line the
 runner cannot encode, and the 6 recursion tests of finding 34 before
 constantinople. Nothing else differed.
+
+Two further stateful lanes on `3d5d21f8` (findings 23 to 28 fixed):
+
+- Project archives (`testdata/projects/*.json.gz`, extracted with their
+  remappings, test and script directories excluded, random constructor
+  arguments, the `DOMAIN_SEPARATOR`/`eip712Domain`/code-hash getters
+  skipped): 150 deployable contracts from OpenZeppelin, Seaport, Solady,
+  Solmate, Morpho, Uniswap v4, Nitro, Aave, Maple, and Lil Web3, 4978
+  compared calls, 143 agree, 7 mismatches all in the reviewed classes
+  (CREATE2 addresses derived from `address(this)`, EIP-712 hashes,
+  internal function pointers in storage).
+- Symbolic probe lanes per EVM version on `49cf1b51d` (`campaign.py`
+  over `symbolic-audit/probes/`, byzantium and later only: the symbolic
+  scaffold itself needs `RETURNDATASIZE`): osaka 1688 bounded agreements,
+  306 incomplete, 10 mismatches; byzantium 1290 / 300 / 6; istanbul and
+  london 1437 / 271 / 6 each. Every mismatch is finding 36 (`f2`, `f12`,
+  now fixed) or a reviewed non-bug (`fnPtrExt`, `fnPtrExtEnc`,
+  `fnEqDirty`, `fnRet`, `op_mcopy` clobbering the free-memory pointer,
+  the three `memPtrAfter*` deltas).
 
 ## Value-cleanup probe set
 
