@@ -1353,6 +1353,10 @@ impl<'gcx> TypeChecker<'gcx> {
     /// codes and checks no clause of either: 5347 for a target that is not a call, and 2536 for a
     /// call of another kind.
     fn check_try_target(&self, try_: &'gcx hir::StmtTry<'gcx>) -> Option<&'gcx TyFn<'gcx>> {
+        // solc requires the target to be a call syntactically, so it rejects `try (c.f())`.
+        // Parentheses do not change the call they wrap, so we accept it; lowering peels them
+        // the same way, so an accepted statement compiles. See TYPECK-005 in
+        // `docs/SOLC_DIVERGENCE.md`.
         let expr = try_.expr.peel_parens();
         let callee_ty = match expr.kind {
             hir::ExprKind::Call(callee, ..) => self.results.expr_types.get(&callee.id).copied(),
