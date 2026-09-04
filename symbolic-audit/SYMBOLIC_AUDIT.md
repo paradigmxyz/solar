@@ -101,6 +101,8 @@ and describe behavior that no longer differs.
       (`symbolic-audit/loop_tuple_assign_miscompile.sol`; fixed in `daaf2d05`, tests in `ae814158`)
 - [ ] 37. `a.push()` used as a value on a non-bytes storage array returns 0 instead of the appended element
       (`symbolic-audit/storage_array_push_rvalue.sol`)
+- [ ] 38. At `-Ogas` the backend puts a jump between homestead's `sub(gas(), 50)` and a shared CALL block, so the reserve is short and the call throws
+      (`symbolic-audit/call_gas_reserve_split.sol`)
 
 ## Findings
 
@@ -1571,6 +1573,40 @@ value there. Storage effects and the appended length agree.
 
 Severity: miscompile of a returned value, reachable only with an
 assembly-written slot. Low.
+
+### 38. At `-Ogas` a jump separates homestead's `sub(gas(), 50)` from a shared CALL block
+
+File: `symbolic-audit/call_gas_reserve_split.sol`
+Found by the agent fixing finding 30: its optimized homestead run-call
+test failed with out-of-gas on a live callee, and the shape reproduces
+without `try`. Measured with `prebyz_gas.py` on a homestead forge EVM,
+200 000 gas, on `5aebf672` (finding 29 fixed):
+
+| Call, `Callee` deployed | solc | solar `-Ogas` |
+|------|------|------|
+| `live(callee)`, one return value | `42`, 23 802 gas | fails, all gas consumed |
+| `livePointer(callee)`, through an external function pointer | `42`, 23 758 gas | fails, all gas consumed |
+| `liveTwo(callee)`, two return values | `3`, 23 781 | `3`, 23 596 |
+| `liveAggregate(callee)`, `uint256[2]` | `7`, 24 678 | `7`, 24 529 |
+| `liveNoReturn(callee)` | `1`, 23 616 | `1`, 23 472 |
+| the same contract with only `live` in it (finding 29's repro) | agree | agree |
+
+The runtime disassembly shows six `GAS SUB` sequences; four are followed
+directly by `CALL`, but one is `GAS SUB PUSH JUMP` into a block starting
+`JUMPDEST ... CALL` that several call sites share (EVM IR tail merging
+or terminal deduplication of the identical call tails). `JUMP` (8),
+`JUMPDEST` (1), and `SUB` (3) cost 12 gas after `GAS` is read, more than
+the 10-gas margin in solc's `sub(gas(), 40 + 10)` reserve, so the `CALL`
+requests more gas than remains and a pre-EIP-150 EVM throws. solc's
+`sub(gas(), N)` is always adjacent to its `CALL` (`PUSH NOT GAS ADD CALL`),
+and solc's own comment notes the reserve "retains too much gas for now";
+the margin is only safe when nothing but the subtraction executes between
+`GAS` and `CALL`. The fix must either keep the reserve computation and
+the call in one block for pre-EIP-150 targets, or reserve enough for the
+worst-case jump sequence the backend can insert.
+
+Severity: miscompile for the homestead target at the default optimization
+level; which call sites fail depends on which tails the backend merges.
 
 ## solc-side observations
 
