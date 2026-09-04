@@ -350,6 +350,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if args.len() != target.parameter_types.len() {
             return self.cx.report_unsupported(args.span, "try arguments");
         }
+        let return_types = self.external_return_types(&target.return_types);
 
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
@@ -421,8 +422,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // and the success path reads them back from there.
             // buffer, ret_offset, ret_size = plan_return_buffer(returns)
             // mstore(ret_offset + ret_size - 32, 0)
-            let ret_plan = (!supports_returndata)
-                .then(|| self.plan_return_buffer(input, zero, &target.return_types));
+            let ret_plan =
+                (!supports_returndata).then(|| self.plan_return_buffer(input, zero, &return_types));
             let (ret_offset, ret_size) = if let Some(plan) = &ret_plan {
                 self.touch_call_output_area(options.gas, plan);
                 plan.output_area()
@@ -431,10 +432,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let check_code = match target.callee {
                 TryCallee::Member { receiver, .. } => {
-                    self.needs_receiver_code_check(receiver, target.return_types.len())
+                    self.needs_receiver_code_check(receiver, return_types.len())
                 }
                 TryCallee::LinkedLibrary { .. } | TryCallee::FunctionPointer { .. } => {
-                    self.needs_code_check(target.return_types.len())
+                    self.needs_code_check(return_types.len())
                 }
                 TryCallee::Creation { .. } => unreachable!(),
             };
@@ -476,12 +477,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(returns_clause.span, "try return bindings");
             };
             self.values.insert(binding, value);
-        } else if !target.return_types.is_empty() {
+        } else if !return_types.is_empty() {
             let values = if let Some(plan) = ret_plan {
                 // success.returns = load_words(ret_offset) | abi_decode(buffer)
                 self.finish_external_call(
                     plan,
-                    &target.return_types,
+                    &return_types,
                     returns_clause.span,
                     ExternalReturnMode::All,
                     "codegen cannot decode try/catch returndata before Byzantium",
@@ -489,7 +490,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 // success.returns = abi_decode(returndata)
                 let data = self.materialize_returndata_bytes();
-                self.lower_abi_decode_values(data, &target.return_types, returns_clause.span)?
+                self.lower_abi_decode_values(data, &return_types, returns_clause.span)?
             };
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 self.values.insert(binding, value);

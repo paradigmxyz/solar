@@ -542,14 +542,20 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
+    /// Returns `true` if the type's ABI encoding carries a tail, as solc's
+    /// `Type::isDynamicallyEncoded`.
+    ///
+    /// Only the encoded type matters, so references are looked through: a struct's own fields and
+    /// an array's element type are reference types wherever they are aggregates themselves.
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
-        match self.kind {
+        let this = self.peel_refs();
+        match this.kind {
             TyKind::Struct(id) => {
-                self.is_recursive(gcx)
+                this.is_recursive(gcx)
                     || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
-            _ => self.is_dynamically_sized(),
+            _ => this.is_dynamically_sized(),
         }
     }
 

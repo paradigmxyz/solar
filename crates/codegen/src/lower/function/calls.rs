@@ -418,10 +418,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let encoded = self.builder.abi_encode(layout, Some(selector), values.into_boxed_slice());
         let input = self.builder.slice_ptr(encoded);
         let input_size = self.builder.slice_len(encoded);
-        let return_tys = function.returns;
+        let return_tys = self.external_return_types(function.returns);
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
-        let return_plan = self.plan_return_buffer(input, options.zero, return_tys);
+        let return_plan = self.plan_return_buffer(input, options.zero, &return_tys);
         self.touch_call_output_area(options.gas, &return_plan);
         if self.needs_code_check(returns) {
             self.revert_if_no_code(address);
@@ -456,7 +456,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // results = decode_buffer | decode_returndata | load_words(ret_offset)
         self.finish_external_call(
             return_plan,
-            return_tys,
+            &return_tys,
             callee.span,
             ExternalReturnMode::All,
             "codegen cannot decode external function-pointer returndata before Byzantium",
@@ -953,6 +953,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
+        let return_tys = self.external_return_types(&return_tys);
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, options.zero, &return_tys);
@@ -1135,6 +1136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .map(|&ret| self.cx.gcx.type_of_item(ret.into()))
             .collect::<Vec<_>>();
+        let return_types = self.external_return_types(&return_types);
         // From Byzantium on the return values come out of the return data; before it the
         // delegatecall writes them into an output area of its own and the success path reads them
         // back from there, as solc's static output size does.
@@ -1204,6 +1206,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && types.iter().all(|ty| !ty.is_dynamic())
             && types.iter().any(|ty| !ty.is_scalar_word()))
         .then(|| AbiParamLayout::new(types.into_boxed_slice()))
+    }
+
+    /// Replaces every dynamically encoded return type with a word before Byzantium.
+    ///
+    /// Without `RETURNDATASIZE` the size of such a value is unknowable, so solc types it as an
+    /// inaccessible dynamic type whose decoding type is `uint256`
+    /// (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the call reserves a word for it
+    /// in its output area and nothing decodes it, because the type checker rejects every use of
+    /// the value. The remaining return values stay accessible, as in solc.
+    pub(super) fn external_return_types(&mut self, return_tys: &[Ty<'gcx>]) -> Vec<Ty<'gcx>> {
+        if self.cx.gcx.sess.opts.evm_version.supports_returndata() {
+            return return_tys.to_vec();
+        }
+        return_tys
+            .iter()
+            .map(|&ty| {
+                if self.types.abi_return_type(ty).is_some_and(|abi| abi.is_dynamic()) {
+                    self.cx.gcx.types.uint(256)
+                } else {
+                    ty
+                }
+            })
+            .collect()
     }
 
     pub(super) fn plan_return_buffer(

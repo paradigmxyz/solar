@@ -11,7 +11,9 @@ use alloy_primitives::U256;
 use solar_ast::{
     DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
-use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
+use solar_data_structures::{
+    Never, bit_set::DenseBitSet, map::FxHashMap, pluralize, smallvec::SmallVec,
+};
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
@@ -68,6 +70,19 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
+    /// The value components the enclosing statement discards, by expression.
+    ///
+    /// Only populated before Byzantium, where a dynamically encoded external return value is
+    /// inaccessible and only a discarded one is legal.
+    discarded: FxHashMap<hir::ExprId, Discarded>,
+}
+
+/// The components of an expression's value that a statement discards.
+enum Discarded {
+    /// The whole value, as in an expression statement or a `try` without a `returns` clause.
+    All,
+    /// The components a tuple destructuring drops, by index.
+    Components(DenseBitSet<usize>),
 }
 
 #[derive(Clone, Copy)]
@@ -94,6 +109,7 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
+            discarded: FxHashMap::default(),
         }
     }
 
@@ -394,6 +410,9 @@ impl<'gcx> TypeChecker<'gcx> {
                         if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                         }
+                        // Keep the declared return type: the value is unusable, but an error
+                        // type here would only hide the checks its uses still go through.
+                        let _ = self.check_inaccessible_dynamic_return(expr, f);
                         self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
@@ -854,6 +873,15 @@ impl<'gcx> TypeChecker<'gcx> {
         lhs_ty: Ty<'gcx>,
         rhs: &'gcx hir::Expr<'gcx>,
     ) {
+        if let hir::ExprKind::Tuple(components) = lhs.peel_parens().kind {
+            let mut dropped = DenseBitSet::new_empty(components.len());
+            for (index, component) in components.iter().enumerate() {
+                if component.is_none() {
+                    dropped.insert(index);
+                }
+            }
+            self.discard(rhs, Discarded::Components(dropped));
+        }
         let rhs_ty = self.check_expr(rhs);
         self.check_tuple_assign_rhs_components(lhs, lhs_ty, rhs, rhs_ty);
     }
@@ -1205,6 +1233,72 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         Err(err)
+    }
+
+    /// Records the components of `expr`'s value that the enclosing statement discards.
+    ///
+    /// Does nothing from Byzantium on, where every return value is accessible.
+    fn discard(&mut self, expr: &'gcx hir::Expr<'gcx>, discarded: Discarded) {
+        if self.gcx.sess.opts.evm_version.supports_returndata() {
+            return;
+        }
+        let expr = expr.peel_parens();
+        // The components of a tuple expression are values of their own, so a dropped one is
+        // discarded whole.
+        if let hir::ExprKind::Tuple(exprs) = expr.kind
+            && let Discarded::Components(components) = &discarded
+        {
+            for (index, expr) in exprs.iter().enumerate() {
+                if let Some(expr) = expr
+                    && components.contains(index)
+                {
+                    self.discarded.insert(expr.peel_parens().id, Discarded::All);
+                }
+            }
+            return;
+        }
+        self.discarded.insert(expr.id, discarded);
+    }
+
+    /// Rejects a use of an external call's dynamically encoded return value before Byzantium.
+    ///
+    /// Without `RETURNDATASIZE` the size of such a value is unknowable, so solc gives it an
+    /// inaccessible dynamic type (`FunctionType::returnParameterTypesWithoutDynamicTypes`): the
+    /// call itself is legal and only reading the value is not. The other return values stay
+    /// accessible, so a tuple destructuring that drops the dynamic ones is legal too.
+    fn check_inaccessible_dynamic_return(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+        f: &'gcx TyFn<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.gcx.sess.opts.evm_version.supports_returndata()
+            || !matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall)
+        {
+            return Ok(());
+        }
+        let discarded = self.discarded.get(&expr.id);
+        if matches!(discarded, Some(Discarded::All)) {
+            return Ok(());
+        }
+        for (index, ty) in f.returns.iter().enumerate() {
+            if !ty.is_dynamically_encoded(self.gcx)
+                || matches!(discarded, Some(Discarded::Components(components)) if components.contains(index))
+            {
+                continue;
+            }
+            return Err(self
+                .dcx()
+                .err("cannot use the dynamically encoded return value of an external call")
+                .code(error_code!(6509))
+                .span(expr.span)
+                .note(format!(
+                    "the call returns `{}`, whose size is unknowable without `RETURNDATASIZE`",
+                    ty.display(self.gcx)
+                ))
+                .help("discard the value, or compile with `--evm-version byzantium` or newer")
+                .emit());
+        }
+        Ok(())
     }
 
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
@@ -2419,6 +2513,15 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let expected =
             if let &[Some(id)] = decls { Some(self.gcx.type_of_item(id.into())) } else { None };
+        if decls.len() > 1 {
+            let mut dropped = DenseBitSet::new_empty(decls.len());
+            for (index, decl) in decls.iter().enumerate() {
+                if decl.is_none() {
+                    dropped.insert(index);
+                }
+            }
+            self.discard(init, Discarded::Components(dropped));
+        }
         let ty = self.check_expr_with_noexpect(init, expected);
         let value_types =
             if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
@@ -2914,6 +3017,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         .code(code)
                         .emit();
                 }
+                // A `returns` clause binds the call's values; without one they are discarded.
+                if try_.clauses[0].args.is_empty() {
+                    self.discard(&try_.expr, Discarded::All);
+                }
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
                 let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
@@ -2970,6 +3077,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     );
                 }
                 return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Expr(expr) => {
+                // An expression statement discards its value.
+                self.discard(expr, Discarded::All);
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {
                 let returns =
