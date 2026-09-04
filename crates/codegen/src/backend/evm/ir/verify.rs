@@ -155,6 +155,21 @@ impl<'a> Verifier<'a> {
             for inst in &block.instructions {
                 self.verify_instruction_shape(block_id, module, inst);
             }
+            // A `keep_with_next` instruction only constrains the boundary that follows it, so the
+            // block must still hold the instruction it is kept with. This is what makes the
+            // constraint a guarantee: any transform that turns that boundary into a block
+            // boundary is rejected here instead of silently inserting a jump.
+            if let Some(last) = block.instructions.last()
+                && last.keeps_with_next()
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "`{}` must be followed by the instruction it is kept with",
+                        last.mnemonic()
+                    ),
+                );
+            }
             let Some(term) = &block.terminator else {
                 self.error_in_block(block_id, "missing terminator");
                 continue;
@@ -324,6 +339,12 @@ impl<'a> Verifier<'a> {
     fn verify_terminator_shape(&self, block_id: BlockId, term: &Terminator) {
         if matches!(&term.kind, TerminatorKind::IndexedJump(targets) if targets.is_empty()) {
             self.error_in_block(block_id, "`indexed_jump` must have at least one target");
+        }
+        if term.metadata.keep_with_next {
+            self.error_in_block(
+                block_id,
+                format_args!("terminator `{}` cannot be kept with a next instruction", term.kind),
+            );
         }
         if let TerminatorKind::Op(opcode) = &term.kind
             && !op::is_terminal(*opcode)

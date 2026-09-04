@@ -138,6 +138,7 @@ fn display_metadata(
             && spans.is_empty()
             && function_invoke.is_none()
             && function_exit.is_none()
+            && !metadata.keep_with_next
         {
             return Ok(());
         }
@@ -185,6 +186,16 @@ fn display_metadata(
                 DebugFunctionExit::Revert => "revert",
             };
             write!(f, "exit={exit}")?;
+        }
+        if metadata.keep_with_next {
+            if stack.is_some()
+                || !spans.is_empty()
+                || function_invoke.is_some()
+                || function_exit.is_some()
+            {
+                write!(f, ", ")?;
+            }
+            write!(f, "keep_with_next")?;
         }
         write!(f, ")")?;
         Ok(())

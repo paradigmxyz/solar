@@ -509,6 +509,19 @@ impl Instruction {
     pub(crate) const fn is_physical_stack_op(&self) -> bool {
         self.stack_op.is_some()
     }
+
+    /// Returns whether the boundary after this instruction may become a block boundary.
+    ///
+    /// See [`Metadata::keep_with_next`].
+    #[must_use]
+    pub(crate) const fn keeps_with_next(&self) -> bool {
+        self.metadata.keep_with_next
+    }
+
+    /// Requires this instruction to stay immediately before the next one in its block.
+    pub(in crate::backend::evm) const fn keep_with_next(&mut self) {
+        self.metadata.keep_with_next = true;
+    }
 }
 
 /// A control-flow terminator.
@@ -660,6 +673,13 @@ enum PushValue {
 pub(crate) struct Metadata {
     /// Optional stack effect.
     pub(crate) stack: Option<StackEffect>,
+    /// Whether this instruction must stay immediately before the next instruction of its block.
+    ///
+    /// Only meaningful on instructions. It forbids every transform from turning the boundary
+    /// after this instruction into a block boundary, so no jump, label, or block-layout decision
+    /// can come between the two. Lowering sets it where the gas consumed between two
+    /// instructions is observable, such as a pre-EIP-150 call's `GAS`-relative gas reserve.
+    pub(crate) keep_with_next: bool,
     /// Solidity source span associated with this machine operation.
     source_spans: DebugSpans,
     /// Function activation entered after this operation.

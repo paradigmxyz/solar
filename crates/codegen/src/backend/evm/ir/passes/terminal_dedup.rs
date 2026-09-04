@@ -91,6 +91,7 @@ fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
             encoding: inst.encoding,
             value: inst.value,
             stack_op: inst.as_stack_op(),
+            keep_with_next: inst.keeps_with_next(),
         })
         .collect();
     Some(TerminalBlockKey { instructions, terminator: terminator.clone() })
@@ -108,4 +109,5 @@ struct TerminalInstructionKey {
     encoding: u8,
     value: Option<PushValue>,
     stack_op: Option<crate::backend::evm::op::StackOp>,
+    keep_with_next: bool,
 }

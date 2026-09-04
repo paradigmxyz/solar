@@ -16,13 +16,25 @@ use solar_data_structures::{
 use solar_sema::Gcx;
 
 /// The machine-level identity shared by transforms that compare instructions.
+///
+/// `keep_with_next` is part of the identity: sharing one copy of two otherwise equal instructions
+/// must not drop one copy's constraint on the boundary that follows it.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct MachineInstKey(u8, u8, Option<PushValue>, Option<op::StackOp>);
+pub(super) struct MachineInstKey(u8, u8, Option<PushValue>, Option<op::StackOp>, bool);
 
 impl MachineInstKey {
     pub(super) fn new(inst: &Instruction) -> Self {
-        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op())
+        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op(), inst.keeps_with_next())
     }
+}
+
+/// Returns whether `index` may become a block boundary in `instructions`.
+///
+/// The boundary right after a `keep_with_next` instruction is not a legal split point, so no
+/// transform may start a block, outline a run, or share a tail there.
+pub(super) fn is_split_point(instructions: &[Instruction], index: usize) -> bool {
+    debug_assert!(index <= instructions.len());
+    index == 0 || !instructions[index - 1].keeps_with_next()
 }
 
 /// Allocates unused textual block labels without assuming labels are dense.

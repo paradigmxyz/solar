@@ -1,0 +1,149 @@
+// === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveCallee (runtime) ===
+@module ReserveCallee_runtime
+bb0:
+  callvalue
+  push bb3
+  jumpi
+  push 0x100000000000000000000000000000000000000000000000000000000
+  push 0
+  calldataload
+  div
+  dup 1
+  push 0x3fa4f245
+  sub
+  push bb3
+  jumpi
+  push 42
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb3 [cold]:
+  push 0
+  dup 1
+  invalid
+// === ROOT/tests/ui/codegen/lowering/call_reserve_block.sol:ReserveBlock (runtime) ===
+@module ReserveBlock_runtime
+bb0:
+  callvalue
+  push bb4
+  jumpi
+  push 0x100000000000000000000000000000000000000000000000000000000
+  push 0
+  calldataload
+  div
+  dup 1
+  push 0x2f5f3b3c
+  eq
+  push bb9
+  jumpi
+  dup 1
+  push 0x9a1f63d8
+  sub
+  push bb4
+  jumpi
+  push 224
+  push 64
+  mstore
+  push 0
+  sload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  and
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+  dup 2
+  mstore
+  dup 2
+  extcodesize
+  iszero
+  push bb4
+  jumpi
+  push 32
+  push 0
+  push 4
+  dup 4
+  push 0
+  dup 7
+  push 0xc350
+  call
+  jump bb10
+bb10:
+  swap 2
+  pop
+  pop
+  iszero
+  push bb4
+  jumpi
+  push 0
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+bb4 [cold]:
+  push 0
+  dup 1
+  invalid
+bb9:
+  push 224
+  push 64
+  mstore
+  push 0
+  sload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  and
+  push 32
+  push 2
+  exp
+  mul
+  push 0x3fa4f245
+  or
+  push 0xffffffff
+  dup 2
+  and
+  push 224
+  push 2
+  exp
+  mul
+  swap 1
+  push 32
+  push 2
+  exp
+  swap 1
+  div
+  push 64
+  mload
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  dup 3
+  dup 2
+  mstore
+  swap 2
+  pop
+  dup 1
+  extcodesize
+  iszero
+  push bb4
+  jumpi
+  push 32
+  push 0
+  push 4
+  dup 5
+  push 0
+  dup 6
+  push 50
+  gas !meta(keep_with_next)
+  sub !meta(keep_with_next)
+  call
+  jump bb10
