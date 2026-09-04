@@ -399,15 +399,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let input_size = self.builder.slice_len(encoded);
             let ret_offset = zero;
             let ret_size = self.builder.imm(0);
-            let check_code = self.needs_code_check(target.return_types.len())
-                && match target.callee {
-                    TryCallee::Member { receiver, .. } => {
-                        self.builder.func().attributes.is_constructor
-                            || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This)
-                    }
-                    TryCallee::LinkedLibrary { .. } | TryCallee::FunctionPointer { .. } => true,
-                    TryCallee::Creation { .. } => unreachable!(),
-                };
+            let check_code = match target.callee {
+                TryCallee::Member { receiver, .. } => {
+                    self.needs_receiver_code_check(receiver, target.return_types.len())
+                }
+                TryCallee::LinkedLibrary { .. } | TryCallee::FunctionPointer { .. } => {
+                    self.needs_code_check(target.return_types.len())
+                }
+                TryCallee::Creation { .. } => unreachable!(),
+            };
             if check_code {
                 self.revert_if_no_code(address);
             }

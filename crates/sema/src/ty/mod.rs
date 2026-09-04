@@ -1407,6 +1407,19 @@ impl<'gcx> Gcx<'gcx> {
         self.alloc(errors)
     }
 
+    /// Returns the functions whose code is emitted into the contract's creation object: the
+    /// constructors of the contract and its bases, the callees of the state variable
+    /// initializers, and everything those reach.
+    ///
+    /// A function that the runtime object also contains appears in this set too, because the
+    /// creation object gets its own copy of it.
+    pub fn contract_creation_functions(
+        self,
+        id: hir::ContractId,
+    ) -> &'gcx DenseBitSet<hir::FunctionId> {
+        &self.interface_items(id).creation.functions
+    }
+
     /// Returns the functions reachable during contract creation or at runtime.
     pub fn contract_reachable_functions(
         self,

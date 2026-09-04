@@ -32,6 +32,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         returns == 0 || !self.cx.gcx.sess.opts.evm_version.supports_returndata()
     }
 
+    /// Returns `true` if a call to `receiver` expecting `returns` return values must check that
+    /// the callee has code.
+    ///
+    /// A call on `this` needs no check in the runtime object: the contract's own code is running,
+    /// so it exists. The creation object has no such guarantee, because the code is only stored
+    /// once the constructor returns, so every function copied into it keeps the check.
+    pub(super) fn needs_receiver_code_check(
+        &self,
+        receiver: &hir::Expr<'_>,
+        returns: usize,
+    ) -> bool {
+        self.needs_code_check(returns)
+            && (self.in_creation_code
+                || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This))
+    }
+
     pub(super) fn lower_user_operator(
         &mut self,
         span: Span,
@@ -891,10 +907,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let returns = return_tys.len();
         // buffer, ret_offset, ret_size, decode = plan_return_buffer(returns)
         let return_plan = self.plan_return_buffer(input, zero, &return_tys);
-        if self.needs_code_check(returns)
-            && (self.builder.func().attributes.is_constructor
-                || self.cx.gcx.resolved_builtin(receiver) != Some(Builtin::This))
-        {
+        if self.needs_receiver_code_check(receiver, returns) {
             self.revert_if_no_code(address);
         }
         // ok = CALL|STATICCALL(gas, address, value, input, ret_offset, ret_size)
