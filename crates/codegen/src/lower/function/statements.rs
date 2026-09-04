@@ -178,11 +178,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.lower_constant_storage_assignment(lhs, rhs)?;
                     return Some(());
                 }
-                if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
-                    self.lower_values(expr)?;
+                // Nothing observes the statement's value, which lets `a.push();` skip the
+                // read that produces the appended element.
+                let previous = self.discarded_expr.replace(expr.id);
+                let result = if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_tuple()) {
+                    self.lower_values(expr).map(drop)
                 } else {
-                    self.lower_expr(expr)?;
-                }
+                    self.lower_expr(expr).map(drop)
+                };
+                self.discarded_expr = previous;
+                result?;
             }
             StmtKind::Block(block) => self.lower_block(*block)?,
             StmtKind::UncheckedBlock(block) => {

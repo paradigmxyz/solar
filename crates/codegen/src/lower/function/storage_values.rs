@@ -685,6 +685,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             )?;
         }
         self.builder.sstore(base.slot, new_length);
+        // A plain `push()` writes nothing, and its value is the appended element, which keeps
+        // whatever the slot already held. Aggregate elements are reached as a reference through
+        // `storage_access`, so only value-typed elements are read back here, and only where the
+        // value is observed: a bare `a.push();` would just read the slot it grew into.
+        //
+        // r = load(element_slot)
+        if argument.is_none()
+            && self.discarded_expr != Some(expr.id)
+            && self.types.memory_layout(element).is_none()
+        {
+            return self.load_storage_value(element, element_access, expr.span);
+        }
         Some(self.builder.imm(U256::ZERO))
     }
 
