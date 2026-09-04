@@ -3,7 +3,7 @@
 use super::*;
 
 #[derive(Clone, Copy)]
-struct ExternalReturnPlan {
+pub(super) struct ExternalReturnPlan {
     static_buffer: Option<(ValueId, ValueId, ValueId)>,
     offset: ValueId,
     size: ValueId,
@@ -17,8 +17,15 @@ struct ExternalReturnPlan {
     decode_returndata: bool,
 }
 
+impl ExternalReturnPlan {
+    /// The `(offset, size)` output-area operands of the call the plan was built for.
+    pub(super) fn output_area(&self) -> (ValueId, ValueId) {
+        (self.offset, self.size)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ExternalReturnMode {
+pub(super) enum ExternalReturnMode {
     First,
     All,
 }
@@ -1173,7 +1180,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .then(|| AbiParamLayout::new(types.into_boxed_slice()))
     }
 
-    fn plan_return_buffer(
+    pub(super) fn plan_return_buffer(
         &mut self,
         input: ValueId,
         zero: ValueId,
@@ -1235,7 +1242,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ///
     /// Nothing is emitted where the gas operand is already materialized: an explicit `{gas: ...}`
     /// is the caller's business, and from EIP-150 on the forwarded gas is capped anyway.
-    fn touch_call_output_area(&mut self, gas: Option<ValueId>, plan: &ExternalReturnPlan) {
+    pub(super) fn touch_call_output_area(
+        &mut self,
+        gas: Option<ValueId>,
+        plan: &ExternalReturnPlan,
+    ) {
         if gas.is_some() || !plan.owns_output_area || plan.size_bytes < 32 {
             return;
         }
@@ -1246,7 +1257,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.mstore(last, zero);
     }
 
-    fn finish_external_call(
+    pub(super) fn finish_external_call(
         &mut self,
         plan: ExternalReturnPlan,
         return_tys: &[Ty<'gcx>],

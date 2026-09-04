@@ -15,7 +15,7 @@ use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::Sm
 use solar_interface::{
     Ident, Symbol,
     config::EvmVersion,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DiagBuilder, DiagCtxt, ErrorGuaranteed},
     error_code, kw, sym,
 };
 use std::ops::ControlFlow;
@@ -102,11 +102,21 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn emit_evm_version_error(&self, span: Span, feature: &str, required: EvmVersion) {
+        self.evm_version_error(span, feature, required).emit();
+    }
+
+    /// Builds the diagnostic for a feature the target EVM version does not have. Callers that
+    /// mirror a solc diagnostic attach its code before emitting.
+    fn evm_version_error(
+        &self,
+        span: Span,
+        feature: &str,
+        required: EvmVersion,
+    ) -> DiagBuilder<'gcx, ErrorGuaranteed> {
         self.dcx()
             .err(format!("{feature} requires {required:?}-compatible EVM"))
             .span(span)
             .help(format!("compile with `--evm-version {required}` or newer"))
-            .emit();
     }
 
     fn check_res_evm_version(&self, res: hir::Res, span: Span) {
@@ -2953,13 +2963,23 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Try(try_) => {
                 if !self.gcx.sess.opts.evm_version.supports_returndata() {
                     for clause in &try_.clauses[1..] {
-                        if clause.name.is_some() || !clause.args.is_empty() {
-                            self.emit_evm_version_error(
-                                clause.span,
-                                "typed catch clause",
-                                EvmVersion::Byzantium,
-                            );
-                        }
+                        // A bare `catch { }` needs no return data and stays accepted; solc
+                        // reports 1812 for `catch Error`/`catch Panic` and 9908 for
+                        // `catch (bytes memory)`.
+                        let code = if clause.name.is_some() {
+                            error_code!(1812)
+                        } else if !clause.args.is_empty() {
+                            error_code!(9908)
+                        } else {
+                            continue;
+                        };
+                        self.evm_version_error(
+                            clause.span,
+                            "typed catch clause",
+                            EvmVersion::Byzantium,
+                        )
+                        .code(code)
+                        .emit();
                     }
                 }
             }
