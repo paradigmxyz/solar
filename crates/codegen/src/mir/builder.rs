@@ -77,7 +77,7 @@ macro_rules! impl_signed_to_uint {
 impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 
 /// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
-const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
+pub(crate) const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
 
 /// Why a compiler-generated revert fires.
 ///
@@ -88,8 +88,11 @@ const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
 pub(crate) enum RevertReason {
     /// A non-payable external entry point received Ether.
     EtherSentToNonPayable,
-    /// The selector did not match any external function and no fallback exists.
+    /// The selector did not match any external function and no fallback exists, but the
+    /// contract has a `receive` function.
     UnknownSelector,
+    /// The call matched nothing and the contract has neither a fallback nor a `receive`.
+    NoFallbackNorReceive,
     /// ABI-encoded input ends before the static head of a tuple.
     TupleDataTooShort,
     /// A tuple element offset points outside the encoded input.
@@ -118,6 +121,7 @@ impl RevertReason {
         match self {
             Self::EtherSentToNonPayable => "Ether sent to non-payable function",
             Self::UnknownSelector => "Unknown signature and no fallback defined",
+            Self::NoFallbackNorReceive => "Contract does not have fallback nor receive functions",
             Self::TupleDataTooShort => "ABI decoding: tuple data too short",
             Self::InvalidTupleOffset => "ABI decoding: invalid tuple offset",
             Self::InvalidCalldataArrayOffset => "ABI decoding: invalid calldata array offset",
@@ -200,7 +204,7 @@ impl<'a> FunctionBuilder<'a> {
     /// Lowering can use this to split a fused check into per-reason checks only when the
     /// reasons are observable, keeping the default output unchanged.
     pub(crate) fn encodes_revert_reasons(&self) -> bool {
-        matches!(self.revert_strings, RevertStrings::Debug)
+        self.revert_strings.is_debug()
     }
 
     /// Replaces the source span attached to newly emitted instructions.

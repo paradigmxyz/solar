@@ -93,3 +93,17 @@ fn @customError(arg0: u256) [selector=0x2509f77c, pure, abi_params=[u256], abi_r
     v2 = slice_len v0
     revert v1, v2
 }
+
+fn @requireCustomError(arg0: u256) -> u256 [selector=0x8578ac4d, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = eq arg0, 1
+    v1 = iszero v0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret arg0
+  bb1:
+    v2 = abi_encode [word], selector 0xcb362b3400000000000000000000000000000000000000000000000000000000, args arg0
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    revert v3, v4
+}

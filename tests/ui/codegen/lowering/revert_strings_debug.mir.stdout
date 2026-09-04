@@ -11,9 +11,9 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0xe0041
     v1 = slice_len arg0
     v2 = gt arg2, v1
     v3 = lt arg2, arg1
-    jumpi v2, bb1, bb2
+    jumpi v3, bb1, bb2
   bb2:
-    jumpi v3, bb3, bb4
+    jumpi v2, bb3, bb4
   bb4:
     v4 = sub arg2, arg1
     v5 = add v0, arg1
@@ -23,14 +23,14 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0xe0041
   bb3:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, 22 !metadata(memory=scratch)
-    mstore 68, 0x536c6963652073746172747320616674657220656e6400000000000000000000 !metadata(memory=scratch)
+    mstore 36, 28 !metadata(memory=scratch)
+    mstore 68, 0x536c6963652069732067726561746572207468616e206c656e67746800000000 !metadata(memory=scratch)
     revert 0, 100
   bb1:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
-    mstore 36, 28 !metadata(memory=scratch)
-    mstore 68, 0x536c6963652069732067726561746572207468616e206c656e67746800000000 !metadata(memory=scratch)
+    mstore 36, 22 !metadata(memory=scratch)
+    mstore 68, 0x536c6963652073746172747320616674657220656e6400000000000000000000 !metadata(memory=scratch)
     revert 0, 100
 }
 
@@ -50,6 +50,46 @@ fn @callNoCode() [selector=0xc8b48fe8, abi_params=[], abi_returns=[]] {
     revert_returndata
   bb4:
     stop
+  bb1:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, 37 !metadata(memory=scratch)
+    mstore 68, 0x54617267657420636f6e747261637420646f6573206e6f7420636f6e7461696e !metadata(memory=scratch)
+    mstore 100, 0x20636f6465000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 132
+}
+
+fn @callNoCodeReturning() -> u256 [selector=0xe7426f49, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v2 = slice_ptr v1
+    v3 = slice_len v1
+    v4 = extcodesize 0x1234
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = call v0, 0x1234, 0, v2, v3, 0, 32
+    jumpi v6, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v7 = returndatasize
+    v8 = lt v7, 32
+    jumpi v8, bb5, bb6
+  bb6:
+    v9 = add 0, 0
+    v10 = mload v9
+    v11 = add 0, 0
+    v12 = mload v11
+    ret v12
+  bb5:
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, 34 !metadata(memory=scratch)
+    mstore 68, 0x414249206465636f64696e673a207475706c65206461746120746f6f2073686f !metadata(memory=scratch)
+    mstore 100, 0x7274000000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    revert 0, 132
   bb1:
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)

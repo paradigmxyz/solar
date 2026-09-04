@@ -117,13 +117,17 @@ pub(super) struct DebugSettings {
 }
 
 impl DebugSettings {
-    /// Returns `true` if `component` is selected, either directly or through `*`.
+    /// Returns `true` if `component` is selected.
     ///
-    /// Returns `false` when `debugInfo` is absent; callers apply solc's defaults themselves.
+    /// Like solc, `*` selects exactly the non-experimental components (`location`, `snippet`,
+    /// and `ast-id`) regardless of what else is listed. Returns `false` when `debugInfo` is
+    /// absent; callers apply solc's defaults themselves.
     pub(super) fn selects_debug_info(&self, component: DebugInfoComponent) -> bool {
-        self.debug_info.as_deref().is_some_and(|components| {
-            components.iter().any(|&c| c == component || c == DebugInfoComponent::All)
-        })
+        let Some(components) = self.debug_info.as_deref() else { return false };
+        if components.contains(&DebugInfoComponent::All) {
+            return component.is_selected_by_wildcard();
+        }
+        components.contains(&component)
     }
 }
 
@@ -139,9 +143,16 @@ pub(super) enum DebugInfoComponent {
     AstId,
     /// Ethdebug annotations.
     Ethdebug,
-    /// Every component.
+    /// Every non-experimental component.
     #[serde(rename = "*")]
     All,
+}
+
+impl DebugInfoComponent {
+    /// Returns `true` if `*` selects this component; experimental `ethdebug` is excluded.
+    const fn is_selected_by_wildcard(self) -> bool {
+        matches!(self, Self::Location | Self::Snippet | Self::AstId)
+    }
 }
 
 /// The solc Standard JSON `settings.metadata` object.
@@ -1052,8 +1063,13 @@ mod tests {
                     [..]
             )
         );
-        assert!(debug.selects_debug_info(DebugInfoComponent::Ethdebug));
+        assert!(debug.selects_debug_info(DebugInfoComponent::Snippet));
+        assert!(!debug.selects_debug_info(DebugInfoComponent::Ethdebug));
         assert!(!DebugSettings::default().selects_debug_info(DebugInfoComponent::Ethdebug));
+        let explicit =
+            serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["ethdebug"]}"#).unwrap();
+        assert!(explicit.selects_debug_info(DebugInfoComponent::Ethdebug));
+        assert!(!explicit.selects_debug_info(DebugInfoComponent::Location));
     }
 
     #[test]

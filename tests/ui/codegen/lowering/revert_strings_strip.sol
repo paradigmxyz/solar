@@ -7,7 +7,8 @@
 //@ run-call-fail: revertDynamicMessage 3 => 0x
 //@ run-call: requireSideEffects => 1
 //@ run-call-fail: revertSideEffects => 0x
-//@ run-call-fail: customError 7 => 0xcb362b340000000000000000000000000000000000000000000000000000000000000007
+//@ run-call-fail: customError 7 => Custom(uint256)(7)
+//@ run-call-fail: requireCustomError 0 => Custom(uint256)(0)
 
 // `--revert-strings strip` drops `require` and `revert` reason strings but keeps
 // the side effects of evaluating them and leaves custom errors untouched.
@@ -51,5 +52,10 @@ contract RevertStringsStrip {
 
     function customError(uint256 x) external pure {
         revert Custom(x);
+    }
+
+    function requireCustomError(uint256 x) external pure returns (uint256) {
+        require(x == 1, Custom(x));
+        return x;
     }
 }

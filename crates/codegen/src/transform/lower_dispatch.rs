@@ -157,11 +157,8 @@ fn build_entry(
         let revert_block = builder.create_block();
         // Rejected Ether and unknown selectors share one empty revert unless revert reasons are
         // encoded, in which case each gets its own message.
-        let callvalue_revert_block = if matches!(revert_strings, RevertStrings::Debug) {
-            builder.create_block()
-        } else {
-            revert_block
-        };
+        let callvalue_revert_block =
+            if revert_strings.is_debug() { builder.create_block() } else { revert_block };
         let default_block = fallback_block.as_ref().map_or(revert_block, |&(_, block)| block);
         let dispatch_block = receive_size_block.or(selector_size_block).unwrap_or(select_block);
 
@@ -231,7 +228,13 @@ fn build_entry(
         }
 
         builder.switch_to_block(revert_block);
-        builder.revert_reason(RevertReason::UnknownSelector);
+        // solc distinguishes a contract that can at least receive Ether from one that
+        // rejects every call.
+        builder.revert_reason(if receive.is_some() {
+            RevertReason::UnknownSelector
+        } else {
+            RevertReason::NoFallbackNorReceive
+        });
         if callvalue_revert_block != revert_block {
             builder.switch_to_block(callvalue_revert_block);
             builder.revert_reason(RevertReason::EtherSentToNonPayable);

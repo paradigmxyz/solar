@@ -208,10 +208,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
         if self.builder.encodes_revert_reasons() {
-            // if end > base.length { revert(Error("Slice is greater than length")) }
             // if end < start { revert(Error("Slice starts after end")) }
-            self.builder.revert_if_reason(past_end, RevertReason::SliceGreaterThanLength);
+            // if end > base.length { revert(Error("Slice is greater than length")) }
             self.builder.revert_if_reason(backwards, RevertReason::SliceStartsAfterEnd);
+            self.builder.revert_if_reason(past_end, RevertReason::SliceGreaterThanLength);
         } else {
             // if end > base.length || end < start { revert(0, 0) }
             let invalid = self.builder.or(past_end, backwards);

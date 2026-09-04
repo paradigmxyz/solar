@@ -400,8 +400,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             PreparedRevertPayload::EmptyString => {
                 // payload = abi_encode(Error(string), "")
                 // revert(payload.data, payload.length)
-                let selector = keccak256("Error(string)");
-                let selector = self.builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+                let selector = self.builder.imm(ERROR_SELECTOR);
                 let zero = self.builder.imm(0);
                 self.builder.mstore(zero, selector);
                 let offset = self.builder.imm(4);
@@ -416,8 +415,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             PreparedRevertPayload::ErrorString(value) => {
                 // payload = abi_encode(Error(string), value)
                 // revert(payload.data, payload.length)
-                let selector = keccak256("Error(string)");
-                let selector = self.builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+                let selector = self.builder.imm(ERROR_SELECTOR);
                 let layout = Arc::new(AbiLayout::new(
                     vec![AbiType::Bytes(SliceLocation::Memory)].into_boxed_slice(),
                 ));
@@ -468,8 +466,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new(function);
             let length = builder.add_param(MirType::uint256());
             let value = builder.add_param(MirType::uint256());
-            let selector = keccak256("Error(string)");
-            let selector = builder.imm(U256::from_be_slice(&selector[..4]) << 224);
+            let selector = builder.imm(ERROR_SELECTOR);
             let zero = builder.imm(0);
             builder.mstore(zero, selector);
             let offset = builder.imm(4);

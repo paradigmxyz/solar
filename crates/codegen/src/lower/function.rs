@@ -9,9 +9,10 @@ use crate::{
     memory::EvmMemoryLayout,
     mir::{
         AbiLayout, AbiParamLayout, AbiParamLocation, AbiParamType, AbiType, AbiWordValidator,
-        AllocationSemantics, BlockId, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind, MemoryObjectLayout,
-        MirType, Module, PanicCode, RevertReason, SliceLocation, Value, ValueId,
+        AllocationSemantics, BlockId, ERROR_SELECTOR, FrameMode, FrameSlotKind, Function,
+        FunctionBuilder, FunctionId, ImmutableId, InstKind, LibraryLink, MemoryObjectKind,
+        MemoryObjectLayout, MirType, Module, PanicCode, RevertReason, SliceLocation, Value,
+        ValueId,
     },
 };
 use alloy_primitives::{U256, keccak256};

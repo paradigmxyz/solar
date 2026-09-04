@@ -1,0 +1,11 @@
+// === ROOT/tests/ui/codegen/lowering/revert_strings_debug_receive.sol:RevertStringsDebugReceive ===
+@module RevertStringsDebugReceive
+fn @receive() [receive, payable] {
+  bb0:
+    stop
+}
+
+fn @passthrough(arg0: u256) -> u256 [selector=0x8f336a56, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}

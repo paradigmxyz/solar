@@ -230,8 +230,8 @@ str_enum! {
         /// Drop user-supplied revert and require reason strings, keeping any side effects of
         /// evaluating them.
         Strip,
-        /// Keep user-supplied reason strings; solc additionally attaches messages to
-        /// compiler-generated reverts, which we do not emit.
+        /// Keep user-supplied reason strings and attach solc's messages to compiler-generated
+        /// reverts, such as "Ether sent to non-payable function".
         Debug,
         /// Not implemented, matching solc.
         VerboseDebug,
@@ -242,6 +242,11 @@ impl RevertStrings {
     /// Returns `true` if user-supplied revert reason strings are stripped.
     pub const fn is_strip(self) -> bool {
         matches!(self, Self::Strip)
+    }
+
+    /// Returns `true` if compiler-generated reverts carry `Error(string)` messages.
+    pub const fn is_debug(self) -> bool {
+        matches!(self, Self::Debug)
     }
 }
 

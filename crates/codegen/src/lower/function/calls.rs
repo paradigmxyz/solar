@@ -52,8 +52,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// rule, `encodedHeadSize == 0 || !supportsReturndata()`, and it holds for every receiver:
     /// `this` is no exception, because the executing code and `address(this)` come apart under
     /// `DELEGATECALL`, where the account may well have no code of its own.
+    ///
+    /// With `--revert-strings debug` the check is always emitted, as in solc, so a code-less
+    /// target reports "Target contract does not contain code" instead of a decoding failure.
     pub(super) fn needs_code_check(&self, returns: usize) -> bool {
-        returns == 0 || !self.cx.gcx.sess.opts.evm_version.supports_returndata()
+        let opts = &self.cx.gcx.sess.opts;
+        returns == 0 || !opts.evm_version.supports_returndata() || opts.revert_strings.is_debug()
     }
 
     /// Returns the `gas` operand of an external call, materializing the pre-EIP-150 reserve when
