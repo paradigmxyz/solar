@@ -297,10 +297,18 @@ impl ConstValue {
 }
 
 /// The declared integer type of a constant value.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Eq, Debug)]
 struct IntTy {
     signed: bool,
     size: TypeSize,
+}
+
+/// `int` and `int256` denote the same type with a different size, so compare the bit widths
+/// instead of the sizes as written.
+impl PartialEq for IntTy {
+    fn eq(&self, other: &Self) -> bool {
+        self.signed == other.signed && self.bits() == other.bits()
+    }
 }
 
 impl IntTy {
@@ -711,6 +719,16 @@ mod tests {
         assert_eq!(int(false, 8).common(int(false, 8)), Some(int(false, 8)));
         assert_eq!(int(true, 8).common(int(false, 16)), None);
         assert_eq!(int(false, 8).common(int(true, 16)), None);
+    }
+
+    #[test]
+    fn int_ty_eq_ignores_how_the_size_is_written() {
+        let plain = IntTy { signed: true, size: TypeSize::ZERO };
+        assert_eq!(plain.bits(), int(true, 256).bits());
+        assert_eq!(plain, int(true, 256));
+        assert_eq!(plain.common(int(true, 256)), Some(int(true, 256)));
+        assert_ne!(plain, int(false, 256));
+        assert_ne!(plain, int(true, 128));
     }
 
     #[test]
