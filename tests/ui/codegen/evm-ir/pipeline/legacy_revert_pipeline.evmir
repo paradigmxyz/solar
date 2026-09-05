@@ -1,0 +1,12 @@
+//@ revisions: homestead_default homestead_none homestead_custom byzantium_none
+//@ compile-flags: -Ogas -Zdump=disasm-runtime
+//@[homestead_default] compile-flags: --evm-version homestead -Zevm-ir-pipeline=default
+//@[homestead_none] compile-flags: --evm-version homestead -Zevm-ir-pipeline=none
+//@[homestead_custom] compile-flags: --evm-version homestead -Zevm-ir-pipeline=peephole
+//@[byzantium_none] compile-flags: --evm-version byzantium -Zevm-ir-pipeline=none
+
+@module LegacyRevertPipeline
+bb0:
+  push 0
+  push 0
+  revert !meta(stack=2->0)

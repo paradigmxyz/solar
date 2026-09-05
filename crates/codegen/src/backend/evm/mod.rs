@@ -134,7 +134,7 @@ impl EvmCodegen<'_> {
             .ir;
         runtime_ir.name = solar_interface::Symbol::intern(&format!("{}_runtime", module.name));
         let _changed = ir::run_pipeline(self.gcx, &mut runtime_ir, None);
-        self.gcx.dcx().has_errors()?;
+        ir::finish_lowering(self.gcx, &mut runtime_ir)?;
         let runtime = assembly::assemble(self.gcx, &runtime_ir)?;
         let mut deployment_ir = deployment::lower(
             module,
@@ -146,7 +146,7 @@ impl EvmCodegen<'_> {
         )
         .map_err(|message| self.gcx.dcx().err(message).emit())?;
         let _changed = ir::run_pipeline(self.gcx, &mut deployment_ir, None);
-        self.gcx.dcx().has_errors()?;
+        ir::finish_lowering(self.gcx, &mut deployment_ir)?;
         let deployment = assembly::assemble(self.gcx, &deployment_ir)?;
         resolve_capture(&mut runtime_ir, runtime.bytes.len());
         resolve_capture(&mut deployment_ir, deployment.bytes.len());

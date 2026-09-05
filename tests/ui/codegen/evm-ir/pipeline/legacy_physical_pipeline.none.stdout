@@ -1,0 +1,73 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pipeline/legacy_physical_pipeline.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pipeline/legacy_physical_pipeline.evmir (after none) ===
+  @module LegacyPhysicalPipeline
+  bb0:
+    push 0
+    calldataload
+    push 32
+    calldataload
+    shl
+    push 0
+    mstore
+    push 0
+    calldataload
+    push 32
+    calldataload
+    shr
+    push 32
+    mstore
+    push 0
+    calldataload
+    push 32
+    calldataload
+    sar
+    push 64
+    mstore
+    push 96
+    push 0
+    return
+  
+// === LegacyPhysicalPipeline (runtime) ===
+PUSH1 0x00
+CALLDATALOAD
+PUSH1 0x20
+CALLDATALOAD
+PUSH1 0x02
+EXP
+MUL
+PUSH1 0x00
+MSTORE
+PUSH1 0x00
+CALLDATALOAD
+PUSH1 0x20
+CALLDATALOAD
+PUSH1 0x02
+EXP
+SWAP1
+DIV
+PUSH1 0x20
+MSTORE
+PUSH1 0x00
+CALLDATALOAD
+PUSH1 0x20
+CALLDATALOAD
+DUP2
+PUSH1 0x00
+SWAP1
+SLT
+PUSH1 0x00
+SUB
+SWAP2
+DUP3
+XOR
+SWAP1
+PUSH1 0x02
+EXP
+SWAP1
+DIV
+XOR
+PUSH1 0x40
+MSTORE
+PUSH1 0x60
+PUSH1 0x00
+RETURN

@@ -1,4 +1,4 @@
-//! Legalizes word shifts for targets predating Constantinople.
+//! Completes physical instruction lowering for older EVM targets.
 //!
 //! SHL and SHR use powers of two, whose wrapping exponentiation naturally yields
 //! zero for shifts of at least 256. SAR complements negative inputs before the
@@ -6,8 +6,11 @@
 //! and sign extension even when the divisor wraps to zero. This required pass
 //! runs after target optimizations and before primitive assembly. It introduces
 //! only local physical stack operations and never touches memory or CFG edges.
+//! The final encoding adapter also maps REVERT to INVALID before Byzantium,
+//! preserving exceptional termination on targets without revert-data support.
+//! This mandatory conversion is independent of the selected optimization passes.
 
-use super::{EvmPass, InstKind, Module};
+use super::{EvmPass, InstKind, Module, TerminatorKind};
 use crate::backend::evm::op;
 use alloy_primitives::U256;
 use solar_sema::Gcx;
@@ -91,5 +94,19 @@ impl EvmPass for LegalizeShifts {
             }
         }
         changed
+    }
+}
+
+/// Preserves exceptional termination where the target has no REVERT opcode.
+pub(super) fn lower_unavailable_reverts(gcx: Gcx<'_>, module: &mut Module) {
+    if op::available(op::REVERT, gcx.sess.opts.evm_version) {
+        return;
+    }
+    for id in module.block_ids().collect::<Vec<_>>() {
+        let block = &mut module.blocks[id];
+        if block.terminator.kind == TerminatorKind::Revert {
+            // revert offset, size -> invalid
+            block.terminator = TerminatorKind::Invalid.into();
+        }
     }
 }

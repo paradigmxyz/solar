@@ -1,0 +1,32 @@
+//@ revisions: default none custom
+//@ compile-flags: --evm-version byzantium -Ogas -Zdump=disasm-runtime
+//@[default] compile-flags: -Zevm-ir-pipeline=default
+//@[none] compile-flags: -Zevm-ir-pipeline=none
+//@[custom] compile-flags: -Zevm-ir-pipeline=peephole
+
+@module LegacyPhysicalPipeline
+bb0:
+  push 0
+  calldataload
+  push 32
+  calldataload
+  shl
+  push 0
+  mstore
+  push 0
+  calldataload
+  push 32
+  calldataload
+  shr
+  push 32
+  mstore
+  push 0
+  calldataload
+  push 32
+  calldataload
+  sar
+  push 64
+  mstore
+  push 96
+  push 0
+  return

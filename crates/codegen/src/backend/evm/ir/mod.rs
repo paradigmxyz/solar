@@ -164,9 +164,11 @@ impl Module {
 
     /// Assembles this module into bytecode.
     pub fn into_bytecode(mut self, gcx: Gcx<'_>) -> Result<Vec<u8>> {
-        let _changed = run_pipeline(gcx, &mut self, None);
         validate(gcx, &self);
-        verify::validate_target(gcx, &self);
+        gcx.dcx().has_errors()?;
+        let _changed = run_pipeline(gcx, &mut self, None);
+        finish_lowering(gcx, &mut self)?;
+        validate(gcx, &self);
         gcx.dcx().has_errors()?;
         super::assembly::encode(gcx, &self)
     }
@@ -180,6 +182,24 @@ impl Module {
     pub fn to_text(&self) -> impl Display + '_ {
         text::PrintedModule(self)
     }
+}
+
+/// Completes mandatory target lowering independently of optional pass selection.
+/// Explicit pipelines control optimization and dumps, but cannot omit instruction
+/// legalization required for executable bytes. The default pipeline already runs
+/// the required pass; custom old-target pipelines finish silently before capture.
+/// Target availability is checked for both generated and parsed programs.
+pub(crate) fn finish_lowering(gcx: Gcx<'_>, module: &mut Module) -> Result<()> {
+    gcx.dcx().has_errors()?;
+    if gcx.sess.opts.unstable.evm_ir_pipeline.is_some()
+        && !gcx.sess.opts.evm_version.has_bitwise_shifting()
+    {
+        // shl / shr / sar -> target-legal arithmetic and physical stack operations
+        let _changed = legalize::LegalizeShifts.run_pass(gcx, module);
+    }
+    legalize::lower_unavailable_reverts(gcx, module);
+    verify::validate_target(gcx, module);
+    gcx.dcx().has_errors()
 }
 
 /// Validates a physical EVM program.

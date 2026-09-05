@@ -1,0 +1,4 @@
+// === LegacyRevertPipeline (runtime) ===
+PUSH1 0x00
+PUSH1 0x00
+INVALID

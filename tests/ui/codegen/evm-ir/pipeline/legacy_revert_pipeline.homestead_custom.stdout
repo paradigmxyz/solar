@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pipeline/legacy_revert_pipeline.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pipeline/legacy_revert_pipeline.evmir (after peephole) ===
+  @module LegacyRevertPipeline
+  bb0:
+    push 0
+    push 0
+    revert
+  
+// === LegacyRevertPipeline (runtime) ===
+PUSH1 0x00
+PUSH1 0x00
+INVALID
