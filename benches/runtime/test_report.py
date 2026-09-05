@@ -24,6 +24,24 @@ def result(test_id="test", suite="repository", **compiler):
 
 
 class ReportFormattingTests(unittest.TestCase):
+    def test_perf_link_uses_default_site(self):
+        with patch.dict(
+            os.environ,
+            {
+                "BENCHMARK_BASE_SHA": "0123456789abcdef",
+                "BENCHMARK_PR_HEAD_SHA": "fedcba9876543210",
+            },
+            clear=True,
+        ):
+            self.assertEqual(
+                benchmark.perf_link("Results"),
+                "[Results](https://getfoundry.sh/perf/?base=01234567&head=fedcba98#benchmarks)",
+            )
+            self.assertEqual(
+                benchmark.perf_link("factorial", "factorial"),
+                "[factorial](https://getfoundry.sh/perf/?base=01234567&head=fedcba98&benchmark=factorial#artifacts)",
+            )
+
     def test_perf_link_targets_artifact(self):
         with patch.dict(
             os.environ,
