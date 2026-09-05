@@ -1,12 +1,9 @@
 //@ compile-flags: -Zevm-ir-pipeline=default -O gas -Zdump=disasm-runtime
-//@ filecheck: --implicit-check-not=JUMPDEST
+//@ filecheck: --implicit-check-not=JUMPDEST --implicit-check-not=MSTORE
 
 @module terminal_dedup
 
 // CHECK-LABEL: // === terminal_dedup (runtime) ===
-// CHECK-NEXT: PUSH2 0x1234
-// CHECK-NEXT: PUSH0
-// CHECK-NEXT: MSTORE
 // CHECK-NEXT: PUSH0
 // CHECK-NEXT: PUSH0
 // CHECK-NEXT: REVERT
