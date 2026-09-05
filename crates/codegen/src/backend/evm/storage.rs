@@ -49,15 +49,6 @@ pub(crate) enum FrameAddress {
     Relative(u64),
 }
 
-/// One allocation whose placement was proven safe by retained MIR lowering.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct DeferredAllocation {
-    /// Offset from this function's deferred-allocation area.
-    pub(crate) offset: u64,
-    /// Byte size of the reserved object.
-    pub(crate) size: u64,
-}
-
 /// Memory requirements of one function, indexed by its MIR identity.
 #[derive(Clone, Debug)]
 pub(crate) struct FunctionStorage {
@@ -85,8 +76,8 @@ pub(crate) struct FunctionStorage {
     pub(crate) retain_frame: bool,
     /// Whether the frame address can remain observable after a returning activation.
     pub(crate) address_exposed: bool,
-    /// Allocation sites are sparse in the live instruction domain.
-    pub(crate) deferred_allocations: FxHashMap<InstId, DeferredAllocation>,
+    /// Sparse allocation-site offsets within this function's deferred-allocation area.
+    pub(crate) deferred_allocations: FxHashMap<InstId, u64>,
     /// Absolute start of this function's deferred-allocation area after layout.
     pub(crate) deferred_base: u64,
     local_end: u64,
@@ -123,11 +114,11 @@ impl FunctionStorage {
 
     /// Resolves a deferred allocation after final layout.
     pub(crate) fn allocation_address(&self, inst: InstId) -> Result<u64, &'static str> {
-        let allocation = self
+        let offset = self
             .deferred_allocations
             .get(&inst)
             .ok_or("EVM allocation has no deferred storage reservation")?;
-        add(self.deferred_base, allocation.offset)
+        add(self.deferred_base, *offset)
     }
 }
 
@@ -136,8 +127,6 @@ impl FunctionStorage {
 pub(crate) struct ModulePlan {
     /// Function layouts use the complete stable MIR function ID domain.
     pub(crate) functions: IndexVec<FunctionId, FunctionStorage>,
-    /// Constructor-reachable functions, including constructors themselves.
-    pub(crate) constructor_reachable: DenseBitSet<FunctionId>,
     /// First immutable staging byte, matching retained `immutable.rs`.
     pub(crate) immutable_staging_base: u64,
     /// First byte after the immutable staging words.
@@ -229,7 +218,6 @@ impl ModulePlan {
         }
         let mut plan = Self {
             functions,
-            constructor_reachable,
             immutable_staging_base,
             immutable_staging_end,
             fixed_memory_end: reserved_end,
@@ -343,7 +331,7 @@ fn function_storage(function: &Function, entry: bool) -> Result<FunctionStorage,
                 if semantics.alignment == AllocationAlignment::Word { align(size)? } else { size };
             let offset = align(deferred_size)?;
             deferred_size = add(offset, size)?;
-            deferred_allocations.insert(inst, DeferredAllocation { offset, size });
+            deferred_allocations.insert(inst, offset);
         }
     }
     let address_exposed = frame_address_escapes(function);
