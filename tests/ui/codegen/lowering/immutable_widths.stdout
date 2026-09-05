@@ -2,102 +2,150 @@
 // === ImmutableWidths_deployment ===
 @module ImmutableWidths_deployment
 bb0:
-  push 377
+  push 384
+  push 64
+  mstore
+  push 471
   codesize
   sub
   dup 1
-  push 377
-  push 416
+  push 471
+  push 384
   codecopy
-  push 416
-  add
-  push 31
+  push 415
   add
   push 31
   not
   and
   push 64
   mstore
-  callvalue
-  push bb8
-  jumpi
+  push 384
+  mload
   push 416
-  dup 1
-  push 377
+  mload
+  push 448
+  mload
+  push 480
+  mload
+  push 512
+  mload
+  push 544
+  mload
+  callvalue
+  jumpi bb3, bb2
+bb2:
+  push 384
+  push 471
   codesize
   sub
+  dup 2
   add
   push 192
   dup 3
   add
   gt
-  push bb8
-  jumpi
+  jumpi bb3, bb4
+bb4:
   dup 1
   mload
   push 8
   shr
-  push bb8
-  jumpi
+  jumpi bb3, bb5
+bb5:
   push 32
   dup 2
   add
   mload
-  dup 1
   push 1
+  dup 2
+  swap 1
   signextend
-  sub
-  push bb8
-  jumpi
+  eq
+  jumpi bb6, bb3
+bb3:
+  push 0
+  push 0
+  revert
+bb6:
   push 64
   dup 2
   add
   mload
   push 24
   shl
-  push bb8
-  jumpi
+  jumpi bb3, bb7
+bb7:
   push 96
   dup 2
   add
   mload
   push 160
   shr
-  push bb8
-  jumpi
+  jumpi bb3, bb8
+bb8:
   push 160
   add
   mload
   push 16
   shr
-  push bb8
-  jumpi
+  jumpi bb3, bb9
+bb9:
   push 192
-  push 416
-  dup 2
-  mcopy
-  push 189
-  dup 1
-  push 188
-  push 0
+  swap 6
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  mstore
+  push 224
+  swap 5
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  mstore
+  push 256
+  swap 4
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  mstore
+  push 288
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  mstore
+  push 320
+  exchange 1, 2
+  mstore
+  push 352
+  mstore
+  push 200
+  push 271
+  push 384
   codecopy
   push 192
   mload
-  push 20
+  push 403
   mstore8
   push 224
   mload
-  push 22
+  push 405
   mstore
   push 256
   mload
-  push 55
+  push 438
   mstore
   push 288
   mload
   push 96
   shl
-  push 88
+  push 471
   mload
   push 0
   not
@@ -105,17 +153,17 @@ bb0:
   shr
   and
   or
-  push 88
+  push 471
   mstore
   push 320
   mload
-  push 109
+  push 492
   mstore
   push 352
   mload
   push 240
   shl
-  push 142
+  push 525
   mload
   push 0
   not
@@ -123,67 +171,73 @@ bb0:
   shr
   and
   or
-  push 142
+  push 525
   mstore
-  push 0
+  push 200
+  push 384
   return
-bb8 [cold]:
-  push 0
-  push 0
-  revert
 
 // === ImmutableWidths_runtime ===
 @module ImmutableWidths_runtime
 bb0:
   callvalue
-  push bb3
-  jumpi
+  jumpi bb6, bb4
+bb4:
   push 0
   calldataload
   push 224
   shr
-  dup 1
   push 0x57de26a4
   sub
-  push bb3
-  jumpi
+  jumpi bb6, bb1
+bb1:
   push_immutable 0, 1
   push_immutable 1, 32
   push_immutable 2, 32
   push_immutable 3, 20
   push_immutable 4, 32
   push_immutable 5, 2
-  swap 4
   push 1
-  signextend
-  dup 6
-  push 128
-  mstore
   swap 5
-  pop
-  dup 5
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  signextend
+  push 128
+  swap 6
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  mstore
   push 160
   mstore
-  swap 4
-  pop
-  dup 2
   push 192
-  mstore
+  swap 4
   swap 1
-  pop
+  swap 2
+  swap 3
+  swap 4
+  mstore
   push 224
-  mstore
-  dup 2
-  push 256
-  mstore
+  swap 2
+  swap 3
   swap 1
-  pop
+  swap 2
+  mstore
+  push 256
+  exchange 1, 2
+  mstore
   push 288
   mstore
   push 192
   push 128
   return
-bb3 [cold]:
+bb6:
   push 0
   push 0
   revert
