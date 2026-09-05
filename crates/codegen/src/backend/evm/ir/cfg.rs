@@ -12,9 +12,11 @@
 //! within the shared body, and proves room for the added jump address. Pushed
 //! labels also block sharing unless machine lowering proves they remain private
 //! control state; parsed IR can expose their numeric addresses as ordinary data. A final
-//! taken-edge-only cleanup shares tiny terminal bodies without introducing a
-//! transfer or changing the surviving layout. It protects every possible
-//! fallthrough and rejects computed control and code-address observations. Placement
+//! taken-edge-only cleanup redirects duplicate exits to surviving identical
+//! bodies without adding a transfer or changing the surviving layout. The
+//! earliest identical body remains the owner and may gain a JUMPDEST. Only
+//! taken-only duplicates can be removed; computed control and code-address
+//! observations block the transform. Placement
 //! forms unconditional and conditional-false traces, removing their encoded
 //! PUSH/JUMP transfers while keeping cold traces after hot ones. Existing
 //! unconditional trace edges reserve their targets in hotness/reference order,
@@ -379,7 +381,7 @@ fn terminal_dedup(module: &mut Module) -> bool {
     changed
 }
 
-/// Shares tiny taken-only exits without changing any possible fallthrough.
+/// Removes taken-only duplicate exits while retaining every possible fallthrough.
 fn redirect_terminals(module: &mut Module) -> bool {
     let ids = module.block_ids().collect::<Vec<_>>();
     let mut protected = DenseBitSet::new_empty(module.blocks.len());
@@ -415,10 +417,8 @@ fn redirect_terminals(module: &mut Module) -> bool {
         }
     }
     let candidates = ids.iter().copied().filter(|&id| {
-        taken.contains(id) && !protected.contains(id)
-            && module.blocks[id].insts.len() < 3
-            && matches!(module.blocks[id].terminator.kind,
-                TerminatorKind::Return | TerminatorKind::Revert | TerminatorKind::SelfDestruct)
+        matches!(module.blocks[id].terminator.kind,
+            TerminatorKind::Return | TerminatorKind::Revert | TerminatorKind::SelfDestruct)
     }).collect::<Vec<_>>();
     let mut targets = module.blocks.indices().collect::<IndexVec<BlockId, _>>();
     let mut changed = false;
@@ -426,6 +426,8 @@ fn redirect_terminals(module: &mut Module) -> bool {
         if targets[id] != id { continue; }
         for &other in &candidates[index + 1..] {
             if targets[other] == other
+                && taken.contains(other)
+                && !protected.contains(other)
                 && module.blocks[id].insts == module.blocks[other].insts
                 && module.blocks[id].terminator == module.blocks[other].terminator
             {
