@@ -594,8 +594,8 @@ impl IntScalar {
             },
             _ => match (l.ty, r.ty) {
                 (None, None) => None,
-                (Some(ty), None) => Self::literal_common_ty(&r, ty)?,
-                (None, Some(ty)) => Self::literal_common_ty(&l, ty)?,
+                (Some(ty), None) => Self::literal_common_ty(r, ty)?,
+                (None, Some(ty)) => Self::literal_common_ty(l, ty)?,
                 (Some(l), Some(r)) => l.common(r),
             },
         })
