@@ -19,7 +19,7 @@
 //! one window length at a time, retaining the full search with storage linear
 //! in original instruction count. Gas mode applies only the
 //! best candidate. Size mode retains at most 512 candidates and selects at most
-//! eight whose original instruction ranges are disjoint. All sites are then
+//! sixteen whose original instruction ranges are disjoint. All sites are then
 //! split from right to left, so earlier coordinates remain valid without
 //! rescanning or nesting newly outlined bodies. Metadata and relocatable
 //! observations are excluded.
@@ -316,7 +316,7 @@ fn disjoint_candidates(ranked: Vec<Candidate>) -> Vec<Candidate> {
             ranges.sort_unstable();
         }
         selected.push(candidate);
-        if selected.len() == 8 {
+        if selected.len() == 16 {
             break;
         }
     }
