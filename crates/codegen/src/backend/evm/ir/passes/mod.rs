@@ -197,7 +197,7 @@ fn run_passes_inner(
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
-            if validate_each && should_validate_ir(gcx) {
+            if pass_changed && validate_each && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
             }
             assert_debug_info_handled(module, pass_name, "after");

@@ -1,9 +1,12 @@
 //@ revisions: default strip debug
 //@[strip] compile-flags: --revert-strings strip
 //@[debug] compile-flags: --revert-strings debug
+
 //@ run-call: passthrough 7 => 7
 //@[default,strip] run-call-fail: passthrough 7; value=1 => 0x
 //@[debug] run-call-fail: passthrough 7; value=1 => Error("Ether sent to non-payable function")
+
+// An unknown selector, and a plain Ether transfer that `receive` accepts.
 //@[default,strip] run-call-fail: 0xdeadbeef => 0x
 //@[debug] run-call-fail: 0xdeadbeef => Error("Unknown signature and no fallback defined")
 //@ run-call: 0x; value=1
