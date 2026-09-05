@@ -286,6 +286,44 @@ with 27/32 individually regressing labels. Runtime bytes remain
 increases. The nine heavy gas cases are explicitly missing from this short
 rerun. These aggregate improvements do not satisfy the final per-case gates.
 
+## Latest committed validation
+
+Required target finishing (`f269caad`) is committed with old-fork custom-pipeline
+regressions and original-input public API validation. Its checked pair retains
+all default UI/hot bytes and gas labels. The immutable byte-patch expectation
+(`1035e270`) now checks three complete disjoint patches without imposing their
+relative order. Forty boundary reads and twelve invalid constructors pass in
+both modes. Both compilers preserve exact bytes after the comment-only source
+amendment. Supplemental sealed rows at the real test path are retained under
+`immutable-byte-patch-review/both-modes/`; `sealed-ui-derived.json` replaces only
+those two remeasured rows and the one source fingerprint. The original archive,
+rows and measured creation-size debt remain unchanged.
+
+Dying operand groups (`f252665b`) compare against the existing unary whole-block
+winner before acceptance, fixing two reproduced decoder regressions. The paired
+712-case corpora have no individual increase: gas runtime/creation fall by
+447/525 bytes and size is exact. All 15 hot cases preserve outcomes and 175
+ordered labels; gas runtime falls by 113 bytes and gas by 216. The activating
+dynamic-field fixture passes 384 independent calls and both bounded symbolic
+modes. Sixteen disjoint outline groups (`79c567b1`) save another 123 UI size-mode
+bytes, with hot bytes/gas exact. All 432 Seaport contracts compile, twelve shrink
+and none grows: creation/runtime each fall by 1,111 bytes. Sequential timing is
+98.123/98.125 seconds and sampled RSS is 558,032/584,192 KiB before/after.
+
+The committed source hashes and debug executable match this frozen checkpoint.
+Workspace nextest has 1,343 passes, one UI-runner failure and two skips. The
+codegen UI lane has 2,523 passes and 71 output differences; all failures are
+output comparisons still requiring review. The in-repository Foundry lane
+passes. These are checkpoint results, not a completed acceptance run.
+
+`multi-outline-sealed-ranking/` still records 1,357 UI artifact increases,
+27/32 hot gas-label increases and 20/18 hot artifact increases in gas/size.
+The nine heavy gas cases remain absent from this short runtime report. Current
+work investigates the dominant Nitro wrapper's spill traffic. Independent
+review rejected a proposed region-only call-write proof: backward arithmetic
+can make a heap-derived pointer overlap compiler homes. No such optimization
+was implemented; direct-writer behavior is being tested before further tuning.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
