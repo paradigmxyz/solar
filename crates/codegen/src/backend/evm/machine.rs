@@ -117,8 +117,9 @@ pub(crate) fn lower(
     for (id, function) in module.iter_functions() {
         let live = Liveness::compute(function);
         let cfg = CfgInfo::new(function);
+        let alias = AliasAnalysis::new(function);
         let spills = if reachable.contains(id) {
-            SpillPlan::new(function, &live, &cfg, returning.contains(id), version, |value| {
+            SpillPlan::new(function, &live, &cfg, &alias, returning.contains(id), version, |value| {
                 stored(function, value)
             })
         } else {
@@ -170,7 +171,7 @@ pub(crate) fn lower(
             returning: returning.contains(id),
             live,
             cfg,
-            alias: AliasAnalysis::new(function),
+            alias,
             spills,
         });
     }

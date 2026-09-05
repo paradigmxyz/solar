@@ -1,0 +1,97 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/writer_spill_values.sol:WriterSpillValues ===
+@module WriterSpillValues
+fn @fixedScratch(arg0: calldataslice) -> u256 [selector=0x92b559a7, pure, abi_params=[array<20, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @run, 1, arg0, 0
+    ret v0
+}
+
+fn @run(arg0: calldataslice, arg1: u256) -> u256 [selector=0x943d2a88, pure, abi_params=[array<20, u256>, u256], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = internal_call @write, 1, v0, arg1
+    ret v1
+}
+
+fn @write(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 0
+    v1 = calldataload v0
+    v2 = add arg0, 32
+    v3 = calldataload v2
+    v4 = add arg0, 64
+    v5 = calldataload v4
+    v6 = add arg0, 96
+    v7 = calldataload v6
+    v8 = add arg0, 128
+    v9 = calldataload v8
+    v10 = add arg0, 160
+    v11 = calldataload v10
+    v12 = add arg0, 192
+    v13 = calldataload v12
+    v14 = add arg0, 224
+    v15 = calldataload v14
+    v16 = add arg0, 256
+    v17 = calldataload v16
+    v18 = add arg0, 288
+    v19 = calldataload v18
+    v20 = add arg0, 320
+    v21 = calldataload v20
+    v22 = add arg0, 352
+    v23 = calldataload v22
+    v24 = add arg0, 384
+    v25 = calldataload v24
+    v26 = add arg0, 416
+    v27 = calldataload v26
+    v28 = add arg0, 448
+    v29 = calldataload v28
+    v30 = add arg0, 480
+    v31 = calldataload v30
+    v32 = add arg0, 512
+    v33 = calldataload v32
+    v34 = add arg0, 544
+    v35 = calldataload v34
+    v36 = add arg0, 576
+    v37 = calldataload v36
+    v38 = add arg0, 608
+    v39 = calldataload v38
+    v40 = mload 64 !metadata(memory=scratch)
+    v41 = add v40, 96
+    mstore 64, v41 !metadata(memory=scratch)
+    v42 = xor v1, v39
+    v43 = add v40, 32
+    mstore v43, v42
+    v44 = xor v3, v37
+    v45 = add v40, 64
+    mstore8 v45, v44
+    v46 = add v5, v35
+    v47 = add arg1, 32
+    mstore v47, v46
+    v48 = add v37, v39
+    v49 = add v33, v35
+    v50 = add v49, v48
+    v51 = add v29, v31
+    v52 = add v25, v27
+    v53 = add v52, v51
+    v54 = add v21, v23
+    v55 = add v17, v19
+    v56 = add v55, v54
+    v57 = add v56, v53
+    v58 = add v13, v15
+    v59 = add v9, v11
+    v60 = add v59, v58
+    v61 = add v5, v7
+    v62 = add v1, v3
+    v63 = add v62, v61
+    v64 = add v63, v60
+    v65 = add v64, v57
+    v66 = add v65, v50
+    v67 = add v40, 64
+    v68 = mload v67
+    v69 = byte 0, v68
+    v70 = add v40, 32
+    v71 = mload v70
+    v72 = add v71, v69
+    v73 = add v72, v66
+    ret v73
+}

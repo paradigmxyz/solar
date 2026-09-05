@@ -4,8 +4,9 @@
 //! and phi edges to find functions that exceed the target DUP window. Dying operands are consumed
 //! in place instead of being counted twice. Those functions receive reusable memory homes for
 //! overlapping live intervals; short-lived expression temporaries, dying branch conditions and
-//! single internal return values remain on the stack. Calls, memory writers and wider terminal
-//! protocols stop the bounded local window. A separate
+//! single internal return values remain on the stack. A temporary may also end at a heap store
+//! whose writes are disjoint from every compiler-owned word. Calls, other memory writers and wider
+//! terminal protocols stop the bounded local window. A separate
 //! temporary region permits phi edge copies to read every source before writing any destination,
 //! including cyclic transfers. Ordinary low-pressure functions retain stack-only values. Address
 //! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
@@ -13,7 +14,7 @@
 
 use super::scheduler::Stack;
 use crate::{
-    analysis::{Access, AddressSpace, CfgInfo, Liveness, Location, MemoryBase, ModRef},
+    analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, Liveness, Location, MemoryBase, ModRef},
     mir,
 };
 use solar_config::EvmVersion;
@@ -32,6 +33,7 @@ impl SpillPlan {
         function: &mir::Function,
         live: &Liveness,
         cfg: &CfgInfo,
+        alias: &AliasAnalysis,
         returning: bool,
         version: EvmVersion,
         stored: impl Fn(mir::ValueId) -> bool,
@@ -67,6 +69,13 @@ impl SpillPlan {
                         };
                         let next = &function.inst(next_inst).kind;
                         if next.has_side_effects() || matches!(next, mir::InstKind::Phi(_)) {
+                            if matches!(next, mir::InstKind::MStore(..) | mir::InstKind::MStore8(..))
+                                && next.operands().contains(&value)
+                                && !live.is_used_at_or_after(value, block_id, next_position + 1)
+                                && disjoint_heap_write(&alias.instruction_mod_ref(function, next_inst))
+                            {
+                                local.insert(value);
+                            }
                             break;
                         }
                         if next.operands().contains(&value)
@@ -95,6 +104,18 @@ impl SpillPlan {
             .unwrap_or(0);
         Self { homes, phi_scratch, words: phi_scratch + scratch_count }
     }
+}
+
+/// Mirrors the disjoint-region case of `accesses_overlap` for every possible frame placement.
+/// Comparable absolute and frame-relative ranges are excluded because exact overlap takes priority
+/// over region information. Such stores therefore cannot make `save_writer_homes` clear the stack.
+fn disjoint_heap_write(effects: &ModRef) -> bool {
+    effects.writes().iter().all(|access| {
+        matches!(access, Access::Location(Location::Memory(location))
+            if location.size.as_const() == Some(0)
+                || (matches!(location.address.region, mir::MemoryRegion::Heap | mir::MemoryRegion::AbiReturn)
+                    && !matches!(location.address.base, MemoryBase::Absolute | MemoryBase::InternalFrame)))
+    })
 }
 
 /// Reuses words whose conservative live intervals do not overlap in physical block order.
