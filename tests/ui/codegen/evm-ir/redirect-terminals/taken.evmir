@@ -1,0 +1,31 @@
+//@ compile-flags: -Zevm-ir-pipeline=redirect-terminals
+//@ filecheck:
+@module TakenTerminals
+
+// Both exits already require JUMPDESTs. Redirect the later taken edge and
+// remove only its terminal block, preserving every surviving layout position.
+// CHECK-LABEL: bb0:
+// CHECK: jumpi bb1, bb2
+bb0:
+  callvalue
+  jumpi bb1, bb2
+// CHECK-LABEL: bb1 [cold]:
+// CHECK: revert
+bb1 [cold]:
+  push 0
+  push 0
+  revert
+// CHECK-LABEL: bb2:
+// CHECK: + {{.*}}jumpi bb1, bb4
+bb2:
+  calldatasize
+  jumpi bb3, bb4
+// CHECK-NOT: {{^[ +].*}}bb3
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+// CHECK-LABEL: bb4:
+// CHECK: stop
+bb4:
+  stop

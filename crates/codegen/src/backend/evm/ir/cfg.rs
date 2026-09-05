@@ -7,7 +7,10 @@
 //! the instructions whose references require those targets to have JUMPDESTs.
 //! Stable block IDs survive all removals and layout changes. Terminal sharing
 //! redirects identical exiting suffixes only when their encoded body exceeds a
-//! jump; it never merges distinct effects or instruction metadata. Placement
+//! jump; it never merges distinct effects or instruction metadata. A final
+//! taken-edge-only cleanup shares tiny terminal bodies without introducing a
+//! transfer or changing the surviving layout. It protects every possible
+//! fallthrough and rejects computed control and code-address observations. Placement
 //! forms unconditional and conditional-false traces, removing their encoded
 //! PUSH/JUMP transfers while keeping cold traces after hot ones. Existing
 //! unconditional trace edges reserve their targets in hotness/reference order,
@@ -22,6 +25,7 @@ use solar_sema::Gcx;
 pub(super) struct CfgSimplify;
 pub(super) struct BlockLayout;
 pub(super) struct TerminalDedup;
+pub(super) struct RedirectTerminals;
 pub(super) struct ShareReverts;
 pub(super) struct TailMerge;
 
@@ -47,6 +51,14 @@ impl EvmPass for TerminalDedup {
     }
     fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
         terminal_dedup(module)
+    }
+}
+impl EvmPass for RedirectTerminals {
+    fn name(&self) -> &'static str {
+        "redirect-terminals"
+    }
+    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        redirect_terminals(module)
     }
 }
 impl EvmPass for ShareReverts {
@@ -323,6 +335,70 @@ fn terminal_dedup(module: &mut Module) -> bool {
                 changed = true;
             }
         }
+    }
+    changed
+}
+
+/// Shares tiny taken-only exits without changing any possible fallthrough.
+fn redirect_terminals(module: &mut Module) -> bool {
+    let ids = module.block_ids().collect::<Vec<_>>();
+    let mut protected = DenseBitSet::new_empty(module.blocks.len());
+    let mut taken = DenseBitSet::new_empty(module.blocks.len());
+    if let Some(&entry) = ids.first() {
+        protected.insert(entry);
+    }
+    for &id in &ids {
+        let block = &module.blocks[id];
+        if block.terminator.kind == TerminatorKind::DynamicJump
+            || block.insts.iter().any(|inst| {
+                matches!(inst.kind, InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_))
+                    || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
+                    || matches!(inst.kind, InstKind::Op(
+                        op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::CODESIZE
+                            | op::CODECOPY | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
+                            | op::GAS
+                    ))
+            })
+        {
+            return false;
+        }
+        match &block.terminator.kind {
+            TerminatorKind::Jump(target) => { protected.insert(*target); }
+            TerminatorKind::JumpI(yes, no) => {
+                taken.insert(*yes);
+                protected.insert(*no);
+            }
+            TerminatorKind::IndexedJump(targets) => {
+                for &target in targets { taken.insert(target); }
+            }
+            _ => {}
+        }
+    }
+    let candidates = ids.iter().copied().filter(|&id| {
+        taken.contains(id) && !protected.contains(id)
+            && module.blocks[id].insts.len() < 3
+            && matches!(module.blocks[id].terminator.kind,
+                TerminatorKind::Return | TerminatorKind::Revert | TerminatorKind::SelfDestruct)
+    }).collect::<Vec<_>>();
+    let mut targets = module.blocks.indices().collect::<IndexVec<BlockId, _>>();
+    let mut changed = false;
+    for (index, &id) in candidates.iter().enumerate() {
+        if targets[id] != id { continue; }
+        for &other in &candidates[index + 1..] {
+            if targets[other] == other
+                && module.blocks[id].insts == module.blocks[other].insts
+                && module.blocks[id].terminator == module.blocks[other].terminator
+            {
+                targets[other] = id;
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        // taken duplicate_exit -> taken earlier_identical_exit
+        // earlier_identical_exit; duplicate_exit -> earlier_identical_exit
+        redirect(module, &targets);
+        module.layout = Some(ids.into_iter().filter(|&id| targets[id] == id).collect());
     }
     changed
 }

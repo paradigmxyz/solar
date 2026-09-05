@@ -52,6 +52,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &super::cfg::CfgSimplify,
     &super::outline::Outline,
     &super::cfg::TerminalDedup,
+    &super::cfg::RedirectTerminals,
     &super::cfg::TailMerge,
     &super::cfg::BlockLayout,
 ];
@@ -172,6 +173,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         &super::local::LocalPass("dce") as &dyn EvmPass,
         &super::local::TerminalPrefixes,
         &super::cfg::BlockLayout,
+        &super::cfg::RedirectTerminals,
         &super::legalize::LegalizeShifts,
     ]);
     run_passes(gcx, module, &passes, None)

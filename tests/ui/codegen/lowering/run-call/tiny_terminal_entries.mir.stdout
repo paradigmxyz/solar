@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/tiny_terminal_entries.sol:TinyTerminalEntries ===
+@module TinyTerminalEntries
+fn @value(arg0: u256) -> u256 [selector=0xc5a46ee6, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @checked(arg0: u256) -> u256 [selector=0x2e53fee2, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    jumpi v1, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
