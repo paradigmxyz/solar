@@ -54,7 +54,7 @@ impl Planner {
         default: BlockId,
     ) -> BlockId {
         if cases.len() < 2 || self.mode == SwitchLowering::Linear {
-            return linear(module, cases, default);
+            return linear(module, cases, default, false);
         }
         let mut sorted = cases.to_vec();
         sorted.sort_unstable_by_key(|case| case.0);
@@ -86,7 +86,7 @@ impl Planner {
             for &(key, target) in cases {
                 buckets[(key % U256::from(count)).to::<usize>()].push((key, target));
             }
-            let targets = buckets.iter().map(|bucket| linear(module, bucket, default)).collect();
+            let targets = buckets.iter().map(|bucket| linear(module, bucket, default, true)).collect();
             // push <bucket count>; dup2; mod; indexed_jump <checked buckets>
             return block(
                 module,
@@ -122,8 +122,8 @@ impl Planner {
                     let targets = occupied
                         .into_iter()
                         .map(|case| match case {
-                            Some(case) => linear(module, &[case], default),
-                            None => linear(module, &[], default),
+                            Some(case) => linear(module, &[case], default, true),
+                            None => linear(module, &[], default, true),
                         })
                         .collect();
                     // dup1; push <shift>; shr; push <mask>; and
@@ -143,7 +143,7 @@ impl Planner {
             }
         }
         if !forced && cases.len() <= 4 {
-            return linear(module, cases, default);
+            return linear(module, cases, default, true);
         }
         binary(module, &sorted, default)
     }
@@ -172,7 +172,7 @@ fn block(module: &mut ir::Module, insts: Vec<I>, terminator: T) -> BlockId {
     })
 }
 
-fn linear(module: &mut ir::Module, cases: &[(U256, BlockId)], default: BlockId) -> BlockId {
+fn linear(module: &mut ir::Module, cases: &[(U256, BlockId)], default: BlockId, equality: bool) -> BlockId {
     let Some((&(last, target), preceding)) = cases.split_last() else {
         // pop <selector>; jump <default>
         return block(module, vec![I::Op(op::POP)], T::Jump(default));
@@ -186,16 +186,22 @@ fn linear(module: &mut ir::Module, cases: &[(U256, BlockId)], default: BlockId) 
             // pop <selector>; jump <matching edge>
             block(module, vec![I::Op(op::POP)], T::Jump(target))
         });
-        // dup1; push <case>; sub
-        // jumpi <next comparison>, <matching edge>
-        next = block(module, vec![I::Dup(1), I::Push(key), I::Op(op::SUB)], T::JumpI(next, target));
+        if equality {
+            // dup1; push <case>; eq
+            // jumpi <matching edge>, <next comparison>
+            next = block(module, vec![I::Dup(1), I::Push(key), I::Op(op::EQ)], T::JumpI(target, next));
+        } else {
+            // dup1; push <case>; sub
+            // jumpi <next comparison>, <matching edge>
+            next = block(module, vec![I::Dup(1), I::Push(key), I::Op(op::SUB)], T::JumpI(next, target));
+        }
     }
     next
 }
 
 fn binary(module: &mut ir::Module, cases: &[(U256, BlockId)], default: BlockId) -> BlockId {
     if cases.len() <= 3 {
-        return linear(module, cases, default);
+        return linear(module, cases, default, true);
     }
     let middle = cases.len() / 2;
     let left = binary(module, &cases[..middle], default);
