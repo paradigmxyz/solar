@@ -10,7 +10,9 @@
 //! most sixteen input/output words are accepted. Disjoint occurrences share a
 //! block entered with a continuation below their inputs, and the return rotation
 //! preserves all outputs. An encoded-size model charges every call, return and
-//! continuation label before selecting candidates. Gas mode applies only the
+//! continuation label before selecting candidates. Incremental hashes enumerate
+//! one window length at a time, retaining the full search with storage linear
+//! in original instruction count. Gas mode applies only the
 //! best candidate. Size mode retains at most 64 candidates and selects at most
 //! eight whose original instruction ranges are disjoint. All sites are then
 //! split from right to left, so earlier coordinates remain valid without
@@ -37,81 +39,91 @@ impl EvmPass for Outline {
         let ids = module.block_ids().collect::<Vec<_>>();
         let Ok(heights) = super::verify::stack_heights(module) else { return false };
         let reachable = super::verify::physical_reachability(module);
-        let mut groups = FxHashMap::<(u64, usize), Vec<Site>>::default();
-        for &id in &ids {
-            let insts = &module.blocks[id].insts;
-            for start in 0..insts.len() {
-                let mut hash = FxHasher::default();
-                let mut bytes = 0;
-                for (offset, inst) in insts[start..].iter().take(64).enumerate() {
-                    if inst.stack_effect.is_some()
-                        || !outlinable(&inst.kind, gcx.sess.opts.optimization.is_size())
-                    {
-                        break;
-                    }
-                    inst.kind.hash(&mut hash);
-                    bytes += size(gcx, &inst.kind);
-                    if bytes >= 16 {
-                        groups.entry((hash.finish(), offset + 1)).or_default().push(Site {
-                            id,
-                            start,
-                            len: offset + 1,
-                            parameters: Vec::new(),
-                        });
-                    }
-                }
-            }
-        }
+        // Advance every original start by one instruction per round. Only one
+        // window length is resident, preserving all candidates with linear storage.
+        let mut states = ids
+            .iter()
+            .flat_map(|&id| {
+                (0..module.blocks[id].insts.len())
+                    .map(move |start| (id, start, FxHasher::default(), 0))
+            })
+            .collect::<Vec<_>>();
         let limit = if gcx.sess.opts.optimization.is_size() { 64 } else { 1 };
         let mut ranked = Vec::new();
-        for (_, candidates) in groups {
-            if candidates.len() < 2 {
-                continue;
-            }
-            let first = &candidates[0];
-            let body = module.blocks[first.id].insts[first.start..first.start + first.len]
-                .iter()
-                .map(|inst| inst.kind.clone())
-                .collect::<Vec<_>>();
-            let Some((inputs, outputs)) = contract(&body) else { continue };
-            let mut sites = Vec::<Site>::new();
-            for candidate in candidates {
-                // Hashes identify candidates only; exact equality proves each shared body.
-                if !module.blocks[candidate.id].insts
-                    [candidate.start..candidate.start + candidate.len]
-                    .iter()
-                    .map(|inst| &inst.kind)
-                    .eq(&body)
+        for len in 1..=64 {
+            let mut groups = FxHashMap::<u64, Vec<Site>>::default();
+            states.retain_mut(|(id, start, hash, bytes)| {
+                let Some(inst) = module.blocks[*id].insts.get(*start + len - 1) else {
+                    return false;
+                };
+                if inst.stack_effect.is_some()
+                    || !outlinable(&inst.kind, gcx.sess.opts.optimization.is_size())
                 {
+                    return false;
+                }
+                inst.kind.hash(hash);
+                *bytes += size(gcx, &inst.kind);
+                if *bytes >= 16 {
+                    groups.entry(hash.finish()).or_default().push(Site {
+                        id: *id,
+                        start: *start,
+                        len,
+                        parameters: Vec::new(),
+                    });
+                }
+                true
+            });
+            if states.is_empty() {
+                break;
+            }
+            for (_, candidates) in groups {
+                if candidates.len() < 2 {
                     continue;
                 }
-                if sites.last().is_none_or(|last| {
-                    last.id != candidate.id || last.start + last.len <= candidate.start
-                }) {
-                    sites.push(candidate);
+                let first = &candidates[0];
+                let body = module.blocks[first.id].insts[first.start..first.start + first.len]
+                    .iter()
+                    .map(|inst| inst.kind.clone())
+                    .collect::<Vec<_>>();
+                let Some((inputs, outputs)) = contract(&body) else { continue };
+                let mut sites = Vec::<Site>::new();
+                for candidate in candidates {
+                    // Hashes identify candidates only; exact equality proves each shared body.
+                    if !module.blocks[candidate.id].insts
+                        [candidate.start..candidate.start + candidate.len]
+                        .iter()
+                        .map(|inst| &inst.kind)
+                        .eq(&body)
+                    {
+                        continue;
+                    }
+                    if sites.last().is_none_or(|last| {
+                        last.id != candidate.id || last.start + last.len <= candidate.start
+                    }) {
+                        sites.push(candidate);
+                    }
                 }
+                sites.retain(|site| peak_fits(module, &heights, &reachable, site, &body));
+                if sites.len() < 2 {
+                    continue;
+                }
+                let bytes = body.iter().map(|inst| size(gcx, inst)).sum::<usize>();
+                let overhead = sites.len() * (6 + inputs) + outputs + 2;
+                let savings = bytes * (sites.len() - 1);
+                if savings < overhead + 8 {
+                    continue;
+                }
+                let score =
+                    (
+                        (savings - overhead).saturating_sub(
+                            if gcx.sess.opts.optimization.is_gas() { sites.len() * 8 } else { 0 },
+                        ),
+                        body.len(),
+                        usize::MAX - sites[0].id.index(),
+                        usize::MAX - sites[0].start,
+                    );
+                retain_candidate(&mut ranked, (score, body, sites, inputs, outputs), limit);
             }
-            sites.retain(|site| peak_fits(module, &heights, &reachable, site, &body));
-            if sites.len() < 2 {
-                continue;
-            }
-            let bytes = body.iter().map(|inst| size(gcx, inst)).sum::<usize>();
-            let overhead = sites.len() * (6 + inputs) + outputs + 2;
-            let savings = bytes * (sites.len() - 1);
-            if savings < overhead + 8 {
-                continue;
-            }
-            let score = (
-                (savings - overhead).saturating_sub(if gcx.sess.opts.optimization.is_gas() {
-                    sites.len() * 8
-                } else {
-                    0
-                }),
-                body.len(),
-                usize::MAX - sites[0].id.index(),
-                usize::MAX - sites[0].start,
-            );
-            retain_candidate(&mut ranked, (score, body, sites, inputs, outputs), limit);
         }
         if let Some(parameterized) = parameterized(gcx, module, &heights, &reachable) {
             retain_candidate(&mut ranked, parameterized, limit);
