@@ -16,5 +16,11 @@ error[8871]: storage arrays with nested mappings do not support `push(<arg>)`
 LL │         outer.push(direct);
    ╰╴        ━━━━━━━━━━
 
-error: aborting due to 3 previous errors
+error[8871]: storage arrays with nested mappings do not support `push(<arg>)`
+   ╭▸ ROOT/tests/ui/typeck/storage_array_push_mapping.sol:LL:CC
+   │
+LL │         recursive.push(recursiveSource);
+   ╰╴        ━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
 
