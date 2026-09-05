@@ -160,7 +160,7 @@ impl EvmCodegen<'_> {
     }
 }
 
-/// Resolves generated deferred values before exporting physical IR captures.
+/// Resolves deferred values and preserves runtime trailers in physical IR captures.
 fn resolve_capture(module: &mut ir::Module, program_size: usize) {
     for block in &mut module.blocks {
         for instruction in &mut block.insts {
@@ -178,6 +178,10 @@ fn resolve_capture(module: &mut ir::Module, program_size: usize) {
                 }
             }
         }
+    }
+    if module.appendix_start_id.is_none() && !module.appendix.is_empty() {
+        // <runtime code>; <referenced data>; <opaque trailer as final captured data>
+        module.data.push(ir::Data { name: None, bytes: std::mem::take(&mut module.appendix) });
     }
     module.program_size_id = None;
     module.appendix_start_id = None;

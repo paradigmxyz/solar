@@ -236,10 +236,14 @@ pub(crate) fn lower(
     }
     let mut data_map = FxHashMap::default();
     for (id, data) in module.iter_data() {
-        if used_data.contains(id) || (!deployment && module.data_is_emitted_in_runtime(id)) {
+        if used_data.contains(id) {
             let output_id =
                 output.data.push(ir::Data { name: module.data_name(id), bytes: data.to_vec() });
             data_map.insert(id, output_id);
+        }
+        if !deployment && module.data_is_emitted_in_runtime(id) {
+            // <code>; <referenced constant data>; <opaque runtime trailer>
+            output.appendix.extend_from_slice(data);
         }
     }
     for id in reachable.iter() {
