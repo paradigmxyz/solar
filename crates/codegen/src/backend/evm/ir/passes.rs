@@ -156,10 +156,15 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         &super::local::LocalPass("stack-normalize"),
         &super::local::LocalPass("reorder-pushes"),
         &super::local::LocalPass("compact-pushes"),
-        &super::cfg::CfgSimplify,
+    ];
+    if gcx.sess.opts.optimization.is_gas() {
+        passes.push(&super::local::LocalPass("block-cse"));
+    }
+    passes.extend([
+        &super::cfg::CfgSimplify as &dyn EvmPass,
         &super::data::PackData,
         &super::data::CoalesceCopies,
-    ];
+    ]);
     if gcx.sess.opts.optimization.is_size() {
         passes.extend([
             &super::cfg::TerminalDedup as &dyn EvmPass,
