@@ -3,7 +3,7 @@
 //! The planner simulates the physical scheduler over block entries, operand preparation, calls,
 //! and phi edges to find functions that exceed the target DUP window. Dying operands are consumed
 //! in place instead of being counted twice. Those functions receive reusable memory homes for
-//! overlapping live intervals; immediate single-use temporaries remain on the stack. A separate
+//! overlapping live intervals; short-lived expression temporaries remain on the stack. A separate
 //! temporary region permits phi edge copies to read every source before writing any destination,
 //! including cyclic transfers. Ordinary low-pressure functions retain stack-only values. Address
 //! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
@@ -38,17 +38,29 @@ impl SpillPlan {
             return Self::default();
         }
         let mut local = DenseBitSet::new_empty(function.num_values());
+        // At most one result is defined per instruction. Bounding each temporary's lifetime bounds
+        // their simultaneous stack occupancy; reserve room for the return label, three operands,
+        // and the two additional words used by select lowering.
+        let window = version.reachable_stack_depth().saturating_sub(6).min(8);
         for (block_id, block) in function.blocks.iter_enumerated() {
-            for (position, pair) in block.instructions.windows(2).enumerate() {
-                let next = &function.inst(pair[1]).kind;
-                if let Some(value) = function.inst_result_value(pair[0])
-                    && !matches!(function.inst(pair[0]).kind, mir::InstKind::Phi(_))
-                    && !next.has_side_effects()
-                    && !matches!(next, mir::InstKind::Phi(_))
-                    && next.operands().contains(&value)
-                    && !live.is_used_at_or_after(value, block_id, position + 2)
+            for (position, &inst) in block.instructions.iter().enumerate() {
+                if let Some(value) = function.inst_result_value(inst)
+                    && !matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
                 {
-                    local.insert(value);
+                    for (next_position, &next_inst) in
+                        block.instructions.iter().enumerate().skip(position + 1).take(window)
+                    {
+                        let next = &function.inst(next_inst).kind;
+                        if next.has_side_effects() || matches!(next, mir::InstKind::Phi(_)) {
+                            break;
+                        }
+                        if next.operands().contains(&value)
+                            && !live.is_used_at_or_after(value, block_id, next_position + 1)
+                        {
+                            local.insert(value);
+                            break;
+                        }
+                    }
                 }
             }
         }
