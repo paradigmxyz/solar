@@ -17,7 +17,7 @@ use super::{
 use crate::bytecode::MaybeHexBytecode;
 use serde_json::json;
 use solar_codegen::{
-    ContractArtifact, ContractSelection, RuntimeDataFn,
+    ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn,
     backend::evm::{DebugFunction, DebugFunctionExit, DebugInstruction},
 };
 use solar_config::{
@@ -692,21 +692,30 @@ fn make_bytecode_output(
     if deployed
         && output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES)
     {
+        // Source immutables are keyed by AST ID; a library's own deployment address has
+        // none and uses the name solc's IR pipeline gives it.
         let mut references = artifact
             .into_iter()
             .flat_map(|artifact| artifact.immutable_references.iter())
-            .map(|reference| (gcx.hir.global_item_id(reference.variable_id) as u64, reference))
+            .map(|reference| {
+                let ast_id = reference.variable_id.map(|id| gcx.hir.global_item_id(id) as u64);
+                (ast_id, reference)
+            })
             .collect::<Vec<_>>();
         references.sort_unstable_by_key(|(ast_id, reference)| (*ast_id, reference.start));
 
-        let mut by_ast_id = FxIndexMap::<String, Vec<OffsetLength>>::default();
+        let mut by_key = FxIndexMap::<String, Vec<OffsetLength>>::default();
         for (ast_id, reference) in references {
-            by_ast_id.entry(ast_id.to_string()).or_default().push(OffsetLength {
+            let key = ast_id.map_or_else(
+                || ImmutableReference::LIBRARY_DEPLOY_ADDRESS.to_owned(),
+                |ast_id| ast_id.to_string(),
+            );
+            by_key.entry(key).or_default().push(OffsetLength {
                 start: reference.start,
                 length: usize::from(reference.type_size.bytes()),
             });
         }
-        output.immutable_references = Some(by_ast_id);
+        output.immutable_references = Some(by_key);
     }
     output
 }
