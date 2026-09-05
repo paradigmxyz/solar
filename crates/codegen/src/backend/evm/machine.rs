@@ -88,7 +88,7 @@ pub(crate) fn lower(
     let mut returnable = DenseBitSet::new_empty(module.functions.len());
     for (id, function) in module.iter_functions() {
         let cfg = CfgInfo::new(function);
-        if function.blocks.iter_enumerated().any(|(block_id, block)| cfg.is_reachable(block_id) && matches!(block.terminator, Some(mir::Terminator::Return { .. } | mir::Terminator::Stop))) {
+        if function.blocks.iter_enumerated().any(|(block_id, block)| cfg.is_reachable(block_id) && (matches!(block.terminator, Some(mir::Terminator::Return { .. })) || (function.returns.is_empty() && matches!(block.terminator, Some(mir::Terminator::Stop))))) {
             returnable.insert(id);
         }
     }
@@ -536,7 +536,7 @@ fn lower_function(
                 return_values(context, &mut stack, &mut insts, values)?;
                 ir::TerminatorKind::DynamicJump
             }
-            mir::Terminator::Stop if layout.returning => {
+            mir::Terminator::Stop if layout.returning && function.returns.is_empty() => {
                 return_values(context, &mut stack, &mut insts, &[])?;
                 ir::TerminatorKind::DynamicJump
             }

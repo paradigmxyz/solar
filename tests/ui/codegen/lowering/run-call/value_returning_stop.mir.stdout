@@ -1,0 +1,53 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/value_returning_stop.sol:ValueReturningStop ===
+@module ValueReturningStop
+fn @inner(arg0: u256) -> (u256, u256) [selector=0xc715a02a, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:
+    jump bb3
+  bb3:
+    v1 = eq arg0, 1
+    jumpi v1, bb4, bb5
+  bb5:
+    jump bb6
+  bb6:
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    jumpi v3, bb7, bb8
+  bb8:
+    v4 = internal_call @inner, 2, v2
+    v5 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v6 = add v5, 32
+    v7 = mload v6
+    ret v4, v7
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    ret 7, 9
+  bb1:
+    returndata 0, 0
+}
+
+fn @outer(arg0: u256) -> (u256, u256) [selector=0x94209e43, pure, abi_params=[u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = internal_call @inner, 2, arg0
+    v1 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v2 = add v1, 32
+    v3 = mload v2
+    v4 = add v0, 1
+    v5 = lt v4, v0
+    jumpi v5, bb1, bb2
+  bb2:
+    v6 = add v3, 1
+    v7 = lt v6, v3
+    jumpi v7, bb1, bb3
+  bb3:
+    ret v4, v6
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
