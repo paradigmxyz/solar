@@ -54,13 +54,7 @@ fn share_reverts(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         if jumpi.opcode != op::JUMPI || jumpi.is_encoded_push() {
             continue;
         }
-        let continuation = match &target.value {
-            Some(PushValue::Block(continuation)) => *continuation,
-            _ => continue,
-        };
-        if !target.is_encoded_push() {
-            continue;
-        }
+        let Some(continuation) = target.pushed_block() else { continue };
         if revert.index() != block_id.index() + 1 || continuation.index() != revert.index() + 1 {
             continue;
         }
@@ -125,8 +119,5 @@ fn is_empty_revert(module: &Module, block: BlockId) -> bool {
 }
 
 fn is_zero_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push()
-        && inst.deferred_push().is_none()
-        && inst.immutable_push().is_none()
-        && matches!(inst.value, Some(PushValue::Immediate(value)) if value == U256::ZERO)
+    inst.concrete_immediate() == Some(U256::ZERO)
 }

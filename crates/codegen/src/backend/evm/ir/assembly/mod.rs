@@ -5,12 +5,20 @@
 //! program data for byte encoding.
 
 use super::{Data, DataId};
-use crate::backend::evm::op::WORD_BYTES;
+use crate::{
+    backend::evm::{
+        assembler::{ImmutablePush, LocalInterner},
+        op::WORD_BYTES,
+    },
+    mir::{ImmutableId, TypeSize},
+};
+use alloy_primitives::U256;
 use solar_data_structures::index::IndexVec;
 
 mod indexed_jump;
 mod inst;
 mod lower;
+pub(in crate::backend::evm) use lower::prepare;
 
 pub(in crate::backend::evm) use indexed_jump::{
     estimated_indexed_jump_code_size, estimated_indexed_jump_terminator_size,
@@ -33,6 +41,8 @@ pub(in crate::backend::evm) struct PackedLabels {
 /// A compact label-bearing opcode stream ready for relocation and byte encoding.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct Program {
+    pub(in crate::backend::evm) push_values: LocalInterner<U256, PushValueId>,
+    pub(in crate::backend::evm) immutable_pushes: LocalInterner<ImmutablePush, ImmutablePushId>,
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
     pub(in crate::backend::evm) packed_labels: IndexVec<PackedLabelsId, PackedLabels>,
     pub(in crate::backend::evm) data: IndexVec<DataId, Data>,
@@ -40,6 +50,24 @@ pub(in crate::backend::evm) struct Program {
 }
 
 impl Program {
+    pub(in crate::backend::evm) fn push_inst(&mut self, value: U256) -> AsmInst {
+        if let Ok(value) = u32::try_from(value)
+            && let Some(inst) = AsmInst::push_inline(value)
+        {
+            return inst;
+        }
+
+        AsmInst::push(self.push_values.intern(value))
+    }
+
+    pub(in crate::backend::evm) fn immutable_push_inst(
+        &mut self,
+        id: ImmutableId,
+        type_size: TypeSize,
+    ) -> AsmInst {
+        AsmInst::push_immutable(self.immutable_pushes.intern(ImmutablePush { id, type_size }))
+    }
+
     pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
         self.instructions.push(inst);
     }

@@ -2,7 +2,7 @@
 
 use super::{Program, lower};
 use crate::backend::evm::{
-    assembler::{Assembler, Label},
+    assembler::Label,
     ir::{
         self, BlockId,
         passes::compact_pushes::{
@@ -15,14 +15,12 @@ use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::index::{IndexVec, index_vec};
 
-fn push_immediate(
-    assembler: &mut Assembler<'_>,
-    program: &mut Program,
-    evm_version: EvmVersion,
-    value: U256,
-) {
+fn push_immediate(program: &mut Program, evm_version: EvmVersion, value: U256) {
     ImmediateMaterialization::new(evm_version, value).for_each(|op| match op {
-        ImmediateMaterializationOp::Push(value) => program.push(assembler.push_inst(value)),
+        ImmediateMaterializationOp::Push(value) => {
+            let inst = program.push_inst(value);
+            program.push(inst);
+        }
         ImmediateMaterializationOp::Opcode(opcode) => program.push_op(opcode),
     });
 }
@@ -245,7 +243,6 @@ pub(super) fn refine_indexed_jump_widths(
     module: &mut ir::Module,
     tables: &mut [IndexedJumpTable],
     lowerings: &mut IndexVec<BlockId, IndexedJumpLowering>,
-    labels: &[Option<Label>],
     label_offsets: &solar_data_structures::map::FxHashMap<Label, usize>,
     evm_version: EvmVersion,
     pack_two_word_tables: bool,
@@ -256,10 +253,8 @@ pub(super) fn refine_indexed_jump_widths(
             .expect("a bytecode offset must fit one EVM word")
     });
     let mut block_offsets = index_vec![0usize; module.blocks.len()];
-    for (block, data) in module.blocks.iter_enumerated() {
-        let Some(label) = labels.get(data.label as usize).copied().flatten() else {
-            continue;
-        };
+    for block in module.blocks.indices() {
+        let label = lower::label_for_block(block);
         if let Some(&offset) = label_offsets.get(&label) {
             block_offsets[block] = offset;
         }
@@ -785,7 +780,7 @@ fn estimated_block_size(
         } else if let Some(type_size) = inst.immutable_type_size() {
             usize::from(type_size.bytes()) + 1
         } else if inst.is_encoded_push() {
-            if let Some(value) = inst.pushed_value() {
+            if let Some(value) = inst.concrete_immediate() {
                 push_len(evm_version, value)
             } else if inst.pushed_block().is_some() {
                 usize::from(block_target_width) + 1
@@ -877,31 +872,24 @@ fn packed_indexed_jump_len(table: PackedTableEstimate, evm_version: EvmVersion) 
 }
 
 pub(super) fn lower(
-    assembler: &mut Assembler<'_>,
+    evm_version: EvmVersion,
     program: &mut Program,
     targets: &[BlockId],
-    module: &ir::Module,
-    labels: &mut Vec<Option<Label>>,
     indexed_jump: IndexedJumpLowering,
 ) {
-    let evm_version = assembler.gcx.sess.opts.evm_version;
     let table_encoding = indexed_jump.table.expect("indexed jump table encoding");
     if table_encoding.packed_chunks != PackedTableChunks::None {
         let target_width = table_encoding.width;
         let scale = u32::from(target_width) * 8;
-        let base = table_encoding
-            .base
-            .map(|(base, _)| lower::label_for_block(assembler, module, base, labels));
-        let labels = targets
-            .iter()
-            .map(|&target| lower::label_for_block(assembler, module, target, labels))
-            .collect::<Vec<_>>();
+        let base = table_encoding.base.map(|(base, _)| lower::label_for_block(base));
+        let labels =
+            targets.iter().map(|&target| lower::label_for_block(target)).collect::<Vec<_>>();
         if table_encoding.packed_chunks == PackedTableChunks::Two {
             let entries_per_chunk = WORD_BYTES / usize::from(target_width);
             let (first, second) = labels.split_at(entries_per_chunk);
             // Select one of the two words without branching.
             program.push_op(op::DUP1);
-            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk.ilog2()));
+            push_immediate(program, evm_version, U256::from(entries_per_chunk.ilog2()));
             program.push_op(op::SHR);
             program.push_op(op::DUP1);
             program.push_packed_labels(second.into(), base, target_width);
@@ -912,13 +900,13 @@ pub(super) fn lower(
             program.push_op(op::MUL);
             program.push_op(op::ADD);
             program.push_op(op::SWAP1);
-            push_immediate(assembler, program, evm_version, U256::from(entries_per_chunk - 1));
+            push_immediate(program, evm_version, U256::from(entries_per_chunk - 1));
             program.push_op(op::AND);
         }
         if table_encoding.packed_chunks == PackedTableChunks::One && target_width == 1 {
             let byte_offset = WORD_BYTES - labels.len();
             if byte_offset != 0 {
-                push_immediate(assembler, program, evm_version, U256::from(byte_offset));
+                push_immediate(program, evm_version, U256::from(byte_offset));
                 program.push_op(op::ADD);
             }
             let mut labels = labels.into_boxed_slice();
@@ -928,10 +916,10 @@ pub(super) fn lower(
             program.push_op(op::BYTE);
         } else {
             if scale.is_power_of_two() {
-                push_immediate(assembler, program, evm_version, U256::from(scale.ilog2()));
+                push_immediate(program, evm_version, U256::from(scale.ilog2()));
                 program.push_op(op::SHL);
             } else {
-                push_immediate(assembler, program, evm_version, U256::from(scale));
+                push_immediate(program, evm_version, U256::from(scale));
                 program.push_op(op::MUL);
             }
             if table_encoding.packed_chunks == PackedTableChunks::One {
@@ -940,7 +928,7 @@ pub(super) fn lower(
             }
             program.push_op(op::SHR);
             let mask = (U256::ONE << scale) - U256::ONE;
-            push_immediate(assembler, program, evm_version, mask);
+            push_immediate(program, evm_version, mask);
             program.push_op(op::AND);
         }
         if let Some(base) = base {
@@ -959,9 +947,9 @@ pub(super) fn lower(
     );
     let entry_width = indexed_jump.outlined_entry_width.expect("outlined indexed jump entry width");
     let stub_len = u32::from(entry_width) + 3;
-    push_immediate(assembler, program, evm_version, U256::from(stub_len));
+    push_immediate(program, evm_version, U256::from(stub_len));
     program.push_op(op::MUL);
-    program.push_label(lower::label_for_block(assembler, module, table, labels));
+    program.push_label(lower::label_for_block(table));
     program.push_op(op::ADD);
     program.push_op(op::JUMP);
 }
@@ -1003,10 +991,8 @@ mod tests {
 
         let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
         compiler.enter(|c| {
-            let mut labels = vec![None; 3];
-            let mut assembler = Assembler::new(c.gcx());
             let program =
-                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
+                super::super::lower::lower_evm_ir(c.gcx(), &mut module, &Default::default());
 
             assert_eq!(module.blocks.len(), 3);
             assert!(matches!(
@@ -1042,10 +1028,8 @@ mod tests {
         let opts = CompileOpts { evm_version: EvmVersion::Byzantium, ..Default::default() };
         let compiler = Compiler::new(Session::builder().opts(opts).build());
         compiler.enter(|c| {
-            let mut labels = vec![None; 3];
-            let mut assembler = Assembler::new(c.gcx());
             let program =
-                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
+                super::super::lower::lower_evm_ir(c.gcx(), &mut module, &Default::default());
 
             let TerminatorKind::IndexedJump(entries) =
                 &module.blocks[entry].terminator.as_ref().unwrap().kind
@@ -1116,10 +1100,8 @@ mod tests {
 
         let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
         compiler.enter(|c| {
-            let mut labels = vec![None; 2];
-            let mut assembler = Assembler::new(c.gcx());
             let program =
-                super::super::lower::lower_evm_ir(&mut assembler, &mut module, &mut labels);
+                super::super::lower::lower_evm_ir(c.gcx(), &mut module, &Default::default());
 
             assert_eq!(
                 program

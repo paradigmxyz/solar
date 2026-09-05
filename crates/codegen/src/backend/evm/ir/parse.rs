@@ -209,11 +209,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         let mut inst = match mnemonic {
-            sym::push => match self.parse_push_value(module)? {
-                PushValue::Immediate(value) => Instruction::push_value(value),
-                PushValue::Block(block) => Instruction::push_block(block),
-                PushValue::Data(_) => unreachable!("ordinary push parser does not produce data"),
-            },
+            sym::push => Instruction::encoded_push(self.parse_push_value(module)?),
             sym::push_data => {
                 let span = self.parser.token().span;
                 let (id, offset, _) = self.parser.parse_data_ref()?;

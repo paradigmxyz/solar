@@ -133,6 +133,10 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
     fmt::from_fn(move |f| match value {
         PushValue::Immediate(value) => write!(f, "{}", display_u256(*value)),
         PushValue::Block(block) => write!(f, "{}", display_block_id(module, *block)),
+        PushValue::Deferred(id) => write!(f, "{}", display_u256(U256::from(id.index()))),
+        PushValue::Immutable(id) => write!(f, "{}", display_u256(U256::from(id.index()))),
+        PushValue::Label(id) => write!(f, "{}", id.index()),
+        PushValue::Alloc(id) => write!(f, "{}", id.index()),
         PushValue::Data(data) => write!(
             f,
             "{}",

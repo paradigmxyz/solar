@@ -16,12 +16,12 @@ use solar_data_structures::{
 use solar_sema::Gcx;
 
 /// The machine-level identity shared by transforms that compare instructions.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) struct MachineInstKey(u8, u8, Option<PushValue>, Option<op::StackOp>);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct MachineInstKey(u8, Option<PushValue>, Option<op::StackOp>);
 
 impl MachineInstKey {
     pub(super) fn new(inst: &Instruction) -> Self {
-        Self(inst.opcode, inst.encoding, inst.value, inst.as_stack_op())
+        Self(inst.opcode, inst.value, inst.as_stack_op())
     }
 }
 
@@ -61,24 +61,19 @@ impl FreshLabels {
 
 /// Returns a conservative lower bound for one instruction's assembled byte length.
 pub(super) fn instruction_size_lower_bound(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    if !inst.is_encoded_push() {
-        return inst.as_stack_op().map_or(1, |stack_op| {
+    match inst.value {
+        Some(PushValue::Immediate(value)) => selected_len(gcx, value),
+        Some(PushValue::Immutable(_)) => {
+            inst.immutable_type_size().map_or(1, |size| usize::from(size.bytes()) + 1)
+        }
+        // Labels, data offsets, and deferred relocations may resolve to zero.
+        Some(_) => 1,
+        None => inst.as_stack_op().map_or(1, |stack_op| {
             stack_op
                 .assembled_len(gcx.sess.opts.evm_version)
                 .expect("EVM IR passes only run on target-compatible stack operations")
-        });
+        }),
     }
-    if let Some(type_size) = inst.immutable_type_size() {
-        return usize::from(type_size.bytes()) + 1;
-    }
-    if inst.deferred_push().is_none()
-        && let Some(PushValue::Immediate(value)) = inst.value
-    {
-        return selected_len(gcx, value);
-    }
-    // Labels, data offsets, and deferred relocations are address-sensitive. They may resolve to
-    // zero, so one byte is the only safe lower bound before assembly.
-    1
 }
 
 /// Returns whether a terminator ends the current physical fallthrough trace.

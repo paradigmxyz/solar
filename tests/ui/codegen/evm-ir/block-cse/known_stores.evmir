@@ -84,8 +84,8 @@ bb3:
   pop
   stop
 
-// An immutable push carries its internal ID in the immediate payload, not its runtime word. It
-// cannot establish memory facts for an ordinary address with the same numeric value.
+// An immutable push references a symbolic value and cannot establish memory facts for an
+// ordinary address whose literal word matches the immutable ID.
 // CHECK-LABEL: {{^[ +].*}}bb4:
 // CHECK: push 10
 // CHECK-NEXT: push_immutable 128, 32

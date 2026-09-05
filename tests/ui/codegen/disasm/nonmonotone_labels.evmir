@@ -1,0 +1,28 @@
+//@ compile-flags: -Zevm-ir-pipeline=default -O none -Zdump=disasm-runtime
+//@ filecheck:
+
+@module nonmonotone_labels
+
+// Textual labels are display names; references identify blocks in layout order.
+// The unused middle block needs no JUMPDEST, while both references target bb0.
+// CHECK-LABEL: // === nonmonotone_labels (runtime) ===
+// CHECK-NEXT: PUSH1 0x07
+// CHECK-NEXT: POP
+// CHECK-NEXT: PUSH1 0x07 ; bb0
+// CHECK-NEXT: JUMP
+bb4294967295:
+  push bb0
+  pop
+  jump bb0
+
+// CHECK-NEXT: INVALID
+bb1:
+  invalid
+
+// CHECK-NEXT: ; bb0
+// CHECK-NEXT: JUMPDEST
+// CHECK-NEXT: PUSH1 0x2a ; unknown
+// CHECK-NEXT: JUMP
+bb0:
+  push 42
+  jump

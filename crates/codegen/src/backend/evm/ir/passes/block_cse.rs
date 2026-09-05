@@ -46,7 +46,7 @@ impl EvmPass for BlockCse {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Expr {
-    Push(u8, u8, PushValue),
+    Push(u8, PushValue),
     Op(u8, SmallVec<[usize; 3]>),
     Read(u8, u64, SmallVec<[usize; 3]>),
 }
@@ -90,23 +90,14 @@ fn regenerate_block(instructions: &mut Vec<Instruction>, stack_access_limit: usi
 
     for inst in original {
         let canonical_stack_effect = inst.has_canonical_stack_effect();
-        if canonical_stack_effect && inst.is_encoded_push() {
-            let Some(value) = inst.value else {
-                append_unknown(inst, instructions, &mut stack, &mut next_expr);
-                continue;
-            };
-            let expr = intern(
-                Expr::Push(inst.opcode, inst.encoding, value),
-                &mut expressions,
-                &mut next_expr,
-            );
+        if canonical_stack_effect && let Some(value) = inst.value {
+            let expr = intern(Expr::Push(inst.opcode, value), &mut expressions, &mut next_expr);
             if let Some(immediate) = inst.concrete_immediate()
                 && let Ok(address) = u64::try_from(immediate)
             {
                 const_exprs.insert(expr, address);
             }
-            if inst.deferred_push().is_none()
-                && inst.pushed_value().is_some_and(|value| !value.is_zero())
+            if reusable_push(&inst)
                 && let Some(depth) = stack.iter().rev().position(|value| value.expr == expr)
                 && depth < stack_access_limit
             {
@@ -342,14 +333,9 @@ fn may_regenerate(instructions: &[Instruction], stack_access_limit: usize) -> bo
 
     for (inst_idx, inst) in instructions.iter().enumerate() {
         let canonical_stack_effect = inst.has_canonical_stack_effect();
-        if canonical_stack_effect && inst.is_encoded_push() {
-            let Some(value) = inst.value else {
-                stack.push(FingerprintValue { expr: fresh_hash(&mut next_fresh), span: None });
-                continue;
-            };
-            let expr = push_fingerprint(inst.opcode, inst.encoding, value);
-            if inst.deferred_push().is_none()
-                && inst.pushed_value().is_some_and(|value| !value.is_zero())
+        if canonical_stack_effect && let Some(value) = inst.value {
+            let expr = push_fingerprint(inst.opcode, value);
+            if reusable_push(inst)
                 && stack.iter().rev().take(stack_access_limit).any(|existing| existing.expr == expr)
             {
                 return true;
@@ -451,8 +437,7 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
         let candidate = if !canonical_stack_effect {
             false
         } else if inst.is_encoded_push() {
-            inst.deferred_push().is_none()
-                && inst.pushed_value().is_some_and(|value| !value.is_zero())
+            reusable_push(inst)
         } else {
             expression_inputs(inst.opcode, 0, 0).is_some()
         };
@@ -468,9 +453,15 @@ fn has_repeated_candidate_opcode(instructions: &[Instruction]) -> bool {
     false
 }
 
-fn push_fingerprint(opcode: u8, encoding: u8, value: PushValue) -> u64 {
+/// Preserves the direct-push policy for zero literals, immutable ID zero, and deferred constants.
+fn reusable_push(inst: &Instruction) -> bool {
+    inst.concrete_immediate().is_some_and(|value| !value.is_zero())
+        || inst.immutable_push().is_some_and(|id| id.index() != 0)
+}
+
+fn push_fingerprint(opcode: u8, value: PushValue) -> u64 {
     let mut hasher = FxHasher::default();
-    (opcode, encoding, value).hash(&mut hasher);
+    (opcode, value).hash(&mut hasher);
     hasher.finish()
 }
 
@@ -498,17 +489,6 @@ fn ensure_hash_depth(stack: &mut Vec<FingerprintValue>, depth: usize, next_fresh
             (0..missing).map(|_| FingerprintValue { expr: fresh_hash(next_fresh), span: None }),
         );
     }
-}
-
-fn append_unknown(
-    inst: Instruction,
-    instructions: &mut Vec<Instruction>,
-    stack: &mut Vec<StackValue>,
-    next_expr: &mut usize,
-) {
-    let origin = instructions.len();
-    instructions.push(inst);
-    stack.push(StackValue { expr: fresh(next_expr), span: None, origin: Some(origin) });
 }
 
 /// Returns whether an instruction is a pure single-word push or copy whose

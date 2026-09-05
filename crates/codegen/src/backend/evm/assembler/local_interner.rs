@@ -12,10 +12,6 @@ impl<T, I> LocalInterner<T, I> {
     pub(in crate::backend::evm) fn new() -> Self {
         Self { values: FxIndexSet::default(), _index: PhantomData }
     }
-
-    pub(in crate::backend::evm) fn clear(&mut self) {
-        self.values.clear();
-    }
 }
 
 impl<T, I> LocalInterner<T, I>

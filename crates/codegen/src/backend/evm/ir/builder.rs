@@ -1,64 +1,171 @@
-//! EVM IR construction through the backend assembler interface.
+//! Construction of scheduled EVM IR at the MIR lowering boundary.
+//!
+//! Labels and deferred allocations travel with their instructions, so instruction deletion
+//! cannot invalidate a relocation table. Finishing resolves labels, expands allocations and
+//! recognizes terminal opcodes once. Only then does block EVM IR enter optimization and assembly.
+//! The builder owns emission state; prepared assembly owns its immutable stream and constant pools.
 
-use super::{self as ir};
+use super::{
+    self as ir,
+    assembly::{self, AsmIndex, DeferredAlloc},
+};
 use crate::{
     backend::evm::{
-        assembler::{ArtifactKind, Assembler, DeferredAllocResolution, DeferredConst, Label},
-        ir::assembly::DeferredAlloc,
+        assembler::{ArtifactKind, AssembledCode, DeferredConst, Label, PreparedAssembly},
         op::{self, push_len},
     },
     memory::EvmMemoryLayout,
     mir::{DataRef as MirDataRef, ImmutableId, Module as MirModule, TypeSize},
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::index_vec, map::FxHashMap};
+use solar_data_structures::{bit_set::GrowableBitSet, index::index_vec, map::FxHashMap};
+use solar_interface::{Symbol, sym};
 use solar_sema::Gcx;
 
-impl<'gcx> Assembler<'gcx> {
-    /// Creates an assembler with finalized EVM IR loaded into the ordinary backend pipeline.
-    pub(in crate::backend::evm) fn from_evm_ir(
-        gcx: Gcx<'gcx>,
-        mut module: ir::Module,
-    ) -> solar_interface::Result<Self> {
-        if module
-            .blocks
-            .iter()
-            .any(|block| block.instructions.iter().any(|inst| inst.deferred_push().is_some()))
-        {
-            return Err(gcx
-                .dcx()
-                .err("cannot assemble unresolved `push_deferred` instruction")
-                .emit());
-        }
-        if module.blocks.iter().any(|block| {
-            block.instructions.iter().any(|inst| {
-                matches!(inst.opcode, op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL)
-            })
-        }) {
-            return Err(gcx
-                .dcx()
-                .err("cannot assemble EOF-only external calls into legacy bytecode")
-                .emit());
-        }
+/// The unfinished scheduled program and its construction-only bindings.
+#[derive(Debug)]
+pub(in crate::backend::evm) struct Builder<'gcx> {
+    gcx: Gcx<'gcx>,
+    artifact_kind: ArtifactKind,
+    program: ir::Module,
+    current_block: Option<ir::BlockId>,
+    label_blocks: FxHashMap<Label, ir::BlockId>,
+    cold_labels: GrowableBitSet<Label>,
+    indexed_jumps: Vec<(ir::BlockId, Vec<Label>)>,
+    next_label: Label,
+    next_deferred: DeferredConst,
+    deferred_values: FxHashMap<DeferredConst, U256>,
+    next_deferred_alloc: DeferredAlloc,
+    deferred_allocations: FxHashMap<DeferredAlloc, DeferredAllocResolution>,
+}
 
-        debug_assert!(ir::verify::Verifier::is_valid(&module));
+/// Reserves one typed ID, checking the compact instruction payload limit.
+fn take_next<I: AsmIndex>(next: &mut I) -> I {
+    let id = *next;
+    id.inst_payload();
+    *next = I::from_usize(id.index() + 1);
+    id
+}
 
-        // Parsed block labels may be sparse, but assembly indexes labels with a vector.
-        for (index, block) in module.blocks.iter_mut().enumerate() {
-            block.label = u32::try_from(index).expect("EVM IR block index should fit in u32");
+/// Placement chosen after exact frame layout is known.
+#[derive(Clone, Copy, Debug)]
+enum DeferredAllocResolution {
+    Static(U256),
+    Dynamic(U256),
+}
+
+/// Assembles finalized EVM IR without passing through construction state.
+pub(in crate::backend::evm) fn assemble_evm_ir<'gcx>(
+    gcx: Gcx<'gcx>,
+    module: ir::Module,
+    capture_evm_ir: bool,
+) -> solar_interface::Result<AssembledCode> {
+    if module
+        .blocks
+        .iter()
+        .any(|block| block.instructions.iter().any(|inst| inst.deferred_push().is_some()))
+    {
+        return Err(gcx.dcx().err("cannot assemble unresolved `push_deferred` instruction").emit());
+    }
+    if module.blocks.iter().any(|block| {
+        block.instructions.iter().any(|inst| {
+            matches!(inst.opcode, op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL)
+        })
+    }) {
+        return Err(gcx
+            .dcx()
+            .err("cannot assemble EOF-only external calls into legacy bytecode")
+            .emit());
+    }
+
+    debug_assert!(ir::verify::Verifier::is_valid(&module));
+
+    let prepared = super::assembly::prepare(gcx, module, FxHashMap::default(), capture_evm_ir);
+    gcx.dcx().has_errors()?;
+    Ok(prepared.assemble(gcx.sess.opts.evm_version, &[]))
+}
+
+impl<'gcx> Builder<'gcx> {
+    pub(crate) fn new(gcx: Gcx<'gcx>) -> Self {
+        Self {
+            gcx,
+            artifact_kind: ArtifactKind::Runtime,
+            program: ir::Module::new(sym::asm),
+            current_block: None,
+            label_blocks: FxHashMap::default(),
+            cold_labels: GrowableBitSet::new_empty(),
+            indexed_jumps: Vec::new(),
+            next_label: Label::from_usize(0),
+            next_deferred: DeferredConst::from_usize(0),
+            deferred_values: FxHashMap::default(),
+            next_deferred_alloc: DeferredAlloc::from_usize(0),
+            deferred_allocations: FxHashMap::default(),
         }
-        let block_labels = vec![None; module.blocks.len()];
-        Ok(Self { program: module, program_is_finalized: true, block_labels, ..Self::new(gcx) })
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.artifact_kind = ArtifactKind::Runtime;
+        self.program.clear();
+        self.current_block = None;
+        self.label_blocks.clear();
+        self.cold_labels.clear();
+        self.indexed_jumps.clear();
+        self.next_label = Label::from_usize(0);
+        self.next_deferred = DeferredConst::from_usize(0);
+        self.deferred_values.clear();
+        self.next_deferred_alloc = DeferredAlloc::from_usize(0);
+        self.deferred_allocations.clear();
+    }
+
+    pub(crate) fn set_artifact_kind(&mut self, kind: ArtifactKind) {
+        self.artifact_kind = kind;
+    }
+
+    pub(crate) fn set_evm_ir_name(&mut self, name: Symbol) {
+        self.program.set_name(Symbol::intern(&format!("{name}_{}", self.artifact_kind.name())));
+    }
+
+    pub(crate) fn set_enable_size_outlining(&mut self, enable: bool) {
+        self.program.enable_size_outlining = enable;
+    }
+
+    pub(crate) fn indexed_jump_target_width_bound(&self) -> usize {
+        assembly::indexed_jump_target_width_bound(
+            self.gcx.sess.opts.evm_version,
+            self.artifact_kind == ArtifactKind::Constructor,
+        )
+    }
+
+    pub(in crate::backend::evm) fn prepare(&mut self, capture_evm_ir: bool) -> PreparedAssembly {
+        let module = self.finish_evm_ir();
+        assembly::prepare(
+            self.gcx,
+            module,
+            std::mem::take(&mut self.deferred_values),
+            capture_evm_ir,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn assemble(&mut self) -> AssembledCode {
+        self.assemble_with_evm_ir(false)
+    }
+
+    pub(crate) fn assemble_with_evm_ir(&mut self, capture_evm_ir: bool) -> AssembledCode {
+        let prepared = self.prepare(capture_evm_ir);
+        let result = prepared.assemble(self.gcx.sess.opts.evm_version, &[]);
+        self.clear();
+        result
     }
 
     /// Creates a new label.
     pub(crate) fn new_label(&mut self) -> Label {
-        self.next_label.next()
+        take_next(&mut self.next_label)
     }
 
     /// Creates a new deferred constant.
     pub(crate) fn new_deferred_const(&mut self) -> DeferredConst {
-        self.next_deferred.next()
+        take_next(&mut self.next_deferred)
     }
 
     /// Emits a raw opcode.
@@ -108,12 +215,16 @@ impl<'gcx> Assembler<'gcx> {
         let current = self.current_block?;
         let mut references = index_vec![0usize; self.program.blocks.len()];
         references[ir::BlockId::ENTRY] = 1;
-        for &(_, _, label) in &self.label_relocations {
-            if let Some(&target) = self.label_blocks.get(&label) {
-                references[target] += 1;
+        for block in &self.program.blocks {
+            for inst in &block.instructions {
+                if let Some(ir::PushValue::Label(label)) = inst.value
+                    && let Some(&target) = self.label_blocks.get(&label)
+                {
+                    references[target] += 1;
+                }
             }
         }
-        for (_, targets) in &self.indexed_jump_relocations {
+        for (_, targets) in &self.indexed_jumps {
             for &label in targets {
                 if let Some(&target) = self.label_blocks.get(&label) {
                     references[target] += 1;
@@ -160,14 +271,9 @@ impl<'gcx> Assembler<'gcx> {
             } else {
                 instructions.len()
             };
-            for (index, inst) in instructions[..end].iter().enumerate() {
-                let (min_size, layout_size) = self.instruction_size_bounds(
-                    block,
-                    index,
-                    inst,
-                    block_target_width,
-                    deferred_value_width,
-                );
+            for inst in &instructions[..end] {
+                let (min_size, layout_size) =
+                    self.instruction_size_bounds(inst, block_target_width, deferred_value_width);
                 bounds.0 += min_size;
                 bounds.1 += layout_size;
             }
@@ -176,7 +282,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn trace_successor(&self, block: ir::BlockId) -> Option<ir::BlockId> {
-        if self.indexed_jump_relocations.iter().any(|&(source, _)| source == block) {
+        if self.indexed_jumps.iter().any(|&(source, _)| source == block) {
             None
         } else if let Some(target) = self.explicit_jump_target(block) {
             Some(target)
@@ -209,12 +315,19 @@ impl<'gcx> Assembler<'gcx> {
                 }
             }
         };
-        for &(source, _, label) in &self.label_relocations {
-            if let Some(&target) = self.label_blocks.get(&label) {
-                push_edge(&mut edges, source, target);
+        // Only sources in this function can contribute edges or address-taken targets.
+        for (source, block) in
+            self.program.blocks.iter_enumerated().skip(range.start).take(range.len())
+        {
+            for inst in &block.instructions {
+                if let Some(ir::PushValue::Label(label)) = inst.value
+                    && let Some(&target) = self.label_blocks.get(&label)
+                {
+                    push_edge(&mut edges, source, target);
+                }
             }
         }
-        for (source, targets) in &self.indexed_jump_relocations {
+        for (source, targets) in &self.indexed_jumps {
             for label in targets {
                 if let Some(&target) = self.label_blocks.get(label) {
                     push_edge(&mut edges, *source, target);
@@ -248,18 +361,15 @@ impl<'gcx> Assembler<'gcx> {
     fn explicit_jump_target(&self, block: ir::BlockId) -> Option<ir::BlockId> {
         let instructions = &self.program.blocks[block].instructions;
         let [.., push, jump] = instructions.as_slice() else { return None };
-        if !push.is_encoded_push() || jump.is_encoded_push() || jump.opcode != op::JUMP {
+        if jump.is_encoded_push() || jump.opcode != op::JUMP {
             return None;
         }
-        let instruction = instructions.len() - 2;
-        let label = self.label_relocations.iter().find_map(|&(source, index, label)| {
-            (source == block && index == instruction).then_some(label)
-        })?;
+        let Some(ir::PushValue::Label(label)) = push.value else { return None };
         self.label_blocks.get(&label).copied()
     }
 
     fn block_has_explicit_terminator(&self, block: ir::BlockId) -> bool {
-        self.indexed_jump_relocations.iter().any(|&(source, _)| source == block)
+        self.indexed_jumps.iter().any(|&(source, _)| source == block)
             || self.program.blocks[block]
                 .instructions
                 .last()
@@ -268,78 +378,60 @@ impl<'gcx> Assembler<'gcx> {
 
     fn instruction_size_bounds(
         &self,
-        block: ir::BlockId,
-        instruction: usize,
         inst: &ir::Instruction,
         block_target_width: usize,
         deferred_value_width: usize,
     ) -> (usize, usize) {
-        if let Some(type_size) = inst.immutable_type_size() {
-            let size = usize::from(type_size.bytes()) + 1;
-            (size, size)
-        } else if !inst.is_encoded_push() {
-            let size = inst.as_stack_op().map_or(1, |stack_op| {
+        let push_size = |value| push_len(self.gcx.sess.opts.evm_version, value);
+        let size = match inst.value {
+            Some(ir::PushValue::Immediate(value)) => push_size(value),
+            Some(ir::PushValue::Immutable(_)) => {
+                usize::from(inst.immutable_type_size().expect("immutable width").bytes()) + 1
+            }
+            Some(ir::PushValue::Label(_)) => return (2, block_target_width + 1),
+            Some(ir::PushValue::Deferred(id)) => {
+                let Some(&value) = self.deferred_values.get(&id) else {
+                    return (1, deferred_value_width + 1);
+                };
+                push_size(value)
+            }
+            Some(ir::PushValue::Alloc(id)) => {
+                let slot_size = push_size(U256::from(EvmMemoryLayout::FMP_SLOT));
+                match self.deferred_allocations.get(&id) {
+                    Some(DeferredAllocResolution::Static(address)) => push_size(*address),
+                    Some(DeferredAllocResolution::Dynamic(size)) => {
+                        slot_size * 2 + push_size(*size) + 4
+                    }
+                    None => return (1, slot_size * 2 + 33 + 4),
+                }
+            }
+            Some(_) => return (1, 33),
+            None => inst.as_stack_op().map_or(1, |stack_op| {
                 stack_op
                     .assembled_len(self.gcx.sess.opts.evm_version)
                     .expect("stack operation must support the target EVM version")
-            });
-            (size, size)
-        } else if let Some(value) = inst.pushed_value() {
-            let size = push_len(self.gcx.sess.opts.evm_version, value);
-            (size, size)
-        } else if self
-            .label_relocations
-            .iter()
-            .any(|&(source, index, _)| source == block && index == instruction)
-        {
-            (2, block_target_width + 1)
-        } else if let Some(id) =
-            self.deferred_relocations.iter().find_map(|&(source, index, id)| {
-                (source == block && index == instruction).then_some(id)
-            })
-        {
-            self.deferred_values.get(&id).map_or((1, deferred_value_width + 1), |&value| {
-                let size = push_len(self.gcx.sess.opts.evm_version, value);
-                (size, size)
-            })
-        } else if let Some(id) = self.alloc_relocations.iter().find_map(|&(source, index, id)| {
-            (source == block && index == instruction).then_some(id)
-        }) {
-            let slot_size =
-                push_len(self.gcx.sess.opts.evm_version, U256::from(EvmMemoryLayout::FMP_SLOT));
-            self.deferred_allocations.get(&id).map_or((1, slot_size * 2 + 33 + 4), |resolution| {
-                let size = match resolution {
-                    DeferredAllocResolution::Static(address) => {
-                        push_len(self.gcx.sess.opts.evm_version, *address)
-                    }
-                    DeferredAllocResolution::Dynamic(size) => {
-                        slot_size * 2 + push_len(self.gcx.sess.opts.evm_version, *size) + 4
-                    }
-                };
-                (size, size)
-            })
-        } else {
-            (1, 33)
-        }
+            }),
+        };
+        (size, size)
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
     pub(crate) fn emit_push_label(&mut self, label: Label) {
-        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
-        self.label_relocations.push((block, instruction, label));
+        // push label
+        self.push_ir_instruction(ir::Instruction::push_label(label));
     }
 
     /// Terminates the current block with an indexed jump to one of `targets`.
     pub(crate) fn emit_indexed_jump(&mut self, targets: Vec<Label>) {
         assert!(!targets.is_empty(), "indexed jump must have at least one target");
         let block = self.current_block.take().expect("indexed jump requires a current block");
-        self.indexed_jump_relocations.push((block, targets));
+        self.indexed_jumps.push((block, targets));
     }
 
     /// Emits a push instruction for a deferred constant.
     pub(crate) fn emit_push_deferred(&mut self, id: DeferredConst) {
-        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
-        self.deferred_relocations.push((block, instruction, id));
+        // push deferred(id)
+        self.push_ir_instruction(ir::Instruction::push_deferred(id));
     }
 
     /// Sets the value of a deferred constant.
@@ -350,9 +442,9 @@ impl<'gcx> Assembler<'gcx> {
     /// Emits an allocation whose static or dynamic placement is chosen after
     /// exact backend frame layout is known.
     pub(in crate::backend::evm) fn emit_deferred_alloc(&mut self) -> DeferredAlloc {
-        let id = self.next_deferred_alloc.next();
-        let (block, instruction) = self.push_ir_instruction(ir::Instruction::push_relocation());
-        self.alloc_relocations.push((block, instruction, id));
+        let id = take_next(&mut self.next_deferred_alloc);
+        // alloc deferred(id)
+        self.push_ir_instruction(ir::Instruction::push_alloc(id));
         id
     }
 
@@ -385,12 +477,8 @@ impl<'gcx> Assembler<'gcx> {
         if self.cold_labels.contains(label) {
             block.metadata.hotness = ir::Hotness::Cold;
         }
-        if self.loop_labels.contains(label) {
-            block.metadata.in_loop = true;
-        }
         let block = self.program.add_block(block);
         self.current_block = Some(block);
-        self.block_labels.push(Some(label));
         self.label_blocks.insert(label, block);
     }
 
@@ -408,7 +496,6 @@ impl<'gcx> Assembler<'gcx> {
         }
         let block = self.program.add_block(ir::Block::new(self.program.blocks.len() as u32));
         self.current_block = Some(block);
-        self.block_labels.push(None);
         block
     }
 
@@ -428,108 +515,67 @@ impl<'gcx> Assembler<'gcx> {
         &mut self,
         removals: &mut [(ir::BlockId, std::ops::Range<usize>)],
     ) {
-        removals.sort_unstable_by_key(|(block, range)| (*block, range.start));
-        let mut per_block =
-            FxHashMap::<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>::default();
-        for (block, range) in removals.iter() {
-            let ranges = per_block.entry(*block).or_default();
-            let before = ranges.last().map_or(0, |(range, before)| before + range.len());
-            ranges.push((range.clone(), before));
-        }
-        fn shift<T>(
-            relocations: &mut Vec<(ir::BlockId, usize, T)>,
-            ranges: &FxHashMap<ir::BlockId, Vec<(std::ops::Range<usize>, usize)>>,
-        ) {
-            relocations.retain_mut(|(block, index, _)| {
-                let Some(ranges) = ranges.get(block) else { return true };
-                let position = ranges.partition_point(|(range, _)| range.start <= *index);
-                let Some((range, before)) = position.checked_sub(1).map(|index| &ranges[index])
-                else {
-                    return true;
-                };
-                if range.contains(index) {
-                    return false;
-                }
-                *index -= before + range.len();
-                true
-            });
-        }
-        shift(&mut self.label_relocations, &per_block);
-        shift(&mut self.deferred_relocations, &per_block);
-        shift(&mut self.alloc_relocations, &per_block);
-        for (block, ranges) in per_block {
-            let instructions = &mut self.program.blocks[block].instructions;
-            for (range, _) in ranges.into_iter().rev() {
-                instructions.drain(range);
-            }
+        // instructions[..start], instructions[end..]
+        // Descending ranges keep every earlier instruction position valid.
+        removals.sort_unstable_by_key(|(block, range)| std::cmp::Reverse((*block, range.start)));
+        for (block, range) in removals {
+            self.program.blocks[*block].instructions.drain(range.clone());
         }
     }
 
-    pub(in crate::backend::evm) fn finish_evm_ir(
-        &mut self,
-    ) -> Option<(ir::Module, Vec<Option<Label>>)> {
+    fn finish_evm_ir(&mut self) -> ir::Module {
         let mut module = std::mem::take(&mut self.program);
         self.current_block = None;
-        if module.blocks.is_empty() {
-            module.clear();
-            self.program = module;
-            return None;
-        }
-
-        for (block, instruction, label) in self.label_relocations.drain(..) {
-            let target = self
-                .label_blocks
-                .get(&label)
-                .copied()
-                .unwrap_or_else(|| panic!("label {label:?} was never defined"));
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_block(target);
-        }
-        for (block, instruction, id) in self.deferred_relocations.drain(..) {
-            module.blocks[block].instructions[instruction] = ir::Instruction::push_deferred(id);
-        }
-        // Allocation placeholders expand to more than one instruction, so they
-        // splice after every in-place relocation patch above. Descending
-        // instruction order keeps earlier indices in the same block valid.
-        let mut alloc_relocations = std::mem::take(&mut self.alloc_relocations);
-        alloc_relocations.sort_unstable_by_key(|&(block, instruction, _)| {
-            std::cmp::Reverse((block, instruction))
-        });
-        for (block, instruction, id) in alloc_relocations.drain(..) {
-            let resolution = self
-                .deferred_allocations
-                .get(&id)
-                .copied()
-                .unwrap_or_else(|| panic!("deferred allocation {id:?} was never resolved"));
-            let push = |value: U256| ir::Instruction::push_value(value);
-            let replacement = match resolution {
-                DeferredAllocResolution::Static(address) => vec![push(address)],
-                DeferredAllocResolution::Dynamic(size) => vec![
-                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
-                    ir::Instruction::opcode(op::MLOAD),
-                    ir::Instruction::stack_op(op::StackOp::Dup(1)),
-                    push(size),
-                    ir::Instruction::opcode(op::ADD),
-                    push(U256::from(EvmMemoryLayout::FMP_SLOT)),
-                    ir::Instruction::opcode(op::MSTORE),
-                ],
-            };
-            module.blocks[block].instructions.splice(instruction..=instruction, replacement);
+        for block in &mut module.blocks {
+            // push label -> push block
+            for inst in &mut block.instructions {
+                if let Some(ir::PushValue::Label(label)) = inst.value {
+                    let target = self
+                        .label_blocks
+                        .get(&label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"));
+                    *inst = ir::Instruction::push_block(target);
+                }
+            }
+            // alloc static(address) -> push address
+            // alloc dynamic(size) -> push 0x40; mload; dup 1; push size; add; push 0x40; mstore
+            for index in (0..block.instructions.len()).rev() {
+                if let Some(ir::PushValue::Alloc(id)) = block.instructions[index].value {
+                    let resolution = self
+                        .deferred_allocations
+                        .get(&id)
+                        .unwrap_or_else(|| panic!("deferred allocation {id:?} was never resolved"));
+                    match resolution {
+                        DeferredAllocResolution::Static(address) => {
+                            block.instructions[index] = ir::Instruction::push_value(*address);
+                        }
+                        DeferredAllocResolution::Dynamic(size) => {
+                            let push_slot = || {
+                                ir::Instruction::push_value(U256::from(EvmMemoryLayout::FMP_SLOT))
+                            };
+                            block.instructions.splice(
+                                index..=index,
+                                [
+                                    push_slot(),
+                                    ir::Instruction::opcode(op::MLOAD),
+                                    ir::Instruction::stack_op(op::StackOp::Dup(1)),
+                                    ir::Instruction::push_value(*size),
+                                    ir::Instruction::opcode(op::ADD),
+                                    push_slot(),
+                                    ir::Instruction::opcode(op::MSTORE),
+                                ],
+                            );
+                        }
+                    }
+                }
+            }
         }
         self.deferred_allocations.clear();
-        self.alloc_relocations = alloc_relocations;
-
-        if self.program_is_finalized {
-            self.program_is_finalized = false;
-            debug_assert!(self.indexed_jump_relocations.is_empty());
-        } else {
-            self.finalize_evm_ir(&mut module);
-        }
-
+        self.finalize_evm_ir(&mut module);
         self.label_blocks.clear();
         self.cold_labels.clear();
-        self.loop_labels.clear();
-
-        Some((module, std::mem::take(&mut self.block_labels)))
+        module
     }
 
     fn finalize_evm_ir(&mut self, module: &mut ir::Module) {
@@ -541,14 +587,8 @@ impl<'gcx> Assembler<'gcx> {
                 && !jump.is_encoded_push()
                 && jump.opcode == op::JUMP
                 && let Some(target) = push.pushed_block()
-                && push.is_encoded_push()
             {
                 (ir::Terminator::new(ir::TerminatorKind::Jump(target)), 2)
-            } else if let Some(last) = block.instructions.last()
-                && !last.is_encoded_push()
-                && last.opcode == op::STOP
-            {
-                (ir::Terminator::new(ir::TerminatorKind::Op(op::STOP)), 1)
             } else if let Some(last) = block.instructions.last()
                 && !last.is_encoded_push()
                 && op::is_terminal(last.opcode)
@@ -566,7 +606,7 @@ impl<'gcx> Assembler<'gcx> {
             block.terminator = Some(terminator);
         }
 
-        for (block, targets) in self.indexed_jump_relocations.drain(..) {
+        for (block, targets) in self.indexed_jumps.drain(..) {
             let targets = targets
                 .into_iter()
                 .map(|label| {
@@ -589,10 +629,72 @@ pub(in crate::backend::evm) fn resolve_known_deferred_constants(
 ) {
     for block in &mut module.blocks {
         for inst in &mut block.instructions {
-            let Some(id) = inst.deferred_push() else { continue };
-            if let Some(&value) = values.get(&id) {
+            // push deferred(id) -> push value
+            if let Some(id) = inst.deferred_push()
+                && let Some(&value) = values.get(&id)
+            {
                 *inst = ir::Instruction::push_value(value);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::Session;
+    use solar_sema::Compiler;
+
+    #[test]
+    fn function_edges_exclude_references_from_other_functions() {
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let mut builder = Builder::new(c.gcx());
+            let outside = builder.new_label();
+            let entry = builder.new_label();
+            let local = builder.new_label();
+            let indirect = builder.new_label();
+            // outside: push local
+            // entry: push entry; fall through to local
+            // local: stop
+            // indirect: jump
+            builder.define_label(outside);
+            builder.emit_push_label(local);
+            builder.define_label(entry);
+            builder.emit_push_label(entry);
+            builder.define_label(local);
+            builder.emit_op(op::STOP);
+            builder.define_label(indirect);
+            builder.emit_op(op::JUMP);
+
+            let entry = ir::BlockId::from_usize(1);
+            let local = ir::BlockId::from_usize(2);
+            let indirect = ir::BlockId::from_usize(3);
+            // An outside address reference must not add a local indirect-jump destination.
+            assert_eq!(
+                builder.dataflow_edges(1..4),
+                [(entry, entry), (entry, local), (indirect, entry)],
+            );
+        });
+    }
+
+    #[test]
+    fn removing_instructions_keeps_symbolic_operands() {
+        let compiler = Compiler::new(Session::builder().opts(Default::default()).build());
+        compiler.enter(|c| {
+            let mut builder = Builder::new(c.gcx());
+            let label = builder.new_label();
+            let (block, start) = builder.next_instruction_position();
+            builder.emit_op(op::ADD);
+            builder.emit_push_label(label);
+            builder.remove_instructions(&mut [(block, start..start + 1)]);
+            builder.define_label(label);
+
+            let module = builder.finish_evm_ir();
+            assert_eq!(
+                module.blocks[ir::BlockId::ENTRY].instructions[0].pushed_block(),
+                Some(ir::BlockId::from_usize(1))
+            );
+        });
     }
 }

@@ -22,7 +22,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, PushValue},
+        ir::{Instruction, Module},
         op,
         stack::StackOp as PhysicalStackOp,
     },
@@ -702,7 +702,7 @@ fn overwrite_stack_op(inst: &mut Instruction, stack_op: PhysicalStackOp) {
 }
 
 fn is_block_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push() && matches!(inst.value, Some(PushValue::Block(_)))
+    inst.pushed_block().is_some()
 }
 
 fn is_removable_push(inst: &Instruction) -> bool {

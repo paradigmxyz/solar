@@ -130,8 +130,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         if let Some(TerminatorKind::Jump(target)) = block.terminator.as_ref().map(|term| &term.kind)
             && let [.., pushed, jumpi] = block.instructions.as_slice()
             && pushed.has_canonical_stack_effect()
-            && pushed.is_encoded_push()
-            && pushed.value == Some(PushValue::Block(*target))
+            && pushed.pushed_block() == Some(*target)
             && jumpi.has_canonical_stack_effect()
             && jumpi.as_evm_opcode() == Some(op::JUMPI)
         {

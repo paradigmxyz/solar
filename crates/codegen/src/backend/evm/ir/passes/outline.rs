@@ -456,9 +456,7 @@ fn outline_parametric_machine_runs(
 }
 
 fn parameterizable_push(inst: &Instruction) -> bool {
-    inst.is_encoded_push()
-        && inst.immutable_push().is_none()
-        && matches!(inst.value, Some(PushValue::Immediate(_)))
+    matches!(inst.value, Some(PushValue::Immediate(_) | PushValue::Deferred(_)))
 }
 
 fn parameterize_body(body: &[Instruction], parameters: &[usize]) -> Option<Vec<Instruction>> {
@@ -535,12 +533,8 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let mut sites = FxHashMap::<U256, SmallVec<[(BlockId, usize); 2]>>::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (index, inst) in block.instructions.iter().enumerate() {
-            if inst.is_encoded_push()
-                && inst.deferred_push().is_none()
-                && inst.immutable_push().is_none()
-                && let Some(PushValue::Immediate(value)) = &inst.value
-            {
-                sites.entry(*value).or_default().push((block_id, index));
+            if let Some(value) = inst.concrete_immediate() {
+                sites.entry(value).or_default().push((block_id, index));
             }
         }
     }

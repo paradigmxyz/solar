@@ -6,10 +6,11 @@
 //! then redirects references and removes the temporary jump thunks. Block hotness does not affect
 //! equivalence; a hot redirect promotes the shared body so later layout keeps it on the hot path.
 
-use super::{EvmPass, utils::is_terminal_boundary};
-use crate::backend::evm::ir::{
-    Block, BlockId, Hotness, Module, PushValue, Terminator, TerminatorKind,
+use super::{
+    EvmPass,
+    utils::{MachineInstKey, is_terminal_boundary},
 };
+use crate::backend::evm::ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind};
 use solar_data_structures::map::{FxHashMap, StdEntry};
 use solar_sema::Gcx;
 
@@ -49,6 +50,7 @@ fn deduplicate_terminals(_gcx: Gcx<'_>, module: &mut Module) -> bool {
         if !module.blocks[block].metadata.hotness.is_cold() {
             module.blocks[target].metadata.hotness = Hotness::Hot;
         }
+        // bb: jump target
         module.blocks[block].instructions.clear();
         module.blocks[block].terminator = Some(Terminator::new(TerminatorKind::Jump(target)));
     }
@@ -60,29 +62,12 @@ fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
     if !is_terminal_boundary(terminator) {
         return None;
     }
-    let instructions = block
-        .instructions
-        .iter()
-        .map(|inst| TerminalInstructionKey {
-            opcode: inst.opcode,
-            encoding: inst.encoding,
-            value: inst.value,
-            stack_op: inst.as_stack_op(),
-        })
-        .collect();
+    let instructions = block.instructions.iter().map(MachineInstKey::new).collect();
     Some(TerminalBlockKey { instructions, terminator: terminator.clone() })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TerminalBlockKey {
-    instructions: Vec<TerminalInstructionKey>,
+    instructions: Vec<MachineInstKey>,
     terminator: TerminatorKind,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct TerminalInstructionKey {
-    opcode: u8,
-    encoding: u8,
-    value: Option<PushValue>,
-    stack_op: Option<crate::backend::evm::op::StackOp>,
 }

@@ -89,8 +89,7 @@ pub struct Module {
 impl Module {
     /// Lowers this EVM IR module to bytecode.
     pub fn into_bytecode(self, gcx: solar_sema::Gcx<'_>) -> solar_interface::Result<Vec<u8>> {
-        let mut assembler = super::assembler::Assembler::from_evm_ir(gcx, self)?;
-        let result = assembler.assemble_with_evm_ir(true);
+        let result = builder::assemble_evm_ir(gcx, self, true)?;
         gcx.dcx().has_errors()?;
         Ok(result.bytecode)
     }
@@ -200,13 +199,14 @@ impl Hotness {
 }
 
 /// A non-terminating scheduled EVM instruction.
+///
+/// Builder instructions may carry unresolved labels and allocations. Finishing construction
+/// resolves these operands before finalized IR is verified or optimized.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Instruction {
     /// Raw EVM opcode byte.
     pub(crate) opcode: u8,
-    /// Internal encoding flags for instructions resolved during assembly.
-    encoding: u8,
-    /// Encoded value carried by a push instruction.
+    /// Typed value carried by a push instruction.
     value: Option<PushValue>,
     /// Logical stack operation selected during final assembly lowering.
     stack_op: Option<StackOp>,
@@ -215,18 +215,13 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
-    const ENCODED_PUSH: u8 = 1;
-    const DEFERRED: u8 = 2;
-    const IMMUTABLE: u8 = 4;
-    const DATA: u8 = 8;
-
     /// Creates an instruction for an EVM opcode.
     #[must_use]
     pub(crate) fn opcode(opcode: u8) -> Self {
         if let Some(stack_op) = StackOp::from_single_byte_evm_opcode(opcode) {
             return Self::stack_op(stack_op);
         }
-        Self { opcode, encoding: 0, value: None, stack_op: None, metadata: Metadata::EMPTY }
+        Self { opcode, value: None, stack_op: None, metadata: Metadata::EMPTY }
     }
 
     /// Creates a logical stack operation.
@@ -234,7 +229,6 @@ impl Instruction {
     pub(crate) fn stack_op(stack_op: StackOp) -> Self {
         Self {
             opcode: stack_op.ir_opcode(),
-            encoding: 0,
             value: None,
             stack_op: Some(stack_op),
             metadata: Metadata::EMPTY,
@@ -262,32 +256,31 @@ impl Instruction {
     /// Creates an encoded immediate push instruction.
     #[must_use]
     pub(crate) fn push_value(value: U256) -> Self {
-        Self::encoded_push(PushValue::Immediate(value), Self::ENCODED_PUSH)
+        Self::encoded_push(PushValue::Immediate(value))
     }
 
     /// Creates an encoded block-address push instruction.
     #[must_use]
     pub(crate) fn push_block(block: BlockId) -> Self {
-        Self::encoded_push(PushValue::Block(block), Self::ENCODED_PUSH)
+        Self::encoded_push(PushValue::Block(block))
     }
 
     /// Creates an encoded program-data-address push instruction.
     #[must_use]
     pub(crate) fn push_data(data: DataRef) -> Self {
-        Self::encoded_push(PushValue::Data(data), Self::ENCODED_PUSH | Self::DATA)
+        Self::encoded_push(PushValue::Data(data))
     }
 
-    /// Creates an encoded push whose operand will be supplied by an assembler
-    /// relocation before EVM IR validation.
+    /// Creates a builder-only label-address push, resolved when construction finishes.
     #[must_use]
-    pub(in crate::backend::evm) fn push_relocation() -> Self {
-        Self {
-            opcode: op::PUSH32,
-            encoding: Self::ENCODED_PUSH,
-            value: None,
-            stack_op: None,
-            metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
-        }
+    pub(in crate::backend::evm) fn push_label(label: assembly::Label) -> Self {
+        Self::encoded_push(PushValue::Label(label))
+    }
+
+    /// Creates a builder-only allocation push, expanded when construction finishes.
+    #[must_use]
+    pub(in crate::backend::evm) fn push_alloc(alloc: assembly::DeferredAlloc) -> Self {
+        Self::encoded_push(PushValue::Alloc(alloc))
     }
 
     /// Creates an encoded deferred push instruction.
@@ -297,52 +290,38 @@ impl Instruction {
             id.index() <= assembly::AsmInst::PAYLOAD_MASK as usize,
             "deferred constant ID overflow"
         );
-        Self::encoded_push(
-            PushValue::Immediate(U256::from(id.index())),
-            Self::ENCODED_PUSH | Self::DEFERRED,
-        )
+        Self::encoded_push(PushValue::Deferred(id))
     }
 
     /// Creates an encoded immutable push instruction with a fixed immediate width.
     #[must_use]
     pub(in crate::backend::evm) fn push_immutable(id: ImmutableId, type_size: TypeSize) -> Self {
-        let mut inst = Self::encoded_push(
-            PushValue::Immediate(U256::from(id.index())),
-            Self::ENCODED_PUSH | Self::IMMUTABLE,
-        );
+        // push_immutable id, type_size
+        let mut inst = Self::encoded_push(PushValue::Immutable(id));
         inst.opcode = op::push(type_size.bytes());
         inst
     }
 
-    fn encoded_push(value: PushValue, encoding: u8) -> Self {
+    fn encoded_push(value: PushValue) -> Self {
+        // push value
         Self {
             opcode: op::PUSH32,
-            encoding,
             value: Some(value),
             stack_op: None,
             metadata: Metadata { stack: Some(StackEffect::new(0, 1)) },
         }
     }
 
-    /// Returns the immediate carried by this push instruction, if any.
+    /// Returns a literal runtime word carried by an ordinary immediate push.
+    ///
+    /// Symbolic operands have separate payload variants and cannot participate in literal-value
+    /// reasoning, even when their internal identifiers happen to match a literal word.
     #[must_use]
-    pub(in crate::backend::evm) const fn pushed_value(&self) -> Option<U256> {
+    pub(in crate::backend::evm) const fn concrete_immediate(&self) -> Option<U256> {
         match self.value {
             Some(PushValue::Immediate(value)) => Some(value),
             _ => None,
         }
-    }
-
-    /// Returns a literal runtime word carried by an ordinary immediate push.
-    ///
-    /// Deferred and immutable pushes encode internal IDs in the same payload variant, but their
-    /// runtime values are supplied later and must not participate in constant-value reasoning.
-    #[must_use]
-    pub(in crate::backend::evm) const fn concrete_immediate(&self) -> Option<U256> {
-        if self.encoding != Self::ENCODED_PUSH {
-            return None;
-        }
-        self.pushed_value()
     }
 
     /// Returns the block carried by this push instruction, if any.
@@ -371,15 +350,13 @@ impl Instruction {
             Some(StackOp::Swap(_)) => f.write_str("swap"),
             Some(StackOp::Exchange(_, _)) => f.write_str("exchange"),
             Some(StackOp::Pop) => f.write_str("pop"),
-            None => match self.encoding {
-                Self::ENCODED_PUSH => f.write_str("push"),
-                encoding if encoding == Self::ENCODED_PUSH | Self::DEFERRED => {
-                    f.write_str("push_deferred")
-                }
-                encoding if encoding == Self::ENCODED_PUSH | Self::IMMUTABLE => {
-                    f.write_str("push_immutable")
-                }
-                encoding if encoding == Self::ENCODED_PUSH | Self::DATA => f.write_str("push_data"),
+            None => match self.value {
+                Some(PushValue::Immediate(_) | PushValue::Block(_)) => f.write_str("push"),
+                Some(PushValue::Deferred(_)) => f.write_str("push_deferred"),
+                Some(PushValue::Immutable(_)) => f.write_str("push_immutable"),
+                Some(PushValue::Data(_)) => f.write_str("push_data"),
+                Some(PushValue::Label(_)) => f.write_str("push_label"),
+                Some(PushValue::Alloc(_)) => f.write_str("push_alloc"),
                 _ => match self.opcode {
                     opcode @ op::DUP1..=op::DUP16 => {
                         write!(f, "dup {}", opcode - op::DUP1 + 1)
@@ -396,7 +373,7 @@ impl Instruction {
     /// Returns whether this is an encoded push.
     #[must_use]
     pub(crate) const fn is_encoded_push(&self) -> bool {
-        self.encoding & Self::ENCODED_PUSH != 0
+        self.value.is_some()
     }
 
     /// Returns the logical stack operation, if present.
@@ -421,34 +398,26 @@ impl Instruction {
 
     /// Returns the deferred constant referenced by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) fn deferred_push(&self) -> Option<assembly::DeferredConst> {
-        if self.encoding & Self::DEFERRED == 0 {
-            return None;
+    pub(in crate::backend::evm) const fn deferred_push(&self) -> Option<assembly::DeferredConst> {
+        match self.value {
+            Some(PushValue::Deferred(id)) => Some(id),
+            _ => None,
         }
-        let value = self.pushed_value().expect("deferred push must carry an immediate");
-        Some(assembly::DeferredConst::from_usize(
-            usize::try_from(value).expect("deferred constant ID must fit usize"),
-        ))
     }
 
     /// Returns the immutable identifier carried by this push instruction, if any.
     #[must_use]
-    pub(in crate::backend::evm) fn immutable_push(&self) -> Option<ImmutableId> {
-        if self.encoding & Self::IMMUTABLE == 0 {
-            return None;
+    pub(in crate::backend::evm) const fn immutable_push(&self) -> Option<ImmutableId> {
+        match self.value {
+            Some(PushValue::Immutable(id)) => Some(id),
+            _ => None,
         }
-        let value = self.pushed_value().expect("immutable push must carry an immediate");
-        Some(ImmutableId::new(
-            usize::try_from(value).expect("validated immutable ID must fit usize"),
-        ))
     }
 
     /// Returns the immutable placeholder's type size, if this is an immutable push.
     #[must_use]
     pub(in crate::backend::evm) fn immutable_type_size(&self) -> Option<TypeSize> {
-        if self.encoding & Self::IMMUTABLE == 0 {
-            return None;
-        }
+        self.immutable_push()?;
         let width = self.opcode.checked_sub(op::PUSH1)? + 1;
         TypeSize::try_new_fb_bytes(width)
     }
@@ -591,6 +560,14 @@ enum PushValue {
     Block(BlockId),
     /// Constant program-data reference.
     Data(DataRef),
+    /// Constant whose value is supplied before assembly.
+    Deferred(assembly::DeferredConst),
+    /// Immutable placeholder whose width is carried by the instruction opcode.
+    Immutable(ImmutableId),
+    /// Builder-only label reference, resolved to a block before verification.
+    Label(assembly::Label),
+    /// Builder-only allocation, expanded to instructions before verification.
+    Alloc(assembly::DeferredAlloc),
 }
 
 /// Metadata carried by instructions and terminators.

@@ -226,23 +226,19 @@ fn estimated_block_size(
 }
 
 fn estimated_instruction_size(gcx: Gcx<'_>, inst: &Instruction) -> usize {
-    if let Some(size) = inst.immutable_type_size() {
-        1 + usize::from(size.bytes())
-    } else if inst.deferred_push().is_some() {
-        3
-    } else if inst.is_encoded_push() {
-        match &inst.value {
-            Some(PushValue::Immediate(value)) => selected_len(gcx, *value),
-            Some(PushValue::Block(_)) => 3,
-            Some(PushValue::Data(_)) => 4,
-            _ => 1,
+    match inst.value {
+        Some(PushValue::Immediate(value)) => selected_len(gcx, value),
+        Some(PushValue::Block(_) | PushValue::Deferred(_)) => 3,
+        Some(PushValue::Data(_)) => 4,
+        Some(PushValue::Immutable(_)) => {
+            inst.immutable_type_size().map_or(1, |size| 1 + usize::from(size.bytes()))
         }
-    } else if let Some(stack_op) = inst.as_stack_op() {
-        stack_op
-            .assembled_len(gcx.sess.opts.evm_version)
-            .expect("block layout only runs on target-compatible stack operations")
-    } else {
-        1
+        Some(_) => 1,
+        None => inst.as_stack_op().map_or(1, |stack_op| {
+            stack_op
+                .assembled_len(gcx.sess.opts.evm_version)
+                .expect("block layout only runs on target-compatible stack operations")
+        }),
     }
 }
 

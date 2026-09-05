@@ -90,37 +90,36 @@ impl<'a> Verifier<'a> {
     }
 
     fn verify_instruction_shape(&self, block_id: BlockId, module: &Module, inst: &Instruction) {
-        if inst.is_encoded_push() {
-            let Some(value) = &inst.value else {
-                self.error_in_block(
-                    block_id,
-                    format_args!("`{}` must carry a value", inst.mnemonic()),
-                );
-                return;
-            };
-            if inst.encoding & Instruction::IMMUTABLE != 0
-                && !(op::PUSH1..=op::PUSH32).contains(&inst.opcode)
-            {
-                self.error_in_block(
-                    block_id,
-                    "encoded immutable push must use a `PUSH1` through `PUSH32` opcode",
-                );
-            } else if inst.encoding & Instruction::IMMUTABLE == 0 && inst.opcode != op::PUSH32 {
+        if let Some(value) = inst.value {
+            if matches!(value, PushValue::Immutable(_)) {
+                if !(op::PUSH1..=op::PUSH32).contains(&inst.opcode) {
+                    self.error_in_block(
+                        block_id,
+                        "encoded immutable push must use a `PUSH1` through `PUSH32` opcode",
+                    );
+                }
+            } else if inst.opcode != op::PUSH32 {
                 self.error_in_block(block_id, "encoded push must use the `PUSH32` opcode");
             }
-            match inst.encoding {
-                Instruction::ENCODED_PUSH => {}
-                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DEFERRED => {
-                    self.verify_assembly_id(block_id, inst, value, "deferred constant");
+            match value {
+                PushValue::Immediate(_) | PushValue::Immutable(_) => {}
+                PushValue::Deferred(id) => {
+                    if id.index() > assembly::AsmInst::PAYLOAD_MASK as usize {
+                        self.error_in_block(
+                            block_id,
+                            "deferred constant ID exceeds the assembler limit",
+                        );
+                    }
                 }
-                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::IMMUTABLE => {
-                    self.verify_immutable_id(block_id, inst, value);
+                PushValue::Block(target) => {
+                    if !self.block_exists(module, target) {
+                        self.error_in_block(
+                            block_id,
+                            format_args!("push target block `{}` is out of range", target.index()),
+                        );
+                    }
                 }
-                encoding if encoding == Instruction::ENCODED_PUSH | Instruction::DATA => {
-                    let PushValue::Data(data) = value else {
-                        self.error_in_block(block_id, "`push_data` must carry a data ID");
-                        return;
-                    };
+                PushValue::Data(data) => {
                     if data.id.index() >= module.data.len() {
                         self.error_in_block(
                             block_id,
@@ -137,22 +136,14 @@ impl<'a> Verifier<'a> {
                         );
                     }
                 }
-                _ => {
-                    self.error_in_block(block_id, "invalid encoded push kind");
+                PushValue::Label(_) | PushValue::Alloc(_) => {
+                    self.error_in_block(
+                        block_id,
+                        format_args!("unresolved builder instruction `{}`", inst.mnemonic()),
+                    );
                 }
-            };
-            if let PushValue::Block(target) = value
-                && !self.block_exists(module, *target)
-            {
-                self.error_in_block(
-                    block_id,
-                    format_args!("push target block `{}` is out of range", target.index()),
-                );
             }
         } else {
-            if inst.value.is_some() {
-                self.error_in_block(block_id, "only `push` instructions can carry a value");
-            }
             if let Some(stack_op) = inst.as_stack_op() {
                 if inst.opcode != stack_op.ir_opcode() {
                     self.error_in_block(block_id, "logical stack operation has the wrong opcode");
@@ -202,38 +193,6 @@ impl<'a> Verifier<'a> {
                 );
             }
             _ => {}
-        }
-    }
-
-    fn verify_assembly_id(
-        &self,
-        block_id: BlockId,
-        inst: &Instruction,
-        value: &PushValue,
-        name: &str,
-    ) {
-        let PushValue::Immediate(value) = value else {
-            self.error_in_block(
-                block_id,
-                format_args!("`{}` must carry an immediate {name} ID", inst.mnemonic()),
-            );
-            return;
-        };
-        if u32::try_from(*value).ok().is_none_or(|value| value > assembly::AsmInst::PAYLOAD_MASK) {
-            self.error_in_block(block_id, format_args!("{name} ID exceeds the assembler limit"));
-        }
-    }
-
-    fn verify_immutable_id(&self, block_id: BlockId, inst: &Instruction, value: &PushValue) {
-        let PushValue::Immediate(value) = value else {
-            self.error_in_block(
-                block_id,
-                format_args!("`{}` must carry an immediate immutable ID", inst.mnemonic()),
-            );
-            return;
-        };
-        if u32::try_from(*value).ok().is_none_or(|value| value == u32::MAX) {
-            self.error_in_block(block_id, "immutable ID exceeds the index limit");
         }
     }
 
@@ -487,6 +446,23 @@ impl<'a> Verifier<'a> {
 mod tests {
     use super::*;
     use solar_interface::sym;
+
+    #[test]
+    fn rejects_unresolved_builder_values() {
+        for inst in [
+            Instruction::push_label(assembly::Label::new(0)),
+            Instruction::push_alloc(assembly::DeferredAlloc::new(0)),
+        ] {
+            let mut module = Module::new(sym::module);
+            let entry = module.add_block(Block::new(0));
+            module.blocks[entry].instructions.push(inst);
+            module.blocks[entry].terminator = Some(Terminator::new(TerminatorKind::Op(op::STOP)));
+
+            let dcx = DiagCtxt::with_silent_emitter(None);
+            Verifier::for_evm_version(&dcx, EvmVersion::Osaka).verify_module(&module);
+            assert_eq!(dcx.err_count(), 1);
+        }
+    }
 
     #[test]
     fn indexed_jump_reserves_lowering_stack() {

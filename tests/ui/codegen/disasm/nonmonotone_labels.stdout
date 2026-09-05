@@ -1,0 +1,10 @@
+// === nonmonotone_labels (runtime) ===
+PUSH1 0x07
+POP
+PUSH1 0x07 ; bb0
+JUMP
+INVALID
+; bb0
+JUMPDEST
+PUSH1 0x2a ; unknown
+JUMP
