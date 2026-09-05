@@ -276,10 +276,33 @@ pub(crate) fn lower(
                     slot => slot,
                 });
             }
+            let mut copies = function
+                .live_values()
+                .filter_map(|value| {
+                    let mir::Value::Arg(index) = function.value(value) else { return None };
+                    context.layout.spills.homes.get(&value).map(|&home| (*index, home))
+                })
+                .collect::<Vec<_>>();
+            copies.sort_unstable();
+            let mut stack = Stack::new(incoming);
+            for (position, &(index, home)) in copies.iter().enumerate() {
+                // <return label>; <remaining arguments>; <argument for this home>
+                // push <spill address>; mstore
+                entry.extend(
+                    stack
+                        .prepare(&[Slot::Argument(index)], 1, version, |slot| {
+                            desired.contains(&slot)
+                                || copies[position + 1..]
+                                    .iter()
+                                    .any(|&(index, _)| slot == Slot::Argument(index))
+                        })
+                        .map_err(schedule_error)?,
+                );
+                store_spill(&context, home, &mut entry)?;
+                stack.truncate(stack.values().len() - 1);
+            }
             // <return label>; <canonical incoming argument values>
-            entry.extend(
-                Stack::new(incoming).reconcile(&desired, 1, version).map_err(schedule_error)?,
-            );
+            entry.extend(stack.reconcile(&desired, 1, version).map_err(schedule_error)?);
         } else {
             for &slot in &context.layout.entries[mir::BlockId::ENTRY] {
                 if let Slot::Value(value) = slot {
@@ -291,7 +314,8 @@ pub(crate) fn lower(
             }
         }
         for value in function.live_values() {
-            if let mir::Value::Arg(index) = function.value(value)
+            if !context.storage.stack_arguments
+                && let mir::Value::Arg(index) = function.value(value)
                 && let Some(&home) = context.layout.spills.homes.get(&value)
             {
                 // mstore(argument_home, incoming_argument)

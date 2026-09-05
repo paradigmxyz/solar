@@ -1,0 +1,162 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/static_spill_arguments.sol:StaticSpillArguments ===
+@module StaticSpillArguments
+fn @probe(arg0: u256, arg1: u256) -> u256 [selector=0x048d4c80, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @outer, 1, 4, arg0, arg1, 77
+    ret v0
+}
+
+fn @inner(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 0
+    v1 = calldataload v0
+    v2 = add arg0, 32
+    v3 = calldataload v2
+    v4 = add arg0, 64
+    v5 = calldataload v4
+    v6 = add arg0, 96
+    v7 = calldataload v6
+    v8 = add arg0, 128
+    v9 = calldataload v8
+    v10 = add arg0, 160
+    v11 = calldataload v10
+    v12 = add arg0, 192
+    v13 = calldataload v12
+    v14 = add arg0, 224
+    v15 = calldataload v14
+    v16 = add arg0, 256
+    v17 = calldataload v16
+    v18 = add arg0, 288
+    v19 = calldataload v18
+    v20 = add arg0, 320
+    v21 = calldataload v20
+    v22 = add arg0, 352
+    v23 = calldataload v22
+    v24 = add arg0, 384
+    v25 = calldataload v24
+    v26 = add arg0, 416
+    v27 = calldataload v26
+    v28 = add arg0, 448
+    v29 = calldataload v28
+    v30 = add arg0, 480
+    v31 = calldataload v30
+    v32 = add arg0, 512
+    v33 = calldataload v32
+    v34 = add arg0, 544
+    v35 = calldataload v34
+    v36 = add arg0, 576
+    v37 = calldataload v36
+    v38 = add arg0, 608
+    v39 = calldataload v38
+    v40 = eq arg1, arg2
+    v41 = eq v40, 0
+    v42 = iszero v41
+    jumpi v42, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v43 = add arg1, arg2
+    jump bb3
+  bb3:
+    v44 = phi [bb1: v43], [bb2: 0]
+    v45 = and arg4, 992
+    mstore v45, 0xdead
+    v46 = add v37, v39
+    v47 = add v33, v35
+    v48 = add v47, v46
+    v49 = add v29, v31
+    v50 = add v25, v27
+    v51 = add v50, v49
+    v52 = add v21, v23
+    v53 = add v17, v19
+    v54 = add v53, v52
+    v55 = add v54, v51
+    v56 = add v13, v15
+    v57 = add v9, v11
+    v58 = add v57, v56
+    v59 = add v5, v7
+    v60 = add v1, v3
+    v61 = add v60, v59
+    v62 = add v61, v58
+    v63 = add v62, v55
+    v64 = add v63, v48
+    v65 = add v44, v64
+    ret v65
+}
+
+fn @outer(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 0
+    v1 = calldataload v0
+    v2 = add arg0, 32
+    v3 = calldataload v2
+    v4 = add arg0, 64
+    v5 = calldataload v4
+    v6 = add arg0, 96
+    v7 = calldataload v6
+    v8 = add arg0, 128
+    v9 = calldataload v8
+    v10 = add arg0, 160
+    v11 = calldataload v10
+    v12 = add arg0, 192
+    v13 = calldataload v12
+    v14 = add arg0, 224
+    v15 = calldataload v14
+    v16 = add arg0, 256
+    v17 = calldataload v16
+    v18 = add arg0, 288
+    v19 = calldataload v18
+    v20 = add arg0, 320
+    v21 = calldataload v20
+    v22 = add arg0, 352
+    v23 = calldataload v22
+    v24 = add arg0, 384
+    v25 = calldataload v24
+    v26 = add arg0, 416
+    v27 = calldataload v26
+    v28 = add arg0, 448
+    v29 = calldataload v28
+    v30 = add arg0, 480
+    v31 = calldataload v30
+    v32 = add arg0, 512
+    v33 = calldataload v32
+    v34 = add arg0, 544
+    v35 = calldataload v34
+    v36 = add arg0, 576
+    v37 = calldataload v36
+    v38 = add arg0, 608
+    v39 = calldataload v38
+    v40 = add arg0, 32
+    v41 = internal_call @inner, 1, v40, arg1, arg1, 99, arg2
+    v42 = eq arg1, 0
+    v43 = iszero v42
+    jumpi v43, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v44 = add v41, arg1
+    jump bb3
+  bb3:
+    v45 = phi [bb1: v44], [bb2: v41]
+    v46 = add v37, v39
+    v47 = add v33, v35
+    v48 = add v47, v46
+    v49 = add v29, v31
+    v50 = add v25, v27
+    v51 = add v50, v49
+    v52 = add v21, v23
+    v53 = add v17, v19
+    v54 = add v53, v52
+    v55 = add v54, v51
+    v56 = add v13, v15
+    v57 = add v9, v11
+    v58 = add v57, v56
+    v59 = add v5, v7
+    v60 = add v1, v3
+    v61 = add v60, v59
+    v62 = add v61, v58
+    v63 = add v62, v55
+    v64 = add v63, v48
+    v65 = add v45, v64
+    ret v65
+}

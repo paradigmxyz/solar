@@ -2,6 +2,8 @@
 //!
 //! This planner consumes physical MIR without emitting instructions. Each internal frame has the
 //! retained two-word header, followed by argument words, return words, lowered locals and spills.
+//! Static single-result activations can receive arguments on the stack even when values need
+//! spill homes; their reserved memory remains in the ordinary frame-sharing plan.
 //! Runtime functions outside recursive call-graph components receive static frames;
 //! constructor callees and recursive functions receive activation-relative frames. Entry-local
 //! absolute addresses remain rooted at `HEAP_START`, as required by retained MIR lowering.
@@ -62,7 +64,7 @@ pub(crate) struct FunctionStorage {
     pub(crate) reachable: bool,
     /// Whether this function owns absolute low-memory entry locals.
     pub(crate) is_entry: bool,
-    /// Whether a returning scalar activation carries arguments entirely on the EVM stack.
+    /// Whether a returning activation receives arguments on the stack before any entry spills.
     pub(crate) stack_arguments: bool,
     /// Static address or activation-relative addressing mode.
     pub(crate) base: FrameBase,
@@ -234,14 +236,17 @@ impl ModulePlan {
         }
         let mut callees = IndexVec::new();
         for (id, function) in module.iter_functions() {
-            let mut targets = function.instructions().filter_map(|inst| {
-                if let InstKind::InternalCall { function, .. } = function.inst(inst).kind {
-                    shared_deferred_entries.remove(function);
-                    Some(function)
-                } else {
-                    None
-                }
-            }).collect::<Vec<_>>();
+            let mut targets = function
+                .instructions()
+                .filter_map(|inst| {
+                    if let InstKind::InternalCall { function, .. } = function.inst(inst).kind {
+                        shared_deferred_entries.remove(function);
+                        Some(function)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
             targets.extend(function.blocks.iter().filter_map(|block| {
                 if let Some(Terminator::TailCall { function, .. }) = block.terminator {
                     if Some(id) != module.dispatch_entry() {
@@ -278,8 +283,12 @@ impl ModulePlan {
         count: usize,
     ) -> Result<(), &'static str> {
         self.functions[function].spill_size = words(count)?;
-        if count != 0 {
-            self.functions[function].stack_arguments = false;
+        let frame = &mut self.functions[function];
+        if count != 0
+            && !(matches!(frame.base, FrameBase::Static(_))
+                && frame.local_offset - frame.return_offset <= WORD)
+        {
+            frame.stack_arguments = false;
         }
         Ok(())
     }
@@ -302,7 +311,7 @@ impl ModulePlan {
             } else {
                 function.local_end
             };
-            function.frame_size = if function.stack_arguments {
+            function.frame_size = if function.stack_arguments && function.spill_size == 0 {
                 0
             } else {
                 add(function.spill_offset, function.spill_size)?
@@ -314,7 +323,7 @@ impl ModulePlan {
         for function in &mut self.functions {
             if function.reachable
                 && !function.is_entry
-                && !function.stack_arguments
+                && function.frame_size != 0
                 && matches!(function.base, FrameBase::Static(_))
                 && !shareable_frame(function)
             {
@@ -332,15 +341,21 @@ impl ModulePlan {
             }
         }
         for function in &mut self.functions {
-            if function.reachable && function.stack_arguments && function.local_offset - function.return_offset > WORD {
+            if function.reachable
+                && function.stack_arguments
+                && function.local_offset - function.return_offset > WORD
+            {
                 function.stack_return_base = end;
                 end = add(end, function.local_offset - function.return_offset)?;
             }
         }
         let shared_deferred_base = end;
-        let shared_deferred_size = self.shared_deferred_entries.iter()
+        let shared_deferred_size = self
+            .shared_deferred_entries
+            .iter()
             .map(|id| self.functions[id].deferred_size)
-            .max().unwrap_or(0);
+            .max()
+            .unwrap_or(0);
         end = add(end, shared_deferred_size)?;
         for (id, function) in self.functions.iter_mut_enumerated() {
             if function.reachable {
@@ -400,7 +415,7 @@ impl ModulePlan {
 fn shareable_frame(frame: &FunctionStorage) -> bool {
     frame.reachable
         && !frame.is_entry
-        && !frame.stack_arguments
+        && frame.frame_size != 0
         && !frame.address_exposed
         && frame.local_offset - frame.return_offset <= WORD
         && matches!(frame.base, FrameBase::Static(_))
