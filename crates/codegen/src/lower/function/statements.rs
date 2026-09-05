@@ -290,10 +290,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. A reason string that is not a constant is
-    /// still evaluated, matching solc, so its side effects and failures such as panics are kept
-    /// and only the payload is dropped. Constants and plain variable reads are not lowered at
-    /// all, so stripping never copies or validates a value that is never observed.
+    /// Custom error payloads are never stripped. Like solc, the reason is still evaluated so
+    /// its side effects and failures are kept; only the payload is dropped.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
@@ -303,43 +301,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(false);
         }
-        if !self.stripped_reason_is_skippable(expr) {
-            // Evaluate the reason string for its effects and failures, discarding the value.
-            self.lower_discarded_expr(expr)?;
-        }
+        self.lower_discarded_expr(expr)?;
         Some(true)
-    }
-
-    /// Returns `true` if a stripped reason `expr` can be skipped without lowering it.
-    ///
-    /// solc evaluates every reason that is not a compile-time constant, but evaluating a plain
-    /// variable or member read pushes a reference without copying or validating it, so
-    /// skipping those is unobservable and keeps a storage string reason from being copied.
-    /// Reading a calldata struct member is the exception: it runs the lazy ABI tail checks, so
-    /// it is evaluated. Everything else, including indexing, arithmetic, slicing, and calls, is
-    /// evaluated because it can revert or have side effects.
-    fn stripped_reason_is_skippable(&self, expr: &hir::Expr<'_>) -> bool {
-        match &expr.kind {
-            ExprKind::Lit(_) | ExprKind::Ident(_) | ExprKind::Type(_) | ExprKind::TypeCall(_) => {
-                true
-            }
-            ExprKind::Member(inner, _) => {
-                let validates_calldata = self
-                    .cx
-                    .gcx
-                    .type_of_expr(expr.id)
-                    .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata));
-                !validates_calldata && self.stripped_reason_is_skippable(inner)
-            }
-            ExprKind::Payable(inner) => self.stripped_reason_is_skippable(inner),
-            ExprKind::Call(callee, args, _) if matches!(callee.kind, ExprKind::Type(_)) => {
-                args.exprs().all(|arg| self.stripped_reason_is_skippable(arg))
-            }
-            ExprKind::Tuple(exprs) => {
-                exprs.iter().flatten().all(|expr| self.stripped_reason_is_skippable(expr))
-            }
-            _ => false,
-        }
     }
 
     /// Lowers an expression whose value is dropped, such as a tuple declaration or assignment

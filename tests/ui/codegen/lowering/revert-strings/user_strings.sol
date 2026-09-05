@@ -40,8 +40,8 @@
 //@[default,strip] run-call-fail: slicedReason 0x0102, 2, 1 => 0x
 //@[debug] run-call-fail: slicedReason 0x0102, 2, 1 => Error("Slice starts after end")
 
-// A calldata struct member as the reason: reading it runs the lazy tail checks in every mode,
-// so a member offset past the end of calldata reverts even when the condition holds.
+// A calldata struct member as the reason runs the lazy tail checks in every mode, so a
+// member offset past the end of calldata reverts even when the condition holds.
 //@ run-call: memberReason (1, "member"), 1 => 1
 //@[default,debug] run-call-fail: memberReason (1, "member"), 0 => Error("member")
 //@[strip] run-call-fail: memberReason (1, "member"), 0 => 0x
@@ -53,10 +53,9 @@
 //@ run-call-fail: requireCustomError 0 => Custom(uint256)(0)
 
 // User-supplied reason strings under each `--revert-strings` mode. `strip` drops the
-// payload of `require` and `revert` reason strings but, like solc, still evaluates any
-// reason that is not a constant or a plain variable read, so their side effects and
-// panics are kept, while constants and plain variable reads are not lowered at all, as solc
-// pushes them without copying. Custom errors are untouched in every mode.
+// payload of `require` and `revert` reason strings but, like solc, still evaluates the
+// reason, so its side effects and panics are kept. Custom errors are untouched in every
+// mode.
 contract UserStrings {
     string constant MESSAGE = "constant message";
     error Custom(uint256 value);

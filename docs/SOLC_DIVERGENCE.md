@@ -299,10 +299,10 @@ No intentional divergences documented yet.
   without DELEGATECALL", because library runtime code does not emit that
   guard (tracked separately from revert strings). `debug` never changes
   whether an input is accepted. `strip` matches `solc`: a dropped reason
-  is still evaluated unless it is a constant or a plain variable read,
-  which `solc` pushes as a reference without copying, so encoding checks
-  that only the copy would perform are skipped by both compilers.
-  `verboseDebug` is rejected as unimplemented by both compilers.
+  is still evaluated for its effects and failures, and only the payload,
+  including the copy of a storage string that would validate its
+  encoding, is dropped. `verboseDebug` is rejected as unimplemented by
+  both compilers.
 - Rationale: the messages are debugging aids. Matching every solc message
   in every edge case would require restructuring the decoder around solc's
   check order, which is not worth worse source or generated code.
