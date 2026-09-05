@@ -152,6 +152,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         &super::local::LocalPass("block-cse"),
         &super::local::LocalPass("dce"),
         &super::local::LocalPass("stack-normalize"),
+        &super::local::LocalPass("reorder-pushes"),
         &super::local::LocalPass("compact-pushes"),
         &super::cfg::CfgSimplify,
         &super::data::PackData,

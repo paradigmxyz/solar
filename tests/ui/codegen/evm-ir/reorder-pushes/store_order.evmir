@@ -1,0 +1,28 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=reorder-pushes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=reorder-pushes
+//@ filecheck:
+@module StoreOrder
+
+// Preserve address-last store preparation for packing and common-prefix outlining.
+// CHECK-LABEL: @module StoreOrder
+// CHECK-NOT: {{^[+-]   }}
+bb0:
+  push 64
+  dup 1
+  push 42
+  swap 1
+  mstore
+  jump bb1
+bb1:
+  dup 1
+  push 23
+  swap 1
+  mstore8
+  jump bb2
+bb2:
+  dup 1
+  push 0x100000000000000000000000000000000
+  swap 1
+  mstore
+  stop

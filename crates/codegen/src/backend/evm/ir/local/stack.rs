@@ -8,6 +8,9 @@
 //! Reordering moves a literal across only
 //! a self-contained pure expression to remove its final swap. Unknown effects
 //! and noncanonical metadata bound each local analysis; no CFG edge is crossed.
+//! Store address preparation stays canonical for later literal-data packing and
+//! outlining. Size mode also moves compact literals before independent producers
+//! to leave room for their temporary words during materialization.
 
 use super::super::{InstKind, Instruction, immediate, verify};
 use super::{canonical, discardable_push, pure, rewrite, stack_usage};
@@ -163,6 +166,9 @@ pub(super) fn reorder(
             && matches!(insts[index].kind, InstKind::Swap(1))
             && canonical(&insts[index - 1])
             && movable_push(&insts[index - 1].kind)
+            && !insts.get(index + 1).is_some_and(|inst| {
+                matches!(inst.kind, InstKind::Op(op::MSTORE | op::MSTORE8))
+            })
         {
             let mut start = index - 1;
             let mut required = 1;
@@ -187,7 +193,9 @@ pub(super) fn reorder(
                 && (!copies_only
                     || insts[start..index - 1]
                         .iter()
-                        .any(|inst| matches!(inst.kind, InstKind::Dup(_))))
+                        .any(|inst| matches!(inst.kind, InstKind::Dup(_)))
+                    || matches!(insts[index - 1].kind, InstKind::Push(value)
+                        if immediate::materialize(version, value).len() > 1))
             {
                 let mut replacement = vec![insts[index - 1].clone()];
                 let mut local_height = 0usize;

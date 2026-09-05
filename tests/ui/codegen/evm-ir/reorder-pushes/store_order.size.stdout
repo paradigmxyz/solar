@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/store_order.evmir (before reorder-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/reorder-pushes/store_order.evmir (after reorder-pushes) ===
+  @module StoreOrder
+  bb0:
+    push 64
+    dup 1
+    push 42
+    swap 1
+    mstore
+    jump bb1
+  bb1:
+    dup 1
+    push 23
+    swap 1
+    mstore8
+    jump bb2
+  bb2:
+    dup 1
+    push 0x100000000000000000000000000000000
+    swap 1
+    mstore
+    stop
+  
