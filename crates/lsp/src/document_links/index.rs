@@ -15,7 +15,11 @@ use super::{
 use crate::proto;
 
 impl DocumentLinkIndex {
-    pub(crate) fn build(gcx: Gcx<'_>, source_paths: &FxHashSet<PathBuf>) -> Self {
+    pub(crate) fn build(
+        gcx: Gcx<'_>,
+        source_paths: &FxHashSet<PathBuf>,
+        locations: &proto::LocationConverter,
+    ) -> Self {
         let mut index = Self::default();
         let mut file_resolver = FileResolver::new(gcx.sess.source_map());
         file_resolver.configure_from_sess(gcx.sess);
@@ -29,14 +33,10 @@ impl DocumentLinkIndex {
             let Some(ast) = &source.ast else { continue };
             for &(item_id, target_source_id) in &source.imports {
                 let ast::ItemKind::Import(import) = &ast.items[item_id].kind else { continue };
-                let Some(location) =
-                    proto::span_to_location(gcx.sess.source_map(), import.path.span)
-                else {
+                let Some(location) = locations.location(import.path.span) else {
                     continue;
                 };
-                let Some(directive_location) =
-                    proto::span_to_location(gcx.sess.source_map(), ast.items[item_id].span)
-                else {
+                let Some(directive_location) = locations.location(ast.items[item_id].span) else {
                     continue;
                 };
                 let Some(target) = gcx.sources.get(target_source_id) else { continue };

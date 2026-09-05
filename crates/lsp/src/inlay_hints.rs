@@ -37,8 +37,8 @@ impl InlayHintIndex {
     ///
     /// The compiler's HIR data is scoped to one analysis run. This index copies out the inlay
     /// hints that LSP requests can query after that run has finished.
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
-        let mut collector = InlayHintCollector { gcx, index: Self::default() };
+    pub(crate) fn build(gcx: Gcx<'_>, locations: &proto::LocationConverter) -> Self {
+        let mut collector = InlayHintCollector { gcx, locations, index: Self::default() };
         for source_id in gcx.hir.source_ids() {
             let _ = collector.visit_nested_source(source_id);
         }
@@ -121,12 +121,13 @@ impl StoredInlayHintKind {
     }
 }
 
-struct InlayHintCollector<'gcx> {
+struct InlayHintCollector<'a, 'gcx> {
     gcx: Gcx<'gcx>,
+    locations: &'a proto::LocationConverter,
     index: InlayHintIndex,
 }
 
-impl<'gcx> InlayHintCollector<'gcx> {
+impl<'gcx> InlayHintCollector<'_, 'gcx> {
     /// Adds parameter-name hints for positional arguments when parameter names are known.
     ///
     /// Hints are skipped when the argument already carries the same name as the parameter.
@@ -162,8 +163,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
             if self.argument_name_matches_param(arg, param_name) {
                 continue;
             }
-            let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), arg.span)
-            else {
+            let Some(location) = self.locations.location(arg.span) else {
                 continue;
             };
             self.index.push(
@@ -229,7 +229,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
         if ty.is_unit() || ty.references_error() {
             return;
         }
-        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), expr.span) else {
+        let Some(location) = self.locations.location(expr.span) else {
             return;
         };
         self.index.push(
@@ -264,7 +264,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
     }
 }
 
-impl<'gcx> Visit<'gcx> for InlayHintCollector<'gcx> {
+impl<'gcx> Visit<'gcx> for InlayHintCollector<'_, 'gcx> {
     type BreakValue = Never;
 
     fn hir(&self) -> &'gcx hir::Hir<'gcx> {

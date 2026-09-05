@@ -122,6 +122,7 @@ impl CallHierarchyIndex {
 
     pub(crate) fn build(
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         item_symbols: &FxHashMap<ItemId, SymbolId>,
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
     ) -> Self {
@@ -135,8 +136,7 @@ impl CallHierarchyIndex {
                 continue;
             };
             let body_range = if function.body.is_some() {
-                proto::span_to_location(gcx.sess.source_map(), function.body_span)
-                    .map(|location| location.range)
+                locations.location(function.body_span).map(|location| location.range)
             } else {
                 None
             };
@@ -144,7 +144,7 @@ impl CallHierarchyIndex {
         }
 
         if gcx.has_typeck_results() {
-            collect_direct_calls(&mut index.facts, gcx, item_symbols, declarations);
+            collect_direct_calls(&mut index.facts, gcx, locations, item_symbols, declarations);
         }
         index
     }
@@ -464,6 +464,7 @@ impl QueryIndex {
 fn collect_direct_calls<'gcx>(
     facts: &mut CallHierarchyFacts,
     gcx: Gcx<'gcx>,
+    locations: &proto::LocationConverter,
     item_symbols: &FxHashMap<ItemId, SymbolId>,
     declarations: &IndexVec<SymbolId, DeclarationSymbol>,
 ) {
@@ -476,7 +477,8 @@ fn collect_direct_calls<'gcx>(
             continue;
         };
 
-        let mut collector = CallCollector { gcx, item_symbols, declarations, facts, caller };
+        let mut collector =
+            CallCollector { gcx, locations, item_symbols, declarations, facts, caller };
         if function.is_constructor()
             && let Some(contract_id) = function.contract
         {
@@ -499,6 +501,7 @@ fn collect_direct_calls<'gcx>(
 
 struct CallCollector<'a, 'gcx> {
     gcx: Gcx<'gcx>,
+    locations: &'a proto::LocationConverter,
     item_symbols: &'a FxHashMap<ItemId, SymbolId>,
     declarations: &'a IndexVec<SymbolId, DeclarationSymbol>,
     facts: &'a mut CallHierarchyFacts,
@@ -558,9 +561,7 @@ impl CallCollector<'_, '_> {
         let Some(&callee) = self.item_symbols.get(&ItemId::Function(callee_id)) else {
             return;
         };
-        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), span) else {
-            return;
-        };
+        let Some(location) = self.locations.location(span) else { return };
         if self.declarations[self.caller].location.uri != location.uri {
             return;
         }
