@@ -1,0 +1,10 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+
+@module LiteralDuplicateMetadata
+bb0:
+  calldatasize
+  push 7 !meta(stack=0->1)
+  dup 2
+  swap 1
+  mstore
+  stop

@@ -40,6 +40,27 @@ impl EvmPass for LocalPass {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let version = gcx.sess.opts.evm_version;
         let mut changed = false;
+        // The literal/copy rule shortens code. Private labels are control-only,
+        // but parsed labels, numeric jumps and code/gas observations can expose it.
+        // Conservatively include gas forwarded to external calls and creations.
+        // This permission concerns only this new rule, not gas invariance of the pipeline.
+        let literal_copy_order = matches!(self.0, "dce" | "peephole")
+            && module.block_ids().all(|id| {
+                module.blocks[id].insts.iter().all(|inst| {
+                    !matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
+                        && (!matches!(inst.kind, InstKind::PushLabel(_))
+                            || module.private_control_labels)
+                        && !matches!(inst.kind, InstKind::Op(code)
+                            if op::stack_io(code).is_none()
+                                || matches!(code, op::PC | op::GAS | op::CODESIZE | op::CODECOPY
+                                    | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
+                                    | op::JUMP | op::JUMPI | op::JUMPDEST
+                                    | op::CALL | op::CALLCODE | op::DELEGATECALL | op::STATICCALL
+                                    | op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL
+                                    | op::CREATE | op::CREATE2 | op::EOFCREATE))
+                })
+            })
+            && !verify::has_unknown_jump(module);
         let heights = (matches!(
             self.0,
             "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
@@ -102,10 +123,10 @@ impl EvmPass for LocalPass {
                     }
                 }
                 "dce" => {
-                    changed |= peephole(&mut block.insts, version, entry_max);
+                    changed |= peephole(&mut block.insts, version, entry_max, literal_copy_order);
                     changed |= dead_copies::eliminate(&mut block.insts, version);
                     changed |= dedup_stack(&mut block.insts, version);
-                    changed |= peephole(&mut block.insts, version, entry_max);
+                    changed |= peephole(&mut block.insts, version, entry_max, literal_copy_order);
                     changed |= dead_tail(&mut block.insts, &block.terminator.kind, entry_max);
                     changed |=
                         terminal_pops(&mut block.insts, &block.terminator.kind, entry_max, version);
@@ -118,7 +139,7 @@ impl EvmPass for LocalPass {
                 }
                 "block-cse" => changed |= common_expressions(&mut block.insts, version),
                 "peephole" => {
-                    changed |= peephole(&mut block.insts, version, entry_max);
+                    changed |= peephole(&mut block.insts, version, entry_max, literal_copy_order);
                     changed |= dedup_stack(&mut block.insts, version);
                 }
                 _ => unreachable!(),
@@ -236,10 +257,10 @@ pub(super) fn simplify_schedule(
 ) -> Vec<Instruction> {
     // <physical sequence> -> <equivalent locally simplified sequence>
     let mut trial = input.to_vec();
-    peephole(&mut trial, version, None);
+    peephole(&mut trial, version, None, false);
     dead_copies::eliminate(&mut trial, version);
     dedup_stack(&mut trial, version);
-    peephole(&mut trial, version, None);
+    peephole(&mut trial, version, None, false);
     normalize(&mut trial, version, None);
     trial
 }

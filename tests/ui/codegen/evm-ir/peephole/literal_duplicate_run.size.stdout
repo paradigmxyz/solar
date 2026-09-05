@@ -1,0 +1,14 @@
+// === ROOT/tests/ui/codegen/evm-ir/peephole/literal_duplicate_run.evmir (after pipeline-default) ===
+@module LiteralDuplicateRun
+bb0:
+  calldatasize
+  dup 1
+  push 0
+  mstore
+  push 128
+  dup 2
+  dup 3
+  calldatacopy
+  push 128
+  push 0
+  return

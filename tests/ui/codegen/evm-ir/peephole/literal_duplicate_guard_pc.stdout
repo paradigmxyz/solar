@@ -1,0 +1,18 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/literal_duplicate_guard_pc.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/literal_duplicate_guard_pc.evmir (after peephole) ===
+  @module LiteralDuplicateGuard
+  bb0:
+    calldatasize
+    push 0
+    dup 2
+    swap 1
+    mstore
+    jump bb1
+  bb1:
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

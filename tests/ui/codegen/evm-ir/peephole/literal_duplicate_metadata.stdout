@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/literal_duplicate_metadata.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/literal_duplicate_metadata.evmir (after peephole) ===
+  @module LiteralDuplicateMetadata
+  bb0:
+    calldatasize
++   dup 1
+    push 7
+-   dup 2
+-   swap 1
+    mstore
+    stop
+  

@@ -1,6 +1,8 @@
 //! Adjacent physical rewrites and terminal stack cleanup.
 //!
 //! Patterns preserve EVM pop order and stop at noncanonical stack metadata.
+//! Literal/copy ordering removes a swap without changing required inputs or peak height.
+//! It leaves longer stack runs intact so normalization can choose their complete permutation.
 //! Algebraic identities precede exact constant folding through the retained word
 //! evaluator. Memory patterns only remove already-observed identical accesses;
 //! extra copies require a proved stack-capacity bound and mutable observations
@@ -22,6 +24,7 @@ pub(super) fn peephole(
     insts: &mut Vec<Instruction>,
     version: EvmVersion,
     entry_max: Option<usize>,
+    literal_copy_order: bool,
 ) -> bool {
     let mut changed = false;
     let mut index = 0;
@@ -174,6 +177,22 @@ pub(super) fn peephole(
         }
         if replacement.is_none() && tail.len() >= 3 && tail[..3].iter().all(canonical) {
             match (&tail[0].kind, &tail[1].kind, &tail[2].kind) {
+                // push literal; dup n; swap1 -> dup (n - 1); push literal
+                (InstKind::Push(_), InstKind::Dup(depth), InstKind::Swap(1))
+                    if literal_copy_order
+                        && !tail.get(3).is_some_and(|inst| {
+                            matches!(
+                                inst.kind,
+                                InstKind::Dup(_)
+                                    | InstKind::Swap(_)
+                                    | InstKind::Exchange(_, _)
+                                    | InstKind::Op(op::POP)
+                            )
+                        })
+                        && (2..=version.reachable_stack_depth()).contains(&usize::from(*depth)) =>
+                {
+                    replacement = Some((3, vec![InstKind::Dup(depth - 1).into(), tail[0].clone()]));
+                }
                 // swap a; swap b; swap a -> exchange a, b
                 (InstKind::Swap(a), InstKind::Swap(b), InstKind::Swap(c))
                     if a == c
@@ -416,8 +435,7 @@ pub(super) fn self_contained_terminal_peak(block: &Block, version: EvmVersion) -
         TerminatorKind::SelfDestruct => 1,
         _ => return None,
     };
-    if block.insts.len() > 64
-        || !block.insts.iter().all(|inst| terminal_prefix_safe(inst, version))
+    if block.insts.len() > 64 || !block.insts.iter().all(|inst| terminal_prefix_safe(inst, version))
     {
         return None;
     }
@@ -431,7 +449,13 @@ fn terminal_prefix_safe(inst: &Instruction, version: EvmVersion) -> bool {
         && !matches!(
             inst.kind,
             InstKind::Op(
-                op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::CODESIZE | op::CODECOPY | op::GAS
+                op::JUMP
+                    | op::JUMPI
+                    | op::JUMPDEST
+                    | op::PC
+                    | op::CODESIZE
+                    | op::CODECOPY
+                    | op::GAS
             )
         )
         && (version.has_bitwise_shifting()

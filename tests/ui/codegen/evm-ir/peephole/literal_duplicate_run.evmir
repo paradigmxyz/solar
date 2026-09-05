@@ -1,0 +1,24 @@
+//@ revisions: explicit gas size
+//@[explicit] compile-flags: -Ogas -Zevm-ir-pipeline=peephole,stack-normalize,reorder-pushes
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=default
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=default
+
+// The first store has a complete literal/copy window. The second window starts
+// a longer permutation: preserve it for normalization and producer reordering.
+@module LiteralDuplicateRun
+bb0:
+  calldatasize
+  push 0
+  dup 2
+  swap 1
+  mstore
+  calldatasize
+  push 128
+  dup 3
+  swap 1
+  swap 2
+  swap 1
+  calldatacopy
+  push 128
+  push 0
+  return
