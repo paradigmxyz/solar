@@ -1,0 +1,45 @@
+//@ compile-flags: --evm-version byzantium -Ogas -Zevm-ir-pipeline=dce
+//@ filecheck:
+@module LegacyTerminalCapacity
+
+bb0:
+  calldatasize
+  jumpi bb1, bb3
+bb1:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->2)
+  jump bb2
+// Local POP removal must reserve the extra word used by SHL legalization.
+// CHECK-LABEL: bb2:
+// CHECK-NEXT: {{^    }}pop
+bb2:
+  pop
+  calldatasize
+  calldatasize
+  shl
+  push 0
+  mstore
+  stop
+bb3:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->1)
+  jump bb4
+// POP-only edge cleanup must reserve SAR's two legalization temporaries.
+// CHECK-LABEL: bb4:
+// CHECK-NEXT: {{^    }}pop
+bb4:
+  pop
+  jump bb5
+bb5:
+  calldatasize
+  calldatasize
+  sar
+  push 0
+  mstore
+  stop

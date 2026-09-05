@@ -365,6 +365,7 @@ pub(super) fn terminal_pops(
     insts: &mut Vec<Instruction>,
     terminator: &TerminatorKind,
     entry_max: Option<usize>,
+    version: EvmVersion,
 ) -> bool {
     let terminal_inputs = match terminator {
         TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::Unreachable => 0,
@@ -385,13 +386,7 @@ pub(super) fn terminal_pops(
         let start = index - usize::from(pair);
         let survivors = i64::from(pair);
         let suffix = &insts[index + 1..];
-        if !suffix.iter().all(|inst| {
-            canonical(inst)
-                && !matches!(
-                    inst.kind,
-                    InstKind::Op(op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::GAS)
-                )
-        }) {
+        if !suffix.iter().all(|inst| terminal_prefix_safe(inst, version)) {
             continue;
         }
         let Some((required, delta, _)) = stack_usage(suffix) else { continue };
@@ -414,7 +409,7 @@ pub(super) fn terminal_pops(
 }
 
 /// Returns the peak of a terminal body that does not read any incoming word.
-pub(super) fn self_contained_terminal_peak(block: &Block) -> Option<i64> {
+pub(super) fn self_contained_terminal_peak(block: &Block, version: EvmVersion) -> Option<i64> {
     let inputs = match block.terminator.kind {
         TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::Unreachable => 0,
         TerminatorKind::Return | TerminatorKind::Revert => 2,
@@ -422,16 +417,23 @@ pub(super) fn self_contained_terminal_peak(block: &Block) -> Option<i64> {
         _ => return None,
     };
     if block.insts.len() > 64
-        || !block.insts.iter().all(|inst| {
-            canonical(inst)
-                && !matches!(
-                    inst.kind,
-                    InstKind::Op(op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::GAS)
-                )
-        })
+        || !block.insts.iter().all(|inst| terminal_prefix_safe(inst, version))
     {
         return None;
     }
     let (required, delta, peak) = stack_usage(&block.insts)?;
     (required == 0 && delta >= inputs).then_some(peak)
+}
+
+/// Rejects observations and instructions whose later legalization can raise the peak.
+fn terminal_prefix_safe(inst: &Instruction, version: EvmVersion) -> bool {
+    canonical(inst)
+        && !matches!(
+            inst.kind,
+            InstKind::Op(
+                op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::CODESIZE | op::CODECOPY | op::GAS
+            )
+        )
+        && (version.has_bitwise_shifting()
+            || !matches!(inst.kind, InstKind::Op(op::SHL | op::SHR | op::SAR)))
 }

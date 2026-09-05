@@ -98,7 +98,7 @@ impl EvmPass for LocalPass {
                     changed |= dedup_stack(&mut block.insts, version);
                     changed |= peephole(&mut block.insts, version, entry_max);
                     changed |= dead_tail(&mut block.insts, &block.terminator.kind, entry_max);
-                    changed |= terminal_pops(&mut block.insts, &block.terminator.kind, entry_max);
+                    changed |= terminal_pops(&mut block.insts, &block.terminator.kind, entry_max, version);
                 }
                 "stack-normalize" => changed |= normalize(&mut block.insts, version, entry_max),
                 "stack-dedup" => changed |= dedup_stack(&mut block.insts, version),
@@ -131,7 +131,7 @@ impl EvmPass for LocalPass {
                         .all(|inst| canonical(inst) && matches!(inst.kind, InstKind::Op(op::POP)))
                     && let Some((_, incoming)) = heights[id]
                     && let Some(peak) =
-                        peephole::self_contained_terminal_peak(&module.blocks[target])
+                        peephole::self_contained_terminal_peak(&module.blocks[target], version)
                     && incoming as i64 + peak.max(1) <= 1024
                 {
                     // pop dead_prefix...; jump <self-contained terminal body>
