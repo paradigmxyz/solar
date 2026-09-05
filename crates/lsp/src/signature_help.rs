@@ -64,10 +64,11 @@ struct ActiveArgument<'a> {
 }
 
 impl SignatureHelpIndex {
-    pub(crate) fn build(gcx: Gcx<'_>) -> Self {
+    pub(crate) fn build(gcx: Gcx<'_>, locations: &proto::LocationConverter) -> Self {
         let mut index = Self::default();
-        index.build_callable_catalog(gcx);
-        let mut collector = CallCollector { index: &mut index, gcx, source: None, contract: None };
+        index.build_callable_catalog(gcx, locations);
+        let mut collector =
+            CallCollector { index: &mut index, locations, gcx, source: None, contract: None };
         for source_id in gcx.hir.source_ids() {
             collector.source = Some(source_id);
             collector.contract = None;
@@ -184,14 +185,12 @@ impl SignatureHelpIndex {
         Some(SignatureHelp { signatures, active_signature: Some(0), active_parameter })
     }
 
-    fn build_callable_catalog(&mut self, gcx: Gcx<'_>) {
+    fn build_callable_catalog(&mut self, gcx: Gcx<'_>, locations: &proto::LocationConverter) {
         for item_id in gcx.hir.item_ids() {
             if let Some(name) = gcx.hir.item(item_id).name()
                 && let Some(signature) = render_item(gcx, item_id)
             {
-                let Some(location) =
-                    proto::span_to_location(gcx.sess.source_map(), gcx.hir.item(item_id).span())
-                else {
+                let Some(location) = locations.location(gcx.hir.item(item_id).span()) else {
                     continue;
                 };
                 let form = match item_id {
@@ -239,6 +238,7 @@ impl SignatureHelpIndex {
     fn push(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         args: &CallArgs<'_>,
         callee_span: Span,
         form: CallForm,
@@ -247,11 +247,8 @@ impl SignatureHelpIndex {
         if args.is_dummy() || signatures.is_empty() {
             return;
         }
-        let Some(location) = proto::span_to_location(gcx.sess.source_map(), args.span) else {
-            return;
-        };
-        let Some(callee_location) = proto::span_to_location(gcx.sess.source_map(), callee_span)
-        else {
+        let Some(location) = locations.location(args.span) else { return };
+        let Some(callee_location) = locations.location(callee_span) else {
             return;
         };
         if callee_location.uri != location.uri {
@@ -348,6 +345,7 @@ impl CallSignature {
 
 struct CallCollector<'a, 'gcx> {
     index: &'a mut SignatureHelpIndex,
+    locations: &'a proto::LocationConverter,
     gcx: Gcx<'gcx>,
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
@@ -455,13 +453,14 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                 signatures.push(signature);
             }
         }
-        self.index.push(self.gcx, args, callee_span, form, signatures);
+        self.index.push(self.gcx, self.locations, args, callee_span, form, signatures);
     }
 
     fn collect_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) {
         let Some(signature) = render_item(self.gcx, modifier.id) else { return };
         self.index.push(
             self.gcx,
+            self.locations,
             &modifier.args,
             modifier.span.with_hi(modifier.args.span.lo()),
             CallForm::Regular,
