@@ -669,6 +669,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(expr.span, "storage array push target");
         };
         let value = if let Some(argument) = argument {
+            // Type checking rejects `push(value)` when the element type contains a (nested)
+            // mapping. Bail rather than append an element whose mapping entries the copy skips
+            // and which therefore keeps whatever the slots it grew into already held.
+            if element.has_mapping(self.cx.gcx) {
+                return self
+                    .cx
+                    .report_unsupported(expr.span, "storage array push of a mapping element");
+            }
             let (value, source_ty) = if self.types.memory_layout(element).is_some() {
                 let memory_ty = element.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 // The copy into storage converts element-wise, so the source type has to be

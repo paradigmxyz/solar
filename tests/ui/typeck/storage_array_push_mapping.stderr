@@ -1,0 +1,20 @@
+error[8871]: storage arrays with nested mappings do not support `push(<arg>)`
+   ╭▸ ROOT/tests/ui/typeck/storage_array_push_mapping.sol:LL:CC
+   │
+LL │         direct.push(source);
+   ╰╴        ━━━━━━━━━━━
+
+error[8871]: storage arrays with nested mappings do not support `push(<arg>)`
+   ╭▸ ROOT/tests/ui/typeck/storage_array_push_mapping.sol:LL:CC
+   │
+LL │         nested.push(nestedSource);
+   ╰╴        ━━━━━━━━━━━
+
+error[8871]: storage arrays with nested mappings do not support `push(<arg>)`
+   ╭▸ ROOT/tests/ui/typeck/storage_array_push_mapping.sol:LL:CC
+   │
+LL │         outer.push(direct);
+   ╰╴        ━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

@@ -461,6 +461,18 @@ impl<'gcx> TypeChecker<'gcx> {
                         if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                         }
+                        // Mapping entries cannot be copied, so an element type containing a
+                        // (nested) mapping would only get the argument's ordinary fields and
+                        // keep whatever the mapping slots already held. `push()` without an
+                        // argument stays allowed: it appends a zeroed element.
+                        if builtin == Some(Builtin::ArrayPush)
+                            && let Some(&element) = f.parameters.last()
+                            && element.has_mapping(self.gcx)
+                        {
+                            let msg =
+                                "storage arrays with nested mappings do not support `push(<arg>)`";
+                            self.dcx().err(msg).code(error_code!(8871)).span(callee.span).emit();
+                        }
                         // Keep the declared return type: the value is unusable, but an error
                         // type here would only hide the checks its uses still go through.
                         let _ = self.check_inaccessible_dynamic_return(expr, f);
