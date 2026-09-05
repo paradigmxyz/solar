@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/fmp_partial_writes.sol:FmpPartialWrites ===
+@module FmpPartialWrites
+fn @observe(arg0: bool, arg1: u8) -> (u256, u256) [selector=0xce6c2eff, pure, abi_params=[bool, u8], abi_returns=[word, word]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    mstore 64, 0x1000 !metadata(memory=scratch)
+    v1 = mload 64 !metadata(memory=scratch)
+    switch arg0, default bb3, [0 => bb2]
+  bb2:
+    mstore8 95, arg1 !metadata(memory=scratch)
+    jump bb1
+  bb3:
+    mstore 63, arg1 !metadata(memory=scratch)
+    jump bb1
+  bb1:
+    v2 = mload 64 !metadata(memory=scratch)
+    mstore 64, v0 !metadata(memory=scratch)
+    ret v1, v2
+}
