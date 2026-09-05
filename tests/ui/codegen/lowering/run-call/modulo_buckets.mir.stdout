@@ -1,0 +1,35 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/modulo_buckets.sol:ModuloBuckets ===
+@module ModuloBuckets
+fn @choose(arg0: u256) -> u256 [selector=0x0bb0b13a, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    switch arg0, default bb14, [0x1a64acf2 => bb2, 0x1a8f6dee => bb3, 0x1fd34797 => bb4, 0x5cc7bc10 => bb5, 0x671a7fae => bb6, 0x7535d246 => bb7, 0x88d51852 => bb8, 0x8da7fb18 => bb9, 0x9d2ffc1b => bb10, 0xb76398e4 => bb11, 0xfc0eed85 => bb12, 0xfed63a93 => bb13]
+  bb13:
+    jump bb1
+  bb12:
+    jump bb1
+  bb11:
+    jump bb1
+  bb10:
+    jump bb1
+  bb9:
+    jump bb1
+  bb8:
+    jump bb1
+  bb7:
+    jump bb1
+  bb6:
+    jump bb1
+  bb5:
+    jump bb1
+  bb4:
+    jump bb1
+  bb3:
+    jump bb1
+  bb2:
+    jump bb1
+  bb14:
+    jump bb1
+  bb1:
+    v0 = phi [bb2: 1], [bb3: 2], [bb4: 3], [bb5: 4], [bb6: 5], [bb7: 6], [bb8: 7], [bb9: 8], [bb10: 9], [bb11: 10], [bb12: 11], [bb13: 12], [bb14: 99]
+    ret v0
+}

@@ -8,7 +8,8 @@
 //! hash collides. Tables contain only physical block identities.
 //!
 //! Automatic selection keeps small switches linear, uses dense tables for short
-//! ranges, and otherwise considers bounded bit slices before binary search. A
+//! ranges, and otherwise considers bounded bit slices and small modulo buckets
+//! before binary search. A
 //! planner owns the gas-mode growth allowances for both artifacts of a contract;
 //! runtime lowering spends them before constructor lowering. No table may exceed
 //! 256 entries. Encoding and label-width decisions remain in primitive assembly.
@@ -82,18 +83,9 @@ impl Planner {
                 cases.len().div_ceil(4) * 5
             }
             .clamp(1, 256);
-            let mut buckets = vec![Vec::new(); count];
-            for &(key, target) in cases {
-                buckets[(key % U256::from(count)).to::<usize>()].push((key, target));
-            }
-            let targets = buckets.iter().map(|bucket| linear(module, bucket, default, true)).collect();
-            // push <bucket count>; dup2; mod; indexed_jump <checked buckets>
-            return block(
-                module,
-                vec![I::Push(U256::from(count)), I::Dup(2), I::Op(op::MOD)],
-                T::IndexedJump(targets),
-            );
+            return buckets(module, cases, default, count);
         }
+
         if (self.mode == SwitchLowering::Perfect
             || (!forced && self.optimization.is_gas() && cases.len() >= 5))
             && self.version.has_bitwise_shifting()
@@ -142,6 +134,21 @@ impl Planner {
                 }
             }
         }
+        if !forced && self.optimization.is_gas() && cases.len() >= 9 {
+            // Limit each bucket to two equality checks and its packed table to
+            // sixteen two-byte destinations. Larger switches stay binary.
+            for count in cases.len()..=16 {
+                let mut occupancy = vec![0u8; count];
+                let crowded = cases.iter().any(|&(key, _)| {
+                    let index = (key % U256::from(count)).to::<usize>();
+                    occupancy[index] += 1;
+                    occupancy[index] > 2
+                });
+                if !crowded && self.reserve(count * 3 + 12, false, false) {
+                    return buckets(module, cases, default, count);
+                }
+            }
+        }
         if !forced && cases.len() <= 4 {
             return linear(module, cases, default, true);
         }
@@ -172,7 +179,12 @@ fn block(module: &mut ir::Module, insts: Vec<I>, terminator: T) -> BlockId {
     })
 }
 
-fn linear(module: &mut ir::Module, cases: &[(U256, BlockId)], default: BlockId, equality: bool) -> BlockId {
+fn linear(
+    module: &mut ir::Module,
+    cases: &[(U256, BlockId)],
+    default: BlockId,
+    equality: bool,
+) -> BlockId {
     let Some((&(last, target), preceding)) = cases.split_last() else {
         // pop <selector>; jump <default>
         return block(module, vec![I::Op(op::POP)], T::Jump(default));
@@ -189,14 +201,39 @@ fn linear(module: &mut ir::Module, cases: &[(U256, BlockId)], default: BlockId, 
         if equality {
             // dup1; push <case>; eq
             // jumpi <matching edge>, <next comparison>
-            next = block(module, vec![I::Dup(1), I::Push(key), I::Op(op::EQ)], T::JumpI(target, next));
+            next =
+                block(module, vec![I::Dup(1), I::Push(key), I::Op(op::EQ)], T::JumpI(target, next));
         } else {
             // dup1; push <case>; sub
             // jumpi <next comparison>, <matching edge>
-            next = block(module, vec![I::Dup(1), I::Push(key), I::Op(op::SUB)], T::JumpI(next, target));
+            next = block(
+                module,
+                vec![I::Dup(1), I::Push(key), I::Op(op::SUB)],
+                T::JumpI(next, target),
+            );
         }
     }
     next
+}
+
+fn buckets(
+    module: &mut ir::Module,
+    cases: &[(U256, BlockId)],
+    default: BlockId,
+    count: usize,
+) -> BlockId {
+    let mut buckets = vec![Vec::new(); count];
+    for &(key, target) in cases {
+        buckets[(key % U256::from(count)).to::<usize>()].push((key, target));
+    }
+    let targets = buckets.iter().map(|bucket| linear(module, bucket, default, true)).collect();
+    // push <bucket count>; dup2; mod
+    // indexed_jump <equality-checked buckets>
+    block(
+        module,
+        vec![I::Push(U256::from(count)), I::Dup(2), I::Op(op::MOD)],
+        T::IndexedJump(targets),
+    )
 }
 
 fn binary(module: &mut ir::Module, cases: &[(U256, BlockId)], default: BlockId) -> BlockId {
