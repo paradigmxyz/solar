@@ -553,9 +553,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         element: Ty<'gcx>,
         span: Span,
     ) -> Option<(StorageAccess, ValueId)> {
+        // old_length = sload(array_slot)
+        // if old_length >= 2**64 { panic(MemoryAllocationOverflow) }
+        // new_length = add old_length, 1
+        // element_slot = storage_array_element_slot(array_slot, old_length)
+        //
+        // A length at or above 2**64 cannot be reached by growing the array, so
+        // it is a forged one, and `keccak256(array_slot) + old_length` then
+        // wraps onto unrelated storage. solc's `array_push` caps it the same
+        // way, before the element slot is derived. The cap also bounds the new
+        // length, so the increment cannot wrap and needs no overflow check.
         let length = self.builder.sload(base.slot);
+        let max_length = self.builder.imm(U256::from(u64::MAX));
+        let too_long = self.builder.gt(length, max_length);
+        self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
         let one = self.builder.imm(1);
-        let new_length = self.builder.checked_add(length, one);
+        let new_length = self.builder.add(length, one);
         let access = self.storage_array_element_access(base.slot, length, element, true, span)?;
         Some((access, new_length))
     }
@@ -656,22 +669,45 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(expr.span, "storage array push target");
         };
         let value = if let Some(argument) = argument {
+            // Type checking rejects `push(value)` when the element type contains a (nested)
+            // mapping. Bail rather than append an element whose mapping entries the copy skips
+            // and which therefore keeps whatever the slots it grew into already held.
+            if element.has_mapping(self.cx.gcx) {
+                return self
+                    .cx
+                    .report_unsupported(expr.span, "storage array push of a mapping element");
+            }
             let (value, source_ty) = if self.types.memory_layout(element).is_some() {
                 let memory_ty = element.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
                 // The copy into storage converts element-wise, so the source type has to be
                 // the argument's own type: a shorter fixed array then copies only the
-                // elements it has and the destination's remaining ones are zero-filled. A
-                // storage source is the exception, because `lower_typed_expr` already loaded
-                // it as an object of the destination type.
-                let source_ty = self
-                    .cx
-                    .gcx
-                    .type_of_expr(argument.id)
-                    .filter(|ty| !ty.is_ref_at(DataLocation::Storage))
+                // elements it has and the destination's remaining ones are zero-filled.
+                let argument_ty = self.cx.gcx.type_of_expr(argument.id);
+                let source_ty = argument_ty
                     .map(|ty| ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory))
-                    .filter(|&ty| self.types.memory_layout(ty).is_some())
-                    .unwrap_or(memory_ty);
-                let value = self.lower_typed_expr(argument, memory_ty)?;
+                    .filter(|&ty| self.types.memory_layout(ty).is_some());
+                // A storage source is loaded at its own type as well. Loading it as the
+                // destination type reads the slots that follow a shorter source and decodes
+                // a differently packed one at the wrong width, so the appended element ends
+                // up holding unrelated state.
+                let storage_source =
+                    argument_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage));
+                let load_ty = if storage_source {
+                    // Unreachable today: a storage reference always has a memory layout, so
+                    // the source type is always there. Kept as a fail-closed guard, because a
+                    // type that ever loses one must bail rather than load at the destination
+                    // type and append unrelated state.
+                    let Some(source_ty) = source_ty else {
+                        return self
+                            .cx
+                            .report_unsupported(argument.span, "storage array push source");
+                    };
+                    source_ty
+                } else {
+                    memory_ty
+                };
+                let source_ty = source_ty.unwrap_or(memory_ty);
+                let value = self.lower_typed_expr(argument, load_ty)?;
                 // A calldata argument is decoded at the type it is materialized with, so it
                 // has to be the argument's own type as well: reading it at the destination
                 // type would take the element count and the lengths from the destination.

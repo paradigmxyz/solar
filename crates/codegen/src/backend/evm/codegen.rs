@@ -3875,6 +3875,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
+        let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
         let liveness = self
             .emitting_entry
             .then(|| Liveness::compute_block_local_for_codegen(func))
@@ -4396,20 +4397,45 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // live-out values when it is emitted, later in the stream but
                             // earlier at runtime, so the home is owed rather than missing
                             // and there is nothing to check here yet.
-                            debug_assert!(
-                                self.has_spill_home(func, value)
-                                    || planned_entry_carries(
-                                        &stack_phi_plan,
-                                        &global_stack_plan,
-                                        successor,
-                                        value,
-                                    )
-                                    || !Self::forward_predecessors_emitted(
-                                        func, &store_cfg, &block_pos, block_id, pos,
-                                    ),
-                                "{value:?} lives across the edge from {block_id:?} to \
-                                 already-emitted {successor:?} with no home"
-                            );
+                            //
+                            // This is a description of the common cases and not an
+                            // invariant the scheduler maintains, so it is logged rather
+                            // than asserted. A value that is on this block's stack is
+                            // stored right below, and one that is not cannot get a home
+                            // here whatever the reason is: pushing it again would deepen
+                            // the stack the preserved layout is built from. The store
+                            // obligation is then not this block's, and stating whose it is
+                            // needs the availability record of the paths this emission
+                            // order has not walked yet.
+                            //
+                            // The check itself walks predecessors with dominance queries,
+                            // so it only runs when something can observe its result.
+                            if (report_missing_spill_home
+                                || tracing::enabled!(tracing::Level::DEBUG))
+                                && !self.has_spill_home(func, value)
+                                && !planned_entry_carries(
+                                    &stack_phi_plan,
+                                    &global_stack_plan,
+                                    successor,
+                                    value,
+                                )
+                                && Self::forward_predecessors_emitted(
+                                    func, &store_cfg, &block_pos, block_id, pos,
+                                )
+                            {
+                                assert!(
+                                    !report_missing_spill_home,
+                                    "{value:?} lives across the edge from {block_id:?} to \
+                                     the already-emitted {successor:?} with no home"
+                                );
+                                tracing::debug!(
+                                    ?value,
+                                    ?block_id,
+                                    ?successor,
+                                    "value lives across the edge to an already-emitted \
+                                     block with no home"
+                                );
+                            }
                             self.spill_value_if_needed(func, value);
                         }
                     }

@@ -15,6 +15,26 @@ fn @plainRef(arg0: storageptr) -> storageptr [selector=0xd4ba1053, pure, abi_par
     ret arg0
 }
 
+fn @fixedRef(arg0: storageptr) -> storageptr [selector=0x23fe6d5e, pure, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @mapRef(arg0: storageptr) -> storageptr [selector=0xca34aaa5, pure, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @aggRef(arg0: storageptr) -> (storageptr, memoryfixedarray) [selector=0xed18bf21, pure, abi_params=[storageptr], abi_returns=[word, array<2, word>]] {
+  bb0:
+    v0 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_zero v0, 64
+    v1 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    memory_object_store_element memoryfixedarray<2, 1>, v1, 0, 1
+    memory_object_store_element memoryfixedarray<2, 1>, v1, 1, 2
+    ret arg0, v1
+}
+
 fn @pairRef(arg0: storageptr) -> (u256, storageptr) [selector=0x4a3c24da, view, abi_params=[storageptr], abi_returns=[word, word]] {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
@@ -154,6 +174,121 @@ fn @pair() -> (u256, u256) [selector=0xa8aa1b31, view, abi_params=[], abi_return
     v18 = mload v17
     v19 = sload v18 !metadata(storage=symbolic(v18))
     ret v15, v19
+  bb1:
+    revert 0, 0
+}
+
+fn @fixedLast() -> u256 [selector=0x1dc0aacb, view, abi_params=[], abi_returns=[word]] {
+  bb0:
+    v0 = fmp
+    v1 = add v0, 32
+    mstore v1, 0
+    v2 = abi_encode [word], selector 0x23fe6d5e00000000000000000000000000000000000000000000000000000000, args 3
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize 0x1111111111111111111111111111111111111111
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = gas
+    v8 = sub v7, 50
+    v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
+    jumpi v9, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v10 = add v3, 0
+    v11 = mload v10
+    v12 = add v3, 0
+    v13 = mload v12
+    v14 = lt 2, 3
+    v15 = iszero v14
+    jumpi v15, bb5, bb6
+  bb6:
+    v16 = add v13, 2
+    v17 = sload v16 !metadata(storage=offset(v13, 2))
+    ret v17
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb1:
+    revert 0, 0
+}
+
+fn @mapValue(arg0: u256) -> u256 [selector=0x152381f4, view, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = fmp
+    v1 = add v0, 32
+    mstore v1, 0
+    v2 = abi_encode [word], selector 0xca34aaa500000000000000000000000000000000000000000000000000000000, args 6
+    v3 = slice_ptr v2
+    v4 = slice_len v2
+    v5 = extcodesize 0x1111111111111111111111111111111111111111
+    v6 = iszero v5
+    jumpi v6, bb1, bb2
+  bb2:
+    v7 = gas
+    v8 = sub v7, 50
+    v9 = delegatecall v8, 0x1111111111111111111111111111111111111111, v3, v4, v3, 32
+    jumpi v9, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    v10 = add v3, 0
+    v11 = mload v10
+    v12 = add v3, 0
+    v13 = mload v12
+    v14 = mapping_slot arg0, v13
+    v15 = sload v14 !metadata(storage=symbolic(v14))
+    ret v15
+  bb1:
+    revert 0, 0
+}
+
+fn @agg() -> (u256, u256) [selector=0xf5e34bfa, view, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = alloc memorybytes, exact, uninitialized, infallible, 128
+    set_memory_object_len memorybytes, v0, 96
+    v1 = memory_object_data memorybytes, v0
+    v2 = fmp
+    v3 = add v2, 96
+    mstore v3, 0
+    v4 = abi_encode [word], selector 0xed18bf2100000000000000000000000000000000000000000000000000000000, args 2
+    v5 = slice_ptr v4
+    v6 = slice_len v4
+    v7 = extcodesize 0x1111111111111111111111111111111111111111
+    v8 = iszero v7
+    jumpi v8, bb1, bb2
+  bb2:
+    v9 = gas
+    v10 = sub v9, 50
+    v11 = delegatecall v10, 0x1111111111111111111111111111111111111111, v5, v6, v5, 96
+    jumpi v11, bb4, bb3
+  bb3:
+    revert_returndata
+  bb4:
+    mcopy v1, v5, 96
+    v12 = abi_decode [storageptr, array<2, u256>], v0
+    v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v14 = memory_object_load_element memoryfixedarray<2, 1>, v13, 1
+    v15 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v16 = memory_object_data memoryfixedarray, v15
+    frame_store multi_return, word, 0, v16 !metadata(memory=scratch)
+    memory_object_store_element memoryfixedarray<2, 1>, v15, 1, v14
+    v17 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+    v18 = memory_object_load_element memoryfixedarray<2, 1>, v17, 1
+    v19 = sload v12 !metadata(storage=symbolic(v12))
+    v20 = lt 1, 2
+    v21 = iszero v20
+    jumpi v21, bb5, bb6
+  bb6:
+    v22 = memory_object_load_element memoryfixedarray<2, 1>, v18, 1
+    ret v19, v22
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
   bb1:
     revert 0, 0
 }

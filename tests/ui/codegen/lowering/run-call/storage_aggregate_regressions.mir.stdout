@@ -108,14 +108,14 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jumpi v61, bb27, bb28
   bb28:
     v62 = sload 4 !metadata(storage=slot(4))
-    v63 = add v62, 1
-    v64 = lt v63, v62
-    jumpi v64, bb29, bb30
+    v63 = gt v62, 0xffffffffffffffff
+    jumpi v63, bb29, bb30
   bb30:
+    v64 = add v62, 1
     v65 = storage_array_data_slot 4
     v66 = mul v62, 2
     v67 = add v65, v66
-    sstore 4, v63 !metadata(storage=slot(4))
+    sstore 4, v64 !metadata(storage=slot(4))
     v68 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     memory_object_store_field memorystruct<2>, v68, 0, 11
     memory_object_store_field memorystruct<2>, v68, 1, 22
@@ -164,14 +164,14 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jumpi v96, bb37, bb38
   bb38:
     v97 = sload 5 !metadata(storage=slot(5))
-    v98 = add v97, 1
-    v99 = lt v98, v97
-    jumpi v99, bb29, bb39
+    v98 = gt v97, 0xffffffffffffffff
+    jumpi v98, bb29, bb39
   bb39:
+    v99 = add v97, 1
     v100 = storage_array_data_slot 5
     v101 = mul v97, 2
     v102 = add v100, v101
-    sstore 5, v98 !metadata(storage=slot(5))
+    sstore 5, v99 !metadata(storage=slot(5))
     v103 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v103, 0, 31
     memory_object_store_element memoryfixedarray<2, 1>, v103, 1, 32
@@ -230,13 +230,13 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jumpi v139, bb54, bb55
   bb55:
     v140 = sload 6 !metadata(storage=slot(6))
-    v141 = add v140, 1
-    v142 = lt v141, v140
-    jumpi v142, bb29, bb56
+    v141 = gt v140, 0xffffffffffffffff
+    jumpi v141, bb29, bb56
   bb56:
+    v142 = add v140, 1
     v143 = storage_array_data_slot 6
     v144 = add v143, v140
-    sstore 6, v141 !metadata(storage=slot(6))
+    sstore 6, v142 !metadata(storage=slot(6))
     v145 = alloc memoryarray<1>, exact, zeroed, panic, 96
     set_memory_object_len memoryarray, v145, 2
     v146 = memory_object_len memoryarray, v145
@@ -314,13 +314,13 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jumpi v191, bb74, bb75
   bb75:
     v192 = sload 7 !metadata(storage=slot(7))
-    v193 = add v192, 1
-    v194 = lt v193, v192
-    jumpi v194, bb29, bb76
+    v193 = gt v192, 0xffffffffffffffff
+    jumpi v193, bb29, bb76
   bb76:
+    v194 = add v192, 1
     v195 = storage_array_data_slot 7
     v196 = add v195, v192
-    sstore 7, v193 !metadata(storage=slot(7))
+    sstore 7, v194 !metadata(storage=slot(7))
     v197 = alloc memorybytes, exact, uninitialized, infallible, 64
     set_memory_object_len memorybytes, v197, 3
     v198 = memory_object_data memorybytes, v197
@@ -402,10 +402,10 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     jumpi v247, bb90, bb91
   bb91:
     v248 = sload 8 !metadata(storage=slot(8))
-    v249 = add v248, 1
-    v250 = lt v249, v248
-    jumpi v250, bb29, bb92
+    v249 = gt v248, 0xffffffffffffffff
+    jumpi v249, bb29, bb92
   bb92:
+    v250 = add v248, 1
     v251 = storage_array_data_slot 8
     v252 = div v248, 10
     v253 = add v251, v252
@@ -420,12 +420,12 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v262 = shl v256, v261
     v263 = or v260, v262
     sstore v253, v263 !metadata(storage=symbolic(v253))
-    sstore 8, v249 !metadata(storage=slot(8))
+    sstore 8, v250 !metadata(storage=slot(8))
     v264 = sload 8 !metadata(storage=slot(8))
-    v265 = add v264, 1
-    v266 = lt v265, v264
-    jumpi v266, bb29, bb93
+    v265 = gt v264, 0xffffffffffffffff
+    jumpi v265, bb29, bb93
   bb93:
+    v266 = add v264, 1
     v267 = storage_array_data_slot 8
     v268 = div v264, 10
     v269 = add v267, v268
@@ -440,33 +440,33 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v278 = shl v272, v277
     v279 = or v276, v278
     sstore v269, v279 !metadata(storage=symbolic(v269))
-    sstore 8, v265 !metadata(storage=slot(8))
+    sstore 8, v266 !metadata(storage=slot(8))
     v280 = sload 9 !metadata(storage=slot(9))
-    v281 = add v280, 1
-    v282 = lt v281, v280
-    jumpi v282, bb29, bb94
+    v281 = gt v280, 0xffffffffffffffff
+    jumpi v281, bb29, bb94
   bb94:
+    v282 = add v280, 1
     v283 = storage_array_data_slot 9
     v284 = add v283, v280
     sstore v284, 9 !metadata(storage=symbolic(v284))
-    sstore 9, v281 !metadata(storage=slot(9))
+    sstore 9, v282 !metadata(storage=slot(9))
     v285 = sload 9 !metadata(storage=slot(9))
-    v286 = add v285, 1
-    v287 = lt v286, v285
-    jumpi v287, bb29, bb95
+    v286 = gt v285, 0xffffffffffffffff
+    jumpi v286, bb29, bb95
   bb95:
+    v287 = add v285, 1
     v288 = storage_array_data_slot 9
     v289 = add v288, v285
     sstore v289, 10 !metadata(storage=symbolic(v289))
-    sstore 9, v286 !metadata(storage=slot(9))
+    sstore 9, v287 !metadata(storage=slot(9))
     v290 = sload 10 !metadata(storage=slot(10))
-    v291 = add v290, 1
-    v292 = lt v291, v290
-    jumpi v292, bb29, bb96
+    v291 = gt v290, 0xffffffffffffffff
+    jumpi v291, bb29, bb96
   bb96:
+    v292 = add v290, 1
     v293 = storage_array_data_slot 10
     v294 = add v293, v290
-    sstore 10, v291 !metadata(storage=slot(10))
+    sstore 10, v292 !metadata(storage=slot(10))
     v295 = sload 10 !metadata(storage=slot(10))
     v296 = lt 0, v295
     v297 = iszero v296
@@ -475,14 +475,14 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v298 = storage_array_data_slot 10
     v299 = add v298, 0
     v300 = sload v299 !metadata(storage=symbolic(v298))
-    v301 = add v300, 1
-    v302 = lt v301, v300
-    jumpi v302, bb29, bb98
+    v301 = gt v300, 0xffffffffffffffff
+    jumpi v301, bb29, bb98
   bb98:
+    v302 = add v300, 1
     v303 = storage_array_data_slot v299
     v304 = add v303, v300
     sstore v304, 12 !metadata(storage=symbolic(v304))
-    sstore v299, v301 !metadata(storage=symbolic(v298))
+    sstore v299, v302 !metadata(storage=symbolic(v298))
     v305 = sload 4 !metadata(storage=slot(4))
     sstore 4, 0 !metadata(storage=slot(4))
     jump bb99

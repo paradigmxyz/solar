@@ -12,10 +12,10 @@ fn @pushShorterCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x4
     v5 = make_calldata_slice v0, 64
     memory_object_copy_from_slice memoryfixedarray, v4, v5
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = add v6, 1
-    v8 = lt v7, v6
-    jumpi v8, bb3, bb4
+    v7 = gt v6, 0xffffffffffffffff
+    jumpi v7, bb3, bb4
   bb4:
+    v8 = add v6, 1
     v9 = storage_array_data_slot 0
     v10 = mul v6, 3
     v11 = add v9, v10
@@ -25,7 +25,7 @@ fn @pushShorterCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x4
     v13 = lt v12, 3
     jumpi v13, bb6, bb7
   bb7:
-    sstore 0, v7 !metadata(storage=slot(0))
+    sstore 0, v8 !metadata(storage=slot(0))
     v18 = sload 0 !metadata(storage=slot(0))
     v19 = lt 0, v18
     v20 = iszero v19
@@ -113,10 +113,10 @@ fn @pushNarrowCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x3c
     v14 = make_calldata_slice v0, 64
     memory_object_copy_from_slice memoryfixedarray, v4, v14
     v15 = sload 0 !metadata(storage=slot(0))
-    v16 = add v15, 1
-    v17 = lt v16, v15
-    jumpi v17, bb7, bb8
+    v16 = gt v15, 0xffffffffffffffff
+    jumpi v16, bb7, bb8
   bb8:
+    v17 = add v15, 1
     v18 = storage_array_data_slot 0
     v19 = mul v15, 3
     v20 = add v18, v19
@@ -126,7 +126,7 @@ fn @pushNarrowCalldata(arg0: calldataslice) -> (u256, u256, u256) [selector=0x3c
     v22 = lt v21, 3
     jumpi v22, bb10, bb11
   bb11:
-    sstore 0, v16 !metadata(storage=slot(0))
+    sstore 0, v17 !metadata(storage=slot(0))
     v27 = sload 0 !metadata(storage=slot(0))
     v28 = lt 0, v27
     v29 = iszero v28
@@ -223,10 +223,10 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> (u256, u256, u256, u256, u
     jumpi v6, bb4, bb5
   bb5:
     v12 = sload 2 !metadata(storage=slot(2))
-    v13 = add v12, 1
-    v14 = lt v13, v12
-    jumpi v14, bb6, bb7
+    v13 = gt v12, 0xffffffffffffffff
+    jumpi v13, bb6, bb7
   bb7:
+    v14 = add v12, 1
     v15 = storage_array_data_slot 2
     v16 = mul v12, 6
     v17 = add v15, v16
@@ -236,7 +236,7 @@ fn @pushNestedShorterCalldata(arg0: calldataslice) -> (u256, u256, u256, u256, u
     v19 = lt v18, 2
     jumpi v19, bb9, bb10
   bb10:
-    sstore 2, v13 !metadata(storage=slot(2))
+    sstore 2, v14 !metadata(storage=slot(2))
     v38 = sload 2 !metadata(storage=slot(2))
     v39 = lt 0, v38
     v40 = iszero v39
@@ -446,10 +446,10 @@ fn @pushExactCalldata(arg0: calldataslice) -> (u256, u256) [selector=0x9b4dcbee,
     v5 = make_calldata_slice v0, 64
     memory_object_copy_from_slice memoryfixedarray, v4, v5
     v6 = sload 1 !metadata(storage=slot(1))
-    v7 = add v6, 1
-    v8 = lt v7, v6
-    jumpi v8, bb3, bb4
+    v7 = gt v6, 0xffffffffffffffff
+    jumpi v7, bb3, bb4
   bb4:
+    v8 = add v6, 1
     v9 = storage_array_data_slot 1
     v10 = mul v6, 2
     v11 = add v9, v10
@@ -459,7 +459,7 @@ fn @pushExactCalldata(arg0: calldataslice) -> (u256, u256) [selector=0x9b4dcbee,
     v13 = lt v12, 2
     jumpi v13, bb6, bb7
   bb7:
-    sstore 1, v7 !metadata(storage=slot(1))
+    sstore 1, v8 !metadata(storage=slot(1))
     v18 = sload 1 !metadata(storage=slot(1))
     v19 = lt 0, v18
     v20 = iszero v19

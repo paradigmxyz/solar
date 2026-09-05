@@ -38,10 +38,10 @@ fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[arr
     jumpi v21, bb8, bb9
   bb9:
     v35 = sload 0 !metadata(storage=slot(0))
-    v36 = add v35, 1
-    v37 = lt v36, v35
-    jumpi v37, bb1, bb12
+    v36 = gt v35, 0xffffffffffffffff
+    jumpi v36, bb1, bb12
   bb12:
+    v37 = add v35, 1
     v38 = storage_array_data_slot 0
     v39 = add v38, v35
     v40 = memory_object_len memoryarray, v19
@@ -79,7 +79,7 @@ fn @pushArray(arg0: calldataslice) -> u120 [selector=0xac513f44, abi_params=[arr
     sstore v83, v85 !metadata(storage=symbolic(v83))
     jump bb22
   bb22:
-    sstore 0, v36 !metadata(storage=slot(0))
+    sstore 0, v37 !metadata(storage=slot(0))
     v86 = sload 0 !metadata(storage=slot(0))
     v87 = lt 0, v86
     v88 = iszero v87
@@ -265,10 +265,10 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
   bb20:
     memory_object_store_field memorystruct<4>, v1, 3, v61
     v77 = sload 1 !metadata(storage=slot(1))
-    v78 = add v77, 1
-    v79 = lt v78, v77
-    jumpi v79, bb15, bb23
+    v78 = gt v77, 0xffffffffffffffff
+    jumpi v78, bb15, bb23
   bb23:
+    v79 = add v77, 1
     v80 = storage_array_data_slot 1
     v81 = mul v77, 3
     v82 = add v80, v81
@@ -333,7 +333,7 @@ fn @pushStruct(arg0: calldataslice) -> u256 [selector=0x1696eca8, abi_params=[tu
     sstore v169, v171 !metadata(storage=symbolic(v169))
     jump bb39
   bb39:
-    sstore 1, v78 !metadata(storage=slot(1))
+    sstore 1, v79 !metadata(storage=slot(1))
     v172 = sload 1 !metadata(storage=slot(1))
     v173 = lt 0, v172
     v174 = iszero v173

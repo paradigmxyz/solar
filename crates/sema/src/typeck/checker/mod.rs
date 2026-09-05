@@ -118,6 +118,16 @@ enum Discarded {
     Components(DenseBitSet<usize>),
 }
 
+/// The first contract of a hierarchy that gives one base constructor its arguments.
+struct Provider {
+    /// The provider's position in the checked contract's linearization.
+    index: usize,
+    /// The span of the argument list.
+    span: Span,
+    /// Whether a second provider was already reported for this base.
+    reported: bool,
+}
+
 #[derive(Clone, Copy)]
 enum NotLvalueReason {
     Constant,
@@ -450,6 +460,18 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
                         if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
+                        }
+                        // Mapping entries cannot be copied, so an element type containing a
+                        // (nested) mapping would only get the argument's ordinary fields and
+                        // keep whatever the mapping slots already held. `push()` without an
+                        // argument stays allowed: it appends a zeroed element.
+                        if builtin == Some(Builtin::ArrayPush)
+                            && let Some(&element) = f.parameters.last()
+                            && element.has_mapping(self.gcx)
+                        {
+                            let msg =
+                                "storage arrays with nested mappings do not support `push(<arg>)`";
+                            self.dcx().err(msg).code(error_code!(8871)).span(callee.span).emit();
                         }
                         // Keep the declared return type: the value is unusable, but an error
                         // type here would only hide the checks its uses still go through.
@@ -1619,59 +1641,107 @@ impl<'gcx> TypeChecker<'gcx> {
         result
     }
 
-    /// Rejects a base constructor whose arguments two contracts of the
-    /// hierarchy both give.
+    /// Checks which contract of the hierarchy gives each base constructor its
+    /// arguments.
     ///
-    /// Which of the two lists the constructor would be called with is
-    /// arbitrary, so the program has no unambiguous meaning. solc reports it
-    /// as declaration error 3364 in
+    /// Two contracts giving the same base constructor arguments is declaration
+    /// error 3364: which of the two lists the constructor would be called with
+    /// is arbitrary, so the program has no unambiguous meaning. No contract
+    /// giving them is type error 3415 for a contract that can be deployed,
+    /// because the base constructor and the state-variable initializers it
+    /// runs would be skipped. solc reports both in
     /// `ContractLevelChecker::annotateBaseConstructorArguments`.
-    fn check_base_constructor_arguments_given_twice(&self, contract: &'gcx hir::Contract<'gcx>) {
+    fn check_base_constructor_arguments(&self, contract: &'gcx hir::Contract<'gcx>) {
         if contract.linearization_failed() {
             return;
         }
-        for &base_id in contract.linearized_bases.iter().skip(1) {
-            if self.gcx.hir.contract(base_id).ctor.is_none() {
-                continue;
-            }
-            let mut first = None;
-            for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
-                let writer = self.gcx.hir.contract(writer_id);
-                // One contract gives a base at most one argument list; giving
-                // two is reported where the lists are resolved.
-                let Some(index) =
-                    writer.linearized_bases.iter().skip(1).position(|&id| id == base_id)
-                else {
+        // One writer at a time, rather than searching every writer's
+        // linearization for every base: a writer's argument lists are already
+        // aligned with its own linearized bases, so zipping the two names the
+        // base each list targets without a search. Recording the first
+        // provider of each base in a map then makes the whole hierarchy one
+        // pass over the writers.
+        let mut providers = FxHashMap::<hir::ContractId, Provider>::default();
+        for (writer_index, &writer_id) in contract.linearized_bases.iter().enumerate() {
+            let writer = self.gcx.hir.contract(writer_id);
+            for (&base_id, modifier) in
+                writer.linearized_bases.iter().skip(1).zip(writer.linearized_bases_args)
+            {
+                // An empty list gives no arguments, so a list written for the
+                // same base further up the hierarchy still applies. One
+                // contract gives a base at most one argument list; giving two
+                // is reported where the lists are resolved.
+                let Some(modifier) = modifier.filter(|modifier| !modifier.args.is_empty()) else {
                     continue;
                 };
-                let Some(modifier) = writer.linearized_bases_args.get(index).copied().flatten()
-                else {
-                    continue;
-                };
-                if modifier.args.is_empty() {
+                // A base without a constructor takes no arguments; the wrong
+                // argument count is reported on the list itself.
+                if self.gcx.hir.contract(base_id).ctor.is_none() {
                     continue;
                 }
-                let Some((first_index, first_span)) = first else {
-                    first = Some((writer_index, modifier.span));
+                let Some(provider) = providers.get_mut(&base_id) else {
+                    providers.insert(
+                        base_id,
+                        Provider { index: writer_index, span: modifier.span, reported: false },
+                    );
                     continue;
                 };
+                if std::mem::replace(&mut provider.reported, true) {
+                    continue;
+                }
                 let err = self
                     .dcx()
                     .err("base constructor arguments given twice")
                     .code(error_code!(3364));
                 // Point at a list of this contract when it wrote one, the way
                 // solc prefers a location inside the contract being checked.
-                let err = if first_index == 0 {
-                    err.span(first_span).span_note(modifier.span, "second argument list is here")
+                let err = if provider.index == 0 {
+                    err.span(provider.span).span_note(modifier.span, "second argument list is here")
                 } else {
                     err.span(contract.name.span)
-                        .span_note(first_span, "first argument list is here")
+                        .span_note(provider.span, "first argument list is here")
                         .span_note(modifier.span, "second argument list is here")
                 };
                 err.emit();
-                break;
             }
         }
+        if !contract.can_be_deployed() {
+            return;
+        }
+        for &base_id in contract.linearized_bases.iter().skip(1) {
+            if let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor
+                && !providers.contains_key(&base_id)
+            {
+                self.report_missing_base_constructor_arguments(contract, base_id, ctor_id);
+            }
+        }
+    }
+
+    /// Rejects a deployable contract that gives a parameterized base
+    /// constructor no arguments.
+    ///
+    /// The base constructor and the state-variable initializers it runs would
+    /// be skipped, so the contract would deploy with an uninitialized base.
+    /// solc reports it as type error 3415.
+    fn report_missing_base_constructor_arguments(
+        &self,
+        contract: &'gcx hir::Contract<'gcx>,
+        base_id: hir::ContractId,
+        ctor_id: hir::FunctionId,
+    ) {
+        let ctor = self.gcx.hir.function(ctor_id);
+        let (Some(&first), Some(&last)) = (ctor.parameters.first(), ctor.parameters.last()) else {
+            return;
+        };
+        let parameters = self.gcx.hir.variable(first).span.to(self.gcx.hir.variable(last).span);
+        let base = self.gcx.hir.contract(base_id).name;
+        self.dcx()
+            .err(format!("no arguments passed to the base constructor of `{base}`"))
+            .code(error_code!(3415))
+            .span(contract.name.span)
+            .span_note(parameters, "base constructor parameters are here")
+            .help(format!("specify the arguments or mark `{}` as abstract", contract.name.as_str()))
+            .emit();
     }
 
     /// Checks the argument list of a modifier invocation against the modifier's
@@ -2944,13 +3014,19 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         }
 
-        let exprs = if let hir::ExprKind::Tuple(exprs) = init.kind {
-            exprs
-        } else {
-            std::slice::from_ref(&init_opt)
+        // Only a genuine tuple literal has an expression of its own for each component. Ordinary
+        // parentheses are `Tuple([Some(inner)])` in the HIR too, so peel them first: `(f())`
+        // produces every component from one expression just like `f()` does. Every other
+        // initializer reports at the whole initializer, which is the expression that produced
+        // the value, and pairing targets with component types by index is what checks every
+        // target rather than stopping at the initializer's own component count.
+        let component_exprs = match init.peel_parens().kind {
+            hir::ExprKind::Tuple(exprs) if exprs.len() == value_types.len() => Some(exprs),
+            _ => None,
         };
-        for ((&var, &ty), &expr) in decls.iter().zip(value_types).zip(exprs) {
-            let (Some(var), Some(expr)) = (var, expr) else { continue };
+        for (index, (&var, &ty)) in decls.iter().zip(value_types).enumerate() {
+            let Some(var) = var else { continue };
+            let expr = component_exprs.and_then(|exprs| exprs[index]).unwrap_or(init);
             let var_ty = self.check_var_(var, VarSource::DeclStatement);
             let _ = self.check_expected(expr, ty, var_ty);
         }
@@ -3253,7 +3329,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             self.check_storage_layout_base_slot(slot);
         }
 
-        self.check_base_constructor_arguments_given_twice(contract);
+        self.check_base_constructor_arguments(contract);
 
         // Check base constructor arguments. `is Base` without parentheses
         // provides no arguments here (deferred to a derived contract, or the

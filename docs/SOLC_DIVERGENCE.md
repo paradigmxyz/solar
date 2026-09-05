@@ -151,8 +151,9 @@ form. Every program `solc` accepts here has the same meaning in `solar`.
 
 Coverage: `tests/ui/typeck/base_arguments.sol`,
 `tests/ui/typeck/modifier_arguments.sol`,
-`tests/ui/codegen/lowering/base_constructor_args.sol`, and
-`tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`.
+`tests/ui/codegen/lowering/base_constructor_args.sol`,
+`tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`, and
+`tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol`.
 
 ### TYPECK-005: Parenthesized `try` targets
 

@@ -86,10 +86,10 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     jump bb9
   bb9:
     v44 = sload 2 !metadata(storage=slot(2))
-    v45 = add v44, 1
-    v46 = lt v45, v44
-    jumpi v46, bb3, bb10
+    v45 = gt v44, 0xffffffffffffffff
+    jumpi v45, bb3, bb10
   bb10:
+    v46 = add v44, 1
     v47 = storage_array_data_slot 2
     v48 = div v44, 32
     v49 = add v47, v48
@@ -105,7 +105,7 @@ fn @exercise() -> (bytes1, bytes2, bytes1, bytes2, bytes1, bytes2, bytes1, bytes
     v59 = shl v52, v58
     v60 = or v56, v59
     sstore v49, v60 !metadata(storage=symbolic(v49))
-    sstore 2, v45 !metadata(storage=slot(2))
+    sstore 2, v46 !metadata(storage=slot(2))
     v61 = sload 0 !metadata(storage=slot(0))
     v62 = shr 16, v61
     v63 = and v62, 255

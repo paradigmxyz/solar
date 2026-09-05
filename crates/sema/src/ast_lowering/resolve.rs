@@ -171,7 +171,8 @@ impl super::LoweringContext<'_> {
             scopes.clear();
             scopes.source = Some(self.hir.contract(contract_id).source);
             let mut bases = SmallVec::<[_; 8]>::new();
-            for base in ast_contract.bases.iter() {
+            let mut base_indices = SmallVec::<[u32; 8]>::new();
+            for (index, base) in ast_contract.bases.iter().enumerate() {
                 let name = &base.name;
                 let Ok(base_id) = self
                     .resolver
@@ -185,8 +186,15 @@ impl super::LoweringContext<'_> {
                     continue;
                 }
                 bases.push(base_id);
+                base_indices.push(index as u32);
             }
             self.hir.contracts[contract_id].bases = self.arena.alloc_slice_copy(&bases);
+            // A base that names an unresolved symbol or a non-contract is dropped here while
+            // the AST keeps it, so record which AST bases survived; without it the two lists
+            // cannot be paired back up when lowering the base arguments.
+            if bases.len() != ast_contract.bases.len() {
+                self.contract_base_indices.insert(contract_id, base_indices.into_boxed_slice());
+            }
         }
     }
 
@@ -583,15 +591,24 @@ impl<'gcx> ResolveContext<'gcx> {
         let ast_contract = &self.hir_to_ast[&hir::ItemId::Contract(c_id)];
         let ast::ItemKind::Contract(ast_contract) = &ast_contract.kind else { unreachable!() };
 
+        // The HIR bases are the AST bases that resolved to a contract, so pair each one with
+        // the AST base it came from instead of zipping the two lists positionally: a dropped
+        // base would otherwise shift every later base onto the previous one's arguments.
+        let ast_bases = match self.contract_base_indices.get(&c_id) {
+            Some(indices) => {
+                indices.iter().map(|&index| &ast_contract.bases[index as usize]).collect()
+            }
+            None => ast_contract.bases.iter().collect::<SmallVec<[_; 8]>>(),
+        };
         self.hir.contracts[c_id].bases_args = self.arena.alloc_from_iter(
-            std::iter::zip(&*ast_contract.bases, self.hir.contract(c_id).bases).map(
-                |(ast_base, &base_id)| hir::Modifier {
+            std::iter::zip(ast_bases, self.hir.contract(c_id).bases).map(|(ast_base, &base_id)| {
+                hir::Modifier {
                     span: ast_base.span(),
                     name_span: ast_base.name.last().span,
                     id: base_id.into(),
                     args: self.lower_call_args(&ast_base.arguments),
-                },
-            ),
+                }
+            }),
         );
         let contract = self.hir.contract(c_id);
 

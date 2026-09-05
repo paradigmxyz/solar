@@ -3,27 +3,27 @@
 fn @constructor() [constructor] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = div v0, 8
     v5 = add v3, v4
     v6 = mod v0, 8
     v7 = mul v6, 4
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v8 = sload 0 !metadata(storage=slot(0))
-    v9 = add v8, 1
-    v10 = lt v9, v8
-    jumpi v10, bb1, bb3
+    v9 = gt v8, 0xffffffffffffffff
+    jumpi v9, bb1, bb3
   bb3:
+    v10 = add v8, 1
     v11 = storage_array_data_slot 0
     v12 = div v8, 8
     v13 = add v11, v12
     v14 = mod v8, 8
     v15 = mul v14, 4
-    sstore 0, v9 !metadata(storage=slot(0))
+    sstore 0, v10 !metadata(storage=slot(0))
     stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -107,16 +107,16 @@ fn @fixedLength() -> u256 [selector=0x47f1a57f, abi_params=[], abi_returns=[word
     v97 = and v96, 0xffffffff
     sstore v95, v97 !metadata(storage=symbolic(v94))
     v98 = sload 0 !metadata(storage=slot(0))
-    v99 = add v98, 1
-    v100 = lt v99, v98
-    jumpi v100, bb19, bb20
+    v99 = gt v98, 0xffffffffffffffff
+    jumpi v99, bb19, bb20
   bb20:
+    v100 = add v98, 1
     v101 = storage_array_data_slot 0
     v102 = div v98, 8
     v103 = add v101, v102
     v104 = mod v98, 8
     v105 = mul v104, 4
-    sstore 0, v99 !metadata(storage=slot(0))
+    sstore 0, v100 !metadata(storage=slot(0))
     v106 = sload 0 !metadata(storage=slot(0))
     v107 = lt 1, v106
     v108 = iszero v107
@@ -338,16 +338,16 @@ fn @dynamicLength(arg0: u256) -> u256 [selector=0x3e3319e9, abi_params=[u256], a
     jump bb35
   bb35:
     v139 = sload 0 !metadata(storage=slot(0))
-    v140 = add v139, 1
-    v141 = lt v140, v139
-    jumpi v141, bb7, bb36
+    v140 = gt v139, 0xffffffffffffffff
+    jumpi v140, bb7, bb36
   bb36:
+    v141 = add v139, 1
     v142 = storage_array_data_slot 0
     v143 = div v139, 8
     v144 = add v142, v143
     v145 = mod v139, 8
     v146 = mul v145, 4
-    sstore 0, v140 !metadata(storage=slot(0))
+    sstore 0, v141 !metadata(storage=slot(0))
     v147 = sload 0 !metadata(storage=slot(0))
     v148 = lt v1, v147
     v149 = iszero v148
@@ -439,16 +439,16 @@ fn @dynamicLength(arg0: u256) -> u256 [selector=0x3e3319e9, abi_params=[u256], a
     revert 0, 36
   bb4:
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = add v6, 1
-    v8 = lt v7, v6
-    jumpi v8, bb7, bb8
+    v7 = gt v6, 0xffffffffffffffff
+    jumpi v7, bb7, bb8
   bb8:
+    v8 = add v6, 1
     v9 = storage_array_data_slot 0
     v10 = div v6, 8
     v11 = add v9, v10
     v12 = mod v6, 8
     v13 = mul v12, 4
-    sstore 0, v7 !metadata(storage=slot(0))
+    sstore 0, v8 !metadata(storage=slot(0))
     jump bb6
   bb6:
     jump bb3
@@ -540,16 +540,16 @@ fn @exactSlotBoundary() -> u256 [selector=0xe55d27b8, abi_params=[], abi_returns
     jumpi v85, bb27, bb28
   bb28:
     v101 = sload 0 !metadata(storage=slot(0))
-    v102 = add v101, 1
-    v103 = lt v102, v101
-    jumpi v103, bb7, bb29
+    v102 = gt v101, 0xffffffffffffffff
+    jumpi v102, bb7, bb29
   bb29:
+    v103 = add v101, 1
     v104 = storage_array_data_slot 0
     v105 = div v101, 8
     v106 = add v104, v105
     v107 = mod v101, 8
     v108 = mul v107, 4
-    sstore 0, v102 !metadata(storage=slot(0))
+    sstore 0, v103 !metadata(storage=slot(0))
     v109 = sload 0 !metadata(storage=slot(0))
     v110 = lt 8, v109
     v111 = iszero v110
@@ -641,16 +641,16 @@ fn @exactSlotBoundary() -> u256 [selector=0xe55d27b8, abi_params=[], abi_returns
     revert 0, 36
   bb4:
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb7, bb8
+    v5 = gt v4, 0xffffffffffffffff
+    jumpi v5, bb7, bb8
   bb8:
+    v6 = add v4, 1
     v7 = storage_array_data_slot 0
     v8 = div v4, 8
     v9 = add v7, v8
     v10 = mod v4, 8
     v11 = mul v10, 4
-    sstore 0, v5 !metadata(storage=slot(0))
+    sstore 0, v6 !metadata(storage=slot(0))
     jump bb6
   bb6:
     jump bb3

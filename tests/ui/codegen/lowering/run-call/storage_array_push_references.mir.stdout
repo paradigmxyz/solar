@@ -3,13 +3,13 @@
 fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     sstore v4, arg0 !metadata(storage=symbolic(v4))
     v5 = mul arg0, 2
     v6 = iszero 2
@@ -20,22 +20,22 @@ fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_param
     jumpi v10, bb3, bb4
   bb4:
     v11 = sload 0 !metadata(storage=slot(0))
-    v12 = add v11, 1
-    v13 = lt v12, v11
-    jumpi v13, bb1, bb5
+    v12 = gt v11, 0xffffffffffffffff
+    jumpi v12, bb1, bb5
   bb5:
+    v13 = add v11, 1
     v14 = storage_array_data_slot 0
     v15 = add v14, v11
-    sstore 0, v12 !metadata(storage=slot(0))
+    sstore 0, v13 !metadata(storage=slot(0))
     sstore v15, v5 !metadata(storage=symbolic(v15))
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = add v16, 1
-    v18 = lt v17, v16
-    jumpi v18, bb1, bb6
+    v17 = gt v16, 0xffffffffffffffff
+    jumpi v17, bb1, bb6
   bb6:
+    v18 = add v16, 1
     v19 = storage_array_data_slot 0
     v20 = add v19, v16
-    sstore 0, v17 !metadata(storage=slot(0))
+    sstore 0, v18 !metadata(storage=slot(0))
     sstore v20, 0x1000 !metadata(storage=symbolic(v20))
     v21 = sload 0 !metadata(storage=slot(0))
     v22 = lt 0, v21
@@ -79,13 +79,13 @@ fn @references(arg0: u256) -> (u256, u256, u256) [selector=0x04866b90, abi_param
 fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_params=[u256, u256], abi_returns=[word]] {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 1
     v4 = add v3, v0
-    sstore 1, v1 !metadata(storage=slot(1))
+    sstore 1, v2 !metadata(storage=slot(1))
     jump bb3
   bb3:
     v5 = phi [bb2: arg0], [bb11: v5]
@@ -129,13 +129,13 @@ fn @nestedPush(arg0: u256, arg1: u256) -> u256 [selector=0x44c891f2, abi_params=
     revert 0, 36
   bb6:
     v12 = sload v9 !metadata(storage=symbolic(v9))
-    v13 = add v12, 1
-    v14 = lt v13, v12
-    jumpi v14, bb1, bb9
+    v13 = gt v12, 0xffffffffffffffff
+    jumpi v13, bb1, bb9
   bb9:
+    v14 = add v12, 1
     v15 = storage_array_data_slot v9
     v16 = add v15, v12
-    sstore v9, v13 !metadata(storage=symbolic(v9))
+    sstore v9, v14 !metadata(storage=symbolic(v9))
     jump bb8
   bb8:
     jump bb5
@@ -607,13 +607,13 @@ fn @pushPreservesStorage() -> u256 [selector=0x2bc06499, abi_params=[], abi_retu
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, 42 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, v3 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = lt 0, v6
     v8 = iszero v7

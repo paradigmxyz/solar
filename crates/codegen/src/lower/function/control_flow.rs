@@ -553,8 +553,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let panic_matches = self.builder.and(panic_has_payload, panic_selector_matches);
             TryCatchData { object, data, len, error_matches, panic_matches }
         });
+        // Solidity matches the typed clauses before the low-level one, whichever order they are
+        // written in: `catch Error(string)` first, then `catch Panic(uint256)`, and the bare or
+        // `bytes memory` clause last as the fallback. The low-level clause matches
+        // unconditionally, so testing the clauses in source order lets one written first shadow
+        // the typed ones and run for a standard revert payload. The sort must stay stable so
+        // that clauses of the same kind keep their source order.
+        let mut ordered_clauses = catch_clauses.iter().collect::<Vec<_>>();
+        ordered_clauses.sort_by_key(|clause| match clause.name.map(|name| name.name) {
+            Some(sym::Error) => 0,
+            Some(sym::Panic) => 1,
+            _ => 2,
+        });
         let mut next_catch = self.builder.current_block();
-        for catch_clause in catch_clauses {
+        for catch_clause in ordered_clauses {
             // if catch_matches(clause, data) { lower(clause) } else { next_catch }
             self.builder.switch_to_block(next_catch);
             let clause_block = self.builder.create_block();

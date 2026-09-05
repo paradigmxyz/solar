@@ -10,10 +10,10 @@ fn @constructor() [constructor] {
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = add 0, 1
     v6 = sload v5 !metadata(storage=slot(1))
-    v7 = add v6, 1
-    v8 = lt v7, v6
-    jumpi v8, bb1, bb2
+    v7 = gt v6, 0xffffffffffffffff
+    jumpi v7, bb1, bb2
   bb2:
+    v8 = add v6, 1
     v9 = storage_array_data_slot v5
     v10 = div v6, 8
     v11 = add v9, v10
@@ -29,7 +29,7 @@ fn @constructor() [constructor] {
     v21 = shl v14, v20
     v22 = or v18, v21
     sstore v11, v22 !metadata(storage=symbolic(v11))
-    sstore v5, v7 !metadata(storage=slot(1))
+    sstore v5, v8 !metadata(storage=slot(1))
     stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

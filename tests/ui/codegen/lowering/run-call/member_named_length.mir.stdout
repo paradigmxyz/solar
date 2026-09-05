@@ -15,14 +15,14 @@ fn @field() -> u256 [selector=0x4f28bf0e, abi_params=[], abi_returns=[word]] {
 fn @arrayLength() -> u256 [selector=0xe554482e, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
     sstore v4, 7 !metadata(storage=symbolic(v4))
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     ret v5
   bb1:

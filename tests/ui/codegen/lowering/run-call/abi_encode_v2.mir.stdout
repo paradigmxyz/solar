@@ -101,24 +101,24 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     sstore 0, 7 !metadata(storage=slot(0))
     v1 = add 0, 1
     v2 = sload v1 !metadata(storage=slot(1))
-    v3 = add v2, 1
-    v4 = lt v3, v2
-    jumpi v4, bb1, bb2
+    v3 = gt v2, 0xffffffffffffffff
+    jumpi v3, bb1, bb2
   bb2:
+    v4 = add v2, 1
     v5 = storage_array_data_slot v1
     v6 = add v5, v2
     sstore v6, 2 !metadata(storage=symbolic(v6))
-    sstore v1, v3 !metadata(storage=slot(1))
+    sstore v1, v4 !metadata(storage=slot(1))
     v7 = add 0, 1
     v8 = sload v7 !metadata(storage=slot(1))
-    v9 = add v8, 1
-    v10 = lt v9, v8
-    jumpi v10, bb1, bb3
+    v9 = gt v8, 0xffffffffffffffff
+    jumpi v9, bb1, bb3
   bb3:
+    v10 = add v8, 1
     v11 = storage_array_data_slot v7
     v12 = add v11, v8
     sstore v12, 3 !metadata(storage=symbolic(v12))
-    sstore v7, v9 !metadata(storage=slot(1))
+    sstore v7, v10 !metadata(storage=slot(1))
     v13 = alloc memorystruct<2>, exact, uninitialized, panic, 64
     v14 = sload 0 !metadata(storage=slot(0))
     memory_object_store_field memorystruct<2>, v13, 0, v14

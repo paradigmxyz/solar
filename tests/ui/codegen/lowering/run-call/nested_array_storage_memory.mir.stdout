@@ -149,10 +149,10 @@ fn @constructor() [constructor] {
     v115 = and 2, 255
     memory_object_store_element memoryfixedarray<2, 1>, v113, 1, v115
     v116 = sload 3 !metadata(storage=slot(3))
-    v117 = add v116, 1
-    v118 = lt v117, v116
-    jumpi v118, bb62, bb63
+    v117 = gt v116, 0xffffffffffffffff
+    jumpi v117, bb62, bb63
   bb63:
+    v118 = add v116, 1
     v119 = storage_array_data_slot 3
     v120 = mul v116, 2
     v121 = add v119, v120
@@ -162,17 +162,17 @@ fn @constructor() [constructor] {
     v123 = lt v122, 2
     jumpi v123, bb65, bb66
   bb66:
-    sstore 3, v117 !metadata(storage=slot(3))
+    sstore 3, v118 !metadata(storage=slot(3))
     v128 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v129 = and 3, 255
     memory_object_store_element memoryfixedarray<2, 1>, v128, 0, v129
     v130 = and 4, 255
     memory_object_store_element memoryfixedarray<2, 1>, v128, 1, v130
     v131 = sload 3 !metadata(storage=slot(3))
-    v132 = add v131, 1
-    v133 = lt v132, v131
-    jumpi v133, bb62, bb70
+    v132 = gt v131, 0xffffffffffffffff
+    jumpi v132, bb62, bb70
   bb70:
+    v133 = add v131, 1
     v134 = storage_array_data_slot 3
     v135 = mul v131, 2
     v136 = add v134, v135
@@ -182,17 +182,17 @@ fn @constructor() [constructor] {
     v138 = lt v137, 2
     jumpi v138, bb72, bb73
   bb73:
-    sstore 3, v132 !metadata(storage=slot(3))
+    sstore 3, v133 !metadata(storage=slot(3))
     v143 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v144 = and 5, 255
     memory_object_store_element memoryfixedarray<2, 1>, v143, 0, v144
     v145 = and 6, 255
     memory_object_store_element memoryfixedarray<2, 1>, v143, 1, v145
     v146 = sload 3 !metadata(storage=slot(3))
-    v147 = add v146, 1
-    v148 = lt v147, v146
-    jumpi v148, bb62, bb77
+    v147 = gt v146, 0xffffffffffffffff
+    jumpi v147, bb62, bb77
   bb77:
+    v148 = add v146, 1
     v149 = storage_array_data_slot 3
     v150 = mul v146, 2
     v151 = add v149, v150
@@ -202,7 +202,7 @@ fn @constructor() [constructor] {
     v153 = lt v152, 2
     jumpi v153, bb79, bb80
   bb80:
-    sstore 3, v147 !metadata(storage=slot(3))
+    sstore 3, v148 !metadata(storage=slot(3))
     v158 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     v159 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
     memory_object_store_element memoryfixedarray<2, 1>, v159, 0, 10

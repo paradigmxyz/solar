@@ -340,12 +340,39 @@ impl IntTy {
         }
     }
 
-    /// Returns the type both `self` and `other` implicitly convert to, if any.
+    /// Returns the widest integer type of the given signedness.
+    fn full_width(signed: bool) -> Self {
+        Self { signed, size: TypeSize::new_int_bits(256) }
+    }
+
+    /// Returns the narrowest integer type of the given signedness holding `bits` value bits.
+    ///
+    /// Integer types come in whole bytes, so the width is rounded up to the next multiple of
+    /// eight; a value needing more than a word has no such type.
+    fn narrowest(bits: u64, signed: bool) -> Option<Self> {
+        let bits = bits.max(1).div_ceil(8) * 8;
+        u16::try_from(bits)
+            .ok()
+            .and_then(TypeSize::try_new_int_bits)
+            .map(|size| Self { signed, size })
+    }
+
+    /// Returns whether values of this type implicitly convert to `other`.
     ///
     /// Integer types only convert implicitly to wider types of the same signedness.
+    fn converts_to(self, other: Self) -> bool {
+        self.signed == other.signed && other.bits() >= self.bits()
+    }
+
+    /// Returns the type both `self` and `other` implicitly convert to, if any.
     fn common(self, other: Self) -> Option<Self> {
-        (self.signed == other.signed)
-            .then(|| if self.bits() >= other.bits() { self } else { other })
+        if other.converts_to(self) {
+            Some(self)
+        } else if self.converts_to(other) {
+            Some(other)
+        } else {
+            None
+        }
     }
 }
 
@@ -506,23 +533,72 @@ impl IntScalar {
         value.retype(ty)
     }
 
+    /// Returns the mobile type of a literal operand.
+    ///
+    /// A typed operand makes the other, untyped one leave the rationals: the type checker gives
+    /// the literal its mobile type, the narrowest integer type of its sign holding it. A literal
+    /// too large for a word has no mobile type at all, and the operator does not apply to it,
+    /// which is what solc reports as "Literal too large".
+    fn mobile_ty(&self) -> Result<IntTy, EE> {
+        IntTy::narrowest(Self::bits(&self.data), self.is_negative()).ok_or(EE::LiteralTooLarge)
+    }
+
+    /// Returns the type a literal operand and a typed operand are computed in, if any.
+    ///
+    /// The literal takes its mobile type, and the operation is performed in the common type of
+    /// that and the typed operand: the mobile type when the typed operand converts to it, and
+    /// the typed operand's own type when the literal fits in it instead. Neither holds only when
+    /// the two have different signedness, and the result stays untyped because the type checker
+    /// already rejects such operands.
+    fn literal_common_ty(literal: &Self, typed: IntTy) -> Result<Option<IntTy>, EE> {
+        let mobile = literal.mobile_ty()?;
+        Ok(if typed.converts_to(mobile) {
+            Some(mobile)
+        } else {
+            typed.contains(&literal.data).then_some(typed)
+        })
+    }
+
     /// Returns the type the given binary operation is performed in, if any.
     ///
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
-    /// in the common type of both operands. A literal operand adopts the other operand's type
-    /// when it fits in it; otherwise, and for operands without a common type, the result stays
-    /// untyped because the type checker already rejects such operands.
-    fn binop_ty(l: &Self, r: &Self, op: hir::BinOpKind) -> Option<IntTy> {
+    /// in the common type of both operands. Two literals stay untyped and keep their exact value up
+    /// to `MAX_INTERMEDIATE_BITS`, a narrower bound than solc's rational arithmetic, and operands
+    /// without a common type stay untyped because the type checker already rejects them.
+    ///
+    /// A literal paired with a typed operand must first have a mobile type, and the operation is
+    /// rejected when it does not. This check comes before the operation because folding retypes
+    /// only the result: `(1 << 256) >> ONE` with a typed `ONE` would otherwise shift the literal
+    /// back into range and be accepted, where solc rejects the operands and the runtime
+    /// expression yields `0`.
+    ///
+    /// A shift or exponentiation whose left operand is a literal is the further exception: it is
+    /// always performed in `uint256`, or `int256` for a negative literal, rather than at full
+    /// precision. Keeping it unbounded would fold `(1 << SHIFT) >> SHIFT` to `1` where the EVM
+    /// shifts the bit out and yields `0`, and would let an exponentiation that reverts with
+    /// `Panic(0x11)` at runtime evaluate to a value wider than a word.
+    fn binop_ty(l: &Self, r: &Self, op: hir::BinOpKind) -> Result<Option<IntTy>, EE> {
         use hir::BinOpKind::*;
-        match op {
-            Shl | Shr | Sar | Pow => l.ty,
+        Ok(match op {
+            Shl | Shr | Sar | Pow => match (l.ty, r.ty) {
+                (Some(ty), Some(_)) => Some(ty),
+                (Some(ty), None) => {
+                    r.mobile_ty()?;
+                    Some(ty)
+                }
+                (None, Some(_)) => {
+                    l.mobile_ty()?;
+                    Some(IntTy::full_width(l.is_negative()))
+                }
+                (None, None) => None,
+            },
             _ => match (l.ty, r.ty) {
                 (None, None) => None,
-                (Some(ty), None) => ty.contains(&r.data).then_some(ty),
-                (None, Some(ty)) => ty.contains(&l.data).then_some(ty),
+                (Some(ty), None) => Self::literal_common_ty(r, ty)?,
+                (None, Some(ty)) => Self::literal_common_ty(l, ty)?,
                 (Some(l), Some(r)) => l.common(r),
             },
-        }
+        })
     }
 
     /// Applies the given binary operation to this value.
@@ -530,7 +606,7 @@ impl IntScalar {
     /// For literal arithmetic, this preserves the exact mathematical value. Typed arithmetic stays
     /// checked: a result outside of the operation's type is an error, like it is at runtime.
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
-        let ty = Self::binop_ty(&self, &r, op);
+        let ty = Self::binop_ty(&self, &r, op)?;
         self.binop_value(r, op)?.retype(ty)
     }
 
@@ -612,6 +688,7 @@ impl IntScalar {
 pub enum EvalErrorKind {
     RecursionLimitReached,
     ArithmeticOverflow,
+    LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
     UnsupportedLiteral,
@@ -632,6 +709,7 @@ impl EvalErrorKind {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
+            Self::LiteralTooLarge => "literal is too large for the type of the other operand",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
             Self::UnsupportedLiteral => "unsupported literal",

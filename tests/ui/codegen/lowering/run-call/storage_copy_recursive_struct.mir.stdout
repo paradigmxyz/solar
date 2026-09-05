@@ -16,14 +16,14 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     icall @store_storage_bytes, 0, v7, v5
     v8 = add 0, 2
     v9 = sload v8 !metadata(storage=slot(2))
-    v10 = add v9, 1
-    v11 = lt v10, v9
-    jumpi v11, bb1, bb2
+    v10 = gt v9, 0xffffffffffffffff
+    jumpi v10, bb1, bb2
   bb2:
+    v11 = add v9, 1
     v12 = storage_array_data_slot v8
     v13 = mul v9, 3
     v14 = add v12, v13
-    sstore v8, v10 !metadata(storage=slot(2))
+    sstore v8, v11 !metadata(storage=slot(2))
     v15 = add 0, 2
     v16 = sload v15 !metadata(storage=slot(2))
     v17 = lt 0, v16
@@ -50,14 +50,14 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v33 = add v31, v32
     v34 = add v33, 2
     v35 = sload v34 !metadata(storage=offset(v33, 2))
-    v36 = add v35, 1
-    v37 = lt v36, v35
-    jumpi v37, bb1, bb6
+    v36 = gt v35, 0xffffffffffffffff
+    jumpi v36, bb1, bb6
   bb6:
+    v37 = add v35, 1
     v38 = storage_array_data_slot v34
     v39 = mul v35, 3
     v40 = add v38, v39
-    sstore v34, v36 !metadata(storage=offset(v33, 2))
+    sstore v34, v37 !metadata(storage=offset(v33, 2))
     v41 = add 0, 2
     v42 = sload v41 !metadata(storage=slot(2))
     v43 = lt 0, v42
@@ -84,14 +84,14 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     sstore v54, v59 !metadata(storage=symbolic(v54))
     v60 = add 0, 2
     v61 = sload v60 !metadata(storage=slot(2))
-    v62 = add v61, 1
-    v63 = lt v62, v61
-    jumpi v63, bb1, bb9
+    v62 = gt v61, 0xffffffffffffffff
+    jumpi v62, bb1, bb9
   bb9:
+    v63 = add v61, 1
     v64 = storage_array_data_slot v60
     v65 = mul v61, 3
     v66 = add v64, v65
-    sstore v60, v62 !metadata(storage=slot(2))
+    sstore v60, v63 !metadata(storage=slot(2))
     v67 = add 0, 2
     v68 = sload v67 !metadata(storage=slot(2))
     v69 = lt 1, v68
@@ -119,15 +119,15 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v86 = icall @load_storage_struct_array_0, 1, v85
     memory_object_store_field memorystruct<3>, v79, 2, v86
     v87 = sload 6 !metadata(storage=slot(6))
-    v88 = add v87, 1
-    v89 = lt v88, v87
-    jumpi v89, bb1, bb11
+    v88 = gt v87, 0xffffffffffffffff
+    jumpi v88, bb1, bb11
   bb11:
+    v89 = add v87, 1
     v90 = storage_array_data_slot 6
     v91 = mul v87, 3
     v92 = add v90, v91
     icall @store_recursive_storage_0_0, 0, v92, v79
-    sstore 6, v88 !metadata(storage=slot(6))
+    sstore 6, v89 !metadata(storage=slot(6))
     v93 = sload 0 !metadata(storage=slot(0))
     v94 = not 0xffffffffffffffffffffffffffffffff
     v95 = and v93, v94
@@ -172,15 +172,15 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v124 = icall @load_storage_struct_array_0, 1, v123
     memory_object_store_field memorystruct<3>, v117, 2, v124
     v125 = sload 6 !metadata(storage=slot(6))
-    v126 = add v125, 1
-    v127 = lt v126, v125
-    jumpi v127, bb1, bb15
+    v126 = gt v125, 0xffffffffffffffff
+    jumpi v126, bb1, bb15
   bb15:
+    v127 = add v125, 1
     v128 = storage_array_data_slot 6
     v129 = mul v125, 3
     v130 = add v128, v129
     icall @store_recursive_storage_0_0, 0, v130, v117
-    sstore 6, v126 !metadata(storage=slot(6))
+    sstore 6, v127 !metadata(storage=slot(6))
     v131 = add 0, 2
     v132 = sload v131 !metadata(storage=slot(2))
     v133 = lt 0, v132
@@ -228,15 +228,15 @@ fn @exercise() -> (u256, u128, u256, u128, u256, u128, u256, u128, u256, u256) [
     v164 = icall @load_storage_struct_array_0, 1, v163
     memory_object_store_field memorystruct<3>, v157, 2, v164
     v165 = sload 6 !metadata(storage=slot(6))
-    v166 = add v165, 1
-    v167 = lt v166, v165
-    jumpi v167, bb1, bb18
+    v166 = gt v165, 0xffffffffffffffff
+    jumpi v166, bb1, bb18
   bb18:
+    v167 = add v165, 1
     v168 = storage_array_data_slot 6
     v169 = mul v165, 3
     v170 = add v168, v169
     icall @store_recursive_storage_0_0, 0, v170, v157
-    sstore 6, v166 !metadata(storage=slot(6))
+    sstore 6, v167 !metadata(storage=slot(6))
     v171 = sload 6 !metadata(storage=slot(6))
     v172 = sload 6 !metadata(storage=slot(6))
     v173 = lt 0, v172

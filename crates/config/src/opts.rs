@@ -424,6 +424,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub switch_max_bit_slice_gas_code_growth: Option<usize>,
 
+    /// Assert instead of logging when a value is live across a planned stack edge into an
+    /// already-emitted block without a spill home.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub assert_planned_edge_spill_home: bool,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------

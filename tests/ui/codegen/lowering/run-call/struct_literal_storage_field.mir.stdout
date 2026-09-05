@@ -3,10 +3,10 @@
 fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = div v0, 8
     v5 = add v3, v4
@@ -22,12 +22,12 @@ fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] 
     v15 = shl v8, v14
     v16 = or v12, v15
     sstore v5, v16 !metadata(storage=symbolic(v5))
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v17 = sload 0 !metadata(storage=slot(0))
-    v18 = add v17, 1
-    v19 = lt v18, v17
-    jumpi v19, bb1, bb3
+    v18 = gt v17, 0xffffffffffffffff
+    jumpi v18, bb1, bb3
   bb3:
+    v19 = add v17, 1
     v20 = storage_array_data_slot 0
     v21 = div v17, 8
     v22 = add v20, v21
@@ -43,7 +43,7 @@ fn @dynField() -> u256 [selector=0x3938b4c8, abi_params=[], abi_returns=[word]] 
     v32 = shl v25, v31
     v33 = or v29, v32
     sstore v22, v33 !metadata(storage=symbolic(v22))
-    sstore 0, v18 !metadata(storage=slot(0))
+    sstore 0, v19 !metadata(storage=slot(0))
     v34 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
     v35 = address
     v36 = and v35, 0xffffffffffffffffffffffffffffffffffffffff

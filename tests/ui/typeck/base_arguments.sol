@@ -14,7 +14,11 @@ contract Derived1 is Base {
 contract Derived2 is Base {
     constructor() Base(5, 6) {}
 }
-contract Derived3 is Base() { } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 0
+// An empty list gives no arguments, so it is both the wrong count and a base
+// constructor left without arguments; solc reports both here too.
+contract Derived3 is Base() { }
+//~^ ERROR: no arguments passed to the base constructor
+//~| ERROR: wrong number of arguments for base constructor: expected 2, found 0
 contract Derived4 is Base(1) { } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 contract Derived5 is Base { constructor() Base(2) {} } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 contract Derived6 is Base { constructor() Base("a", 1) {} } //~ ERROR: mismatched types

@@ -420,14 +420,14 @@ fn @copy() -> u256 [selector=0x60726abb, abi_params=[], abi_returns=[word]] {
     revert 0, 36
   bb4:
     v3 = sload 0 !metadata(storage=slot(0))
-    v4 = add v3, 1
-    v5 = lt v4, v3
-    jumpi v5, bb7, bb8
+    v4 = gt v3, 0xffffffffffffffff
+    jumpi v4, bb7, bb8
   bb8:
+    v5 = add v3, 1
     v6 = storage_array_data_slot 0
     v7 = mul v3, 2
     v8 = add v6, v7
-    sstore 0, v4 !metadata(storage=slot(0))
+    sstore 0, v5 !metadata(storage=slot(0))
     jump bb6
   bb6:
     jump bb3

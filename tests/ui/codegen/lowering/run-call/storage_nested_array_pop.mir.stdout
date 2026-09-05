@@ -329,10 +329,10 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
   bb4:
     v6 = icall @load_storage_packed_array_2_0, 1, 0
     v7 = sload 1 !metadata(storage=slot(1))
-    v8 = add v7, 1
-    v9 = lt v8, v7
-    jumpi v9, bb7, bb8
+    v8 = gt v7, 0xffffffffffffffff
+    jumpi v8, bb7, bb8
   bb8:
+    v9 = add v7, 1
     v10 = storage_array_data_slot 1
     v11 = add v10, v7
     v12 = memory_object_len memoryarray, v6
@@ -370,7 +370,7 @@ fn @test() -> (u256, u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_return
     sstore v55, v57 !metadata(storage=symbolic(v55))
     jump bb18
   bb18:
-    sstore 1, v8 !metadata(storage=slot(1))
+    sstore 1, v9 !metadata(storage=slot(1))
     jump bb6
   bb6:
     jump bb3
