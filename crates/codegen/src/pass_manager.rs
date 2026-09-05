@@ -169,7 +169,7 @@ fn run_passes_inner(
             changed |= pass_changed;
             assert_debug_info_handled(module, pass_name, "after");
 
-            if validate_each && should_validate_ir(gcx) {
+            if pass_changed && validate_each && should_validate_ir(gcx) {
                 validate_module_after_pass(module, pass_name);
             }
         }
@@ -192,7 +192,7 @@ fn run_passes_inner(
         let phase_changed = module.phase != new_phase;
         module.advance_phase(new_phase);
         changed |= phase_changed;
-        if validate_each && should_validate_ir(gcx) {
+        if phase_changed && validate_each && should_validate_ir(gcx) {
             validate_module_after_pass(module, new_phase.name());
         }
     }
