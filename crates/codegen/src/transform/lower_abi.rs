@@ -763,6 +763,7 @@ impl LowerAbiCx {
                 input_end,
                 &mut current,
                 true,
+                RevertReason::InvalidTupleOffset,
             );
             builder.add_return(MirType::uint256());
             builder.ret([base]);
@@ -1542,6 +1543,7 @@ impl LowerAbiCx {
                 input_end,
                 current,
                 head_checked,
+                options.offset_reason,
             );
             return builder.make_slice(data, len, SliceLocation::Calldata);
         }
@@ -2071,6 +2073,7 @@ impl LowerAbiCx {
         input_end: ValueId,
         current: &mut BlockId,
         head_checked: bool,
+        offset_reason: RevertReason,
     ) -> (ValueId, ValueId, ValueId) {
         builder.switch_to_block(*current);
         if !head_checked {
@@ -2092,8 +2095,11 @@ impl LowerAbiCx {
         let head_out_of_range = builder.gt(target_end, input_end);
         let head_invalid = builder.or(offset_overflow, head_out_of_range);
         if builder.encodes_revert_reasons() {
-            // Report solc's offset, length, and stride checks separately.
-            *current = builder.revert_if(head_invalid, RevertReason::InvalidCalldataArrayOffset);
+            // Report solc's checks separately: an unencodable offset belongs to the enclosing
+            // tuple, struct, or array, then the head range, length, and stride checks.
+            *current = builder.revert_if(offset_overflow, offset_reason);
+            *current =
+                builder.revert_if(head_out_of_range, RevertReason::InvalidCalldataArrayOffset);
             let len = builder.calldataload(base);
             let data = builder.add(base, word);
             Self::guard_bytes_data(builder, data, len, input_end, current, false);
