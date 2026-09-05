@@ -1,0 +1,25 @@
+//@ compile-flags: -Zevm-ir-pipeline=terminal-prefixes
+@module MultipleTerminalRegions
+
+bb0:
+  push 99
+  calldatasize
+  jumpi bb1, bb2
+
+bb1:
+  pop
+  push 1
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+bb2:
+  pop
+  push 2
+  push 0
+  mstore
+  push 32
+  push 0
+  return

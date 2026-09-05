@@ -7,8 +7,9 @@
 //! plus the region peak must fit the physical stack. Code-relative observations,
 //! GAS, opaque effects and shifts requiring legacy legalization stop the proof. Analysis is capped
 //! at 64 block/height states per candidate and runs after all local/structural transforms and
-//! before final block placement. This preserves patterns used by earlier packing and sharing. At
-//! most one region changes per invocation, so later candidates cannot use stale entry bounds.
+//! before final block placement. This preserves patterns used by earlier packing and sharing. Each
+//! accepted region removes at least one POP. Recompute physical entry bounds before trying
+//! another region, so cumulative retained words cannot invalidate the stack-capacity proof.
 
 use super::{
     super::{BlockId, EvmPass, InstKind, Module, TerminatorKind, verify},
@@ -26,8 +27,14 @@ impl EvmPass for TerminalPrefixes {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        let Ok(heights) = verify::stack_heights(module) else { return false };
-        eliminate(module, &heights, gcx.sess.opts.evm_version.has_bitwise_shifting())
+        let mut changed = false;
+        while let Ok(heights) = verify::stack_heights(module) {
+            if !eliminate(module, &heights, gcx.sess.opts.evm_version.has_bitwise_shifting()) {
+                break;
+            }
+            changed = true;
+        }
+        changed
     }
 }
 
