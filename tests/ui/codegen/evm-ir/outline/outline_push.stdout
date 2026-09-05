@@ -6,15 +6,13 @@
 +   jump bb1
 + bb1:
     push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
-+   swap 1
-+   jump
-+ bb2:
     pop
 -   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef1
 -   pop
++   jump
++ bb2:
     stop
 + bb3:
-+   pop
 +   push bb2
 +   jump bb1
   

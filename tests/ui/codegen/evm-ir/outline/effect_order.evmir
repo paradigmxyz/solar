@@ -1,0 +1,58 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=outline
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=outline
+@module EffectOrder
+
+// Aliasing writes and reads stay in their original order inside the shared body.
+// MSIZE observes the same expansion because the continuation protocol uses no memory.
+bb0:
+  push 7
+  push 0
+  mstore
+  push 0
+  mload
+  push 1
+  add
+  push 0
+  mstore
+  push 0
+  mload
+  push 32
+  mstore
+  msize
+  pop
+  jump bb1
+bb1:
+  push 7
+  push 0
+  mstore
+  push 0
+  mload
+  push 1
+  add
+  push 0
+  mstore
+  push 0
+  mload
+  push 32
+  mstore
+  msize
+  pop
+  jump bb2
+bb2:
+  push 7
+  push 0
+  mstore
+  push 0
+  mload
+  push 1
+  add
+  push 0
+  mstore
+  push 0
+  mload
+  push 32
+  mstore
+  msize
+  pop
+  stop

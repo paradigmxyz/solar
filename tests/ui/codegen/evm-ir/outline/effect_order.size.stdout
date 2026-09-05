@@ -1,0 +1,68 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/effect_order.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/effect_order.evmir (after outline) ===
+  @module EffectOrder
+  bb0:
+-   push 7
+-   push 0
+-   mstore
+-   push 0
+-   mload
+-   push 1
+-   add
+-   push 0
+-   mstore
+-   push 0
+-   mload
+-   push 32
+-   mstore
+-   msize
+-   pop
+-   jump bb1
++   push bb4
++   jump bb3
+  bb1:
+-   push 7
+-   push 0
+-   mstore
+-   push 0
+-   mload
+-   push 1
+-   add
+-   push 0
+-   mstore
+-   push 0
+-   mload
+-   push 32
+-   mstore
+-   msize
+-   pop
+-   jump bb2
++   push bb5
++   jump bb3
+  bb2:
++   push bb6
++   jump bb3
++ bb3:
+    push 7
+    push 0
+    mstore
+    push 0
+    mload
+    push 1
+    add
+    push 0
+    mstore
+    push 0
+    mload
+    push 32
+    mstore
+    msize
+    pop
++   jump
++ bb4:
++   jump bb1
++ bb5:
++   jump bb2
++ bb6:
+    stop
+  

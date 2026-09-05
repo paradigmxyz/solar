@@ -5,18 +5,20 @@
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: + push [[RET0:bb[0-9]+]]
 // CHECK: + jump [[OUTLINE:bb[0-9]+]]
-// CHECK: + bb1:
+// CHECK: {{^[ +].*}}bb1:
 // CHECK: + push [[RET1:bb[0-9]+]]
 // CHECK: + jump [[OUTLINE]]
-// CHECK: + bb2:
-// CHECK: {{^[ +].*}}push 2
+// CHECK: {{^[ +].*}}bb2:
+// CHECK: + push [[RET2:bb[0-9]+]]
+// CHECK: + jump [[OUTLINE]]
 // CHECK: + [[OUTLINE]]:
-// CHECK: {{^[ +].*}}push 1
+// CHECK: {{^[ +].*}}push 2
 // CHECK: {{^[ +].*}}push 12
 // CHECK: + jump
 // CHECK: + [[RET0]]:
 // CHECK: {{^[ +].*}}push 13
 // CHECK: + [[RET1]]:
+// CHECK: + [[RET2]]:
 bb0:
   push 1
   pop
