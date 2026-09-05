@@ -7,44 +7,38 @@ fn @grow() -> (u256, u256, u256) [selector=0x5298948e, abi_params=[], abi_return
     jumpi v1, bb1, bb2
   bb2:
     v2 = add v0, 1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = storage_array_data_slot 1
-    v5 = add v4, v0
-    sstore v5, 7 !metadata(storage=symbolic(v5))
+    v3 = storage_array_data_slot 1
+    v4 = add v3, v0
+    sstore v4, 7 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
-    v6 = sload 1 !metadata(storage=slot(1))
-    v7 = gt v6, 0xffffffffffffffff
-    jumpi v7, bb1, bb4
-  bb4:
-    v8 = add v6, 1
-    v9 = lt v8, v6
-    jumpi v9, bb1, bb5
+    v5 = sload 1 !metadata(storage=slot(1))
+    v6 = gt v5, 0xffffffffffffffff
+    jumpi v6, bb1, bb3
+  bb3:
+    v7 = add v5, 1
+    v8 = storage_array_data_slot 1
+    v9 = add v8, v5
+    sstore v9, 8 !metadata(storage=symbolic(v9))
+    sstore 1, v7 !metadata(storage=slot(1))
+    v10 = sload 1 !metadata(storage=slot(1))
+    v11 = lt 0, v10
+    v12 = iszero v11
+    jumpi v12, bb4, bb5
   bb5:
-    v10 = storage_array_data_slot 1
-    v11 = add v10, v6
-    sstore v11, 8 !metadata(storage=symbolic(v11))
-    sstore 1, v8 !metadata(storage=slot(1))
-    v12 = sload 1 !metadata(storage=slot(1))
-    v13 = lt 0, v12
-    v14 = iszero v13
-    jumpi v14, bb6, bb7
-  bb7:
-    v15 = storage_array_data_slot 1
-    v16 = add v15, 0
-    v17 = sload v16 !metadata(storage=symbolic(v15))
-    v18 = sload 1 !metadata(storage=slot(1))
-    v19 = lt 1, v18
-    v20 = iszero v19
-    jumpi v20, bb6, bb8
-  bb8:
-    v21 = storage_array_data_slot 1
-    v22 = add v21, 1
-    v23 = sload v22 !metadata(storage=offset(v21, 1))
-    v24 = sload 1 !metadata(storage=slot(1))
-    ret v17, v23, v24
+    v13 = storage_array_data_slot 1
+    v14 = add v13, 0
+    v15 = sload v14 !metadata(storage=symbolic(v13))
+    v16 = sload 1 !metadata(storage=slot(1))
+    v17 = lt 1, v16
+    v18 = iszero v17
+    jumpi v18, bb4, bb6
   bb6:
+    v19 = storage_array_data_slot 1
+    v20 = add v19, 1
+    v21 = sload v20 !metadata(storage=offset(v19, 1))
+    v22 = sload 1 !metadata(storage=slot(1))
+    ret v15, v21, v22
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
@@ -62,15 +56,12 @@ fn @wrapOntoOwner() -> u256 [selector=0x428ae2e7, abi_params=[], abi_returns=[wo
     jumpi v1, bb1, bb2
   bb2:
     v2 = add v0, 1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = storage_array_data_slot 1
-    v5 = add v4, v0
-    sstore v5, 7 !metadata(storage=symbolic(v5))
+    v3 = storage_array_data_slot 1
+    v4 = add v3, v0
+    sstore v4, 7 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
-    v6 = sload 0 !metadata(storage=slot(0))
-    ret v6
+    v5 = sload 0 !metadata(storage=slot(0))
+    ret v5
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
@@ -85,12 +76,9 @@ fn @atCap() [selector=0xdb9a763c, abi_params=[], abi_returns=[]] {
     jumpi v1, bb1, bb2
   bb2:
     v2 = add v0, 1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = storage_array_data_slot 1
-    v5 = add v4, v0
-    sstore v5, 7 !metadata(storage=symbolic(v5))
+    v3 = storage_array_data_slot 1
+    v4 = add v3, v0
+    sstore v4, 7 !metadata(storage=symbolic(v4))
     sstore 1, v2 !metadata(storage=slot(1))
     stop
   bb1:

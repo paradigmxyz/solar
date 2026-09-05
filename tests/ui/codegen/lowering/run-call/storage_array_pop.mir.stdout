@@ -7,48 +7,42 @@ fn @test() -> (u256, u256) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     jumpi v1, bb1, bb2
   bb2:
     v2 = add v0, 1
-    v3 = lt v2, v0
-    jumpi v3, bb1, bb3
-  bb3:
-    v4 = storage_array_data_slot 0
-    v5 = add v4, v0
-    sstore v5, 7 !metadata(storage=symbolic(v5))
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore v4, 7 !metadata(storage=symbolic(v4))
     sstore 0, v2 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = gt v6, 0xffffffffffffffff
-    jumpi v7, bb1, bb4
-  bb4:
-    v8 = add v6, 1
-    v9 = lt v8, v6
-    jumpi v9, bb1, bb5
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = gt v5, 0xffffffffffffffff
+    jumpi v6, bb1, bb3
+  bb3:
+    v7 = add v5, 1
+    v8 = storage_array_data_slot 0
+    v9 = add v8, v5
+    sstore v9, 3 !metadata(storage=symbolic(v9))
+    sstore 0, v7 !metadata(storage=slot(0))
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = eq v11, 0
+    jumpi v12, bb4, bb5
   bb5:
-    v10 = storage_array_data_slot 0
-    v11 = add v10, v6
-    sstore v11, 3 !metadata(storage=symbolic(v11))
-    sstore 0, v8 !metadata(storage=slot(0))
-    v12 = sload 0 !metadata(storage=slot(0))
-    v13 = sload 0 !metadata(storage=slot(0))
-    v14 = eq v13, 0
-    jumpi v14, bb6, bb7
-  bb7:
-    v15 = sub v13, 1
-    sstore 0, v15 !metadata(storage=slot(0))
-    v16 = storage_array_data_slot 0
-    v17 = add v16, v15
-    sstore v17, 0 !metadata(storage=symbolic(v17))
-    v18 = sload 0 !metadata(storage=slot(0))
-    v19 = sload 0 !metadata(storage=slot(0))
-    v20 = eq v19, 0
-    jumpi v20, bb6, bb8
-  bb8:
-    v21 = sub v19, 1
-    sstore 0, v21 !metadata(storage=slot(0))
-    v22 = storage_array_data_slot 0
-    v23 = add v22, v21
-    sstore v23, 0 !metadata(storage=symbolic(v23))
-    v24 = sload 0 !metadata(storage=slot(0))
-    ret v18, v24
+    v13 = sub v11, 1
+    sstore 0, v13 !metadata(storage=slot(0))
+    v14 = storage_array_data_slot 0
+    v15 = add v14, v13
+    sstore v15, 0 !metadata(storage=symbolic(v15))
+    v16 = sload 0 !metadata(storage=slot(0))
+    v17 = sload 0 !metadata(storage=slot(0))
+    v18 = eq v17, 0
+    jumpi v18, bb4, bb6
   bb6:
+    v19 = sub v17, 1
+    sstore 0, v19 !metadata(storage=slot(0))
+    v20 = storage_array_data_slot 0
+    v21 = add v20, v19
+    sstore v21, 0 !metadata(storage=symbolic(v21))
+    v22 = sload 0 !metadata(storage=slot(0))
+    ret v16, v22
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
     revert 0, 36

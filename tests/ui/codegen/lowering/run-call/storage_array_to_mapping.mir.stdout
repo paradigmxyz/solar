@@ -253,47 +253,41 @@ fn @constructor() [constructor] {
     jumpi v288, bb60, bb61
   bb61:
     v289 = add v287, 1
-    v290 = lt v289, v287
-    jumpi v290, bb60, bb62
-  bb62:
-    v291 = storage_array_data_slot 2
-    v292 = div v287, 1
-    v293 = add v291, v292
-    v294 = mod v287, 1
-    v295 = mul v294, 20
-    v296 = mul v295, 8
-    v297 = shl v296, 0xffffffffffffffffffffffffffffffffffffffff
-    v298 = sload v293 !metadata(storage=symbolic(v293))
-    v299 = not v297
-    v300 = and v298, v299
-    v301 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
-    v302 = shl v296, v301
-    v303 = or v300, v302
-    sstore v293, v303 !metadata(storage=symbolic(v293))
+    v290 = storage_array_data_slot 2
+    v291 = div v287, 1
+    v292 = add v290, v291
+    v293 = mod v287, 1
+    v294 = mul v293, 20
+    v295 = mul v294, 8
+    v296 = shl v295, 0xffffffffffffffffffffffffffffffffffffffff
+    v297 = sload v292 !metadata(storage=symbolic(v292))
+    v298 = not v296
+    v299 = and v297, v298
+    v300 = and 1, 0xffffffffffffffffffffffffffffffffffffffff
+    v301 = shl v295, v300
+    v302 = or v299, v301
+    sstore v292, v302 !metadata(storage=symbolic(v292))
     sstore 2, v289 !metadata(storage=slot(2))
-    v304 = sload 2 !metadata(storage=slot(2))
-    v305 = gt v304, 0xffffffffffffffff
-    jumpi v305, bb60, bb63
-  bb63:
-    v306 = add v304, 1
-    v307 = lt v306, v304
-    jumpi v307, bb60, bb64
-  bb64:
-    v308 = storage_array_data_slot 2
-    v309 = div v304, 1
-    v310 = add v308, v309
-    v311 = mod v304, 1
-    v312 = mul v311, 20
-    v313 = mul v312, 8
-    v314 = shl v313, 0xffffffffffffffffffffffffffffffffffffffff
-    v315 = sload v310 !metadata(storage=symbolic(v310))
-    v316 = not v314
-    v317 = and v315, v316
-    v318 = and 2, 0xffffffffffffffffffffffffffffffffffffffff
-    v319 = shl v313, v318
-    v320 = or v317, v319
-    sstore v310, v320 !metadata(storage=symbolic(v310))
-    sstore 2, v306 !metadata(storage=slot(2))
+    v303 = sload 2 !metadata(storage=slot(2))
+    v304 = gt v303, 0xffffffffffffffff
+    jumpi v304, bb60, bb62
+  bb62:
+    v305 = add v303, 1
+    v306 = storage_array_data_slot 2
+    v307 = div v303, 1
+    v308 = add v306, v307
+    v309 = mod v303, 1
+    v310 = mul v309, 20
+    v311 = mul v310, 8
+    v312 = shl v311, 0xffffffffffffffffffffffffffffffffffffffff
+    v313 = sload v308 !metadata(storage=symbolic(v308))
+    v314 = not v312
+    v315 = and v313, v314
+    v316 = and 2, 0xffffffffffffffffffffffffffffffffffffffff
+    v317 = shl v311, v316
+    v318 = or v315, v317
+    sstore v308, v318 !metadata(storage=symbolic(v308))
+    sstore 2, v305 !metadata(storage=slot(2))
     stop
   bb60:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

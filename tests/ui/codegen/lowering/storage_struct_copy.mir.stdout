@@ -14,24 +14,21 @@ fn @constructor() [constructor] {
     jumpi v7, bb1, bb2
   bb2:
     v8 = add v6, 1
-    v9 = lt v8, v6
-    jumpi v9, bb1, bb3
-  bb3:
-    v10 = storage_array_data_slot v5
-    v11 = div v6, 8
-    v12 = add v10, v11
-    v13 = mod v6, 8
-    v14 = mul v13, 4
-    v15 = mul v14, 8
-    v16 = shl v15, 0xffffffff
-    v17 = sload v12 !metadata(storage=symbolic(v12))
-    v18 = not v16
-    v19 = and v17, v18
-    v20 = shr 224, 0x1234567800000000000000000000000000000000000000000000000000000000
-    v21 = and v20, 0xffffffff
-    v22 = shl v15, v21
-    v23 = or v19, v22
-    sstore v12, v23 !metadata(storage=symbolic(v12))
+    v9 = storage_array_data_slot v5
+    v10 = div v6, 8
+    v11 = add v9, v10
+    v12 = mod v6, 8
+    v13 = mul v12, 4
+    v14 = mul v13, 8
+    v15 = shl v14, 0xffffffff
+    v16 = sload v11 !metadata(storage=symbolic(v11))
+    v17 = not v15
+    v18 = and v16, v17
+    v19 = shr 224, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v20 = and v19, 0xffffffff
+    v21 = shl v14, v20
+    v22 = or v18, v21
+    sstore v11, v22 !metadata(storage=symbolic(v11))
     sstore v5, v8 !metadata(storage=slot(1))
     stop
   bb1:

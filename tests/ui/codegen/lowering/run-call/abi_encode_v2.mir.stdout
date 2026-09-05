@@ -105,100 +105,94 @@ fn @f4() -> memorybytes [selector=0xc3f90202, abi_params=[], abi_returns=[memory
     jumpi v3, bb1, bb2
   bb2:
     v4 = add v2, 1
-    v5 = lt v4, v2
-    jumpi v5, bb1, bb3
-  bb3:
-    v6 = storage_array_data_slot v1
-    v7 = add v6, v2
-    sstore v7, 2 !metadata(storage=symbolic(v7))
+    v5 = storage_array_data_slot v1
+    v6 = add v5, v2
+    sstore v6, 2 !metadata(storage=symbolic(v6))
     sstore v1, v4 !metadata(storage=slot(1))
-    v8 = add 0, 1
-    v9 = sload v8 !metadata(storage=slot(1))
-    v10 = gt v9, 0xffffffffffffffff
-    jumpi v10, bb1, bb4
-  bb4:
-    v11 = add v9, 1
-    v12 = lt v11, v9
-    jumpi v12, bb1, bb5
+    v7 = add 0, 1
+    v8 = sload v7 !metadata(storage=slot(1))
+    v9 = gt v8, 0xffffffffffffffff
+    jumpi v9, bb1, bb3
+  bb3:
+    v10 = add v8, 1
+    v11 = storage_array_data_slot v7
+    v12 = add v11, v8
+    sstore v12, 3 !metadata(storage=symbolic(v12))
+    sstore v7, v10 !metadata(storage=slot(1))
+    v13 = alloc memorystruct<2>, exact, uninitialized, panic, 64
+    v14 = sload 0 !metadata(storage=slot(0))
+    memory_object_store_field memorystruct<2>, v13, 0, v14
+    v15 = add 0, 1
+    v16 = icall @load_storage_word_array, 1, v15
+    memory_object_store_field memorystruct<2>, v13, 1, v16
+    v17 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v13, 2
+    v18 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v18, 3
+    v19 = memory_object_data memorybytes, v18
+    mstore v19, 0x6465660000000000000000000000000000000000000000000000000000000000
+    v20 = memory_object_len memorybytes, v18
+    v21 = lt 0, v20
+    v22 = iszero v21
+    jumpi v22, bb4, bb5
   bb5:
-    v13 = storage_array_data_slot v8
-    v14 = add v13, v9
-    sstore v14, 3 !metadata(storage=symbolic(v14))
-    sstore v8, v11 !metadata(storage=slot(1))
-    v15 = alloc memorystruct<2>, exact, uninitialized, panic, 64
-    v16 = sload 0 !metadata(storage=slot(0))
-    memory_object_store_field memorystruct<2>, v15, 0, v16
-    v17 = add 0, 1
-    v18 = icall @load_storage_word_array, 1, v17
-    memory_object_store_field memorystruct<2>, v15, 1, v18
-    v19 = abi_encode [word, memory_bytes, tuple<word, memory_array<word>>, word], object, args 1, v0, v15, 2
-    v20 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v20, 3
-    v21 = memory_object_data memorybytes, v20
-    mstore v21, 0x6465660000000000000000000000000000000000000000000000000000000000
-    v22 = memory_object_len memorybytes, v20
-    v23 = lt 0, v22
-    v24 = iszero v23
-    jumpi v24, bb6, bb7
+    v23 = memory_object_load_byte memorybytes, v18, 0
+    v24 = shl 248, v23
+    v25 = alloc memorybytes, exact, uninitialized, infallible, 64
+    set_memory_object_len memorybytes, v25, 1
+    v26 = memory_object_data memorybytes, v25
+    mstore v26, 0x6400000000000000000000000000000000000000000000000000000000000000
+    v27 = memory_object_load_element memorybytes, v25, 0
+    v28 = memory_object_len memorybytes, v25
+    v29 = lt v28, 1
+    v30 = sub 1, v28
+    v31 = mul 8, v30
+    v32 = shl v31, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v33 = select v29, v32, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v34 = and v27, v33
+    v35 = eq v24, v34
+    v36 = iszero v35
+    jumpi v36, bb6, bb7
   bb7:
-    v25 = memory_object_load_byte memorybytes, v20, 0
-    v26 = shl 248, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, 64
-    set_memory_object_len memorybytes, v27, 1
-    v28 = memory_object_data memorybytes, v27
-    mstore v28, 0x6400000000000000000000000000000000000000000000000000000000000000
-    v29 = memory_object_load_element memorybytes, v27, 0
-    v30 = memory_object_len memorybytes, v27
-    v31 = lt v30, 1
-    v32 = sub 1, v30
-    v33 = mul 8, v32
-    v34 = shl v33, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v35 = select v31, v34, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v36 = and v29, v35
-    v37 = eq v26, v36
-    v38 = iszero v37
-    jumpi v38, bb8, bb9
-  bb9:
-    v39 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
-    v40 = memory_object_load_element memorybytes, v39, 0
-    v41 = memory_object_len memorybytes, v39
-    v42 = lt v41, 1
-    v43 = sub 1, v41
-    v44 = mul 8, v43
-    v45 = shl v44, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v46 = select v42, v45, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v47 = and v40, v46
-    v48 = memory_object_len memorybytes, v20
-    v49 = lt 0, v48
-    v50 = iszero v49
-    jumpi v50, bb6, bb10
-  bb10:
-    v51 = byte 0, v47
-    memory_object_store_byte memorybytes, v20, 0, v51
-    v52 = memory_object_len memorybytes, v20
-    v53 = lt 0, v52
-    v54 = iszero v53
-    jumpi v54, bb6, bb11
-  bb11:
-    v55 = memory_object_load_byte memorybytes, v20, 0
-    v56 = shl 248, v55
-    v57 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
-    v58 = memory_object_load_element memorybytes, v57, 0
-    v59 = memory_object_len memorybytes, v57
-    v60 = lt v59, 1
-    v61 = sub 1, v59
-    v62 = mul 8, v61
-    v63 = shl v62, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v64 = select v60, v63, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v65 = and v58, v64
-    v66 = eq v56, v65
-    v67 = iszero v66
-    jumpi v67, bb8, bb12
-  bb12:
-    ret v19
+    v37 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v38 = memory_object_load_element memorybytes, v37, 0
+    v39 = memory_object_len memorybytes, v37
+    v40 = lt v39, 1
+    v41 = sub 1, v39
+    v42 = mul 8, v41
+    v43 = shl v42, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v44 = select v40, v43, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v45 = and v38, v44
+    v46 = memory_object_len memorybytes, v18
+    v47 = lt 0, v46
+    v48 = iszero v47
+    jumpi v48, bb4, bb8
   bb8:
-    revert 0, 0
+    v49 = byte 0, v45
+    memory_object_store_byte memorybytes, v18, 0, v49
+    v50 = memory_object_len memorybytes, v18
+    v51 = lt 0, v50
+    v52 = iszero v51
+    jumpi v52, bb4, bb9
+  bb9:
+    v53 = memory_object_load_byte memorybytes, v18, 0
+    v54 = shl 248, v53
+    v55 = icall @literal_bytes_word, 1, 0x6500000000000000000000000000000000000000000000000000000000000000, 1
+    v56 = memory_object_load_element memorybytes, v55, 0
+    v57 = memory_object_len memorybytes, v55
+    v58 = lt v57, 1
+    v59 = sub 1, v57
+    v60 = mul 8, v59
+    v61 = shl v60, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v62 = select v58, v61, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v63 = and v56, v62
+    v64 = eq v54, v63
+    v65 = iszero v64
+    jumpi v65, bb6, bb10
+  bb10:
+    ret v17
   bb6:
+    revert 0, 0
+  bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
