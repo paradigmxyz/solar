@@ -120,6 +120,20 @@ and is not claimed as symbolic agreement. Dying terminal spill values (`efb3af32
 remove another 683 Nitro bytes in both modes with unchanged gas. Its 16 focused
 revisions pass and both symbolic modes reach bounded agreement.
 
+Tiny taken-only terminal sharing (`17d043dc`) preserves all hot gas labels and
+removes 21 runtime / 25 creation bytes in each mode. Both UI corpora have no
+individual regressions (runtime −1,788/−1,288 bytes), and 612 independent assembled
+replays pass. Final heap-store operands (`56cede0e`) remove 967/958 runtime bytes
+with unchanged hot gas and no UI size regressions. Fixed-scratch differentials
+reach bounded agreement; unrestricted-address solving remains incomplete.
+
+The nearest-duplicate scheduler trial was rejected and restored: its locally
+cheaper schedules interact with later zero materialization, increasing Flashloan
+size and some UI outputs. A dispatch-clustering experiment was also rejected:
+one-byte table addresses save extraction gas but lost fallthroughs add 19 bytes.
+Both experiments retain their sources and measured evidence without production
+fallbacks. Current work examines primitive table encoding and selective spilling.
+
 The latest committed copy/spill checkpoint matches all 15 runtime cases, 175
 ordered labels and 139 observations in both modes. Compared with the sealed
 baseline, hot gas is 5,116,867 → 5,092,048 (gas) and 5,189,683 → 5,098,748 (size),
@@ -131,8 +145,9 @@ creation/runtime size gates remain unmet. The nine heavy gas-mode cases were
 not included in this short runtime rerun and remain pending final remeasurement.
 Full rankings are in `committed-copy-spill-ranking/summary.json`.
 
-Current independent work reviews tiny terminal sharing and investigates remaining
-size causes. Output quality, exact IDs and every gas label determine acceptance.
+Output quality, exact IDs and every gas label determine acceptance. The ranking
+above predates the terminal and heap-writer improvements and will be refreshed
+after the next accepted encoding checkpoint.
 
 ## Remaining acceptance
 
