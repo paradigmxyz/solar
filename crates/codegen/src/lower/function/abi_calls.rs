@@ -696,7 +696,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let bound = self.builder.sub(available, needed);
             let valid = self.builder.slt(offset, bound);
             let invalid = self.builder.iszero(valid);
-            self.builder.revert_if(invalid);
+            self.builder.revert_if(invalid, RevertReason::InvalidCalldataTailOffset);
         }
         Some(value_pos)
     }
@@ -710,7 +710,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let calldata_size = self.builder.calldatasize();
         let remaining = self.builder.sub(calldata_size, start);
         let invalid = self.builder.slt(remaining, size);
-        self.builder.revert_if(invalid);
+        self.builder.revert_if(invalid, RevertReason::CalldataTailTooShort);
     }
 
     fn validate_calldata_dynamic_tail(
@@ -729,7 +729,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, size);
         let out_of_bounds = self.builder.sgt(data, limit);
-        self.builder.revert_if(out_of_bounds);
+        self.builder.revert_if(out_of_bounds, RevertReason::CalldataTailTooShort);
     }
 
     fn decode_calldata_word(
@@ -764,7 +764,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // if !valid(value) { revert(0, 0) }
         let valid = validator.condition(&mut self.builder, value, false);
         let invalid = self.builder.iszero(valid);
-        self.builder.revert_if(invalid);
+        self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {
             // value = value >> 64
             let shift = self.builder.imm(64);
@@ -804,13 +804,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let calldata_size = self.builder.calldatasize();
         let limit = self.builder.sub(calldata_size, length);
         let out_of_bounds = self.builder.sgt(pointer, limit);
-        self.builder.revert_if(out_of_bounds);
+        self.builder.revert_if(out_of_bounds, RevertReason::CalldataTailTooShort);
     }
 
     fn validate_calldata_length(&mut self, length: ValueId) {
         let max_length = self.builder.imm(u64::MAX);
         let too_large = self.builder.gt(length, max_length);
-        self.builder.revert_if(too_large);
+        self.builder.revert_if(too_large, RevertReason::InvalidCalldataTailLength);
     }
 
     fn materialize_calldata_fixed_array(

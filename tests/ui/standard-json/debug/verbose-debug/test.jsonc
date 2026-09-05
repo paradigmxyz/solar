@@ -1,0 +1,24 @@
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "revertStrings": "verboseDebug"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

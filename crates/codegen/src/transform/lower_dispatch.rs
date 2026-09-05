@@ -19,10 +19,11 @@
 //! The backend only consumes the final `evm-shaped` module.
 
 use crate::{
-    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
+    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, RevertReason, ValueId},
     pass::MirPass,
 };
 use alloy_primitives::U256;
+use solar_config::RevertStrings;
 use solar_interface::{Ident, sym};
 
 /// Dispatch phase lowering pass.
@@ -47,11 +48,19 @@ impl MirPass for LowerDispatch {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        lower_dispatch(module, gcx.sess.opts.evm_version.has_bitwise_shifting())
+        lower_dispatch(
+            module,
+            gcx.sess.opts.evm_version.has_bitwise_shifting(),
+            gcx.sess.opts.revert_strings,
+        )
     }
 }
 
-fn lower_dispatch(module: &mut Module, has_bitwise_shifting: bool) -> bool {
+fn lower_dispatch(
+    module: &mut Module,
+    has_bitwise_shifting: bool,
+    revert_strings: RevertStrings,
+) -> bool {
     // Dispatch routes to the argument-free ABI wrappers, so it requires the
     // ABI phase. Running on `built`/`optimized` MIR would leave
     // argument-taking external functions unroutable while still advancing
@@ -100,7 +109,15 @@ fn lower_dispatch(module: &mut Module, has_bitwise_shifting: bool) -> bool {
     // prologue (the two passes share this predicate).
     let hoist_callvalue = callvalue.hoists();
 
-    build_entry(module, &routes, receive, fallback, hoist_callvalue, has_bitwise_shifting);
+    build_entry(
+        module,
+        &routes,
+        receive,
+        fallback,
+        hoist_callvalue,
+        has_bitwise_shifting,
+        revert_strings,
+    );
     module.advance_phase(MirPhase::Dispatch);
     true
 }
@@ -118,6 +135,7 @@ fn build_entry(
     fallback: Option<FunctionId>,
     hoist_callvalue: bool,
     has_bitwise_shifting: bool,
+    revert_strings: RevertStrings,
 ) {
     // `CALLDATALOAD(0)` right-pads short calldata with zeroes before the
     // selector extraction. A short input can therefore match a selector
@@ -128,7 +146,7 @@ fn build_entry(
 
     let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
     {
-        let mut builder = FunctionBuilder::new(&mut entry);
+        let mut builder = FunctionBuilder::new(&mut entry).with_revert_strings(revert_strings);
 
         let receive_size_block = receive.map(|_| builder.create_block());
         let selector_size_block = needs_short_calldata_guard.then(|| builder.create_block());
@@ -137,13 +155,17 @@ fn build_entry(
         let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
         let fallback_block = fallback.map(|target| (target, builder.create_block()));
         let revert_block = builder.create_block();
+        // Rejected Ether and unknown selectors share one empty revert unless revert reasons are
+        // encoded, in which case each gets its own message.
+        let callvalue_revert_block =
+            if revert_strings.is_debug() { builder.create_block() } else { revert_block };
         let default_block = fallback_block.as_ref().map_or(revert_block, |&(_, block)| block);
         let dispatch_block = receive_size_block.or(selector_size_block).unwrap_or(select_block);
 
         // Optional hoisted callvalue check.
         if hoist_callvalue {
             let value = builder.callvalue();
-            builder.branch(value, revert_block, dispatch_block);
+            builder.branch(value, callvalue_revert_block, dispatch_block);
         } else {
             builder.jump(dispatch_block);
         }
@@ -190,7 +212,7 @@ fn build_entry(
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(target)) {
                 let go = builder.create_block();
                 let value = builder.callvalue();
-                builder.branch(value, revert_block, go);
+                builder.branch(value, callvalue_revert_block, go);
                 builder.switch_to_block(go);
             }
             builder.tail_call(target, Vec::new());
@@ -206,8 +228,17 @@ fn build_entry(
         }
 
         builder.switch_to_block(revert_block);
-        let zero = builder.imm(0);
-        builder.revert(zero, zero);
+        // solc distinguishes a contract that can at least receive Ether from one that
+        // rejects every call.
+        builder.revert_with(if receive.is_some() {
+            RevertReason::UnknownSelector
+        } else {
+            RevertReason::NoFallbackNorReceive
+        });
+        if callvalue_revert_block != revert_block {
+            builder.switch_to_block(callvalue_revert_block);
+            builder.revert_with(RevertReason::EtherSentToNonPayable);
+        }
     }
 
     let entry = module.add_function(entry);

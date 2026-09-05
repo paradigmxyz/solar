@@ -52,8 +52,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// rule, `encodedHeadSize == 0 || !supportsReturndata()`, and it holds for every receiver:
     /// `this` is no exception, because the executing code and `address(this)` come apart under
     /// `DELEGATECALL`, where the account may well have no code of its own.
+    ///
+    /// With `--revert-strings debug` the check is always emitted, as in solc, so a code-less
+    /// target reports "Target contract does not contain code" instead of a decoding failure.
     pub(super) fn needs_code_check(&self, returns: usize) -> bool {
-        returns == 0 || !self.cx.gcx.sess.opts.evm_version.supports_returndata()
+        let opts = &self.cx.gcx.sess.opts;
+        returns == 0 || !opts.evm_version.supports_returndata() || opts.revert_strings.is_debug()
     }
 
     /// Returns the `gas` operand of an external call, materializing the pre-EIP-150 reserve when
@@ -1483,13 +1487,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let actual = self.current_returndata_size();
         let short = self.builder.lt(actual, expected);
-        self.builder.revert_if(short);
+        self.builder.revert_if(short, RevertReason::TupleDataTooShort);
     }
 
     pub(super) fn revert_if_no_code(&mut self, address: ValueId) {
         let size = self.builder.extcodesize(address);
         let missing = self.builder.iszero(size);
-        self.builder.revert_if(missing);
+        self.builder.revert_if(missing, RevertReason::TargetContractHasNoCode);
     }
 
     fn validate_static_returndata(&mut self, offset: ValueId, returns: &[Ty<'gcx>]) {
@@ -1520,7 +1524,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let valid = validator.condition(&mut self.builder, value, false);
 
         let invalid = self.builder.iszero(valid);
-        self.builder.revert_if(invalid);
+        self.builder.revert_if(invalid, RevertReason::Empty);
     }
 
     pub(super) fn resolve_call_target(

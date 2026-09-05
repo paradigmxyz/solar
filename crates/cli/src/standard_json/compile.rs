@@ -2,14 +2,15 @@
 
 use super::{
     data::{
-        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, EthdebugCodePointer,
-        EthdebugCompilation, EthdebugCompiler, EthdebugContext, EthdebugContract,
-        EthdebugEnvironment, EthdebugFunctionExit, EthdebugFunctionInvoke, EthdebugId,
-        EthdebugInstruction, EthdebugInvocationTarget, EthdebugOperation, EthdebugOutput,
-        EthdebugProgram, EthdebugRange, EthdebugReference, EthdebugResources, EthdebugSource,
-        EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength, OutputSelection,
-        OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput, StandardJsonReadCallback,
-        optimizer_settings, print_standard_json_stats, strip_json_comments,
+        BytecodeOutput, CompilerInput, CompilerOutput, ContractOutput, DebugInfoComponent,
+        DebugSettings, EthdebugCodePointer, EthdebugCompilation, EthdebugCompiler, EthdebugContext,
+        EthdebugContract, EthdebugEnvironment, EthdebugFunctionExit, EthdebugFunctionInvoke,
+        EthdebugId, EthdebugInstruction, EthdebugInvocationTarget, EthdebugOperation,
+        EthdebugOutput, EthdebugProgram, EthdebugRange, EthdebugReference, EthdebugResources,
+        EthdebugSource, EthdebugSourceRange, EvmOutput, FxIndexMap, MetadataHash, OffsetLength,
+        OutputSelection, OutputSelectionFlags, ReadCallbackResult, Settings, SourceOutput,
+        StandardJsonReadCallback, optimizer_settings, print_standard_json_stats,
+        strip_json_comments,
     },
     metadata::Metadata,
 };
@@ -21,7 +22,7 @@ use solar_codegen::{
 };
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
-    OptimizationMode,
+    OptimizationMode, RevertStrings,
 };
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
@@ -143,6 +144,48 @@ fn finish_standard_json_output<'a>(
     crate::emit::to_json(out, &output, opts.pretty_json).map_err(Into::into)
 }
 
+/// Applies `settings.debug`, enforcing solc's selection rules.
+///
+/// `debugInfo` components only affect Yul IR output, which we do not emit, so only the rules
+/// that solc rejects inputs for are checked: `snippet` requires `location`, and an explicit
+/// selection has to include `ethdebug` when ethdebug bytecode output is requested.
+fn apply_debug_settings(
+    dcx: &DiagCtxt,
+    opts: &mut CompileOpts,
+    debug: &DebugSettings,
+    output_selection: &OutputSelection<'_>,
+) {
+    match debug.revert_strings {
+        Some(RevertStrings::VerboseDebug) => {
+            dcx.err(
+                "only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now",
+            )
+            .emit();
+        }
+        Some(revert_strings) => opts.revert_strings = revert_strings,
+        None => {}
+    }
+    if debug.debug_info.is_none() {
+        return;
+    }
+    if debug.selects_debug_info(DebugInfoComponent::Snippet)
+        && !debug.selects_debug_info(DebugInfoComponent::Location)
+    {
+        dcx.err("to use `snippet` with `settings.debug.debugInfo` you must also select `location`")
+            .emit();
+    }
+    let ethdebug_outputs =
+        OutputSelectionFlags::BYTECODE_ETHDEBUG | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
+    if output_selection.union().intersects(ethdebug_outputs)
+        && !debug.selects_debug_info(DebugInfoComponent::Ethdebug)
+    {
+        dcx.err(
+            "`ethdebug` needs to be enabled in `settings.debug.debugInfo` if `evm.bytecode.ethdebug` or `evm.deployedBytecode.ethdebug` was selected as output",
+        )
+        .emit();
+    }
+}
+
 fn compile(
     input: CompilerInput<'_>,
     opts: &mut CompileOpts,
@@ -164,6 +207,7 @@ fn compile(
         optimizer,
         metadata,
         libraries,
+        debug,
     } = &settings;
 
     if !metadata.append_cbor
@@ -212,6 +256,12 @@ fn compile(
                 dcx.err(format!("invalid compiler stage `{stage}`")).emit();
             }
         }
+    }
+    // Like solc, Standard JSON never inherits the command line's `--revert-strings`; only
+    // `settings.debug.revertStrings` selects a non-default mode.
+    opts.revert_strings = RevertStrings::Default;
+    if let Some(debug) = debug {
+        apply_debug_settings(&dcx, opts, debug, output_selection);
     }
     if dcx.has_errors().is_err() {
         return write_empty_standard_json_output(source_map, opts, diagnostics, out);

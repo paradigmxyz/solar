@@ -1,0 +1,24 @@
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "JSON parse error: unknown variant `source`, expected one of `location`, `snippet`, `ast-id`, `ethdebug`, `*`
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "debugInfo": ["location", "source"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

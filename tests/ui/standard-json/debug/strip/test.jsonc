@@ -1,0 +1,25 @@
+// CHECK: "metadata":
+// CHECK: \"debug\":{\"revertStrings\":\"strip\"}
+// CHECK: "deployedBytecode": {
+// CHECK-NOT: 08c379a0
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function f(uint256 x) external pure returns (uint256) { require(x == 1, \"x must be one\"); return x; } function g() external pure { revert(\"always\"); } }"
+    }
+  },
+  "settings": {
+    "debug": {
+      "revertStrings": "strip"
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "metadata",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

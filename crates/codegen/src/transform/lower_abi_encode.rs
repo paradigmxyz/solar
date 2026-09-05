@@ -3,13 +3,14 @@
 use crate::{
     mir::{
         AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, Function, FunctionBuilder,
-        FunctionId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, SliceLocation,
-        Terminator, Value, ValueId, utils::resolve_replacement,
+        FunctionId, InstKind, MemoryObjectKind, MemoryObjectLayout, MirType, Module, RevertReason,
+        SliceLocation, Terminator, Value, ValueId, utils::resolve_replacement,
     },
     pass::MirPass,
     transform::utils::redirect_successor_predecessors,
 };
 use alloy_primitives::U256;
+use solar_config::RevertStrings;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
@@ -28,14 +29,15 @@ impl MirPass for LowerAbiEncode {
 
     fn run_pass(
         &self,
-        _gcx: Gcx<'_>,
+        gcx: Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        let helpers = synthesize_array_helpers(module);
+        let revert_strings = gcx.sess.opts.revert_strings;
+        let helpers = synthesize_array_helpers(module, revert_strings);
         let mut changed = !helpers.arrays.is_empty();
         for func in module.functions.iter_mut() {
-            changed |= lower_function(func, &helpers);
+            changed |= lower_function(func, &helpers, revert_strings);
         }
         changed
     }
@@ -59,7 +61,7 @@ struct EncodeHelpers {
 /// Builds `encode_abi_array(value, dest) -> tail` for every memory array layout whose
 /// element-wise loop at least two sites would otherwise expand inline. Inner layouts are built
 /// first so an outer helper's element encoding calls the inner helper.
-fn synthesize_array_helpers(module: &mut Module) -> EncodeHelpers {
+fn synthesize_array_helpers(module: &mut Module, revert_strings: RevertStrings) -> EncodeHelpers {
     fn count_sites(
         func: &Function,
         ty: &AbiType,
@@ -119,7 +121,8 @@ fn synthesize_array_helpers(module: &mut Module) -> EncodeHelpers {
     for (_, key) in keys {
         let mut function = Function::new(Ident::with_dummy_span(sym::encode_abi_array));
         {
-            let mut builder = FunctionBuilder::new(&mut function);
+            let mut builder =
+                FunctionBuilder::new(&mut function).with_revert_strings(revert_strings);
             let value = builder.add_param(key.value_ty);
             // The destination is a heap pointer, and typing it so lets the backend's
             // provenance analysis see that the returned tail stays in the heap.
@@ -198,7 +201,11 @@ impl AbiValueSource {
     }
 }
 
-fn lower_function(func: &mut Function, helpers: &EncodeHelpers) -> bool {
+fn lower_function(
+    func: &mut Function,
+    helpers: &EncodeHelpers,
+    revert_strings: RevertStrings,
+) -> bool {
     let has_encodes =
         func.instructions().any(|inst| matches!(func.inst(inst).kind, InstKind::AbiEncode { .. }));
     if !has_encodes {
@@ -211,7 +218,7 @@ fn lower_function(func: &mut Function, helpers: &EncodeHelpers) -> bool {
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
         let original_terminator = func.blocks[block].terminator.take();
-        let mut builder = FunctionBuilder::new(func);
+        let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
         builder.switch_to_block(block);
         for inst in instructions {
             let InstKind::AbiEncode { mode, selector, args, layout } =
@@ -913,16 +920,16 @@ fn encode_calldata_bytes_array(
     let bound = builder.sub(available, thirty_one);
     let valid_offset = builder.slt(offset, bound);
     let invalid_offset = builder.iszero(valid_offset);
-    builder.revert_if(invalid_offset);
+    builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
     let max_length = builder.imm(u64::MAX);
     let invalid_length = builder.gt(length, max_length);
-    builder.revert_if(invalid_length);
+    builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
     let data = builder.add(element_base, word);
     let limit = builder.sub(calldata_size, length);
     let short_tail = builder.sgt(data, limit);
-    builder.revert_if(short_tail);
+    builder.revert_if(short_tail, RevertReason::InvalidCalldataAccessStride);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
     let new_tail = encode_value(
         builder,

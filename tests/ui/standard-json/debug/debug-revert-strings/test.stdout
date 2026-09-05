@@ -1,0 +1,31 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "metadata": "{\"compiler\":{\"version\":\"VERSION\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"x\",\"type\":\"uint256\"}],\"name\":\"f\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"A.sol\":\"A\"},\"debug\":{\"revertStrings\":\"debug\"},\"evmVersion\":\"osaka\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"A.sol\":{\"keccak256\":\"0xc16d8e63258bcee2661f9672ff5e3fe8632410c8cc9dd3d1443575a46ea344e0\",\"urls\":[\"bzz-raw://df150682275645f08a22b15e2674f714a5e01b409841e1992cf86578ccc42ab5\",\"dweb:/ipfs/QmfAqCsdD4kemmAhaTqvYTSfMjof2EE9YPCdFh2cFjFBkU\"]}},\"version\":1}",
+        "evm": {
+          "deployedBytecode": {
+            "object": "346095575f3560e01c8063b3de648b14601657601b565b61010f565b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260356024527f436f6e747261637420646f6573206e6f7420686176652066616c6c6261636b206044527f6e6f7220726563656976652066756e6374696f6e73000000000000000000000060645260845ffd5b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260226024527f45746865722073656e7420746f206e6f6e2d70617961626c652066756e6374696044527f6f6e00000000000000000000000000000000000000000000000000000000000060645260845ffd5b60a060405260243610156101af57610135565b6004356080526020608001608090036080f35b7f08c379a0000000000000000000000000000000000000000000000000000000005f52602060045260226024527f414249206465636f64696e673a207475706c65206461746120746f6f2073686f6044527f727400000000000000000000000000000000000000000000000000000000000060645260845ffd5b61012256fea26469706673582212209cdde085ee579b9f6930dfbe050d189aa31530b2a3ab0ed0749ad8db6b975ba165736f6c6172430002000034"
+          }
+        }
+      }
+    }
+  }
+}

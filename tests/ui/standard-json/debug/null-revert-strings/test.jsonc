@@ -1,0 +1,25 @@
+// `null` is not the same as omitting a field: solc requires `revertStrings` to be a string.
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "JSON parse error: invalid type: null, expected a RevertStrings string
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "revertStrings": null
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

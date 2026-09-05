@@ -1,0 +1,14 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "JSON parse error: unknown field `verbose`, expected `revertStrings` or `debugInfo` at line 5 column 15",
+      "formattedMessage": "error: JSON parse error: unknown field `verbose`, expected `revertStrings` or `debugInfo` at line 5 column 15\n\n"
+    }
+  ]
+}

@@ -8,6 +8,7 @@ use super::{
 use crate::memory::EvmMemoryLayout;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_config::RevertStrings;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::Span;
 
@@ -75,10 +76,99 @@ macro_rules! impl_signed_to_uint {
 
 impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 
+/// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
+pub(crate) const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
+
+/// Why a revert with no user-supplied payload fires.
+///
+/// These reverts carry no data by default. With `--revert-strings debug`, each reason other than
+/// [`RevertReason::Empty`] is encoded as an `Error(string)` payload with the same message solc
+/// attaches to the corresponding check, so a failing transaction explains which internal check
+/// rejected it.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum RevertReason {
+    /// Empty data in every mode: `require` and `revert()` without a message, stripped messages,
+    /// and checks solc never attaches a message to, such as decoded ABI word validators.
+    Empty,
+    /// A non-payable external entry point received Ether.
+    EtherSentToNonPayable,
+    /// The selector did not match any external function and no fallback exists, but the
+    /// contract has a `receive` function.
+    UnknownSelector,
+    /// The call matched nothing and the contract has neither a fallback nor a `receive`.
+    NoFallbackNorReceive,
+    /// ABI-encoded input ends before the static head of a tuple.
+    TupleDataTooShort,
+    /// A tuple element offset points outside the encoded input.
+    InvalidTupleOffset,
+    /// A dynamic array or `bytes` head offset points outside the encoded input.
+    InvalidCalldataArrayOffset,
+    /// A dynamic array or `bytes calldata` length exceeds the encodable range.
+    InvalidCalldataArrayLength,
+    /// A dynamic array's element data does not fit the encoded input.
+    InvalidCalldataArrayStride,
+    /// A `bytes` or `string` decoded to memory does not fit the encoded input.
+    InvalidByteArrayLength,
+    /// A struct member offset exceeds the encodable range.
+    InvalidStructOffset,
+    /// Calldata ends before the static head of a struct.
+    StructCalldataTooShort,
+    /// ABI-encoded memory data ends before the static head of a struct.
+    StructDataTooShort,
+    /// A calldata array element or struct member offset is out of range while re-encoding.
+    InvalidCalldataAccessOffset,
+    /// A calldata array element length exceeds the encodable range while re-encoding.
+    InvalidCalldataAccessLength,
+    /// A calldata array element's data does not fit in calldata while re-encoding.
+    InvalidCalldataAccessStride,
+    /// A calldata tail element offset is out of range.
+    InvalidCalldataTailOffset,
+    /// A calldata tail element length exceeds the encodable range.
+    InvalidCalldataTailLength,
+    /// A calldata tail element's data does not fit in calldata.
+    CalldataTailTooShort,
+    /// A slice end exceeds the sliced value's length.
+    SliceGreaterThanLength,
+    /// A slice starts after its end.
+    SliceStartsAfterEnd,
+    /// An external call target has no code.
+    TargetContractHasNoCode,
+}
+
+impl RevertReason {
+    /// The message solc attaches to this check with `--revert-strings debug`, if any.
+    pub(crate) const fn message(self) -> Option<&'static str> {
+        Some(match self {
+            Self::Empty => return None,
+            Self::EtherSentToNonPayable => "Ether sent to non-payable function",
+            Self::UnknownSelector => "Unknown signature and no fallback defined",
+            Self::NoFallbackNorReceive => "Contract does not have fallback nor receive functions",
+            Self::TupleDataTooShort => "ABI decoding: tuple data too short",
+            Self::InvalidTupleOffset => "ABI decoding: invalid tuple offset",
+            Self::InvalidCalldataArrayOffset => "ABI decoding: invalid calldata array offset",
+            Self::InvalidCalldataArrayLength => "ABI decoding: invalid calldata array length",
+            Self::InvalidCalldataArrayStride => "ABI decoding: invalid calldata array stride",
+            Self::InvalidByteArrayLength => "ABI decoding: invalid byte array length",
+            Self::InvalidStructOffset => "ABI decoding: invalid struct offset",
+            Self::StructCalldataTooShort => "ABI decoding: struct calldata too short",
+            Self::StructDataTooShort => "ABI decoding: struct data too short",
+            Self::InvalidCalldataAccessOffset => "Invalid calldata access offset",
+            Self::InvalidCalldataAccessLength => "Invalid calldata access length",
+            Self::InvalidCalldataAccessStride => "Invalid calldata access stride",
+            Self::InvalidCalldataTailOffset => "Invalid calldata tail offset",
+            Self::InvalidCalldataTailLength => "Invalid calldata tail length",
+            Self::CalldataTailTooShort => "Calldata tail too short",
+            Self::SliceGreaterThanLength => "Slice is greater than length",
+            Self::SliceStartsAfterEnd => "Slice starts after end",
+            Self::TargetContractHasNoCode => "Target contract does not contain code",
+        })
+    }
+}
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum RevertKind {
-    Empty,
     Panic(PanicCode),
+    Reason(RevertReason),
 }
 
 /// Revert blocks shared while constructing one MIR function.
@@ -97,6 +187,8 @@ pub(crate) struct FunctionBuilder<'a> {
     current_source_span: Span,
     /// Legacy source-map modifier nesting depth attached to new instructions.
     current_modifier_depth: u32,
+    /// How compiler-generated reverts with a [`RevertReason`] are encoded.
+    revert_strings: RevertStrings,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -122,7 +214,25 @@ impl<'a> FunctionBuilder<'a> {
             revert_blocks: RevertBlocks::default(),
             current_source_span: Span::DUMMY,
             current_modifier_depth: 0,
+            revert_strings: RevertStrings::Default,
         }
+    }
+
+    /// Selects how compiler-generated reverts with a [`RevertReason`] are encoded.
+    ///
+    /// Only `debug` changes the output: reasons then revert with an `Error(string)` payload
+    /// instead of empty data.
+    pub(crate) fn with_revert_strings(mut self, revert_strings: RevertStrings) -> Self {
+        self.revert_strings = revert_strings;
+        self
+    }
+
+    /// Returns `true` if reasons revert with an `Error(string)` payload.
+    ///
+    /// Lowering can use this to split a fused check into per-reason checks only when the
+    /// reasons are observable, keeping the default output unchanged.
+    pub(crate) fn encodes_revert_reasons(&self) -> bool {
+        self.revert_strings.is_debug()
     }
 
     /// Replaces the source span attached to newly emitted instructions.
@@ -236,18 +346,58 @@ impl<'a> FunctionBuilder<'a> {
         self.branch_to_revert(condition, true, RevertKind::Panic(code));
     }
 
-    /// Reverts with empty data when `condition` is true.
-    pub(crate) fn revert_if(&mut self, condition: ValueId) -> BlockId {
-        self.revert_if_with(condition, false)
+    /// Reverts for `reason` when `condition` is true.
+    ///
+    /// The data is empty unless the builder encodes revert reasons; see
+    /// [`Self::with_revert_strings`].
+    pub(crate) fn revert_if(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
+        self.branch_to_revert(condition, false, RevertKind::Reason(reason))
     }
 
-    /// Reverts with empty data when `condition` is zero.
-    pub(crate) fn revert_if_zero(&mut self, condition: ValueId) -> BlockId {
-        self.revert_if_with(condition, true)
+    /// Reverts for `reason` when `condition` is zero.
+    pub(crate) fn revert_if_zero(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
+        self.branch_to_revert(condition, true, RevertKind::Reason(reason))
     }
 
-    fn revert_if_with(&mut self, condition: ValueId, condition_is_zero: bool) -> BlockId {
-        self.branch_to_revert(condition, condition_is_zero, RevertKind::Empty)
+    /// Terminates the current block by reverting for `reason`.
+    pub(crate) fn revert_with(&mut self, reason: RevertReason) {
+        match reason.message() {
+            Some(message) if self.encodes_revert_reasons() => self.revert_error_string(message),
+            _ => {
+                // revert(0, 0)
+                let zero = self.imm(0);
+                self.revert(zero, zero);
+            }
+        }
+    }
+
+    /// Reverts with `abi_encode(Error(string), message)` for a constant `message`.
+    fn revert_error_string(&mut self, message: &str) {
+        // mstore(0, Error(string).selector)
+        // mstore(4, 32)
+        // mstore(36, len)
+        // mstore(68 + 32 * i, word_i) for each 32-byte chunk of message
+        // revert(0, 68 + ceil32(len))
+        let selector = self.imm(ERROR_SELECTOR);
+        let zero = self.imm(0);
+        self.mstore(zero, selector);
+        let offset = self.imm(4);
+        let tuple_offset = self.imm(32);
+        self.mstore(offset, tuple_offset);
+        let length_offset = self.imm(36);
+        let length = self.imm(message.len() as u64);
+        self.mstore(length_offset, length);
+        let mut data_offset = 68u64;
+        for chunk in message.as_bytes().chunks(32) {
+            let mut word = [0u8; 32];
+            word[..chunk.len()].copy_from_slice(chunk);
+            let offset = self.imm(data_offset);
+            let word = self.imm(U256::from_be_bytes(word));
+            self.mstore(offset, word);
+            data_offset += 32;
+        }
+        let size = self.imm(data_offset);
+        self.revert(zero, size);
     }
 
     fn branch_to_revert(
@@ -266,11 +416,8 @@ impl<'a> FunctionBuilder<'a> {
         if new_revert {
             self.switch_to_block(revert);
             match kind {
-                RevertKind::Empty => {
-                    let zero = self.imm(0);
-                    self.revert(zero, zero);
-                }
                 RevertKind::Panic(code) => self.panic(code),
+                RevertKind::Reason(reason) => self.revert_with(reason),
             }
         }
         self.switch_to_block(continue_block);
@@ -278,6 +425,15 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn revert_block(&mut self, kind: RevertKind) -> (BlockId, bool) {
+        // Without encoded reasons every reason reverts with empty data, so share one block.
+        let kind = match kind {
+            RevertKind::Reason(reason)
+                if !self.encodes_revert_reasons() || reason.message().is_none() =>
+            {
+                RevertKind::Reason(RevertReason::Empty)
+            }
+            kind => kind,
+        };
         if let Some(&block) = self.revert_blocks.0.get(&kind) {
             return (block, false);
         }

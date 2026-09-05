@@ -1,0 +1,24 @@
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "to use `snippet` with `settings.debug.debugInfo` you must also select `location`"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "debugInfo": ["snippet", "ast-id"]
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "evm.bytecode.object"
+        ]
+      }
+    }
+  }
+}

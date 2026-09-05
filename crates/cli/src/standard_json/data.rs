@@ -8,6 +8,7 @@ use serde::{
     de::{self, SeqAccess, Visitor},
 };
 use serde_json::{Map, Value};
+use solar_config::RevertStrings;
 use solar_data_structures::map::FxBuildHasher;
 use solar_interface::diagnostics::SolcDiagnostic;
 use solar_sema::output::{Documentation, StorageLayoutOutput};
@@ -86,9 +87,8 @@ pub(super) struct Settings<'a> {
     pub(super) metadata: MetadataSettings,
     #[serde(borrow, default)]
     pub(super) libraries: Libraries<'a>,
-    // Debug output is not supported yet.
-    // #[serde(borrow, default)]
-    // debug: Option<CowValue<'a>>,
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub(super) debug: Option<DebugSettings>,
     //
     // Not supported.
     // #[serde(borrow, default)]
@@ -99,6 +99,60 @@ pub(super) struct Settings<'a> {
     // via_ir: Option<bool>,
     // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
+}
+
+/// The solc Standard JSON `settings.debug` object.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct DebugSettings {
+    /// Revert reason string handling.
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub(super) revert_strings: Option<RevertStrings>,
+    /// Debug info components to include in IR output.
+    ///
+    /// We do not emit Yul IR, so only the selection rules are enforced: `snippet` requires
+    /// `location`, and an explicit selection must include `ethdebug` to request ethdebug output.
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub(super) debug_info: Option<Vec<DebugInfoComponent>>,
+}
+
+impl DebugSettings {
+    /// Returns `true` if `component` is selected.
+    ///
+    /// Like solc, `*` selects exactly the non-experimental components (`location`, `snippet`,
+    /// and `ast-id`) regardless of what else is listed. Returns `false` when `debugInfo` is
+    /// absent; callers apply solc's defaults themselves.
+    pub(super) fn selects_debug_info(&self, component: DebugInfoComponent) -> bool {
+        let Some(components) = self.debug_info.as_deref() else { return false };
+        if components.contains(&DebugInfoComponent::All) {
+            return component.is_selected_by_wildcard();
+        }
+        components.contains(&component)
+    }
+}
+
+/// A solc `DebugInfoSelection` component name.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum DebugInfoComponent {
+    /// Source locations, `@src` in Yul IR.
+    Location,
+    /// Source snippets next to locations.
+    Snippet,
+    /// AST node IDs, `@ast-id` in Yul IR.
+    AstId,
+    /// Ethdebug annotations.
+    Ethdebug,
+    /// Every non-experimental component.
+    #[serde(rename = "*")]
+    All,
+}
+
+impl DebugInfoComponent {
+    /// Returns `true` if `*` selects this component; experimental `ethdebug` is excluded.
+    const fn is_selected_by_wildcard(self) -> bool {
+        matches!(self, Self::Location | Self::Snippet | Self::AstId)
+    }
 }
 
 /// The solc Standard JSON `settings.metadata` object.
@@ -147,6 +201,17 @@ pub(super) enum MetadataHash {
 
 const fn default_true() -> bool {
     true
+}
+
+/// Deserializes an optional field that may be omitted but not `null`, like solc's presence
+/// checks: `#[serde(default)]` supplies `None` for an absent field, and a present field must
+/// hold a `T`.
+fn deserialize_present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
 }
 
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
@@ -425,6 +490,14 @@ pub(super) struct OutputSelection<'a>(
 impl<'a> OutputSelection<'a> {
     pub(super) fn all(&self) -> OutputSelectionFlags {
         self.source("*")
+    }
+
+    /// Returns every flag selected for any source or contract, including the wildcards.
+    pub(super) fn union(&self) -> OutputSelectionFlags {
+        self.0
+            .values()
+            .flat_map(FxIndexMap::values)
+            .fold(OutputSelectionFlags::empty(), |acc, &f| acc | f)
     }
 
     pub(super) fn global(&self) -> OutputSelectionFlags {
@@ -990,6 +1063,36 @@ mod tests {
             serde_json::from_str::<MetadataSettings>(r#"{"bytecodeHash":"ipfs"}"#).unwrap();
         assert_eq!(explicit.bytecode_hash.value, MetadataHash::Ipfs);
         assert!(explicit.bytecode_hash.is_explicit);
+    }
+
+    #[test]
+    fn debug_settings_parse_solc_names() {
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"verbose":true}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":null}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":null}"#).is_err());
+        assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":null}"#).is_err());
+        assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":{}}"#).is_ok());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":"Strip"}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["source"]}"#).is_err());
+        let debug = serde_json::from_str::<DebugSettings>(
+            r#"{"revertStrings":"verboseDebug","debugInfo":["location","ast-id","*"]}"#,
+        )
+        .unwrap();
+        assert_eq!(debug.revert_strings, Some(RevertStrings::VerboseDebug));
+        assert_eq!(
+            debug.debug_info.as_deref(),
+            Some(
+                &[DebugInfoComponent::Location, DebugInfoComponent::AstId, DebugInfoComponent::All]
+                    [..]
+            )
+        );
+        assert!(debug.selects_debug_info(DebugInfoComponent::Snippet));
+        assert!(!debug.selects_debug_info(DebugInfoComponent::Ethdebug));
+        assert!(!DebugSettings::default().selects_debug_info(DebugInfoComponent::Ethdebug));
+        let explicit =
+            serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["ethdebug"]}"#).unwrap();
+        assert!(explicit.selects_debug_info(DebugInfoComponent::Ethdebug));
+        assert!(!explicit.selects_debug_info(DebugInfoComponent::Location));
     }
 
     #[test]

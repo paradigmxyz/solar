@@ -617,8 +617,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // Unreachable: a pre-Byzantium `try` only has a bare clause, which always matches.
             // revert(0, 0)
             None => {
-                let zero = self.builder.imm(U256::ZERO);
-                self.builder.revert(zero, zero);
+                self.builder.revert_with(RevertReason::Empty);
             }
         }
 
