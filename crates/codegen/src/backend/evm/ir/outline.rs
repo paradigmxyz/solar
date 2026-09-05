@@ -18,7 +18,7 @@
 //! Incremental hashes enumerate
 //! one window length at a time, retaining the full search with storage linear
 //! in original instruction count. Gas mode applies only the
-//! best candidate. Size mode retains at most 64 candidates and selects at most
+//! best candidate. Size mode retains at most 512 candidates and selects at most
 //! eight whose original instruction ranges are disjoint. All sites are then
 //! split from right to left, so earlier coordinates remain valid without
 //! rescanning or nesting newly outlined bodies. Metadata and relocatable
@@ -53,7 +53,7 @@ impl EvmPass for Outline {
                     .map(move |start| (id, start, FxHasher::default(), 0))
             })
             .collect::<Vec<_>>();
-        let limit = if gcx.sess.opts.optimization.is_size() { 64 } else { 1 };
+        let limit = if gcx.sess.opts.optimization.is_size() { 512 } else { 1 };
         let mut ranked = Vec::new();
         for len in 1..=64 {
             let mut groups = FxHashMap::<u64, Vec<Site>>::default();
