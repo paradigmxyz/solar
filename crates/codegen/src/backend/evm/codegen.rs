@@ -3875,6 +3875,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func_id: FunctionId, func: &Function) {
         let stack_only_disabled_at_entry = self.stack_only_function_disabled(func_id);
+        let report_missing_spill_home = self.gcx.sess.opts.unstable.assert_planned_edge_spill_home;
         let liveness = self
             .emitting_entry
             .then(|| Liveness::compute_block_local_for_codegen(func))
@@ -4406,7 +4407,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                             // obligation is then not this block's, and stating whose it is
                             // needs the availability record of the paths this emission
                             // order has not walked yet.
-                            if !self.has_spill_home(func, value)
+                            //
+                            // The check itself walks predecessors with dominance queries,
+                            // so it only runs when something can observe its result.
+                            if (report_missing_spill_home
+                                || tracing::enabled!(tracing::Level::DEBUG))
+                                && !self.has_spill_home(func, value)
                                 && !planned_entry_carries(
                                     &stack_phi_plan,
                                     &global_stack_plan,
@@ -4417,6 +4423,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                                     func, &store_cfg, &block_pos, block_id, pos,
                                 )
                             {
+                                assert!(
+                                    !report_missing_spill_home,
+                                    "{value:?} lives across the edge from {block_id:?} to \
+                                     the already-emitted {successor:?} with no home"
+                                );
                                 tracing::debug!(
                                     ?value,
                                     ?block_id,

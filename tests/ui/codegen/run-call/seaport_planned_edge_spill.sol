@@ -1,5 +1,7 @@
 //@ compile-flags: -O gas
 //@ run-call: Consideration::getCounter 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 0
+//@ run-call: Consideration::probe [], 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 0, false
+//@ run-call: Consideration::probe [((0x0000000000000000000000000000000000000003,0x0000000000000000000000000000000000000004,[(1,2)],[(3,4)],0,5,6)),((0x0000000000000000000000000000000000000007,0x0000000000000000000000000000000000000008,[],[],0,9,10))], 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 0, false
 // Reduced from `testdata/Seaport.sol`, whose
 // `_validateOrdersAndPrepareToFulfill` reached the backend's planned-edge
 // spill loop with a value that is live across an edge into an
@@ -7,6 +9,10 @@
 // stored. Emitting bytecode for it aborted an assertion-enabled build with
 // "lives across the edge ... with no home"; the block has nothing to store
 // there, so the store obligation is not its own.
+// `probe` calls that function directly so the block the condition fires for
+// also runs; its results match solc for 0, 1, 2 and 5 orders at osaka and
+// homestead, both optimized and unoptimized.
+// `-Zassert-planned-edge-spill-home` turns the condition back into a panic.
 interface AmountDerivationErrors {
     /**
      */
@@ -319,13 +325,20 @@ contract LowLevelHelpers {
         address recipient
     ) internal view returns (address updatedRecipient) {
     }
-    function _getReadAdvancedOrderByOffset()
+    function _readAO( //~ WARN: function state mutability can be restricted to pure
+        AdvancedOrder[] memory a,
+        uint256 i
+    ) internal returns (AdvancedOrder memory) {
+        return a[(i >> 5) - 1];
+    }
+    function _getReadAdvancedOrderByOffset() //~ WARN: function state mutability can be restricted to pure
         internal
         returns (
             function(AdvancedOrder[] memory, uint256)
                 returns (AdvancedOrder memory) fn2
         )
     {
+        fn2 = _readAO;
     }
     function _runTimeConstantTrue() internal pure returns (bool) {
     }
@@ -638,6 +651,19 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
         address recipient,
         bool containsNonOpen
     ) internal returns (Execution[] memory executions) {
+    }
+    function probe(
+        AdvancedOrder[] memory orders,
+        address r
+    ) public returns (uint256, bool) {
+        (bytes32[] memory h, bool c) = _validateOrdersAndPrepareToFulfill(
+            orders,
+            new CriteriaResolver[](0),
+            true,
+            orders.length,
+            r
+        );
+        return (h.length, c);
     }
 }
 contract Consideration is ConsiderationInterface, OrderCombiner {
