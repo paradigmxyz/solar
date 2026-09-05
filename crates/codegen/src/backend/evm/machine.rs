@@ -28,6 +28,7 @@ use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
+mod call_entry;
 mod entry_order;
 
 /// The constructor program-end relocation is resolved by primitive assembly.
@@ -262,20 +263,8 @@ pub(crate) fn lower(
         };
         let mut entry = Vec::new();
         if context.storage.stack_arguments {
-            let mut incoming = vec![Slot::ReturnAddress];
-            incoming.extend(function.params.indices().rev().map(Slot::Argument));
-            let mut desired = Vec::new();
-            for &slot in &context.layout.entries[mir::BlockId::ENTRY] {
-                desired.push(match slot {
-                    Slot::Value(value) => {
-                        let mir::Value::Arg(index) = function.value(value) else {
-                            return Err("non-argument value is live at function entry".into());
-                        };
-                        Slot::Argument(*index)
-                    }
-                    slot => slot,
-                });
-            }
+            let (mut stack, desired) = call_entry::entry(function, context.layout)
+                .ok_or("non-argument value is live at function entry")?;
             let mut copies = function
                 .live_values()
                 .filter_map(|value| {
@@ -284,7 +273,6 @@ pub(crate) fn lower(
                 })
                 .collect::<Vec<_>>();
             copies.sort_unstable();
-            let mut stack = Stack::new(incoming);
             for (position, &(index, home)) in copies.iter().enumerate() {
                 // <return label>; <remaining arguments>; <argument for this home>
                 // push <spill address>; mstore
@@ -332,6 +320,7 @@ pub(crate) fn lower(
         };
         lower_function(&context, &layouts, &mut output, switches)?;
     }
+    call_entry::prune_unused(&mut output, &layouts);
     Ok(MachineOutput { ir: output, plan })
 }
 
@@ -369,6 +358,7 @@ fn lower_function(
                     || true,
                 )?;
                 let continuation = output.blocks.push(ir::Block::default());
+                let mut target = layouts[*callee].entry;
                 let caller;
                 if !layout.spills.homes.is_empty() {
                     let base = stack.values()[..prefix(context)].to_vec();
@@ -395,11 +385,27 @@ fn lower_function(
                     let mut desired = caller.clone();
                     desired.push(Slot::CallLabel(continuation));
                     desired.extend(args.iter().rev().copied().map(Slot::Value));
-                    insts.extend(
-                        stack
-                            .reconcile(&desired, prefix(context), context.version)
-                            .map_err(schedule_error)?,
-                    );
+                    let incoming = stack.clone();
+                    let original = stack
+                        .reconcile(&desired, prefix(context), context.version)
+                        .map_err(schedule_error)?;
+                    if let Some((prepared, direct)) = call_entry::choose(
+                        context,
+                        *callee,
+                        &layouts[*callee],
+                        args,
+                        &incoming,
+                        caller.len(),
+                        &original,
+                    ) {
+                        // <suspended caller>; <continuation>; <canonical callee entry>
+                        // jump <first callee MIR block>
+                        insts.extend(prepared);
+                        target = direct;
+                    } else {
+                        // <suspended caller>; <continuation>; <reverse argument order>
+                        insts.extend(original);
+                    }
                 }
                 enter_call(
                     context,
@@ -407,7 +413,7 @@ fn lower_function(
                     args.len(),
                     current,
                     &mut insts,
-                    layouts[*callee].entry,
+                    target,
                     output,
                 )?;
                 current = continuation;
