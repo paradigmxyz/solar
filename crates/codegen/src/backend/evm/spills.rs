@@ -3,7 +3,9 @@
 //! The planner simulates the physical scheduler over block entries, operand preparation, calls,
 //! and phi edges to find functions that exceed the target DUP window. Dying operands are consumed
 //! in place instead of being counted twice. Those functions receive reusable memory homes for
-//! overlapping live intervals; short-lived expression temporaries remain on the stack. A separate
+//! overlapping live intervals; short-lived expression temporaries, dying branch conditions and
+//! single internal return values remain on the stack. Calls, memory writers and wider terminal
+//! protocols stop the bounded local window. A separate
 //! temporary region permits phi edge copies to read every source before writing any destination,
 //! including cyclic transfers. Ordinary low-pressure functions retain stack-only values. Address
 //! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
@@ -47,9 +49,22 @@ impl SpillPlan {
                 if let Some(value) = function.inst_result_value(inst)
                     && !matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
                 {
-                    for (next_position, &next_inst) in
-                        block.instructions.iter().enumerate().skip(position + 1).take(window)
+                    for (next_position, next_inst) in block.instructions.iter().copied().map(Some)
+                        .chain([None]).enumerate().skip(position + 1).take(window)
                     {
+                        let Some(next_inst) = next_inst else {
+                            let terminal_use = match &block.terminator {
+                                Some(mir::Terminator::Branch { condition, .. }) => *condition == value,
+                                Some(mir::Terminator::Return { values }) if returning => {
+                                    values.as_slice() == [value]
+                                }
+                                _ => false,
+                            };
+                            if terminal_use && !live.live_out(block_id).contains(value) {
+                                local.insert(value);
+                            }
+                            break;
+                        };
                         let next = &function.inst(next_inst).kind;
                         if next.has_side_effects() || matches!(next, mir::InstKind::Phi(_)) {
                             break;

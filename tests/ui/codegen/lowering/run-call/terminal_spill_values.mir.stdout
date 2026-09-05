@@ -1,0 +1,97 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_spill_values.sol:TerminalSpillValues ===
+@module TerminalSpillValues
+fn @run(arg0: calldataslice) -> u256 [selector=0x602757ea, pure, abi_params=[array<20, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = internal_call @choose, 1, v0
+    ret v1
+}
+
+fn @choose(arg0: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 0
+    v1 = calldataload v0
+    v2 = add arg0, 32
+    v3 = calldataload v2
+    v4 = add arg0, 64
+    v5 = calldataload v4
+    v6 = add arg0, 96
+    v7 = calldataload v6
+    v8 = add arg0, 128
+    v9 = calldataload v8
+    v10 = add arg0, 160
+    v11 = calldataload v10
+    v12 = add arg0, 192
+    v13 = calldataload v12
+    v14 = add arg0, 224
+    v15 = calldataload v14
+    v16 = add arg0, 256
+    v17 = calldataload v16
+    v18 = add arg0, 288
+    v19 = calldataload v18
+    v20 = add arg0, 320
+    v21 = calldataload v20
+    v22 = add arg0, 352
+    v23 = calldataload v22
+    v24 = add arg0, 384
+    v25 = calldataload v24
+    v26 = add arg0, 416
+    v27 = calldataload v26
+    v28 = add arg0, 448
+    v29 = calldataload v28
+    v30 = add arg0, 480
+    v31 = calldataload v30
+    v32 = add arg0, 512
+    v33 = calldataload v32
+    v34 = add arg0, 544
+    v35 = calldataload v34
+    v36 = add arg0, 576
+    v37 = calldataload v36
+    v38 = add arg0, 608
+    v39 = calldataload v38
+    v40 = lt v1, v39
+    v41 = eq v40, 0
+    v42 = iszero v41
+    jumpi v42, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v43 = add v1, v39
+    jump bb3
+  bb3:
+    v44 = phi [bb1: v43], [bb2: 0]
+    v45 = gt v3, v37
+    v46 = eq v45, 0
+    v47 = iszero v46
+    jumpi v47, bb4, bb5
+  bb5:
+    jump bb6
+  bb4:
+    v48 = add v3, v37
+    v49 = add v44, v48
+    jump bb6
+  bb6:
+    v50 = phi [bb4: v49], [bb5: v44]
+    v51 = add v37, v39
+    v52 = add v33, v35
+    v53 = add v52, v51
+    v54 = add v29, v31
+    v55 = add v25, v27
+    v56 = add v55, v54
+    v57 = add v21, v23
+    v58 = add v17, v19
+    v59 = add v58, v57
+    v60 = add v59, v56
+    v61 = add v13, v15
+    v62 = add v9, v11
+    v63 = add v62, v61
+    v64 = add v5, v7
+    v65 = add v1, v3
+    v66 = add v65, v64
+    v67 = add v66, v63
+    v68 = add v67, v60
+    v69 = add v68, v53
+    v70 = add v50, v45
+    v71 = add v70, v69
+    ret v71
+}
