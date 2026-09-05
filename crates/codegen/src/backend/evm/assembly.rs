@@ -241,7 +241,11 @@ fn lower(
                     // differently for zero, so reversal could increase gas.
                     // push <highest entry shift>; sub
                     // push 2; exp; push <addresses with first target in high bits>; div
-                    push(&mut atoms, Value::Literal(U256::from((targets.len() - 1) * bits)), version);
+                    push(
+                        &mut atoms,
+                        Value::Literal(U256::from((targets.len() - 1) * bits)),
+                        version,
+                    );
                     atoms.push(Atom::Bytes(vec![op::SUB]));
                     push(&mut atoms, Value::Literal(U256::from(2)), version);
                     atoms.push(Atom::Bytes(vec![op::EXP]));
@@ -442,7 +446,8 @@ PUSH2 0x0201
             (EvmVersion::Osaka, 4),
             (EvmVersion::Byzantium, 2),
         ] {
-            let output = resolve(lower(&module, version, width).unwrap(), &module, version).unwrap();
+            let output =
+                resolve(lower(&module, version, width).unwrap(), &module, version).unwrap();
             let instructions = disassemble(&output.bytes, version);
             text.push_str(&instructions.lines().take(3).collect::<Vec<_>>().join("\n"));
             text.push('\n');
@@ -484,11 +489,7 @@ MUL
             EvmVersion::Osaka,
         )
         .unwrap();
-        let text = disassemble(&output.bytes, EvmVersion::Osaka)
-            .lines()
-            .next()
-            .unwrap()
-            .to_owned();
+        let text = disassemble(&output.bytes, EvmVersion::Osaka).lines().next().unwrap().to_owned();
         snapbox::assert_data_eq!(text, snapbox::str![["PUSH4 0x01060105"]]);
     }
 

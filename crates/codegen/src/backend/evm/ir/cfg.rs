@@ -326,12 +326,24 @@ fn terminal_dedup(module: &mut Module) -> bool {
             matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
                 || (matches!(inst.kind, InstKind::PushLabel(_)) && !module.private_control_labels)
                 || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
-                || matches!(inst.kind, InstKind::Op(
-                    op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::CODESIZE
-                        | op::CODECOPY | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
-                ))
+                || matches!(
+                    inst.kind,
+                    InstKind::Op(
+                        op::JUMP
+                            | op::JUMPI
+                            | op::JUMPDEST
+                            | op::PC
+                            | op::CODESIZE
+                            | op::CODECOPY
+                            | op::EXTCODECOPY
+                            | op::EXTCODESIZE
+                            | op::EXTCODEHASH
+                    )
+                )
         })
-    }) || (ids.iter().any(|&id| module.blocks[id].terminator.kind == TerminatorKind::DynamicJump)
+    }) || (ids
+        .iter()
+        .any(|&id| module.blocks[id].terminator.kind == TerminatorKind::DynamicJump)
         && super::verify::has_unknown_jump(module))
     {
         return false;
@@ -393,37 +405,61 @@ fn redirect_terminals(module: &mut Module) -> bool {
         let block = &module.blocks[id];
         if block.terminator.kind == TerminatorKind::DynamicJump
             || block.insts.iter().any(|inst| {
-                matches!(inst.kind, InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_))
-                    || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
-                    || matches!(inst.kind, InstKind::Op(
-                        op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::CODESIZE
-                            | op::CODECOPY | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
-                            | op::GAS
-                    ))
+                matches!(
+                    inst.kind,
+                    InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_)
+                ) || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
+                    || matches!(
+                        inst.kind,
+                        InstKind::Op(
+                            op::JUMP
+                                | op::JUMPI
+                                | op::JUMPDEST
+                                | op::PC
+                                | op::CODESIZE
+                                | op::CODECOPY
+                                | op::EXTCODECOPY
+                                | op::EXTCODESIZE
+                                | op::EXTCODEHASH
+                                | op::GAS
+                        )
+                    )
             })
         {
             return false;
         }
         match &block.terminator.kind {
-            TerminatorKind::Jump(target) => { protected.insert(*target); }
+            TerminatorKind::Jump(target) => {
+                protected.insert(*target);
+            }
             TerminatorKind::JumpI(yes, no) => {
                 taken.insert(*yes);
                 protected.insert(*no);
             }
             TerminatorKind::IndexedJump(targets) => {
-                for &target in targets { taken.insert(target); }
+                for &target in targets {
+                    taken.insert(target);
+                }
             }
             _ => {}
         }
     }
-    let candidates = ids.iter().copied().filter(|&id| {
-        matches!(module.blocks[id].terminator.kind,
-            TerminatorKind::Return | TerminatorKind::Revert | TerminatorKind::SelfDestruct)
-    }).collect::<Vec<_>>();
+    let candidates = ids
+        .iter()
+        .copied()
+        .filter(|&id| {
+            matches!(
+                module.blocks[id].terminator.kind,
+                TerminatorKind::Return | TerminatorKind::Revert | TerminatorKind::SelfDestruct
+            )
+        })
+        .collect::<Vec<_>>();
     let mut targets = module.blocks.indices().collect::<IndexVec<BlockId, _>>();
     let mut changed = false;
     for (index, &id) in candidates.iter().enumerate() {
-        if targets[id] != id { continue; }
+        if targets[id] != id {
+            continue;
+        }
         for &other in &candidates[index + 1..] {
             if targets[other] == other
                 && taken.contains(other)

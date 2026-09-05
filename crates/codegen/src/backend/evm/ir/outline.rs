@@ -123,15 +123,16 @@ impl EvmPass for Outline {
                 if before < after + 8 {
                     continue;
                 }
-                let score =
-                    (
-                        (before - after).saturating_sub(
-                            if gcx.sess.opts.optimization.is_gas() { sites.len() * 8 } else { 0 },
-                        ),
-                        body.len(),
-                        usize::MAX - sites[0].id.index(),
-                        usize::MAX - sites[0].start,
-                    );
+                let score = (
+                    (before - after).saturating_sub(if gcx.sess.opts.optimization.is_gas() {
+                        sites.len() * 8
+                    } else {
+                        0
+                    }),
+                    body.len(),
+                    usize::MAX - sites[0].id.index(),
+                    usize::MAX - sites[0].start,
+                );
                 retain_candidate(&mut ranked, (score, stub, sites, inputs), limit);
             }
         }
