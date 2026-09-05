@@ -963,7 +963,8 @@ fn edge(
 ) -> Result<ir::BlockId, String> {
     if !context.layout.spills.homes.is_empty() {
         let mut insts = Vec::new();
-        let desired = stack.values()[..prefix(context)].to_vec();
+        let desired = edge_values(context, from, to)?;
+        // <canonical resident successor values>; <memory-only simultaneous Phi copies>
         insts.extend(
             stack
                 .clone()

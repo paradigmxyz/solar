@@ -6,19 +6,24 @@
 //! overlapping live intervals; short-lived expression temporaries, dying branch conditions and
 //! single internal return values remain on the stack. A temporary may also end at a heap store
 //! whose writes are disjoint from every compiler-owned word. Calls, other memory writers and wider
-//! terminal protocols stop the bounded local window. A separate
-//! temporary region permits phi edge copies to read every source before writing any destination,
-//! including cyclic transfers. Ordinary low-pressure functions retain stack-only values. Address
+//! terminal protocols stop the bounded local window. A separate temporary region permits phi
+//! edge copies to read every source before writing any destination,
+//! including cyclic transfers. Ordinary low-pressure functions retain stack-only values.
+//! A bounded set of additional non-Phi values can remain on the stack across blocks when their
+//! conservative live intervals fit the same budget. Calls and potentially aliasing writers retain
+//! memory homes, and the physical scheduler validates each proposed mixed layout. Address
 //! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
 //! instructions.
 
 use super::scheduler::Stack;
 use crate::{
-    analysis::{Access, AddressSpace, AliasAnalysis, CfgInfo, Liveness, Location, MemoryBase, ModRef},
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, CfgInfo, Liveness, Location, MemoryBase, ModRef,
+    },
     mir,
 };
 use solar_config::EvmVersion;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::{cmp::Reverse, collections::BinaryHeap};
 
 #[derive(Default)]
@@ -51,12 +56,21 @@ impl SpillPlan {
                 if let Some(value) = function.inst_result_value(inst)
                     && !matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
                 {
-                    for (next_position, next_inst) in block.instructions.iter().copied().map(Some)
-                        .chain([None]).enumerate().skip(position + 1).take(window)
+                    for (next_position, next_inst) in block
+                        .instructions
+                        .iter()
+                        .copied()
+                        .map(Some)
+                        .chain([None])
+                        .enumerate()
+                        .skip(position + 1)
+                        .take(window)
                     {
                         let Some(next_inst) = next_inst else {
                             let terminal_use = match &block.terminator {
-                                Some(mir::Terminator::Branch { condition, .. }) => *condition == value,
+                                Some(mir::Terminator::Branch { condition, .. }) => {
+                                    *condition == value
+                                }
                                 Some(mir::Terminator::Return { values }) if returning => {
                                     values.as_slice() == [value]
                                 }
@@ -69,10 +83,14 @@ impl SpillPlan {
                         };
                         let next = &function.inst(next_inst).kind;
                         if next.has_side_effects() || matches!(next, mir::InstKind::Phi(_)) {
-                            if matches!(next, mir::InstKind::MStore(..) | mir::InstKind::MStore8(..))
-                                && next.operands().contains(&value)
+                            if matches!(
+                                next,
+                                mir::InstKind::MStore(..) | mir::InstKind::MStore8(..)
+                            ) && next.operands().contains(&value)
                                 && !live.is_used_at_or_after(value, block_id, next_position + 1)
-                                && disjoint_heap_write(&alias.instruction_mod_ref(function, next_inst))
+                                && disjoint_heap_write(
+                                    &alias.instruction_mod_ref(function, next_inst),
+                                )
                             {
                                 local.insert(value);
                             }
@@ -88,8 +106,18 @@ impl SpillPlan {
                 }
             }
         }
-        let (homes, phi_scratch) =
-            assign_homes(function, live, cfg, |value| stored(value) && !local.contains(value));
+        let intervals = live_intervals(function, live, cfg, &stored);
+        let proposed = resident_candidates(function, live, cfg, alias, &intervals, window, &local);
+        if proposed != local
+            && !exceeds_stack_window(function, live, cfg, returning, version, |value| {
+                stored(value) && proposed.contains(value)
+            })
+        {
+            local = proposed;
+        }
+        let (homes, phi_scratch) = assign_homes(
+            intervals.into_iter().filter(|(value, _)| !local.contains(*value)).collect(),
+        );
         let scratch_count = function
             .blocks
             .iter()
@@ -118,13 +146,13 @@ fn disjoint_heap_write(effects: &ModRef) -> bool {
     })
 }
 
-/// Reuses words whose conservative live intervals do not overlap in physical block order.
-fn assign_homes(
+/// Conservative intervals shared by stack-residence selection and memory-home reuse.
+fn live_intervals(
     function: &mir::Function,
     live: &Liveness,
     cfg: &CfgInfo,
     stored: impl Fn(mir::ValueId) -> bool,
-) -> (FxHashMap<mir::ValueId, usize>, usize) {
+) -> Vec<(mir::ValueId, (usize, usize))> {
     let mut intervals = FxHashMap::<mir::ValueId, (usize, usize)>::default();
     let mut touch = |value, position| {
         if stored(value) {
@@ -167,7 +195,13 @@ fn assign_homes(
             term.for_each_operand(|value| touch(value, start - 1));
         }
     }
-    let mut intervals = intervals.into_iter().collect::<Vec<_>>();
+    intervals.into_iter().collect()
+}
+
+/// Reuses words whose conservative live intervals do not overlap in physical block order.
+fn assign_homes(
+    mut intervals: Vec<(mir::ValueId, (usize, usize))>,
+) -> (FxHashMap<mir::ValueId, usize>, usize) {
     intervals.sort_unstable_by_key(|&(value, (start, _))| (start, value));
     let mut homes = FxHashMap::default();
     let mut active = BinaryHeap::<Reverse<(usize, usize)>>::new();
@@ -190,6 +224,96 @@ fn assign_homes(
         active.push(Reverse((end, home)));
     }
     (homes, words)
+}
+
+/// Adds whole-lifetime residents without changing the existing local exemptions or call protocol.
+fn resident_candidates(
+    function: &mir::Function,
+    live: &Liveness,
+    cfg: &CfgInfo,
+    alias: &AliasAnalysis,
+    intervals: &[(mir::ValueId, (usize, usize))],
+    words: usize,
+    local: &DenseBitSet<mir::ValueId>,
+) -> DenseBitSet<mir::ValueId> {
+    let mut mandatory = DenseBitSet::new_empty(function.num_values());
+    // Argument entry materialization has a separate cost from instruction result residence.
+    for &(value, _) in intervals {
+        if matches!(function.value(value), mir::Value::Arg(_)) {
+            mandatory.insert(value);
+        }
+    }
+    let mut uses = IndexVec::<mir::ValueId, usize>::from_vec(vec![0; function.num_values()]);
+    for (block_id, block) in function.blocks.iter_enumerated() {
+        if !cfg.is_reachable(block_id) {
+            continue;
+        }
+        let mut before = DenseBitSet::new_empty(function.num_values());
+        for value in live.live_out(block_id).iter() {
+            before.insert(value);
+        }
+        if let Some(term) = &block.terminator {
+            term.for_each_operand(|value| {
+                before.insert(value);
+                uses[value] += 1;
+            });
+            if matches!(term, mir::Terminator::TailCall { .. }) {
+                mandatory.union(&before);
+            }
+        }
+        for &inst in block.instructions.iter().rev() {
+            let kind = &function.inst(inst).kind;
+            if let Some(value) = function.inst_result_value(inst) {
+                before.remove(value);
+                if matches!(kind, mir::InstKind::Phi(_)) {
+                    mandatory.insert(value);
+                }
+            }
+            for value in kind.operands() {
+                uses[value] += 1;
+                if matches!(kind, mir::InstKind::Phi(_)) {
+                    mandatory.insert(value);
+                } else {
+                    before.insert(value);
+                }
+            }
+            let effects = alias.instruction_mod_ref(function, inst);
+            if matches!(kind, mir::InstKind::InternalCall { .. })
+                || (effects.writes_space(AddressSpace::Memory) && !disjoint_heap_write(&effects))
+            {
+                mandatory.union(&before);
+            }
+        }
+    }
+    if local.iter().any(|value| mandatory.contains(value)) {
+        return local.clone();
+    }
+    let mut occupancy =
+        vec![0usize; intervals.iter().map(|(_, (_, end))| end + 1).max().unwrap_or(0)];
+    for &(value, (start, end)) in intervals {
+        if local.contains(value) {
+            for count in &mut occupancy[start..=end] {
+                *count += 1;
+            }
+        }
+    }
+    let mut candidates = intervals
+        .iter()
+        .copied()
+        .filter(|(value, _)| !local.contains(*value) && !mandatory.contains(*value))
+        .collect::<Vec<_>>();
+    candidates
+        .sort_unstable_by_key(|&(value, (start, end))| (Reverse(uses[value]), end - start, value));
+    let mut proposed = local.clone();
+    for (value, (start, end)) in candidates {
+        if occupancy[start..=end].iter().all(|&count| count < words) {
+            proposed.insert(value);
+            for count in &mut occupancy[start..=end] {
+                *count += 1;
+            }
+        }
+    }
+    proposed
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -217,6 +341,7 @@ fn exceeds_stack_window(
             for &inst in &block.instructions {
                 if matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
                     && let Some(v) = function.inst_result_value(inst)
+                    && stored(v)
                 {
                     values.push(v);
                 }
@@ -269,7 +394,9 @@ fn exceeds_stack_window(
             } else if prepares {
                 stack.truncate(stack.values().len() - operands.len());
             }
-            if let Some(value) = function.inst_result_value(inst) {
+            if let Some(value) = function.inst_result_value(inst)
+                && stored(value)
+            {
                 stack.push(PressureSlot::Value(value));
             }
         }

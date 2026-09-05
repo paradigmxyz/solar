@@ -1,0 +1,134 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/partial_spill_residents.sol:PartialSpillResidents ===
+@module PartialSpillResidents
+fn @run(arg0: calldataslice, arg1: u256) -> u256 [selector=0x943d2a88, pure, abi_params=[array<20, u256>, u256], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = internal_call @rotate, 1, v0, arg1
+    ret v1
+}
+
+fn @rotate(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = add arg0, 0
+    v1 = calldataload v0
+    v2 = add arg0, 32
+    v3 = calldataload v2
+    v4 = add arg0, 64
+    v5 = calldataload v4
+    v6 = add arg0, 96
+    v7 = calldataload v6
+    v8 = add arg0, 128
+    v9 = calldataload v8
+    v10 = add arg0, 160
+    v11 = calldataload v10
+    v12 = add arg0, 192
+    v13 = calldataload v12
+    v14 = add arg0, 224
+    v15 = calldataload v14
+    v16 = add arg0, 256
+    v17 = calldataload v16
+    v18 = add arg0, 288
+    v19 = calldataload v18
+    v20 = add arg0, 320
+    v21 = calldataload v20
+    v22 = add arg0, 352
+    v23 = calldataload v22
+    v24 = add arg0, 384
+    v25 = calldataload v24
+    v26 = add arg0, 416
+    v27 = calldataload v26
+    v28 = add arg0, 448
+    v29 = calldataload v28
+    v30 = add arg0, 480
+    v31 = calldataload v30
+    v32 = add arg0, 512
+    v33 = calldataload v32
+    v34 = add arg0, 544
+    v35 = calldataload v34
+    v36 = add arg0, 576
+    v37 = calldataload v36
+    v38 = add arg0, 608
+    v39 = calldataload v38
+    v40 = lt v1, v39
+    v41 = eq v40, 0
+    v42 = iszero v41
+    jumpi v42, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    jump bb3
+  bb3:
+    v43 = phi [bb1: v1], [bb2: v39]
+    jump bb4
+  bb4:
+    v44 = phi [bb3: v21], [bb6: v44]
+    v45 = phi [bb3: 0], [bb6: v45]
+    v46 = phi [bb3: v1], [bb6: v61]
+    v47 = phi [bb3: v15], [bb6: v47]
+    v48 = phi [bb3: v37], [bb6: v48]
+    v49 = phi [bb3: v9], [bb6: v49]
+    v50 = phi [bb3: v31], [bb6: v50]
+    v51 = phi [bb3: v3], [bb6: v51]
+    v52 = phi [bb3: v25], [bb6: v52]
+    v53 = phi [bb3: 0], [bb6: v76]
+    v54 = phi [bb3: arg1], [bb6: v54]
+    v55 = phi [bb3: v19], [bb6: v55]
+    v56 = phi [bb3: v43], [bb6: v56]
+    v57 = phi [bb3: v13], [bb6: v57]
+    v58 = phi [bb3: v35], [bb6: v58]
+    v59 = phi [bb3: v7], [bb6: v59]
+    v60 = phi [bb3: v29], [bb6: v60]
+    v61 = phi [bb3: v3], [bb6: v46]
+    v62 = phi [bb3: v1], [bb6: v62]
+    v63 = phi [bb3: v23], [bb6: v63]
+    v64 = phi [bb3: v39], [bb6: v64]
+    v65 = phi [bb3: arg0], [bb6: v65]
+    v66 = phi [bb3: v17], [bb6: v66]
+    v67 = phi [bb3: v33], [bb6: v67]
+    v68 = phi [bb3: v11], [bb6: v68]
+    v69 = phi [bb3: v27], [bb6: v69]
+    v70 = phi [bb3: v5], [bb6: v70]
+    v71 = phi [bb3: 0], [bb6: v77]
+    v72 = and v54, 3
+    v73 = lt v71, v72
+    v74 = eq v73, 0
+    v75 = iszero v74
+    jumpi v75, bb7, bb8
+  bb8:
+    jump bb5
+  bb5:
+    v78 = add v48, v64
+    v79 = add v67, v58
+    v80 = add v79, v78
+    v81 = add v60, v50
+    v82 = add v52, v69
+    v83 = add v82, v81
+    v84 = add v44, v63
+    v85 = add v66, v55
+    v86 = add v85, v84
+    v87 = add v86, v83
+    v88 = add v57, v47
+    v89 = add v49, v68
+    v90 = add v89, v88
+    v91 = add v70, v59
+    v92 = add v62, v51
+    v93 = add v92, v91
+    v94 = add v93, v90
+    v95 = add v94, v87
+    v96 = add v95, v80
+    v97 = add v53, v56
+    v98 = mul v61, 5
+    v99 = mul v46, 3
+    v100 = add v99, v98
+    v101 = add v100, v97
+    v102 = add v101, v96
+    ret v102
+  bb7:
+    v76 = xor v53, v59
+    jump bb9
+  bb9:
+    jump bb6
+  bb6:
+    v77 = add v71, 1
+    jump bb4
+}
