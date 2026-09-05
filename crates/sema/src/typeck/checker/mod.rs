@@ -3000,13 +3000,22 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         }
 
-        let exprs = if let hir::ExprKind::Tuple(exprs) = init.kind {
-            exprs
-        } else {
-            std::slice::from_ref(&init_opt)
-        };
-        for ((&var, &ty), &expr) in decls.iter().zip(value_types).zip(exprs) {
-            let (Some(var), Some(expr)) = (var, expr) else { continue };
+        // Only a tuple literal has an expression of its own for each component. Every other
+        // initializer, a call above all, is one expression that produces all of them, so it is
+        // the span every component reports at. Deriving the components from the initializer's
+        // syntax instead left a call's later targets unchecked, which let one bind the returned
+        // slot of a storage reference at an unrelated type.
+        let tuple_exprs =
+            if let hir::ExprKind::Tuple(exprs) = init.kind { Some(exprs) } else { None };
+        for (index, (&var, &ty)) in decls.iter().zip(value_types).enumerate() {
+            let Some(var) = var else { continue };
+            let expr = match tuple_exprs {
+                Some(exprs) => {
+                    let Some(Some(expr)) = exprs.get(index).copied() else { continue };
+                    expr
+                }
+                None => init,
+            };
             let var_ty = self.check_var_(var, VarSource::DeclStatement);
             let _ = self.check_expected(expr, ty, var_ty);
         }
