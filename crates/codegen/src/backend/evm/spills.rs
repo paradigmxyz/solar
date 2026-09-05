@@ -235,18 +235,46 @@ fn exceeds_stack_window(
                     }
                     stack.truncate(stack.values().len() - 1);
                 }
-                mir::Terminator::Switch { value, cases, .. } => {
-                    for &(case, _) in cases {
-                        if !prepare_pressure(
-                            &mut stack.clone(),
-                            &[*value, case],
-                            prefix,
-                            version,
-                            &stored,
-                            |_| true,
-                        ) {
+                mir::Terminator::Switch { value, .. } => {
+                    if !prepare_pressure(&mut stack, &[*value], prefix, version, &stored, |v| {
+                        live.live_out(block_id).contains(v)
+                    }) {
+                        return true;
+                    }
+                    stack.truncate(stack.values().len() - 1);
+                }
+                mir::Terminator::Return { values } if returning => {
+                    for &value in values.iter().skip(1) {
+                        if !prepare_pressure(&mut stack, &[value], prefix, version, &stored, |v| {
+                            values.contains(&v)
+                        }) {
                             return true;
                         }
+                        stack.truncate(stack.values().len() - 1);
+                    }
+                    let mut desired = values
+                        .first()
+                        .copied()
+                        .map(PressureSlot::Value)
+                        .into_iter()
+                        .collect::<Vec<_>>();
+                    desired.push(PressureSlot::ReturnAddress);
+                    if !materialize_pressure(&mut stack, &desired, &stored)
+                        || stack.reconcile(&desired, 0, version).is_err()
+                    {
+                        return true;
+                    }
+                }
+                mir::Terminator::SelfDestruct { recipient } => {
+                    if !prepare_pressure(
+                        &mut stack,
+                        &[*recipient],
+                        prefix,
+                        version,
+                        &stored,
+                        |_| false,
+                    ) {
+                        return true;
                     }
                 }
                 mir::Terminator::TailCall { args, .. } => {
