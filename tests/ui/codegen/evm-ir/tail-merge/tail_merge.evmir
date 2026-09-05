@@ -35,7 +35,10 @@ bb2 [cold]:
 // CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}push 77
 // CHECK: {{^[ +].*}}push 66
-// CHECK: + jump [[TAIL_B:bb[0-9]+]]
+// CHECK: {{^[ +].*}}push 33
+// CHECK: {{^[ +].*}}push 44
+// CHECK: {{^[ +].*}}push 55
+// CHECK: {{^[ +].*}}revert
 bb3:
   push 77
   push 66
@@ -122,11 +125,16 @@ bb9:
 bb10:
   stop
 
-// EXCHANGE lowers to two bytes on Amsterdam. Generic EVM IR keeps the three-swap size when deciding
-// whether to merge tails, which keeps the merge independent of target lowering.
+// EXCHANGE occupies two bytes on Amsterdam. Sharing this short suffix would grow
+// encoded code and add a jump to both paths, so the target cost model preserves it.
 // CHECK-LABEL: {{^[ +].*}}bb13 [cold]:
 // CHECK: {{^[ +].*}}push 1
-// CHECK: + jump [[TAIL_D:bb[0-9]+]]
+// CHECK: {{^[ +].*}}push 2
+// CHECK: {{^[ +].*}}push 3
+// CHECK: {{^[ +].*}}exchange 1, 2
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop
 bb13 [cold]:
   push 1
   push 2
@@ -138,7 +146,12 @@ bb13 [cold]:
 
 // CHECK-LABEL: {{^[ +].*}}bb14 [cold]:
 // CHECK: {{^[ +].*}}push 4
-// CHECK: + jump [[TAIL_D]]
+// CHECK: {{^[ +].*}}push 5
+// CHECK: {{^[ +].*}}push 6
+// CHECK: {{^[ +].*}}exchange 1, 2
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}stop
 bb14 [cold]:
   push 4
   push 5
@@ -175,12 +188,12 @@ bb12:
   push0
   stop
 
-// CHECK: + [[TAIL_B]]:
-// CHECK: {{^[ +].*}}push 33
-// CHECK: {{^[ +].*}}revert
 // CHECK: + [[TAIL_A]] [cold]:
 // CHECK: {{^[ +].*}}push 22
-// CHECK: + jump [[TAIL_B]]
+// CHECK: {{^[ +].*}}push 33
+// CHECK: {{^[ +].*}}push 44
+// CHECK: {{^[ +].*}}push 55
+// CHECK: {{^[ +].*}}revert
 // CHECK: + [[TAIL_C]]:
 // CHECK: {{^[ +].*}}push 222
 // CHECK: {{^[ +].*}}revert
