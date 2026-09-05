@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_named_immutable.mir (before lower-dispatch) ===
++ // === ROOT/tests/ui/codegen/mir/lowering/lower_dispatch_named_immutable.mir (after lower-dispatch) ===
+  @module NamedImmutable
+- @phase abi
++ @phase dispatch
+  immutables:
+    library_deploy_address: address
+  
+  fn @write() [selector=0x00000002] {
+    bb0:
+      stop
++ }
++ 
++ fn @entry() [entry] {
++   bb0:
++     v0 = callvalue
++     jumpi v0, bb3, bb1
++   bb1:
++     v1 = calldataload 0
++     v2 = shr 224, v1
++     switch v2, default bb3, [2 => bb2]
++   bb2:
++     tail_call @write
++   bb3:
++     revert 0, 0
+  }
+  

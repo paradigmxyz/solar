@@ -326,8 +326,12 @@ impl Module {
     /// It is declared for libraries with non-view external functions, stored by the creation
     /// code, and compared against `address()` by the dispatch so that those functions only run
     /// through `DELEGATECALL`. It is never a source variable, and is the only immutable a
-    /// library declares.
+    /// library declares. Textual MIR drops source variables, so a contract's own immutable of
+    /// the same name is told apart by the module not being a library.
     pub(crate) fn library_deploy_address(&self) -> Option<ImmutableId> {
+        if !self.is_library {
+            return None;
+        }
         self.immutables
             .iter_enumerated()
             .find(|(_, immutable)| {
