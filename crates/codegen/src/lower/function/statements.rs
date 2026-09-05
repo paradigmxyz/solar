@@ -290,8 +290,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. A non-constant reason string is still
-    /// evaluated for its side effects, matching solc, and only the payload is dropped.
+    /// Custom error payloads are never stripped. A reason string with side effects is still
+    /// evaluated, matching solc, and only the payload is dropped. Reasons without side effects,
+    /// such as literals or storage strings, are not lowered at all, so stripping never copies or
+    /// validates a value that is never observed.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
@@ -301,11 +303,47 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(false);
         }
-        if self.constant_string_bytes(expr).is_none() {
-            // Evaluate the reason string and discard the value.
-            self.lower_expr(expr)?;
+        if Self::reason_has_side_effects(expr) {
+            // Evaluate the reason string for its side effects and discard the value.
+            self.lower_discarded_expr(expr)?;
         }
         Some(true)
+    }
+
+    /// Returns `true` if evaluating `expr` may have side effects: it contains a call other than
+    /// a type conversion, an assignment, an increment or decrement, or a `delete`.
+    fn reason_has_side_effects(expr: &hir::Expr<'_>) -> bool {
+        fn any<'a>(mut exprs: impl Iterator<Item = &'a hir::Expr<'a>>) -> bool {
+            exprs.any(|expr| FunctionLowerer::reason_has_side_effects(expr))
+        }
+        match &expr.kind {
+            ExprKind::Call(callee, args, _) if matches!(callee.kind, ExprKind::Type(_)) => {
+                any(args.exprs())
+            }
+            ExprKind::Call(..) | ExprKind::Assign(..) | ExprKind::Delete(_) => true,
+            ExprKind::Unary(op, inner) => {
+                op.kind.has_side_effects() || Self::reason_has_side_effects(inner)
+            }
+            ExprKind::Array(exprs) => any(&mut exprs.iter()),
+            ExprKind::Tuple(exprs) => any(&mut exprs.iter().flatten().copied()),
+            ExprKind::Binary(lhs, _, rhs) => any(&mut [*lhs, *rhs].into_iter()),
+            ExprKind::Ternary(cond, then, otherwise) => {
+                any(&mut [*cond, *then, *otherwise].into_iter())
+            }
+            ExprKind::Index(base, index) => any(&mut std::iter::once(*base).chain(*index)),
+            ExprKind::Slice(base, start, end) => {
+                any(&mut std::iter::once(*base).chain(*start).chain(*end))
+            }
+            ExprKind::Member(inner, _)
+            | ExprKind::Payable(inner)
+            | ExprKind::YulMember(inner, _) => Self::reason_has_side_effects(inner),
+            ExprKind::Ident(_)
+            | ExprKind::Lit(_)
+            | ExprKind::New(_)
+            | ExprKind::TypeCall(_)
+            | ExprKind::Type(_)
+            | ExprKind::Err(_) => false,
+        }
     }
 
     /// Lowers an expression whose value is dropped, such as a tuple declaration or assignment

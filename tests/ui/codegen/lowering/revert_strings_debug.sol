@@ -4,6 +4,8 @@
 //@ run-call-fail: passthrough 7; value=1 => Error("Ether sent to non-payable function")
 //@ run-call-fail: 0xdeadbeef => Error("Contract does not have fallback nor receive functions")
 //@ run-call-fail: 0x8f336a56 => Error("ABI decoding: tuple data too short")
+//@ run-call: flag true => true
+//@ run-call-fail: 0xa92a4c3b0000000000000000000000000000000000000000000000000000000000000002 => 0x
 //@ run-call: slice 0x01020304, 1, 3 => 2
 //@ run-call-fail: slice 0x01020304, 0, 5 => Error("Slice is greater than length")
 //@ run-call-fail: slice 0x01020304, 2, 1 => Error("Slice starts after end")
@@ -15,7 +17,8 @@
 
 // `--revert-strings debug` encodes solc's messages for compiler-generated reverts as
 // `Error(string)` payloads: rejected Ether, unknown selectors, short calldata, invalid
-// calldata slices, and calls to code-less targets. User-supplied reason strings are kept.
+// calldata slices, and calls to code-less targets. User-supplied reason strings are kept,
+// and ABI word validators still revert with empty data, as in solc.
 // Without a `receive` function, unmatched calls report the "neither fallback nor receive"
 // message; see `revert_strings_debug_receive.sol` for the other one.
 interface Target {
@@ -26,6 +29,10 @@ interface Target {
 contract RevertStringsDebug {
     function passthrough(uint256 x) external pure returns (uint256) {
         return x;
+    }
+
+    function flag(bool b) external pure returns (bool) {
+        return b;
     }
 
     function slice(bytes calldata data, uint256 start, uint256 end) external pure returns (uint256) {

@@ -5,6 +5,11 @@ fn @passthrough(arg0: u256) -> u256 [selector=0x8f336a56, pure, abi_params=[u256
     ret arg0
 }
 
+fn @flag(arg0: bool) -> bool [selector=0xa92a4c3b, pure, abi_params=[bool], abi_returns=[word<bool>]] {
+  bb0:
+    ret arg0
+}
+
 fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0xe0041396, pure, abi_params=[bytes, u256, u256], abi_returns=[word]] {
   bb0:
     v0 = slice_ptr arg0

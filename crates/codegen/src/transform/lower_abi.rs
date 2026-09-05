@@ -980,6 +980,10 @@ impl LowerAbiCx {
             let mut builder = self.builder(func);
             let guard = builder.create_block();
             let revert = builder.create_block();
+            // solc's scalar validators revert with empty data even in debug mode, so they only
+            // share the "tuple data too short" block while that block has no message.
+            let validator_revert =
+                if self.revert_strings.is_debug() { builder.create_block() } else { revert };
             let mut current = guard;
 
             builder.switch_to_block(current);
@@ -1023,7 +1027,7 @@ impl LowerAbiCx {
                 let word = Self::load_input_word(&mut builder, offset, constructor);
                 let valid = validator.condition(&mut builder, word, self.has_bitwise_shifting);
                 let next = builder.create_block();
-                builder.branch(valid, next, revert);
+                builder.branch(valid, next, validator_revert);
                 current = next;
             }
 
@@ -1177,6 +1181,12 @@ impl LowerAbiCx {
 
             builder.switch_to_block(revert);
             builder.revert_reason(RevertReason::TupleDataTooShort);
+            if validator_revert != revert {
+                // revert(0, 0)
+                builder.switch_to_block(validator_revert);
+                let zero = builder.imm(0);
+                builder.revert(zero, zero);
+            }
 
             guard
         };
