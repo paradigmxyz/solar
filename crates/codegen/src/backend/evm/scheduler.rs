@@ -68,6 +68,42 @@ impl<T: Copy + Eq> Stack<T> {
         self.reconcile(&desired, fixed_prefix, evm_version)
     }
 
+    /// Consumes one last-use operand without imposing an order on retained values.
+    /// Callers must allow the private retained suffix to change order. In
+    /// particular, saved protocol words must continue using `prepare` instead.
+    pub(crate) fn prepare_dead_operand(
+        &mut self,
+        operand: T,
+        fixed_prefix: usize,
+        evm_version: EvmVersion,
+        mut retained: impl FnMut(T) -> bool,
+    ) -> Option<Vec<ir::Instruction>> {
+        if self.values.len() > 1024
+            || fixed_prefix > self.values.len()
+            || retained(operand)
+            || self.count(operand) != 1
+        {
+            return None;
+        }
+        let index = self.values.iter().position(|&value| value == operand)?;
+        let depth = self.values.len() - 1 - index;
+        if index < fixed_prefix
+            || depth <= 1
+            || depth > evm_version.reachable_stack_depth()
+            || self.values[fixed_prefix..].iter().enumerate().any(|(index, &value)| {
+                (value != operand && !retained(value))
+                    || self.values[fixed_prefix..fixed_prefix + index].contains(&value)
+            })
+        {
+            return None;
+        }
+        // <fixed prefix>; operand; <retained suffix>
+        // swap operand_depth
+        let mut output = Vec::new();
+        self.swap(index, evm_version, &mut output).ok()?;
+        Some(output)
+    }
+
     /// Plans a checked permutation and duplication with no partial state on failure.
     pub(crate) fn reconcile(
         &mut self,
@@ -260,6 +296,68 @@ mod tests {
         let code = stack.prepare(&[1, 2, 1], 1, EvmVersion::Osaka, |value| value == 1).unwrap();
         assert_eq!(replay(initial, &code, &[9]), [9, 1, 1, 2, 1]);
         assert_eq!(stack.values(), [9, 1, 1, 2, 1]);
+    }
+
+    #[test]
+    fn dead_operand_preserves_prefix_and_live_identities() {
+        for len in 3..=18 {
+            for prefix in 0..len {
+                for operand in prefix..len {
+                    let initial = (0..len as u8).collect::<Vec<_>>();
+                    let mut stack = Stack::new(initial.clone());
+                    let code = stack.prepare_dead_operand(
+                        operand as u8,
+                        prefix,
+                        EvmVersion::Osaka,
+                        |value| value != operand as u8,
+                    );
+                    let depth = len - 1 - operand;
+                    if depth > 1 && depth <= 16 {
+                        let code = code.unwrap();
+                        assert_eq!(code.len(), 1);
+                        let mut actual = replay(initial.clone(), &code, &initial[..prefix]);
+                        assert_eq!(actual, stack.values());
+                        assert_eq!(actual.pop(), Some(operand as u8));
+                        actual.sort_unstable();
+                        assert_eq!(
+                            actual,
+                            initial.into_iter().filter(|&v| v != operand as u8).collect::<Vec<_>>()
+                        );
+                    } else {
+                        assert!(code.is_none());
+                        assert_eq!(stack.values(), initial);
+                    }
+                }
+            }
+        }
+        for (initial, operand, prefix) in
+            [(vec![0, 1, 1, 2], 0, 0), (vec![0, 1, 2], 0, 1), (vec![0, 1, 0, 2], 0, 0)]
+        {
+            let mut stack = Stack::new(initial.clone());
+            assert!(
+                stack
+                    .prepare_dead_operand(operand, prefix, EvmVersion::Osaka, |v| v != operand)
+                    .is_none()
+            );
+            assert_eq!(stack.values(), initial);
+        }
+        let mut stack = Stack::new(vec![0, 1, 2]);
+        assert!(stack.prepare_dead_operand(0, 0, EvmVersion::Osaka, |_| true).is_none());
+        assert!(stack.prepare_dead_operand(0, 0, EvmVersion::Osaka, |v| v == 1).is_none());
+        assert_eq!(stack.values(), [0, 1, 2]);
+        for (version, depth) in [(EvmVersion::Osaka, 16), (EvmVersion::Amsterdam, 235)] {
+            let operand = 1023 - depth;
+            let initial = (0..1024_u16).collect::<Vec<_>>();
+            let mut stack = Stack::new(initial.clone());
+            assert!(stack.prepare_dead_operand(operand, 0, version, |v| v != operand).is_some());
+            let mut expected = initial;
+            expected.swap(usize::from(operand), 1023);
+            assert_eq!(stack.values(), expected);
+        }
+        let initial = (0..1025_u16).collect::<Vec<_>>();
+        let mut stack = Stack::new(initial.clone());
+        assert!(stack.prepare_dead_operand(1022, 0, EvmVersion::Osaka, |v| v != 1022).is_none());
+        assert_eq!(stack.values(), initial);
     }
 
     #[test]

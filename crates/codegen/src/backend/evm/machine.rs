@@ -429,7 +429,9 @@ fn lower_function(
                 continue;
             }
             if let Some(opcode) = instruction.kind.evm_opcode() {
-                lower_opcode(context, block_id, position, inst_id, opcode, &mut stack, &mut insts)?;
+                lower_opcode(
+                    context, block_id, position, inst_id, opcode, &mut stack, &mut insts, false,
+                )?;
                 continue;
             }
             match instruction.kind {
@@ -513,6 +515,10 @@ fn lower_function(
                 }
             }
             record_result(context, inst_id, &mut stack, &mut insts, true)?;
+        }
+        if let Some(selected) = entry_order::choose_operands(context, block_id, &stack, &insts) {
+            // <same opcode sequence>; <paid restore of original post-instruction stack>
+            insts = selected;
         }
         let term = block.terminator.as_ref().ok_or("unterminated MIR block")?;
         let terminator = match term {
@@ -845,6 +851,7 @@ fn lower_opcode(
     opcode: u8,
     stack: &mut Stack<Slot>,
     insts: &mut Vec<ir::Instruction>,
+    reorder_operand: bool,
 ) -> Result<(), String> {
     let function = context.function;
     let instruction = function.inst(inst_id);
@@ -882,6 +889,25 @@ fn lower_opcode(
             )
             .map_err(schedule_error)?,
         );
+    } else if reorder_operand
+        && saved.tracked == 0
+        && let [operand] = operands.as_slice()
+        && let Some(prepared) = stack.prepare_dead_operand(
+            Slot::Value(*operand),
+            prefix(context),
+            context.version,
+            |slot| match slot {
+                Slot::Value(value) => {
+                    stored(function, value)
+                        && !context.layout.spills.homes.contains_key(&value)
+                        && live(value)
+                }
+                _ => false,
+            },
+        )
+    {
+        // <fixed prefix>; <reordered retained values>; <last-use operand>
+        insts.extend(prepared);
     } else {
         prepare(context, stack, insts, &operands, live)?;
     }

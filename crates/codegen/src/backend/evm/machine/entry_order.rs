@@ -1,17 +1,22 @@
-//! Local retained-value ordering for short, pure MIR blocks.
+//! Bounded whole-block trials for private retained-value ordering.
 //!
-//! A single trial places incoming values with earlier last uses nearer the top.
-//! The actual checked opcode emitter schedules both versions. We pay the initial
-//! permutation inside the block and the complete outgoing phi reconciliation,
-//! leaving every predecessor and successor stack interface unchanged. Shared
-//! physical simplification scores the complete instruction streams, and both
-//! bytes and gas must improve or remain equal without increasing input access or
-//! peak height. Selection adds no labels and is atomic on any scheduling failure.
+//! Entry ordering places earlier last uses nearer the top and pays both its
+//! incoming permutation and outgoing phi reconciliation. Operand ordering instead
+//! lets a dead unary operand move through the top while retaining other values in
+//! any order, then restores the exact original post-instruction stack. This pays
+//! all later shuffles and leaves terminator lowering and outgoing edges unchanged.
 //!
-//! Only spill-free blocks with at most 32 pure direct opcodes and an unconditional
-//! jump qualify. Calls, memory writers, observations of code or gas, and compound
-//! lowering protocols remain outside this bounded trial. Opcode order, operands,
-//! and the fixed return-label prefix never change.
+//! Both trials replay the actual opcode emitter and share physical gas/byte and
+//! input/net/peak checks. Selection is atomic on failure and adds no labels. At
+//! most 32 direct instructions in a spill-free block qualify; calls, compound
+//! lowering, and code/gas observations are excluded. Entry ordering additionally
+//! requires pure opcodes and an unconditional jump. Opcode/effect order and the
+//! fixed return-label prefix never change. Later outlining/layout interactions
+//! still require complete generated-code measurements. Operand trials run only
+//! for gas optimization; size mode keeps canonical bodies for existing outlining.
+//! Their leading stack-only prefix must match the original, preserving the
+//! demonstrated cancellation with predecessor shuffles. This conservative
+//! boundary guard is not a guarantee about every later CFG/layout interaction.
 
 use super::{Context, Slot, edge_values, lower_opcode, materialize, prefix};
 use crate::{
@@ -28,20 +33,14 @@ pub(super) fn choose(
     original_stack: &Stack<Slot>,
     original_insts: &[ir::Instruction],
 ) -> Option<(Stack<Slot>, Vec<ir::Instruction>)> {
-    let block = &context.function.blocks[block_id];
-    if matches!(context.optimization, OptimizationMode::None)
-        || !context.layout.spills.homes.is_empty()
-        || block.instructions.len() > 32
-        || !block.instructions.iter().all(|&id| {
-            let kind = &context.function.inst(id).kind;
-            matches!(kind, mir::InstKind::Phi(_))
-                || kind.evm_opcode().is_some_and(
-                    |opcode| matches!(opcode, op::ADD..=op::SIGNEXTEND | op::LT..=op::CLZ),
-                )
-        })
-    {
+    if !eligible(
+        context,
+        block_id,
+        |opcode| matches!(opcode, op::ADD..=op::SIGNEXTEND | op::LT..=op::CLZ),
+    ) {
         return None;
     }
+    let block = &context.function.blocks[block_id];
     let incoming = &context.layout.entries[block_id];
     let mut preferred = incoming.clone();
     preferred[prefix(context)..].sort_by_key(|slot| {
@@ -61,28 +60,118 @@ pub(super) fn choose(
     let mut stack = Stack::new(incoming.clone());
     // <canonical entry>; <paid permutation into last-use order>
     let mut insts = stack.reconcile(&preferred, prefix(context), context.version).ok()?;
-    for (position, &id) in block.instructions.iter().enumerate() {
-        if let Some(opcode) = context.function.inst(id).kind.evm_opcode() {
-            // <same prepared operands>; <same direct opcode>
-            lower_opcode(context, block_id, position, id, opcode, &mut stack, &mut insts).ok()?;
-        }
-    }
+    replay(context, block_id, &mut stack, &mut insts, false)?;
     let desired = edge_values(context, block_id, target).ok()?;
-    let finish = |stack: &mut Stack<Slot>, insts: &mut Vec<ir::Instruction>| {
-        // <live values and simultaneous phi sources>; <canonical successor order>
-        materialize(context, stack, insts, &desired).ok()?;
-        insts.extend(stack.reconcile(&desired, prefix(context), context.version).ok()?);
-        Some(())
-    };
-    finish(&mut stack, &mut insts)?;
+    finish(context, &mut stack, &mut insts, &desired)?;
     let mut original = original_insts.to_vec();
-    finish(&mut original_stack.clone(), &mut original)?;
-    let old = ir::scheduling_usage(&original)?;
-    let new = ir::scheduling_usage(&insts)?;
-    if new.0 > old.0 || new.1 != old.1 || new.2 > old.2 {
+    finish(context, &mut original_stack.clone(), &mut original, &desired)?;
+    improves(context, &original, &insts).then_some((stack, insts))
+}
+
+pub(super) fn choose_operands(
+    context: &Context<'_>,
+    block_id: mir::BlockId,
+    original_stack: &Stack<Slot>,
+    original_insts: &[ir::Instruction],
+) -> Option<Vec<ir::Instruction>> {
+    if !matches!(context.optimization, OptimizationMode::Gas)
+        || !eligible(context, block_id, |opcode| {
+            op::stack_io(opcode).is_some()
+                && !matches!(
+                    opcode,
+                    op::CALL
+                        | op::CALLCODE
+                        | op::DELEGATECALL
+                        | op::STATICCALL
+                        | op::EXTCALL
+                        | op::EXTDELEGATECALL
+                        | op::EXTSTATICCALL
+                        | op::CREATE
+                        | op::CREATE2
+                        | op::EOFCREATE
+                        | op::GAS
+                        | op::PC
+                        | op::CODESIZE
+                        | op::CODECOPY
+                        | op::EXTCODESIZE
+                        | op::EXTCODECOPY
+                        | op::EXTCODEHASH
+                )
+        })
+    {
         return None;
     }
-    let old = ir::scheduling_cost(context.version, &original);
-    let new = ir::scheduling_cost(context.version, &insts);
-    (new.0 <= old.0 && new.1 <= old.1 && new != old).then_some((stack, insts))
+    let mut stack = Stack::new(context.layout.entries[block_id].clone());
+    let mut insts = Vec::new();
+    replay(context, block_id, &mut stack, &mut insts, true)?;
+    if insts == original_insts {
+        return None;
+    }
+    finish(context, &mut stack, &mut insts, original_stack.values())?;
+    if stack_prefix(original_insts) != stack_prefix(&insts) {
+        return None;
+    }
+    improves(context, original_insts, &insts).then_some(insts)
+}
+
+fn stack_prefix(insts: &[ir::Instruction]) -> &[ir::Instruction] {
+    let end = insts
+        .iter()
+        .position(|inst| matches!(inst.kind, ir::InstKind::Op(code) if code != op::POP))
+        .unwrap_or(insts.len());
+    &insts[..end]
+}
+
+fn eligible(context: &Context<'_>, block: mir::BlockId, allowed: impl Fn(u8) -> bool) -> bool {
+    !matches!(context.optimization, OptimizationMode::None)
+        && context.layout.spills.homes.is_empty()
+        && context.function.blocks[block].instructions.len() <= 32
+        && context.function.blocks[block].instructions.iter().all(|&id| {
+            let kind = &context.function.inst(id).kind;
+            matches!(kind, mir::InstKind::Phi(_)) || kind.evm_opcode().is_some_and(&allowed)
+        })
+}
+
+fn replay(
+    context: &Context<'_>,
+    block: mir::BlockId,
+    stack: &mut Stack<Slot>,
+    insts: &mut Vec<ir::Instruction>,
+    reorder_operand: bool,
+) -> Option<()> {
+    for (position, &id) in context.function.blocks[block].instructions.iter().enumerate() {
+        if let Some(opcode) = context.function.inst(id).kind.evm_opcode() {
+            // <same prepared operands>; <same direct opcode>
+            lower_opcode(context, block, position, id, opcode, stack, insts, reorder_operand)
+                .ok()?;
+        }
+    }
+    Some(())
+}
+
+fn finish(
+    context: &Context<'_>,
+    stack: &mut Stack<Slot>,
+    insts: &mut Vec<ir::Instruction>,
+    desired: &[Slot],
+) -> Option<()> {
+    // <live values and simultaneous phi sources>; <required boundary order>
+    materialize(context, stack, insts, desired).ok()?;
+    insts.extend(stack.reconcile(desired, prefix(context), context.version).ok()?);
+    Some(())
+}
+
+fn improves(
+    context: &Context<'_>,
+    original: &[ir::Instruction],
+    candidate: &[ir::Instruction],
+) -> bool {
+    let Some(old) = ir::scheduling_usage(original) else { return false };
+    let Some(new) = ir::scheduling_usage(candidate) else { return false };
+    if new.0 > old.0 || new.1 != old.1 || new.2 > old.2 {
+        return false;
+    }
+    let old = ir::scheduling_cost(context.version, original);
+    let new = ir::scheduling_cost(context.version, candidate);
+    new.0 <= old.0 && new.1 <= old.1 && new != old
 }
