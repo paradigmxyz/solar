@@ -65,6 +65,11 @@ fn @blob(arg0: memorybytes) -> u256 [selector=0x03cd5167, pure, abi_params=[byte
     ret v0
 }
 
+fn @unusedBlob(arg0: memorybytes) -> u256 [selector=0x26a41816, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    ret 1
+}
+
 fn @dec(arg0: memorybytes) -> u256 [selector=0x1a00934d, pure, abi_params=[bytes], abi_returns=[word]] {
   bb0:
     v0 = abi_decode [tuple<u256, bytes>], arg0

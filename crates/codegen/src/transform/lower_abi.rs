@@ -1222,7 +1222,10 @@ impl LowerAbiCx {
                             && (location != AbiParamLocation::Memory
                                 || (!constructor && matches!(ty, AbiParamType::Bytes)));
                         if validate_only {
+                            // The shared slice helper reports calldata array reasons, so a
+                            // memory-bound `bytes` validates inline when reasons are encoded.
                             if location == AbiParamLocation::Memory
+                                && !builder.encodes_revert_reasons()
                                 && let Some(helper) = self.calldata_slice_helper
                             {
                                 builder.icall_void(helper, vec![head], 1);
@@ -1234,6 +1237,7 @@ impl LowerAbiCx {
                                     tuple_base,
                                     input_end,
                                     constructor,
+                                    location == AbiParamLocation::Memory,
                                     &mut current,
                                 );
                             }
@@ -1447,6 +1451,10 @@ impl LowerAbiCx {
 
     /// Validates the immediate ABI shape of a dynamic aggregate without
     /// materializing its memory representation.
+    ///
+    /// `to_memory` selects the debug messages of the memory decoder for a value that solc
+    /// would copy to memory, even though the unused value is only validated here.
+    #[allow(clippy::too_many_arguments)]
     fn validate_dynamic_aggregate_argument(
         builder: &mut FunctionBuilder<'_>,
         ty: &crate::mir::AbiParamType,
@@ -1454,6 +1462,7 @@ impl LowerAbiCx {
         tuple_base: ValueId,
         input_end: ValueId,
         constructor: bool,
+        to_memory: bool,
         current: &mut BlockId,
     ) {
         builder.switch_to_block(*current);
@@ -1466,7 +1475,7 @@ impl LowerAbiCx {
             ty,
             current,
             RevertReason::InvalidTupleOffset,
-            !constructor,
+            !constructor && !to_memory,
         );
 
         match ty {
@@ -1481,7 +1490,7 @@ impl LowerAbiCx {
                 );
             }
             crate::mir::AbiParamType::FixedArray { .. } | crate::mir::AbiParamType::Tuple(..) => {
-                let reason = Self::aggregate_short_reason(ty, !constructor);
+                let reason = Self::aggregate_short_reason(ty, !constructor && !to_memory);
                 Self::guard_input_range(
                     builder,
                     base,
@@ -1494,7 +1503,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
-                Self::guard_bytes_data(builder, data, len, input_end, current, false);
+                Self::guard_bytes_data(builder, data, len, input_end, current, to_memory);
             }
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
                 unreachable!("scalar ABI value is not a dynamic aggregate")
@@ -1519,15 +1528,19 @@ impl LowerAbiCx {
             validate_array_elements,
             helpers,
             has_bitwise_shifting,
-            offset_reason: _,
+            offset_reason,
         } = options;
         builder.switch_to_block(*current);
         let is_dynamic = ty.is_dynamic();
         let location = if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
         let to_calldata =
             !constructor && matches!(arg_type, MirType::Slice(SliceLocation::Calldata));
+        // The shared helper checks the value's head offset with the tuple reason, so a struct
+        // member decodes inline when reasons are encoded.
         if constructor
             && head_checked
+            && (!builder.encodes_revert_reasons()
+                || offset_reason == RevertReason::InvalidTupleOffset)
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
         {
             return builder.icall(helper, vec![head, tuple_base, input_end], ty.mir_type(), 1);
