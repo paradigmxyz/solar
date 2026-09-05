@@ -5,8 +5,9 @@
 //! evaluator. Memory patterns only remove already-observed identical accesses;
 //! extra copies require a proved stack-capacity bound and mutable observations
 //! never move. Terminal cleanup discards a pure suffix only when the terminator
-//! cannot observe it. A self-contained terminal body may leave discarded prefix
-//! words underneath its operands when the additional stack height remains safe.
+//! cannot observe it. Terminal bodies may leave discarded prefix words underneath
+//! their operands when the additional stack height remains safe. A SWAP1/POP pair
+//! is redundant when the suffix observes at most its unchanged top incoming word.
 //! These transforms run on blocks before assembly.
 
 use super::super::{InstKind, Instruction, TerminatorKind, immediate};
@@ -15,7 +16,11 @@ use crate::{backend::evm::op, utils::eval::eval_opcode};
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 
-pub(super) fn peephole(insts: &mut Vec<Instruction>, version: EvmVersion, entry_max: Option<usize>) -> bool {
+pub(super) fn peephole(
+    insts: &mut Vec<Instruction>,
+    version: EvmVersion,
+    entry_max: Option<usize>,
+) -> bool {
     let mut changed = false;
     let mut index = 0;
     while index < insts.len() {
@@ -44,18 +49,27 @@ pub(super) fn peephole(insts: &mut Vec<Instruction>, version: EvmVersion, entry_
                     InstKind::Op(code),
                     InstKind::Op(op::POP),
                 ) if matches!(*code, op::MSTORE | op::MSTORE8 | op::SSTORE | op::TSTORE)
-                    && !(tail.len() >= 6 && *code == op::MSTORE
+                    && !(tail.len() >= 6
+                        && *code == op::MSTORE
                         && tail[1].kind == tail[4].kind
-                        && matches!(tail[5].kind, InstKind::Op(op::MLOAD))) => {
+                        && matches!(tail[5].kind, InstKind::Op(op::MLOAD))) =>
+                {
                     replacement = Some((4, vec![tail[1].clone(), tail[2].clone()]));
                 }
                 // push p; mstore; push p; mload -> dup1; push p; mstore
-                (InstKind::Push(a), InstKind::Op(op::MSTORE), InstKind::Push(b), InstKind::Op(op::MLOAD))
-                    if a == b && stack_usage(&insts[..index]).is_some_and(|(_, delta, _)| {
+                (
+                    InstKind::Push(a),
+                    InstKind::Op(op::MSTORE),
+                    InstKind::Push(b),
+                    InstKind::Op(op::MLOAD),
+                ) if a == b
+                    && stack_usage(&insts[..index]).is_some_and(|(_, delta, _)| {
                         entry_max.is_some_and(|entry| entry as i64 + delta + 2 <= 1024)
                             || stack_usage(insts).is_some_and(|(_, _, peak)| delta + 2 <= peak)
-                    }) => {
-                    replacement = Some((4, vec![InstKind::Dup(1).into(), tail[0].clone(), tail[1].clone()]));
+                    }) =>
+                {
+                    replacement =
+                        Some((4, vec![InstKind::Dup(1).into(), tail[0].clone(), tail[1].clone()]));
                 }
                 // iszero; iszero; push target; jumpi -> push target; jumpi
                 (
@@ -196,12 +210,18 @@ pub(super) fn peephole(insts: &mut Vec<Instruction>, version: EvmVersion, entry_
                 // exchange a,b; swap a -> swap a; swap b (and symmetrically for b)
                 (InstKind::Exchange(a, b), InstKind::Swap(depth)) if depth == a || depth == b => {
                     let other = if depth == a { *b } else { *a };
-                    replacement = Some((2, vec![InstKind::Swap(*depth).into(), InstKind::Swap(other).into()]));
+                    replacement = Some((
+                        2,
+                        vec![InstKind::Swap(*depth).into(), InstKind::Swap(other).into()],
+                    ));
                 }
                 // swap a; exchange a,b -> swap b; swap a (and symmetrically for b)
                 (InstKind::Swap(depth), InstKind::Exchange(a, b)) if depth == a || depth == b => {
                     let other = if depth == a { *b } else { *a };
-                    replacement = Some((2, vec![InstKind::Swap(other).into(), InstKind::Swap(*depth).into()]));
+                    replacement = Some((
+                        2,
+                        vec![InstKind::Swap(other).into(), InstKind::Swap(*depth).into()],
+                    ));
                 }
                 // exchange a,b; exchange a,b -> identity
                 (InstKind::Exchange(a, b), InstKind::Exchange(c, d)) if a == c && b == d => {
@@ -280,7 +300,11 @@ pub(super) fn peephole(insts: &mut Vec<Instruction>, version: EvmVersion, entry_
     changed
 }
 
-pub(super) fn dead_tail(insts: &mut Vec<Instruction>, terminator: &TerminatorKind, entry_max: Option<usize>) -> bool {
+pub(super) fn dead_tail(
+    insts: &mut Vec<Instruction>,
+    terminator: &TerminatorKind,
+    entry_max: Option<usize>,
+) -> bool {
     let mut required = match terminator {
         TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::Unreachable => 0,
         TerminatorKind::Return | TerminatorKind::Revert => 2,
@@ -334,7 +358,7 @@ pub(super) fn dead_tail(insts: &mut Vec<Instruction>, terminator: &TerminatorKin
     }
 }
 
-/// Leaves discarded prefix words below a self-contained terminal suffix.
+/// Leaves discarded prefix words below a terminal suffix with bounded input access.
 pub(super) fn terminal_pops(
     insts: &mut Vec<Instruction>,
     terminator: &TerminatorKind,
@@ -353,25 +377,34 @@ pub(super) fn terminal_pops(
         if !canonical(&insts[index]) || !matches!(insts[index].kind, InstKind::Op(op::POP)) {
             continue;
         }
+        let pair = index > 0
+            && canonical(&insts[index - 1])
+            && matches!(insts[index - 1].kind, InstKind::Swap(1));
+        let start = index - usize::from(pair);
+        let survivors = i64::from(pair);
         let suffix = &insts[index + 1..];
-        if !suffix.iter().all(|inst| canonical(inst) && !matches!(inst.kind,
-            InstKind::Op(op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::GAS))) {
+        if !suffix.iter().all(|inst| {
+            canonical(inst)
+                && !matches!(
+                    inst.kind,
+                    InstKind::Op(op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::GAS)
+                )
+        }) {
             continue;
         }
         let Some((required, delta, _)) = stack_usage(suffix) else { continue };
-        if required > 0 || delta < terminal_inputs {
+        if required > survivors || delta + survivors < terminal_inputs {
             continue;
         }
         let Some((_, _, old_peak)) = stack_usage(insts) else { continue };
         let mut candidate = insts.clone();
-        candidate.remove(index);
+        candidate.drain(start..=index);
         let Some((_, _, new_peak)) = stack_usage(&candidate) else { continue };
-        if new_peak <= old_peak
-            || entry_max.is_some_and(|entry| entry as i64 + new_peak <= 1024)
-        {
-            // pop dead_prefix; <self-contained suffix>; terminate
-            // -> <self-contained suffix>; terminate
+        if new_peak <= old_peak || entry_max.is_some_and(|entry| entry as i64 + new_peak <= 1024) {
+            // [swap1]; pop dead_prefix; <suffix using at most the retained top>; terminate
+            // -> <same suffix and retained top>; terminate
             *insts = candidate;
+            index = start;
             changed = true;
         }
     }
