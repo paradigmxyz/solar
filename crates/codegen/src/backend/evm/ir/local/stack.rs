@@ -3,7 +3,8 @@
 //! Symbolic execution tracks equal stack identities through DUP/SWAP/EXCHANGE.
 //! Normalization compares the checked private scheduler, a prefix-first placement,
 //! and a search bounded to three operations over four incoming words. It accepts
-//! only a smaller equivalent sequence with no increased input access or peak.
+//! only a smaller equivalent sequence with no increased input access and a peak
+//! within proved stack capacity.
 //! Reordering moves a literal across only
 //! a self-contained pure expression to remove its final swap. Unknown effects
 //! and noncanonical metadata bound each local analysis; no CFG edge is crossed.
@@ -36,7 +37,11 @@ pub(super) fn stack_step(values: &mut Vec<usize>, kind: &InstKind) -> bool {
     true
 }
 
-pub(super) fn normalize(insts: &mut Vec<Instruction>, version: EvmVersion, entry_max: Option<usize>) -> bool {
+pub(super) fn normalize(
+    insts: &mut Vec<Instruction>,
+    version: EvmVersion,
+    entry_max: Option<usize>,
+) -> bool {
     let mut changed = false;
     let mut start = 0;
     while start < insts.len() {
@@ -58,9 +63,12 @@ pub(super) fn normalize(insts: &mut Vec<Instruction>, version: EvmVersion, entry
             let mut best = original.to_vec();
             let mut consider = |candidate: Option<Vec<Instruction>>| {
                 if let Some(candidate) = candidate
-                    && stack_usage(&candidate)
-                        .zip(stack_usage(original))
-                        .is_some_and(|(new, old)| new.0 <= old.0 && (new.2 <= old.2 || room.is_some_and(|room| new.2 <= room)))
+                    && stack_usage(&candidate).zip(stack_usage(original)).is_some_and(
+                        |(new, old)| {
+                            new.0 <= old.0
+                                && (new.2 <= old.2 || room.is_some_and(|room| new.2 <= room))
+                        },
+                    )
                 {
                     let new = immediate::cost(version, &candidate);
                     let old = immediate::cost(version, &best);
@@ -114,7 +122,8 @@ pub(super) fn dedup_stack(insts: &mut Vec<Instruction>, version: EvmVersion) -> 
                 changed = true;
                 continue;
             }
-        } else if matches!(inst.kind, InstKind::Dup(_) | InstKind::Swap(_) | InstKind::Exchange(..)) {
+        } else if matches!(inst.kind, InstKind::Dup(_) | InstKind::Swap(_) | InstKind::Exchange(..))
+        {
             // An inaccessible physical permutation can replace every tracked
             // suffix identity with an unknown incoming word.
             values.clear();
@@ -175,7 +184,10 @@ pub(super) fn reorder(
                 start -= 1;
             }
             if required == 0
-                && (!copies_only || insts[start..index - 1].iter().any(|inst| matches!(inst.kind, InstKind::Dup(_))))
+                && (!copies_only
+                    || insts[start..index - 1]
+                        .iter()
+                        .any(|inst| matches!(inst.kind, InstKind::Dup(_))))
             {
                 let mut replacement = vec![insts[index - 1].clone()];
                 let mut local_height = 0usize;
@@ -323,7 +335,11 @@ fn place_then_pop(
 }
 
 /// Searches at most three instructions over at most four incoming words.
-fn short_plan(original: &[Instruction], version: EvmVersion, room: Option<i64>) -> Option<Vec<Instruction>> {
+fn short_plan(
+    original: &[Instruction],
+    version: EvmVersion,
+    room: Option<i64>,
+) -> Option<Vec<Instruction>> {
     let (required, _, peak) = stack_usage(original)?;
     let required = usize::try_from(required).ok()?;
     if required > 4 || original.len() < 2 {

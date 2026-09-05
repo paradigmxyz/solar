@@ -35,14 +35,24 @@ impl EvmPass for LocalPass {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let version = gcx.sess.opts.evm_version;
         let mut changed = false;
-        let heights = (matches!(self.0, "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"))
-            .then(|| verify::stack_heights(module).ok())
-            .flatten();
-        let reachable = matches!(self.0, "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize")
-            .then(|| verify::physical_reachability(module));
+        let heights = (matches!(
+            self.0,
+            "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
+        ))
+        .then(|| verify::stack_heights(module).ok())
+        .flatten();
+        let reachable = matches!(
+            self.0,
+            "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
+        )
+        .then(|| verify::physical_reachability(module));
         for id in module.block_ids().collect::<Vec<_>>() {
-            let entry_max = heights.as_ref().and_then(|heights| heights[id].map(|(_, max)| max))
-                .or_else(|| reachable.as_ref().is_some_and(|reachable| !reachable.contains(id)).then_some(0));
+            let entry_max = heights
+                .as_ref()
+                .and_then(|heights| heights[id].map(|(_, max)| max))
+                .or_else(|| {
+                    reachable.as_ref().is_some_and(|reachable| !reachable.contains(id)).then_some(0)
+                });
             let block = &mut module.blocks[id];
             match self.0 {
                 "compact-pushes" => {
@@ -177,7 +187,10 @@ fn stack_usage(insts: &[Instruction]) -> Option<(i64, i64, i64)> {
 }
 
 /// Estimates a physical scheduling trial using the shared local rewrite rules.
-pub(super) fn scheduling_cost(version: solar_config::EvmVersion, input: &[Instruction]) -> (usize, usize) {
+pub(super) fn scheduling_cost(
+    version: solar_config::EvmVersion,
+    input: &[Instruction],
+) -> (usize, usize) {
     let mut trial = input.to_vec();
     peephole(&mut trial, version, None);
     dead_copies::eliminate(&mut trial, version);
