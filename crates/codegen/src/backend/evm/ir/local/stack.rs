@@ -10,7 +10,8 @@
 //! a self-contained pure expression to remove its final swap. Unknown effects
 //! and noncanonical metadata bound each local analysis; no CFG edge is crossed.
 //! Store address preparation stays canonical for later literal-data packing and
-//! outlining. Size mode also moves compact literals before independent producers
+//! outlining; gas mode still removes swaps in zero initialization. Size mode
+//! also moves compact literals before independent producers
 //! to leave room for their temporary words during materialization.
 
 use super::{
@@ -19,7 +20,7 @@ use super::{
 };
 use crate::backend::evm::{op, scheduler::Stack};
 use alloy_primitives::U256;
-use solar_config::EvmVersion;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
@@ -161,8 +162,9 @@ pub(super) fn reorder(
     insts: &mut Vec<Instruction>,
     version: EvmVersion,
     entry_max: Option<usize>,
-    copies_only: bool,
+    mode: OptimizationMode,
 ) -> bool {
+    let copies_only = mode.is_size() && !version.has_extended_stack_ops();
     let mut changed = false;
     let mut index = 2;
     while index < insts.len() {
@@ -170,9 +172,11 @@ pub(super) fn reorder(
             && matches!(insts[index].kind, InstKind::Swap(1))
             && canonical(&insts[index - 1])
             && movable_push(&insts[index - 1].kind)
-            && !insts.get(index + 1).is_some_and(|inst| {
-                matches!(inst.kind, InstKind::Op(op::MSTORE | op::MSTORE8))
-            })
+            && ((mode.is_gas()
+                && matches!(insts[index - 1].kind, InstKind::Push(value) if value.is_zero()))
+                || !insts.get(index + 1).is_some_and(|inst| {
+                    matches!(inst.kind, InstKind::Op(op::MSTORE | op::MSTORE8))
+                }))
         {
             let mut start = index - 1;
             let mut required = 1;

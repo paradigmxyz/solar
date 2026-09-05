@@ -1,7 +1,8 @@
 //@ revisions: gas size
 //@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=reorder-pushes
 //@[size] compile-flags: -Osize -Zevm-ir-pipeline=reorder-pushes
-//@ filecheck:
+//@[gas] filecheck: --check-prefixes=CHECK,GAS
+//@[size] filecheck: --check-prefixes=CHECK,SIZE
 @module StoreOrder
 
 // Preserve address-last store preparation for packing and common-prefix outlining.
@@ -23,6 +24,24 @@ bb1:
 bb2:
   dup 1
   push 0x100000000000000000000000000000000
+  swap 1
+  mstore
+  stop
+
+// Gas mode removes zero-initialization swaps; size retains shared store prefixes.
+// CHECK-LABEL: bb3:
+// GAS: -   dup 1
+// GAS: {{^[ +].*}}push 0
+// GAS: -   swap 1
+// GAS: +   dup 2
+// SIZE: {{^    }}dup 1
+// SIZE-NEXT: {{^    }}push 0
+// SIZE-NEXT: {{^    }}swap 1
+// CHECK: {{^[ +].*}}mstore
+bb3:
+  push 64
+  dup 1
+  push 0
   swap 1
   mstore
   stop

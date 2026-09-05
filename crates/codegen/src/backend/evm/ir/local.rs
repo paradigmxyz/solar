@@ -107,7 +107,7 @@ impl EvmPass for LocalPass {
                         &mut block.insts,
                         version,
                         entry_max,
-                        gcx.sess.opts.optimization.is_size() && !version.has_extended_stack_ops(),
+                        gcx.sess.opts.optimization,
                     )
                 }
                 "block-cse" => changed |= common_expressions(&mut block.insts, version),
@@ -118,14 +118,20 @@ impl EvmPass for LocalPass {
                 _ => unreachable!(),
             }
         }
-        if self.0 == "dce" && let Some(heights) = &heights {
+        if self.0 == "dce"
+            && let Some(heights) = &heights
+        {
             for id in module.block_ids().collect::<Vec<_>>() {
                 if let super::TerminatorKind::Jump(target) = module.blocks[id].terminator.kind
                     && target != id
                     && !module.blocks[id].insts.is_empty()
-                    && module.blocks[id].insts.iter().all(|inst| canonical(inst) && matches!(inst.kind, InstKind::Op(op::POP)))
+                    && module.blocks[id]
+                        .insts
+                        .iter()
+                        .all(|inst| canonical(inst) && matches!(inst.kind, InstKind::Op(op::POP)))
                     && let Some((_, incoming)) = heights[id]
-                    && let Some(peak) = peephole::self_contained_terminal_peak(&module.blocks[target])
+                    && let Some(peak) =
+                        peephole::self_contained_terminal_peak(&module.blocks[target])
                     && incoming as i64 + peak.max(1) <= 1024
                 {
                     // pop dead_prefix...; jump <self-contained terminal body>
