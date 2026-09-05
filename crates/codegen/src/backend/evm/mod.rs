@@ -18,6 +18,7 @@ mod indexed;
 pub mod ir;
 mod machine;
 pub(crate) mod op;
+mod parallel_copy;
 mod scheduler;
 mod spills;
 mod storage;

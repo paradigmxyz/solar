@@ -13,7 +13,7 @@
 //! scheduled physical instructions and explicit control-flow edges.
 
 use super::{
-    calls, ir, op,
+    calls, ir, op, parallel_copy,
     scheduler::Stack,
     spills::SpillPlan,
     storage::{FunctionStorage, ModulePlan},
@@ -979,21 +979,41 @@ fn edge(
                     .find(|(pred, _)| *pred == from)
                     .ok_or("missing MIR phi predecessor")?
                     .1;
-                let scratch = context.layout.spills.phi_scratch + transfers.len();
-                // mstore(phi_temporary, incoming_value)
-                load_value(context, source, &mut insts)?;
-                store_spill(context, scratch, &mut insts)?;
-                transfers.push((scratch, context.layout.spills.homes[&result]));
+                let source = context
+                    .layout
+                    .spills
+                    .homes
+                    .get(&source)
+                    .copied()
+                    .map_or(parallel_copy::Source::Value(source), parallel_copy::Source::Home);
+                transfers.push((source, context.layout.spills.homes[&result]));
             }
         }
-        for (scratch, home) in transfers {
-            // mstore(phi_home, mload(phi_temporary))
-            insts.extend(calls::address(
-                context.storage.spill_address(scratch).map_err(str::to_owned)?,
-            ));
-            insts.push(ir::InstKind::Op(op::MLOAD).into());
-            store_spill(context, home, &mut insts)?;
+        let ordered = parallel_copy::schedule(transfers.clone(), context.layout.spills.phi_scratch);
+        let mut copies = emit_spill_copies(context, &ordered)?;
+        if context.version.has_mcopy()
+            && matches!(context.storage.base, super::storage::FrameBase::Static(_))
+            && transfers.len() >= 2
+        {
+            let staged = emit_spill_copies(
+                context,
+                &parallel_copy::stage(&transfers, context.layout.spills.phi_scratch),
+            )?;
+            let direct_cost = ir::copy_cost(context.version, &copies);
+            let staged_cost = ir::copy_cost(context.version, &staged);
+            let staged_wins = if context.optimization.is_size() {
+                // Contiguous staging retains MCOPY and shared-tail opportunities across cycles.
+                ordered.iter().any(|&(_, home)| home >= context.layout.spills.phi_scratch)
+                    || (staged_cost.1, staged_cost.0) <= (direct_cost.1, direct_cost.0)
+            } else {
+                staged_cost.0 <= direct_cost.0 && staged_cost.1 <= direct_cost.1
+            };
+            if staged_wins {
+                copies = staged;
+            }
         }
+        // <simultaneous spill copies in the selected safe order>
+        insts.extend(copies);
         return if insts.is_empty() {
             Ok(context.layout.blocks[to])
         } else {
@@ -1021,6 +1041,28 @@ fn edge(
         terminator: ir::TerminatorKind::Jump(context.layout.blocks[to]).into(),
         ..Default::default()
     }))
+}
+
+fn emit_spill_copies(
+    context: &Context<'_>,
+    transfers: &[(parallel_copy::Source, usize)],
+) -> Result<Vec<ir::Instruction>, String> {
+    let mut insts = Vec::new();
+    for &(source, home) in transfers {
+        match source {
+            parallel_copy::Source::Home(source) => {
+                // mload(source_home)
+                insts.extend(calls::address(
+                    context.storage.spill_address(source).map_err(str::to_owned)?,
+                ));
+                insts.push(ir::InstKind::Op(op::MLOAD).into());
+            }
+            parallel_copy::Source::Value(value) => load_value(context, value, &mut insts)?,
+        }
+        // mstore(destination_home, source_value)
+        store_spill(context, home, &mut insts)?;
+    }
+    Ok(insts)
 }
 
 fn edge_values(context: &Context<'_>, from: mir::BlockId, to: mir::BlockId) -> Result<Vec<Slot>, String> {

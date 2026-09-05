@@ -188,6 +188,14 @@ pub(crate) fn immediate_materialization_cost(
     immediate::cost(evm_version, &immediate::materialize(evm_version, value))
 }
 
+/// Estimates private spill-copy schedules using target copy-run recognition.
+pub(crate) fn copy_cost(
+    version: EvmVersion,
+    instructions: &[Instruction],
+) -> (usize, usize) {
+    data::copy_cost(version, instructions)
+}
+
 /// Estimates local physical scheduling cost without changing the IR module.
 pub(crate) fn scheduling_cost(version: solar_config::EvmVersion, instructions: &[Instruction]) -> (usize, usize) {
     local::scheduling_cost(version, instructions)

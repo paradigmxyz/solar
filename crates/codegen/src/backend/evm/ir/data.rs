@@ -55,57 +55,99 @@ impl EvmPass for CoalesceCopies {
         for id in module.block_ids().collect::<Vec<_>>() {
             let mut index = 0;
             while index + 8 <= module.blocks[id].insts.len() {
-                let Some((src, dest)) = word_copy(&module.blocks[id].insts[index..]) else {
+                let Some(run) = copy_run(&module.blocks[id].insts[index..]) else {
                     index += 1;
                     continue;
                 };
-                let mut words = 1usize;
-                while let Some((next_src, next_dest)) =
-                    word_copy(&module.blocks[id].insts[index + words * 4..])
-                {
-                    if src.checked_add(U256::from(words * 32)) != Some(next_src)
-                        || dest.checked_add(U256::from(words * 32)) != Some(next_dest)
-                    {
-                        break;
-                    }
-                    words += 1;
-                }
-                let bytes = U256::from(words * 32);
-                if words >= 2
-                    && let Some(src_end) = src.checked_add(bytes)
-                    && let Some(dest_end) = dest.checked_add(bytes)
-                    && (src_end <= dest || dest_end <= src)
-                {
-                    let replacement = [
-                        InstKind::Push(bytes),
-                        InstKind::Push(src),
-                        InstKind::Push(dest),
-                        InstKind::Op(op::MCOPY),
-                    ]
-                    .map(Into::into);
-                    if !super::verify::rewrite_fits(
+                if let Some(replacement) = run.replacement
+                    && super::verify::rewrite_fits(
                         module,
                         &heights,
                         &reachable,
                         id,
                         index,
-                        index + words * 4,
+                        index + run.len,
                         &replacement,
-                    ) {
-                        index += words * 4;
-                        continue;
-                    }
+                    )
+                {
                     // mstore(dest+i, mload(src+i)) -> mcopy(dest, src, bytes)
-                    module.blocks[id].insts.splice(index..index + words * 4, replacement);
+                    module.blocks[id].insts.splice(index..index + run.len, replacement);
                     changed = true;
                     index += 4;
                 } else {
-                    index += words * 4;
+                    index += run.len;
                 }
             }
         }
         changed
     }
+}
+
+struct CopyRun {
+    len: usize,
+    replacement: Option<[Instruction; 4]>,
+}
+
+/// Recognizes a contiguous copy run without proving its surrounding stack capacity.
+fn copy_run(insts: &[Instruction]) -> Option<CopyRun> {
+    let (src, dest) = word_copy(insts)?;
+    let mut words = 1usize;
+    while let Some((next_src, next_dest)) = word_copy(&insts[words * 4..]) {
+        if src.checked_add(U256::from(words * 32)) != Some(next_src)
+            || dest.checked_add(U256::from(words * 32)) != Some(next_dest)
+        {
+            break;
+        }
+        words += 1;
+    }
+    let bytes = U256::from(words * 32);
+    let replacement = if words >= 2
+        && let Some(src_end) = src.checked_add(bytes)
+        && let Some(dest_end) = dest.checked_add(bytes)
+        && (src_end <= dest || dest_end <= src)
+    {
+        // push bytes; push src; push dest; mcopy
+        Some(
+            [
+                InstKind::Push(bytes),
+                InstKind::Push(src),
+                InstKind::Push(dest),
+                InstKind::Op(op::MCOPY),
+            ]
+            .map(Into::into),
+        )
+    } else {
+        None
+    };
+    Some(CopyRun { len: words * 4, replacement })
+}
+
+/// Estimates copy scheduling after legal contiguous runs can coalesce.
+///
+/// This query does not emit a rewrite or assume its stack proof succeeded. The
+/// actual pass still requires room for MCOPY's three operands. Memory expansion
+/// is omitted, as with other physical scheduling estimates.
+pub(super) fn copy_cost(
+    version: solar_config::EvmVersion,
+    insts: &[Instruction],
+) -> (usize, usize) {
+    let mut cost = (0, 0);
+    let mut index = 0;
+    while index < insts.len() {
+        let (len, (bytes, gas)) = if version.has_mcopy()
+            && let Some(run) = copy_run(&insts[index..])
+            && let Some(replacement) = run.replacement
+        {
+            let (bytes, gas) = super::immediate::cost(version, &replacement);
+            (run.len, (bytes, gas + 3 * (run.len / 4)))
+        } else {
+            (1, super::immediate::cost(version, &insts[index..index + 1]))
+        };
+        cost.0 += gas;
+        cost.1 += bytes;
+        index += len;
+    }
+    cost
 }
 
 fn word_copy(insts: &[Instruction]) -> Option<(U256, U256)> {
