@@ -2303,7 +2303,11 @@ impl LowerAbiCx {
             let max_offset = builder.imm(u64::MAX);
             let overflow = builder.gt(offset, max_offset);
             *current = builder.revert_if(overflow, offset_reason);
-            let (invalid, reason) = if is_array_like {
+            // solc decodes a fixed array with dynamic elements to memory through its array
+            // decoder, which checks the first word before the element head sizes.
+            let checks_first_word = is_array_like
+                || (!to_calldata && matches!(ty, crate::mir::AbiParamType::FixedArray { .. }));
+            let (invalid, reason) = if checks_first_word {
                 let target_end = builder.add_u64_offset(target, 32);
                 (builder.gt(target_end, input_end), RevertReason::InvalidCalldataArrayOffset)
             } else {

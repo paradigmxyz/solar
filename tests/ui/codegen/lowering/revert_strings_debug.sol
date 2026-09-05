@@ -28,6 +28,9 @@
 //@ run-call-fail: 0x1a00934d000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020 => Error("ABI decoding: struct data too short")
 //@ run-call: st (1, 0x) => 1
 //@ run-call: blob 0x0102 => 2
+//@ run-call-fail: 0xf526f26e0000000000000000000000000000000000000000000000000000000000000020 => Error("ABI decoding: invalid calldata array offset")
+//@ run-call-fail: 0xf526f26e00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040 => Error("ABI decoding: invalid calldata array stride")
+//@ run-call: fixedBytes [0x01, 0x0203] => 3
 //@ run-call-fail: 0x26a4181600000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000064 => Error("ABI decoding: invalid byte array length")
 //@ run-call: unusedBlob 0x0102 => 1
 //@ run-call-fail: callNoCode => Error("Target contract does not contain code")
@@ -81,6 +84,10 @@ contract RevertStringsDebug {
 
     function blob(bytes memory data) external pure returns (uint256) {
         return data.length;
+    }
+
+    function fixedBytes(bytes[2] memory parts) external pure returns (uint256) {
+        return parts[0].length + parts[1].length;
     }
 
     function unusedBlob(bytes memory) external pure returns (uint256) {
