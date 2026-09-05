@@ -1,31 +1,41 @@
-//@ codegen-matrix: standard
-//@ compile-flags: --revert-strings strip
+//@ revisions: default strip debug
+//@[strip] compile-flags: --revert-strings strip
+//@[debug] compile-flags: --revert-strings debug
 //@ run-call: requireMessage 1 => 1
-//@ run-call-fail: requireMessage 0 => 0x
-//@ run-call-fail: requireConstantMessage 0 => 0x
-//@ run-call-fail: revertMessage => 0x
-//@ run-call-fail: revertDynamicMessage 3 => 0x
+//@[default,debug] run-call-fail: requireMessage 0 => Error("x must be one")
+//@[strip] run-call-fail: requireMessage 0 => 0x
+//@[default,debug] run-call-fail: requireConstantMessage 0 => Error("constant message")
+//@[strip] run-call-fail: requireConstantMessage 0 => 0x
+//@[default,debug] run-call-fail: revertMessage => Error("always")
+//@[strip] run-call-fail: revertMessage => 0x
+//@[default,debug] run-call-fail: revertDynamicMessage 3 => Error("value 3")
+//@[strip] run-call-fail: revertDynamicMessage 3 => 0x
 //@ run-call: requireSideEffects => 1
-//@ run-call-fail: revertSideEffects => 0x
+//@[default,debug] run-call-fail: revertSideEffects => Error("bumped")
+//@[strip] run-call-fail: revertSideEffects => 0x
 //@ run-call: storageReason 1 => 1
-//@ run-call-fail: storageReason 0 => 0x
+//@[default,debug] run-call-fail: storageReason 0 => Error("stored reason string that is longer than thirty-two bytes")
+//@[strip] run-call-fail: storageReason 0 => 0x
 //@ run-call: conversionReason 1 => 1
-//@ run-call-fail: conversionReason 0 => 0x
+//@[default,debug] run-call-fail: conversionReason 0 => Error("value 0")
+//@[strip] run-call-fail: conversionReason 0 => 0x
 //@ run-call-fail: conversionReason 255 => Panic(0x11)
 //@ run-call: indexedReason 1, 0 => 1
-//@ run-call-fail: indexedReason 0, 1 => 0x
+//@[default,debug] run-call-fail: indexedReason 0, 1 => Error("second")
+//@[strip] run-call-fail: indexedReason 0, 1 => 0x
 //@ run-call-fail: indexedReason 1, 5 => Panic(0x32)
 //@ run-call-fail: dividedReason 1, 0 => Panic(0x12)
 //@ run-call: slicedReason 0x0102, 0, 1 => 1
-//@ run-call-fail: slicedReason 0x0102, 2, 1 => 0x
+//@[default,strip] run-call-fail: slicedReason 0x0102, 2, 1 => 0x
+//@[debug] run-call-fail: slicedReason 0x0102, 2, 1 => Error("Slice starts after end")
 //@ run-call-fail: customError 7 => Custom(uint256)(7)
 //@ run-call-fail: requireCustomError 0 => Custom(uint256)(0)
 
-// `--revert-strings strip` drops `require` and `revert` reason strings but keeps
-// the side effects and failures of evaluating them, like solc, and leaves custom
-// errors untouched. Constants and plain variable reads are not lowered at all, so
-// `storageReason` never loads or copies `reason` (see the MIR output).
-contract RevertStringsStrip {
+// User-supplied reason strings under each `--revert-strings` mode. `strip` drops the
+// payload of `require` and `revert` reason strings but, like solc, still evaluates any
+// reason that is not a constant or a plain variable read, so their side effects and
+// panics are kept. Custom errors are untouched in every mode.
+contract UserStrings {
     string constant MESSAGE = "constant message";
     error Custom(uint256 value);
 

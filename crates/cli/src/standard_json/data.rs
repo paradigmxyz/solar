@@ -87,7 +87,7 @@ pub(super) struct Settings<'a> {
     pub(super) metadata: MetadataSettings,
     #[serde(borrow, default)]
     pub(super) libraries: Libraries<'a>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_present")]
     pub(super) debug: Option<DebugSettings>,
     //
     // Not supported.
@@ -106,13 +106,13 @@ pub(super) struct Settings<'a> {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct DebugSettings {
     /// Revert reason string handling.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_present")]
     pub(super) revert_strings: Option<RevertStrings>,
     /// Debug info components to include in IR output.
     ///
     /// We do not emit Yul IR, so only the selection rules are enforced: `snippet` requires
     /// `location`, and an explicit selection must include `ethdebug` to request ethdebug output.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_present")]
     pub(super) debug_info: Option<Vec<DebugInfoComponent>>,
 }
 
@@ -201,6 +201,17 @@ pub(super) enum MetadataHash {
 
 const fn default_true() -> bool {
     true
+}
+
+/// Deserializes an optional field that may be omitted but not `null`, like solc's presence
+/// checks: `#[serde(default)]` supplies `None` for an absent field, and a present field must
+/// hold a `T`.
+fn deserialize_present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
 }
 
 /// The supported subset of solc's Standard JSON `settings.optimizer` object.
@@ -1057,6 +1068,10 @@ mod tests {
     #[test]
     fn debug_settings_parse_solc_names() {
         assert!(serde_json::from_str::<DebugSettings>(r#"{"verbose":true}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":null}"#).is_err());
+        assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":null}"#).is_err());
+        assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":null}"#).is_err());
+        assert!(serde_json::from_str::<Settings<'_>>(r#"{"debug":{}}"#).is_ok());
         assert!(serde_json::from_str::<DebugSettings>(r#"{"revertStrings":"Strip"}"#).is_err());
         assert!(serde_json::from_str::<DebugSettings>(r#"{"debugInfo":["source"]}"#).is_err());
         let debug = serde_json::from_str::<DebugSettings>(

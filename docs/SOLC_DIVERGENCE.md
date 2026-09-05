@@ -305,6 +305,4 @@ No intentional divergences documented yet.
   in every edge case would require restructuring the decoder around solc's
   check order, which is not worth worse source or generated code.
 - Coverage: `tests/ui/standard-json/debug/`,
-  `tests/ui/codegen/lowering/revert_strings_debug.sol`,
-  `tests/ui/codegen/lowering/revert_strings_debug_receive.sol`,
-  `tests/ui/codegen/lowering/revert_strings_strip.sol`.
+  `tests/ui/codegen/lowering/revert-strings/`.

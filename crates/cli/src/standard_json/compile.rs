@@ -257,6 +257,9 @@ fn compile(
             }
         }
     }
+    // Like solc, Standard JSON never inherits the command line's `--revert-strings`; only
+    // `settings.debug.revertStrings` selects a non-default mode.
+    opts.revert_strings = RevertStrings::Default;
     if let Some(debug) = debug {
         apply_debug_settings(&dcx, opts, debug, output_selection);
     }
