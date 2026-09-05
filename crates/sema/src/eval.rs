@@ -511,35 +511,61 @@ impl IntScalar {
         value.retype(ty)
     }
 
+    /// Returns the mobile type of a literal operand.
+    ///
+    /// A typed operand makes the other, untyped one leave the rationals: the type checker gives
+    /// the literal its mobile type, the narrowest integer type holding it. A literal too large
+    /// for the full-width type of its sign has no mobile type at all, and the operator does not
+    /// apply to it, which is what solc reports as "Literal too large".
+    fn mobile_ty(&self) -> Result<IntTy, EE> {
+        let ty = IntTy::full_width(self.data.is_negative());
+        if ty.contains(&self.data) { Ok(ty) } else { Err(EE::LiteralTooLarge) }
+    }
+
     /// Returns the type the given binary operation is performed in, if any.
     ///
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
     /// in the common type of both operands. A literal operand adopts the other operand's type
     /// when it fits in it; otherwise, and for operands without a common type, the result stays
-    /// untyped because the type checker already rejects such operands.
+    /// untyped because the type checker already rejects such operands. Two literals keep full
+    /// precision, like the rational arithmetic the type checker performs on them.
     ///
-    /// A shift or exponentiation whose left operand is a literal and whose right operand is
-    /// typed is the exception: the type checker gives the literal its mobile type, which for
-    /// these operators is the full-width integer type of the literal's sign, so the operation is
-    /// performed in `uint256` or `int256` rather than at full precision. Keeping it unbounded
-    /// would fold `(1 << SHIFT) >> SHIFT` to `1` where the EVM shifts the bit out and yields `0`,
-    /// and would let an exponentiation that reverts with `Panic(0x11)` at runtime evaluate to a
-    /// value wider than a word.
-    fn binop_ty(l: &Self, r: &Self, op: hir::BinOpKind) -> Option<IntTy> {
+    /// A literal paired with a typed operand must first have a mobile type, and the operation is
+    /// rejected when it does not. This check comes before the operation because folding retypes
+    /// only the result: `(1 << 256) >> ONE` with a typed `ONE` would otherwise shift the literal
+    /// back into range and be accepted, where solc rejects the operands and the runtime
+    /// expression yields `0`.
+    ///
+    /// A shift or exponentiation whose left operand is a literal is the further exception: the
+    /// mobile type is the operation's type, so it is performed in `uint256` or `int256` rather
+    /// than at full precision. Keeping it unbounded would fold `(1 << SHIFT) >> SHIFT` to `1`
+    /// where the EVM shifts the bit out and yields `0`, and would let an exponentiation that
+    /// reverts with `Panic(0x11)` at runtime evaluate to a value wider than a word.
+    fn binop_ty(l: &Self, r: &Self, op: hir::BinOpKind) -> Result<Option<IntTy>, EE> {
         use hir::BinOpKind::*;
-        match op {
+        Ok(match op {
             Shl | Shr | Sar | Pow => match (l.ty, r.ty) {
-                (Some(ty), _) => Some(ty),
-                (None, Some(_)) => Some(IntTy::full_width(l.data.is_negative())),
+                (Some(ty), Some(_)) => Some(ty),
+                (Some(ty), None) => {
+                    r.mobile_ty()?;
+                    Some(ty)
+                }
+                (None, Some(_)) => Some(l.mobile_ty()?),
                 (None, None) => None,
             },
             _ => match (l.ty, r.ty) {
                 (None, None) => None,
-                (Some(ty), None) => ty.contains(&r.data).then_some(ty),
-                (None, Some(ty)) => ty.contains(&l.data).then_some(ty),
+                (Some(ty), None) => {
+                    r.mobile_ty()?;
+                    ty.contains(&r.data).then_some(ty)
+                }
+                (None, Some(ty)) => {
+                    l.mobile_ty()?;
+                    ty.contains(&l.data).then_some(ty)
+                }
                 (Some(l), Some(r)) => l.common(r),
             },
-        }
+        })
     }
 
     /// Applies the given binary operation to this value.
@@ -547,7 +573,7 @@ impl IntScalar {
     /// For literal arithmetic, this preserves the exact mathematical value. Typed arithmetic stays
     /// checked: a result outside of the operation's type is an error, like it is at runtime.
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
-        let ty = Self::binop_ty(&self, &r, op);
+        let ty = Self::binop_ty(&self, &r, op)?;
         self.binop_value(r, op)?.retype(ty)
     }
 
@@ -629,6 +655,7 @@ impl IntScalar {
 pub enum EvalErrorKind {
     RecursionLimitReached,
     ArithmeticOverflow,
+    LiteralTooLarge,
     NegateUnsigned,
     DivisionByZero,
     UnsupportedLiteral,
@@ -649,6 +676,7 @@ impl EvalErrorKind {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
+            Self::LiteralTooLarge => "literal is too large for the type of the other operand",
             Self::NegateUnsigned => "cannot apply unary operator `-` to an unsigned type",
             Self::DivisionByZero => "attempted to divide by zero",
             Self::UnsupportedLiteral => "unsupported literal",
