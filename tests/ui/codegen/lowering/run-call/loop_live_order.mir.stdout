@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/loop_live_order.sol:LoopLiveOrder ===
+@module LoopLiveOrder
+fn @sumRange(arg0: u256, arg1: u256) -> u256 [selector=0xa214547f, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb9: v8]
+    v1 = phi [bb0: arg0], [bb9: v1]
+    v2 = phi [bb0: 0], [bb9: v6]
+    v3 = phi [bb0: arg1], [bb9: v3]
+    v4 = gt v0, v3
+    v5 = iszero v4
+    jumpi v5, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v6 = add v2, v0
+    v7 = lt v6, v2
+    jumpi v7, bb7, bb8
+  bb8:
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v8 = add v0, 1
+    v9 = lt v8, v0
+    jumpi v9, bb7, bb9
+  bb9:
+    jump bb1
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

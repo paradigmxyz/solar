@@ -126,7 +126,7 @@ pub(crate) fn lower(
         };
         plan.reserve_spills(id, spills.words).map_err(str::to_owned)?;
         let mut blocks = IndexVec::new();
-        let mut entries = IndexVec::new();
+        let mut entries = IndexVec::<mir::BlockId, Vec<mir::ValueId>>::new();
         for (block_id, block) in function.blocks.iter_enumerated() {
             blocks.push(if reachable.contains(id) && cfg.is_reachable(block_id) {
                 output.blocks.push(ir::Block::default())
@@ -149,9 +149,6 @@ pub(crate) fn lower(
             values.dedup();
             values.retain(|value| !spills.homes.contains_key(value));
             entries.push(values);
-        }
-        if spills.homes.is_empty() && optimization != OptimizationMode::None {
-            super::entry_layout::improve(function, &live, &cfg, version, returning.contains(id), &mut entries, |value| stored(function, value));
         }
         let entries = entries.into_iter().map(|values| {
             let mut entry = Vec::new();
@@ -385,7 +382,18 @@ fn lower_function(
                     operands.len(),
                     || control_live_after(context, block_id, position),
                 )?;
-                prepare(context, &mut stack, &mut insts, &operands, live)?;
+                if saved.tracked == 0 && let Some(preferred) = preferred_branch_values(context, block_id, position, function.inst_result_value(inst_id)) {
+                    let operands = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
+                    materialize(context, &mut stack, &mut insts, &operands)?;
+                    // <fixed prefix>; <live values in successor order>; <opcode operands>
+                    insts.extend(super::entry_layout::prepare(&mut stack, &operands, &preferred, prefix(context), context.version, opcode, |slot| match slot {
+                        Slot::Value(value) => stored(function, value) && live(value),
+                        Slot::ReturnAddress | Slot::Protected(_) => true,
+                        Slot::CallLabel(_) | Slot::Argument(_) => false,
+                    }).map_err(schedule_error)?);
+                } else {
+                    prepare(context, &mut stack, &mut insts, &operands, live)?;
+                }
                 // <operands in pop order>
                 // opcode
                 insts.push(ir::InstKind::Op(opcode).into());
@@ -993,20 +1001,7 @@ fn edge(
             }))
         };
     }
-    let mut desired = context.layout.entries[to].clone();
-    for slot in &mut desired {
-        if let Slot::Value(value) = slot
-            && let mir::Value::Inst(inst) = context.function.value(*value)
-            && context.function.blocks[to].instructions.contains(inst)
-            && let mir::InstKind::Phi(incoming) = &context.function.inst(*inst).kind
-        {
-            *value = incoming
-                .iter()
-                .find(|(pred, _)| *pred == from)
-                .ok_or("missing MIR phi predecessor")?
-                .1;
-        }
-    }
+    let desired = edge_values(context, from, to)?;
     let mut stack = stack.clone();
     let mut insts = Vec::new();
     materialize(context, &mut stack, &mut insts, &desired)?;
@@ -1023,6 +1018,42 @@ fn edge(
         terminator: ir::TerminatorKind::Jump(context.layout.blocks[to]).into(),
         ..Default::default()
     }))
+}
+
+fn edge_values(context: &Context<'_>, from: mir::BlockId, to: mir::BlockId) -> Result<Vec<Slot>, String> {
+    let mut desired = context.layout.entries[to].clone();
+    for slot in &mut desired {
+        if let Slot::Value(value) = slot
+            && let mir::Value::Inst(inst) = context.function.value(*value)
+            && context.function.blocks[to].instructions.contains(inst)
+            && let mir::InstKind::Phi(incoming) = &context.function.inst(*inst).kind
+        {
+            *value = incoming
+                .iter()
+                .find(|(pred, _)| *pred == from)
+                .ok_or("missing MIR phi predecessor")?
+                .1;
+        }
+    }
+    Ok(desired)
+}
+
+fn preferred_branch_values(context: &Context<'_>, block: mir::BlockId, position: usize, result: Option<mir::ValueId>) -> Option<Vec<Slot>> {
+    let source = &context.function.blocks[block];
+    if position + 1 != source.instructions.len() || !context.layout.spills.homes.is_empty() {
+        return None;
+    }
+    let mir::Terminator::Branch { condition, then_block, else_block } = source.terminator.as_ref()? else { return None };
+    if result != Some(*condition) || context.layout.live.live_out(block).contains(*condition) {
+        return None;
+    }
+    let cyclic = context.layout.cfg.cyclic_blocks();
+    let target = match (cyclic.contains(*then_block), cyclic.contains(*else_block)) {
+        (true, false) => *then_block,
+        (false, true) => *else_block,
+        _ => return None,
+    };
+    edge_values(context, block, target).ok()
 }
 
 fn load_immutable(
