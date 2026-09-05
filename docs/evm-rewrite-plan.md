@@ -1,0 +1,83 @@
+# EVM backend rewrite handoff
+
+This is a deletion-first rewrite plan, not authorization to implement it in this planning task. Rebuild in Rust from the contract below and the retained tests. Preserve functionality, runtime gas, and creation/runtime bytecode size under both `-Ogas` and `-Osize`. Compiler time and peak memory are measured separately and cannot compensate for worse generated code.
+
+## Scope and first compiling milestone
+
+Delete **all 40 tracked files under `crates/codegen/src/backend/evm/`**, including the root module, generator, switch lowering, stack machinery, EVM IR and its parser/printer/verifier/passes, assembly preparation, assembler, layout, opcode helpers and disassembler. The baseline manifest records the exact file list. Do not move, rename, vendor, feature-gate, or call any of that implementation elsewhere. No legacy backend, dual execution path, fallback, or helper-by-helper reconstruction is permitted.
+
+Retain `crates/codegen/src/backend/mod.rs`, the crate's exports, `contract.rs`, MIR definitions, MIR lowering/optimization/analysis, `memory.rs`, `immutable.rs`, CLI/configuration, tests and benchmark infrastructure. Small caller changes needed to wire the replacement are allowed; they must not absorb deleted implementation. Existing serialized IR fixtures and output artifacts are contracts and evidence, not source to transplant.
+
+After deletion, create fresh compatibility declarations and an explicitly unsupported backend. The exact required surface and cross-layer dependencies are specified in [the API appendix](evm-rewrite-api.md). In particular:
+
+- Keep `EvmCodegen`, `Backend<Output = EvmArtifact>`, bytecode generation, capture setters, artifact fields, immutable-reference metadata, EVM IR entry points, pass interfaces and disassembly entry points used by retained callers.
+- Generation emits an ordinary diagnostic and returns an empty/default artifact; the caller must propagate the emitted error and publish no successful bytecode. Never use panic, `todo!`, successful empty compilation, or a fabricated `ErrorGuaranteed` as the unsupported path.
+- Result-returning parsing/assembly APIs return an emitted error. Context-free formatting APIs temporarily return unmistakable unsupported text. Pass execution/validation must diagnose unsupported use, not pretend an identity transform completed it.
+- Recreate necessary opcode facts and conservative literal-cost queries afresh. Temporarily declining optional MIR constant folding is acceptable; keeping the old `op.rs` is not. Keep the retained frontend and non-codegen modes usable.
+
+The deletion and compiling stub form one reviewable milestone before any machine-code functionality is rebuilt. Compile the workspace and all targets with normal features; unsupported codegen test failures are expected and inventoried at this milestone, never blessed or skipped away.
+
+## Behavioral contract
+
+The generator orchestrates the retained MIR pipeline. Actual machine lowering consumes only `evm-shaped` MIR; a lowering bailout diagnoses the remaining phase. The ordered phases are `built`, `optimized`, `abi`, `dispatch`, `memory-lowered`, `evm-shaped`. Named MIR lowering passes own transitions through `Module::advance_phase`; ad-hoc optimization lists do not advance phases. Preserve MIR/EVM IR captures and explicit pipeline options. Capture runtime and deployment-prefix EVM IR independently after deferred values are resolved and before byte encoding.
+
+Preserve all passing baseline inputs, including `-O none`, custom pipeline/switch selections, all tested EVM versions, and CLI/Standard JSON integration. Interfaces and internal-only libraries can legitimately have empty artifacts; unsupported concrete contracts cannot. A generator reused for multiple modules must not leak labels, captures, allocations, relocations, stack state or immutable state.
+
+| Responsibility | Required observable behavior and edge cases |
+| --- | --- |
+| Instructions and effects | Correct EVM operand order, wrapping 256-bit and signed operations, zero divisors, shifts at/above 256, narrow cleanup, physical memory/storage/transient storage, external calls, creation, hashing, logs and exact return/revert bytes. Preserve upstream checks and side-effect order. |
+| CFG and stack | Branches, loops, switches, simultaneous edge-specific phi transfers, critical edges, duplicate values, joins, unreachable blocks and deep stacks. Respect version-specific stack access and the 1024-word bound including transient operand preparation and complete call paths. |
+| Internal calls | Preserve arguments, suspended activations, return addresses and multiple results across nested calls, recursion, mutual recursion and function pointers. Tail calls transfer control without a return address. Retained lowering restricts argument-carrying tail calls to eligible static-frame runtime bodies and excludes constructor-reachable dynamic-frame bodies. |
+| Memory ownership | Frames, spills, allocation, user-visible memory, copying/zeroing, constructor argument storage and immutable staging must not overlap incorrectly. Follow retained `memory.rs`: word size 32, return scratch `0x20`, free-memory pointer `0x40`, zero slot `0x60`, heap start `0x80`, internal frame pointer `0xa0`, two-word frame header and allocation-end limit `u64::MAX`. |
+| Mutable observations | Do not freely duplicate, rematerialize or reorder reads of free-memory pointer, `gas`, `msize`, storage, transient storage, returndata or external state. |
+| Deployment and metadata | Constructor initialization/order, inherited constructors, appended constructor arguments, nested CREATE/CREATE2, immutable patching, library placeholders, embedded child code and runtime data. Deployment returns the advertised runtime after patches; constructor `Stop` completes deployment. Empty callable surfaces still need the tested reverting runtime. |
+| Relocation and target | Resolve interacting forward references, constructor/runtime/data offsets and PUSH-width cascades to a least fixed point. Preserve declared immutable widths and opcode-relative reference offsets. Honor older-fork legalization, PUSH0/MCOPY availability and newer extended stack instructions using retained `EvmVersion`. |
+| Diagnostics and output | Preserve malformed-IR rejection, code-size limits, source context, contract selection, capture behavior, human disassembly versus Standard JSON opcode formatting, link references and immutable references. Errors cannot leave a success-shaped partial artifact. |
+
+`contract.rs` continues to own dependency ordering, embedded contract data, linking, metadata append and artifact size diagnostics. ABI/dispatch/materialized memory semantics stay in retained MIR lowering, not a second backend ABI implementation. Existing unsupported cases include `fallback(bytes) returns (bytes)`, surviving logical-slice operations, surviving immutable stores and failure to reach the required phase. Inspect only live instructions when deciding support; removed arena entries must not trigger rejection. Preserve documented limitations in `docs/SOLC_DIVERGENCE.md` as explicit debt, not permission for new divergences.
+
+## Suggested module responsibilities
+
+These are ownership boundaries, not a prescribed algorithm or reconstruction of the old files:
+
+| Module area | Owns |
+| --- | --- |
+| Driver and capabilities | MIR orchestration, support checks, diagnostics, per-module lifetime and capture/export integration. |
+| Machine lowering | Translation of physical MIR operations and terminators into scheduled EVM blocks; version-aware instruction selection. |
+| Calls and storage planning | Call/return convention, activation lifetime, frame/spill ownership and allocation metadata. Coordinate with retained MIR analyses without imposing EVM stack details on MIR. |
+| Scheduler | Private MIR value identities and virtual stack layouts; edge reconciliation, reachable-depth management and emission of concrete DUP/SWAP/POP. |
+| Block EVM IR | Explicit physical instructions, CFG edges/terminators, relocatable data identity, text interchange, construction and verification. No surviving high-level calls or virtual values. |
+| Target optimizations | CFG cleanup, terminal deduplication/tail merging, cold/revert handling, peepholes, CSE, outlining, constants/data and block layout. Keep adapters with transforms and the pass manager limited to coordination. |
+| Assembly and deployment | Lower EVM blocks once to opcodes, label definitions/references, deferred pushes and immutable placeholders; solve offsets/widths and encode bytes. No CFG optimization in this compact stream. |
+| Presentation | Disassembly and artifact/capture conversion, keeping human and Standard JSON conventions distinct. |
+
+Each pass module needs reviewable module documentation describing rewrites, analysis, safety/profitability limits and pipeline placement. Put concise pseudo-IR comments at each IR-writing sequence. Use typed `IndexVec` for typed dense domains and proper bitsets for index sets; measure occupancy before choosing sparse maps. Algorithms and private representations remain open, subject to correctness and output-quality acceptance.
+
+## Milestones and gates
+
+1. **Seal evidence before deletion.** Verify the recorded revision, complete case/revision/contract/gas-label inventories, failures and exclusions. Retain raw benchmark artifacts, input hashes, commands and tool versions outside any directory that will be deleted or cleaned. Resolve missing baseline lanes before removing source.
+2. **Delete and compile the unsupported stub.** Apply the entire scope above at once. Preserve API compatibility and frontend operation; smoke-test ordinary CLI/Standard JSON unsupported diagnostics. No functioning fragment of the deleted backend remains.
+3. **Establish independent IR and encoding foundations.** Rebuild block IR/text/verification, version metadata, primitive assembly, data/deferred values and fixed-point relocation. Test malformed input, width-boundary cascades, immutable widths, repeated use and no partial successful output. Pure encoding helpers can have unit tests; pass behavior uses UI fixtures.
+4. **Recover executable scalar/control-flow behavior.** Rebuild instruction selection and scheduling, edge/phi transfers, switches and runtime entry integration. Exercise deep stack access, duplicate/permuted slots, fixed prefixes, branch-specific liveness and all supported target versions. Remain explicitly unsupported outside completed coverage.
+5. **Recover calls, memory and deployment completely.** Add nested/recursive/indirect calls, static/dynamic frame cases, spills, constructors, immutable/library/data relocations and all effects. Run the complete retained codegen/UI/Standard JSON/Foundry suites and replay-confirmed reduced differentials. No baseline-supported behavior may remain stubbed at this gate.
+6. **Recover output quality and finish integration.** Add target optimizations and tune scheduling/layout from measurements. Change one pass group at a time, retain ordering and `-Ztime-passes` evidence, and rerun matching size/hot-gas lanes. Restore pass names/options and stable interchange behavior. Complete the final acceptance below; remove temporary unsupported behavior for all previously supported inputs.
+
+## Tests and acceptance
+
+Retain all of `tests/ui/codegen/` (703 `.sol`, 201 `.mir`, 114 `.evmir` fixtures at baseline), adjacent snapshots, `tests/ui/standard-json/`, and all 35 in-repo Foundry projects. The standard codegen matrix covers `none`, `gas`, `size`, `mir`; preserve custom revisions as well. Prefer `run-call`/`run-call-fail` for isolated exact results and Foundry for stateful sequences, multiple actors/contracts and events.
+
+High-risk anchors include `lowering/run-call/{join_carry_phi_source_live,stack_phi_recomputed_source,recursive_static_frame_args,empty_contract_runtime}.sol`, `lowering/stack-too-deep/`, `run-call/immutable_constructor_argument_boundary.sol`, `run-call/create2.sol`, `lowering/program-data/`, `lowering/switch/`, `evm-ir/{validation,legalize-shifts,pack-data}/`, `evm-ir/none/{extended_stack,exchange_lowering}.evmir`, `evm-ir/stack-normalize/peak.evmir`, and `size-limits/`, all relative to `tests/ui/codegen/`.
+
+Backend-local tests disappear with their files. Their necessary external requirements are recorded here: cascading label/data PUSH widths; late deferred allocation values; fixed-width immutable patch offsets; reused generator/assembler state; stack permutations with duplicate/anonymous entries, preserved prefixes and maximum legal access; rejection without partial successful output. Also preserve conservative handling of partial writes overlapping the free-memory-pointer slot, address-exposed function frames, data-copy memory effects, caller prefixes/return-label peaks, unreachable phi state across functions, and spill-slot sharing only for disjoint live ranges including simultaneous phi transfers. Add fresh interface-level regressions for any requirement not covered by preserved tests before relying on it. Do not recreate private helper APIs just to port unit tests.
+
+Final validation uses `cargo nextest run --workspace`, `cargo tq ui`, `cargo tq standard-json`, and `cargo tq foundry`, with no `--all-features` and no direct `cargo test`. Do not bless snapshots until each change is explained by reviewed IR/output behavior and runtime/size evidence. For solc semantic comparisons, use `fuzz/bin/solsymdiff --source FILE --contract NAME --signature 'SIGNATURE'` per `fuzz/fandango/README.md`; retain inputs, bounds, concrete replay and `result.json`. Exit 2/incomplete is not a pass. Address-sensitive/self-call behavior requires the runtime/Foundry lane. External Foundry is optional supplemental coverage and its existing alias forces a release build; it is not the routine debug baseline.
+
+Acceptance is a strict join of baseline and candidate on source fingerprint, settings, test ID/revision, contract and ordered gas-call label. Preserve every failure/skip row and its reason. A missing case, missing contract, dropped gas label, new failure, runtime mismatch or unexplained changed outcome blocks completion. Improvements to known failures remain separately reported; they must not change the denominator for existing-success aggregates.
+
+For every previously successful case require correct runtime observations and **no increase in measured gas per matched call or creation/runtime byte counts under either `-Ogas` or `-Osize`**, then compare aggregates on exactly the same IDs. Review individual deltas even when totals improve. Compare serialized bytes as well as lengths; changed equal-length bytecode still needs semantic evidence. Report per-case compiler wall time samples and peak RSS plus aggregate time and maximum RSS. Recheck suspected timing/memory changes with sequential interleaved baseline/candidate runs on the same host; compiler speed is a tie-breaker and cannot buy gas/size regressions.
+
+## Baseline record
+
+The planning task records evidence for revision `9cb036c034649f9bb0c510f05e02cef477e19ab4`, initially clean, using a debug compiler and pinned solc `0.8.36` (submodule `8a079791d9cca7a6c03fd6a8429b93aa3bddefed`). The evidence directory is `target/codegen-bench/evm-rewrite-baseline-9cb036c/`; consult [the recorded summary](evm-rewrite-baseline.md), its `summary.md`, `manifest.json`, `commands.txt`, test logs and JSON reports. The manifest contains tool hashes/versions, host details, input hashes and the exact deletion list. The saved `solar-debug` executable is comparison-only evidence, never a candidate execution path or fallback. This local evidence must accompany the handoff; `target/` is ignored and is not durable delivery by itself.
+
+Rebuild the candidate in this same checkout with `cargo build -p solar-compiler --bin solar`; use distinct candidate paths. Repeat the exact baseline commands, changing only output locations and the candidate executable where applicable. Required lanes are the in-repository all-corpus quick screen, hot-gas runtime plus whole-project compile-time/RSS, and UI codegen `-Ogas`/`-Osize` bytecode screens. The extra `runtime-size.py` benchmark adapter sets shared Standard JSON optimizer settings to enabled/runs=1 before input fingerprinting for both compilers, providing a hot-gas and artifact lane for size mode; merely passing `-Osize` to the CLI is insufficient because Standard JSON settings select the mode. The UI screen intentionally does not interpret revision directives: the actual UI runner is the correctness oracle. Failed diagnostic fixtures stay in the screen's JSON rather than silently shrinking totals.
