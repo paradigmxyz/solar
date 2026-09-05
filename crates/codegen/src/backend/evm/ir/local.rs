@@ -18,6 +18,9 @@ mod cse;
 mod dead_copies;
 mod peephole;
 mod stack;
+mod terminal;
+
+pub(super) use terminal::TerminalPrefixes;
 
 use cse::common_expressions;
 use peephole::{dead_tail, peephole, terminal_pops};

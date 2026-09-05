@@ -1,0 +1,22 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_region.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_region.evmir (after terminal-prefixes) ===
+  @module TerminalRegion
+  bb0:
+    push 99
+    jump bb1
+  bb1:
+-   pop
+    calldatasize
+    jumpi bb2, bb3
+  bb2:
+    push 7
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb3:
+    push 0
+    push 0
+    revert
+  

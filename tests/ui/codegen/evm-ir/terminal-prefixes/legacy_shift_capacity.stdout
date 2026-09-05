@@ -1,0 +1,156 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/legacy_shift_capacity.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/legacy_shift_capacity.evmir (after terminal-prefixes) ===
+  @module LegacyShiftCapacity
+  bb0:
+    calldatasize
+    jumpi bb1, bb3
+  bb1:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->2)
+    jump bb2
+  bb2:
+    pop
+    push 1
+    push 1
+    shl
+    pop
+    stop
+  bb3:
+    calldatasize
+    jumpi bb4, bb6
+  bb4:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->2)
+    jump bb5
+  bb5:
+    pop
+    push 1
+    push 1
+    shr
+    pop
+    stop
+  bb6:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->1)
+    jump bb7
+  bb7:
+    pop
+    push 1
+    push 1
+    sar
+    pop
+    stop
+  
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/legacy_shift_capacity.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/legacy_shift_capacity.evmir (after terminal-prefixes) ===
+  @module LegacyShiftCapacity
+  bb0:
+    calldatasize
+    jumpi bb1, bb3
+  bb1:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->2)
+    jump bb2
+  bb2:
+    pop
+    push 1
+    push 1
+    shl
+    pop
+    stop
+  bb3:
+    calldatasize
+    jumpi bb4, bb6
+  bb4:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->2)
+    jump bb5
+  bb5:
+    pop
+    push 1
+    push 1
+    shr
+    pop
+    stop
+  bb6:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->1)
+    jump bb7
+  bb7:
+    pop
+    push 1
+    push 1
+    sar
+    pop
+    stop
+  
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/legacy_shift_capacity.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/legacy_shift_capacity.evmir (after terminal-prefixes) ===
+  @module LegacyShiftCapacity
+  bb0:
+    calldatasize
+    jumpi bb1, bb3
+  bb1:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->2)
+    jump bb2
+  bb2:
+    pop
+    push 1
+    push 1
+    shl
+    pop
+    stop
+  bb3:
+    calldatasize
+    jumpi bb4, bb6
+  bb4:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->2)
+    jump bb5
+  bb5:
+    pop
+    push 1
+    push 1
+    shr
+    pop
+    stop
+  bb6:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->1)
+    jump bb7
+  bb7:
+    pop
+    push 1
+    push 1
+    sar
+    pop
+    stop
+  

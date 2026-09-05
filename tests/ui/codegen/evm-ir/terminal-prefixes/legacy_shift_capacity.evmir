@@ -1,0 +1,64 @@
+//@ compile-flags: --evm-version byzantium -Zevm-ir-pipeline=terminal-prefixes,terminal-prefixes,terminal-prefixes
+//@ filecheck:
+@module LegacyShiftCapacity
+
+// Opaque producers establish exact incoming heights without a huge fixture.
+// Later legacy shift legalization needs temporary words beyond SHL/SHR/SAR's
+// nominal stack effects. Removing a POP would overflow the physical stack.
+bb0:
+  calldatasize
+  jumpi bb1, bb3
+bb1:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->2)
+  jump bb2
+// Entry 1022; POP and legalized SHL peak at 1024, without POP at 1025.
+// CHECK-LABEL: bb2:
+// CHECK-NEXT: {{^    }}pop
+bb2:
+  pop
+  push 1
+  push 1
+  shl
+  pop
+  stop
+bb3:
+  calldatasize
+  jumpi bb4, bb6
+bb4:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->2)
+  jump bb5
+// Entry 1022; POP and legalized SHR peak at 1024, without POP at 1025.
+// CHECK-LABEL: bb5:
+// CHECK-NEXT: {{^    }}pop
+bb5:
+  pop
+  push 1
+  push 1
+  shr
+  pop
+  stop
+bb6:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->1)
+  jump bb7
+// Entry 1021; POP and legalized SAR peak at 1024, without POP at 1025.
+// CHECK-LABEL: bb7:
+// CHECK-NEXT: {{^    }}pop
+bb7:
+  pop
+  push 1
+  push 1
+  sar
+  pop
+  stop
