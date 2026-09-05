@@ -481,6 +481,14 @@ impl<'a> OutputSelection<'a> {
         self.source("*")
     }
 
+    /// Returns every flag selected for any source or contract, including the wildcards.
+    pub(super) fn union(&self) -> OutputSelectionFlags {
+        self.0
+            .values()
+            .flat_map(FxIndexMap::values)
+            .fold(OutputSelectionFlags::empty(), |acc, &f| acc | f)
+    }
+
     pub(super) fn global(&self) -> OutputSelectionFlags {
         self.0.get("*").and_then(|contracts| contracts.get("*")).copied().unwrap_or_default()
             & OutputSelectionFlags::GLOBAL

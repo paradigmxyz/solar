@@ -290,10 +290,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. A reason string with side effects is still
-    /// evaluated, matching solc, and only the payload is dropped. Reasons without side effects,
-    /// such as literals or storage strings, are not lowered at all, so stripping never copies or
-    /// validates a value that is never observed.
+    /// Custom error payloads are never stripped. A reason string that is not a constant is
+    /// still evaluated, matching solc, so its side effects and failures such as panics are kept
+    /// and only the payload is dropped. Constants and plain variable reads are not lowered at
+    /// all, so stripping never copies or validates a value that is never observed.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
@@ -303,46 +303,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(false);
         }
-        if Self::reason_has_side_effects(expr) {
-            // Evaluate the reason string for its side effects and discard the value.
+        if !Self::stripped_reason_is_skippable(expr) {
+            // Evaluate the reason string for its effects and failures, discarding the value.
             self.lower_discarded_expr(expr)?;
         }
         Some(true)
     }
 
-    /// Returns `true` if evaluating `expr` may have side effects: it contains a call other than
-    /// a type conversion, an assignment, an increment or decrement, or a `delete`.
-    fn reason_has_side_effects(expr: &hir::Expr<'_>) -> bool {
-        fn any<'a>(mut exprs: impl Iterator<Item = &'a hir::Expr<'a>>) -> bool {
-            exprs.any(|expr| FunctionLowerer::reason_has_side_effects(expr))
-        }
+    /// Returns `true` if a stripped reason `expr` can be skipped without lowering it.
+    ///
+    /// solc evaluates every reason that is not a compile-time constant. Skipping is extended
+    /// only to plain variable reads, which cannot fail or have effects, so a storage string
+    /// reason is never copied. Everything else, including indexing, arithmetic, slicing, and
+    /// calls, is evaluated because it can revert or have side effects.
+    fn stripped_reason_is_skippable(expr: &hir::Expr<'_>) -> bool {
         match &expr.kind {
+            ExprKind::Lit(_) | ExprKind::Ident(_) | ExprKind::Type(_) | ExprKind::TypeCall(_) => {
+                true
+            }
+            ExprKind::Member(inner, _) | ExprKind::Payable(inner) => {
+                Self::stripped_reason_is_skippable(inner)
+            }
             ExprKind::Call(callee, args, _) if matches!(callee.kind, ExprKind::Type(_)) => {
-                any(args.exprs())
+                args.exprs().all(Self::stripped_reason_is_skippable)
             }
-            ExprKind::Call(..) | ExprKind::Assign(..) | ExprKind::Delete(_) => true,
-            ExprKind::Unary(op, inner) => {
-                op.kind.has_side_effects() || Self::reason_has_side_effects(inner)
+            ExprKind::Tuple(exprs) => {
+                exprs.iter().flatten().all(|expr| Self::stripped_reason_is_skippable(expr))
             }
-            ExprKind::Array(exprs) => any(&mut exprs.iter()),
-            ExprKind::Tuple(exprs) => any(&mut exprs.iter().flatten().copied()),
-            ExprKind::Binary(lhs, _, rhs) => any(&mut [*lhs, *rhs].into_iter()),
-            ExprKind::Ternary(cond, then, otherwise) => {
-                any(&mut [*cond, *then, *otherwise].into_iter())
-            }
-            ExprKind::Index(base, index) => any(&mut std::iter::once(*base).chain(*index)),
-            ExprKind::Slice(base, start, end) => {
-                any(&mut std::iter::once(*base).chain(*start).chain(*end))
-            }
-            ExprKind::Member(inner, _)
-            | ExprKind::Payable(inner)
-            | ExprKind::YulMember(inner, _) => Self::reason_has_side_effects(inner),
-            ExprKind::Ident(_)
-            | ExprKind::Lit(_)
-            | ExprKind::New(_)
-            | ExprKind::TypeCall(_)
-            | ExprKind::Type(_)
-            | ExprKind::Err(_) => false,
+            _ => false,
         }
     }
 

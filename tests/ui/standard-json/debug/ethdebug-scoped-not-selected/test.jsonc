@@ -1,0 +1,26 @@
+// The `debugInfo` rule also applies to ethdebug outputs selected for one source or contract,
+// not only to the `*` wildcard selection.
+// CHECK: "errors": [
+// CHECK: "severity": "error"
+// CHECK: "message": "`ethdebug` needs to be enabled in `settings.debug.debugInfo` if `evm.bytecode.ethdebug` or `evm.deployedBytecode.ethdebug` was selected as output"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A {}"
+    }
+  },
+  "settings": {
+    "debug": {
+      "debugInfo": ["location", "snippet"]
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.bytecode.ethdebug"
+        ]
+      }
+    }
+  }
+}

@@ -10,6 +10,8 @@
 //@ run-call-fail: slice 0x01020304, 0, 5 => Error("Slice is greater than length")
 //@ run-call-fail: slice 0x01020304, 2, 1 => Error("Slice starts after end")
 //@ run-call-fail: slice 0x01020304, 6, 5 => Error("Slice starts after end")
+//@ run-call: echo [1, 2] => [1, 2]
+//@ run-call-fail: 0x751d92270000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Error("ABI decoding: invalid calldata array stride")
 //@ run-call-fail: callNoCode => Error("Target contract does not contain code")
 //@ run-call-fail: callNoCodeReturning => Error("Target contract does not contain code")
 //@ run-call-fail: userRevert => Error("user")
@@ -38,6 +40,10 @@ contract RevertStringsDebug {
     function slice(bytes calldata data, uint256 start, uint256 end) external pure returns (uint256) {
         bytes calldata sliced = data[start:end];
         return sliced.length;
+    }
+
+    function echo(uint256[] calldata values) external pure returns (uint256[] calldata) {
+        return values;
     }
 
     function callNoCode() external {

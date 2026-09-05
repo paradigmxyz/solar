@@ -332,6 +332,137 @@ impl LowerAbiCx {
                 .all(|(abi_ty, &param_ty)| abi_ty.mir_type() == param_ty)
     }
 
+    /// Rewrites value-carrying returns into a semantic ABI encode followed by
+    /// `returndata(slice_ptr(encoded), slice_len(encoded))`.
+    fn encode_live_returns(
+        &self,
+        func: &mut Function,
+        return_params: Option<&AbiParamLayout>,
+        input_params: Option<&AbiParamLayout>,
+        canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
+        static_bytes_return: Option<StaticBytesReturn>,
+    ) {
+        let cleanup_helpers = &self.return_cleanup_helpers;
+        let has_bitwise_shifting = self.has_bitwise_shifting;
+        let revert_strings = self.revert_strings;
+        let Some(mut layout) = func.abi_returns.take() else { return };
+        let return_blocks = func
+            .blocks
+            .indices()
+            .filter(|&block| {
+                matches!(func.blocks[block].terminator, Some(Terminator::Return { ref values }) if !values.is_empty())
+            })
+            .collect::<Vec<_>>();
+        if let Some(value) = static_bytes_return {
+            let [return_block] = return_blocks.as_slice() else {
+                unreachable!("static bytes return has one return block")
+            };
+            encode_static_bytes_return(func, *return_block, value);
+            return;
+        }
+        let calldata_returns = if let [return_block] = return_blocks.as_slice() {
+            let values = match &func.blocks[*return_block].terminator {
+                Some(Terminator::Return { values }) => values.to_vec(),
+                _ => unreachable!("return block collected above"),
+            };
+            let (replacements, calldata_indices) =
+                reuse_direct_calldata_returns(func, *return_block, &values, &layout);
+            if !calldata_indices.is_empty() {
+                let layout = std::sync::Arc::make_mut(&mut layout);
+                for index in calldata_indices {
+                    *layout.types.get_mut(index).expect("ABI return shape exists") =
+                        AbiType::Bytes(SliceLocation::Calldata);
+                }
+            }
+            replacements
+        } else {
+            FxHashMap::default()
+        };
+        if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
+            // Static return data occupies the low-memory ABI buffer. Keep the
+            // backend spill area above it so a cross-block value cannot be
+            // overwritten while the return tuple is encoded.
+            func.external_static_return_size = layout.head_size();
+        }
+        let return_types = func.returns.clone();
+        for block_id in return_blocks {
+            let values = match func.blocks[block_id].terminator.take() {
+                Some(Terminator::Return { values }) => values.into_vec(),
+                _ => unreachable!("return block changed unexpectedly"),
+            };
+            let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
+            builder.switch_to_block(block_id);
+            let values = values
+                .into_iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    let value = calldata_returns.get(&value).copied().unwrap_or(value);
+                    let Some(ty) = return_params
+                        .and_then(|layout| layout.types.get(index).cloned())
+                        .or_else(|| return_types.get(index).copied().map(AbiParamType::Scalar))
+                    else {
+                        return value;
+                    };
+                    if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
+                        && matches!(ty, AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. })
+                    {
+                        return materialize_calldata_return(
+                            &mut builder,
+                            &ty,
+                            value,
+                            has_bitwise_shifting,
+                        );
+                    }
+                    if let Some(&helper) = cleanup_helpers.get(&ty)
+                        && builder.func().value_ty(value) == Some(ty.mir_type())
+                    {
+                        if is_canonical_return_call(
+                            builder.func(),
+                            block_id,
+                            &ty,
+                            value,
+                            canonical_calls,
+                        ) || is_canonical_return_value(
+                            builder.func(),
+                            &ty,
+                            value,
+                            input_params,
+                            ReturnValueSource::Scalar,
+                        ) {
+                            value
+                        } else {
+                            builder.icall(helper, vec![value], ty.mir_type(), 1)
+                        }
+                    } else {
+                        canonicalize_return_value(
+                            &mut builder,
+                            &ty,
+                            value,
+                            input_params,
+                            ReturnValueSource::Scalar,
+                        )
+                    }
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice();
+            if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
+                let encoded = builder.abi_encode(layout.clone(), None, values);
+                let offset = builder.slice_ptr(encoded);
+                let size = builder.slice_len(encoded);
+                builder.ret_data(offset, size);
+            } else {
+                let offset = builder.imm(EvmMemoryLayout::HEAP_START);
+                let size = super::lower_abi_encode::encode_static_tuple(
+                    &mut builder,
+                    &values,
+                    &layout.types,
+                    offset,
+                );
+                builder.ret_data(offset, size);
+            }
+        }
+    }
+
     /// Creates a builder for `func` that encodes revert reasons per the session's settings.
     fn builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
         FunctionBuilder::new(func).with_revert_strings(self.revert_strings)
@@ -744,14 +875,12 @@ impl LowerAbiCx {
             );
         }
         let return_params = module.function_mut(wrapper_id).abi_return_params.take();
-        encode_live_returns(
+        self.encode_live_returns(
             module.function_mut(wrapper_id),
             return_params.as_ref(),
             abi_params.as_ref(),
-            &self.return_cleanup_helpers,
             canonical_return_calls,
             static_bytes_return,
-            self.has_bitwise_shifting,
         );
 
         // External wrappers take no MIR arguments; constructor parameters
@@ -3584,135 +3713,6 @@ fn encode_static_bytes_return(
     builder.mstore(len_offset, len);
     builder.mstore(word_offset, word);
     builder.ret_data(offset, size);
-}
-
-/// Rewrites value-carrying returns into a semantic ABI encode followed by
-/// `returndata(slice_ptr(encoded), slice_len(encoded))`.
-fn encode_live_returns(
-    func: &mut Function,
-    return_params: Option<&AbiParamLayout>,
-    input_params: Option<&AbiParamLayout>,
-    cleanup_helpers: &FxHashMap<AbiParamType, FunctionId>,
-    canonical_calls: &FxHashSet<(FunctionId, AbiParamType)>,
-    static_bytes_return: Option<StaticBytesReturn>,
-    has_bitwise_shifting: bool,
-) {
-    let Some(mut layout) = func.abi_returns.take() else { return };
-    let return_blocks = func
-        .blocks
-        .indices()
-        .filter(|&block| {
-            matches!(func.blocks[block].terminator, Some(Terminator::Return { ref values }) if !values.is_empty())
-        })
-        .collect::<Vec<_>>();
-    if let Some(value) = static_bytes_return {
-        let [return_block] = return_blocks.as_slice() else {
-            unreachable!("static bytes return has one return block")
-        };
-        encode_static_bytes_return(func, *return_block, value);
-        return;
-    }
-    let calldata_returns = if let [return_block] = return_blocks.as_slice() {
-        let values = match &func.blocks[*return_block].terminator {
-            Some(Terminator::Return { values }) => values.to_vec(),
-            _ => unreachable!("return block collected above"),
-        };
-        let (replacements, calldata_indices) =
-            reuse_direct_calldata_returns(func, *return_block, &values, &layout);
-        if !calldata_indices.is_empty() {
-            let layout = std::sync::Arc::make_mut(&mut layout);
-            for index in calldata_indices {
-                *layout.types.get_mut(index).expect("ABI return shape exists") =
-                    AbiType::Bytes(SliceLocation::Calldata);
-            }
-        }
-        replacements
-    } else {
-        FxHashMap::default()
-    };
-    if !layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
-        // Static return data occupies the low-memory ABI buffer. Keep the
-        // backend spill area above it so a cross-block value cannot be
-        // overwritten while the return tuple is encoded.
-        func.external_static_return_size = layout.head_size();
-    }
-    let return_types = func.returns.clone();
-    for block_id in return_blocks {
-        let values = match func.blocks[block_id].terminator.take() {
-            Some(Terminator::Return { values }) => values.into_vec(),
-            _ => unreachable!("return block changed unexpectedly"),
-        };
-        let mut builder = FunctionBuilder::new(func);
-        builder.switch_to_block(block_id);
-        let values = values
-            .into_iter()
-            .enumerate()
-            .map(|(index, value)| {
-                let value = calldata_returns.get(&value).copied().unwrap_or(value);
-                let Some(ty) = return_params
-                    .and_then(|layout| layout.types.get(index).cloned())
-                    .or_else(|| return_types.get(index).copied().map(AbiParamType::Scalar))
-                else {
-                    return value;
-                };
-                if return_types.get(index) == Some(&MirType::Slice(SliceLocation::Calldata))
-                    && matches!(ty, AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. })
-                {
-                    return materialize_calldata_return(
-                        &mut builder,
-                        &ty,
-                        value,
-                        has_bitwise_shifting,
-                    );
-                }
-                if let Some(&helper) = cleanup_helpers.get(&ty)
-                    && builder.func().value_ty(value) == Some(ty.mir_type())
-                {
-                    if is_canonical_return_call(
-                        builder.func(),
-                        block_id,
-                        &ty,
-                        value,
-                        canonical_calls,
-                    ) || is_canonical_return_value(
-                        builder.func(),
-                        &ty,
-                        value,
-                        input_params,
-                        ReturnValueSource::Scalar,
-                    ) {
-                        value
-                    } else {
-                        builder.icall(helper, vec![value], ty.mir_type(), 1)
-                    }
-                } else {
-                    canonicalize_return_value(
-                        &mut builder,
-                        &ty,
-                        value,
-                        input_params,
-                        ReturnValueSource::Scalar,
-                    )
-                }
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
-        if layout.types.iter().any(crate::mir::AbiType::is_dynamic) {
-            let encoded = builder.abi_encode(layout.clone(), None, values);
-            let offset = builder.slice_ptr(encoded);
-            let size = builder.slice_len(encoded);
-            builder.ret_data(offset, size);
-        } else {
-            let offset = builder.imm(EvmMemoryLayout::HEAP_START);
-            let size = super::lower_abi_encode::encode_static_tuple(
-                &mut builder,
-                &values,
-                &layout.types,
-                offset,
-            );
-            builder.ret_data(offset, size);
-        }
-    }
 }
 
 fn materialize_calldata_return(

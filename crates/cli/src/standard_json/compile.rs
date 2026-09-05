@@ -176,7 +176,7 @@ fn apply_debug_settings(
     }
     let ethdebug_outputs =
         OutputSelectionFlags::BYTECODE_ETHDEBUG | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
-    if output_selection.all().intersects(ethdebug_outputs)
+    if output_selection.union().intersects(ethdebug_outputs)
         && !debug.selects_debug_info(DebugInfoComponent::Ethdebug)
     {
         dcx.err(
