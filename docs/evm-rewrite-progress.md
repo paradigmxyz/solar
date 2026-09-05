@@ -324,6 +324,38 @@ review rejected a proposed region-only call-write proof: backward arithmetic
 can make a heap-derived pointer overlap compiler homes. No such optimization
 was implemented; direct-writer behavior is being tested before further tuning.
 
+## Draft PR checkpoint
+
+Derived memory-write protection (`00c98255`) fixes a replay-confirmed corruption:
+a twenty-input sum returned `0xdeadbfb4` instead of `210` after backward pointer
+arithmetic overwrote a live spill. Exact physical frame/allocation ranges replace
+coarse region assumptions. All four new UI revisions pass; 54 mismatches across
+78 identical reference-agreement cases become zero, and all 96 candidate calls
+return the expected sum. The pure range tests pass. A post-fix symbolic query
+limit remains incomplete, not a general equivalence claim.
+
+The correctness fix preserves all 714 size-screen case inventories per mode and
+all 15 hot observations/175 ordered labels, but costs 12,681/12,693 hot runtime
+bytes and 132 gas in each mode. There are 110 local UI artifact increases and
+seven hot artifact/six hot-label increases per mode. This increases outstanding
+performance debt and is not final acceptance. Identical-schedule costing
+(`4a5f4d6f`) separately removes redundant analysis with exact UI/hot bytecode.
+The residence-window cap-10 trial was rejected: one existing deep-stack fixture
+grew five bytes in both modes, worsening sealed debt despite small Nitro gains.
+
+Two disassembly reviews (`945f6fb1`) retain eight execution comparisons and four
+exact capture round trips. The current committed codegen UI run has 2,533 passes
+and 69 output-comparison failures; no failures are silently blessed. All 85
+codegen helper tests and the in-repository Foundry lane pass. Backend Rust scope
+is 10,705 raw lines in 32 files versus 34,638 deleted lines, a 23,933-line (69.1%)
+reduction including comments, blanks and unit tests. Production-only historical
+LOC was not retained and is not reconstructed from forbidden source.
+
+The PR is a draft for reviewing the architecture and incremental commits.
+Functionality reviews, per-artifact/per-label output-quality recovery, final
+full-workspace validation and complete heavy-corpus remeasurement remain open.
+The sealed archive checksum was reverified unchanged.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
