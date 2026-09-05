@@ -175,6 +175,37 @@ The retained MIR argument-normalization trial produced byte-identical outputs
 across both UI corpora and both hot modes, so its redundant driver call was
 removed. Trial sources and comparisons remain in `canonical-arguments/`.
 
+## Correctness review and current trials
+
+The latest full UI checkpoint (`committed-entry-modulo/`) has 2,864 passes and
+128 output differences; every reported failure is an output comparison. Its
+Standard JSON lane has 15 passes and 11 differences. Investigation found a real
+metadata bug among those differences: data compaction discarded unreferenced
+mandatory runtime trailers. Fix `82b7903f` retains opaque trailing bytes, including
+nested child metadata. Metadata hashes, immutable and library offsets, actual
+deployment/library calls, and eight runtime/eight deployment capture round trips
+pass. Reviewed Standard JSON expectation updates remain a separate checkpoint.
+
+Fixed low-memory residence (`5b840d62`) removes 462/459 Nitro runtime bytes and
+66 hot gas in each mode. Existing UI cases shrink 995/1,176 bytes without an
+individual increase; the new recursive boundary fixture saves 2,058 more in
+each mode. Both symbolic comparisons reach bounded agreement.
+
+Terminal sharing needed additional correctness guards (`57d4cbf9`): independent
+replays exposed changed PC/GAS values, escaped numeric labels and a 1,024-word
+stack overflow. Nine focused fixtures and eight replay paths now pass. Gas mode
+is unchanged, but conservative guards add 1,812 hot runtime bytes and 8,596 UI
+runtime bytes under size optimization, with seven hot-label increases. These
+are explicit performance debts. Reviewed private control-label provenance is
+being implemented to recover safe sharing of generated continuation labels.
+
+Post-compaction CSE (`54e9757f`) runs only in gas mode. It preserves every hot
+label and removes five hot runtime bytes and 106 UI runtime bytes, with no
+individual increase. The size-mode trial was rejected after it disrupted tail
+sharing. Broad and storage-only dying-operand trials were also rejected after
+local swap savings caused downstream regressions. The next trial pays the
+complete block schedule and restores its exact original exit stack.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
