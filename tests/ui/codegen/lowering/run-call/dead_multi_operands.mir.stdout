@@ -1,0 +1,13 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/dead_multi_operands.sol:DeadMultiOperands ===
+@module DeadMultiOperands
+fn @run(arg0: memorystruct) -> u256 [selector=0x1b3599be, pure, abi_params=[tuple<u256, array<_, u256>, bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<3>, arg0, 0
+    v1 = memory_object_load_field memorystruct<3>, arg0, 1
+    v2 = memory_object_len memoryarray, v1
+    v3 = add v0, v2
+    v4 = memory_object_load_field memorystruct<3>, arg0, 2
+    v5 = memory_object_len memorybytes, v4
+    v6 = add v3, v5
+    ret v6
+}

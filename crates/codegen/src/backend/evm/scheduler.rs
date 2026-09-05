@@ -68,40 +68,47 @@ impl<T: Copy + Eq> Stack<T> {
         self.reconcile(&desired, fixed_prefix, evm_version)
     }
 
-    /// Consumes one last-use operand without imposing an order on retained values.
+    /// Places unique last-use operands without fixing the retained values' order.
     /// Callers must allow the private retained suffix to change order. In
     /// particular, saved protocol words must continue using `prepare` instead.
-    pub(crate) fn prepare_dead_operand(
+    pub(crate) fn prepare_dead_operands(
         &mut self,
-        operand: T,
+        pop_order: &[T],
         fixed_prefix: usize,
         evm_version: EvmVersion,
         mut retained: impl FnMut(T) -> bool,
     ) -> Option<Vec<ir::Instruction>> {
         if self.values.len() > 1024
             || fixed_prefix > self.values.len()
-            || retained(operand)
-            || self.count(operand) != 1
-        {
-            return None;
-        }
-        let index = self.values.iter().position(|&value| value == operand)?;
-        let depth = self.values.len() - 1 - index;
-        if index < fixed_prefix
-            || depth <= 1
-            || depth > evm_version.reachable_stack_depth()
+            || pop_order.is_empty()
+            || pop_order.len() > self.values.len() - fixed_prefix
+            || pop_order.iter().enumerate().any(|(index, &operand)| {
+                retained(operand)
+                    || self.count(operand) != 1
+                    || self.values[..fixed_prefix].contains(&operand)
+                    || pop_order[..index].contains(&operand)
+            })
             || self.values[fixed_prefix..].iter().enumerate().any(|(index, &value)| {
-                (value != operand && !retained(value))
+                (!pop_order.contains(&value) && !retained(value))
                     || self.values[fixed_prefix..fixed_prefix + index].contains(&value)
             })
         {
             return None;
         }
-        // <fixed prefix>; operand; <retained suffix>
-        // swap operand_depth
-        let mut output = Vec::new();
-        self.swap(index, evm_version, &mut output).ok()?;
-        Some(output)
+        // Keep the established unary trial's shallow-operand boundary unchanged.
+        if let [operand] = pop_order
+            && self.values[self.values.len().saturating_sub(2)..].contains(operand)
+        {
+            return None;
+        }
+        let mut desired = self.values.clone();
+        // <fixed prefix>; <retained values in unconstrained order>; <reverse pop order>
+        for (depth, operand) in pop_order.iter().enumerate() {
+            let source = desired.iter().position(|value| value == operand)?;
+            let destination = desired.len() - 1 - depth;
+            desired.swap(source, destination);
+        }
+        self.reconcile(&desired, fixed_prefix, evm_version).ok()
     }
 
     /// Plans a checked permutation and duplication with no partial state on failure.
@@ -213,7 +220,11 @@ impl<T: Copy + Eq> Stack<T> {
 mod tests {
     use super::*;
 
-    fn replay(mut values: Vec<u8>, instructions: &[ir::Instruction], prefix: &[u8]) -> Vec<u8> {
+    fn replay<T: Copy + Eq + std::fmt::Debug>(
+        mut values: Vec<T>,
+        instructions: &[ir::Instruction],
+        prefix: &[T],
+    ) -> Vec<T> {
         for instruction in instructions {
             match instruction.kind {
                 ir::InstKind::Dup(depth) => {
@@ -260,7 +271,7 @@ mod tests {
 
     #[test]
     fn exact_target_reach_and_transient_limits() {
-        for (version, depth) in [(EvmVersion::Osaka, 16), (EvmVersion::Amsterdam, 235)] {
+        for (version, depth) in [(EvmVersion::Osaka, 16u8), (EvmVersion::Amsterdam, 235)] {
             let initial = (0..depth).collect::<Vec<_>>();
             let mut desired = initial.clone();
             desired.push(0);
@@ -305,8 +316,8 @@ mod tests {
                 for operand in prefix..len {
                     let initial = (0..len as u8).collect::<Vec<_>>();
                     let mut stack = Stack::new(initial.clone());
-                    let code = stack.prepare_dead_operand(
-                        operand as u8,
+                    let code = stack.prepare_dead_operands(
+                        &[operand as u8],
                         prefix,
                         EvmVersion::Osaka,
                         |value| value != operand as u8,
@@ -336,27 +347,130 @@ mod tests {
             let mut stack = Stack::new(initial.clone());
             assert!(
                 stack
-                    .prepare_dead_operand(operand, prefix, EvmVersion::Osaka, |v| v != operand)
+                    .prepare_dead_operands(&[operand], prefix, EvmVersion::Osaka, |v| v != operand)
                     .is_none()
             );
             assert_eq!(stack.values(), initial);
         }
         let mut stack = Stack::new(vec![0, 1, 2]);
-        assert!(stack.prepare_dead_operand(0, 0, EvmVersion::Osaka, |_| true).is_none());
-        assert!(stack.prepare_dead_operand(0, 0, EvmVersion::Osaka, |v| v == 1).is_none());
+        assert!(stack.prepare_dead_operands(&[0], 0, EvmVersion::Osaka, |_| true).is_none());
+        assert!(stack.prepare_dead_operands(&[0], 0, EvmVersion::Osaka, |v| v == 1).is_none());
         assert_eq!(stack.values(), [0, 1, 2]);
         for (version, depth) in [(EvmVersion::Osaka, 16), (EvmVersion::Amsterdam, 235)] {
             let operand = 1023 - depth;
             let initial = (0..1024_u16).collect::<Vec<_>>();
             let mut stack = Stack::new(initial.clone());
-            assert!(stack.prepare_dead_operand(operand, 0, version, |v| v != operand).is_some());
+            assert!(
+                stack.prepare_dead_operands(&[operand], 0, version, |v| v != operand).is_some()
+            );
             let mut expected = initial;
             expected.swap(usize::from(operand), 1023);
             assert_eq!(stack.values(), expected);
         }
         let initial = (0..1025_u16).collect::<Vec<_>>();
         let mut stack = Stack::new(initial.clone());
-        assert!(stack.prepare_dead_operand(1022, 0, EvmVersion::Osaka, |v| v != 1022).is_none());
+        assert!(
+            stack.prepare_dead_operands(&[1022], 0, EvmVersion::Osaka, |v| v != 1022).is_none()
+        );
+        assert_eq!(stack.values(), initial);
+    }
+
+    #[test]
+    fn dead_operands_preserve_pop_order_and_retained_multiset() {
+        let mut seed = 0x5132_abcd_u32;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            seed as usize
+        };
+        for version in [EvmVersion::Osaka, EvmVersion::Amsterdam] {
+            for arity in 2..=6 {
+                for _ in 0..1000 {
+                    let len = arity + next() % (18 - arity);
+                    let prefix = next() % (len - arity + 1);
+                    let initial = (0..len).collect::<Vec<_>>();
+                    let mut operands = initial[prefix..].to_vec();
+                    for index in (1..operands.len()).rev() {
+                        operands.swap(index, next() % (index + 1));
+                    }
+                    operands.truncate(arity);
+                    let mut stack = Stack::new(initial.clone());
+                    let code = stack
+                        .prepare_dead_operands(&operands, prefix, version, |v| {
+                            !operands.contains(&v)
+                        })
+                        .unwrap();
+                    assert!(code.iter().all(|inst| matches!(inst.kind, ir::InstKind::Swap(_))));
+                    let mut actual = replay(initial.clone(), &code, &initial[..prefix]);
+                    assert_eq!(actual, stack.values());
+                    for &operand in &operands {
+                        assert_eq!(actual.pop(), Some(operand));
+                    }
+                    actual.sort_unstable();
+                    assert_eq!(
+                        actual,
+                        initial.into_iter().filter(|v| !operands.contains(v)).collect::<Vec<_>>()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn dead_operands_reject_aliases_protocols_and_invalid_capacity_atomically() {
+        for (initial, operands, prefix) in [
+            (vec![0, 1, 2], vec![], 0),
+            (vec![0, 1, 2], vec![0, 0], 0),
+            (vec![0, 1, 2], vec![0, 3], 0),
+            (vec![0, 1, 2], vec![0, 1], 1),
+            (vec![0, 1, 2], vec![1, 2], 4),
+            (vec![0, 1, 2], vec![1, 2], 2),
+            (vec![0, 1, 0, 2], vec![0, 2], 0),
+            (vec![0, 1, 2, 3, 3], vec![0, 2], 0),
+        ] {
+            let mut stack = Stack::new(initial.clone());
+            assert!(
+                stack
+                    .prepare_dead_operands(&operands, prefix, EvmVersion::Osaka, |v| !operands
+                        .contains(&v))
+                    .is_none()
+            );
+            assert_eq!(stack.values(), initial);
+        }
+        // A live operand and a retained protocol word both require canonical preparation.
+        for retained in [|_: u16| true, |v: u16| v == 1] {
+            let initial = vec![0, 1, 2, 3];
+            let mut stack = Stack::new(initial.clone());
+            assert!(stack.prepare_dead_operands(&[0, 2], 0, EvmVersion::Osaka, retained).is_none());
+            assert_eq!(stack.values(), initial);
+        }
+        for (version, depth) in [(EvmVersion::Osaka, 16), (EvmVersion::Amsterdam, 235)] {
+            for extra in 0..=1 {
+                let initial = (0..1024_u16).collect::<Vec<_>>();
+                let operands = [1023, 1023 - depth - extra];
+                let prefix = usize::from(1023 - depth - extra);
+                let mut stack = Stack::new(initial.clone());
+                let code = stack
+                    .prepare_dead_operands(&operands, prefix, version, |v| !operands.contains(&v));
+                if extra == 0 {
+                    let code = code.unwrap();
+                    let actual = replay(initial.clone(), &code, &initial[..prefix]);
+                    assert_eq!(actual, stack.values());
+                    assert_eq!(&actual[1022..], &[operands[1], operands[0]]);
+                } else {
+                    assert!(code.is_none());
+                    assert_eq!(stack.values(), initial);
+                }
+            }
+        }
+        let initial = (0..1025_u16).collect::<Vec<_>>();
+        let mut stack = Stack::new(initial.clone());
+        assert!(
+            stack
+                .prepare_dead_operands(&[1024, 1023], 0, EvmVersion::Osaka, |v| v < 1023)
+                .is_none()
+        );
         assert_eq!(stack.values(), initial);
     }
 

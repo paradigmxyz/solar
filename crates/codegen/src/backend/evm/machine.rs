@@ -436,7 +436,14 @@ fn lower_function(
             }
             if let Some(opcode) = instruction.kind.evm_opcode() {
                 lower_opcode(
-                    context, block_id, position, inst_id, opcode, &mut stack, &mut insts, false,
+                    context,
+                    block_id,
+                    position,
+                    inst_id,
+                    opcode,
+                    &mut stack,
+                    &mut insts,
+                    entry_order::OperandOrder::Canonical,
                 )?;
                 continue;
             }
@@ -857,7 +864,7 @@ fn lower_opcode(
     opcode: u8,
     stack: &mut Stack<Slot>,
     insts: &mut Vec<ir::Instruction>,
-    reorder_operand: bool,
+    operand_order: entry_order::OperandOrder,
 ) -> Result<(), String> {
     let function = context.function;
     let instruction = function.inst(inst_id);
@@ -895,11 +902,10 @@ fn lower_opcode(
             )
             .map_err(schedule_error)?,
         );
-    } else if reorder_operand
+    } else if operand_order.allows(operands.len())
         && saved.tracked == 0
-        && let [operand] = operands.as_slice()
-        && let Some(prepared) = stack.prepare_dead_operand(
-            Slot::Value(*operand),
+        && let Some(prepared) = stack.prepare_dead_operands(
+            &operands.iter().copied().map(Slot::Value).collect::<Vec<_>>(),
             prefix(context),
             context.version,
             |slot| match slot {
@@ -912,7 +918,7 @@ fn lower_opcode(
             },
         )
     {
-        // <fixed prefix>; <reordered retained values>; <last-use operand>
+        // <fixed prefix>; <reordered retained values>; <reverse last-use operand pop order>
         insts.extend(prepared);
     } else {
         prepare(context, stack, insts, &operands, live)?;

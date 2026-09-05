@@ -2,8 +2,9 @@
 //!
 //! Entry ordering places earlier last uses nearer the top and pays both its
 //! incoming permutation and outgoing phi reconciliation. Operand ordering instead
-//! lets a dead unary operand move through the top while retaining other values in
-//! any order, then restores the exact original post-instruction stack. This pays
+//! places dying operands in pop order while retaining other values in any order,
+//! then restores the exact original post-instruction stack. The established unary
+//! trial is compared first; the multi-operand trial must improve on it. This pays
 //! all later shuffles and leaves terminator lowering and outgoing edges unchanged.
 //!
 //! Both trials replay the actual opcode emitter and share physical gas/byte and
@@ -25,6 +26,24 @@ use crate::{
 };
 use solar_config::OptimizationMode;
 use std::cmp::Reverse;
+
+/// Allowed departure from canonical operand preparation during one block replay.
+#[derive(Clone, Copy)]
+pub(super) enum OperandOrder {
+    Canonical,
+    DeadUnary,
+    DeadOperands,
+}
+
+impl OperandOrder {
+    pub(super) fn allows(self, arity: usize) -> bool {
+        match self {
+            Self::Canonical => false,
+            Self::DeadUnary => arity == 1,
+            Self::DeadOperands => arity > 0,
+        }
+    }
+}
 
 pub(super) fn choose(
     context: &Context<'_>,
@@ -60,7 +79,7 @@ pub(super) fn choose(
     let mut stack = Stack::new(incoming.clone());
     // <canonical entry>; <paid permutation into last-use order>
     let mut insts = stack.reconcile(&preferred, prefix(context), context.version).ok()?;
-    replay(context, block_id, &mut stack, &mut insts, false)?;
+    replay(context, block_id, &mut stack, &mut insts, OperandOrder::Canonical)?;
     let desired = edge_values(context, block_id, target).ok()?;
     finish(context, &mut stack, &mut insts, &desired)?;
     let mut original = original_insts.to_vec();
@@ -101,17 +120,20 @@ pub(super) fn choose_operands(
     {
         return None;
     }
-    let mut stack = Stack::new(context.layout.entries[block_id].clone());
-    let mut insts = Vec::new();
-    replay(context, block_id, &mut stack, &mut insts, true)?;
-    if insts == original_insts {
-        return None;
+    let mut best = original_insts.to_vec();
+    for order in [OperandOrder::DeadUnary, OperandOrder::DeadOperands] {
+        let mut stack = Stack::new(context.layout.entries[block_id].clone());
+        let mut insts = Vec::new();
+        // <same prepared operands>; <same opcodes>; <paid exact original exit order>
+        if replay(context, block_id, &mut stack, &mut insts, order).is_some()
+            && finish(context, &mut stack, &mut insts, original_stack.values()).is_some()
+            && stack_prefix(original_insts) == stack_prefix(&insts)
+            && improves(context, &best, &insts)
+        {
+            best = insts;
+        }
     }
-    finish(context, &mut stack, &mut insts, original_stack.values())?;
-    if stack_prefix(original_insts) != stack_prefix(&insts) {
-        return None;
-    }
-    improves(context, original_insts, &insts).then_some(insts)
+    (best != original_insts).then_some(best)
 }
 
 fn stack_prefix(insts: &[ir::Instruction]) -> &[ir::Instruction] {
@@ -137,13 +159,12 @@ fn replay(
     block: mir::BlockId,
     stack: &mut Stack<Slot>,
     insts: &mut Vec<ir::Instruction>,
-    reorder_operand: bool,
+    operand_order: OperandOrder,
 ) -> Option<()> {
     for (position, &id) in context.function.blocks[block].instructions.iter().enumerate() {
         if let Some(opcode) = context.function.inst(id).kind.evm_opcode() {
             // <same prepared operands>; <same direct opcode>
-            lower_opcode(context, block, position, id, opcode, stack, insts, reorder_operand)
-                .ok()?;
+            lower_opcode(context, block, position, id, opcode, stack, insts, operand_order).ok()?;
         }
     }
     Some(())
