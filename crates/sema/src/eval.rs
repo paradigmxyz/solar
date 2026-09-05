@@ -562,9 +562,9 @@ impl IntScalar {
     /// Returns the type the given binary operation is performed in, if any.
     ///
     /// Shifts and exponentiation are performed in the left operand's type, every other operation
-    /// in the common type of both operands. Two literals keep full precision, like the rational
-    /// arithmetic the type checker performs on them, and operands without a common type stay
-    /// untyped because the type checker already rejects them.
+    /// in the common type of both operands. Two literals stay untyped and keep their exact value up
+    /// to `MAX_INTERMEDIATE_BITS`, a narrower bound than solc's rational arithmetic, and operands
+    /// without a common type stay untyped because the type checker already rejects them.
     ///
     /// A literal paired with a typed operand must first have a mobile type, and the operation is
     /// rejected when it does not. This check comes before the operation because folding retypes

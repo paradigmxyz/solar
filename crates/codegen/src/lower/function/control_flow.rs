@@ -557,7 +557,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // written in: `catch Error(string)` first, then `catch Panic(uint256)`, and the bare or
         // `bytes memory` clause last as the fallback. The low-level clause matches
         // unconditionally, so testing the clauses in source order lets one written first shadow
-        // the typed ones and run for a standard revert payload.
+        // the typed ones and run for a standard revert payload. The sort must stay stable so
+        // that clauses of the same kind keep their source order.
         let mut ordered_clauses = catch_clauses.iter().collect::<Vec<_>>();
         ordered_clauses.sort_by_key(|clause| match clause.name.map(|name| name.name) {
             Some(sym::Error) => 0,
