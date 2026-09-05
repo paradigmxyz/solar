@@ -10,8 +10,10 @@
 //! is redundant when the suffix observes at most its unchanged top incoming word.
 //! These transforms run on blocks before assembly.
 
-use super::super::{Block, InstKind, Instruction, TerminatorKind, immediate};
-use super::{canonical, discardable_push, pure, rewrite, stack_usage, swapped};
+use super::{
+    super::{Block, InstKind, Instruction, TerminatorKind, immediate},
+    canonical, discardable_push, pure, rewrite, stack_usage, swapped,
+};
 use crate::{backend::evm::op, utils::eval::eval_opcode};
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -419,9 +421,15 @@ pub(super) fn self_contained_terminal_peak(block: &Block) -> Option<i64> {
         TerminatorKind::SelfDestruct => 1,
         _ => return None,
     };
-    if block.insts.len() > 64 || !block.insts.iter().all(|inst| canonical(inst) && !matches!(
-        inst.kind, InstKind::Op(op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::GAS)
-    )) {
+    if block.insts.len() > 64
+        || !block.insts.iter().all(|inst| {
+            canonical(inst)
+                && !matches!(
+                    inst.kind,
+                    InstKind::Op(op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::GAS)
+                )
+        })
+    {
         return None;
     }
     let (required, delta, peak) = stack_usage(&block.insts)?;

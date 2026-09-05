@@ -8,8 +8,12 @@
 //! Volatile environment queries are never commoned. This pass stays within a
 //! block and does not rematerialize values or raise the operand stack peak.
 
-use super::super::{InstKind, Instruction, verify};
-use super::{canonical, discardable_push, pure, stack::stack_step, swapped};
+use super::{
+    super::{InstKind, Instruction, verify},
+    canonical, discardable_push, pure,
+    stack::stack_step,
+    swapped,
+};
 use crate::backend::evm::op;
 use alloy_primitives::U256;
 use solar_config::EvmVersion;

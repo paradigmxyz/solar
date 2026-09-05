@@ -9,8 +9,10 @@
 //! improvement with no increase in relative stack peak. The search is local to a
 //! block and bounded; it never removes an ordinary effect or a deferred push.
 
-use super::super::{InstKind, Instruction, immediate, verify};
-use super::{canonical, rewrite, stack_usage};
+use super::{
+    super::{InstKind, Instruction, immediate, verify},
+    canonical, rewrite, stack_usage,
+};
 use crate::backend::evm::{op, scheduler::Stack};
 use solar_config::EvmVersion;
 
