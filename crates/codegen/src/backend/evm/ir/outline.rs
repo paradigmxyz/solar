@@ -13,6 +13,8 @@
 //! continuation label before selecting candidates. Size mode simplifies each
 //! complete shared body including its return rotation, and charges and emits
 //! that exact sequence so cancellation at their boundary earns its byte savings.
+//! Before simplifying, a zero-byte shared-body lower bound rejects candidates
+//! whose call protocol alone cannot meet the existing profit margin.
 //! Incremental hashes enumerate
 //! one window length at a time, retaining the full search with storage linear
 //! in original instruction count. Gas mode applies only the
@@ -111,10 +113,13 @@ impl EvmPass for Outline {
                     continue;
                 }
                 let bytes = body.iter().map(|inst| size(gcx, inst)).sum::<usize>();
-                let stub = returning_body(gcx, &body, outputs);
                 let before = bytes * sites.len();
-                let after = stub.iter().map(|inst| size(gcx, inst)).sum::<usize>()
-                    + sites.len() * (6 + inputs) + 2;
+                let protocol = sites.len() * (6 + inputs) + 2;
+                if before < protocol + 8 {
+                    continue;
+                }
+                let stub = returning_body(gcx, &body, outputs);
+                let after = protocol + stub.iter().map(|inst| size(gcx, inst)).sum::<usize>();
                 if before < after + 8 {
                     continue;
                 }
@@ -413,11 +418,12 @@ fn parameterized(
             .flat_map(|site| site.parameters.iter())
             .map(|value| size(gcx, &InstKind::Push(*value)))
             .sum::<usize>();
+        let protocol = parameter_cost + sites.len() * (6 + parameters) + 2;
+        if before < protocol + 8 {
+            continue;
+        }
         let stub = returning_body(gcx, &skeleton, outputs);
-        let after = stub.iter().map(|inst| size(gcx, inst)).sum::<usize>()
-            + parameter_cost
-            + sites.len() * (6 + parameters)
-            + 2;
+        let after = protocol + stub.iter().map(|inst| size(gcx, inst)).sum::<usize>();
         if before < after + 8 {
             continue;
         }
