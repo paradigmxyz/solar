@@ -7,7 +7,9 @@
 //! at effects or unknown stack contracts. Stack-only normalization symbolically
 //! executes permutations and asks the private scheduler for a cheaper equivalent.
 //! All changes happen on explicit block instructions before primitive assembly;
-//! no operation moves across a control-flow edge or mutable observation.
+//! no operation moves across a control-flow edge or mutable observation. Raw
+//! JUMPDESTs are alternate entries: stack identities and height proofs stop
+//! there even when the textual block continues.
 
 use super::{EvmPass, InstKind, Instruction, Module, immediate, verify};
 use crate::backend::evm::op;
@@ -65,6 +67,10 @@ impl EvmPass for LocalPass {
                     let mut height = entry_max;
                     // push value -> <compact literal construction>
                     for inst in old {
+                        if matches!(inst.kind, InstKind::Op(op::JUMPDEST)) {
+                            height = None;
+                            relative_height = None;
+                        }
                         let next_relative = relative_height.and_then(|height| {
                             let (inputs, outputs) =
                                 verify::effect(&inst.kind).or(inst.stack_effect)?;
@@ -149,7 +155,8 @@ impl EvmPass for LocalPass {
 }
 
 fn canonical(inst: &Instruction) -> bool {
-    inst.stack_effect.is_none_or(|actual| verify::effect(&inst.kind) == Some(actual))
+    !matches!(inst.kind, InstKind::Op(op::JUMPDEST))
+        && inst.stack_effect.is_none_or(|actual| verify::effect(&inst.kind) == Some(actual))
 }
 
 fn swapped(opcode: u8) -> Option<u8> {
@@ -198,6 +205,9 @@ fn stack_usage(insts: &[Instruction]) -> Option<(i64, i64, i64)> {
     let mut peak = 0i64;
     let mut required = 0i64;
     for inst in insts {
+        if matches!(inst.kind, InstKind::Op(op::JUMPDEST)) {
+            return None;
+        }
         let (inputs, outputs) = verify::effect(&inst.kind).or(inst.stack_effect)?;
         let read = match inst.kind {
             InstKind::Dup(depth) => i64::from(depth),

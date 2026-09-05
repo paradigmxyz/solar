@@ -1,0 +1,27 @@
+- // === ROOT/tests/ui/codegen/evm-ir/pipeline/raw_jumpdest.evmir (before block-cse) ===
++ // === ROOT/tests/ui/codegen/evm-ir/pipeline/raw_jumpdest.evmir (after block-cse) ===
+  @module RawJumpdest
+  bb0:
+    push 0
+    jumpdest
+    dup 1
+    push 64
+    mstore
+    jump bb1
+  bb1:
+    push 42
+    jumpdest
+    push 42
+    push 96
+    mstore
+    jump bb2
+  bb2:
+    callf !meta(stack=0->3)
+    pop
+    pop
+    pop
+    jumpdest
+    push 0xffffffffffffffffffffffffffffffff
+    sstore
+    stop
+  

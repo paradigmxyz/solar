@@ -1,0 +1,49 @@
+//@ revisions: dedup cse compact normalize dce
+//@ compile-flags: -Ogas
+//@[dedup] compile-flags: -Zevm-ir-pipeline=stack-dedup
+//@[cse] compile-flags: -Zevm-ir-pipeline=block-cse
+//@[compact] compile-flags: -Zevm-ir-pipeline=compact-pushes
+//@[normalize] compile-flags: -Zevm-ir-pipeline=stack-normalize
+//@[dce] compile-flags: -Zevm-ir-pipeline=dce
+//@ filecheck:
+@module RawJumpdest
+
+// A computed jump can enter at the raw marker with a nonzero top word.
+// CHECK-LABEL: bb0:
+// CHECK: jumpdest
+// CHECK-NEXT: dup 1
+bb0:
+  push 0
+  jumpdest
+  dup 1
+  push 64
+  mstore
+  jump bb1
+
+// The incoming top is likewise unrelated to the earlier literal 42.
+// CHECK-LABEL: bb1:
+// CHECK: jumpdest
+// CHECK-NEXT: push 42
+bb1:
+  push 42
+  jumpdest
+  push 42
+  push 96
+  mstore
+  jump bb2
+
+// Prefix stack capacity cannot prove room at a mid-block alternate entry.
+// Entering the marker with 1023 words permits one PUSH, but not a two-word
+// shift/mask construction. A terminal storage effect retains the literal.
+// CHECK-LABEL: bb2:
+// CHECK: jumpdest
+// CHECK-NEXT: push 0xffffffffffffffffffffffffffffffff
+bb2:
+  callf !meta(stack=0->3)
+  pop
+  pop
+  pop
+  jumpdest
+  push 340282366920938463463374607431768211455
+  sstore
+  stop
