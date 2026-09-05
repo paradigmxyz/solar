@@ -3002,22 +3002,19 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         }
 
-        // Only a tuple literal has an expression of its own for each component. Every other
-        // initializer, a call above all, is one expression that produces all of them, so it is
-        // the span every component reports at. Deriving the components from the initializer's
-        // syntax instead left a call's later targets unchecked, which let one bind the returned
-        // slot of a storage reference at an unrelated type.
-        let tuple_exprs =
-            if let hir::ExprKind::Tuple(exprs) = init.kind { Some(exprs) } else { None };
+        // Only a genuine tuple literal has an expression of its own for each component. Ordinary
+        // parentheses are `Tuple([Some(inner)])` in the HIR too, so peel them first: `(f())`
+        // produces every component from one expression just like `f()` does. Every other
+        // initializer reports at the whole initializer, which is the expression that produced
+        // the value, and pairing targets with component types by index is what checks every
+        // target rather than stopping at the initializer's own component count.
+        let component_exprs = match init.peel_parens().kind {
+            hir::ExprKind::Tuple(exprs) if exprs.len() == value_types.len() => Some(exprs),
+            _ => None,
+        };
         for (index, (&var, &ty)) in decls.iter().zip(value_types).enumerate() {
             let Some(var) = var else { continue };
-            let expr = match tuple_exprs {
-                Some(exprs) => {
-                    let Some(Some(expr)) = exprs.get(index).copied() else { continue };
-                    expr
-                }
-                None => init,
-            };
+            let expr = component_exprs.and_then(|exprs| exprs[index]).unwrap_or(init);
             let var_ty = self.check_var_(var, VarSource::DeclStatement);
             let _ = self.check_expected(expr, ty, var_ty);
         }

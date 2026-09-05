@@ -4,7 +4,10 @@
 // only checked component 0: a valid first component then left the later ones
 // unchecked, and a storage reference could be bound at an unrelated type,
 // which makes a write through it land on whatever the declared layout puts
-// there.
+// there. Ordinary parentheses around the initializer are a one-element tuple
+// in the HIR, so they used to look like a tuple literal and hide the same bug:
+// only a tuple literal whose components line up with the value's is allowed to
+// report at a component's own expression.
 library Lib {
     struct Actual {
         uint256 a;
@@ -44,6 +47,34 @@ contract C {
         (address a, Lib.Actual storage s) = Lib.two(actual); //~ ERROR: mismatched types
         s;
         return a;
+    }
+
+    function parenthesizedIncompatibleSecond(address n) public {
+        (mapping(uint256 => uint256) storage m, Fake storage f) = (Lib.pick(map, actual));
+        //~^ ERROR: mismatched types
+        m[1] = 2;
+        f.owner = n;
+    }
+
+    function nestedParenthesizedIncompatibleSecond(address n) public {
+        (mapping(uint256 => uint256) storage m, Fake storage f) = ((Lib.pick(map, actual)));
+        //~^ ERROR: mismatched types
+        m[1] = 2;
+        f.owner = n;
+    }
+
+    function parenthesizedCompatible() public view returns (uint256) {
+        (uint256 v, Lib.Actual storage s) = ((Lib.two(actual)));
+        return v + s.b;
+    }
+
+    function arityMismatchTupleLiteral() public view returns (uint256) {
+        (Fake storage f, uint256 v, uint256 w) = (actual, actual.a);
+        //~^ ERROR: mismatched number of components
+        //~| ERROR: mismatched types
+        f;
+        w;
+        return v;
     }
 
     function droppedSecond() public {
