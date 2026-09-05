@@ -7,7 +7,9 @@
 //! redirects identical exiting suffixes only when their encoded body exceeds a
 //! jump; it never merges distinct effects or instruction metadata. Placement
 //! forms unconditional and conditional-false traces, removing their encoded
-//! PUSH/JUMP transfers while keeping cold traces after hot ones. These transforms operate before assembly,
+//! PUSH/JUMP transfers while keeping cold traces after hot ones. Existing
+//! unconditional trace edges reserve their targets in hotness/reference order,
+//! preventing new conditional traces from stealing their preferred fallthrough. These transforms operate before assembly,
 //! where block references and loop/cold annotations are still explicit.
 
 use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::successors};
@@ -214,6 +216,8 @@ fn layout(module: &mut Module) -> bool {
     let old = module.block_ids().collect::<Vec<_>>();
     let Some(&entry) = old.first() else { return false };
     let mut references = IndexVec::<BlockId, usize>::from_vec(vec![0; module.blocks.len()]);
+    let mut preferred =
+        IndexVec::<BlockId, Option<BlockId>>::from_vec(vec![None; module.blocks.len()]);
     for &id in &old {
         for inst in &module.blocks[id].insts {
             if let InstKind::PushLabel(target) = inst.kind {
@@ -224,6 +228,28 @@ fn layout(module: &mut Module) -> bool {
     let mut roots = old.clone();
     roots.sort_by_key(|&id| {
         (id != entry, module.blocks[id].cold, std::cmp::Reverse(references[id]), id)
+    });
+    // Reserve unconditional trace edges before adding conditional fallthroughs.
+    for &id in &roots {
+        if let TerminatorKind::Jump(target) = module.blocks[id].terminator.kind {
+            preferred[target].get_or_insert(id);
+        }
+    }
+    for pair in old.windows(2) {
+        if matches!(module.blocks[pair[0]].terminator.kind,
+            TerminatorKind::JumpI(_, target) if target == pair[1])
+        {
+            preferred[pair[1]].get_or_insert(pair[0]);
+        }
+    }
+    roots.sort_by_key(|&id| {
+        (
+            id != entry,
+            module.blocks[id].cold,
+            preferred[id].is_some(),
+            std::cmp::Reverse(references[id]),
+            id,
+        )
     });
     let mut placed = DenseBitSet::new_empty(module.blocks.len());
     let mut order = Vec::with_capacity(old.len());
@@ -238,6 +264,7 @@ fn layout(module: &mut Module) -> bool {
             };
             if let Some(target) = target
                 && module.blocks[id].cold == module.blocks[target].cold
+                && preferred[target].is_none_or(|owner| owner == id || placed.contains(owner))
             {
                 id = target;
             } else {
