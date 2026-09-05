@@ -7,7 +7,9 @@
 //! the instructions whose references require those targets to have JUMPDESTs.
 //! Stable block IDs survive all removals and layout changes. Terminal sharing
 //! redirects identical exiting suffixes only when their encoded body exceeds a
-//! jump; it never merges distinct effects or instruction metadata. A final
+//! jump; it never merges distinct effects or instruction metadata. Terminal-body
+//! sharing rejects code observations and unknown computed entries, excludes GAS
+//! within the shared body, and proves room for the added jump address. A final
 //! taken-edge-only cleanup shares tiny terminal bodies without introducing a
 //! transfer or changing the surviving layout. It protects every possible
 //! fallthrough and rejects computed control and code-address observations. Placement
@@ -315,12 +317,28 @@ fn layout(module: &mut Module) -> bool {
 
 fn terminal_dedup(module: &mut Module) -> bool {
     let ids = module.block_ids().collect::<Vec<_>>();
+    if ids.iter().any(|&id| {
+        module.blocks[id].insts.iter().any(|inst| {
+            matches!(inst.kind, InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_))
+                || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
+                || matches!(inst.kind, InstKind::Op(
+                    op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::CODESIZE
+                        | op::CODECOPY | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
+                ))
+        })
+    }) || (ids.iter().any(|&id| module.blocks[id].terminator.kind == TerminatorKind::DynamicJump)
+        && super::verify::has_unknown_jump(module))
+    {
+        return false;
+    }
+    let mut safety = None;
     let mut changed = false;
     for (index, &id) in ids.iter().enumerate() {
         if !matches!(
             module.blocks[id].terminator.kind,
             TerminatorKind::Return | TerminatorKind::Revert | TerminatorKind::SelfDestruct
         ) || module.blocks[id].insts.len() < 3
+            || module.blocks[id].insts.iter().any(|inst| inst.kind == InstKind::Op(op::GAS))
         {
             continue;
         }
@@ -328,6 +346,25 @@ fn terminal_dedup(module: &mut Module) -> bool {
             if module.blocks[id].insts == module.blocks[other].insts
                 && module.blocks[id].terminator == module.blocks[other].terminator
             {
+                // Model the jump's temporary address before it transfers to the
+                // unchanged body. Only canonical exits acquire new predecessors;
+                // every later duplicate keeps its original incoming bound.
+                if safety.is_none() {
+                    let Ok(heights) = super::verify::stack_heights(module) else { return changed };
+                    safety = Some((heights, super::verify::physical_reachability(module)));
+                }
+                let (heights, reachable) = safety.as_ref().unwrap();
+                if !super::verify::rewrite_fits(
+                    module,
+                    heights,
+                    reachable,
+                    other,
+                    0,
+                    module.blocks[other].insts.len(),
+                    &[InstKind::PushLabel(id).into()],
+                ) {
+                    continue;
+                }
                 module.blocks[id].cold &= module.blocks[other].cold;
                 // duplicate terminal body -> jump canonical_body
                 module.blocks[other].insts.clear();

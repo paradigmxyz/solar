@@ -1,0 +1,4135 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/guard_capacity.evmir (before terminal-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/guard_capacity.evmir (after terminal-dedup) ===
+  @module TerminalCapacity
+  bb0:
+    calldatasize
+    jumpi bb1, bb2
+  bb1:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    jump bb3
+  bb3:
+    pop
+    pop
+    pop
+    return
+  bb2:
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    push 0
+    jump bb4
+  bb4:
+    pop
+    pop
+    pop
+    return
+  
+// === TerminalCapacity (runtime) ===
+CALLDATASIZE
+PUSH1 0x08 ; bb0
+JUMPI
+PUSH2 0x040d ; bb1
+JUMP
+; bb0
+JUMPDEST
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+POP
+POP
+POP
+RETURN
+; bb1
+JUMPDEST
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+PUSH0
+POP
+POP
+POP
+RETURN

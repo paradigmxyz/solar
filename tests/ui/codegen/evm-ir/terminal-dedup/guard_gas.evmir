@@ -1,0 +1,21 @@
+//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup -Zdump=disasm-runtime
+
+// Sharing may not add transfer gas before a terminal GAS observation.
+@module ObservedTerminal
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+bb1:
+  gas
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb2:
+  gas
+  push 0
+  mstore
+  push 32
+  push 0
+  return

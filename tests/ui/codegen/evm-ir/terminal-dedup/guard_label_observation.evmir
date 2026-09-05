@@ -1,0 +1,24 @@
+//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup -Zdump=disasm-runtime
+
+// A relocated label can escape as numeric data without a computed jump.
+@module LabelObservation
+bb0:
+  push bb3
+  push 0
+  mstore
+  calldatasize
+  jumpi bb1, bb2
+bb1:
+  push 32
+  push 0
+  push 123
+  pop
+  return
+bb2:
+  push 32
+  push 0
+  push 123
+  pop
+  return
+bb3:
+  stop

@@ -1,0 +1,19 @@
+//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup
+
+// Raw JUMPDESTs may expose alternate entries inside either body.
+@module RawTerminalEntries
+bb0:
+  push 1
+  indexed_jump bb1, bb2
+bb1:
+  jumpdest
+  push 0
+  push 0
+  push 0
+  revert
+bb2:
+  jumpdest
+  push 0
+  push 0
+  push 0
+  revert

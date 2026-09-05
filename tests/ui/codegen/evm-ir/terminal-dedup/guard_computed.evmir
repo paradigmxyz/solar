@@ -1,0 +1,17 @@
+//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup
+
+// An opaque numeric target may enter either physical body.
+@module ComputedTerminals
+bb0:
+  calldatasize
+  jump
+bb1:
+  push 0
+  push 0
+  push 0
+  revert
+bb2:
+  push 0
+  push 0
+  push 0
+  revert

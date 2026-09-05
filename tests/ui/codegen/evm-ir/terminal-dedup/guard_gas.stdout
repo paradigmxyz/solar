@@ -1,0 +1,43 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/guard_gas.evmir (before terminal-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/guard_gas.evmir (after terminal-dedup) ===
+  @module ObservedTerminal
+  bb0:
+    calldatasize
+    jumpi bb1, bb2
+  bb1:
+    gas
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    gas
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  
+// === ObservedTerminal (runtime) ===
+CALLDATASIZE
+PUSH1 0x07 ; bb0
+JUMPI
+PUSH1 0x0f ; bb1
+JUMP
+; bb0
+JUMPDEST
+GAS
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN
+; bb1
+JUMPDEST
+GAS
+PUSH0
+MSTORE
+PUSH1 0x20
+PUSH0
+RETURN

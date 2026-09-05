@@ -1,0 +1,49 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/guard_label_observation.evmir (before terminal-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-dedup/guard_label_observation.evmir (after terminal-dedup) ===
+  @module LabelObservation
+  bb0:
+    push bb3
+    push 0
+    mstore
+    calldatasize
+    jumpi bb1, bb2
+  bb1:
+    push 32
+    push 0
+    push 123
+    pop
+    return
+  bb2:
+    push 32
+    push 0
+    push 123
+    pop
+    return
+  bb3:
+    stop
+  
+// === LabelObservation (runtime) ===
+PUSH1 0x1b
+PUSH0
+MSTORE
+CALLDATASIZE
+PUSH1 0x0b ; bb0
+JUMPI
+PUSH1 0x13 ; bb1
+JUMP
+; bb0
+JUMPDEST
+PUSH1 0x20
+PUSH0
+PUSH1 0x7b
+POP
+RETURN
+; bb1
+JUMPDEST
+PUSH1 0x20
+PUSH0
+PUSH1 0x7b
+POP
+RETURN
+; bb2
+JUMPDEST
