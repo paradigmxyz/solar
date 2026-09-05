@@ -3,9 +3,9 @@
 //! Indexed jumps consume a zero-based, range-checked machine index. Small tables
 //! are encoded by the assembler as packed label immediates. Larger tables are
 //! split into balanced index ranges, with the upper edge subtracting its range
-//! origin. Each leaf fits its selected address width in one EVM word. This covers all target code-size limits without touching
-//! memory or introducing virtual values into EVM IR. All CFG rewriting happens
-//! here, before the primitive compact stream is constructed.
+//! origin. Each leaf fits its selected address width in one EVM word. This covers all target
+//! code-size limits without touching memory or introducing virtual values into EVM IR. All CFG
+//! rewriting happens here, before the primitive compact stream is constructed.
 
 use super::{ir, op};
 use alloy_primitives::U256;

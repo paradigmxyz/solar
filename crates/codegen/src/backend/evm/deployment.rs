@@ -113,6 +113,7 @@ pub(crate) fn lower(
         // dup1
         insts.push(ir::InstKind::Dup(1).into());
     }
+    // push_data <runtime>; push <buffer>; codecopy
     insts.extend([
         ir::InstKind::PushDeferred(RUNTIME_START_ID).into(),
         ir::InstKind::Push(U256::from(buffer)).into(),
