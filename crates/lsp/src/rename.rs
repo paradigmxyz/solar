@@ -122,10 +122,13 @@ pub(crate) struct RenameReferenceContext<'a> {
 }
 
 impl RenameIndex {
-    pub(crate) fn record_source_contents(&mut self, gcx: Gcx<'_>) {
+    pub(crate) fn record_source_contents(
+        &mut self,
+        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
+    ) {
         for file in gcx.sess.source_map().files().iter() {
-            let Some(path) = file.name.as_real() else { continue };
-            let Ok(uri) = Url::from_file_path(path) else { continue };
+            let Some(uri) = locations.file_uri(file).cloned() else { continue };
             self.analyzed_contents.insert(uri, file.src.clone());
         }
     }
@@ -150,6 +153,7 @@ impl RenameIndex {
     pub(crate) fn build_imports(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         item_symbols: &FxHashMap<ItemId, SymbolId>,
     ) -> ImportBindings {
         let mut bindings = ImportBindings::default();
@@ -168,7 +172,7 @@ impl RenameIndex {
                     ast::ImportItems::Plain(alias) => {
                         if let Some(alias) = alias {
                             self.add_namespace_alias(
-                                gcx,
+                                locations,
                                 &mut bindings,
                                 source_id,
                                 imported_source_id,
@@ -177,7 +181,7 @@ impl RenameIndex {
                         }
                     }
                     ast::ImportItems::Glob(alias) => self.add_namespace_alias(
-                        gcx,
+                        locations,
                         &mut bindings,
                         source_id,
                         imported_source_id,
@@ -196,10 +200,10 @@ impl RenameIndex {
                                 continue;
                             }
 
-                            self.push_symbol_occurrence(gcx, imported.span, &symbols);
+                            self.push_symbol_occurrence(locations, imported.span, &symbols);
                             bindings.references.push((imported.span, symbols.clone()));
                             if let Some(alias) = alias
-                                && let Some(alias_id) = self.add_alias(gcx, alias)
+                                && let Some(alias_id) = self.add_alias(locations, alias)
                             {
                                 bindings.references.push((alias.span, symbols.clone()));
                                 for &symbol_id in &symbols {
@@ -223,7 +227,11 @@ impl RenameIndex {
         bindings
     }
 
-    pub(crate) fn build_mapping_names(&mut self, gcx: Gcx<'_>) -> MappingBindings {
+    pub(crate) fn build_mapping_names(
+        &mut self,
+        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
+    ) -> MappingBindings {
         let mut bindings = MappingBindings::default();
         for variable_id in gcx.hir.variable_ids() {
             let variable = gcx.hir.variable(variable_id);
@@ -236,7 +244,7 @@ impl RenameIndex {
                 match ty.kind {
                     hir::TypeKind::Mapping(mapping) => {
                         if let Some(name) = mapping.key_name
-                            && let Some(name_id) = self.add_mapping_name(gcx, name)
+                            && let Some(name_id) = self.add_mapping_name(locations, name)
                         {
                             bindings.params.insert(param, name_id);
                         }
@@ -251,7 +259,7 @@ impl RenameIndex {
             if !matches!(ty.kind, hir::TypeKind::Custom(ItemId::Struct(_)))
                 && let Some(name) = return_name
             {
-                let _ = self.add_mapping_name(gcx, name);
+                let _ = self.add_mapping_name(locations, name);
             }
         }
         bindings
@@ -260,6 +268,7 @@ impl RenameIndex {
     pub(crate) fn build_natspec(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         bindings: &ImportBindings,
         item_symbols: &FxHashMap<ItemId, SymbolId>,
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
@@ -283,12 +292,19 @@ impl RenameIndex {
                 match natspec.kind {
                     hir::NatSpecKind::Param { name } => {
                         let Some(parameters) = item.parameters() else { continue };
-                        self.push_natspec_variable_reference(gcx, parameters, name, item_symbols);
+                        self.push_natspec_variable_reference(
+                            gcx,
+                            locations,
+                            parameters,
+                            name,
+                            item_symbols,
+                        );
                     }
                     hir::NatSpecKind::Return { name: Some(name) } => {
                         let Some(function_id) = item_id.as_function() else { continue };
                         self.push_natspec_variable_reference(
                             gcx,
+                            locations,
                             gcx.hir.function(function_id).returns,
                             name,
                             item_symbols,
@@ -305,6 +321,7 @@ impl RenameIndex {
                         };
                         self.push_path_occurrences(
                             gcx,
+                            locations,
                             RenameReferenceContext {
                                 bindings,
                                 source: item.source(),
@@ -325,6 +342,7 @@ impl RenameIndex {
     fn push_natspec_variable_reference(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         variables: &[VariableId],
         name: Ident,
         item_symbols: &FxHashMap<ItemId, SymbolId>,
@@ -335,24 +353,25 @@ impl RenameIndex {
             return;
         };
         let Some(&symbol_id) = item_symbols.get(&ItemId::Variable(variable_id)) else { return };
-        self.push_symbol_occurrence(gcx, name.span, &[symbol_id]);
+        self.push_symbol_occurrence(locations, name.span, &[symbol_id]);
     }
 
     pub(crate) fn push_mapping_reference(
         &mut self,
-        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         bindings: &MappingBindings,
         param: VariableId,
         span: Span,
     ) -> bool {
         let Some(&name_id) = bindings.params.get(&param) else { return false };
-        self.push_span_occurrence(gcx, span, vec![RenameTarget::MappingName(name_id)]);
+        self.push_span_occurrence(locations, span, vec![RenameTarget::MappingName(name_id)]);
         true
     }
 
     pub(crate) fn push_symbol_reference(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         context: RenameReferenceContext<'_>,
         span: Span,
         symbols: &[SymbolId],
@@ -365,7 +384,7 @@ impl RenameIndex {
         if symbols.is_empty() {
             return;
         }
-        self.push_path_occurrences(gcx, context, span, &symbols);
+        self.push_path_occurrences(gcx, locations, context, span, &symbols);
     }
 
     pub(crate) fn mark_yul_symbols(&mut self, symbols: &[SymbolId]) {
@@ -376,6 +395,7 @@ impl RenameIndex {
     pub(crate) fn build_overrides(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         bindings: &ImportBindings,
         item_symbols: &FxHashMap<ItemId, SymbolId>,
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
@@ -406,6 +426,7 @@ impl RenameIndex {
                 };
                 self.push_path_occurrences(
                     gcx,
+                    locations,
                     RenameReferenceContext {
                         bindings,
                         source: function.source,
@@ -433,6 +454,7 @@ impl RenameIndex {
                 };
                 self.push_path_occurrences(
                     gcx,
+                    locations,
                     RenameReferenceContext {
                         bindings,
                         source: variable.source,
@@ -464,6 +486,7 @@ impl RenameIndex {
     pub(crate) fn push_namespace_reference(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         bindings: &ImportBindings,
         source: hir::SourceId,
         span: Span,
@@ -484,7 +507,7 @@ impl RenameIndex {
             .collect::<Vec<_>>();
         targets.sort_unstable();
         targets.dedup();
-        self.push_span_occurrence(gcx, ident.span, targets);
+        self.push_span_occurrence(locations, ident.span, targets);
     }
 
     pub(crate) fn candidate(
@@ -671,13 +694,13 @@ impl RenameIndex {
 
     fn add_namespace_alias(
         &mut self,
-        gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         bindings: &mut ImportBindings,
         source: hir::SourceId,
         imported_source: hir::SourceId,
         alias: Ident,
     ) {
-        let Some(alias_id) = self.add_alias(gcx, alias) else { return };
+        let Some(alias_id) = self.add_alias(locations, alias) else { return };
         bindings.aliases.insert(
             ImportBindingKey {
                 source,
@@ -688,16 +711,24 @@ impl RenameIndex {
         );
     }
 
-    fn add_alias(&mut self, gcx: Gcx<'_>, alias: Ident) -> Option<ImportAliasId> {
-        let location = proto::span_to_location(gcx.sess.source_map(), alias.span)?;
+    fn add_alias(
+        &mut self,
+        locations: &proto::LocationConverter,
+        alias: Ident,
+    ) -> Option<ImportAliasId> {
+        let location = locations.location(alias.span)?;
         let alias_id =
             self.aliases.push(ImportAlias { name: alias.to_string(), location: location.clone() });
         self.push_occurrence(location, vec![RenameTarget::ImportAlias(alias_id)]);
         Some(alias_id)
     }
 
-    fn add_mapping_name(&mut self, gcx: Gcx<'_>, name: Ident) -> Option<MappingNameId> {
-        let location = proto::span_to_location(gcx.sess.source_map(), name.span)?;
+    fn add_mapping_name(
+        &mut self,
+        locations: &proto::LocationConverter,
+        name: Ident,
+    ) -> Option<MappingNameId> {
+        let location = locations.location(name.span)?;
         let name_id = self
             .mapping_names
             .push(MappingName { name: name.to_string(), location: location.clone() });
@@ -705,9 +736,14 @@ impl RenameIndex {
         Some(name_id)
     }
 
-    fn push_symbol_occurrence(&mut self, gcx: Gcx<'_>, span: Span, symbols: &[SymbolId]) {
+    fn push_symbol_occurrence(
+        &mut self,
+        locations: &proto::LocationConverter,
+        span: Span,
+        symbols: &[SymbolId],
+    ) {
         self.push_span_occurrence(
-            gcx,
+            locations,
             span,
             symbols.iter().copied().map(RenameTarget::Symbol).collect(),
         );
@@ -716,6 +752,7 @@ impl RenameIndex {
     fn push_path_occurrences(
         &mut self,
         gcx: Gcx<'_>,
+        locations: &proto::LocationConverter,
         context: RenameReferenceContext<'_>,
         span: Span,
         symbols: &[SymbolId],
@@ -737,7 +774,7 @@ impl RenameIndex {
         if final_targets.is_empty() {
             return;
         }
-        self.push_span_occurrence(gcx, final_ident.span, final_targets);
+        self.push_span_occurrence(locations, final_ident.span, final_targets);
         if qualifiers.is_empty() {
             return;
         }
@@ -778,17 +815,22 @@ impl RenameIndex {
                     hir::Res::Builtin(_) | hir::Res::Err(_) => None,
                 })
                 .collect();
-            self.push_span_occurrence(gcx, ident.span, targets);
+            self.push_span_occurrence(locations, ident.span, targets);
         }
     }
 
-    fn push_span_occurrence(&mut self, gcx: Gcx<'_>, span: Span, mut targets: Vec<RenameTarget>) {
+    fn push_span_occurrence(
+        &mut self,
+        locations: &proto::LocationConverter,
+        span: Span,
+        mut targets: Vec<RenameTarget>,
+    ) {
         targets.sort_unstable();
         targets.dedup();
         if targets.is_empty() {
             return;
         }
-        let Some(location) = proto::span_to_location(gcx.sess.source_map(), span) else { return };
+        let Some(location) = locations.location(span) else { return };
         self.push_occurrence(location, targets);
     }
 

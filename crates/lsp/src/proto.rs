@@ -9,11 +9,12 @@ use lsp_types::{
 };
 use solar_config::version::SHORT_VERSION;
 use solar_interface::{
-    CharPos, SourceMap, Span,
+    BytePos, CharPos, SourceMap, Span,
+    data_structures::map::FxHashMap,
     diagnostics::{Diag, Level},
     source_map::SourceFile,
 };
-use std::borrow::Borrow;
+use std::{borrow::Borrow, sync::Arc};
 
 #[derive(Debug)]
 pub(crate) enum Initialize {}
@@ -334,7 +335,50 @@ fn diagnostic_data(
     Some(DiagnosticData::new(uri.clone(), &file.src, suggestions).to_value())
 }
 
+/// Converts compiler spans to LSP locations while caching each source file URI.
+///
+/// The cache is local to one source map and must not outlive its analysis build. Construct it
+/// after source loading is complete so every source file is included in the eager snapshot.
+pub(crate) struct LocationConverter {
+    source_map: Arc<SourceMap>,
+    uris: FxHashMap<BytePos, lsp_types::Url>,
+}
+
+impl LocationConverter {
+    pub(crate) fn new(source_map: Arc<SourceMap>) -> Self {
+        let files = source_map.files();
+        let mut uris = FxHashMap::with_capacity_and_hasher(files.len(), Default::default());
+        for file in files.iter() {
+            if let Some(path) = file.name.as_real()
+                && let Ok(uri) = lsp_types::Url::from_file_path(path)
+            {
+                uris.insert(file.start_pos, uri);
+            }
+        }
+        drop(files);
+        Self { source_map, uris }
+    }
+
+    pub(crate) fn file_uri(&self, file: &SourceFile) -> Option<&lsp_types::Url> {
+        self.uris.get(&file.start_pos)
+    }
+
+    pub(crate) fn location(&self, span: Span) -> Option<lsp_types::Location> {
+        span_to_location_with(&self.source_map, span, |file| self.file_uri(file).cloned())
+    }
+}
+
 pub(crate) fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
+    span_to_location_with(source_map, span, |file| {
+        lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok()
+    })
+}
+
+fn span_to_location_with(
+    source_map: &SourceMap,
+    span: Span,
+    uri: impl FnOnce(&SourceFile) -> Option<lsp_types::Url>,
+) -> Option<lsp_types::Location> {
     if source_map.is_empty() || span.is_dummy() {
         return None;
     }
@@ -348,7 +392,7 @@ pub(crate) fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp
     let hi = file.lookup_file_pos(file.relative_position(span.hi()));
 
     Some(lsp_types::Location {
-        uri: lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok()?,
+        uri: uri(&file)?,
         range: lsp_types::Range {
             start: lsp_position(&file, lo.0, lo.1)?,
             end: lsp_position(&file, hi.0, hi.1)?,
