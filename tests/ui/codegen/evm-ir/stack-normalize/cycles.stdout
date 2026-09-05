@@ -1,0 +1,35 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/cycles.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/cycles.evmir (after stack-normalize) ===
+  @module StackCycles
+  bb0:
+    callf !meta(stack=0->9)
+-   swap 7
+-   swap 8
+-   swap 6
+-   swap 7
+-   swap 5
+-   swap 6
+-   swap 4
+-   swap 5
+-   swap 3
+-   swap 4
+-   swap 2
+-   swap 3
+    swap 1
+    swap 2
++   swap 3
++   swap 4
++   swap 5
++   swap 6
++   swap 7
++   swap 8
+    jump bb1
+  bb1:
+-   swap 3
+    swap 1
+    swap 3
+    swap 2
+    swap 1
+-   swap 2
+    stop
+  

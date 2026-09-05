@@ -1,0 +1,46 @@
+//@ compile-flags: --evm-version osaka -Zevm-ir-pipeline=stack-normalize
+//@ filecheck:
+@module StackCycles
+
+// Nine incoming words rotate without extra temporary words.
+// CHECK-LABEL: bb0:
+// CHECK: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: +   swap 3
+// CHECK-NEXT: +   swap 4
+// CHECK-NEXT: +   swap 5
+// CHECK-NEXT: +   swap 6
+// CHECK-NEXT: +   swap 7
+// CHECK-NEXT: +   swap 8
+bb0:
+  callf !meta(stack=0->9)
+  swap 7
+  swap 8
+  swap 6
+  swap 7
+  swap 5
+  swap 6
+  swap 4
+  swap 5
+  swap 3
+  swap 4
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  jump bb1
+
+// A non-top cycle must restore the original top word; the opaque prefix remains.
+// CHECK-LABEL: bb1:
+// CHECK: {{^[ +].*}}swap 1
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 2
+// CHECK-NEXT: {{^[ +].*}}swap 1
+bb1:
+  swap 3
+  swap 1
+  swap 3
+  swap 2
+  swap 1
+  swap 2
+  stop

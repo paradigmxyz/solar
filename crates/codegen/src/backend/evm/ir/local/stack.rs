@@ -2,7 +2,8 @@
 //!
 //! Symbolic execution tracks equal stack identities through DUP/SWAP/EXCHANGE.
 //! Normalization compares the checked private scheduler, a prefix-first placement,
-//! and a search bounded to three operations over four incoming words. It accepts
+//! a cycle decomposition for unique permutations, and a search bounded to three
+//! operations over four incoming words. It accepts
 //! only a smaller equivalent sequence with no increased input access and a peak
 //! within proved stack capacity.
 //! Reordering moves a literal across only
@@ -12,8 +13,10 @@
 //! outlining. Size mode also moves compact literals before independent producers
 //! to leave room for their temporary words during materialization.
 
-use super::super::{InstKind, Instruction, immediate, verify};
-use super::{canonical, discardable_push, pure, rewrite, stack_usage};
+use super::{
+    super::{InstKind, Instruction, immediate, verify},
+    canonical, discardable_push, pure, rewrite, stack_usage,
+};
 use crate::backend::evm::{op, scheduler::Stack};
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
@@ -83,6 +86,7 @@ pub(super) fn normalize(
             let mut stack = Stack::new(initial.clone());
             consider(stack.reconcile(&values, 0, version).ok());
             consider(place_then_pop(&initial, &values, version));
+            consider(cycle_permutation(initial.len(), &values, version));
             consider(short_plan(original, version, room));
             if best != original {
                 let len = best.len();
@@ -284,6 +288,44 @@ fn relative_usage(insts: &[Instruction]) -> Option<(i64, i64)> {
     stack_usage(insts).map(|(_, delta, peak)| (delta, peak))
 }
 
+/// Decomposes a permutation of ascending identities into cycles through the top.
+///
+/// Each swap places the top identity at its final position. When the top is
+/// already correct, one swap opens another nontrivial cycle. This uses the
+/// minimum number of top swaps for unique identities, without extra stack words.
+fn cycle_permutation(
+    initial_len: usize,
+    desired: &[usize],
+    version: EvmVersion,
+) -> Option<Vec<Instruction>> {
+    if desired.len() != initial_len {
+        return None;
+    }
+    let mut sorted = desired.to_vec();
+    sorted.sort_unstable();
+    if sorted.iter().copied().ne(0..desired.len()) {
+        return None;
+    }
+    let mut values = sorted;
+    let top = values.len().checked_sub(1)?;
+    let mut output = Vec::new();
+    while values != desired {
+        let index = if values[top] != desired[top] {
+            desired.iter().position(|&value| value == values[top])?
+        } else {
+            values.iter().zip(desired).position(|(value, wanted)| value != wanted)?
+        };
+        let depth = top - index;
+        if depth > version.reachable_stack_depth() {
+            return None;
+        }
+        // <top identity>; swap its final depth
+        values.swap(index, top);
+        output.push(InstKind::Swap(depth as u16).into());
+    }
+    Some(output)
+}
+
 /// Places the surviving prefix first, so a discarded suffix needs only POPs.
 fn place_then_pop(
     initial: &[usize],
@@ -422,4 +464,42 @@ fn short_plan(
         }
     }
     best
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cycle_permutations_match_exhaustive_shortest_paths() {
+        let initial = (0..6).collect::<Vec<_>>();
+        let mut shortest = FxHashMap::from_iter([(initial.clone(), 0)]);
+        let mut pending = VecDeque::from([initial.clone()]);
+        while let Some(state) = pending.pop_front() {
+            let distance = shortest[&state];
+            for index in 0..5 {
+                let mut next = state.clone();
+                next.swap(index, 5);
+                if !shortest.contains_key(&next) {
+                    shortest.insert(next.clone(), distance + 1);
+                    pending.push_back(next);
+                }
+            }
+        }
+        assert_eq!(shortest.len(), 720);
+        for (desired, distance) in shortest {
+            let code = cycle_permutation(initial.len(), &desired, EvmVersion::Osaka).unwrap();
+            let mut actual = initial.clone();
+            for inst in &code {
+                assert!(stack_step(&mut actual, &inst.kind));
+            }
+            assert_eq!(actual, desired);
+            assert_eq!(code.len(), distance);
+        }
+        assert!(cycle_permutation(3, &[0, 0, 2], EvmVersion::Osaka).is_none());
+        assert!(cycle_permutation(3, &[0, 1], EvmVersion::Osaka).is_none());
+        let desired = (0..18).rev().collect::<Vec<_>>();
+        assert!(cycle_permutation(18, &desired, EvmVersion::Osaka).is_none());
+        assert!(cycle_permutation(18, &desired, EvmVersion::Amsterdam).is_some());
+    }
 }
