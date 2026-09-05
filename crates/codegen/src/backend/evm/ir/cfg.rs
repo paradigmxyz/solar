@@ -353,6 +353,7 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
     let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
     let Ok(heights) = super::verify::stack_heights(module) else { return false };
     timer.finish("EVM analysis", module.name, "tail-merge-stack", false);
+    let reachable = super::verify::physical_reachability(module);
     let size = gcx.sess.opts.optimization.is_size();
     let version = gcx.sess.opts.evm_version;
     let ids = module.block_ids().collect::<Vec<_>>();
@@ -396,6 +397,7 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             if !super::verify::rewrite_fits(
                 module,
                 &heights,
+                &reachable,
                 id,
                 a.insts.len() - common,
                 a.insts.len(),
@@ -403,6 +405,7 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             ) || !super::verify::rewrite_fits(
                 module,
                 &heights,
+                &reachable,
                 other,
                 b.insts.len() - common,
                 b.insts.len(),

@@ -50,6 +50,7 @@ impl EvmPass for CoalesceCopies {
             return false;
         }
         let Ok(heights) = super::verify::stack_heights(module) else { return false };
+        let reachable = super::verify::physical_reachability(module);
         let mut changed = false;
         for id in module.block_ids().collect::<Vec<_>>() {
             let mut index = 0;
@@ -85,6 +86,7 @@ impl EvmPass for CoalesceCopies {
                     if !super::verify::rewrite_fits(
                         module,
                         &heights,
+                        &reachable,
                         id,
                         index,
                         index + words * 4,
@@ -242,11 +244,13 @@ fn pack(gcx: Gcx<'_>, module: &mut Module, existing: bool) -> bool {
     }
     let mut changed = existing && compact_data(module, true);
     let Ok(heights) = super::verify::stack_heights(module) else { return changed };
+    let reachable = super::verify::physical_reachability(module);
     let mut runs = store_runs(gcx, module);
     runs.retain(|run| {
         super::verify::rewrite_fits(
             module,
             &heights,
+            &reachable,
             run.block,
             run.start,
             run.end,

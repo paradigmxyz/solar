@@ -444,9 +444,12 @@ pub(super) fn validate_target(gcx: Gcx<'_>, module: &Module) {
 /// only accept rewrites that do not increase the original local peak. Proven
 /// unreachable blocks may expand: no execution enters them. Reachability includes
 /// every physical label reference, including continuations used by computed jumps.
+/// Callers may reuse the analyses across rewrites that preserve the original
+/// blocks' incoming stack heights and reachability.
 pub(crate) fn rewrite_fits(
     module: &Module,
     heights: &StackHeights,
+    reachable: &DenseBitSet<BlockId>,
     block: BlockId,
     start: usize,
     end: usize,
@@ -470,7 +473,7 @@ pub(crate) fn rewrite_fits(
         return false;
     }
     let Some((_, incoming)) = heights[block] else {
-        return !is_physically_reachable(module, block);
+        return !reachable.contains(block);
     };
     incoming as isize + delta + new_peak <= 1024
 }
@@ -491,11 +494,6 @@ fn local_profile(insts: &[Instruction]) -> Option<(isize, isize, isize)> {
         peak = peak.max(height);
     }
     Some((need, peak, height))
-}
-
-/// Conservatively includes address-taken labels as executable destinations.
-pub(crate) fn is_physically_reachable(module: &Module, block: BlockId) -> bool {
-    physical_reachability(module).contains(block)
 }
 
 /// Computes the closure of structural edges and physical label references.
