@@ -162,6 +162,8 @@ impl EvmCodegen<'_> {
 
 /// Resolves deferred values and preserves runtime trailers in physical IR captures.
 fn resolve_capture(module: &mut ir::Module, program_size: usize) {
+    // Public captures carry only the guarantees represented in their text format.
+    module.private_control_labels = false;
     for block in &mut module.blocks {
         for instruction in &mut block.insts {
             if let ir::InstKind::PushDeferred(id) = instruction.kind {
@@ -186,4 +188,18 @@ fn resolve_capture(module: &mut ir::Module, program_size: usize) {
     module.program_size_id = None;
     module.appendix_start_id = None;
     module.appendix.clear();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ir, resolve_capture};
+
+    #[test]
+    fn capture_drops_private_control_label_proof() {
+        let untrusted = ir::Module::default();
+        assert!(!untrusted.private_control_labels);
+        let mut generated = ir::Module { private_control_labels: true, ..untrusted.clone() };
+        resolve_capture(&mut generated, 0);
+        assert_eq!(generated, untrusted);
+    }
 }

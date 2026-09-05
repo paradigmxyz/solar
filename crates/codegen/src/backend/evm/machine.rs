@@ -81,7 +81,8 @@ pub(crate) fn lower(
 ) -> Result<MachineOutput, String> {
     let deployment = module.function(root).attributes.is_constructor;
     let mut plan = ModulePlan::new(module, deployment).map_err(str::to_owned)?;
-    let mut output = ir::Module { name: module.name.name, ..Default::default() };
+    let mut output =
+        ir::Module { name: module.name.name, private_control_labels: true, ..Default::default() };
     if deployment {
         output.program_size_id = Some(PROGRAM_END_ID);
     }

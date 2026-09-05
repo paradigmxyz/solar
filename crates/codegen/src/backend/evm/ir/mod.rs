@@ -37,6 +37,13 @@ pub struct Module {
     pub(crate) blocks: IndexVec<BlockId, Block>,
     pub(crate) layout: Option<Vec<BlockId>>,
     pub(crate) labels: FxHashMap<BlockId, u32>,
+    /// Every pushed label is private control state, never an observable numeric value.
+    ///
+    /// Machine lowering establishes this invariant by keeping continuation and return
+    /// labels separate from MIR values. Physical rewrites must preserve it: outlining
+    /// places new continuations below the body's inputs and consumes them with a jump.
+    /// Parsed modules do not carry this proof; exported captures clear it as well.
+    pub(crate) private_control_labels: bool,
     pub(crate) data: IndexVec<DataId, Data>,
     pub(crate) deferred: FxHashMap<u32, U256>,
     /// Generated relocation for the complete encoded deployment size.

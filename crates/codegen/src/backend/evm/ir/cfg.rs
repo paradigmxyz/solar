@@ -9,7 +9,9 @@
 //! redirects identical exiting suffixes only when their encoded body exceeds a
 //! jump; it never merges distinct effects or instruction metadata. Terminal-body
 //! sharing rejects code observations and unknown computed entries, excludes GAS
-//! within the shared body, and proves room for the added jump address. A final
+//! within the shared body, and proves room for the added jump address. Pushed
+//! labels also block sharing unless machine lowering proves they remain private
+//! control state; parsed IR can expose their numeric addresses as ordinary data. A final
 //! taken-edge-only cleanup shares tiny terminal bodies without introducing a
 //! transfer or changing the surviving layout. It protects every possible
 //! fallthrough and rejects computed control and code-address observations. Placement
@@ -319,7 +321,8 @@ fn terminal_dedup(module: &mut Module) -> bool {
     let ids = module.block_ids().collect::<Vec<_>>();
     if ids.iter().any(|&id| {
         module.blocks[id].insts.iter().any(|inst| {
-            matches!(inst.kind, InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_))
+            matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
+                || (matches!(inst.kind, InstKind::PushLabel(_)) && !module.private_control_labels)
                 || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
                 || matches!(inst.kind, InstKind::Op(
                     op::JUMP | op::JUMPI | op::JUMPDEST | op::PC | op::CODESIZE

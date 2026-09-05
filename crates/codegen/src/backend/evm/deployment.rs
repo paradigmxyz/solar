@@ -36,7 +36,11 @@ pub(crate) fn lower(
         let generated = machine::lower(module, constructor, version, optimization, switches)?;
         (generated.ir, generated.plan)
     } else {
-        let mut output = ir::Module { name: module.name.name, ..Default::default() };
+        let mut output = ir::Module {
+            name: module.name.name,
+            private_control_labels: true,
+            ..Default::default()
+        };
         // callvalue; jumpi <revert>, <deployment completion>
         output.blocks.push(ir::Block {
             insts: vec![ir::InstKind::Op(op::CALLVALUE).into()],
