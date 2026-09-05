@@ -334,24 +334,6 @@ impl InstKind {
     }
 }
 
-/// Encodes one physical duplication instruction for the requested target.
-pub(crate) fn encode_dup(depth: u16, evm_version: EvmVersion) -> Option<Vec<u8>> {
-    match depth {
-        1..=16 => Some(vec![DUP1 + depth as u8 - 1]),
-        _ if evm_version.has_extended_stack_ops() => Some(vec![DUPN, encode_depth(depth)?]),
-        _ => None,
-    }
-}
-
-/// Encodes one physical swap instruction for the requested target.
-pub(crate) fn encode_swap(depth: u16, evm_version: EvmVersion) -> Option<Vec<u8>> {
-    match depth {
-        1..=16 => Some(vec![SWAP1 + depth as u8 - 1]),
-        _ if evm_version.has_extended_stack_ops() => Some(vec![SWAPN, encode_depth(depth)?]),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

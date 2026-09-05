@@ -47,13 +47,6 @@ impl<T: Copy + Eq> Stack<T> {
         self.values.truncate(len);
     }
 
-    /// Applies a simultaneous identity substitution, for example along a phi edge.
-    pub(crate) fn rename(&mut self, mut rename: impl FnMut(T) -> T) {
-        for value in &mut self.values {
-            *value = rename(*value);
-        }
-    }
-
     /// Places operands in pop order above a retained live base and fixed prefix.
     pub(crate) fn prepare(
         &mut self,
