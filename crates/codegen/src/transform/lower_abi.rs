@@ -2276,22 +2276,22 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
         );
         if builder.encodes_revert_reasons() {
+            // The same comparisons as below, split so each reports its own message:
             // if offset > 0xffffffffffffffff { revert(Error(offset_reason)) }
+            // if offset > input_end - base { revert(Error("struct ... too short" | "stride")) }
+            //   or, for arrays and bytes,
             // if target + 32 > input_end { revert(Error("invalid calldata array offset")) }
-            //   or, for static aggregates,
-            // if target > input_end { revert(Error("struct ... too short" | "stride")) }
-            // The offset fits in 64 bits here, so the additions cannot wrap. Aggregate
-            // callers check the full head size afterwards.
             let max_offset = builder.imm(u64::MAX);
             let overflow = builder.gt(offset, max_offset);
             *current = builder.revert_if(overflow, offset_reason);
-            let (end, reason) = if is_array_like {
-                (builder.add_u64_offset(target, 32), RevertReason::InvalidCalldataArrayOffset)
+            let (invalid, reason) = if is_array_like {
+                let target_end = builder.add_u64_offset(target, 32);
+                (builder.gt(target_end, input_end), RevertReason::InvalidCalldataArrayOffset)
             } else {
-                (target, Self::aggregate_short_reason(ty, to_calldata))
+                let remaining = builder.sub(input_end, base);
+                (builder.gt(offset, remaining), Self::aggregate_short_reason(ty, to_calldata))
             };
-            let out_of_range = builder.gt(end, input_end);
-            *current = builder.revert_if(out_of_range, reason);
+            *current = builder.revert_if(invalid, reason);
             return target;
         }
         if !is_array_like {
