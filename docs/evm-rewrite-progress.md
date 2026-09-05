@@ -240,6 +240,52 @@ This is not a passing workspace result. The refreshed sealed comparison under
 increases. The 15-case runtime lane does not cover the nine heavy compilation
 cases. Smaller isolated improvements do not satisfy these final gates.
 
+## Bounded scheduling and target finishing
+
+Small commits continue to separate implementation, reviewed expectations and
+formatting. Whole-block dying-operand scheduling (`b1e74700`) saves 113 UI runtime
+bytes and 117 creation bytes under gas optimization without individual increases;
+size outputs remain exact. Five further data/immutable snapshots (`8418d744`)
+pass independent assembly and boundary reads. The immutable byte-patch FileCheck
+still requires a separately reviewed order-independent correction; it remains
+withheld rather than forcing production order to match an incidental snapshot.
+
+Earliest eligible taken exits (`65c18094`) remove 3,748/202 UI runtime bytes and
+10 hot runtime bytes under gas/size, with unchanged hot gas and no individual
+size increases. Increasing the ranked outlining queue (`642b4b40`) retains the
+same eight-emission bound and removes 3,492 UI runtime bytes under size. Its
+21 locally increased hot gas labels remain below the sealed baseline. On the
+identical 432-contract Seaport input, creation/runtime totals fall by
+132,148/61,697 bytes with no individual increase; sequential compilation takes
+98.866/99.164 seconds before/after and peak RSS is 604,396/609,596 KiB.
+
+Literal/copy ordering (`06d0ea37`) removes 2,018/1,730 UI runtime bytes and 22 hot
+runtime bytes in both modes. Two local size increases were traced to outline
+selection and remain below sealed sizes. Observation and stack-run boundary
+guards fix independently reproduced PC changes and downstream regressions.
+Strictly smaller caller-entry fusion (`8f70151e`) removes 389/382 UI runtime
+bytes and 953/1,005 hot runtime bytes, with no individual size or gas increase.
+Its reduced duplicate-argument fixture passes 384 independent calls against
+solc and both compiler legs. Both trials retain rejected broader variants and
+exact evidence; those rejected implementations are not active fallback paths.
+
+The API audit found required old-target lowering missing from custom pipelines:
+Byzantium shifts emitted unavailable instructions, and Homestead termination
+needed INVALID rather than REVERT. The finishing fix and focused regressions
+are under final validation. Its first complete pair preserves all 712 UI cases
+per mode and all 15 hot cases byte-for-byte, including 175 ordered gas labels.
+The MIR-capture audit has 36 matching runs across optimization and output modes.
+
+The sealed ranking after strict caller-entry fusion is retained under
+`strict-call-sealed-ranking/`. All 694 sealed UI successes still compile with
+the same failures, but 1,361 individual UI size gates remain unmet. Matched UI
+runtime totals are 1,069,788 -> 1,073,234 under gas and 543,106 -> 514,663 under
+size. Hot totals are 5,116,867 -> 5,090,397 gas and 5,189,683 -> 5,098,661 size,
+with 27/32 individually regressing labels. Runtime bytes remain
+116,656 -> 130,461 and 113,051 -> 127,968, with 20/18 creation/runtime artifact
+increases. The nine heavy gas cases are explicitly missing from this short
+rerun. These aggregate improvements do not satisfy the final per-case gates.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
