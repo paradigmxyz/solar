@@ -3,7 +3,9 @@
 //! Symbolic execution tracks equal stack identities through DUP/SWAP/EXCHANGE.
 //! Normalization compares the checked private scheduler, a prefix-first placement,
 //! a cycle decomposition for unique permutations, and a search bounded to three
-//! operations over four incoming words. It accepts
+//! operations over four incoming words. On legacy forks, a complete unique
+//! permutation already has a minimum-cost cycle schedule, so the bounded search
+//! is unnecessary. Extended forks retain the search for EXCHANGE. It accepts
 //! only a smaller equivalent sequence with no increased input access and a peak
 //! within proved stack capacity.
 //! Reordering moves a literal across only
@@ -87,8 +89,15 @@ pub(super) fn normalize(
             let mut stack = Stack::new(initial.clone());
             consider(stack.reconcile(&values, 0, version).ok());
             consider(place_then_pop(&initial, &values, version));
-            consider(cycle_permutation(initial.len(), &values, version));
-            consider(short_plan(original, version, room));
+            let permutation = cycle_permutation(initial.len(), &values, version);
+            let search = permutation.is_none() || version.has_extended_stack_ops();
+            consider(permutation);
+            // Legacy SWAPs have equal cost, and cycles minimize their count.
+            // A three-operation length-preserving search using DUP/POP has at
+            // most one SWAP; it cannot improve a unique permutation's cycle.
+            if search {
+                consider(short_plan(original, version, room));
+            }
             if best != original {
                 let len = best.len();
                 // <stack-only run> -> <cheaper equivalent physical stack schedule>
@@ -473,6 +482,49 @@ fn short_plan(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_cycles_dominate_three_operation_search() {
+        // Enumerate every legal DUP/SWAP/POP path independently of stack_step,
+        // including temporary words and POP's lower gas price. Every result
+        // retaining the complete unique input domain must cost at least its
+        // cycle schedule. This is precisely the bounded search we skip.
+        let mut permutations = 0;
+        for len in 1..=4 {
+            let initial = (0..len).collect::<Vec<_>>();
+            let mut pending = VecDeque::from([(initial, 0usize, 0u32)]);
+            while let Some((state, count, gas)) = pending.pop_front() {
+                let mut sorted = state.clone();
+                sorted.sort_unstable();
+                if sorted.iter().copied().eq(0..len) {
+                    let cycle = cycle_permutation(len, &state, EvmVersion::Osaka).unwrap();
+                    assert!(cycle.len() <= count);
+                    assert!(3 * cycle.len() as u32 <= gas);
+                    permutations += 1;
+                }
+                if count == 3 {
+                    continue;
+                }
+                if !state.is_empty() {
+                    let mut popped = state.clone();
+                    popped.pop();
+                    pending.push_back((popped, count + 1, gas + 2));
+                    for depth in 1..=state.len() {
+                        let top = state.len() - 1;
+                        let mut copied = state.clone();
+                        copied.push(state[state.len() - depth]);
+                        pending.push_back((copied, count + 1, gas + 3));
+                        if depth <= top {
+                            let mut swapped = state.clone();
+                            swapped.swap(top, top - depth);
+                            pending.push_back((swapped, count + 1, gas + 3));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(permutations > 100);
+    }
 
     #[test]
     fn cycle_permutations_match_exhaustive_shortest_paths() {
