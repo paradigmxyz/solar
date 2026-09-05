@@ -290,8 +290,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if `--revert-strings strip` drops the reason string `expr`.
     ///
-    /// Custom error payloads are never stripped. Like solc, the reason is still evaluated so
-    /// its side effects and failures are kept; only the payload is dropped.
+    /// Custom error payloads are never stripped. Like solc, a reason that is not a compile-time
+    /// constant string is still evaluated so its side effects and failures are kept; only the
+    /// payload is dropped.
     pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
@@ -301,7 +302,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(false);
         }
-        self.lower_discarded_expr(expr)?;
+        if self.constant_string_bytes(expr).is_none() {
+            self.lower_discarded_expr(expr)?;
+        }
         Some(true)
     }
 
