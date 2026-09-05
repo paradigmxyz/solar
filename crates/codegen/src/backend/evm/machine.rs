@@ -382,7 +382,10 @@ fn lower_function(
                     operands.len(),
                     || control_live_after(context, block_id, position),
                 )?;
-                if saved.tracked == 0 && let Some(preferred) = preferred_branch_values(context, block_id, position, function.inst_result_value(inst_id)) {
+                if saved.tracked == 0
+                    && !matches!(opcode, op::GAS | op::PC)
+                    && op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1)
+                    && let Some(preferred) = preferred_branch_values(context, block_id, position, function.inst_result_value(inst_id)) {
                     let operands = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
                     materialize(context, &mut stack, &mut insts, &operands)?;
                     // <fixed prefix>; <live values in successor order>; <opcode operands>
