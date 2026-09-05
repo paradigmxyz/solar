@@ -5,13 +5,17 @@
 //! logs, preserving their exact order and operands across every call. Calls,
 //! computed control, code-relative observations and GAS remain barriers. MSIZE
 //! is safe because the call protocol touches only the stack: memory operations
-//! and their expansion occur in the same order as before. Their stack contract is derived by abstract height execution; at
+//! and their expansion occur in the same order as before. Their stack contract
+//! is derived by abstract height execution; at
 //! most sixteen input/output words are accepted. Disjoint occurrences share a
 //! block entered with a continuation below their inputs, and the return rotation
 //! preserves all outputs. An encoded-size model charges every call, return and
-//! continuation label before selecting a candidate. Only one best candidate is
-//! applied per invocation, bounding code growth and avoiding stale overlapping
-//! sites. Metadata and relocatable observations are excluded.
+//! continuation label before selecting candidates. Gas mode applies only the
+//! best candidate. Size mode retains at most 64 candidates and selects at most
+//! eight whose original instruction ranges are disjoint. All sites are then
+//! split from right to left, so earlier coordinates remain valid without
+//! rescanning or nesting newly outlined bodies. Metadata and relocatable
+//! observations are excluded.
 
 use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::effect};
 use crate::backend::evm::op;
@@ -58,7 +62,8 @@ impl EvmPass for Outline {
                 }
             }
         }
-        let mut best = None;
+        let limit = if gcx.sess.opts.optimization.is_size() { 64 } else { 1 };
+        let mut ranked = Vec::new();
         for (_, candidates) in groups {
             if candidates.len() < 2 {
                 continue;
@@ -106,30 +111,35 @@ impl EvmPass for Outline {
                 usize::MAX - sites[0].id.index(),
                 usize::MAX - sites[0].start,
             );
-            if best.as_ref().is_none_or(|(old, _, _, _, _)| score > *old) {
-                best = Some((score, body, sites, inputs, outputs));
+            retain_candidate(&mut ranked, (score, body, sites, inputs, outputs), limit);
+        }
+        if let Some(parameterized) = parameterized(gcx, module, &heights, &reachable) {
+            retain_candidate(&mut ranked, parameterized, limit);
+        }
+        let selected = disjoint_candidates(ranked);
+        if selected.is_empty() {
+            return false;
+        }
+        let mut stubs = Vec::new();
+        let mut calls = Vec::new();
+        for (_, body, sites, inputs, outputs) in selected {
+            let mut stub = Block {
+                insts: body.into_iter().map(Into::into).collect(),
+                terminator: TerminatorKind::DynamicJump.into(),
+                ..Block::default()
+            };
+            // continuation outputs -> outputs continuation; jump
+            for depth in 1..=outputs {
+                stub.insts.push(InstKind::Swap(depth as u16).into());
             }
+            let stub_id = module.append_block(stub);
+            stubs.push(stub_id);
+            calls.extend(sites.into_iter().map(|site| (site, stub_id, inputs)));
         }
-        if let Some(parameterized) = parameterized(gcx, module, &heights, &reachable)
-            && best.as_ref().is_none_or(|old| parameterized.0 > old.0)
-        {
-            best = Some(parameterized);
-        }
-        let Some((_, body, mut sites, inputs, outputs)) = best else { return false };
-        let mut stub = Block {
-            insts: body.into_iter().map(Into::into).collect(),
-            terminator: TerminatorKind::DynamicJump.into(),
-            ..Block::default()
-        };
-        // continuation outputs -> outputs continuation; jump
-        for depth in 1..=outputs {
-            stub.insts.push(InstKind::Swap(depth as u16).into());
-        }
-        let stub_id = module.append_block(stub);
         let mut continuations = Vec::new();
         // Split each source block from right to left, retaining source block order.
-        sites.sort_by_key(|site| (site.id, std::cmp::Reverse(site.start)));
-        for site in sites {
+        calls.sort_by_key(|(site, _, _)| (site.id, std::cmp::Reverse(site.start)));
+        for (site, stub_id, inputs) in calls {
             let block = &mut module.blocks[site.id];
             let continuation = Block {
                 insts: block.insts.split_off(site.start + site.len),
@@ -151,9 +161,9 @@ impl EvmPass for Outline {
             }
             block.terminator = TerminatorKind::Jump(stub_id).into();
         }
-        // original blocks; shared body; continuations in stable source order
+        // original blocks; shared bodies; continuations in stable source order
         let mut layout = ids;
-        layout.push(stub_id);
+        layout.extend(stubs);
         layout.extend(continuations);
         module.layout = Some(layout);
         true
@@ -246,6 +256,41 @@ fn contract(body: &[InstKind]) -> Option<(usize, usize)> {
 }
 
 type Candidate = ((usize, usize, usize, usize), Vec<InstKind>, Vec<Site>, usize, usize);
+
+fn retain_candidate(ranked: &mut Vec<Candidate>, candidate: Candidate, limit: usize) {
+    let index = ranked.partition_point(|old| old.0 >= candidate.0);
+    if index < limit {
+        ranked.insert(index, candidate);
+        ranked.truncate(limit);
+    }
+}
+
+/// Select whole groups: dropping individual sites would invalidate profitability.
+fn disjoint_candidates(ranked: Vec<Candidate>) -> Vec<Candidate> {
+    let mut occupied = FxHashMap::<BlockId, Vec<(usize, usize)>>::default();
+    let mut selected = Vec::new();
+    for candidate in ranked {
+        if candidate.2.iter().any(|site| {
+            occupied.get(&site.id).is_some_and(|ranges| {
+                let index = ranges.partition_point(|&(_, end)| end <= site.start);
+                ranges.get(index).is_some_and(|&(start, _)| start < site.start + site.len)
+            })
+        }) {
+            continue;
+        }
+        for site in &candidate.2 {
+            occupied.entry(site.id).or_default().push((site.start, site.start + site.len));
+        }
+        for ranges in occupied.values_mut() {
+            ranges.sort_unstable();
+        }
+        selected.push(candidate);
+        if selected.len() == 8 {
+            break;
+        }
+    }
+    selected
+}
 
 fn parameterized(
     gcx: Gcx<'_>,
