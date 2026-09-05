@@ -1,12 +1,15 @@
 //! Stack-pressure planning and activation-local value homes.
 //!
-//! The planner bounds each block's live stack plus operand preparation against the target DUP
-//! window. Functions above that bound receive homes for active stored values, avoiding value
-//! rematerialization across arbitrary memory effects. A separate temporary region permits phi
-//! edge copies to read every source before writing any destination, including cyclic transfers.
-//! Ordinary low-pressure functions retain stack-only values. Address placement and dynamic-frame
-//! lifetime remain in storage planning; this module emits no physical instructions.
+//! The planner simulates the physical scheduler over block entries, operand preparation, calls,
+//! and phi edges to find functions that exceed the target DUP window. Dying operands are consumed
+//! in place instead of being counted twice. Those functions receive reusable memory homes for
+//! overlapping live intervals; immediate single-use temporaries remain on the stack. A separate
+//! temporary region permits phi edge copies to read every source before writing any destination,
+//! including cyclic transfers. Ordinary low-pressure functions retain stack-only values. Address
+//! placement and dynamic-frame lifetime remain in storage planning; this module emits no physical
+//! instructions.
 
+use super::scheduler::Stack;
 use crate::{
     analysis::{Access, AddressSpace, CfgInfo, Liveness, Location, MemoryBase, ModRef},
     mir,
@@ -49,7 +52,8 @@ impl SpillPlan {
                 }
             }
         }
-        let (homes, phi_scratch) = assign_homes(function, live, cfg, |value| stored(value) && !local.contains(value));
+        let (homes, phi_scratch) =
+            assign_homes(function, live, cfg, |value| stored(value) && !local.contains(value));
         let scratch_count = function
             .blocks
             .iter()
@@ -67,7 +71,12 @@ impl SpillPlan {
 }
 
 /// Reuses words whose conservative live intervals do not overlap in physical block order.
-fn assign_homes(function: &mir::Function, live: &Liveness, cfg: &CfgInfo, stored: impl Fn(mir::ValueId) -> bool) -> (FxHashMap<mir::ValueId, usize>, usize) {
+fn assign_homes(
+    function: &mir::Function,
+    live: &Liveness,
+    cfg: &CfgInfo,
+    stored: impl Fn(mir::ValueId) -> bool,
+) -> (FxHashMap<mir::ValueId, usize>, usize) {
     let mut intervals = FxHashMap::<mir::ValueId, (usize, usize)>::default();
     let mut touch = |value, position| {
         if stored(value) {
@@ -78,20 +87,37 @@ fn assign_homes(function: &mir::Function, live: &Liveness, cfg: &CfgInfo, stored
     };
     let mut start = 0;
     for (block_id, block) in function.blocks.iter_enumerated() {
-        if !cfg.is_reachable(block_id) { continue; }
-        for value in live.live_in(block_id).iter() { touch(value, start); }
+        if !cfg.is_reachable(block_id) {
+            continue;
+        }
+        for value in live.live_in(block_id).iter() {
+            touch(value, start);
+        }
         for (position, &inst) in block.instructions.iter().enumerate() {
             let point = start + 2 * position;
             if !matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) {
-                for value in function.inst(inst).kind.operands() { touch(value, point); }
+                for value in function.inst(inst).kind.operands() {
+                    touch(value, point);
+                }
             }
             if let Some(value) = function.inst_result_value(inst) {
-                touch(value, if matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) { start } else { point + 1 });
+                touch(
+                    value,
+                    if matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) {
+                        start
+                    } else {
+                        point + 1
+                    },
+                );
             }
         }
         start += 2 * block.instructions.len() + 2;
-        for value in live.live_out(block_id).iter() { touch(value, start - 1); }
-        if let Some(term) = &block.terminator { term.for_each_operand(|value| touch(value, start - 1)); }
+        for value in live.live_out(block_id).iter() {
+            touch(value, start - 1);
+        }
+        if let Some(term) = &block.terminator {
+            term.for_each_operand(|value| touch(value, start - 1));
+        }
     }
     let mut intervals = intervals.into_iter().collect::<Vec<_>>();
     intervals.sort_unstable_by_key(|&(value, (start, _))| (start, value));
@@ -101,18 +127,31 @@ fn assign_homes(function: &mir::Function, live: &Liveness, cfg: &CfgInfo, stored
     let mut words = 0;
     for (value, (start, end)) in intervals {
         while let Some(&Reverse((end, home))) = active.peek() {
-            if end >= start { break; }
+            if end >= start {
+                break;
+            }
             active.pop();
             free.push(Reverse(home));
         }
-        let home = free.pop().map(|Reverse(home)| home).unwrap_or_else(|| { let home = words; words += 1; home });
+        let home = free.pop().map(|Reverse(home)| home).unwrap_or_else(|| {
+            let home = words;
+            words += 1;
+            home
+        });
         homes.insert(value, home);
         active.push(Reverse((end, home)));
     }
     (homes, words)
 }
 
-/// Conservatively reserves homes when an activation cannot keep all live values within DUP reach.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PressureSlot {
+    Value(mir::ValueId),
+    ReturnAddress,
+    Continuation,
+}
+
+/// Uses the physical scheduler itself to account for dying operands and simultaneous edge copies.
 fn exceeds_stack_window(
     function: &mir::Function,
     live: &Liveness,
@@ -121,39 +160,178 @@ fn exceeds_stack_window(
     version: EvmVersion,
     stored: impl Fn(mir::ValueId) -> bool,
 ) -> bool {
-    let limit = version.reachable_stack_depth();
+    let prefix = usize::from(returning);
+    let entries = function
+        .blocks
+        .iter_enumerated()
+        .map(|(id, block)| {
+            let mut values = live.live_in(id).iter().filter(|&v| stored(v)).collect::<Vec<_>>();
+            for &inst in &block.instructions {
+                if matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
+                    && let Some(v) = function.inst_result_value(inst)
+                {
+                    values.push(v);
+                }
+            }
+            values.sort_unstable();
+            values.dedup();
+            let mut slots = if returning { vec![PressureSlot::ReturnAddress] } else { Vec::new() };
+            slots.extend(values.into_iter().map(PressureSlot::Value));
+            slots
+        })
+        .collect::<solar_data_structures::index::IndexVec<mir::BlockId, _>>();
     for (block_id, block) in function.blocks.iter_enumerated() {
         if !cfg.is_reachable(block_id) {
             continue;
         }
-        let mut active = live.live_in(block_id).iter().filter(|&v| stored(v)).collect::<Vec<_>>();
-        for &inst in &block.instructions {
-            if matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
-                && let Some(v) = function.inst_result_value(inst)
-            {
-                active.push(v);
-            }
-        }
-        active.sort_unstable();
-        active.dedup();
-        if active.len() + usize::from(returning) > limit {
+        if entries[block_id].len() > version.reachable_stack_depth() + prefix {
             return true;
         }
+        let mut stack = Stack::new(entries[block_id].clone());
         for (position, &inst) in block.instructions.iter().enumerate() {
-            if matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) {
+            let kind = &function.inst(inst).kind;
+            if matches!(kind, mir::InstKind::Phi(_)) {
                 continue;
             }
-            let operands = function.inst(inst).kind.operands();
-            if active.len() + operands.len() + usize::from(returning) > limit {
+            let operands = kind.operands();
+            let prepares = kind.evm_opcode().is_some()
+                || matches!(
+                    kind,
+                    mir::InstKind::Select(..)
+                        | mir::InstKind::DataCopy(..)
+                        | mir::InstKind::InternalCall { .. }
+                );
+            if prepares
+                && !prepare_pressure(&mut stack, &operands, prefix, version, &stored, |v| {
+                    live.is_used_at_or_after(v, block_id, position + 1)
+                })
+            {
                 return true;
             }
-            active.retain(|&v| live.is_used_at_or_after(v, block_id, position + 1));
-            if let Some(v) = function.inst_result_value(inst) {
-                active.push(v);
+            if matches!(kind, mir::InstKind::InternalCall { .. }) {
+                let caller = stack.values()[..stack.values().len() - operands.len()].to_vec();
+                let mut desired = caller.clone();
+                desired.push(PressureSlot::Continuation);
+                desired.extend(operands.iter().rev().copied().map(PressureSlot::Value));
+                stack.push(PressureSlot::Continuation);
+                if stack.reconcile(&desired, prefix, version).is_err() {
+                    return true;
+                }
+                stack = Stack::new(caller);
+            } else if prepares {
+                stack.truncate(stack.values().len() - operands.len());
+            }
+            if let Some(value) = function.inst_result_value(inst) {
+                stack.push(PressureSlot::Value(value));
+            }
+        }
+        if let Some(term) = &block.terminator {
+            match term {
+                mir::Terminator::Branch { condition, .. } => {
+                    if !prepare_pressure(&mut stack, &[*condition], prefix, version, &stored, |v| {
+                        live.live_out(block_id).contains(v)
+                    }) {
+                        return true;
+                    }
+                    stack.truncate(stack.values().len() - 1);
+                }
+                mir::Terminator::Switch { value, cases, .. } => {
+                    for &(case, _) in cases {
+                        if !prepare_pressure(
+                            &mut stack.clone(),
+                            &[*value, case],
+                            prefix,
+                            version,
+                            &stored,
+                            |_| true,
+                        ) {
+                            return true;
+                        }
+                    }
+                }
+                mir::Terminator::TailCall { args, .. } => {
+                    if !prepare_pressure(&mut stack, args, prefix, version, &stored, |_| false) {
+                        return true;
+                    }
+                }
+                mir::Terminator::ReturnData { offset, size }
+                | mir::Terminator::Revert { offset, size } => {
+                    if !prepare_pressure(
+                        &mut stack,
+                        &[*offset, *size],
+                        prefix,
+                        version,
+                        &stored,
+                        |_| false,
+                    ) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+            for to in term.successors() {
+                let mut desired = entries[to].clone();
+                for slot in &mut desired {
+                    if let PressureSlot::Value(value) = slot
+                        && let mir::Value::Inst(inst) = function.value(*value)
+                        && function.blocks[to].instructions.contains(inst)
+                        && let mir::InstKind::Phi(incoming) = &function.inst(*inst).kind
+                    {
+                        let Some((_, source)) = incoming.iter().find(|(from, _)| *from == block_id)
+                        else {
+                            return true;
+                        };
+                        *value = *source;
+                    }
+                }
+                let mut edge = stack.clone();
+                if !materialize_pressure(&mut edge, &desired, &stored)
+                    || edge.reconcile(&desired, prefix, version).is_err()
+                {
+                    return true;
+                }
             }
         }
     }
     false
+}
+
+fn materialize_pressure(
+    stack: &mut Stack<PressureSlot>,
+    desired: &[PressureSlot],
+    stored: impl Fn(mir::ValueId) -> bool,
+) -> bool {
+    for &slot in desired.iter().rev() {
+        if !stack.values().contains(&slot) {
+            if let PressureSlot::Value(value) = slot
+                && !stored(value)
+            {
+                stack.push(slot);
+            } else {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn prepare_pressure(
+    stack: &mut Stack<PressureSlot>,
+    operands: &[mir::ValueId],
+    prefix: usize,
+    version: EvmVersion,
+    stored: impl Fn(mir::ValueId) -> bool,
+    live: impl Fn(mir::ValueId) -> bool,
+) -> bool {
+    let slots = operands.iter().copied().map(PressureSlot::Value).collect::<Vec<_>>();
+    materialize_pressure(stack, &slots, &stored)
+        && stack
+            .prepare(&slots, prefix, version, |slot| match slot {
+                PressureSlot::Value(value) => stored(value) && live(value),
+                PressureSlot::ReturnAddress => true,
+                PressureSlot::Continuation => false,
+            })
+            .is_ok()
 }
 
 /// Tests writes against compiler-owned words without treating source memory as scratch space.
