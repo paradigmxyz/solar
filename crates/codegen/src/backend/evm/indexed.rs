@@ -30,13 +30,13 @@ pub(crate) fn lower(module: &ir::Module, width: usize) -> Cow<'_, ir::Module> {
         let left_targets = targets[..middle].to_vec();
         let right_targets = targets[middle..].to_vec();
         // left: indexed_jump <lower half>
-        let left = module.blocks.push(ir::Block {
+        let left = module.append_block(ir::Block {
             terminator: ir::TerminatorKind::IndexedJump(left_targets).into(),
             ..Default::default()
         });
         // right: push <middle>; swap1; sub
         // indexed_jump <upper half>
-        let right = module.blocks.push(ir::Block {
+        let right = module.append_block(ir::Block {
             insts: vec![
                 ir::InstKind::Push(U256::from(middle)).into(),
                 ir::InstKind::Swap(1).into(),
