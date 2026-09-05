@@ -325,7 +325,7 @@ impl LowerAbiCx {
                     builder.revert(zero, revert_size);
                 } else {
                     // revert(0, 0)
-                    builder.revert(zero, zero);
+                    builder.revert_with(RevertReason::Empty);
                 }
             }
         }
@@ -825,7 +825,7 @@ impl LowerAbiCx {
         let head_size = builder.imm(head_size);
         let short = builder.lt(length, head_size);
         let invalid = builder.or(overflow, short);
-        *current = builder.revert_if_reason(invalid, RevertReason::TupleDataTooShort);
+        *current = builder.revert_if(invalid, RevertReason::TupleDataTooShort);
         input_end
     }
 
@@ -1318,12 +1318,11 @@ impl LowerAbiCx {
             builder.jump(old_entry);
 
             builder.switch_to_block(revert);
-            builder.revert_reason(RevertReason::TupleDataTooShort);
+            builder.revert_with(RevertReason::TupleDataTooShort);
             if validator_revert != revert {
                 // revert(0, 0)
                 builder.switch_to_block(validator_revert);
-                let zero = builder.imm(0);
-                builder.revert(zero, zero);
+                builder.revert_with(RevertReason::Empty);
             }
 
             guard
@@ -2045,7 +2044,7 @@ impl LowerAbiCx {
         if let Some(validator) = ty.word_validator() {
             let value = builder.mload(head);
             let valid = validator.condition(builder, value, has_bitwise_shifting);
-            *current = builder.revert_if_zero(valid);
+            *current = builder.revert_if_zero(valid, RevertReason::Empty);
             return Self::normalize_abi_word(builder, ty, value);
         }
         if matches!(ty, AbiParamType::Scalar(_)) {
@@ -2094,8 +2093,7 @@ impl LowerAbiCx {
         let head_invalid = builder.or(offset_overflow, head_out_of_range);
         if builder.encodes_revert_reasons() {
             // Report solc's offset, length, and stride checks separately.
-            *current =
-                builder.revert_if_reason(head_invalid, RevertReason::InvalidCalldataArrayOffset);
+            *current = builder.revert_if(head_invalid, RevertReason::InvalidCalldataArrayOffset);
             let len = builder.calldataload(base);
             let data = builder.add(base, word);
             Self::guard_bytes_data(builder, data, len, input_end, current, false);
@@ -2106,7 +2104,7 @@ impl LowerAbiCx {
         let remaining = builder.sub(input_end, data);
         let tail_invalid = builder.gt(len, remaining);
         let invalid = builder.or(head_invalid, tail_invalid);
-        *current = builder.revert_if_reason(invalid, RevertReason::InvalidCalldataArrayOffset);
+        *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
         (base, data, len)
     }
 
@@ -2122,7 +2120,7 @@ impl LowerAbiCx {
         let value =
             Self::decode_static_calldata_value(builder, ty, head, &mut valid, has_bitwise_shifting);
         let invalid = builder.iszero(valid);
-        *current = builder.revert_if(invalid);
+        *current = builder.revert_if(invalid, RevertReason::Empty);
         value
     }
 
@@ -2222,10 +2220,10 @@ impl LowerAbiCx {
             // solc reports an unencodable length before the stride check.
             let max_offset = builder.imm(u64::MAX);
             let too_long = builder.gt(len, max_offset);
-            *current = builder.revert_if_reason(too_long, RevertReason::InvalidCalldataArrayLength);
+            *current = builder.revert_if(too_long, RevertReason::InvalidCalldataArrayLength);
         }
         let invalid = builder.gt(len, max_len);
-        *current = builder.revert_if_reason(invalid, RevertReason::InvalidCalldataArrayStride);
+        *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayStride);
     }
 
     fn decode_source_scalar(
@@ -2286,20 +2284,20 @@ impl LowerAbiCx {
             // callers check the full head size afterwards.
             let max_offset = builder.imm(u64::MAX);
             let overflow = builder.gt(offset, max_offset);
-            *current = builder.revert_if_reason(overflow, offset_reason);
+            *current = builder.revert_if(overflow, offset_reason);
             let (end, reason) = if is_array_like {
                 (builder.add_u64_offset(target, 32), RevertReason::InvalidCalldataArrayOffset)
             } else {
                 (target, Self::aggregate_short_reason(ty, to_calldata))
             };
             let out_of_range = builder.gt(end, input_end);
-            *current = builder.revert_if_reason(out_of_range, reason);
+            *current = builder.revert_if(out_of_range, reason);
             return target;
         }
         if !is_array_like {
             let remaining = builder.sub(input_end, base);
             let invalid = builder.gt(offset, remaining);
-            *current = builder.revert_if_reason(invalid, RevertReason::InvalidTupleOffset);
+            *current = builder.revert_if(invalid, RevertReason::InvalidTupleOffset);
             return target;
         }
 
@@ -2311,7 +2309,7 @@ impl LowerAbiCx {
         let overflow = builder.gt(offset, max_offset);
         let out_of_range = builder.gt(target_end, input_end);
         let invalid = builder.or(overflow, out_of_range);
-        *current = builder.revert_if_reason(invalid, RevertReason::InvalidCalldataArrayOffset);
+        *current = builder.revert_if(invalid, RevertReason::InvalidCalldataArrayOffset);
         target
     }
 
@@ -2350,7 +2348,7 @@ impl LowerAbiCx {
             builder.switch_to_block(*current);
             let max_offset = builder.imm(u64::MAX);
             let too_long = builder.gt(len, max_offset);
-            *current = builder.revert_if_reason(too_long, RevertReason::InvalidCalldataArrayLength);
+            *current = builder.revert_if(too_long, RevertReason::InvalidCalldataArrayLength);
         }
         let reason = RevertReason::InvalidCalldataArrayStride;
         Self::guard_input_range_value(builder, data, len, input_end, current, reason);
@@ -2382,7 +2380,7 @@ impl LowerAbiCx {
         // potentially overflowing end pointer.
         let remaining = builder.sub(input_end, start);
         let invalid = builder.gt(size, remaining);
-        *current = builder.revert_if_reason(invalid, reason);
+        *current = builder.revert_if(invalid, reason);
     }
 
     fn checked_add(
@@ -2841,7 +2839,7 @@ impl LowerAbiCx {
         has_bitwise_shifting: bool,
     ) -> ValueId {
         let valid = validator.condition(builder, value, has_bitwise_shifting);
-        builder.revert_if_zero(valid);
+        builder.revert_if_zero(valid, RevertReason::Empty);
         value
     }
 
@@ -2859,7 +2857,7 @@ impl LowerAbiCx {
         let value = builder.callvalue();
         builder.branch(value, revert, old_entry);
         builder.switch_to_block(revert);
-        builder.revert_reason(RevertReason::EtherSentToNonPayable);
+        builder.revert_with(RevertReason::EtherSentToNonPayable);
 
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))

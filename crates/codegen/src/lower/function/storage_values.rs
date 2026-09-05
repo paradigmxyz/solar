@@ -462,7 +462,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.is_getter {
                     // if index >= length { revert(0, 0) }
                     let valid = self.builder.lt(index, length);
-                    self.builder.revert_if_zero(valid);
+                    self.builder.revert_if_zero(valid, RevertReason::Empty);
                 } else {
                     // bounds_check(index, length)
                     self.builder.bounds_check(index, length);

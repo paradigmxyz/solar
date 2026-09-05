@@ -920,16 +920,16 @@ fn encode_calldata_bytes_array(
     let bound = builder.sub(available, thirty_one);
     let valid_offset = builder.slt(offset, bound);
     let invalid_offset = builder.iszero(valid_offset);
-    builder.revert_if_reason(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
+    builder.revert_if(invalid_offset, RevertReason::InvalidCalldataAccessOffset);
     let element_base = builder.add(source_base, offset);
     let length = builder.calldataload(element_base);
     let max_length = builder.imm(u64::MAX);
     let invalid_length = builder.gt(length, max_length);
-    builder.revert_if_reason(invalid_length, RevertReason::InvalidCalldataAccessLength);
+    builder.revert_if(invalid_length, RevertReason::InvalidCalldataAccessLength);
     let data = builder.add(element_base, word);
     let limit = builder.sub(calldata_size, length);
     let short_tail = builder.sgt(data, limit);
-    builder.revert_if_reason(short_tail, RevertReason::InvalidCalldataAccessStride);
+    builder.revert_if(short_tail, RevertReason::InvalidCalldataAccessStride);
     let element_value = builder.make_slice(data, length, SliceLocation::Calldata);
     let new_tail = encode_value(
         builder,

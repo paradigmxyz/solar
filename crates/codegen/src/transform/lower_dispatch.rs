@@ -230,14 +230,14 @@ fn build_entry(
         builder.switch_to_block(revert_block);
         // solc distinguishes a contract that can at least receive Ether from one that
         // rejects every call.
-        builder.revert_reason(if receive.is_some() {
+        builder.revert_with(if receive.is_some() {
             RevertReason::UnknownSelector
         } else {
             RevertReason::NoFallbackNorReceive
         });
         if callvalue_revert_block != revert_block {
             builder.switch_to_block(callvalue_revert_block);
-            builder.revert_reason(RevertReason::EtherSentToNonPayable);
+            builder.revert_with(RevertReason::EtherSentToNonPayable);
         }
     }
 

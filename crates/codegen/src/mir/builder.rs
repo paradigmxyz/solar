@@ -79,13 +79,17 @@ impl_signed_to_uint!(i8, i16, i32, i64, i128, isize);
 /// The Error(string) selector, `keccak256("Error(string)")[..4]`, left-aligned in a word.
 pub(crate) const ERROR_SELECTOR: U256 = U256::from_limbs([0, 0, 0, 0x08c3_79a0_u64 << 32]);
 
-/// Why a compiler-generated revert fires.
+/// Why a revert with no user-supplied payload fires.
 ///
-/// Compiler-generated reverts carry no data by default. With `--revert-strings debug`, each
-/// reason is encoded as an `Error(string)` payload with the same message solc attaches to the
-/// corresponding check, so a failing transaction explains which internal check rejected it.
+/// These reverts carry no data by default. With `--revert-strings debug`, each reason other than
+/// [`RevertReason::Empty`] is encoded as an `Error(string)` payload with the same message solc
+/// attaches to the corresponding check, so a failing transaction explains which internal check
+/// rejected it.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum RevertReason {
+    /// Empty data in every mode: `require` and `revert()` without a message, stripped messages,
+    /// and checks solc never attaches a message to, such as decoded ABI word validators.
+    Empty,
     /// A non-payable external entry point received Ether.
     EtherSentToNonPayable,
     /// The selector did not match any external function and no fallback exists, but the
@@ -132,9 +136,10 @@ pub(crate) enum RevertReason {
 }
 
 impl RevertReason {
-    /// The message solc attaches to this check with `--revert-strings debug`.
-    pub(crate) const fn message(self) -> &'static str {
-        match self {
+    /// The message solc attaches to this check with `--revert-strings debug`, if any.
+    pub(crate) const fn message(self) -> Option<&'static str> {
+        Some(match self {
+            Self::Empty => return None,
             Self::EtherSentToNonPayable => "Ether sent to non-payable function",
             Self::UnknownSelector => "Unknown signature and no fallback defined",
             Self::NoFallbackNorReceive => "Contract does not have fallback nor receive functions",
@@ -156,13 +161,12 @@ impl RevertReason {
             Self::SliceGreaterThanLength => "Slice is greater than length",
             Self::SliceStartsAfterEnd => "Slice starts after end",
             Self::TargetContractHasNoCode => "Target contract does not contain code",
-        }
+        })
     }
 }
 
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 enum RevertKind {
-    Empty,
     Panic(PanicCode),
     Reason(RevertReason),
 }
@@ -342,36 +346,28 @@ impl<'a> FunctionBuilder<'a> {
         self.branch_to_revert(condition, true, RevertKind::Panic(code));
     }
 
-    /// Reverts with empty data when `condition` is true.
-    pub(crate) fn revert_if(&mut self, condition: ValueId) -> BlockId {
-        self.revert_if_with(condition, false)
-    }
-
-    /// Reverts with empty data when `condition` is zero.
-    pub(crate) fn revert_if_zero(&mut self, condition: ValueId) -> BlockId {
-        self.revert_if_with(condition, true)
-    }
-
-    fn revert_if_with(&mut self, condition: ValueId, condition_is_zero: bool) -> BlockId {
-        self.branch_to_revert(condition, condition_is_zero, RevertKind::Empty)
-    }
-
     /// Reverts for `reason` when `condition` is true.
     ///
     /// The data is empty unless the builder encodes revert reasons; see
     /// [`Self::with_revert_strings`].
-    pub(crate) fn revert_if_reason(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
+    pub(crate) fn revert_if(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
         self.branch_to_revert(condition, false, RevertKind::Reason(reason))
     }
 
+    /// Reverts for `reason` when `condition` is zero.
+    pub(crate) fn revert_if_zero(&mut self, condition: ValueId, reason: RevertReason) -> BlockId {
+        self.branch_to_revert(condition, true, RevertKind::Reason(reason))
+    }
+
     /// Terminates the current block by reverting for `reason`.
-    pub(crate) fn revert_reason(&mut self, reason: RevertReason) {
-        if self.encodes_revert_reasons() {
-            self.revert_error_string(reason.message());
-        } else {
-            // revert(0, 0)
-            let zero = self.imm(0);
-            self.revert(zero, zero);
+    pub(crate) fn revert_with(&mut self, reason: RevertReason) {
+        match reason.message() {
+            Some(message) if self.encodes_revert_reasons() => self.revert_error_string(message),
+            _ => {
+                // revert(0, 0)
+                let zero = self.imm(0);
+                self.revert(zero, zero);
+            }
         }
     }
 
@@ -420,12 +416,8 @@ impl<'a> FunctionBuilder<'a> {
         if new_revert {
             self.switch_to_block(revert);
             match kind {
-                RevertKind::Empty => {
-                    let zero = self.imm(0);
-                    self.revert(zero, zero);
-                }
                 RevertKind::Panic(code) => self.panic(code),
-                RevertKind::Reason(reason) => self.revert_reason(reason),
+                RevertKind::Reason(reason) => self.revert_with(reason),
             }
         }
         self.switch_to_block(continue_block);
@@ -435,7 +427,11 @@ impl<'a> FunctionBuilder<'a> {
     fn revert_block(&mut self, kind: RevertKind) -> (BlockId, bool) {
         // Without encoded reasons every reason reverts with empty data, so share one block.
         let kind = match kind {
-            RevertKind::Reason(_) if !self.encodes_revert_reasons() => RevertKind::Empty,
+            RevertKind::Reason(reason)
+                if !self.encodes_revert_reasons() || reason.message().is_none() =>
+            {
+                RevertKind::Reason(RevertReason::Empty)
+            }
             kind => kind,
         };
         if let Some(&block) = self.revert_blocks.0.get(&kind) {
