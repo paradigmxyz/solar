@@ -1,0 +1,23 @@
+//@ revisions: none layout
+//@ compile-flags: -Ogas -Zdump=disasm-runtime
+//@[none] compile-flags: -Zevm-ir-pipeline=none
+//@[layout] compile-flags: -Zevm-ir-pipeline=block-layout
+//~[none]? ERROR: EVM IR verification failed: block 0: `jump` encoding grows the stack to 1025 words, exceeding the limit of 1024
+@module EncodingJump
+
+// A direct nonfallthrough transfer needs one temporary address word.
+// Laying out bb2 immediately after bb0 removes that temporary entirely.
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push 0
+  push 0
+  jump bb2
+bb1:
+  stop
+bb2:
+  stop
