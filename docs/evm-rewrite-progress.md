@@ -149,6 +149,32 @@ Output quality, exact IDs and every gas label determine acceptance. The ranking
 above predates the terminal and heap-writer improvements and will be refreshed
 after the next accepted encoding checkpoint.
 
+## Current measured increments
+
+Wide packed targets (`99066af8`) use low-first extraction on native-shift forks;
+power-of-two index scaling (`0c5862e2`) uses SHL. Together they save 624 gas
+across 78 hot labels, with no label increase. Wide extraction removes 30 hot
+runtime bytes and 498/14 UI runtime bytes in gas/size mode; scaling preserves
+all sizes. Pre-shift forks retain their measured encoding. Independent assembled
+replays, wrapping arithmetic checks and 80 codegen unit tests pass.
+
+Repeated terminal-prefix removal (`e61ed3db`) recomputes stack bounds after each
+accepted region. It preserves hot gas, removes 26/14 hot runtime bytes and
+765/599 UI runtime bytes, with no individual size increase. A 1,022-word replay
+checks cumulative capacity; deliberately removing the required remaining POP
+causes the expected stack overflow. Six focused revisions pass.
+
+Bounded cross-block residents (`23767c91`) keep arguments, Phi values and values
+crossing unsafe writers or calls homed. Nitro shrinks 458/479 bytes and saves
+108 gas in both modes. The identical 708-success UI inventories shrink
+1,710/1,450 runtime bytes without individual regressions. All 36 focused
+revisions pass; both symbolic modes reach bounded agreement. These are isolated
+comparisons under the recorded common checkpoint, not final baseline acceptance.
+
+The retained MIR argument-normalization trial produced byte-identical outputs
+across both UI corpora and both hot modes, so its redundant driver call was
+removed. Trial sources and comparisons remain in `canonical-arguments/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
