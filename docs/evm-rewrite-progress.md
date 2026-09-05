@@ -101,20 +101,38 @@ costing (`f7bbf889`) preserves all hot gas labels, removes 222 UI size-mode byte
 without per-contract regressions, and exposes a separately measured compiler-cost
 follow-up. Unused fresh private helpers are removed in `4224771b`.
 
-The corrected hot checkpoint matches all 15 cases / 175 labels / 139 runtime
-observations in both modes. Exact recompilation certifies identical bytecode
-after the DCE safety fix. Gas-mode hot gas is 5,116,867 → 5,096,710, but 45 labels
-still regress and runtime size grows 116,656 → 131,214 bytes. Size-mode hot gas is
-5,189,683 → 5,101,722, with 32 regressing labels and runtime size growing
-113,051 → 125,788 bytes. All 694 sealed UI successes remain successful in both
-modes, with the same eight known failures. Matched UI runtime sizes are
-1,069,788 → 1,089,035 (gas) and 543,106 → 524,803 (size); per-contract regressions
-remain. Full inventories and rankings are in `final-proof-candidate/summary.json`.
+Private sibling static frames (`b29958cc`) and exclusive-entry allocation pools
+(`3b655f04`) reduce memory expansion and retained storage without exposing shared
+regions to overlapping activations. Their new runtime fixtures reach bounded
+symbolic agreement in both modes. Raw `JUMPDEST` barriers (`5af3c4a2`) and unknown
+computed-target handling (`5307364f`) fix replayed control-flow/stack hazards.
+Unknown targets conservatively disable absolute optimization height proofs and
+preserve addressable blocks. This necessary correction increases some outputs;
+a bounded return-provenance prototype was rejected because it expanded analysis
+states without recovering useful proofs.
 
-Current independent work addresses redundant parallel phi copies, private
-static-frame sharing, exact permutation-search cost, and unknown computed-jump
-reachability. Each has separate source snapshots and will be measured in isolated
-pairs. Output quality, exact IDs and every gas label determine acceptance.
+Parallel spill copies (`76ef4033`) remove unnecessary staging while retaining
+MCOPY opportunities: identical runtime labels keep their gas, and creation/runtime
+bytes fall by 246/140 in gas/size modes. The matched UI corpora fall by 1,215/625
+bytes without individual regressions. Exhaustive simultaneous-copy maps and runtime
+replays pass; the unbounded-loop symbolic fixture reaches depth 512 in both modes
+and is not claimed as symbolic agreement. Dying terminal spill values (`efb3af32`)
+remove another 683 Nitro bytes in both modes with unchanged gas. Its 16 focused
+revisions pass and both symbolic modes reach bounded agreement.
+
+The latest committed copy/spill checkpoint matches all 15 runtime cases, 175
+ordered labels and 139 observations in both modes. Compared with the sealed
+baseline, hot gas is 5,116,867 → 5,092,048 (gas) and 5,189,683 → 5,098,748 (size),
+but 30/32 individual labels still regress. Runtime bytes are 116,656 → 133,593
+and 113,051 → 129,710. All 694 sealed UI successes remain successful in each
+mode, with the same eight known failures. Matched UI runtime bytes are
+1,069,788 → 1,086,713 (gas) and 543,106 → 523,308 (size); 1,644 individual
+creation/runtime size gates remain unmet. The nine heavy gas-mode cases were
+not included in this short runtime rerun and remain pending final remeasurement.
+Full rankings are in `committed-copy-spill-ranking/summary.json`.
+
+Current independent work reviews tiny terminal sharing and investigates remaining
+size causes. Output quality, exact IDs and every gas label determine acceptance.
 
 ## Remaining acceptance
 
