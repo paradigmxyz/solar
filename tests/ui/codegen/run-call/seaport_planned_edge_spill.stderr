@@ -33,3 +33,14 @@ LL │ ┃         );
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/run-call/seaport_planned_edge_spill.sol:LL:CC
+   │
+LL │ ┏     function _validateOrder(
+LL │ ┃         AdvancedOrder memory advancedOrder,
+LL │ ┃         bool revertOnInvalid
+   ‡ ┃
+LL │ ┃         denominator = 2;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

@@ -1,7 +1,9 @@
 //@ compile-flags: -O gas
 //@ run-call: Consideration::getCounter 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 0
 //@ run-call: Consideration::probe [], 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 0, false
-//@ run-call: Consideration::probe [((0x0000000000000000000000000000000000000003,0x0000000000000000000000000000000000000004,[(1,2)],[(3,4)],0,5,6)),((0x0000000000000000000000000000000000000007,0x0000000000000000000000000000000000000008,[],[],0,9,10))], 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 0, false
+//@ run-call: Consideration::probe [((0x0000000000000000000000000000000000000003,0x0000000000000000000000000000000000000004,[(1,2)],[(3,4)],0,5,6))], 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 66822, false
+//@ run-call: Consideration::probe [((0x0000000000000000000000000000000000000003,0x0000000000000000000000000000000000000004,[(1,2)],[(3,4)],0,5,6)),((0x0000000000000000000000000000000000000007,0x0000000000000000000000000000000000000008,[],[],0,9,10))], 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 8674216202, false
+//@ run-call: Consideration::probe [((0x0000000000000000000000000000000000000003,0x0000000000000000000000000000000000000004,[(1,2)],[(3,4)],0,5,6)),((0x0000000000000000000000000000000000000007,0x0000000000000000000000000000000000000008,[],[],0,9,10)),((0x0000000000000000000000000000000000000005,0x0000000000000000000000000000000000000006,[(7,8),(9,9)],[(11,11),(12,13)],0,100,200)),((0x0000000000000000000000000000000000000009,0x000000000000000000000000000000000000000a,[],[(1,1)],0,0,0)),((0x000000000000000000000000000000000000000b,0x000000000000000000000000000000000000000c,[(2,2)],[],0,77,88))], 0x0000000000000000000000000000000000000001; constructor=[0x0000000000000000000000000000000000000002] => 0x050506090a64c800004d58, false
 // Reduced from `testdata/Seaport.sol`, whose
 // `_validateOrdersAndPrepareToFulfill` reached the backend's planned-edge
 // spill loop with a value that is live across an edge into an
@@ -9,8 +11,10 @@
 // stored. Emitting bytecode for it aborted an assertion-enabled build with
 // "lives across the edge ... with no home"; the block has nothing to store
 // there, so the store obligation is not its own.
-// `probe` calls that function directly so the block the condition fires for
-// also runs; its results match solc for 0, 1, 2 and 5 orders at osaka and
+// `probe` calls that function directly so the blocks the condition fires for
+// also run: `_validateOrder` returns a non-zero numerator, so the loop no
+// longer skips every order, and `probe` folds the per-order hashes the loop
+// writes. Its results match solc for 0, 1, 2 and 5 orders at osaka and
 // homestead, both optimized and unoptimized.
 // `-Zassert-planned-edge-spill-home` turns the condition back into a panic.
 interface AmountDerivationErrors {
@@ -30,8 +34,11 @@ uint256 constant Offset_fulfillAdvancedOrder_criteriaResolvers = 0x20;
 uint256 constant Offset_matchOrders_fulfillments = 0x20;
 uint256 constant Offset_matchAdvancedOrders_criteriaResolvers = 0x20;
 uint256 constant Offset_matchAdvancedOrders_fulfillments = 0x40;
-uint256 constant ReceivedItem_recipient_offset = 0x80;
-uint256 constant ConsiderationItem_recipient_offset = 0xa0;
+// Seaport's own values are 0x80 and 0xa0, which land past the end of the
+// reduced `ConsiderationItem`. They are pulled back inside it so the loop the
+// spill condition fires for can run without clobbering unrelated memory.
+uint256 constant ReceivedItem_recipient_offset = 0x00;
+uint256 constant ConsiderationItem_recipient_offset = 0x20;
 uint256 constant AdvancedOrder_extraData_offset = 0x80;
 uint256 constant OneWord_0 = 0x20;
 uint256 constant OneWordShift_0 = 0x5;
@@ -423,13 +430,19 @@ contract Executor is Verifiers, TokenTransferrer {
 }
 contract OrderValidator is Executor, ZoneInteraction {
     constructor(address conduitController) Executor(conduitController) {}
-    function _validateOrder(
+    function _validateOrder( //~ WARN: function state mutability can be restricted to pure
         AdvancedOrder memory advancedOrder,
         bool revertOnInvalid
     )
         internal
         returns (bytes32 orderHash, uint256 numerator, uint256 denominator)
     {
+        // A non-zero numerator is what keeps the caller's loop from skipping
+        // the order, so the blocks the spill condition fires for also run.
+        OrderParameters memory parameters = advancedOrder.parameters;
+        orderHash = bytes32((parameters.startTime << 8) ^ parameters.endTime);
+        numerator = 1;
+        denominator = 2;
     }
 }
 contract BasicOrderFulfiller is OrderValidator {
@@ -517,6 +530,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
             }
             unchecked {
                 uint256 totalOrders = advancedOrders.length;
+                orderHashes = new bytes32[](totalOrders);
                 terminalMemoryOffset = (totalOrders + 1) << OneWordShift_0;
                 for (
                     uint256 i = OneWord_0;
@@ -534,6 +548,7 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
                     if (numerator == 0) {
                         continue;
                     }
+                    orderHashes[(i >> OneWordShift_0) - 1] = orderHash;
                     uint256 startTime = advancedOrder.parameters.startTime;
                     uint256 endTime = advancedOrder.parameters.endTime;
                     {
@@ -663,7 +678,13 @@ contract OrderCombiner is OrderFulfiller, FulfillmentApplier {
             orders.length,
             r
         );
-        return (h.length, c);
+        // Fold the per-order hashes so the result depends on the loop body
+        // rather than only on the number of orders.
+        uint256 acc = h.length;
+        for (uint256 i = 0; i < h.length; ++i) {
+            acc = (acc << 16) ^ uint256(h[i]);
+        }
+        return (acc, c);
     }
 }
 contract Consideration is ConsiderationInterface, OrderCombiner {
