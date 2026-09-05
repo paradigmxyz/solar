@@ -7,7 +7,10 @@
 //! prefixes on return labels; their global height remains unknown. Entry bounds
 //! permit safe local temporary expansion only where an absolute bound is proved.
 //! Unknown computed destinations end the proof rather than manufacturing entry
-//! stacks for unrelated functions.
+//! stacks for unrelated functions. At most sixteen distinct label states are
+//! retained per block and exact height; further states widen to unknown labels.
+//! This bounds call-path combinations while preserving structural height growth
+//! and prevents optimization from using heights behind unproved return edges.
 
 use super::{BlockId, InstKind, Instruction, Module, TerminatorKind};
 use crate::backend::evm::op;
@@ -146,15 +149,32 @@ pub(crate) fn stack_heights(module: &Module) -> Result<StackHeights, (BlockId, S
     let mut bounds =
         IndexVec::<BlockId, Option<(usize, usize)>>::from_vec(vec![None; module.blocks.len()]);
     let mut pending = VecDeque::new();
-    let mut states = FxHashMap::<BlockId, FxHashSet<Vec<Option<(BlockId, usize)>>>>::default();
+    let mut states =
+        FxHashMap::<(BlockId, usize), Option<FxHashSet<Vec<Option<(BlockId, usize)>>>>>::default();
     let mut prototypes = FxHashMap::<BlockId, Vec<Option<(BlockId, usize)>>>::default();
     let mut unproved = DenseBitSet::new_empty(module.blocks.len());
     if let Some(entry) = module.block_ids().next() {
         pending.push_back((entry, Vec::new()));
     }
     while let Some((id, mut stack)) = pending.pop_front() {
-        if !states.entry(id).or_default().insert(stack.clone()) {
+        // A fixed height admits a bounded number of precise label contexts. Beyond
+        // that, unknown labels subsume every context without changing the height.
+        let contexts =
+            states.entry((id, stack.len())).or_insert_with(|| Some(FxHashSet::default()));
+        let Some(precise) = contexts else {
+            forget_destinations(module, &stack, &mut unproved);
             continue;
+        };
+        if !precise.insert(stack.clone()) {
+            continue;
+        }
+        if precise.len() > 16 {
+            mark_reachable(module, id, &mut unproved);
+            for state in precise.iter() {
+                forget_destinations(module, state, &mut unproved);
+            }
+            *contexts = None;
+            stack.fill(None);
         }
         prototypes.entry(id).or_insert_with(|| stack.clone());
         let entry = stack.len();
@@ -318,6 +338,18 @@ fn mark_reachable(module: &Module, entry: BlockId, seen: &mut DenseBitSet<BlockI
         if seen.insert(id) {
             pending.extend(physical_successors(module, id));
         }
+    }
+}
+
+// Caller continuations may have been pushed before the widened block. Retain
+// their unknown-height status too, even if no local reference exposes the edge.
+fn forget_destinations(
+    module: &Module,
+    stack: &[Option<(BlockId, usize)>],
+    unproved: &mut DenseBitSet<BlockId>,
+) {
+    for &(target, _) in stack.iter().flatten() {
+        mark_reachable(module, target, unproved);
     }
 }
 
