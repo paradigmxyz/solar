@@ -1,0 +1,12 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/codegen/run-call/seaport_planned_edge_spill.sol:LL:CC
+   │
+LL │ ┏     function _deriveTypehashes()
+LL │ ┃         internal
+LL │ ┃         returns (
+LL │ ┃             bytes32 nameHash,
+   ‡ ┃
+LL │ ┃         );
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
