@@ -16,7 +16,10 @@
 use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::effect};
 use crate::backend::evm::op;
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHasher};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHasher},
+};
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
@@ -29,6 +32,7 @@ impl EvmPass for Outline {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let ids = module.block_ids().collect::<Vec<_>>();
         let Ok(heights) = super::verify::stack_heights(module) else { return false };
+        let reachable = super::verify::physical_reachability(module);
         let mut groups = FxHashMap::<(u64, usize), Vec<Site>>::default();
         for &id in &ids {
             let insts = &module.blocks[id].insts;
@@ -82,7 +86,7 @@ impl EvmPass for Outline {
                     sites.push(candidate);
                 }
             }
-            sites.retain(|site| peak_fits(module, &heights, site, &body));
+            sites.retain(|site| peak_fits(module, &heights, &reachable, site, &body));
             if sites.len() < 2 {
                 continue;
             }
@@ -106,7 +110,7 @@ impl EvmPass for Outline {
                 best = Some((score, body, sites, inputs, outputs));
             }
         }
-        if let Some(parameterized) = parameterized(gcx, module, &heights)
+        if let Some(parameterized) = parameterized(gcx, module, &heights, &reachable)
             && best.as_ref().is_none_or(|old| parameterized.0 > old.0)
         {
             best = Some(parameterized);
@@ -247,6 +251,7 @@ fn parameterized(
     gcx: Gcx<'_>,
     module: &Module,
     heights: &super::verify::StackHeights,
+    reachable: &DenseBitSet<BlockId>,
 ) -> Option<Candidate> {
     let mut groups = FxHashMap::<Vec<InstKind>, Vec<Site>>::default();
     for id in module.block_ids() {
@@ -320,7 +325,7 @@ fn parameterized(
                 skeleton.push(inst);
             }
         }
-        sites.retain(|site| peak_fits(module, heights, site, &skeleton));
+        sites.retain(|site| peak_fits(module, heights, reachable, site, &skeleton));
         if sites.len() < 2 {
             continue;
         }
@@ -357,12 +362,13 @@ fn parameterized(
 fn peak_fits(
     module: &Module,
     heights: &super::verify::StackHeights,
+    reachable: &DenseBitSet<BlockId>,
     site: &Site,
     body: &[InstKind],
 ) -> bool {
     let entry = match heights[site.id] {
         Some((_, entry)) => entry,
-        None if !super::verify::is_physically_reachable(module, site.id) => 0,
+        None if !reachable.contains(site.id) => 0,
         None => return false,
     };
     // Even unreachable bodies retain an intrinsic peak at or below the limit.
