@@ -303,7 +303,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some(false);
         }
-        if !Self::stripped_reason_is_skippable(expr) {
+        if !self.stripped_reason_is_skippable(expr) {
             // Evaluate the reason string for its effects and failures, discarding the value.
             self.lower_discarded_expr(expr)?;
         }
@@ -312,23 +312,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns `true` if a stripped reason `expr` can be skipped without lowering it.
     ///
-    /// solc evaluates every reason that is not a compile-time constant. Skipping is extended
-    /// only to plain variable reads, which cannot fail or have effects, so a storage string
-    /// reason is never copied. Everything else, including indexing, arithmetic, slicing, and
-    /// calls, is evaluated because it can revert or have side effects.
-    fn stripped_reason_is_skippable(expr: &hir::Expr<'_>) -> bool {
+    /// solc evaluates every reason that is not a compile-time constant, but evaluating a plain
+    /// variable or member read pushes a reference without copying or validating it, so
+    /// skipping those is unobservable and keeps a storage string reason from being copied.
+    /// Reading a calldata struct member is the exception: it runs the lazy ABI tail checks, so
+    /// it is evaluated. Everything else, including indexing, arithmetic, slicing, and calls, is
+    /// evaluated because it can revert or have side effects.
+    fn stripped_reason_is_skippable(&self, expr: &hir::Expr<'_>) -> bool {
         match &expr.kind {
             ExprKind::Lit(_) | ExprKind::Ident(_) | ExprKind::Type(_) | ExprKind::TypeCall(_) => {
                 true
             }
-            ExprKind::Member(inner, _) | ExprKind::Payable(inner) => {
-                Self::stripped_reason_is_skippable(inner)
+            ExprKind::Member(inner, _) => {
+                let validates_calldata = self
+                    .cx
+                    .gcx
+                    .type_of_expr(expr.id)
+                    .is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata));
+                !validates_calldata && self.stripped_reason_is_skippable(inner)
             }
+            ExprKind::Payable(inner) => self.stripped_reason_is_skippable(inner),
             ExprKind::Call(callee, args, _) if matches!(callee.kind, ExprKind::Type(_)) => {
-                args.exprs().all(Self::stripped_reason_is_skippable)
+                args.exprs().all(|arg| self.stripped_reason_is_skippable(arg))
             }
             ExprKind::Tuple(exprs) => {
-                exprs.iter().flatten().all(|expr| Self::stripped_reason_is_skippable(expr))
+                exprs.iter().flatten().all(|expr| self.stripped_reason_is_skippable(expr))
             }
             _ => false,
         }

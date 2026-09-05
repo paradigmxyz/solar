@@ -40,6 +40,14 @@
 //@[default,strip] run-call-fail: slicedReason 0x0102, 2, 1 => 0x
 //@[debug] run-call-fail: slicedReason 0x0102, 2, 1 => Error("Slice starts after end")
 
+// A calldata struct member as the reason: reading it runs the lazy tail checks in every mode,
+// so a member offset past the end of calldata reverts even when the condition holds.
+//@ run-call: memberReason (1, "member"), 1 => 1
+//@[default,debug] run-call-fail: memberReason (1, "member"), 0 => Error("member")
+//@[strip] run-call-fail: memberReason (1, "member"), 0 => 0x
+//@[default,strip] run-call-fail: 0xe6c5a0e30000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000010000000000000000 => 0x
+//@[debug] run-call-fail: 0xe6c5a0e30000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000010000000000000000 => Error("Invalid calldata tail offset")
+
 //@ run-call-fail: customError 7 => Custom(uint256)(7)
 
 //@ run-call-fail: requireCustomError 0 => Custom(uint256)(0)
@@ -47,7 +55,8 @@
 // User-supplied reason strings under each `--revert-strings` mode. `strip` drops the
 // payload of `require` and `revert` reason strings but, like solc, still evaluates any
 // reason that is not a constant or a plain variable read, so their side effects and
-// panics are kept. Custom errors are untouched in every mode.
+// panics are kept, while constants and plain variable reads are not lowered at all, as solc
+// pushes them without copying. Custom errors are untouched in every mode.
 contract UserStrings {
     string constant MESSAGE = "constant message";
     error Custom(uint256 value);
@@ -55,6 +64,11 @@ contract UserStrings {
     uint256 bumps;
     string reason = "stored reason string that is longer than thirty-two bytes";
     string[2] messages = ["first", "second"];
+
+    struct S {
+        uint256 a;
+        string reason;
+    }
 
     function requireMessage(uint256 x) external pure returns (uint256) {
         require(x == 1, "x must be one");
@@ -111,6 +125,11 @@ contract UserStrings {
     function slicedReason(bytes calldata data, uint256 start, uint256 end) external pure returns (uint256) {
         require(start == 0, string(data[start:end]));
         return end;
+    }
+
+    function memberReason(S calldata s, uint256 x) external pure returns (uint256) {
+        require(x == 1, s.reason);
+        return x;
     }
 
     function customError(uint256 x) external pure {

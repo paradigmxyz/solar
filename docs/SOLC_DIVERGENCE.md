@@ -297,10 +297,12 @@ No intentional divergences documented yet.
   data too long", because the encoder has no `2**64` length check when
   re-encoding calldata arrays, and "Non-view function of library called
   without DELEGATECALL", because library runtime code does not emit that
-  guard (tracked separately from revert strings). The revert itself, and
-  whether an input is accepted, never depend on the setting. `strip`
-  matches `solc`, and `verboseDebug` is rejected as unimplemented by both
-  compilers.
+  guard (tracked separately from revert strings). `debug` never changes
+  whether an input is accepted. `strip` matches `solc`: a dropped reason
+  is still evaluated unless it is a constant or a plain variable read,
+  which `solc` pushes as a reference without copying, so encoding checks
+  that only the copy would perform are skipped by both compilers.
+  `verboseDebug` is rejected as unimplemented by both compilers.
 - Rationale: the messages are debugging aids. Matching every solc message
   in every edge case would require restructuring the decoder around solc's
   check order, which is not worth worse source or generated code.
