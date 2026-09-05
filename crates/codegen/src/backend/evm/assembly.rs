@@ -219,24 +219,30 @@ fn lower(
                     continue;
                 }
                 // <index>; push <entry bits>; mul
-                // push <highest entry shift>; sub
-                // push <packed addresses>; swap1; shr
-                // push <address mask>; and; jump
                 let bits = table_width * 8;
                 push(&mut atoms, Value::Literal(U256::from(bits)), version);
                 atoms.push(Atom::Bytes(vec![op::MUL]));
-                push(&mut atoms, Value::Literal(U256::from((targets.len() - 1) * bits)), version);
-                atoms.push(Atom::Bytes(vec![op::SUB]));
                 if version.has_bitwise_shifting() {
-                    push(&mut atoms, Value::PackedTargets(targets.clone(), table_width), version);
+                    // push <addresses with first target in low bits>; swap1; shr
+                    push(
+                        &mut atoms,
+                        Value::PackedTargets(targets.iter().rev().copied().collect(), table_width),
+                        version,
+                    );
                     atoms.push(Atom::Bytes(vec![op::SWAP1, op::SHR]));
                 } else {
-                    // push 2; exp; push <packed addresses>; div
+                    // Keep the original exponent at each index: EXP charges
+                    // differently for zero, so reversal could increase gas.
+                    // push <highest entry shift>; sub
+                    // push 2; exp; push <addresses with first target in high bits>; div
+                    push(&mut atoms, Value::Literal(U256::from((targets.len() - 1) * bits)), version);
+                    atoms.push(Atom::Bytes(vec![op::SUB]));
                     push(&mut atoms, Value::Literal(U256::from(2)), version);
                     atoms.push(Atom::Bytes(vec![op::EXP]));
                     push(&mut atoms, Value::PackedTargets(targets.clone(), table_width), version);
                     atoms.push(Atom::Bytes(vec![op::DIV]));
                 }
+                // push <address mask>; and; jump
                 push(&mut atoms, Value::Literal((U256::ONE << bits) - U256::ONE), version);
                 atoms.push(Atom::Bytes(vec![op::AND, op::JUMP]));
             }
@@ -413,6 +419,31 @@ PUSH2 0x0101
 PUSH2 0x0201
 "#]]
         );
+    }
+
+    #[test]
+    fn low_first_targets_resolve_after_push_growth() {
+        let mut module = ir::Module::default();
+        let a = module.blocks.push(ir::Block::default());
+        let b = module.blocks.push(ir::Block::default());
+        let output = resolve(
+            vec![
+                Atom::Push { value: Value::PackedTargets(vec![b, a], 2), width: 0 },
+                Atom::Bytes(vec![op::STOP; 256]),
+                Atom::Label(Label::Block(a)),
+                Atom::Bytes(vec![op::STOP]),
+                Atom::Label(Label::Block(b)),
+            ],
+            &module,
+            EvmVersion::Osaka,
+        )
+        .unwrap();
+        let text = disassemble(&output.bytes, EvmVersion::Osaka)
+            .lines()
+            .next()
+            .unwrap()
+            .to_owned();
+        snapbox::assert_data_eq!(text, snapbox::str![["PUSH4 0x01060105"]]);
     }
 
     #[test]

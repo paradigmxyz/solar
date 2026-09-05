@@ -1,0 +1,43 @@
+//@ revisions: shift legacy
+//@ compile-flags: -Zevm-ir-pipeline=none -Zdump=disasm-runtime
+//@[shift] compile-flags: --evm-version=osaka
+//@[legacy] compile-flags: --evm-version=byzantium
+
+// Every destination exceeds one byte. Repeated targets retain their table slots;
+// the legacy revision keeps its original index-dependent EXP exponent.
+@module WideIndexedTargets
+bb0:
+  calldatasize
+  indexed_jump bb2, bb3, bb2
+bb1:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+bb2:
+  push 0x1122
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3:
+  push 0x3344
+  push 0
+  mstore
+  push 32
+  push 0
+  return
