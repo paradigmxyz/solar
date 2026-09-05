@@ -39,8 +39,8 @@
   
 // === WideIndexedTargets (runtime) ===
 CALLDATASIZE
-PUSH1 0x10
-MUL
+PUSH1 0x04
+SHL
 PUSH6 0x0123012d0123
 SWAP1
 SHR

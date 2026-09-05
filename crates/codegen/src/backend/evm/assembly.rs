@@ -218,10 +218,16 @@ fn lower(
                     atoms.push(Atom::Bytes(vec![op::SWAP1, op::BYTE, op::JUMP]));
                     continue;
                 }
-                // <index>; push <entry bits>; mul
                 let bits = table_width * 8;
-                push(&mut atoms, Value::Literal(U256::from(bits)), version);
-                atoms.push(Atom::Bytes(vec![op::MUL]));
+                let (scale, opcode) = if version.has_bitwise_shifting() && bits.is_power_of_two() {
+                    (bits.ilog2() as usize, op::SHL)
+                } else {
+                    (bits, op::MUL)
+                };
+                // <index>; push <log2(entry bits)>; shl
+                // or: <index>; push <entry bits>; mul
+                push(&mut atoms, Value::Literal(U256::from(scale)), version);
+                atoms.push(Atom::Bytes(vec![opcode]));
                 if version.has_bitwise_shifting() {
                     // push <addresses with first target in low bits>; swap1; shr
                     push(
@@ -417,6 +423,46 @@ mod tests {
             snapbox::str![[r#"
 PUSH2 0x0101
 PUSH2 0x0201
+"#]]
+        );
+    }
+
+    #[test]
+    fn indexed_scaling_respects_slot_width_and_fork() {
+        let mut module = ir::Module::default();
+        let entry = module.blocks.push(ir::Block::default());
+        let target = module.blocks.push(ir::Block::default());
+        // push 0; indexed_jump <target>
+        module.blocks[entry].insts.push(InstKind::Push(U256::ZERO).into());
+        module.blocks[entry].terminator = TerminatorKind::IndexedJump(vec![target]).into();
+        let mut text = String::new();
+        for (version, width) in [
+            (EvmVersion::Osaka, 2),
+            (EvmVersion::Osaka, 3),
+            (EvmVersion::Osaka, 4),
+            (EvmVersion::Byzantium, 2),
+        ] {
+            let output = resolve(lower(&module, version, width).unwrap(), &module, version).unwrap();
+            let instructions = disassemble(&output.bytes, version);
+            text.push_str(&instructions.lines().take(3).collect::<Vec<_>>().join("\n"));
+            text.push('\n');
+        }
+        snapbox::assert_data_eq!(
+            text,
+            snapbox::str![[r#"
+PUSH0
+PUSH1 0x04
+SHL
+PUSH0
+PUSH1 0x18
+MUL
+PUSH0
+PUSH1 0x05
+SHL
+PUSH1 0x00
+PUSH1 0x10
+MUL
+
 "#]]
         );
     }
