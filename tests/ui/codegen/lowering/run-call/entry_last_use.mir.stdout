@@ -1,0 +1,23 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/entry_last_use.sol:EntryLastUse ===
+@module EntryLastUse
+fn @mix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> (u256, u256) [selector=0x9cba0885, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word, word]] {
+  bb0:
+    v0 = and arg0, 8
+    v1 = eq v0, 0
+    jumpi v1, bb1, bb2
+  bb2:
+    v9 = xor arg0, arg3
+    jump bb3
+  bb1:
+    v2 = and arg0, 7
+    v3 = sub 3, v2
+    v4 = shr 192, arg1
+    v5 = and v4, 31
+    v6 = shl 3, v5
+    v7 = shl v6, arg3
+    v8 = add v7, v3
+    jump bb3
+  bb3:
+    v10 = phi [bb1: v8], [bb2: v9]
+    ret arg2, v10
+}

@@ -107,17 +107,14 @@ impl EvmPass for LocalPass {
                     changed |= dedup_stack(&mut block.insts, version);
                     changed |= peephole(&mut block.insts, version, entry_max);
                     changed |= dead_tail(&mut block.insts, &block.terminator.kind, entry_max);
-                    changed |= terminal_pops(&mut block.insts, &block.terminator.kind, entry_max, version);
+                    changed |=
+                        terminal_pops(&mut block.insts, &block.terminator.kind, entry_max, version);
                 }
                 "stack-normalize" => changed |= normalize(&mut block.insts, version, entry_max),
                 "stack-dedup" => changed |= dedup_stack(&mut block.insts, version),
                 "reorder-pushes" => {
-                    changed |= reorder(
-                        &mut block.insts,
-                        version,
-                        entry_max,
-                        gcx.sess.opts.optimization,
-                    )
+                    changed |=
+                        reorder(&mut block.insts, version, entry_max, gcx.sess.opts.optimization)
                 }
                 "block-cse" => changed |= common_expressions(&mut block.insts, version),
                 "peephole" => {
@@ -200,7 +197,7 @@ fn rewrite(
 }
 
 /// Returns required incoming words, net height change and relative peak.
-fn stack_usage(insts: &[Instruction]) -> Option<(i64, i64, i64)> {
+pub(super) fn stack_usage(insts: &[Instruction]) -> Option<(i64, i64, i64)> {
     let mut height = 0i64;
     let mut peak = 0i64;
     let mut required = 0i64;

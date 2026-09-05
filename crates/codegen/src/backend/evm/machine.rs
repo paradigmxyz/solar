@@ -28,6 +28,8 @@ use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
+mod entry_order;
+
 /// The constructor program-end relocation is resolved by primitive assembly.
 const PROGRAM_END_ID: u32 = 0x0fff_ffff;
 
@@ -88,7 +90,12 @@ pub(crate) fn lower(
     let mut returnable = DenseBitSet::new_empty(module.functions.len());
     for (id, function) in module.iter_functions() {
         let cfg = CfgInfo::new(function);
-        if function.blocks.iter_enumerated().any(|(block_id, block)| cfg.is_reachable(block_id) && (matches!(block.terminator, Some(mir::Terminator::Return { .. })) || (function.returns.is_empty() && matches!(block.terminator, Some(mir::Terminator::Stop))))) {
+        if function.blocks.iter_enumerated().any(|(block_id, block)| {
+            cfg.is_reachable(block_id)
+                && (matches!(block.terminator, Some(mir::Terminator::Return { .. }))
+                    || (function.returns.is_empty()
+                        && matches!(block.terminator, Some(mir::Terminator::Stop))))
+        }) {
             returnable.insert(id);
         }
     }
@@ -97,9 +104,12 @@ pub(crate) fn lower(
         let function = module.function(id);
         let cfg = CfgInfo::new(function);
         for (block_id, block) in function.blocks.iter_enumerated() {
-            if !cfg.is_reachable(block_id) { continue; }
+            if !cfg.is_reachable(block_id) {
+                continue;
+            }
             for &inst in &block.instructions {
-                if let mir::InstKind::InternalCall { function: callee, .. } = function.inst(inst).kind
+                if let mir::InstKind::InternalCall { function: callee, .. } =
+                    function.inst(inst).kind
                     && returnable.contains(callee)
                 {
                     returning.insert(callee);
@@ -119,9 +129,15 @@ pub(crate) fn lower(
         let cfg = CfgInfo::new(function);
         let alias = AliasAnalysis::new(function);
         let spills = if reachable.contains(id) {
-            SpillPlan::new(function, &live, &cfg, &alias, returning.contains(id), version, |value| {
-                stored(function, value)
-            })
+            SpillPlan::new(
+                function,
+                &live,
+                &cfg,
+                &alias,
+                returning.contains(id),
+                version,
+                |value| stored(function, value),
+            )
         } else {
             SpillPlan::default()
         };
@@ -151,14 +167,17 @@ pub(crate) fn lower(
             values.retain(|value| !spills.homes.contains_key(value));
             entries.push(values);
         }
-        let entries = entries.into_iter().map(|values| {
-            let mut entry = Vec::new();
-            if returning.contains(id) {
-                entry.push(Slot::ReturnAddress);
-            }
-            entry.extend(values.into_iter().map(Slot::Value));
-            entry
-        }).collect();
+        let entries = entries
+            .into_iter()
+            .map(|values| {
+                let mut entry = Vec::new();
+                if returning.contains(id) {
+                    entry.push(Slot::ReturnAddress);
+                }
+                entry.extend(values.into_iter().map(Slot::Value));
+                entry
+            })
+            .collect();
         let entry = if reachable.contains(id) {
             output.blocks.push(ir::Block::default())
         } else {
@@ -311,7 +330,15 @@ fn lower_function(
             if let mir::InstKind::InternalCall { function: callee, args, returns } =
                 &instruction.kind
             {
-                let saved = save_writer_homes(context, inst_id, &mut stack, &mut insts, live, args.len() + 5, || true)?;
+                let saved = save_writer_homes(
+                    context,
+                    inst_id,
+                    &mut stack,
+                    &mut insts,
+                    live,
+                    args.len() + 5,
+                    || true,
+                )?;
                 let continuation = output.blocks.push(ir::Block::default());
                 let caller;
                 if !layout.spills.homes.is_empty() {
@@ -373,49 +400,7 @@ fn lower_function(
                 continue;
             }
             if let Some(opcode) = instruction.kind.evm_opcode() {
-                let operands = instruction.kind.operands();
-                let saved = save_writer_homes(
-                    context,
-                    inst_id,
-                    &mut stack,
-                    &mut insts,
-                    live,
-                    operands.len(),
-                    || control_live_after(context, block_id, position),
-                )?;
-                if saved.tracked == 0
-                    && !matches!(opcode, op::GAS | op::PC)
-                    && op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1)
-                    && let Some(preferred) = preferred_branch_values(context, block_id, position, function.inst_result_value(inst_id)) {
-                    let operands = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
-                    materialize(context, &mut stack, &mut insts, &operands)?;
-                    // <fixed prefix>; <live values in successor order>; <opcode operands>
-                    insts.extend(super::entry_layout::prepare(&mut stack, &operands, &preferred, prefix(context), context.version, opcode, |slot| match slot {
-                        Slot::Value(value) => stored(function, value) && live(value),
-                        Slot::ReturnAddress | Slot::Protected(_) => true,
-                        Slot::CallLabel(_) | Slot::Argument(_) => false,
-                    }).map_err(schedule_error)?);
-                } else {
-                    prepare(context, &mut stack, &mut insts, &operands, live)?;
-                }
-                // <operands in pop order>
-                // opcode
-                insts.push(ir::InstKind::Op(opcode).into());
-                stack.truncate(stack.values().len() - operands.len());
-                stack.truncate(stack.values().len() - saved.tracked);
-                restore_writer_homes(
-                    context,
-                    &saved,
-                    &mut insts,
-                    op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1),
-                )?;
-                record_result(
-                    context,
-                    inst_id,
-                    &mut stack,
-                    &mut insts,
-                    op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1),
-                )?;
+                lower_opcode(context, block_id, position, inst_id, opcode, &mut stack, &mut insts)?;
                 continue;
             }
             match instruction.kind {
@@ -503,6 +488,13 @@ fn lower_function(
         let term = block.terminator.as_ref().ok_or("unterminated MIR block")?;
         let terminator = match term {
             mir::Terminator::Jump(target) => {
+                if let Some((selected, instructions)) =
+                    entry_order::choose(context, block_id, *target, &stack, &insts)
+                {
+                    // <paid entry permutation>; <same opcodes>; <canonical successor values>
+                    stack = selected;
+                    insts = instructions;
+                }
                 ir::TerminatorKind::Jump(edge(context, block_id, *target, &stack, output)?)
             }
             mir::Terminator::Branch { condition, then_block, else_block } => {
@@ -583,7 +575,11 @@ fn lower_function(
                 insts
                     .extend(stack.reconcile(&desired, 0, context.version).map_err(schedule_error)?);
                 if layouts[*callee].returning {
-                    return Err(format!("tail-call target `{}` from `{}` requires a returning activation", context.module.function(*callee).name, function.name));
+                    return Err(format!(
+                        "tail-call target `{}` from `{}` requires a returning activation",
+                        context.module.function(*callee).name,
+                        function.name
+                    ));
                 }
                 enter_call(
                     context,
@@ -662,9 +658,7 @@ fn return_values(
     }
     if values.len() > 1 {
         // mstore(0x20, frame + return_offset)
-        insts.extend(calls::address(
-            context.storage.return_address(0).map_err(str::to_owned)?,
-        ));
+        insts.extend(calls::address(context.storage.return_address(0).map_err(str::to_owned)?));
         insts.push(
             ir::InstKind::Push(U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT)).into(),
         );
@@ -736,51 +730,150 @@ fn save_writer_homes(
         return Ok(SavedHomes { addresses: Vec::new(), tracked: 0 });
     }
     let control_live = context.plan.max_dynamic_frame_size != 0 && control_live();
-    let mut homes = context.layout.spills.homes.iter().filter_map(|(&value, &home)| live(value).then_some(home)).collect::<Vec<_>>();
+    let mut homes = context
+        .layout
+        .spills
+        .homes
+        .iter()
+        .filter_map(|(&value, &home)| live(value).then_some(home))
+        .collect::<Vec<_>>();
     homes.sort_unstable();
     homes.dedup();
     let mut addresses = Vec::new();
     for home in homes {
         let address = context.storage.spill_address(home).map_err(str::to_owned)?;
-        if super::spills::may_overlap(&effects, address) { addresses.push(address); }
-    }
-    if control_live && context.storage.base == super::storage::FrameBase::Dynamic && !context.storage.stack_arguments {
-        for offset in [super::storage::PREVIOUS_FRAME_OFFSET, super::storage::SAVED_FMP_OFFSET] {
-            let address = super::storage::FrameAddress::Relative(offset);
-            if super::spills::may_overlap(&effects, address) { addresses.push(address); }
+        if super::spills::may_overlap(&effects, address) {
+            addresses.push(address);
         }
     }
-    let frame_pointer = super::storage::FrameAddress::Absolute(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT);
-    if control_live && context.plan.max_dynamic_frame_size != 0 && super::spills::may_overlap(&effects, frame_pointer) {
+    if control_live
+        && context.storage.base == super::storage::FrameBase::Dynamic
+        && !context.storage.stack_arguments
+    {
+        for offset in [super::storage::PREVIOUS_FRAME_OFFSET, super::storage::SAVED_FMP_OFFSET] {
+            let address = super::storage::FrameAddress::Relative(offset);
+            if super::spills::may_overlap(&effects, address) {
+                addresses.push(address);
+            }
+        }
+    }
+    let frame_pointer =
+        super::storage::FrameAddress::Absolute(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT);
+    if control_live
+        && context.plan.max_dynamic_frame_size != 0
+        && super::spills::may_overlap(&effects, frame_pointer)
+    {
         addresses.push(frame_pointer);
     }
     let tracked = if context.layout.spills.homes.is_empty() { addresses.len() } else { 0 };
     let saved = SavedHomes { addresses, tracked };
-    if saved.addresses.is_empty() { return Ok(saved); }
+    if saved.addresses.is_empty() {
+        return Ok(saved);
+    }
     if saved.addresses.len() + operands + stack.values().len() + 3 > 1024 {
         return Err("live values across a memory writer exceed the EVM stack limit".into());
     }
     // <activation return label>; <opaque saved words>; <saved frame pointer>
     if !context.layout.spills.homes.is_empty() {
         let base = stack.values()[..prefix(context)].to_vec();
-        output.extend(stack.reconcile(&base, prefix(context), context.version).map_err(schedule_error)?);
+        output.extend(
+            stack.reconcile(&base, prefix(context), context.version).map_err(schedule_error)?,
+        );
     }
     for (index, &address) in saved.addresses.iter().enumerate() {
         output.extend(calls::address(address));
         output.push(ir::InstKind::Op(op::MLOAD).into());
-        if tracked != 0 { stack.push(Slot::Protected(index)); }
+        if tracked != 0 {
+            stack.push(Slot::Protected(index));
+        }
     }
     Ok(saved)
 }
 
-fn restore_writer_homes(context: &Context<'_>, saved: &SavedHomes, output: &mut Vec<ir::Instruction>, result: bool) -> Result<(), String> {
+fn restore_writer_homes(
+    context: &Context<'_>,
+    saved: &SavedHomes,
+    output: &mut Vec<ir::Instruction>,
+    result: bool,
+) -> Result<(), String> {
     for &address in saved.addresses.iter().rev() {
         // <optional result>; mstore(protected_address, saved_value)
-        if result { output.push(ir::InstKind::Swap(1).into()); }
+        if result {
+            output.push(ir::InstKind::Swap(1).into());
+        }
         output.extend(calls::address(address));
         output.push(ir::InstKind::Op(op::MSTORE).into());
     }
     let _ = context;
+    Ok(())
+}
+
+fn lower_opcode(
+    context: &Context<'_>,
+    block_id: mir::BlockId,
+    position: usize,
+    inst_id: mir::InstId,
+    opcode: u8,
+    stack: &mut Stack<Slot>,
+    insts: &mut Vec<ir::Instruction>,
+) -> Result<(), String> {
+    let function = context.function;
+    let instruction = function.inst(inst_id);
+    let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
+    let operands = instruction.kind.operands();
+    let saved = save_writer_homes(context, inst_id, stack, insts, live, operands.len(), || {
+        control_live_after(context, block_id, position)
+    })?;
+    if saved.tracked == 0
+        && !matches!(opcode, op::GAS | op::PC)
+        && op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1)
+        && let Some(preferred) = preferred_branch_values(
+            context,
+            block_id,
+            position,
+            function.inst_result_value(inst_id),
+        )
+    {
+        let operands = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
+        materialize(context, stack, insts, &operands)?;
+        // <fixed prefix>; <live values in successor order>; <opcode operands>
+        insts.extend(
+            super::entry_layout::prepare(
+                stack,
+                &operands,
+                &preferred,
+                prefix(context),
+                context.version,
+                opcode,
+                |slot| match slot {
+                    Slot::Value(value) => stored(function, value) && live(value),
+                    Slot::ReturnAddress | Slot::Protected(_) => true,
+                    Slot::CallLabel(_) | Slot::Argument(_) => false,
+                },
+            )
+            .map_err(schedule_error)?,
+        );
+    } else {
+        prepare(context, stack, insts, &operands, live)?;
+    }
+    // <operands in pop order>
+    // opcode
+    insts.push(ir::InstKind::Op(opcode).into());
+    stack.truncate(stack.values().len() - operands.len());
+    stack.truncate(stack.values().len() - saved.tracked);
+    restore_writer_homes(
+        context,
+        &saved,
+        insts,
+        op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1),
+    )?;
+    record_result(
+        context,
+        inst_id,
+        stack,
+        insts,
+        op::stack_io(opcode).is_some_and(|(_, outputs)| outputs == 1),
+    )?;
     Ok(())
 }
 
@@ -1067,7 +1160,11 @@ fn emit_spill_copies(
     Ok(insts)
 }
 
-fn edge_values(context: &Context<'_>, from: mir::BlockId, to: mir::BlockId) -> Result<Vec<Slot>, String> {
+fn edge_values(
+    context: &Context<'_>,
+    from: mir::BlockId,
+    to: mir::BlockId,
+) -> Result<Vec<Slot>, String> {
     let mut desired = context.layout.entries[to].clone();
     for slot in &mut desired {
         if let Slot::Value(value) = slot
@@ -1085,12 +1182,21 @@ fn edge_values(context: &Context<'_>, from: mir::BlockId, to: mir::BlockId) -> R
     Ok(desired)
 }
 
-fn preferred_branch_values(context: &Context<'_>, block: mir::BlockId, position: usize, result: Option<mir::ValueId>) -> Option<Vec<Slot>> {
+fn preferred_branch_values(
+    context: &Context<'_>,
+    block: mir::BlockId,
+    position: usize,
+    result: Option<mir::ValueId>,
+) -> Option<Vec<Slot>> {
     let source = &context.function.blocks[block];
     if position + 1 != source.instructions.len() || !context.layout.spills.homes.is_empty() {
         return None;
     }
-    let mir::Terminator::Branch { condition, then_block, else_block } = source.terminator.as_ref()? else { return None };
+    let mir::Terminator::Branch { condition, then_block, else_block } =
+        source.terminator.as_ref()?
+    else {
+        return None;
+    };
     if result != Some(*condition) || context.layout.live.live_out(block).contains(*condition) {
         return None;
     }

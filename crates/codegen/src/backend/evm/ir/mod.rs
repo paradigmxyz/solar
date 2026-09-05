@@ -189,19 +189,24 @@ pub(crate) fn immediate_materialization_cost(
 }
 
 /// Estimates private spill-copy schedules using target copy-run recognition.
-pub(crate) fn copy_cost(
-    version: EvmVersion,
-    instructions: &[Instruction],
-) -> (usize, usize) {
+pub(crate) fn copy_cost(version: EvmVersion, instructions: &[Instruction]) -> (usize, usize) {
     data::copy_cost(version, instructions)
 }
 
 /// Estimates local physical scheduling cost without changing the IR module.
-pub(crate) fn scheduling_cost(version: solar_config::EvmVersion, instructions: &[Instruction]) -> (usize, usize) {
+pub(crate) fn scheduling_cost(
+    version: solar_config::EvmVersion,
+    instructions: &[Instruction],
+) -> (usize, usize) {
     local::scheduling_cost(version, instructions)
 }
 
 /// Validates final layout and indexed-lowering encoding stack peaks.
 pub(crate) fn validate_encoding(gcx: Gcx<'_>, module: &Module) -> Result<()> {
     verify::validate_encoding(gcx, module)
+}
+
+/// Required input, net height change and relative peak of a physical scheduling trial.
+pub(crate) fn scheduling_usage(instructions: &[Instruction]) -> Option<(i64, i64, i64)> {
+    local::stack_usage(instructions)
 }
