@@ -281,21 +281,28 @@ No intentional divergences documented yet.
   optimization.
 - Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
 
-### CODEGEN-007: `revertStrings: debug` omits two solc messages
+### CODEGEN-007: `revertStrings: debug` message parity is best effort
 
 - ID: CODEGEN-007
-- Status: parity debt
+- Status: intentional
 - Difference: With `--revert-strings debug` (Standard JSON
   `settings.debug.revertStrings: "debug"`), compiler-generated reverts carry
-  solc's `Error(string)` messages under the same conditions as solc, with two
-  omissions. "ABI encoding: array data too long" is never produced because
-  the encoder does not check calldata array lengths against `2**64` when
-  re-encoding them, and "Non-view function of library called without
-  DELEGATECALL" is never produced because library runtime code does not
-  emit that guard. `strip` matches `solc`, and `verboseDebug` is rejected
-  as unimplemented by both compilers.
-- Rationale: both omissions follow from checks the compiler does not emit in
-  any mode, not from the revert-string setting itself.
+  solc's `Error(string)` messages, and the common checks report the same
+  message under the same condition as solc. Exact parity is not a goal:
+  the compiler fuses and orders its ABI decoding checks differently from
+  solc, so malformed input that fails several checks at once, or that is
+  validated lazily on access rather than eagerly, can report a different
+  message than solc. Two messages are never produced: "ABI encoding: array
+  data too long", because the encoder has no `2**64` length check when
+  re-encoding calldata arrays, and "Non-view function of library called
+  without DELEGATECALL", because library runtime code does not emit that
+  guard (tracked separately from revert strings). The revert itself, and
+  whether an input is accepted, never depend on the setting. `strip`
+  matches `solc`, and `verboseDebug` is rejected as unimplemented by both
+  compilers.
+- Rationale: the messages are debugging aids. Matching every solc message
+  in every edge case would require restructuring the decoder around solc's
+  check order, which is not worth worse source or generated code.
 - Coverage: `tests/ui/standard-json/debug/`,
   `tests/ui/codegen/lowering/revert_strings_debug.sol`,
   `tests/ui/codegen/lowering/revert_strings_debug_receive.sol`,
