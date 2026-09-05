@@ -1698,10 +1698,12 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 }
 
                 let kind = f.description();
-                let msg = if ty.has_mapping(gcx) {
-                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.is_recursive(gcx) {
+                // Recursiveness comes first, as in solc's `StructType::interfaceType`: a
+                // recursive struct is rejected before its members are inspected for mappings.
+                let msg = if ty.is_recursive(gcx) {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
+                } else if ty.has_mapping(gcx) {
+                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
                 } else if ty.has_internal_function() {
                     format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
                 } else {

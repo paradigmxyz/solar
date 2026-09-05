@@ -2,7 +2,7 @@ use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize};
-use solar_data_structures::{Interned, fmt};
+use solar_data_structures::{Interned, bit_set::GrowableBitSet, fmt};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
 
@@ -464,18 +464,32 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
-    /// Visits the type, its subtypes, and non-recursive struct fields.
+    /// Visits the type, its subtypes, and struct fields.
+    ///
+    /// Recursive structs are supported: each struct is descended into at most once, so a cycle
+    /// terminates after its fields have been visited.
     fn visit_with_structs<T>(
         self,
         gcx: Gcx<'gcx>,
         f: &mut impl FnMut(Self) -> ControlFlow<T>,
     ) -> ControlFlow<T> {
+        self.visit_with_structs_inner(gcx, &mut GrowableBitSet::new_empty(), f)
+    }
+
+    fn visit_with_structs_inner<T>(
+        self,
+        gcx: Gcx<'gcx>,
+        visited: &mut GrowableBitSet<hir::StructId>,
+        f: &mut impl FnMut(Self) -> ControlFlow<T>,
+    ) -> ControlFlow<T> {
         f(self)?;
         match self.kind {
             TyKind::Struct(id) => {
-                if let Recursiveness::None = gcx.struct_recursiveness(id) {
+                // Descending a second time cannot reach a type the first descent has not
+                // already visited, so this both terminates cycles and avoids re-traversal.
+                if visited.insert(id) {
                     for &ty in gcx.struct_field_types(id) {
-                        ty.visit_with_structs(gcx, f)?;
+                        ty.visit_with_structs_inner(gcx, visited, f)?;
                     }
                 }
                 ControlFlow::Continue(())
@@ -498,18 +512,18 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Slice(ty)
             | TyKind::Udvt(ty, _)
             | TyKind::Type(ty)
-            | TyKind::Meta(ty) => ty.visit_with_structs(gcx, f),
+            | TyKind::Meta(ty) => ty.visit_with_structs_inner(gcx, visited, f),
 
             TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
                 for ty in list {
-                    ty.visit_with_structs(gcx, f)?;
+                    ty.visit_with_structs_inner(gcx, visited, f)?;
                 }
                 ControlFlow::Continue(())
             }
 
             TyKind::Mapping(k, v) => {
-                k.visit_with_structs(gcx, f)?;
-                v.visit_with_structs(gcx, f)
+                k.visit_with_structs_inner(gcx, visited, f)?;
+                v.visit_with_structs_inner(gcx, visited, f)
             }
         }
     }

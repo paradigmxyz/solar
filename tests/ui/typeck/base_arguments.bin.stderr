@@ -1,3 +1,16 @@
+error[3415]: no arguments passed to the base constructor of `Base`
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Derived3 is Base() { }
+   │          ━━━━━━━━
+   ╰╴
+note: base constructor parameters are here
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │     constructor(uint, int) {}
+   │                 ━━━━━━━━━
+   ╰ help: specify the arguments or mark `Derived3` as abstract
+
 error: wrong number of arguments for base constructor: expected 2, found 0
    ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
    │
@@ -54,5 +67,5 @@ LL │ contract NoCtor3 is NoCtorBase { constructor() NoCtorBase(2) {} }
 
 warning[2264]: code generation is experimental
 
-error: aborting due to 9 previous errors; 1 warning emitted
+error: aborting due to 10 previous errors; 1 warning emitted
 

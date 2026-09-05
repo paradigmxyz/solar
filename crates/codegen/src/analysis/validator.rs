@@ -372,7 +372,6 @@ impl<'a> Validator<'a> {
             if !cfg.is_reachable(block_id) {
                 continue;
             }
-            let block_in_cycle = reaches(block_id, block_id);
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 match &func.inst(inst_id).kind {
                     InstKind::Phi(incoming) => {
@@ -405,7 +404,8 @@ impl<'a> Validator<'a> {
                         for &operand in kind.operands().iter() {
                             if let Some((def, def_index)) = def_location_of[operand] {
                                 if def == block_id {
-                                    if !block_in_cycle && def_index >= index {
+                                    // Only a forward use needs the cycle exception.
+                                    if def_index >= index && !reaches(block_id, block_id) {
                                         self.emit_at_inst(
                                             format_args!(
                                                 "use of {operand:?} precedes its definition in \

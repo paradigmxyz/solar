@@ -3,10 +3,10 @@
 fn @targetContract(arg0: address) {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = div v0, 1
     v5 = add v3, v4
@@ -22,7 +22,7 @@ fn @targetContract(arg0: address) {
     v15 = shl v9, v14
     v16 = or v13, v15
     sstore v5, v16 !metadata(storage=symbolic(v5))
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     stop
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -33,10 +33,10 @@ fn @targetContract(arg0: address) {
 fn @targetSelector(arg0: memorystruct) {
   bb0:
     v0 = sload 1 !metadata(storage=slot(1))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 1
     v4 = mul v0, 2
     v5 = add v3, v4
@@ -84,7 +84,7 @@ fn @targetSelector(arg0: memorystruct) {
     sstore v59, v61 !metadata(storage=symbolic(v59))
     jump bb12
   bb12:
-    sstore 1, v1 !metadata(storage=slot(1))
+    sstore 1, v2 !metadata(storage=slot(1))
     stop
   bb9:
     v36 = memory_object_load_element memoryarray<1>, v13, v34

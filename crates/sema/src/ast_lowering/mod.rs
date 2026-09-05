@@ -59,6 +59,10 @@ struct LoweringContext<'gcx> {
     /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
     hir_to_ast: FxHashMap<hir::ItemId, &'gcx ast::Item<'gcx>>,
     yul_functions: FxHashMap<usize, hir::FunctionId>,
+    /// For each contract that has at least one base which did not resolve to a contract, the
+    /// AST base indices that did, in order. Only these can be paired with the contract's HIR
+    /// bases; contracts absent from the map have no holes and pair one-to-one.
+    contract_base_indices: FxHashMap<hir::ContractId, Box<[u32]>>,
 
     /// Current source being lowered.
     current_source_id: hir::SourceId,
@@ -80,6 +84,7 @@ impl<'gcx> LoweringContext<'gcx> {
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
             yul_functions: FxHashMap::default(),
+            contract_base_indices: FxHashMap::default(),
             resolver: SymbolResolver::new(&gcx.sess.dcx),
             next_id: IdCounter::new(),
         }

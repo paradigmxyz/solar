@@ -12,22 +12,22 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v2 = add v1, 32
     v3 = mload v2
     v4 = sload v0 !metadata(storage=symbolic(v0))
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb1, bb2
+    v5 = gt v4, 0xffffffffffffffff
+    jumpi v5, bb1, bb2
   bb2:
+    v6 = add v4, 1
     v7 = storage_array_data_slot v0
     v8 = add v7, v4
     sstore v8, 7 !metadata(storage=symbolic(v8))
-    sstore v0, v5 !metadata(storage=symbolic(v0))
+    sstore v0, v6 !metadata(storage=symbolic(v0))
     v9 = sload v3 !metadata(storage=symbolic(v3))
-    v10 = add v9, 1
-    v11 = lt v10, v9
-    jumpi v11, bb1, bb3
+    v10 = gt v9, 0xffffffffffffffff
+    jumpi v10, bb1, bb3
   bb3:
+    v11 = add v9, 1
     v12 = storage_array_data_slot v3
     v13 = add v12, v9
-    sstore v3, v10 !metadata(storage=symbolic(v3))
+    sstore v3, v11 !metadata(storage=symbolic(v3))
     v14 = sload v3 !metadata(storage=symbolic(v3))
     v15 = lt 0, v14
     v16 = iszero v15
@@ -36,14 +36,14 @@ fn @test() -> u256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word]] {
     v17 = storage_array_data_slot v3
     v18 = add v17, 0
     v19 = sload v18 !metadata(storage=symbolic(v17))
-    v20 = add v19, 1
-    v21 = lt v20, v19
-    jumpi v21, bb1, bb6
+    v20 = gt v19, 0xffffffffffffffff
+    jumpi v20, bb1, bb6
   bb6:
+    v21 = add v19, 1
     v22 = storage_array_data_slot v18
     v23 = add v22, v19
     sstore v23, 9 !metadata(storage=symbolic(v23))
-    sstore v18, v20 !metadata(storage=symbolic(v17))
+    sstore v18, v21 !metadata(storage=symbolic(v17))
     v24 = sload v0 !metadata(storage=symbolic(v0))
     v25 = sload v3 !metadata(storage=symbolic(v3))
     v26 = add v24, v25

@@ -6,13 +6,13 @@ fn @wordRvalue(arg0: u256) -> (u256, u256) [selector=0xe87bc9d1, abi_params=[u25
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, v3 !metadata(storage=slot(0))
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = sload 0 !metadata(storage=slot(0))
     ret v6, v7
@@ -28,31 +28,31 @@ fn @packedRvalue(arg0: u256) -> (u8, u8, u256) [selector=0xc89c0702, abi_params=
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 1 !metadata(storage=slot(1))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 1
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 1, v2 !metadata(storage=slot(1))
+    sstore 1, v3 !metadata(storage=slot(1))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
     v12 = and v11, 255
     v13 = sload 1 !metadata(storage=slot(1))
-    v14 = add v13, 1
-    v15 = lt v14, v13
-    jumpi v15, bb1, bb3
+    v14 = gt v13, 0xffffffffffffffff
+    jumpi v14, bb1, bb3
   bb3:
+    v15 = add v13, 1
     v16 = storage_array_data_slot 1
     v17 = div v13, 32
     v18 = add v16, v17
     v19 = mod v13, 32
     v20 = mul v19, 1
-    sstore 1, v14 !metadata(storage=slot(1))
+    sstore 1, v15 !metadata(storage=slot(1))
     v21 = sload v18 !metadata(storage=symbolic(v18))
     v22 = mul v20, 8
     v23 = shr v22, v21
@@ -71,31 +71,31 @@ fn @boolRvalue(arg0: u256) -> (bool, bool, u256) [selector=0xfa200185, abi_param
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 2 !metadata(storage=slot(2))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 2
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 2, v2 !metadata(storage=slot(2))
+    sstore 2, v3 !metadata(storage=slot(2))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
     v12 = and v11, 255
     v13 = sload 2 !metadata(storage=slot(2))
-    v14 = add v13, 1
-    v15 = lt v14, v13
-    jumpi v15, bb1, bb3
+    v14 = gt v13, 0xffffffffffffffff
+    jumpi v14, bb1, bb3
   bb3:
+    v15 = add v13, 1
     v16 = storage_array_data_slot 2
     v17 = div v13, 32
     v18 = add v16, v17
     v19 = mod v13, 32
     v20 = mul v19, 1
-    sstore 2, v14 !metadata(storage=slot(2))
+    sstore 2, v15 !metadata(storage=slot(2))
     v21 = sload v18 !metadata(storage=symbolic(v18))
     v22 = mul v20, 8
     v23 = shr v22, v21
@@ -114,32 +114,32 @@ fn @tagRvalue(arg0: u256) -> (bytes4, bytes4, u256) [selector=0xb8842558, abi_pa
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 3 !metadata(storage=slot(3))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 3
     v5 = div v1, 8
     v6 = add v4, v5
     v7 = mod v1, 8
     v8 = mul v7, 4
-    sstore 3, v2 !metadata(storage=slot(3))
+    sstore 3, v3 !metadata(storage=slot(3))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
     v12 = and v11, 0xffffffff
     v13 = shl 224, v12
     v14 = sload 3 !metadata(storage=slot(3))
-    v15 = add v14, 1
-    v16 = lt v15, v14
-    jumpi v16, bb1, bb3
+    v15 = gt v14, 0xffffffffffffffff
+    jumpi v15, bb1, bb3
   bb3:
+    v16 = add v14, 1
     v17 = storage_array_data_slot 3
     v18 = div v14, 8
     v19 = add v17, v18
     v20 = mod v14, 8
     v21 = mul v20, 4
-    sstore 3, v15 !metadata(storage=slot(3))
+    sstore 3, v16 !metadata(storage=slot(3))
     v22 = sload v19 !metadata(storage=symbolic(v19))
     v23 = mul v21, 8
     v24 = shr v23, v22
@@ -159,16 +159,16 @@ fn @enumRvalue(arg0: u256) -> (u8, u8, u256) [selector=0x8b2cec53, abi_params=[u
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
@@ -178,16 +178,16 @@ fn @enumRvalue(arg0: u256) -> (u8, u8, u256) [selector=0x8b2cec53, abi_params=[u
     jumpi v14, bb3, bb4
   bb4:
     v15 = sload 4 !metadata(storage=slot(4))
-    v16 = add v15, 1
-    v17 = lt v16, v15
-    jumpi v17, bb1, bb5
+    v16 = gt v15, 0xffffffffffffffff
+    jumpi v16, bb1, bb5
   bb5:
+    v17 = add v15, 1
     v18 = storage_array_data_slot 4
     v19 = div v15, 32
     v20 = add v18, v19
     v21 = mod v15, 32
     v22 = mul v21, 1
-    sstore 4, v16 !metadata(storage=slot(4))
+    sstore 4, v17 !metadata(storage=slot(4))
     v23 = sload v20 !metadata(storage=symbolic(v20))
     v24 = mul v22, 8
     v25 = shr v24, v23
@@ -214,32 +214,32 @@ fn @signedRvalue(arg0: u256) -> (i128, i128, u256) [selector=0xb5c04c0f, abi_par
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 5 !metadata(storage=slot(5))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 5
     v5 = div v1, 2
     v6 = add v4, v5
     v7 = mod v1, 2
     v8 = mul v7, 16
-    sstore 5, v2 !metadata(storage=slot(5))
+    sstore 5, v3 !metadata(storage=slot(5))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
     v12 = and v11, 0xffffffffffffffffffffffffffffffff
     v13 = signextend 15, v12
     v14 = sload 5 !metadata(storage=slot(5))
-    v15 = add v14, 1
-    v16 = lt v15, v14
-    jumpi v16, bb1, bb3
+    v15 = gt v14, 0xffffffffffffffff
+    jumpi v15, bb1, bb3
   bb3:
+    v16 = add v14, 1
     v17 = storage_array_data_slot 5
     v18 = div v14, 2
     v19 = add v17, v18
     v20 = mod v14, 2
     v21 = mul v20, 16
-    sstore 5, v15 !metadata(storage=slot(5))
+    sstore 5, v16 !metadata(storage=slot(5))
     v22 = sload v19 !metadata(storage=symbolic(v19))
     v23 = mul v21, 8
     v24 = shr v23, v22
@@ -260,16 +260,16 @@ fn @addressRvalue() -> (address, u256) [selector=0x2ef1cd4b, abi_params=[], abi_
     v1 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v1, v0 !metadata(storage=symbolic(v1))
     v2 = sload 6 !metadata(storage=slot(6))
-    v3 = add v2, 1
-    v4 = lt v3, v2
-    jumpi v4, bb1, bb2
+    v3 = gt v2, 0xffffffffffffffff
+    jumpi v3, bb1, bb2
   bb2:
+    v4 = add v2, 1
     v5 = storage_array_data_slot 6
     v6 = div v2, 1
     v7 = add v5, v6
     v8 = mod v2, 1
     v9 = mul v8, 20
-    sstore 6, v3 !metadata(storage=slot(6))
+    sstore 6, v4 !metadata(storage=slot(6))
     v10 = sload v7 !metadata(storage=symbolic(v7))
     v11 = mul v9, 8
     v12 = shr v11, v10
@@ -288,31 +288,31 @@ fn @unwrapRvalue(arg0: u256) -> (u64, u64, u256) [selector=0x39669bbc, abi_param
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 7 !metadata(storage=slot(7))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 7
     v5 = div v1, 4
     v6 = add v4, v5
     v7 = mod v1, 4
     v8 = mul v7, 8
-    sstore 7, v2 !metadata(storage=slot(7))
+    sstore 7, v3 !metadata(storage=slot(7))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
     v12 = and v11, 0xffffffffffffffff
     v13 = sload 7 !metadata(storage=slot(7))
-    v14 = add v13, 1
-    v15 = lt v14, v13
-    jumpi v15, bb1, bb3
+    v14 = gt v13, 0xffffffffffffffff
+    jumpi v14, bb1, bb3
   bb3:
+    v15 = add v13, 1
     v16 = storage_array_data_slot 7
     v17 = div v13, 4
     v18 = add v16, v17
     v19 = mod v13, 4
     v20 = mul v19, 8
-    sstore 7, v14 !metadata(storage=slot(7))
+    sstore 7, v15 !metadata(storage=slot(7))
     v21 = sload v18 !metadata(storage=symbolic(v18))
     v22 = mul v20, 8
     v23 = shr v22, v21
@@ -328,22 +328,22 @@ fn @unwrapRvalue(arg0: u256) -> (u64, u64, u256) [selector=0x39669bbc, abi_param
 fn @cleanRvalue() -> (u256, u256, u256) [selector=0xa51842a5, abi_params=[], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload v4 !metadata(storage=symbolic(v4))
     v6 = sload 0 !metadata(storage=slot(0))
-    v7 = add v6, 1
-    v8 = lt v7, v6
-    jumpi v8, bb1, bb3
+    v7 = gt v6, 0xffffffffffffffff
+    jumpi v7, bb1, bb3
   bb3:
+    v8 = add v6, 1
     v9 = storage_array_data_slot 0
     v10 = add v9, v6
-    sstore 0, v7 !metadata(storage=slot(0))
+    sstore 0, v8 !metadata(storage=slot(0))
     v11 = sload v10 !metadata(storage=symbolic(v10))
     v12 = sload 0 !metadata(storage=slot(0))
     ret v5, v11, v12
@@ -359,13 +359,13 @@ fn @bareRvalue(arg0: u256) -> (u256, u256) [selector=0x1c2b2089, abi_params=[u25
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, v3 !metadata(storage=slot(0))
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = sub v6, 1
     v8 = lt v6, 1
@@ -401,16 +401,16 @@ fn @enumInvalidRvalue(arg0: u256) -> (u8, u256) [selector=0x12551884, abi_params
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
@@ -437,16 +437,16 @@ fn @enumBareRvalue(arg0: u256) -> (u256, u256) [selector=0x7b8d408b, abi_params=
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     mstore 0, 4 !metadata(memory=scratch)
     v9 = keccak256 0, 32 !metadata(memory=scratch)
     v10 = sload v9 !metadata(storage=symbolic(v9))
@@ -465,27 +465,27 @@ fn @enumTupleBare(arg0: u256) -> (u256, u256) [selector=0xc9f089ea, abi_params=[
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload 4 !metadata(storage=slot(4))
-    v10 = add v9, 1
-    v11 = lt v10, v9
-    jumpi v11, bb1, bb3
+    v10 = gt v9, 0xffffffffffffffff
+    jumpi v10, bb1, bb3
   bb3:
+    v11 = add v9, 1
     v12 = storage_array_data_slot 4
     v13 = div v9, 32
     v14 = add v12, v13
     v15 = mod v9, 32
     v16 = mul v15, 1
-    sstore 4, v10 !metadata(storage=slot(4))
+    sstore 4, v11 !metadata(storage=slot(4))
     mstore 0, 4 !metadata(memory=scratch)
     v17 = keccak256 0, 32 !metadata(memory=scratch)
     v18 = sload v17 !metadata(storage=symbolic(v17))
@@ -506,29 +506,29 @@ fn @enumTernaryBare(arg0: u256, arg1: bool) -> (u256, u256) [selector=0x2209d499
     jumpi arg1, bb1, bb2
   bb2:
     v9 = sload 4 !metadata(storage=slot(4))
-    v10 = add v9, 1
-    v11 = lt v10, v9
-    jumpi v11, bb4, bb6
+    v10 = gt v9, 0xffffffffffffffff
+    jumpi v10, bb4, bb6
   bb6:
+    v11 = add v9, 1
     v12 = storage_array_data_slot 4
     v13 = div v9, 32
     v14 = add v12, v13
     v15 = mod v9, 32
     v16 = mul v15, 1
-    sstore 4, v10 !metadata(storage=slot(4))
+    sstore 4, v11 !metadata(storage=slot(4))
     jump bb3
   bb1:
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb4, bb5
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb4, bb5
   bb5:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     jump bb3
   bb3:
     v17 = phi [bb5: 0], [bb6: 0]
@@ -550,27 +550,27 @@ fn @enumDeclHole(arg0: u256) -> (u256, u256, u256) [selector=0xfcfa4d59, abi_par
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload 4 !metadata(storage=slot(4))
-    v10 = add v9, 1
-    v11 = lt v10, v9
-    jumpi v11, bb1, bb3
+    v10 = gt v9, 0xffffffffffffffff
+    jumpi v10, bb1, bb3
   bb3:
+    v11 = add v9, 1
     v12 = storage_array_data_slot 4
     v13 = div v9, 32
     v14 = add v12, v13
     v15 = mod v9, 32
     v16 = mul v15, 1
-    sstore 4, v10 !metadata(storage=slot(4))
+    sstore 4, v11 !metadata(storage=slot(4))
     v17 = sload v14 !metadata(storage=symbolic(v14))
     v18 = mul v16, 8
     v19 = shr v18, v17
@@ -601,16 +601,16 @@ fn @enumAssignHole(arg0: u256) -> (u256, u256, u256) [selector=0xb891707d, abi_p
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     mstore 0, 4 !metadata(memory=scratch)
     v9 = keccak256 0, 32 !metadata(memory=scratch)
     v10 = sload v9 !metadata(storage=symbolic(v9))
@@ -629,16 +629,16 @@ fn @enumNestedHole(arg0: u256) -> (u256, u256, u256) [selector=0xdf286fc3, abi_p
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     mstore 0, 4 !metadata(memory=scratch)
     v9 = keccak256 0, 32 !metadata(memory=scratch)
     v10 = sload v9 !metadata(storage=symbolic(v9))
@@ -657,16 +657,16 @@ fn @enumNestedInnerHole(arg0: u256) -> (u256, u256, u256) [selector=0x1f0f0670, 
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     mstore 0, 4 !metadata(memory=scratch)
     v9 = keccak256 0, 32 !metadata(memory=scratch)
     v10 = sload v9 !metadata(storage=symbolic(v9))
@@ -693,16 +693,16 @@ fn @enumUsedComponent(arg0: u256) -> (u256, u256) [selector=0x3af411b8, abi_para
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 4 !metadata(storage=slot(4))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 4
     v5 = div v1, 32
     v6 = add v4, v5
     v7 = mod v1, 32
     v8 = mul v7, 1
-    sstore 4, v2 !metadata(storage=slot(4))
+    sstore 4, v3 !metadata(storage=slot(4))
     v9 = sload v6 !metadata(storage=symbolic(v6))
     v10 = mul v8, 8
     v11 = shr v10, v9
@@ -728,13 +728,13 @@ fn @nestedInStmtRvalue(arg0: u256) -> (u256, u256) [selector=0xa803cfdb, abi_par
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, v3 !metadata(storage=slot(0))
     v6 = sload v5 !metadata(storage=symbolic(v5))
     sstore 12, v6 !metadata(storage=slot(12))
     v7 = sload 12 !metadata(storage=slot(12))
@@ -759,23 +759,23 @@ fn @memberRvalue(arg0: u256) -> (u256, u256, u256) [selector=0x818284d1, abi_par
     v3 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v3, v2 !metadata(storage=symbolic(v3))
     v4 = sload 10 !metadata(storage=slot(10))
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb1, bb2
+    v5 = gt v4, 0xffffffffffffffff
+    jumpi v5, bb1, bb2
   bb2:
+    v6 = add v4, 1
     v7 = storage_array_data_slot 10
     v8 = add v7, v4
-    sstore 10, v5 !metadata(storage=slot(10))
+    sstore 10, v6 !metadata(storage=slot(10))
     v9 = sload v8 !metadata(storage=symbolic(v8))
     v10 = mapping_slot 1, 11
     v11 = sload v10 !metadata(storage=symbolic(v10))
-    v12 = add v11, 1
-    v13 = lt v12, v11
-    jumpi v13, bb1, bb3
+    v12 = gt v11, 0xffffffffffffffff
+    jumpi v12, bb1, bb3
   bb3:
+    v13 = add v11, 1
     v14 = storage_array_data_slot v10
     v15 = add v14, v11
-    sstore v10, v12 !metadata(storage=symbolic(v10))
+    sstore v10, v13 !metadata(storage=symbolic(v10))
     v16 = sload v15 !metadata(storage=symbolic(v15))
     v17 = sload 10 !metadata(storage=slot(10))
     ret v9, v16, v17
@@ -788,13 +788,13 @@ fn @memberRvalue(arg0: u256) -> (u256, u256, u256) [selector=0x818284d1, abi_par
 fn @pushThrough(arg0: storageptr) -> u256 {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot arg0
     v4 = add v3, v0
-    sstore arg0, v1 !metadata(storage=symbolic(arg0))
+    sstore arg0, v2 !metadata(storage=symbolic(arg0))
     v5 = sload v4 !metadata(storage=symbolic(v4))
     ret v5
   bb1:
@@ -819,13 +819,13 @@ fn @lvalueRvalue(arg0: u256, arg1: u256) -> (u256, u256) [selector=0xe30ec141, a
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, v3 !metadata(storage=slot(0))
     sstore v5, arg1 !metadata(storage=symbolic(v5))
     v6 = sload 0 !metadata(storage=slot(0))
     v7 = sub v6, 1
@@ -862,13 +862,13 @@ fn @compoundRvalue(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x126c7201,
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     v1 = sload 0 !metadata(storage=slot(0))
-    v2 = add v1, 1
-    v3 = lt v2, v1
-    jumpi v3, bb1, bb2
+    v2 = gt v1, 0xffffffffffffffff
+    jumpi v2, bb1, bb2
   bb2:
+    v3 = add v1, 1
     v4 = storage_array_data_slot 0
     v5 = add v4, v1
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, v3 !metadata(storage=slot(0))
     v6 = sload v5 !metadata(storage=symbolic(v5))
     v7 = add v6, arg1
     v8 = lt v7, v6
@@ -907,26 +907,26 @@ fn @compoundRvalue(arg0: u256, arg1: u256) -> (u256, u256) [selector=0x126c7201,
 fn @structRvalue(arg0: u256) -> (u256, u256, u256) [selector=0xda0335a1, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 8 !metadata(storage=slot(8))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 8
     v4 = add v3, v0
-    sstore 8, v1 !metadata(storage=slot(8))
+    sstore 8, v2 !metadata(storage=slot(8))
     sstore v4, arg0 !metadata(storage=symbolic(v4))
     v5 = add arg0, 1
     v6 = lt v5, arg0
     jumpi v6, bb3, bb4
   bb4:
     v7 = sload 8 !metadata(storage=slot(8))
-    v8 = add v7, 1
-    v9 = lt v8, v7
-    jumpi v9, bb1, bb5
+    v8 = gt v7, 0xffffffffffffffff
+    jumpi v8, bb1, bb5
   bb5:
+    v9 = add v7, 1
     v10 = storage_array_data_slot 8
     v11 = add v10, v7
-    sstore 8, v8 !metadata(storage=slot(8))
+    sstore 8, v9 !metadata(storage=slot(8))
     sstore v11, v5 !metadata(storage=symbolic(v11))
     v12 = sload 8 !metadata(storage=slot(8))
     v13 = lt 0, v12
@@ -963,29 +963,29 @@ fn @structRvalue(arg0: u256) -> (u256, u256, u256) [selector=0xda0335a1, abi_par
 fn @nestedRvalue(arg0: u256) -> (u256, u256, u256) [selector=0x32226b25, abi_params=[u256], abi_returns=[word, word, word]] {
   bb0:
     v0 = sload 9 !metadata(storage=slot(9))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 9
     v4 = add v3, v0
-    sstore 9, v1 !metadata(storage=slot(9))
+    sstore 9, v2 !metadata(storage=slot(9))
     v5 = sload v4 !metadata(storage=symbolic(v4))
-    v6 = add v5, 1
-    v7 = lt v6, v5
-    jumpi v7, bb1, bb3
+    v6 = gt v5, 0xffffffffffffffff
+    jumpi v6, bb1, bb3
   bb3:
+    v7 = add v5, 1
     v8 = storage_array_data_slot v4
     v9 = add v8, v5
-    sstore v4, v6 !metadata(storage=symbolic(v4))
+    sstore v4, v7 !metadata(storage=symbolic(v4))
     v10 = sload v4 !metadata(storage=symbolic(v4))
-    v11 = add v10, 1
-    v12 = lt v11, v10
-    jumpi v12, bb1, bb4
+    v11 = gt v10, 0xffffffffffffffff
+    jumpi v11, bb1, bb4
   bb4:
+    v12 = add v10, 1
     v13 = storage_array_data_slot v4
     v14 = add v13, v10
-    sstore v4, v11 !metadata(storage=symbolic(v4))
+    sstore v4, v12 !metadata(storage=symbolic(v4))
     sstore v14, arg0 !metadata(storage=symbolic(v14))
     v15 = sload v4 !metadata(storage=symbolic(v4))
     v16 = sload 9 !metadata(storage=slot(9))

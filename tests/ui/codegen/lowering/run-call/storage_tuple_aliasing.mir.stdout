@@ -329,32 +329,32 @@ fn @dynamicArrays() -> (u256, u256, u256, u256) [selector=0x586e696e, abi_params
     jumpi v8, bb5, bb6
   bb6:
     v12 = sload 5 !metadata(storage=slot(5))
-    v13 = add v12, 1
-    v14 = lt v13, v12
-    jumpi v14, bb7, bb8
+    v13 = gt v12, 0xffffffffffffffff
+    jumpi v13, bb7, bb8
   bb8:
+    v14 = add v12, 1
     v15 = storage_array_data_slot 5
     v16 = add v15, v12
     sstore v16, 1 !metadata(storage=symbolic(v16))
-    sstore 5, v13 !metadata(storage=slot(5))
+    sstore 5, v14 !metadata(storage=slot(5))
     v17 = sload 6 !metadata(storage=slot(6))
-    v18 = add v17, 1
-    v19 = lt v18, v17
-    jumpi v19, bb7, bb9
+    v18 = gt v17, 0xffffffffffffffff
+    jumpi v18, bb7, bb9
   bb9:
+    v19 = add v17, 1
     v20 = storage_array_data_slot 6
     v21 = add v20, v17
     sstore v21, 2 !metadata(storage=symbolic(v21))
-    sstore 6, v18 !metadata(storage=slot(6))
+    sstore 6, v19 !metadata(storage=slot(6))
     v22 = sload 6 !metadata(storage=slot(6))
-    v23 = add v22, 1
-    v24 = lt v23, v22
-    jumpi v24, bb7, bb10
+    v23 = gt v22, 0xffffffffffffffff
+    jumpi v23, bb7, bb10
   bb10:
+    v24 = add v22, 1
     v25 = storage_array_data_slot 6
     v26 = add v25, v22
     sstore v26, 3 !metadata(storage=symbolic(v26))
-    sstore 6, v23 !metadata(storage=slot(6))
+    sstore 6, v24 !metadata(storage=slot(6))
     v27 = icall @load_storage_word_array, 1, 5
     v28 = memory_object_len memoryarray, v27
     v29 = sload 6 !metadata(storage=slot(6))

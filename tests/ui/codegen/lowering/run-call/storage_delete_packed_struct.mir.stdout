@@ -3,13 +3,13 @@
 fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v6 = and 1, 255
     v7 = and 2, 0xffff
@@ -50,13 +50,13 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=
     v35 = or v32, v34
     sstore v13, v35 !metadata(storage=symbolic(v12))
     v36 = sload 0 !metadata(storage=slot(0))
-    v37 = add v36, 1
-    v38 = lt v37, v36
-    jumpi v38, bb1, bb5
+    v37 = gt v36, 0xffffffffffffffff
+    jumpi v37, bb1, bb5
   bb5:
+    v38 = add v36, 1
     v39 = storage_array_data_slot 0
     v40 = add v39, v36
-    sstore 0, v37 !metadata(storage=slot(0))
+    sstore 0, v38 !metadata(storage=slot(0))
     v41 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v42 = and 4, 255
     v43 = and 5, 0xffff
@@ -176,13 +176,13 @@ fn @clearArray() -> (u8, u16, u8, u8, u16, u8) [selector=0xe80b7ab6, abi_params=
 fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_params=[], abi_returns=[word<u8>, word<u16>, word<u8>, word<u8>, word<u16>, word<u8>]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v5 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v6 = and 1, 255
     v7 = and 2, 0xffff
@@ -223,13 +223,13 @@ fn @clearReference() -> (u8, u16, u8, u8, u16, u8) [selector=0xc844d6fe, abi_par
     v35 = or v32, v34
     sstore v13, v35 !metadata(storage=symbolic(v12))
     v36 = sload 0 !metadata(storage=slot(0))
-    v37 = add v36, 1
-    v38 = lt v37, v36
-    jumpi v38, bb1, bb5
+    v37 = gt v36, 0xffffffffffffffff
+    jumpi v37, bb1, bb5
   bb5:
+    v38 = add v36, 1
     v39 = storage_array_data_slot 0
     v40 = add v39, v36
-    sstore 0, v37 !metadata(storage=slot(0))
+    sstore 0, v38 !metadata(storage=slot(0))
     v41 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     v42 = and 4, 255
     v43 = and 5, 0xffff
@@ -407,13 +407,13 @@ fn @assign() -> (u8, u16, u8) [selector=0x12ae6397, abi_params=[], abi_returns=[
     memory_object_store_field memorystruct<3>, v0, 1, v2
     memory_object_store_field memorystruct<3>, v0, 2, v3
     v4 = sload 0 !metadata(storage=slot(0))
-    v5 = add v4, 1
-    v6 = lt v5, v4
-    jumpi v6, bb1, bb2
+    v5 = gt v4, 0xffffffffffffffff
+    jumpi v5, bb1, bb2
   bb2:
+    v6 = add v4, 1
     v7 = storage_array_data_slot 0
     v8 = add v7, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    sstore 0, v6 !metadata(storage=slot(0))
     v9 = sload 0 !metadata(storage=slot(0))
     v10 = lt 0, v9
     v11 = iszero v10

@@ -8,32 +8,32 @@ fn @inject(arg0: u256) -> u8 [pure] {
 fn @storageIndex(arg0: u256) -> u256 [selector=0xe1f98cd0, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = sload 0 !metadata(storage=slot(0))
-    v1 = add v0, 1
-    v2 = lt v1, v0
-    jumpi v2, bb1, bb2
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
   bb2:
+    v2 = add v0, 1
     v3 = storage_array_data_slot 0
     v4 = add v3, v0
     sstore v4, 1 !metadata(storage=symbolic(v4))
-    sstore 0, v1 !metadata(storage=slot(0))
+    sstore 0, v2 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
-    v6 = add v5, 1
-    v7 = lt v6, v5
-    jumpi v7, bb1, bb3
+    v6 = gt v5, 0xffffffffffffffff
+    jumpi v6, bb1, bb3
   bb3:
+    v7 = add v5, 1
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
     sstore v9, 2 !metadata(storage=symbolic(v9))
-    sstore 0, v6 !metadata(storage=slot(0))
+    sstore 0, v7 !metadata(storage=slot(0))
     v10 = sload 0 !metadata(storage=slot(0))
-    v11 = add v10, 1
-    v12 = lt v11, v10
-    jumpi v12, bb1, bb4
+    v11 = gt v10, 0xffffffffffffffff
+    jumpi v11, bb1, bb4
   bb4:
+    v12 = add v10, 1
     v13 = storage_array_data_slot 0
     v14 = add v13, v10
     sstore v14, 3 !metadata(storage=symbolic(v14))
-    sstore 0, v11 !metadata(storage=slot(0))
+    sstore 0, v12 !metadata(storage=slot(0))
     v15 = icall @inject, 1, arg0
     v16 = sload 0 !metadata(storage=slot(0))
     v17 = lt v15, v16

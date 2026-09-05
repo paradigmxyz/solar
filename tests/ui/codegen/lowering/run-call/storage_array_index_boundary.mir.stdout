@@ -56,13 +56,13 @@ fn @read(arg0: u256, arg1: u256) -> u256 [selector=0x75080997, abi_params=[u256,
     revert 0, 36
   bb3:
     v5 = sload 0 !metadata(storage=slot(0))
-    v6 = add v5, 1
-    v7 = lt v6, v5
-    jumpi v7, bb6, bb7
+    v6 = gt v5, 0xffffffffffffffff
+    jumpi v6, bb6, bb7
   bb7:
+    v7 = add v5, 1
     v8 = storage_array_data_slot 0
     v9 = add v8, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    sstore 0, v7 !metadata(storage=slot(0))
     jump bb5
   bb5:
     jump bb1
