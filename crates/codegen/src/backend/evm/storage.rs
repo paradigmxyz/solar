@@ -10,9 +10,12 @@
 //! above entry locals and immutable staging. Entry spill regions overlap because entries do not
 //! return to one another. Private single-result static activations share storage across sibling
 //! call paths; longest-path frame ends keep every ancestor disjoint from its descendants, including
-//! paths through dynamic activations. Address-exposed frames, multi-return frames and deferred
-//! allocations stay distinct. Repeated finalization rebuilds absolute addresses from relative sizes
-//! so reservations cannot leave stale relocations.
+//! paths through dynamic activations. Address-exposed and multi-return frames stay distinct.
+//! Deferred allocations from different runtime entries share a pool only when the final call graph
+//! admits each entry exclusively through dispatcher tail calls. Their retained nonescape proof and
+//! mutually exclusive entry lifetimes keep those pools disjoint in time; deployment and all other
+//! functions retain separate pools. Repeated finalization rebuilds absolute addresses from relative
+//! sizes so reservations cannot leave stale relocations.
 //!
 //! Dynamic frames whose addresses are exposed, whose return types reference memory, or whose sticky
 //! `may_return_memory` attribute is set must remain allocated on return. The call emitter owns frame
@@ -142,6 +145,7 @@ pub(crate) struct ModulePlan {
     pub(crate) constructor_arg_base: u64,
     reserved_end: u64,
     callees: IndexVec<FunctionId, Box<[FunctionId]>>,
+    shared_deferred_entries: DenseBitSet<FunctionId>,
 }
 
 impl ModulePlan {
@@ -220,10 +224,19 @@ impl ModulePlan {
             }
             functions.push(storage);
         }
+        let mut shared_deferred_entries = if !deployment && module.dispatch_entry().is_some() {
+            roots
+        } else {
+            DenseBitSet::new_empty(module.functions.len())
+        };
+        if let Some(dispatch) = module.dispatch_entry() {
+            shared_deferred_entries.remove(dispatch);
+        }
         let mut callees = IndexVec::new();
-        for (_, function) in module.iter_functions() {
+        for (id, function) in module.iter_functions() {
             let mut targets = function.instructions().filter_map(|inst| {
                 if let InstKind::InternalCall { function, .. } = function.inst(inst).kind {
+                    shared_deferred_entries.remove(function);
                     Some(function)
                 } else {
                     None
@@ -231,6 +244,9 @@ impl ModulePlan {
             }).collect::<Vec<_>>();
             targets.extend(function.blocks.iter().filter_map(|block| {
                 if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                    if Some(id) != module.dispatch_entry() {
+                        shared_deferred_entries.remove(function);
+                    }
                     Some(function)
                 } else {
                     None
@@ -249,6 +265,7 @@ impl ModulePlan {
             constructor_arg_base: reserved_end,
             reserved_end: align(reserved_end)?,
             callees,
+            shared_deferred_entries,
         };
         plan.finalize()?;
         Ok(plan)
@@ -320,10 +337,19 @@ impl ModulePlan {
                 end = add(end, function.local_offset - function.return_offset)?;
             }
         }
-        for function in &mut self.functions {
+        let shared_deferred_base = end;
+        let shared_deferred_size = self.shared_deferred_entries.iter()
+            .map(|id| self.functions[id].deferred_size)
+            .max().unwrap_or(0);
+        end = add(end, shared_deferred_size)?;
+        for (id, function) in self.functions.iter_mut_enumerated() {
             if function.reachable {
-                function.deferred_base = end;
-                end = add(end, function.deferred_size)?;
+                if self.shared_deferred_entries.contains(id) {
+                    function.deferred_base = shared_deferred_base;
+                } else {
+                    function.deferred_base = end;
+                    end = add(end, function.deferred_size)?;
+                }
             }
         }
         self.max_dynamic_frame_size = self

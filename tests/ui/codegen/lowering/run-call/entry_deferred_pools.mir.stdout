@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/entry_deferred_pools.sol:EntryDeferredPools ===
+@module EntryDeferredPools
+fn @one(arg0: u256) -> bytes32 [selector=0xef56f928, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word], scratch, args arg0
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @two(arg0: u256, arg1: u256) -> bytes32 [selector=0x744f15d9, pure, abi_params=[u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = abi_encode [word, word], scratch, args arg0, arg1
+    v1 = slice_ptr v0
+    v2 = slice_len v0
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+fn @preserved(arg0: u256, arg1: u256) -> bool [selector=0x27399793, pure, abi_params=[u256, u256], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = abi_encode [word, word, word, word], object, args arg0, arg1, arg0, arg1
+    v1 = keccak256_bytes v0
+    v2 = internal_call @one, 1, arg0
+    v3 = internal_call @two, 1, arg0, arg1
+    v4 = keccak256_bytes v0
+    v5 = eq v4, v1
+    jumpi v5, bb1, bb2
+  bb2:
+    jump bb3
+  bb1:
+    v6 = eq v2, v3
+    v7 = iszero v6
+    jump bb3
+  bb3:
+    v8 = phi [bb1: v7], [bb2: 0]
+    ret v8
+}
