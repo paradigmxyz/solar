@@ -2,130 +2,143 @@
 // === ImmutableBytePatches_deployment ===
 @module ImmutableBytePatches_deployment
 bb0:
-  push 174
+  push 288
+  push 64
+  mstore
+  push 208
   codesize
   sub
   dup 1
-  push 174
-  push 320
+  push 208
+  push 288
   codecopy
-  push 320
-  add
-  push 31
+  push 319
   add
   push 31
   not
   and
   push 64
   mstore
-  callvalue
-  push bb6
-  jumpi
+  push 288
+  mload
   push 320
-  dup 1
-  push 174
+  mload
+  push 352
+  mload
+  callvalue
+  jumpi bb3, bb2
+bb2:
+  push 288
+  push 208
   codesize
   sub
+  dup 2
   add
   push 96
   dup 3
   add
   gt
-  push bb6
-  jumpi
+  jumpi bb3, bb4
+bb4:
   dup 1
   mload
   push 8
   shr
-  push bb6
-  jumpi
+  jumpi bb3, bb5
+bb5:
   push 32
   dup 2
   add
   mload
-  dup 1
   push 0
+  dup 2
+  swap 1
   signextend
-  sub
-  push bb6
-  jumpi
+  eq
+  jumpi bb6, bb3
+bb3:
+  push 0
+  push 0
+  revert
+bb6:
   push 64
   add
   mload
   push 8
   shl
-  push bb6
-  jumpi
-  push 96
-  push 320
+  jumpi bb3, bb7
+bb7:
   push 192
-  mcopy
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  mstore
+  push 224
+  exchange 1, 2
+  mstore
+  push 256
+  mstore
   push 56
-  dup 1
-  push 118
-  push 0
+  push 152
+  push 288
   codecopy
   push 192
   mload
-  push 20
+  push 307
+  mstore8
+  push 224
+  mload
+  push 309
   mstore8
   push 256
   mload
   push 0
   byte
-  push 22
+  push 313
   mstore8
-  push 224
-  mload
-  push 27
-  mstore8
-  push 0
+  push 56
+  push 288
   return
-bb6 [cold]:
-  push 0
-  push 0
-  revert
 
 // === ImmutableBytePatches_runtime ===
 @module ImmutableBytePatches_runtime
 bb0:
   callvalue
-  push bb3
-  jumpi
+  jumpi bb6, bb4
+bb4:
   push 0
   calldataload
   push 224
   shr
-  dup 1
   push 0x57de26a4
   sub
-  push bb3
-  jumpi
+  jumpi bb6, bb1
+bb1:
   push_immutable 0, 1
-  push_immutable 2, 1
-  push 248
-  shl
   push_immutable 1, 1
   push 0
   signextend
+  push_immutable 2, 1
+  push 248
+  shl
   push 0
+  exchange 1, 2
   signextend
-  dup 3
   push 128
-  mstore
   swap 2
-  pop
-  dup 2
+  swap 3
+  swap 1
+  swap 2
+  mstore
   push 160
   mstore
-  swap 1
-  pop
   push 192
   mstore
   push 96
   push 128
   return
-bb3 [cold]:
+bb6:
   push 0
   push 0
   revert

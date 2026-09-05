@@ -15,17 +15,12 @@ contract ImmutableBytePatches {
     // CHECK-LABEL: @module ImmutableBytePatches_deployment
     // CHECK: codecopy
     // CHECK: codecopy
-    // CHECK: mload
-    // CHECK-NEXT: push
-    // CHECK-NEXT: mstore8
-    // CHECK: mload
-    // CHECK-NEXT: push 0
-    // CHECK-NEXT: byte
-    // CHECK-NEXT: push
-    // CHECK-NEXT: mstore8
-    // CHECK: mload
-    // CHECK-NEXT: push
-    // CHECK-NEXT: mstore8
+    // Match each complete patch independently: its order is not observable.
+    // The two integer patches store their low byte; bytes1 extracts its high byte.
+    // CHECK-DAG: mload{{[[:space:]]+push [0-9]+[[:space:]]+mstore8}}
+    // CHECK-DAG: mload{{[[:space:]]+push [0-9]+[[:space:]]+mstore8}}
+    // CHECK-DAG: mload{{[[:space:]]+push 0[[:space:]]+byte[[:space:]]+push [0-9]+[[:space:]]+mstore8}}
+    // CHECK: return
     function read() external view returns (uint8, int8, bytes1) {
         return (unsignedValue, signedValue, fixedBytesValue);
     }
