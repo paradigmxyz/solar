@@ -4,7 +4,7 @@
 //! and phi edges to find functions that exceed the target DUP window. Dying operands are consumed
 //! in place instead of being counted twice. Those functions receive reusable memory homes for
 //! overlapping live intervals; short-lived expression temporaries, dying branch conditions and
-//! single internal return values remain on the stack. A temporary may also end at a heap or
+//! single internal return values remain on the stack. A temporary may also end at an allocation-local or
 //! low-memory store whose writes are disjoint from every compiler-owned word. Calls, other writers and wider
 //! terminal protocols stop the bounded local window. A separate temporary region permits phi
 //! edge copies to read every source before writing any destination,
@@ -17,16 +17,17 @@
 
 use super::scheduler::Stack;
 use crate::{
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, Liveness, Location, MemoryBase,
-        MemoryLocation, ModRef,
-    },
-    memory::EvmMemoryLayout,
+    analysis::{AddressSpace, AliasAnalysis, CfgInfo, Liveness},
     mir,
 };
+use overlap::disjoint_frame_write;
 use solar_config::EvmVersion;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use std::{cmp::Reverse, collections::BinaryHeap};
+
+mod overlap;
+
+pub(crate) use overlap::{accesses_overlap, may_overlap};
 
 #[derive(Default)]
 pub(crate) struct SpillPlan {
@@ -91,6 +92,7 @@ impl SpillPlan {
                             ) && next.operands().contains(&value)
                                 && !live.is_used_at_or_after(value, block_id, next_position + 1)
                                 && disjoint_frame_write(
+                                    function,
                                     &alias.instruction_mod_ref(function, next_inst),
                                 )
                             {
@@ -134,34 +136,6 @@ impl SpillPlan {
             .unwrap_or(0);
         Self { homes, phi_scratch, words: phi_scratch + scratch_count }
     }
-}
-
-/// Recognizes writes disjoint from every possible frame placement and the frame-pointer word.
-/// Exact low-memory writes precede every activation; other absolute and frame-relative ranges are
-/// excluded because exact overlap takes priority over region information. Such stores therefore
-/// cannot make `save_writer_homes` clear the stack.
-fn disjoint_frame_write(effects: &ModRef) -> bool {
-    effects.writes().iter().all(|access| {
-        matches!(access, Access::Location(Location::Memory(location))
-            if location.size.as_const() == Some(0)
-                || low_memory(location)
-                || (matches!(location.address.region, mir::MemoryRegion::Heap | mir::MemoryRegion::AbiReturn)
-                    && !matches!(location.address.base, MemoryBase::Absolute | MemoryBase::InternalFrame)))
-    })
-}
-
-/// Low-memory writes may change the free-memory pointer, but cannot move an active frame. Static
-/// frames start at `HEAP_START`; dynamic entry clamps its base above the fixed allocation floor.
-/// This excludes straddling ranges and the separately protected internal-frame pointer at 0xa0.
-fn low_memory(location: &MemoryLocation) -> bool {
-    location.address.base == MemoryBase::Absolute
-        && location.size.as_const().is_some_and(|size| {
-            location
-                .address
-                .offset
-                .checked_add(size)
-                .is_some_and(|end| end <= EvmMemoryLayout::HEAP_START)
-        })
 }
 
 /// Conservative intervals shared by stack-residence selection and memory-home reuse.
@@ -297,7 +271,8 @@ fn resident_candidates(
             }
             let effects = alias.instruction_mod_ref(function, inst);
             if matches!(kind, mir::InstKind::InternalCall { .. })
-                || (effects.writes_space(AddressSpace::Memory) && !disjoint_frame_write(&effects))
+                || (effects.writes_space(AddressSpace::Memory)
+                    && !disjoint_frame_write(function, &effects))
             {
                 mandatory.union(&before);
             }
@@ -553,45 +528,4 @@ fn prepare_pressure(
                 PressureSlot::Continuation => false,
             })
             .is_ok()
-}
-
-/// Tests writes against compiler-owned words without treating source memory as scratch space.
-pub(crate) fn may_overlap(effects: &ModRef, home: super::storage::FrameAddress) -> bool {
-    accesses_overlap(effects.writes(), home)
-}
-
-pub(crate) fn accesses_overlap(accesses: &[Access], home: super::storage::FrameAddress) -> bool {
-    accesses.iter().any(|access| match access {
-        Access::Any(AddressSpace::Memory) => true,
-        Access::Location(Location::Memory(location)) => {
-            if location.size.as_const() == Some(0)
-                || (matches!(home, super::storage::FrameAddress::Relative(_))
-                    && low_memory(location))
-            {
-                return false;
-            }
-            if let Some(size) = location.size.as_const() {
-                let comparable = match (home, location.address.base) {
-                    (super::storage::FrameAddress::Absolute(home), MemoryBase::Absolute) => {
-                        Some(home)
-                    }
-                    (super::storage::FrameAddress::Relative(home), MemoryBase::InternalFrame) => {
-                        Some(home)
-                    }
-                    _ => None,
-                };
-                if let Some(home) = comparable {
-                    return location.address.offset.checked_add(size).is_none_or(|end| end > home)
-                        && home.checked_add(32).is_none_or(|end| end > location.address.offset);
-                }
-            }
-            !matches!(
-                location.address.region,
-                mir::MemoryRegion::Heap
-                    | mir::MemoryRegion::AbiReturn
-                    | mir::MemoryRegion::InternalFrame
-            )
-        }
-        _ => false,
-    })
 }

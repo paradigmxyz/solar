@@ -207,6 +207,8 @@ pub(crate) fn lower(
                 let effects = layouts[id].alias.instruction_mod_ref(function, inst);
                 effects.observes_memory_size()
                     || super::spills::accesses_overlap(
+                        &plan.functions[id],
+                        plan.fixed_memory_end,
                         effects.reads(),
                         super::storage::FrameAddress::Absolute(EvmMemoryLayout::FMP_SLOT),
                     )
@@ -790,7 +792,12 @@ fn save_writer_homes(
     let mut addresses = Vec::new();
     for home in homes {
         let address = context.storage.spill_address(home).map_err(str::to_owned)?;
-        if super::spills::may_overlap(&effects, address) {
+        if super::spills::may_overlap(
+            context.storage,
+            context.plan.fixed_memory_end,
+            &effects,
+            address,
+        ) {
             addresses.push(address);
         }
     }
@@ -800,7 +807,12 @@ fn save_writer_homes(
     {
         for offset in [super::storage::PREVIOUS_FRAME_OFFSET, super::storage::SAVED_FMP_OFFSET] {
             let address = super::storage::FrameAddress::Relative(offset);
-            if super::spills::may_overlap(&effects, address) {
+            if super::spills::may_overlap(
+                context.storage,
+                context.plan.fixed_memory_end,
+                &effects,
+                address,
+            ) {
                 addresses.push(address);
             }
         }
@@ -809,7 +821,12 @@ fn save_writer_homes(
         super::storage::FrameAddress::Absolute(EvmMemoryLayout::INTERNAL_FRAME_PTR_SLOT);
     if control_live
         && context.plan.max_dynamic_frame_size != 0
-        && super::spills::may_overlap(&effects, frame_pointer)
+        && super::spills::may_overlap(
+            context.storage,
+            context.plan.fixed_memory_end,
+            &effects,
+            frame_pointer,
+        )
     {
         addresses.push(frame_pointer);
     }
