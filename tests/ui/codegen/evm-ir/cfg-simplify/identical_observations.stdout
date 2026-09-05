@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/identical_observations.evmir (before cfg-simplify) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/identical_observations.evmir (after cfg-simplify) ===
+  @module IdenticalObservations
+  bb0:
+    calldatasize
+    jumpi bb1, bb2
+  bb1:
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    pc
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

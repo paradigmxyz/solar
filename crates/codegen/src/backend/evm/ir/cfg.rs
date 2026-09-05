@@ -1,7 +1,8 @@
 //! Control-flow simplification, terminal sharing and block placement.
 //!
 //! Simplification forwards empty jumps, removes redundant conditional edges,
-//! merges uniquely entered blocks, and retains the closure of all explicit and
+//! joins identical conditional successors, merges uniquely entered blocks, and
+//! retains the closure of all explicit and
 //! address-taken targets. Unknown computed jumps retain every address-taken block.
 //! Stable block IDs survive all removals and layout changes. Terminal sharing
 //! redirects identical exiting suffixes only when their encoded body exceeds a
@@ -9,8 +10,8 @@
 //! forms unconditional and conditional-false traces, removing their encoded
 //! PUSH/JUMP transfers while keeping cold traces after hot ones. Existing
 //! unconditional trace edges reserve their targets in hotness/reference order,
-//! preventing new conditional traces from stealing their preferred fallthrough. These transforms operate before assembly,
-//! where block references and loop/cold annotations are still explicit.
+//! preventing new conditional traces from stealing their preferred fallthrough. These transforms
+//! operate before assembly, where block references and loop/cold annotations are still explicit.
 
 use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::successors};
 use crate::backend::evm::op;
@@ -111,7 +112,24 @@ fn simplify(module: &mut Module) -> bool {
         let ids = module.block_ids().collect::<Vec<_>>();
         let mut progress = false;
         for &id in &ids {
+            let same_successors =
+                if let TerminatorKind::JumpI(yes, no) = module.blocks[id].terminator.kind {
+                    yes != no
+                        && module.blocks[yes].insts == module.blocks[no].insts
+                        && module.blocks[yes].terminator == module.blocks[no].terminator
+                    && !module.blocks[yes].insts.iter().any(|inst| {
+                        matches!(inst.kind, InstKind::Op(op::PC | op::GAS))
+                    })
+                } else {
+                    false
+                };
             let block = &mut module.blocks[id];
+            // jumpi identical_body, identical_body -> pop; jump identical_body
+            if same_successors && let TerminatorKind::JumpI(yes, _) = block.terminator.kind {
+                block.insts.push(InstKind::Op(op::POP).into());
+                block.terminator = TerminatorKind::Jump(yes).into();
+                progress = true;
+            }
             // jumpi target, target -> pop; jump target
             if let TerminatorKind::JumpI(yes, no) = block.terminator.kind
                 && yes == no
@@ -235,11 +253,9 @@ fn layout(module: &mut Module) -> bool {
             preferred[target].get_or_insert(id);
         }
     }
-    for pair in old.windows(2) {
-        if matches!(module.blocks[pair[0]].terminator.kind,
-            TerminatorKind::JumpI(_, target) if target == pair[1])
-        {
-            preferred[pair[1]].get_or_insert(pair[0]);
+    for &id in &roots {
+        if let TerminatorKind::JumpI(_, target) = module.blocks[id].terminator.kind {
+            preferred[target].get_or_insert(id);
         }
     }
     roots.sort_by_key(|&id| {

@@ -167,6 +167,10 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
             &super::cfg::CfgSimplify,
         ]);
     }
-    passes.extend([&super::cfg::BlockLayout as &dyn EvmPass, &super::legalize::LegalizeShifts]);
+    passes.extend([
+        &super::local::LocalPass("dce") as &dyn EvmPass,
+        &super::cfg::BlockLayout,
+        &super::legalize::LegalizeShifts,
+    ]);
     run_passes(gcx, module, &passes, None)
 }

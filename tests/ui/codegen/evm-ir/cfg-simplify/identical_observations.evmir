@@ -1,0 +1,28 @@
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify
+//@ filecheck:
+@module IdenticalObservations
+
+// Identical physical instructions still observe different program counters.
+// CHECK-LABEL: bb0:
+// CHECK: jumpi bb1, bb2
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+// CHECK-LABEL: bb1:
+// CHECK-NEXT: pc
+bb1:
+  pc
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// CHECK-LABEL: bb2:
+// CHECK-NEXT: pc
+bb2:
+  pc
+  push 0
+  mstore
+  push 32
+  push 0
+  return
