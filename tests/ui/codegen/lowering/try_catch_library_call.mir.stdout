@@ -1,5 +1,9 @@
 // === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:Lib ===
 @module Lib
+@library
+immutables:
+  library_deploy_address: address
+
 fn @direct(arg0: u256, arg1: bool) -> u256 [selector=0x52db6885, pure, abi_params=[u256, bool], abi_returns=[word]] {
   bb0:
     v0 = eq arg1, 0
@@ -64,6 +68,13 @@ fn @revert_error(arg0: u256, arg1: u256) {
     mstore 36, arg0 !metadata(memory=scratch)
     mstore 68, arg1 !metadata(memory=scratch)
     revert 0, 100
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    storeimmutable library_deploy_address, v0
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/try_catch_library_call.sol:C ===

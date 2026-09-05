@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:Math ===
 @module Math
+@library
 
 // === ROOT/tests/ui/codegen/lowering/multi_return_call.sol:C ===
 @module C

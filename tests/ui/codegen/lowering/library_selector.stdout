@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/library_selector.sol:L ===
 @module L
 @phase evm-shaped
+@library
 fn @f() [selector=0xb3de648b, pure] {
   bb0:
     v0 = calldatasize
@@ -15,12 +16,11 @@ fn @f() [selector=0xb3de648b, pure] {
 
 fn @entry() [entry] {
   bb0:
-    v0 = callvalue
-    jumpi v0, bb3, bb1
+    jump bb1
   bb1:
-    v1 = calldataload 0
-    v2 = shr 224, v1
-    switch v2, default bb3, [0xb3de648b => bb2]
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb3, [0xb3de648b => bb2]
   bb2:
     tail_call @f
   bb3:

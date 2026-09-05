@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralLibrary ===
 @module FixedBytesLiteralLibrary
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_literal_contexts.sol:FixedBytesLiteralBase ===
 @module FixedBytesLiteralBase

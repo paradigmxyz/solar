@@ -136,7 +136,11 @@ pub struct Module {
     library_links: Vec<LibraryLink>,
     /// Whether this is an interface (no bytecode generation).
     pub(crate) is_interface: bool,
-    /// Whether this is a library (internal-only libraries have no bytecode).
+    /// Whether this module was lowered from a library.
+    ///
+    /// Library runtime code never checks `callvalue`, since a `DELEGATECALL` sees the
+    /// caller's value, and guards its non-view external functions with
+    /// [`Self::library_deploy_address`].
     pub(crate) is_library: bool,
     /// The lowering phase this module is in.
     pub(crate) phase: MirPhase,
@@ -317,6 +321,26 @@ impl Module {
         self.get_immutable(id).map(|immutable| immutable.ty)
     }
 
+    /// Returns the synthetic immutable holding a library's own deployment address.
+    ///
+    /// It is declared for libraries with non-view external functions, stored by the creation
+    /// code, and compared against `address()` by the dispatch so that those functions only run
+    /// through `DELEGATECALL`. It is never a source variable, and is the only immutable a
+    /// library declares. Textual MIR drops source variables, so a contract's own immutable of
+    /// the same name is told apart by the module not being a library.
+    pub(crate) fn library_deploy_address(&self) -> Option<ImmutableId> {
+        if !self.is_library {
+            return None;
+        }
+        self.immutables
+            .iter_enumerated()
+            .find(|(_, immutable)| {
+                immutable.variable_id.is_none()
+                    && immutable.name.name == sym::library_deploy_address
+            })
+            .map(|(id, _)| id)
+    }
+
     /// Returns the number of immutable declarations.
     #[must_use]
     pub(crate) fn immutable_count(&self) -> usize {
@@ -392,6 +416,9 @@ impl Module {
             writeln!(f, "@module {}", self.name)?;
             if self.phase != MirPhase::default() {
                 writeln!(f, "@phase {}", self.phase.name())?;
+            }
+            if self.is_library {
+                writeln!(f, "@library")?;
             }
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;

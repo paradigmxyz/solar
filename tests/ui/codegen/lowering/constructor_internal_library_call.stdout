@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_library_call.sol:ConstructorLibrary ===
 @module ConstructorLibrary
+@library
 
 // === ROOT/tests/ui/codegen/lowering/constructor_internal_library_call.sol:ConstructorInternalLibraryCall ===
 @module ConstructorInternalLibraryCall

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringRef ===
 @module StorageStringRef
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/storage_string_slot.sol:StorageStringSlot ===
 @module StorageStringSlot

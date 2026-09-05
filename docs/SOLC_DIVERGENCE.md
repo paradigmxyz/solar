@@ -293,16 +293,14 @@ No intentional divergences documented yet.
   the compiler fuses and orders its ABI decoding checks differently from
   solc, so malformed input that fails several checks at once, or that is
   validated lazily on access rather than eagerly, can report a different
-  message than solc. Two messages are never produced: "ABI encoding: array
+  message than solc. One message is never produced: "ABI encoding: array
   data too long", because the encoder has no `2**64` length check when
-  re-encoding calldata arrays, and "Non-view function of library called
-  without DELEGATECALL", because library runtime code does not emit that
-  guard (tracked separately from revert strings). The revert itself, and
-  whether an input is accepted, never depend on the setting. `strip`
-  matches `solc`, and `verboseDebug` is rejected as unimplemented by both
-  compilers.
+  re-encoding calldata arrays. The revert itself, and whether an input is
+  accepted, never depend on the setting. `strip` matches `solc`, and
+  `verboseDebug` is rejected as unimplemented by both compilers.
 - Rationale: the messages are debugging aids. Matching every solc message
   in every edge case would require restructuring the decoder around solc's
   check order, which is not worth worse source or generated code.
 - Coverage: `tests/ui/standard-json/debug/`,
-  `tests/ui/codegen/lowering/revert-strings/`.
+  `tests/ui/codegen/lowering/revert-strings/`,
+  `tests/ui/codegen/lowering/library_delegatecall_guard.sol`.

@@ -1097,6 +1097,7 @@ symbols! {
         keep_with_next,
         layout,
         length,
+        library_deploy_address,
         literal,
         literal_bytes,
         literal_bytes_word,

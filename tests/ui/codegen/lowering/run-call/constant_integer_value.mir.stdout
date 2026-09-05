@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:ConstantMath ===
 @module ConstantMath
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:ConstantIntegerValue ===
 @module ConstantIntegerValue

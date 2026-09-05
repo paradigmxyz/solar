@@ -133,6 +133,8 @@ pub(crate) enum RevertReason {
     SliceStartsAfterEnd,
     /// An external call target has no code.
     TargetContractHasNoCode,
+    /// A non-view library function was called directly instead of through `DELEGATECALL`.
+    LibraryCalledWithoutDelegatecall,
 }
 
 impl RevertReason {
@@ -161,6 +163,9 @@ impl RevertReason {
             Self::SliceGreaterThanLength => "Slice is greater than length",
             Self::SliceStartsAfterEnd => "Slice starts after end",
             Self::TargetContractHasNoCode => "Target contract does not contain code",
+            Self::LibraryCalledWithoutDelegatecall => {
+                "Non-view function of library called without DELEGATECALL"
+            }
         })
     }
 }

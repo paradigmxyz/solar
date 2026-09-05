@@ -1,0 +1,61 @@
+// === ROOT/tests/ui/codegen/lowering/library_delegatecall_guard.sol:Lib ===
+@module Lib
+@library
+immutables:
+  library_deploy_address: address
+
+fn @bump(arg0: storageptr, arg1: u256) -> u256 [selector=0x14f9a01b, abi_params=[storageptr, u256], abi_returns=[word]] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = gt v0, 0xffffffffffffffff
+    jumpi v1, bb1, bb2
+  bb2:
+    v2 = add v0, 1
+    v3 = storage_array_data_slot arg0
+    v4 = add v3, v0
+    sstore v4, arg1 !metadata(storage=symbolic(v4))
+    sstore arg0, v2 !metadata(storage=symbolic(arg0))
+    v5 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v5
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @peek(arg0: storageptr) -> u256 [selector=0xcbdd72a4, view, abi_params=[storageptr], abi_returns=[word]] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v0
+}
+
+fn @twice(arg0: u256) -> u256 [selector=0x3cf3bbf4, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    v0 = mul 2, arg0
+    v1 = iszero arg0
+    v2 = div v0, arg0
+    v3 = eq v2, 2
+    v4 = or v1, v3
+    v5 = iszero v4
+    jumpi v5, bb1, bb2
+  bb2:
+    ret v0
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}
+
+fn @probe() -> (u256, u256) [selector=0xb74af5a9, pure, abi_params=[], abi_returns=[word, word]] {
+  bb0:
+    v0 = msize
+    v1 = mload 128
+    ret v0, v1
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    storeimmutable library_deploy_address, v0
+    ret
+}

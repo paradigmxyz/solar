@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_storage_pointer_return.sol:Lib ===
 @module Lib
+@library
 fn @arrRef(arg0: storageptr) -> storageptr [selector=0x1fbd3e50, pure, abi_params=[storageptr], abi_returns=[word]] {
   bb0:
     ret arg0
