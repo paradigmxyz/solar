@@ -217,12 +217,22 @@ pub(super) fn scheduling_cost(
     version: solar_config::EvmVersion,
     input: &[Instruction],
 ) -> (usize, usize) {
+    let trial = simplify_schedule(version, input);
+    let (bytes, gas) = immediate::cost(version, &trial);
+    (gas, bytes)
+}
+
+/// Simplifies a physical fragment without increasing its required input or stack peak.
+pub(super) fn simplify_schedule(
+    version: solar_config::EvmVersion,
+    input: &[Instruction],
+) -> Vec<Instruction> {
+    // <physical sequence> -> <equivalent locally simplified sequence>
     let mut trial = input.to_vec();
     peephole(&mut trial, version, None);
     dead_copies::eliminate(&mut trial, version);
     dedup_stack(&mut trial, version);
     peephole(&mut trial, version, None);
     normalize(&mut trial, version, None);
-    let (bytes, gas) = immediate::cost(version, &trial);
-    (gas, bytes)
+    trial
 }

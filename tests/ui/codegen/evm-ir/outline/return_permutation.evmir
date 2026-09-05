@@ -1,0 +1,72 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@ filecheck:
+@module ReturnPermutation
+
+bb0:
+  callf !meta(stack=0->1)
+  callvalue
+  jumpi bb1, bb2
+
+// The shared body and its return rotation compose to eight swaps, not sixteen.
+// Counting them separately rejects this profitable two-site computation.
+// CHECK-LABEL: bb1:
+// CHECK: +   push [[CONT1:bb[0-9]+]]
+// CHECK: +   jump [[SHARED:bb[0-9]+]]
+bb1:
+  push 164
+  calldataload
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  push 4
+  swap 7
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  jump bb3
+// CHECK-LABEL: bb2:
+// CHECK: +   push [[CONT2:bb[0-9]+]]
+// CHECK: +   jump [[SHARED]]
+bb2:
+  push 164
+  calldataload
+  push 132
+  calldataload
+  push 100
+  calldataload
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  push 4
+  swap 7
+  swap 1
+  swap 2
+  swap 3
+  swap 4
+  swap 5
+  swap 6
+  swap 7
+  jump bb4
+bb3:
+  callf !meta(stack=8->0)
+  stop
+bb4:
+  callf !meta(stack=8->0)
+  stop
+// CHECK: + [[SHARED]]:
+// CHECK: calldataload
+// CHECK: +   jump

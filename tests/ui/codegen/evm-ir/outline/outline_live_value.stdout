@@ -3,6 +3,26 @@
   @module OutlineLiveValue
   bb0:
     push 1
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
 +   push bb4
 +   swap 1
 +   jump bb3
@@ -17,26 +37,6 @@
 +   swap 1
 +   jump bb3
 + bb3:
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
 +   swap 1
 +   jump
 + bb4:

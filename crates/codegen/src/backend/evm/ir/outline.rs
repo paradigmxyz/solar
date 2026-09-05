@@ -10,7 +10,10 @@
 //! most sixteen input/output words are accepted. Disjoint occurrences share a
 //! block entered with a continuation below their inputs, and the return rotation
 //! preserves all outputs. An encoded-size model charges every call, return and
-//! continuation label before selecting candidates. Incremental hashes enumerate
+//! continuation label before selecting candidates. Size mode simplifies each
+//! complete shared body including its return rotation, and charges and emits
+//! that exact sequence so cancellation at their boundary earns its byte savings.
+//! Incremental hashes enumerate
 //! one window length at a time, retaining the full search with storage linear
 //! in original instruction count. Gas mode applies only the
 //! best candidate. Size mode retains at most 64 candidates and selects at most
@@ -108,21 +111,23 @@ impl EvmPass for Outline {
                     continue;
                 }
                 let bytes = body.iter().map(|inst| size(gcx, inst)).sum::<usize>();
-                let overhead = sites.len() * (6 + inputs) + outputs + 2;
-                let savings = bytes * (sites.len() - 1);
-                if savings < overhead + 8 {
+                let stub = returning_body(gcx, &body, outputs);
+                let before = bytes * sites.len();
+                let after = stub.iter().map(|inst| size(gcx, inst)).sum::<usize>()
+                    + sites.len() * (6 + inputs) + 2;
+                if before < after + 8 {
                     continue;
                 }
                 let score =
                     (
-                        (savings - overhead).saturating_sub(
+                        (before - after).saturating_sub(
                             if gcx.sess.opts.optimization.is_gas() { sites.len() * 8 } else { 0 },
                         ),
                         body.len(),
                         usize::MAX - sites[0].id.index(),
                         usize::MAX - sites[0].start,
                     );
-                retain_candidate(&mut ranked, (score, body, sites, inputs, outputs), limit);
+                retain_candidate(&mut ranked, (score, stub, sites, inputs), limit);
             }
         }
         if let Some(parameterized) = parameterized(gcx, module, &heights, &reachable) {
@@ -134,16 +139,12 @@ impl EvmPass for Outline {
         }
         let mut stubs = Vec::new();
         let mut calls = Vec::new();
-        for (_, body, sites, inputs, outputs) in selected {
-            let mut stub = Block {
+        for (_, body, sites, inputs) in selected {
+            let stub = Block {
                 insts: body.into_iter().map(Into::into).collect(),
                 terminator: TerminatorKind::DynamicJump.into(),
                 ..Block::default()
             };
-            // continuation outputs -> outputs continuation; jump
-            for depth in 1..=outputs {
-                stub.insts.push(InstKind::Swap(depth as u16).into());
-            }
             let stub_id = module.append_block(stub);
             stubs.push(stub_id);
             calls.extend(sites.into_iter().map(|site| (site, stub_id, inputs)));
@@ -246,6 +247,18 @@ fn size(gcx: Gcx<'_>, inst: &InstKind) -> usize {
     }
 }
 
+/// Builds the exact shared sequence used by both profitability and emission.
+fn returning_body(gcx: Gcx<'_>, body: &[InstKind], outputs: usize) -> Vec<InstKind> {
+    // continuation inputs; body -> continuation outputs
+    // swap1; ...; swap outputs -> outputs continuation
+    let mut stub = body.iter().cloned().map(Into::into).collect::<Vec<_>>();
+    stub.extend((1..=outputs).map(|depth| InstKind::Swap(depth as u16).into()));
+    if gcx.sess.opts.optimization.is_size() {
+        stub = super::local::simplify_schedule(gcx.sess.opts.evm_version, &stub);
+    }
+    stub.into_iter().map(|inst| inst.kind).collect()
+}
+
 fn contract(body: &[InstKind]) -> Option<(usize, usize)> {
     let mut height = 0isize;
     let mut needed = 0isize;
@@ -267,7 +280,7 @@ fn contract(body: &[InstKind]) -> Option<(usize, usize)> {
     if needed > 16 || outputs > 16 { None } else { Some((needed as usize, outputs as usize)) }
 }
 
-type Candidate = ((usize, usize, usize, usize), Vec<InstKind>, Vec<Site>, usize, usize);
+type Candidate = ((usize, usize, usize, usize), Vec<InstKind>, Vec<Site>, usize);
 
 fn retain_candidate(ranked: &mut Vec<Candidate>, candidate: Candidate, limit: usize) {
     let index = ranked.partition_point(|old| old.0 >= candidate.0);
@@ -400,17 +413,17 @@ fn parameterized(
             .flat_map(|site| site.parameters.iter())
             .map(|value| size(gcx, &InstKind::Push(*value)))
             .sum::<usize>();
-        let after = skeleton.iter().map(|inst| size(gcx, inst)).sum::<usize>()
+        let stub = returning_body(gcx, &skeleton, outputs);
+        let after = stub.iter().map(|inst| size(gcx, inst)).sum::<usize>()
             + parameter_cost
             + sites.len() * (6 + parameters)
-            + outputs
             + 2;
         if before < after + 8 {
             continue;
         }
         let score = (before - after, skeleton.len(), usize::MAX - sites[0].id.index(), usize::MAX);
         if best.as_ref().is_none_or(|old: &Candidate| score > old.0) {
-            best = Some((score, skeleton, sites, parameters, outputs));
+            best = Some((score, stub, sites, parameters));
         }
     }
     best

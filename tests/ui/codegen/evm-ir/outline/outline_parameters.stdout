@@ -80,31 +80,30 @@
 +   swap 1
 +   jump bb4
   bb3:
-+   push 8
-    push 7
+-   push 7
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
+    push 8
++   push 7
 +   push bb8
 +   swap 2
 +   swap 1
 +   jump bb4
 + bb4:
-    not
-    not
-    not
-    not
-    not
-    not
-    not
-    not
--   push 8
-+   swap 1
     add
     not
-    not
-    not
-    not
-    not
-    not
-    not
+-   not
+-   not
+-   not
+-   not
+-   not
+-   not
     pop
 +   jump
 + bb5:

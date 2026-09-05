@@ -1,0 +1,79 @@
+- // === ROOT/tests/ui/codegen/evm-ir/outline/return_permutation.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/return_permutation.evmir (after outline) ===
+  @module ReturnPermutation
+  bb0:
+    callf !meta(stack=0->1)
+    callvalue
+    jumpi bb1, bb2
+  bb1:
++   push bb6
++   swap 1
++   jump bb5
++ bb2:
++   push bb7
++   swap 1
++   jump bb5
++ bb3:
++   callf !meta(stack=8->0)
++   stop
++ bb4:
++   callf !meta(stack=8->0)
++   stop
++ bb5:
+    push 164
+    calldataload
+    push 132
+    calldataload
+    push 100
+    calldataload
+    push 68
+    calldataload
+    push 36
+    calldataload
+    push 4
+    calldataload
+    push 4
+-   swap 7
+    swap 1
+-   swap 2
+    swap 3
+-   swap 4
+    swap 5
+-   swap 6
+    swap 7
+-   jump bb3
+- bb2:
+-   push 164
+-   calldataload
+-   push 132
+-   calldataload
+-   push 100
+-   calldataload
+-   push 68
+-   calldataload
+-   push 36
+-   calldataload
+-   push 4
+-   calldataload
+-   push 4
+-   swap 7
+-   swap 1
+    swap 2
+-   swap 3
+    swap 4
+-   swap 5
+    swap 6
+-   swap 7
++   swap 8
++   jump
++ bb6:
++   jump bb3
++ bb7:
+    jump bb4
+- bb3:
+-   callf !meta(stack=8->0)
+-   stop
+- bb4:
+-   callf !meta(stack=8->0)
+-   stop
+  
