@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-cse/unknown_prefix.evmir (before block-cse) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-cse/unknown_prefix.evmir (after block-cse) ===
+  @module UnknownPrefix
+  bb0:
+    callf !meta(stack=0->1)
+    push 42
+    swap 1
+    push 42
+    push 64
+    mstore
+    stop
+  

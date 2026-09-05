@@ -1,0 +1,17 @@
+//@compile-flags: -Zevm-ir-pipeline=stack-dedup
+//@filecheck:
+@module UnknownPrefix
+
+// SWAP imports an unknown incoming value into the tracked suffix. Its copy
+// must not inherit the zero fact from the previous top word.
+// CHECK-LABEL: bb0:
+// CHECK: swap 1
+// CHECK-NEXT: dup 1
+bb0:
+  callf !meta(stack=0->1)
+  push 0
+  swap 1
+  dup 1
+  push 64
+  mstore
+  stop

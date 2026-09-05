@@ -1,0 +1,401 @@
+//! Physical stack run simplification and self-contained expression ordering.
+//!
+//! Symbolic execution tracks equal stack identities through DUP/SWAP/EXCHANGE.
+//! Normalization compares the checked private scheduler, a prefix-first placement,
+//! and a search bounded to three operations over four incoming words. It accepts
+//! only a smaller equivalent sequence with no increased input access or peak.
+//! Reordering moves a literal across only
+//! a self-contained pure expression to remove its final swap. Unknown effects
+//! and noncanonical metadata bound each local analysis; no CFG edge is crossed.
+
+use super::super::{InstKind, Instruction, immediate, verify};
+use super::{canonical, discardable_push, pure, rewrite, stack_usage};
+use crate::backend::evm::{op, scheduler::Stack};
+use alloy_primitives::U256;
+use solar_config::EvmVersion;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
+use std::collections::VecDeque;
+
+pub(super) fn stack_step(values: &mut Vec<usize>, kind: &InstKind) -> bool {
+    let len = values.len();
+    match *kind {
+        InstKind::Dup(depth) if usize::from(depth) <= len && depth > 0 => {
+            values.push(values[len - usize::from(depth)])
+        }
+        InstKind::Swap(depth) if usize::from(depth) < len && depth > 0 => {
+            values.swap(len - 1, len - 1 - usize::from(depth))
+        }
+        InstKind::Exchange(a, b) if usize::from(a.max(b)) < len => {
+            values.swap(len - 1 - usize::from(a), len - 1 - usize::from(b))
+        }
+        InstKind::Op(op::POP) if len > 0 => {
+            values.pop();
+        }
+        _ => return false,
+    }
+    true
+}
+
+pub(super) fn normalize(insts: &mut Vec<Instruction>, version: EvmVersion, entry_max: Option<usize>) -> bool {
+    let mut changed = false;
+    let mut start = 0;
+    while start < insts.len() {
+        let mut end = start;
+        let mut values = (0..version.reachable_stack_depth() + 1).collect::<Vec<_>>();
+        let initial = values.clone();
+        while end < insts.len()
+            && canonical(&insts[end])
+            && stack_step(&mut values, &insts[end].kind)
+        {
+            end += 1;
+        }
+        if end > start {
+            let original = &insts[start..end];
+            let room = entry_max.and_then(|entry| {
+                let (_, delta, _) = stack_usage(&insts[..start])?;
+                1024i64.checked_sub(entry as i64 + delta)
+            });
+            let mut best = original.to_vec();
+            let mut consider = |candidate: Option<Vec<Instruction>>| {
+                if let Some(candidate) = candidate
+                    && stack_usage(&candidate)
+                        .zip(stack_usage(original))
+                        .is_some_and(|(new, old)| new.0 <= old.0 && (new.2 <= old.2 || room.is_some_and(|room| new.2 <= room)))
+                {
+                    let new = immediate::cost(version, &candidate);
+                    let old = immediate::cost(version, &best);
+                    if new.0 <= old.0 && new.1 <= old.1 && new != old {
+                        best = candidate;
+                    }
+                }
+            };
+            let mut stack = Stack::new(initial.clone());
+            consider(stack.reconcile(&values, 0, version).ok());
+            consider(place_then_pop(&initial, &values, version));
+            consider(short_plan(original, version, room));
+            if best != original {
+                let len = best.len();
+                // <stack-only run> -> <cheaper equivalent physical stack schedule>
+                changed |= rewrite(insts, start, end - start, best);
+                end = start + len;
+            }
+        }
+        start = end.max(start + 1);
+    }
+    changed
+}
+
+pub(super) fn dedup_stack(insts: &mut Vec<Instruction>, version: EvmVersion) -> bool {
+    let mut zeros = FxHashSet::default();
+    let mut values = Vec::new();
+    let mut next = 0;
+    let mut changed = false;
+    let mut index = 0;
+    while index < insts.len() {
+        let before = values.clone();
+        if let InstKind::Dup(depth) = insts[index].kind
+            && canonical(&insts[index])
+            && version.has_push0()
+            && usize::from(depth) <= values.len()
+            && depth > 0
+            && zeros.contains(&values[values.len() - usize::from(depth)])
+        {
+            // dup <known zero> -> push0
+            insts[index] = InstKind::Push(U256::ZERO).into();
+            changed = true;
+        }
+        let inst = &insts[index];
+        if !canonical(inst) {
+            values.clear();
+        } else if stack_step(&mut values, &inst.kind) {
+            if before == values && matches!(inst.kind, InstKind::Swap(_) | InstKind::Exchange(..)) {
+                // <permutation of equal identities> -> identity
+                insts.remove(index);
+                changed = true;
+                continue;
+            }
+        } else if matches!(inst.kind, InstKind::Dup(_) | InstKind::Swap(_) | InstKind::Exchange(..)) {
+            // An inaccessible physical permutation can replace every tracked
+            // suffix identity with an unknown incoming word.
+            values.clear();
+        } else if let Some((inputs, outputs)) = verify::effect(&inst.kind) {
+            if usize::from(inputs) > values.len() {
+                values.clear();
+            } else {
+                values.truncate(values.len() - usize::from(inputs));
+            }
+            for _ in 0..outputs {
+                if matches!(inst.kind, InstKind::Push(value) if value.is_zero())
+                    || matches!(inst.kind, InstKind::Op(op::PUSH0))
+                {
+                    zeros.insert(next);
+                }
+                values.push(next);
+                next += 1;
+            }
+        } else {
+            values.clear();
+        }
+        index += 1;
+    }
+    changed
+}
+
+pub(super) fn reorder(
+    insts: &mut Vec<Instruction>,
+    version: EvmVersion,
+    entry_max: Option<usize>,
+    copies_only: bool,
+) -> bool {
+    let mut changed = false;
+    let mut index = 2;
+    while index < insts.len() {
+        if canonical(&insts[index])
+            && matches!(insts[index].kind, InstKind::Swap(1))
+            && canonical(&insts[index - 1])
+            && movable_push(&insts[index - 1].kind)
+        {
+            let mut start = index - 1;
+            let mut required = 1;
+            while start > 0 && required > 0 {
+                let inst = &insts[start - 1];
+                if !canonical(inst) {
+                    break;
+                }
+                if movable_push(&inst.kind) || matches!(inst.kind, InstKind::Dup(_)) {
+                    required -= 1;
+                } else if let InstKind::Op(code) = inst.kind
+                    && movable_read(code)
+                    && let Some((inputs, 1)) = op::stack_io(code)
+                {
+                    required = required - 1 + usize::from(inputs);
+                } else {
+                    break;
+                }
+                start -= 1;
+            }
+            if required == 0
+                && (!copies_only || insts[start..index - 1].iter().any(|inst| matches!(inst.kind, InstKind::Dup(_))))
+            {
+                let mut replacement = vec![insts[index - 1].clone()];
+                let mut local_height = 0usize;
+                let mut valid = true;
+                for inst in &insts[start..index - 1] {
+                    let mut inst = inst.clone();
+                    if let InstKind::Dup(depth) = &mut inst.kind
+                        && usize::from(*depth) > local_height
+                    {
+                        *depth += 1;
+                        valid &= usize::from(*depth) <= version.reachable_stack_depth();
+                    }
+                    if let Some((inputs, outputs)) = verify::effect(&inst.kind) {
+                        local_height =
+                            local_height.saturating_sub(usize::from(inputs)) + usize::from(outputs);
+                    }
+                    replacement.push(inst);
+                }
+                let original_peak = relative_usage(&insts[start..=index]).map(|(_, peak)| peak);
+                let candidate_peak = relative_usage(&replacement).map(|(_, peak)| peak);
+                let headroom = entry_max
+                    .and_then(|entry| {
+                        let (delta, _) = relative_usage(&insts[..start])?;
+                        1024i64.checked_sub(i64::try_from(entry).ok()?.checked_add(delta)?)
+                    })
+                    .or_else(|| {
+                        let (_, peak) = relative_usage(insts)?;
+                        let (delta, _) = relative_usage(&insts[..start])?;
+                        Some(peak - delta)
+                    })
+                    .or(original_peak);
+                if valid && candidate_peak.zip(headroom).is_some_and(|(peak, room)| peak <= room) {
+                    // <producer>; push b; swap1 -> push b; <producer with rebased prefix reads>
+                    insts.splice(start..=index, replacement);
+                    changed = true;
+                    index = start + 1;
+                }
+            }
+        }
+        index += 1;
+    }
+    changed
+}
+
+fn movable_push(kind: &InstKind) -> bool {
+    discardable_push(kind) || matches!(kind, InstKind::PushDeferred(_))
+}
+
+fn movable_read(opcode: u8) -> bool {
+    pure(opcode)
+        || matches!(
+            opcode,
+            op::ADDRESS
+                | op::BALANCE
+                | op::ORIGIN
+                | op::CALLER
+                | op::CALLVALUE
+                | op::CALLDATALOAD
+                | op::CALLDATASIZE
+                | op::CODESIZE
+                | op::GASPRICE
+                | op::EXTCODESIZE
+                | op::RETURNDATASIZE
+                | op::EXTCODEHASH
+                | op::BLOCKHASH
+                | op::COINBASE
+                | op::TIMESTAMP
+                | op::NUMBER
+                | op::PREVRANDAO
+                | op::GASLIMIT
+                | op::CHAINID
+                | op::SELFBALANCE
+                | op::BASEFEE
+                | op::BLOBHASH
+                | op::BLOBBASEFEE
+                | op::SLOTNUM
+                | op::MLOAD
+                | op::SLOAD
+                | op::TLOAD
+                | op::MSIZE
+                | op::KECCAK256
+        )
+}
+
+fn relative_usage(insts: &[Instruction]) -> Option<(i64, i64)> {
+    stack_usage(insts).map(|(_, delta, peak)| (delta, peak))
+}
+
+/// Places the surviving prefix first, so a discarded suffix needs only POPs.
+fn place_then_pop(
+    initial: &[usize],
+    desired: &[usize],
+    version: EvmVersion,
+) -> Option<Vec<Instruction>> {
+    let mut values = initial.to_vec();
+    let mut output = Vec::new();
+    for (index, &value) in desired.iter().enumerate() {
+        if values.get(index) == Some(&value) {
+            continue;
+        }
+        if let Some(source) = values
+            .iter()
+            .enumerate()
+            .skip(index)
+            .find_map(|(i, &other)| (other == value).then_some(i))
+        {
+            // swap source; swap destination
+            for position in [source, index] {
+                let top = values.len() - 1;
+                let depth = top - position;
+                if depth > version.reachable_stack_depth() {
+                    return None;
+                }
+                if depth > 0 {
+                    values.swap(top, position);
+                    output.push(InstKind::Swap(depth as u16).into());
+                }
+            }
+        } else {
+            let source = values.iter().rposition(|&other| other == value)?;
+            let depth = values.len() - source;
+            if depth > version.reachable_stack_depth() || values.len() == 1024 {
+                return None;
+            }
+            // dup source
+            // swap destination (when filling a hole rather than appending)
+            values.push(value);
+            output.push(InstKind::Dup(depth as u16).into());
+            let top = values.len() - 1;
+            if top > index {
+                if top - index > version.reachable_stack_depth() {
+                    return None;
+                }
+                values.swap(top, index);
+                output.push(InstKind::Swap((top - index) as u16).into());
+            }
+        }
+    }
+    // pop <discarded suffix>
+    while values.len() > desired.len() {
+        values.pop();
+        output.push(InstKind::Op(op::POP).into());
+    }
+    (values == desired).then_some(output)
+}
+
+/// Searches at most three instructions over at most four incoming words.
+fn short_plan(original: &[Instruction], version: EvmVersion, room: Option<i64>) -> Option<Vec<Instruction>> {
+    let (required, _, peak) = stack_usage(original)?;
+    let required = usize::try_from(required).ok()?;
+    if required > 4 || original.len() < 2 {
+        return None;
+    }
+    let initial = (0..required).collect::<Vec<_>>();
+    let mut desired = initial.clone();
+    for inst in original {
+        if !stack_step(&mut desired, &inst.kind) {
+            return None;
+        }
+    }
+    let max_height = required + usize::try_from(room.unwrap_or(peak).min(3).max(peak)).ok()?;
+    let old_cost = immediate::cost(version, original);
+    let mut queue = VecDeque::from([(initial.clone(), Vec::<Instruction>::new())]);
+    let mut seen = FxHashMap::default();
+    seen.insert(initial, (0, 0));
+    let mut best = None::<Vec<Instruction>>;
+    while let Some((state, prefix)) = queue.pop_front() {
+        if state == desired {
+            let cost = immediate::cost(version, &prefix);
+            if cost.0 <= old_cost.0
+                && cost.1 <= old_cost.1
+                && cost != old_cost
+                && best.as_ref().is_none_or(|best| cost < immediate::cost(version, best))
+            {
+                best = Some(prefix);
+            }
+            continue;
+        }
+        if prefix.len() == 3 {
+            continue;
+        }
+        let mut operations = Vec::new();
+        if !state.is_empty() {
+            operations.push(InstKind::Op(op::POP));
+        }
+        for depth in 1..=state.len().min(version.reachable_stack_depth()) {
+            if state.len() < max_height {
+                operations.push(InstKind::Dup(depth as u16));
+            }
+            if depth < state.len() {
+                operations.push(InstKind::Swap(depth as u16));
+            }
+        }
+        if version.has_extended_stack_ops() {
+            for a in 1..state.len() {
+                for b in a + 1..state.len() {
+                    if op::encode_exchange(a as u16, b as u16).is_some() {
+                        operations.push(InstKind::Exchange(a as u16, b as u16));
+                    }
+                }
+            }
+        }
+        for operation in operations {
+            let mut next = state.clone();
+            if !stack_step(&mut next, &operation) {
+                continue;
+            }
+            let mut sequence = prefix.clone();
+            // <search prefix>; <one legal physical stack operation>
+            sequence.push(operation.into());
+            let cost = immediate::cost(version, &sequence);
+            if cost.0 > old_cost.0
+                || cost.1 > old_cost.1
+                || seen.get(&next).is_some_and(|&prior| prior <= cost)
+            {
+                continue;
+            }
+            seen.insert(next.clone(), cost);
+            queue.push_back((next, sequence));
+        }
+    }
+    best
+}

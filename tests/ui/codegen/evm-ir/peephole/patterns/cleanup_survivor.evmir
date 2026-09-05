@@ -1,0 +1,30 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@ filecheck:
+@module CleanupSurvivor
+
+// The second swap's result is stored, so it cannot be merged into the first
+// swap as though a final POP discarded that value. The stores receive 1, 2, 6.
+// CHECK-LABEL: bb0:
+// CHECK: swap 3
+// CHECK: swap 2
+// CHECK-NEXT: push 0
+// CHECK-NEXT: mstore
+bb0:
+  push 1
+  push 2
+  push 3
+  push 4
+  push 5
+  push 6
+  swap 3
+  pop
+  pop
+  pop
+  swap 2
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  mstore
+  stop

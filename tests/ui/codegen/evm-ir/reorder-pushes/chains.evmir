@@ -32,10 +32,12 @@ bb1:
   sub
   stop
 
-// Reorder a deep producer like every other closed expression.
+// This producer reaches 1024 words. Moving the literal before it would
+// transiently require 1025, so keep the original order.
 // CHECK-LABEL: {{^[ +].*}}bb2:
-// CHECK: +   push 1
-// CHECK: -   swap 1
+// CHECK: {{^    }}add
+// CHECK-NEXT: {{^    }}push 1
+// CHECK-NEXT: {{^    }}swap 1
 bb2:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)
@@ -50,11 +52,13 @@ bb2:
   sub
   stop
 
-// Chained rewrites move every immediate before the shared producer.
+// One moved literal fits at exactly 1024 words; moving the second would
+// require 1025. Preserve the second swap instead of overflowing the stack.
 // CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: +   push 1
-// CHECK: +   push 2
 // CHECK: -   swap 1
+// CHECK-NEXT: {{^    }}push 2
+// CHECK-NEXT: {{^    }}swap 1
 bb3:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)

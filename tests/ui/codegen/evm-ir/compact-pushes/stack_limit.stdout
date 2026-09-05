@@ -1,0 +1,25 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir (after compact-pushes) ===
+  @module CompactStackLimit
+  bb0:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
+    push 0
+    push 0
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    pop
+    pop
+    pop
+    jump bb1
+  bb1:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    stop
+  

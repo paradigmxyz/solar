@@ -62,10 +62,11 @@ bb5:
   sar
   stop
 
+// The literal equality folds completely to zero.
 // CHECK-LABEL: {{^[ +].*}}bb6:
-// CHECK: {{^[ +].*}}push 2
-// CHECK: - push 0
-// CHECK: + iszero
+// CHECK: - push 2
+// CHECK-NEXT: {{^[ +].*}}push 0
+// CHECK-NEXT: - eq
 bb6:
   push 2
   push 0

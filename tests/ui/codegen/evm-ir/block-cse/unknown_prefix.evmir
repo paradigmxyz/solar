@@ -1,0 +1,17 @@
+//@compile-flags: -Zevm-ir-pipeline=block-cse
+//@filecheck:
+@module UnknownPrefix
+
+// SWAP replaces the known literal with an unknown incoming value. A later
+// matching literal must remain a literal rather than copy that unknown value.
+// CHECK-LABEL: bb0:
+// CHECK: swap 1
+// CHECK-NEXT: push 42
+bb0:
+  callf !meta(stack=0->1)
+  push 42
+  swap 1
+  push 42
+  push 64
+  mstore
+  stop

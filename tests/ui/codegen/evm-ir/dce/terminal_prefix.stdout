@@ -1,0 +1,25 @@
+- // === ROOT/tests/ui/codegen/evm-ir/dce/terminal_prefix.evmir (before dce) ===
++ // === ROOT/tests/ui/codegen/evm-ir/dce/terminal_prefix.evmir (after dce) ===
+  @module TerminalPrefix
+  bb0:
+    push 42
+    push bb1
+    jump
+  bb1:
+-   pop
+    push 7
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->4)
+    pop
+    push 0
+    selfdestruct
+  

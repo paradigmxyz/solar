@@ -38,16 +38,17 @@
     push 13
     push 14
     push 15
-    swap 1
-    swap 2
-    swap 1
-    swap 3
-    swap 4
-    swap 5
-    swap 3
 -   swap 1
 -   swap 2
 -   swap 1
+-   swap 3
+    swap 4
+    swap 5
+    swap 3
++   swap 4
+    swap 1
+    swap 2
+    swap 1
 -   swap 2
 -   swap 1
 -   swap 2

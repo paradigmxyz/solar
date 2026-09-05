@@ -57,13 +57,13 @@ bb2:
 // Resynthesize multiple cycles in a larger unique permutation with minimal star swaps.
 // CHECK-LABEL: {{^[ +].*}}bb3:
 // CHECK: {{^[ +].*}}push 15
+// CHECK: {{^[ +].*}}swap 4
+// CHECK-NEXT: {{^[ +].*}}swap 5
+// CHECK-NEXT: {{^[ +].*}}swap 3
+// CHECK-NEXT: {{^[ +].*}}swap 4
 // CHECK-NEXT: {{^[ +].*}}swap 1
 // CHECK-NEXT: {{^[ +].*}}swap 2
 // CHECK-NEXT: {{^[ +].*}}swap 1
-// CHECK-NEXT: {{^[ +].*}}swap 3
-// CHECK-NEXT: {{^[ +].*}}swap 4
-// CHECK-NEXT: {{^[ +].*}}swap 5
-// CHECK-NEXT: {{^[ +].*}}swap 3
 // CHECK: {{^[ +].*}}stop
 bb3:
   push 9

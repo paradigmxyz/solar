@@ -27,9 +27,10 @@ bb0:
 // Preserve the produced value while removing the dead saved operand.
 // COMMON-LABEL: {{^[ +].*}}bb1:
 // COMMON: -   dup 1
-// COMMON: {{^[ +].*}}add
+// COMMON: -   add
 // COMMON: -   swap 1
 // COMMON: -   pop
+// COMMON: +   push 8
 bb1:
   push 7
   dup 1
@@ -66,8 +67,8 @@ bb2:
 // GAS: -   swap 1
 // SIZE-LABEL: {{^[ +].*}}bb3:
 // SIZE: {{^[ +].*}}dup 1
-// SIZE-NEXT: {{^[ +].*}}dup 2
-// SIZE: {{^[ +].*}}swap 1
+// SIZE-NEXT: -   dup 2
+// SIZE: -   swap 1
 bb3:
   push 1
   push 2
@@ -121,12 +122,11 @@ bb7:
   mstore
   stop
 
-// Preserve two results with one shallower swap.
+// Remove a permutation whose complete affected suffix is discarded.
 // COMMON-LABEL: {{^[ +].*}}bb8:
 // COMMON: -   dup 1
 // COMMON: -   swap 2
-// COMMON: +   swap 1
-// COMMON: -   pop
+// COMMON: {{^[ +].*}}pop
 bb8:
   push 7
   dup 1
@@ -144,7 +144,7 @@ bb8:
 // COMMON-LABEL: {{^[ +].*}}bb9:
 // COMMON: -   dup 1
 // COMMON: -   pop
-// COMMON: {{^[ +].*}}swap 3
+// COMMON: -   swap 3
 bb9:
   push 7
   dup 1
@@ -174,14 +174,14 @@ bb10:
   op_0c !meta(stack=0->0)
   stop
 
-// Adjust a deeper read across the omitted original.
+// The deeper read feeds only a discarded calculation, so remove the region.
 // GAS-LABEL: {{^[ +].*}}bb11:
 // GAS: -   dup 1
 // GAS: -   dup 3
-// GAS: +   dup 2
+// GAS: -   add
 // SIZE-LABEL: {{^[ +].*}}bb11:
-// SIZE: {{^[ +].*}}dup 1
-// SIZE: {{^[ +].*}}dup 3
+// SIZE: -   dup 1
+// SIZE: -   dup 3
 bb11:
   push 7
   dup 1
@@ -225,10 +225,10 @@ bb13:
   op_0c !meta(stack=0->0)
   stop
 
-// Keep a deeper copy when it is consumed as an operand.
+// A copied operand and its calculation are both unobserved at the opaque marker.
 // COMMON-LABEL: {{^[ +].*}}bb14:
-// COMMON: {{^[ +].*}}dup 2
-// COMMON: {{^[ +].*}}add
+// COMMON: -   dup 2
+// COMMON: -   add
 bb14:
   push 1
   push 2
@@ -267,7 +267,7 @@ bb16:
 // COMMON: -   dup 1
 // COMMON-NEXT: -   exchange 1, 2
 // COMMON-NEXT: -   pop
-// COMMON-NEXT: +   swap 1
+// COMMON-NEXT: {{^[ +].*}}op_0c
 bb17:
   push 1
   dup 1

@@ -1,0 +1,12 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-dedup/unknown_prefix.evmir (before stack-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-dedup/unknown_prefix.evmir (after stack-dedup) ===
+  @module UnknownPrefix
+  bb0:
+    callf !meta(stack=0->1)
+    push 0
+    swap 1
+    dup 1
+    push 64
+    mstore
+    stop
+  

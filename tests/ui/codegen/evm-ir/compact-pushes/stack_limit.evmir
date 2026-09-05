@@ -1,0 +1,34 @@
+//@ compile-flags: -Zevm-ir-pipeline=compact-pushes
+//@ filecheck:
+@module CompactStackLimit
+
+// A one-word literal fits at height 1023. A shift-based materialization would
+// transiently need a second word and overflow the operand stack.
+// CHECK-LABEL: bb0:
+// CHECK: push 0xffffffffffffffffffffffffffffffffffffffff
+// CHECK-NOT: shr
+// CHECK: jump bb1
+bb0:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push 0
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  pop
+  pop
+  pop
+  jump bb1
+
+// The incoming prefix is now shorter, so the same compact form is safe.
+// CHECK-LABEL: bb1:
+// CHECK: {{^[ +].*}}push 0{{$}}
+// CHECK-NEXT: {{^[ +].*}}not
+// CHECK-NEXT: {{^[ +].*}}push 96
+// CHECK-NEXT: {{^[ +].*}}shr
+bb1:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  stop

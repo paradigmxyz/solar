@@ -12,12 +12,13 @@
 -   pop
     stop
   bb1:
-    push 7
+-   push 7
 -   dup 1
-    push 1
-    add
+-   push 1
+-   add
 -   swap 1
 -   pop
++   push 8
     push 0
     mstore
     stop
@@ -35,11 +36,11 @@
     push 1
     push 2
     dup 1
-    dup 2
+-   dup 2
     add
-    swap 1
+-   swap 1
     pop
-    pop
+-   pop
     op_0c !meta(stack=0->0)
     stop
   bb4:
@@ -69,14 +70,13 @@
   bb8:
     push 7
 -   dup 1
-    pop
+-   pop
     caller
     callvalue
 -   swap 2
-+   swap 1
     pop
     pop
--   pop
+    pop
     op_0c !meta(stack=0->0)
     stop
   bb9:
@@ -86,7 +86,7 @@
     caller
     callvalue
     origin
-    swap 3
+-   swap 3
     pop
     pop
     pop
@@ -95,22 +95,22 @@
     stop
   bb10:
     push 1
-    push 2
+-   push 2
 -   dup 2
 -   swap 1
-    pop
+-   pop
 -   pop
     op_0c !meta(stack=0->0)
     stop
   bb11:
-    push 7
-    dup 1
-    push 1
-    dup 3
-    add
-    pop
-    pop
-    pop
+-   push 7
+-   dup 1
+-   push 1
+-   dup 3
+-   add
+-   pop
+-   pop
+-   pop
     op_0c !meta(stack=0->0)
     stop
   bb12:
@@ -135,12 +135,12 @@
     op_0c !meta(stack=0->0)
     stop
   bb14:
-    push 1
-    push 2
-    dup 2
-    add
-    pop
-    pop
+-   push 1
+-   push 2
+-   dup 2
+-   add
+-   pop
+-   pop
     op_0c !meta(stack=0->0)
     stop
   bb15:
@@ -164,7 +164,6 @@
 -   dup 1
 -   exchange 1, 2
 -   pop
-+   swap 1
     op_0c !meta(stack=0->0)
     stop
   

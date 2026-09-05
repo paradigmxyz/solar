@@ -1,0 +1,36 @@
+//@compile-flags: -Zevm-ir-pipeline=dce
+//@filecheck:
+@module TerminalPrefix
+
+bb0:
+  push 42
+  push bb1
+  jump
+
+// The incoming selector can remain below the independent return body.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: -   pop
+// CHECK: {{^[ +].*}}mstore
+bb1:
+  pop
+  push 7
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Keeping this discarded word would overflow while pushing the beneficiary.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^    }}pop
+// CHECK-NEXT: {{^    }}push 0
+// CHECK-NEXT: {{^    }}selfdestruct
+bb2:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->4)
+  pop
+  push 0
+  selfdestruct

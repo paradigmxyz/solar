@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/cleanup_survivor.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/cleanup_survivor.evmir (after peephole) ===
+  @module CleanupSurvivor
+  bb0:
+    push 1
+    push 2
+    push 3
+    push 4
+    push 5
+    push 6
+    swap 3
+    pop
+    pop
+    pop
+    swap 2
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    stop
+  

@@ -49,9 +49,10 @@ bb4:
   swap 2
   stop
 
+// Cancellation exposes a constant predicate, which folds completely.
 // CHECK-LABEL: {{^[ +].*}}bb5:
-// CHECK: {{^[ +].*}}iszero
-// CHECK-COUNT-2: - iszero
+// CHECK-COUNT-3: - iszero
+// CHECK-NEXT: + push 0
 bb5:
   push 1
   iszero

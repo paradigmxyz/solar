@@ -95,14 +95,14 @@ bb5:
   mstore
   stop
 
-// Reuse the stored value instead of loading it again.
+// A saved copy would push the store address at height 1025. Keep the reload
+// so the original sequence remains executable at its 1024-word peak.
 // CHECK-LABEL: {{^[ +].*}}bb6:
-// CHECK: {{^[ +].*}}push 7
-// CHECK-NEXT: +   dup 1
-// CHECK-NEXT: {{^[ +].*}}push 32
-// CHECK-NEXT: {{^[ +].*}}mstore
-// CHECK-NEXT: -   push 32
-// CHECK-NEXT: -   mload
+// CHECK: {{^    }}push 7
+// CHECK-NEXT: {{^    }}push 32
+// CHECK-NEXT: {{^    }}mstore
+// CHECK-NEXT: {{^    }}push 32
+// CHECK-NEXT: {{^    }}mload
 bb6:
   callf !meta(stack=0->255)
   callf !meta(stack=0->255)

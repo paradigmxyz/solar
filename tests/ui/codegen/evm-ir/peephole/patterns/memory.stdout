@@ -60,10 +60,9 @@
     push 0
     push 0
     push 7
-+   dup 1
     push 32
     mstore
--   push 32
--   mload
+    push 32
+    mload
     stop
   
