@@ -172,6 +172,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
     passes.extend([
         &super::local::LocalPass("dce") as &dyn EvmPass,
         &super::local::TerminalPrefixes,
+        &super::cfg::CfgSimplify,
         &super::cfg::BlockLayout,
         &super::cfg::RedirectTerminals,
         &super::legalize::LegalizeShifts,
