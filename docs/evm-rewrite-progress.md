@@ -33,64 +33,88 @@ reduction from current production LOC.
   including Seaport (432 contracts) and V4 (174 contracts).
 - Final supported-functionality and output-quality gates: open.
 
-The latest broad run-call matrix has 1,537 passes and 44 snapshot differences,
-with no runtime or compilation failures. The in-repository Foundry lane passed
-at an earlier checkpoint and must be repeated at the final source state.
+The latest broad run-call matrix has 1,541 passes and 44 snapshot differences,
+with no runtime or compilation failures. The in-repository Foundry lane also passes at the corrected terminal-proof
+checkpoint and must be repeated if later changes affect it.
 Standard JSON and remaining full UI expectations are not blessed wholesale.
 Required stack-call symbolic comparisons reached bounded agreement in both
 modes; additional Stop checks timed out and remain explicitly incomplete.
 
-## Latest measured comparison
+## Measured follow-up checkpoints
 
-Frozen checkpoint `exact-pressure-full-corpus/solar` has SHA-256
-`e265d25c13ab696b4c7da932daad20b846a42edcb44d93fb044de2068f21d5f2`.
-All 15 runtime cases agree with solc on identical 175 ordered hot-call labels.
-All nine whole-project compile cases preserve their contract inventories.
+All measurements retain executable/source hashes, inputs, ordered call labels and
+full reports below `target/codegen-bench/evm-rewrite-candidate/`. They describe
+controlled experiments, not final acceptance. The sealed baseline is unchanged.
 
-| Gas-mode runtime corpus | Sealed baseline | Candidate |
-| --- | ---: | ---: |
-| Hot-call gas | 5,116,867 | 5,102,307 |
-| Creation bytes | 121,544 | 143,075 |
-| Runtime bytes | 116,656 | 138,445 |
+| Isolated change | Measurement |
+| --- | --- |
+| Streaming size-outline search (`f7ee9bbd`) | Seaport output identical; sampled RSS 5,744,812 → 616,732 KiB, wall time 159.44 → 155.21 s |
+| Complete stack-permutation cycles (`87ccad2e`) | Nitro runtime −223 bytes in both modes; six hot labels −198 gas each; two UI size interactions investigated |
+| Gas-only zero-store reordering (`2707c12c`) | All 15 runtime cases / 175 labels pass, no immediate gas or size increase; size mode byte-identical |
+| Short-lived spill temporaries (`cf3c2ece`) | Nitro runtime −213 bytes in both modes; all 14 ordered gas labels unchanged |
 
-The aggregate gas improvement does not satisfy acceptance: 73 labels still
-regress. The largest runtime-size gaps are Nitro, LibString, SignatureChecker
-and Governor. Exact per-case rankings, artifacts, inputs and comparisons are
-under `target/codegen-bench/evm-rewrite-candidate/exact-pressure-full-corpus/`.
+Compiler timing samples remain exploratory because other host jobs were active.
+Final timing comparisons must run sequentially and interleaved. The streaming
+outline comparison has identical serialized bytecode for both full UI corpora
+and all 432 Seaport contracts. It removes the previous large memory regression.
 
-Matched Seaport gas-mode compilation measured 50.12 seconds and 624.8 MiB peak
-RSS, versus baseline 56.54 seconds and 845.0 MiB. Concurrent host activity means
-final timing claims still require sequential interleaved confirmation. A
-separate diagnostic invocation measured 247 MiB; it is not the matched benchmark
-invocation and must not replace that comparison.
+The spill regression passes all four codegen revisions, its MIR matches the
+sealed compiler, and both optimization modes reach bounded symbolic agreement
+with solc. The broad runtime UI checkpoint has 1,541 passes and 44 existing
+snapshot-only differences, with no execution or compiler failures.
 
-The sealed size hot-gas lane covers 15 runtime cases. Supplemental size-mode
-whole-project measurements are being recorded separately for both the candidate
-and the preserved comparison-only baseline executable; the original archive is
-unchanged. Size-mode Seaport is slower than its gas-mode compilation, with the
-identical-setting comparison pending.
+The latest complete baseline ranking predates these improvements. It has all 24
+gas-mode compilations and all 15 runtime cases / 175 hot labels in both modes,
+but still has per-case gas and size regressions. Earlier size-mode Seaport timed
+out; later cached/streamed algorithms compile its exact input successfully.
+A separate supplemental sealed-baseline run covers all nine size-mode heavy
+projects without changing the original baseline archive or reports.
 
-## Current experiments and commits
+## Current review and commits
 
-Changes are committed in small verified chunks for selective reversion. Recent
-commits separately cover bounded verifier contexts (`226a711b`), selector
-fallthrough (`774617ed`), scheduling guards (`67aa3226`), terminal pressure
-(`b540f90f`), storage metadata (`bf208a31`), terminal stack cleanup (`96bad84d`),
-reviewed tail expectations (`eeef3230`) and fallthrough ownership (`3d5668fe`).
+Work is committed in small, independently reviewable chunks. Root serializes
+builds and freezes executables only when source hashes before/after agree.
 
-Literal reordering before compaction improves all matched runtime cases but
-exposes three UI size regressions from disrupted store packing/outline patterns.
-Those regressions are being fixed before committing the pipeline group.
-Structural cleanup plus final DCE removes substantial bytecode, but one tuple
-case exposes a placement regression. This checkpoint also contains concurrent
-terminal-edge changes; its recorded results are a combined measurement.
-Builds are now serialized through the root agent, with source hashes around
-builds, to keep subsequent algorithm comparisons attributable.
+The final terminal-prefix pass is committed as `fdd1868b`. Adversarial review
+found an incorrect proof based only on net stack effect: DUP/SWAP/EXCHANGE can
+read retained incoming words. Actual EVM replay returned `42, 7, 42` instead of
+`99, 99, 7`. Whole-region required-stack analysis fixes all three cases. A second
+guard rejects legacy shifts whose later legalization needs additional temporary
+stack space. Code-relative observations also stop the proof.
 
-A bounded batch outline candidate passes focused effect/stack replay tests. It
-can trade gas for size in explicit size mode, so its actual per-label gas and
-bytecode measurements remain required. No aggregate improvement overrides an
-individual baseline regression.
+Earlier checkpoints containing that new pass are explicitly marked ineligible
+for final acceptance (`terminal-proof-status.json`). Their isolated comparative
+measurements remain useful where the surrounding source is identical. Corrected
+hot-corpus and adversarial replay runs pass; no expectation is blessed to hide a
+behavioral mismatch.
+
+The corrected `terminal-proof-fixed/solar` workspace run passes 1,335 tests;
+its combined UI lane still fails on reviewed/pending output expectations. The
+standalone UI run has 2,805 passes and 132 output differences before the latest
+focused snapshot updates. There are no execution or compiler failures. The
+existing terminal DCE helpers receive the same conservative legacy-shift and
+code-observation guards in separate commit `109798c1`.
+
+Cached tail reachability (`dac18cb2`) preserves exact UI and Seaport bytecode;
+exploratory Seaport wall time falls 188.83 → 107.39 seconds. Emitted outline-return
+costing (`f7bbf889`) preserves all hot gas labels, removes 222 UI size-mode bytes
+without per-contract regressions, and exposes a separately measured compiler-cost
+follow-up. Unused fresh private helpers are removed in `4224771b`.
+
+The corrected hot checkpoint matches all 15 cases / 175 labels / 139 runtime
+observations in both modes. Exact recompilation certifies identical bytecode
+after the DCE safety fix. Gas-mode hot gas is 5,116,867 → 5,096,710, but 45 labels
+still regress and runtime size grows 116,656 → 131,214 bytes. Size-mode hot gas is
+5,189,683 → 5,101,722, with 32 regressing labels and runtime size growing
+113,051 → 125,788 bytes. All 694 sealed UI successes remain successful in both
+modes, with the same eight known failures. Matched UI runtime sizes are
+1,069,788 → 1,089,035 (gas) and 543,106 → 524,803 (size); per-contract regressions
+remain. Full inventories and rankings are in `final-proof-candidate/summary.json`.
+
+Current independent work addresses redundant parallel phi copies, private
+static-frame sharing, exact permutation-search cost, and unknown computed-jump
+reachability. Each has separate source snapshots and will be measured in isolated
+pairs. Output quality, exact IDs and every gas label determine acceptance.
 
 ## Remaining acceptance
 
