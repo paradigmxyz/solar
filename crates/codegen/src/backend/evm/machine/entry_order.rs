@@ -128,6 +128,7 @@ pub(super) fn choose_operands(
         if replay(context, block_id, &mut stack, &mut insts, order).is_some()
             && finish(context, &mut stack, &mut insts, original_stack.values()).is_some()
             && stack_prefix(original_insts) == stack_prefix(&insts)
+            && insts != best
             && improves(context, &best, &insts)
         {
             best = insts;
