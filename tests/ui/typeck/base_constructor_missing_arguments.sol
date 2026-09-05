@@ -42,3 +42,11 @@ contract Parameterless {
 }
 
 contract NoArgumentsNeeded is Parameterless {}
+
+// Each missing base is named, so two of them do not share a headline.
+contract Other {
+    constructor(bool) {}
+}
+
+contract TwoMissing is Parameterized, Other {} //~ ERROR: no arguments passed to the base constructor of `Parameterized`
+//~^ ERROR: no arguments passed to the base constructor of `Other`

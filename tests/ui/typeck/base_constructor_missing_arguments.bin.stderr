@@ -1,8 +1,8 @@
-error[3415]: no arguments passed to the base constructor
+error[3415]: no arguments passed to the base constructor of `Parameterized`
    ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
    │
 LL │ contract Direct is Parameterized {}
-   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │          ━━━━━━
    ╰╴
 note: base constructor parameters are here
    ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
@@ -11,13 +11,11 @@ LL │     constructor(uint256 v) {
    │                 ━━━━━━━━━
    ╰ help: specify the arguments or mark `Direct` as abstract
 
-error[3415]: no arguments passed to the base constructor
+error[3415]: no arguments passed to the base constructor of `Parameterized`
    ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
    │
-LL │ ┏ contract WithConstructor is Parameterized {
-LL │ ┃     constructor() {}
-LL │ ┃ }
-   │ ┗━┛
+LL │ contract WithConstructor is Parameterized {
+   │          ━━━━━━━━━━━━━━━
    ╰╴
 note: base constructor parameters are here
    ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
@@ -26,11 +24,11 @@ LL │     constructor(uint256 v) {
    │                 ━━━━━━━━━
    ╰ help: specify the arguments or mark `WithConstructor` as abstract
 
-error[3415]: no arguments passed to the base constructor
+error[3415]: no arguments passed to the base constructor of `Parameterized`
    ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
    │
 LL │ contract ThroughAbstract is Abstract {}
-   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │          ━━━━━━━━━━━━━━━
    ╰╴
 note: base constructor parameters are here
    ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
@@ -39,7 +37,33 @@ LL │     constructor(uint256 v) {
    │                 ━━━━━━━━━
    ╰ help: specify the arguments or mark `ThroughAbstract` as abstract
 
+error[3415]: no arguments passed to the base constructor of `Other`
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
+   │
+LL │ contract TwoMissing is Parameterized, Other {}
+   │          ━━━━━━━━━━
+   ╰╴
+note: base constructor parameters are here
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
+   │
+LL │     constructor(bool) {}
+   │                 ━━━━
+   ╰ help: specify the arguments or mark `TwoMissing` as abstract
+
+error[3415]: no arguments passed to the base constructor of `Parameterized`
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
+   │
+LL │ contract TwoMissing is Parameterized, Other {}
+   │          ━━━━━━━━━━
+   ╰╴
+note: base constructor parameters are here
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_arguments.sol:LL:CC
+   │
+LL │     constructor(uint256 v) {
+   │                 ━━━━━━━━━
+   ╰ help: specify the arguments or mark `TwoMissing` as abstract
+
 warning[2264]: code generation is experimental
 
-error: aborting due to 3 previous errors; 1 warning emitted
+error: aborting due to 5 previous errors; 1 warning emitted
 

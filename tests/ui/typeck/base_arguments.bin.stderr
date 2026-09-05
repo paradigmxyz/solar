@@ -1,8 +1,8 @@
-error[3415]: no arguments passed to the base constructor
+error[3415]: no arguments passed to the base constructor of `Base`
    ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
    │
 LL │ contract Derived3 is Base() { }
-   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │          ━━━━━━━━
    ╰╴
 note: base constructor parameters are here
    ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC

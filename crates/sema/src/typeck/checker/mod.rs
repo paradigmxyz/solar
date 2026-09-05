@@ -1700,7 +1700,7 @@ impl<'gcx> TypeChecker<'gcx> {
             if let Some(ctor_id) = self.gcx.hir.contract(base_id).ctor
                 && !providers.contains_key(&base_id)
             {
-                self.report_missing_base_constructor_arguments(contract, ctor_id);
+                self.report_missing_base_constructor_arguments(contract, base_id, ctor_id);
             }
         }
     }
@@ -1714,6 +1714,7 @@ impl<'gcx> TypeChecker<'gcx> {
     fn report_missing_base_constructor_arguments(
         &self,
         contract: &'gcx hir::Contract<'gcx>,
+        base_id: hir::ContractId,
         ctor_id: hir::FunctionId,
     ) {
         let ctor = self.gcx.hir.function(ctor_id);
@@ -1721,10 +1722,11 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         };
         let parameters = self.gcx.hir.variable(first).span.to(self.gcx.hir.variable(last).span);
+        let base = self.gcx.hir.contract(base_id).name;
         self.dcx()
-            .err("no arguments passed to the base constructor")
+            .err(format!("no arguments passed to the base constructor of `{base}`"))
             .code(error_code!(3415))
-            .span(contract.span)
+            .span(contract.name.span)
             .span_note(parameters, "base constructor parameters are here")
             .help(format!("specify the arguments or mark `{}` as abstract", contract.name.as_str()))
             .emit();
