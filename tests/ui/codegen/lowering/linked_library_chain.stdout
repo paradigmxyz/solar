@@ -7,11 +7,6 @@ bb0:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Inner (runtime) ===
 @module Inner_runtime
 bb0:
-  push_immutable 0, 20
-  address
-  eq
-  push 128
-  mstore
   push 0
   calldataload
   push 224
@@ -29,8 +24,9 @@ bb4 [cold]:
   push 0
   revert
 bb1:
-  push 128
-  mload
+  push_immutable 0, 20
+  address
+  eq
   push bb4
   jumpi
   push 68
@@ -76,11 +72,6 @@ bb8 [cold]:
 // === ROOT/tests/ui/codegen/lowering/linked_library_chain.sol:Outer (runtime) ===
 @module Outer_runtime
 bb0:
-  push_immutable 0, 20
-  address
-  eq
-  push 128
-  mstore
   push 0
   calldataload
   push 224
@@ -98,8 +89,9 @@ bb14 [cold]:
   push 0
   revert
 bb1:
-  push 128
-  mload
+  push_immutable 0, 20
+  address
+  eq
   push bb14
   jumpi
   push 256

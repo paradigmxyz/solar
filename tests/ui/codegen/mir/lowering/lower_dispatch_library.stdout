@@ -21,14 +21,14 @@
 +   bb0:
 +     jump bb1
 +   bb1:
-+     v0 = loadimmutable library_deploy_address
-+     v1 = address
-+     v2 = eq v0, v1
-+     v3 = calldataload 0
-+     v4 = shr 224, v3
-+     switch v4, default bb4, [1 => bb2, 2 => bb3]
++     v0 = calldataload 0
++     v1 = shr 224, v0
++     switch v1, default bb4, [1 => bb2, 2 => bb3]
 +   bb3:
-+     jumpi v2, bb5, bb6
++     v2 = loadimmutable library_deploy_address
++     v3 = address
++     v4 = eq v2, v3
++     jumpi v4, bb5, bb6
 +   bb6:
 +     tail_call @write
 +   bb5:

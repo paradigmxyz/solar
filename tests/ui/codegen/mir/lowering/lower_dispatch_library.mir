@@ -1,9 +1,9 @@
 //@ compile-flags: -Zmir-pipeline=lower-dispatch
 //@ filecheck:
 // A library entry never checks `callvalue`: a `DELEGATECALL` sees the caller's
-// value. Its non-view routes reject direct calls instead, comparing the
-// deployment address staged by the creation code against `address()` once
-// before the selector switch.
+// value. Its non-view routes reject direct calls instead, each comparing the
+// deployment address staged by the creation code against `address()` in its
+// own case, so nothing is live across the switch for view routes to observe.
 @module DispatchLibrary
 @phase abi
 @library
@@ -13,12 +13,12 @@ immutables:
 // CHECK-LABEL: {{^[ +].*}}after lower-dispatch
 // CHECK: + fn @entry{{[( ]}}
 // CHECK-NOT: callvalue
-// CHECK: + [[OWN:v[0-9]+]] = loadimmutable library_deploy_address
-// CHECK-NEXT: + [[THIS:v[0-9]+]] = address
-// CHECK-NEXT: + [[DIRECT:v[0-9]+]] = eq [[OWN]], [[THIS]]
-// CHECK-NOT: callvalue
+// CHECK-NOT: loadimmutable
 // CHECK: + switch {{.*}}[1 => [[VIEW:bb[0-9]+]], 2 => [[WRITE:bb[0-9]+]]]
 // CHECK: + [[WRITE]]:
+// CHECK-NEXT: + [[OWN:v[0-9]+]] = loadimmutable library_deploy_address
+// CHECK-NEXT: + [[THIS:v[0-9]+]] = address
+// CHECK-NEXT: + [[DIRECT:v[0-9]+]] = eq [[OWN]], [[THIS]]
 // CHECK-NEXT: + jumpi [[DIRECT]], [[REVERT:bb[0-9]+]], [[GO:bb[0-9]+]]
 // CHECK: + [[GO]]:
 // CHECK-NEXT: + tail_call @write

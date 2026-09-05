@@ -1,11 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/linked_library_dynamic_fields.sol:L (runtime) ===
 @module L_runtime
 bb0:
-  push_immutable 0, 20
-  address
-  eq
-  push 128
-  mstore
   push 0
   calldataload
   push 224
@@ -45,8 +40,9 @@ bb29 [cold]:
   push 65
   jump bb30
 bb1:
-  push 128
-  mload
+  push_immutable 0, 20
+  address
+  eq
   push bb28
   jumpi
   push 640

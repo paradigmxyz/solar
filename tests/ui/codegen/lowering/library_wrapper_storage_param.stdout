@@ -7,11 +7,6 @@ bb0:
 // === ROOT/tests/ui/codegen/lowering/library_wrapper_storage_param.sol:L (runtime) ===
 @module L_runtime
 bb0:
-  push_immutable 0, 20
-  address
-  eq
-  push 128
-  mstore
   push 0
   calldataload
   push 224
@@ -41,8 +36,9 @@ bb10 [cold]:
   push 0
   revert
 bb1:
-  push 128
-  mload
+  push_immutable 0, 20
+  address
+  eq
   push bb4
   jumpi
   push 68

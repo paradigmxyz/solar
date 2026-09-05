@@ -1,11 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/library_call.sol:Lib (runtime) ===
 @module Lib_runtime
 bb0:
-  push_immutable 0, 20
-  address
-  eq
-  push 128
-  mstore
   push 0
   calldataload
   push 224
@@ -35,8 +30,9 @@ bb10 [cold]:
   push 0
   revert
 bb1:
-  push 128
-  mload
+  push_immutable 0, 20
+  address
+  eq
   push bb11
   jumpi
   push 100

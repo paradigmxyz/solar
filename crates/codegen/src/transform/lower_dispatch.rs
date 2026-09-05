@@ -21,10 +21,12 @@
 //! the library's own deployment address (the synthetic
 //! [`Module::library_deploy_address`] immutable, staged by the creation code
 //! and patched into the runtime code), reverting when they are equal, so
-//! state-changing library functions only run through `DELEGATECALL`. The
-//! comparison is computed once before the selector switch and each guarded case
-//! branches on it; in `--revert-strings debug` mode the revert carries solc's
-//! "Non-view function of library called without DELEGATECALL" message.
+//! state-changing library functions only run through `DELEGATECALL`. Each
+//! guarded case computes the comparison itself: a value shared across the
+//! selector switch would be spilled to memory before dispatch, which unguarded
+//! view and pure routes could observe through `msize()` or a raw `mload`. In
+//! `--revert-strings debug` mode the revert carries solc's "Non-view function of
+//! library called without DELEGATECALL" message.
 //!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
 //! The backend only consumes the final `evm-shaped` module.
@@ -215,24 +217,9 @@ fn build_entry(
 
         // Selector switch; the default goes to the fallback when present.
         builder.switch_to_block(select_block);
-        let mut direct_call = None;
         if routes.is_empty() {
             builder.jump(default_block);
         } else {
-            // A library computes once whether it was called directly rather than through
-            // `DELEGATECALL`; the guarded cases below branch on it.
-            //   v0 = loadimmutable library_deploy_address
-            //   v1 = address
-            //   v2 = eq v0, v1
-            if let Some(immutable) = module.library_deploy_address()
-                && routes.iter().any(|&(_, target)| {
-                    super::utils::needs_delegatecall_guard(module.function(target))
-                })
-            {
-                let own = builder.load_immutable(immutable, MirType::Address);
-                let this = builder.address();
-                direct_call = Some(builder.eq(own, this));
-            }
             let selector = load_selector(&mut builder, has_bitwise_shifting);
             let cases = routes
                 .iter()
@@ -257,13 +244,21 @@ fn build_entry(
         // rejecting wrapper carries its own callvalue check in its
         // prologue (injected by `lower-abi`) whenever the hoisted check
         // does not apply, so no per-case guard is needed. A non-view
-        // library function first rejects direct calls:
+        // library function first rejects calls made directly rather than
+        // through `DELEGATECALL`:
+        //   v0 = loadimmutable library_deploy_address
+        //   v1 = address
+        //   v2 = eq v0, v1
         //   jumpi v2, revert, continue
+        let library_deploy_address = module.library_deploy_address();
         for ((_, target), block) in routes.iter().zip(&case_blocks) {
             builder.switch_to_block(*block);
-            if let Some(direct_call) = direct_call
+            if let Some(immutable) = library_deploy_address
                 && super::utils::needs_delegatecall_guard(module.function(*target))
             {
+                let own = builder.load_immutable(immutable, MirType::Address);
+                let this = builder.address();
+                let direct_call = builder.eq(own, this);
                 builder.revert_if(direct_call, RevertReason::LibraryCalledWithoutDelegatecall);
             }
             builder.tail_call(*target, Vec::new());
