@@ -29,7 +29,14 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),
-        TyKind::Slice(_ty) => Default::default(),
+        // Like solc, calldata slices expose `length` unless they slice a `string`.
+        TyKind::Slice(underlying) => {
+            if matches!(underlying.peel_refs().kind, TyKind::Elementary(ElementaryType::String)) {
+                Default::default()
+            } else {
+                array(gcx)
+            }
+        }
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
         TyKind::Fn(f) => function(gcx, f),
