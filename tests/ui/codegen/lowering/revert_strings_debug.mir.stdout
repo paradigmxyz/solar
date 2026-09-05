@@ -39,6 +39,39 @@ fn @slice(arg0: calldataslice, arg1: u256, arg2: u256) -> u256 [selector=0xe0041
     revert 0, 100
 }
 
+fn @arr(arg0: calldataslice) -> u256 [selector=0xbfceb977, pure, abi_params=[array<_, u256>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_len arg0
+    ret v0
+}
+
+fn @st(arg0: calldataslice) -> u256 [selector=0xb3106188, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = add v0, 0
+    v2 = calldataload v1
+    ret v2
+}
+
+fn @stMem(arg0: memorystruct) -> u256 [selector=0x982896e4, pure, abi_params=[tuple<u256, bytes>], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_load_field memorystruct<2>, arg0, 0
+    ret v0
+}
+
+fn @blob(arg0: memorybytes) -> u256 [selector=0x03cd5167, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    ret v0
+}
+
+fn @dec(arg0: memorybytes) -> u256 [selector=0x1a00934d, pure, abi_params=[bytes], abi_returns=[word]] {
+  bb0:
+    v0 = abi_decode [tuple<u256, bytes>], arg0
+    v1 = memory_object_load_field memorystruct<2>, v0, 0
+    ret v1
+}
+
 fn @echo(arg0: calldataslice) -> calldataslice [selector=0x751d9227, pure, abi_params=[array<_, u256>], abi_returns=[memory_array<word>], abi_return_params=[array<_, u256>]] {
   bb0:
     v0 = make_calldata_slice 0, 0

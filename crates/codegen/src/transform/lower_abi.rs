@@ -104,6 +104,9 @@ struct DecodeOptions<'a> {
     validate_array_elements: bool,
     helpers: Option<&'a FxHashMap<AbiParamType, FunctionId>>,
     has_bitwise_shifting: bool,
+    /// The debug message for an out-of-range head offset, which depends on whether the value is
+    /// a tuple element, a struct member, or an array element.
+    offset_reason: RevertReason,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -133,11 +136,17 @@ impl DecodeOptions<'_> {
             validate_array_elements: true,
             helpers: None,
             has_bitwise_shifting,
+            offset_reason: RevertReason::InvalidTupleOffset,
         }
     }
 
     fn checked(self) -> Self {
         Self { head_checked: true, ..self }
+    }
+
+    /// Decodes a value nested in an aggregate whose offsets report `offset_reason`.
+    fn nested(self, offset_reason: RevertReason) -> Self {
+        Self { offset_reason, ..self }
     }
 }
 
@@ -1449,7 +1458,16 @@ impl LowerAbiCx {
     ) {
         builder.switch_to_block(*current);
         let offset = Self::load_input_word(builder, head, constructor);
-        let base = Self::guard_input_offset(builder, tuple_base, offset, input_end, ty, current);
+        let base = Self::guard_input_offset(
+            builder,
+            tuple_base,
+            offset,
+            input_end,
+            ty,
+            current,
+            RevertReason::InvalidTupleOffset,
+            !constructor,
+        );
 
         match ty {
             crate::mir::AbiParamType::DynamicArray(element) => {
@@ -1463,12 +1481,20 @@ impl LowerAbiCx {
                 );
             }
             crate::mir::AbiParamType::FixedArray { .. } | crate::mir::AbiParamType::Tuple(..) => {
-                Self::guard_input_range(builder, base, ty.data_head_size(), input_end, current);
+                let reason = Self::aggregate_short_reason(ty, !constructor);
+                Self::guard_input_range(
+                    builder,
+                    base,
+                    ty.data_head_size(),
+                    input_end,
+                    current,
+                    reason,
+                );
             }
             crate::mir::AbiParamType::Bytes => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
-                Self::guard_input_range_value(builder, data, len, input_end, current);
+                Self::guard_bytes_data(builder, data, len, input_end, current, false);
             }
             crate::mir::AbiParamType::Scalar(_) | crate::mir::AbiParamType::Enum { .. } => {
                 unreachable!("scalar ABI value is not a dynamic aggregate")
@@ -1493,10 +1519,13 @@ impl LowerAbiCx {
             validate_array_elements,
             helpers,
             has_bitwise_shifting,
+            offset_reason: _,
         } = options;
         builder.switch_to_block(*current);
         let is_dynamic = ty.is_dynamic();
         let location = if constructor { SliceLocation::Memory } else { SliceLocation::Calldata };
+        let to_calldata =
+            !constructor && matches!(arg_type, MirType::Slice(SliceLocation::Calldata));
         if constructor
             && head_checked
             && let Some(&helper) = helpers.and_then(|helpers| helpers.get(ty))
@@ -1519,10 +1548,26 @@ impl LowerAbiCx {
         }
         let base = if is_dynamic {
             if !head_checked {
-                Self::guard_input_range(builder, head, 32, input_end, current);
+                Self::guard_input_range(
+                    builder,
+                    head,
+                    32,
+                    input_end,
+                    current,
+                    RevertReason::TupleDataTooShort,
+                );
             }
             let offset = Self::load_input_word(builder, head, constructor);
-            Self::guard_input_offset(builder, tuple_base, offset, input_end, ty, current)
+            Self::guard_input_offset(
+                builder,
+                tuple_base,
+                offset,
+                input_end,
+                ty,
+                current,
+                options.offset_reason,
+                to_calldata,
+            )
         } else {
             head
         };
@@ -1542,6 +1587,7 @@ impl LowerAbiCx {
                     ty.checked_head_size().expect("ABI head size exceeds u64 range"),
                     input_end,
                     current,
+                    Self::aggregate_short_reason(ty, to_calldata),
                 );
             }
             return Self::decode_static_calldata_argument(
@@ -1559,7 +1605,8 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::FixedArray { element, len } => {
                 let head_size = ty.data_head_size();
                 if !head_checked || is_dynamic {
-                    Self::guard_input_range(builder, base, head_size, input_end, current);
+                    let reason = Self::aggregate_short_reason(ty, to_calldata);
+                    Self::guard_input_range(builder, base, head_size, input_end, current, reason);
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder.imm(*len);
@@ -1600,7 +1647,7 @@ impl LowerAbiCx {
                             word_pos,
                             base,
                             current,
-                            options.checked(),
+                            options.checked().nested(RevertReason::InvalidCalldataArrayOffset),
                         )
                     };
                     builder.switch_to_block(*current);
@@ -1760,7 +1807,7 @@ impl LowerAbiCx {
                     source,
                     data_base,
                     &mut element_current,
-                    options.checked(),
+                    options.checked().nested(RevertReason::InvalidCalldataArrayOffset),
                 );
                 let value = Self::encode_memory_scalar(builder, element, value);
                 builder.memory_object_store_element(ptr, layout, destination_index, value);
@@ -1787,7 +1834,7 @@ impl LowerAbiCx {
             crate::mir::AbiParamType::Bytes if matches!(arg_type, MirType::Slice(_)) => {
                 let len = Self::load_input_word(builder, base, constructor);
                 let data = builder.add_u64_offset(base, 32);
-                Self::guard_input_range_value(builder, data, len, input_end, current);
+                Self::guard_bytes_data(builder, data, len, input_end, current, false);
                 builder.make_slice(data, len, location)
             }
             crate::mir::AbiParamType::Bytes => {
@@ -1803,7 +1850,7 @@ impl LowerAbiCx {
                         crate::mir::AllocationSemantics::SOLIDITY_UNINITIALIZED,
                     );
                     builder.set_memory_object_len(ptr, len, layout.kind());
-                    Self::guard_input_range_value(builder, data, len, input_end, current);
+                    Self::guard_bytes_data(builder, data, len, input_end, current, true);
                     let source = builder.make_slice(data, len, location);
                     builder.memory_object_copy_from_slice(ptr, layout.kind(), source);
                     return ptr;
@@ -1818,7 +1865,7 @@ impl LowerAbiCx {
                 } else {
                     None
                 };
-                Self::guard_input_range_value(builder, data, len, input_end, current);
+                Self::guard_bytes_data(builder, data, len, input_end, current, true);
                 let ptr = if let Some(object) = checked_object {
                     object
                 } else {
@@ -1840,7 +1887,15 @@ impl LowerAbiCx {
                 // in one trailing word so slice expressions can recover the
                 // original calldata location after the fields are copied.
                 if !head_checked || is_dynamic {
-                    Self::guard_input_range(builder, base, ty.data_head_size(), input_end, current);
+                    let reason = Self::aggregate_short_reason(ty, to_calldata);
+                    Self::guard_input_range(
+                        builder,
+                        base,
+                        ty.data_head_size(),
+                        input_end,
+                        current,
+                        reason,
+                    );
                 }
                 if matches!(arg_type, MirType::Slice(SliceLocation::Calldata)) {
                     let length = builder
@@ -1883,7 +1938,7 @@ impl LowerAbiCx {
                         field_head,
                         base,
                         current,
-                        options.checked(),
+                        options.checked().nested(RevertReason::InvalidStructOffset),
                     );
                     let value = Self::encode_memory_scalar(builder, field, value);
                     builder.memory_object_store_field(ptr, layout, index as u64, value);
@@ -2020,7 +2075,14 @@ impl LowerAbiCx {
     ) -> (ValueId, ValueId, ValueId) {
         builder.switch_to_block(*current);
         if !head_checked {
-            Self::guard_input_range(builder, head, 32, input_end, current);
+            Self::guard_input_range(
+                builder,
+                head,
+                32,
+                input_end,
+                current,
+                RevertReason::TupleDataTooShort,
+            );
         }
         let offset = builder.calldataload(head);
         let base = builder.add(tuple_base, offset);
@@ -2030,6 +2092,15 @@ impl LowerAbiCx {
         let offset_overflow = builder.gt(offset, max_offset);
         let head_out_of_range = builder.gt(target_end, input_end);
         let head_invalid = builder.or(offset_overflow, head_out_of_range);
+        if builder.encodes_revert_reasons() {
+            // Report solc's offset, length, and stride checks separately.
+            *current =
+                builder.revert_if_reason(head_invalid, RevertReason::InvalidCalldataArrayOffset);
+            let len = builder.calldataload(base);
+            let data = builder.add(base, word);
+            Self::guard_bytes_data(builder, data, len, input_end, current, false);
+            return (base, data, len);
+        }
         let len = builder.calldataload(base);
         let data = builder.add(base, word);
         let remaining = builder.sub(input_end, data);
@@ -2147,6 +2218,12 @@ impl LowerAbiCx {
             let element_head_size = builder.imm(element_head_size);
             builder.div(remaining, element_head_size)
         };
+        if builder.encodes_revert_reasons() {
+            // solc reports an unencodable length before the stride check.
+            let max_offset = builder.imm(u64::MAX);
+            let too_long = builder.gt(len, max_offset);
+            *current = builder.revert_if_reason(too_long, RevertReason::InvalidCalldataArrayLength);
+        }
         let invalid = builder.gt(len, max_len);
         *current = builder.revert_if_reason(invalid, RevertReason::InvalidCalldataArrayStride);
     }
@@ -2160,7 +2237,14 @@ impl LowerAbiCx {
     ) -> ValueId {
         builder.switch_to_block(*current);
         if !options.head_checked {
-            Self::guard_input_range(builder, position, 32, options.input_end, current);
+            Self::guard_input_range(
+                builder,
+                position,
+                32,
+                options.input_end,
+                current,
+                RevertReason::TupleDataTooShort,
+            );
         }
         let value = Self::load_input_word(builder, position, options.constructor);
         if let Some(validator) = ty.word_validator() {
@@ -2170,6 +2254,13 @@ impl LowerAbiCx {
         Self::normalize_abi_word(builder, ty, value)
     }
 
+    /// Forms the absolute address of a dynamically encoded value from its head `offset` and
+    /// checks that its first word lies inside the input.
+    ///
+    /// In debug mode the check is split like solc's: an unencodable offset reports
+    /// `offset_reason`, and the target range check reports the message of the value's own
+    /// decoder. `to_calldata` selects the message for a struct that stays in calldata.
+    #[allow(clippy::too_many_arguments)]
     fn guard_input_offset(
         builder: &mut FunctionBuilder<'_>,
         base: ValueId,
@@ -2177,13 +2268,35 @@ impl LowerAbiCx {
         input_end: ValueId,
         ty: &crate::mir::AbiParamType,
         current: &mut BlockId,
+        offset_reason: RevertReason,
+        to_calldata: bool,
     ) -> ValueId {
         builder.switch_to_block(*current);
         let target = builder.add(base, offset);
-        if !matches!(
+        let is_array_like = matches!(
             ty,
             crate::mir::AbiParamType::DynamicArray(_) | crate::mir::AbiParamType::Bytes
-        ) {
+        );
+        if builder.encodes_revert_reasons() {
+            // if offset > 0xffffffffffffffff { revert(Error(offset_reason)) }
+            // if target + 32 > input_end { revert(Error("invalid calldata array offset")) }
+            //   or, for static aggregates,
+            // if target > input_end { revert(Error("struct ... too short" | "stride")) }
+            // The offset fits in 64 bits here, so the additions cannot wrap. Aggregate
+            // callers check the full head size afterwards.
+            let max_offset = builder.imm(u64::MAX);
+            let overflow = builder.gt(offset, max_offset);
+            *current = builder.revert_if_reason(overflow, offset_reason);
+            let (end, reason) = if is_array_like {
+                (builder.add_u64_offset(target, 32), RevertReason::InvalidCalldataArrayOffset)
+            } else {
+                (target, Self::aggregate_short_reason(ty, to_calldata))
+            };
+            let out_of_range = builder.gt(end, input_end);
+            *current = builder.revert_if_reason(out_of_range, reason);
+            return target;
+        }
+        if !is_array_like {
             let remaining = builder.sub(input_end, base);
             let invalid = builder.gt(offset, remaining);
             *current = builder.revert_if_reason(invalid, RevertReason::InvalidTupleOffset);
@@ -2202,15 +2315,57 @@ impl LowerAbiCx {
         target
     }
 
+    /// The debug message for a static aggregate whose head does not fit the input. Like solc,
+    /// structs that stay in calldata report "struct calldata too short" and structs decoded to
+    /// memory report "struct data too short"; fixed arrays reuse the array stride check.
+    fn aggregate_short_reason(ty: &crate::mir::AbiParamType, to_calldata: bool) -> RevertReason {
+        match ty {
+            crate::mir::AbiParamType::Tuple(..) if to_calldata => {
+                RevertReason::StructCalldataTooShort
+            }
+            crate::mir::AbiParamType::Tuple(..) => RevertReason::StructDataTooShort,
+            crate::mir::AbiParamType::FixedArray { .. } => RevertReason::InvalidCalldataArrayStride,
+            _ => RevertReason::TupleDataTooShort,
+        }
+    }
+
+    /// Checks that `len` bytes at `data` lie inside the input.
+    ///
+    /// `bytes` copied to memory report solc's byte array message; `bytes calldata` keeps the
+    /// calldata array checks, reporting an unencodable length separately in debug mode.
+    fn guard_bytes_data(
+        builder: &mut FunctionBuilder<'_>,
+        data: ValueId,
+        len: ValueId,
+        input_end: ValueId,
+        current: &mut BlockId,
+        to_memory: bool,
+    ) {
+        if to_memory {
+            let reason = RevertReason::InvalidByteArrayLength;
+            Self::guard_input_range_value(builder, data, len, input_end, current, reason);
+            return;
+        }
+        if builder.encodes_revert_reasons() {
+            builder.switch_to_block(*current);
+            let max_offset = builder.imm(u64::MAX);
+            let too_long = builder.gt(len, max_offset);
+            *current = builder.revert_if_reason(too_long, RevertReason::InvalidCalldataArrayLength);
+        }
+        let reason = RevertReason::InvalidCalldataArrayStride;
+        Self::guard_input_range_value(builder, data, len, input_end, current, reason);
+    }
+
     fn guard_input_range(
         builder: &mut FunctionBuilder<'_>,
         start: ValueId,
         size: u64,
         input_end: ValueId,
         current: &mut BlockId,
+        reason: RevertReason,
     ) {
         let size = builder.imm(size);
-        Self::guard_input_range_value(builder, start, size, input_end, current);
+        Self::guard_input_range_value(builder, start, size, input_end, current, reason);
     }
 
     fn guard_input_range_value(
@@ -2219,6 +2374,7 @@ impl LowerAbiCx {
         size: ValueId,
         input_end: ValueId,
         current: &mut BlockId,
+        reason: RevertReason,
     ) {
         builder.switch_to_block(*current);
         // All callers establish `start <= input_end` before checking a tail
@@ -2226,7 +2382,7 @@ impl LowerAbiCx {
         // potentially overflowing end pointer.
         let remaining = builder.sub(input_end, start);
         let invalid = builder.gt(size, remaining);
-        *current = builder.revert_if_reason(invalid, RevertReason::TupleDataTooShort);
+        *current = builder.revert_if_reason(invalid, reason);
     }
 
     fn checked_add(
@@ -3723,7 +3879,15 @@ fn materialize_calldata_return(
 ) -> ValueId {
     let input_end = builder.calldatasize();
     let mut current = builder.current_block();
-    LowerAbiCx::guard_input_range(builder, base, ty.data_head_size(), input_end, &mut current);
+    let reason = LowerAbiCx::aggregate_short_reason(ty, true);
+    LowerAbiCx::guard_input_range(
+        builder,
+        base,
+        ty.data_head_size(),
+        input_end,
+        &mut current,
+        reason,
+    );
     let options = DecodeOptions::new(false, input_end, has_bitwise_shifting).checked();
     LowerAbiCx::decode_static_aggregate(builder, ty, base, |builder, ty, head, current| {
         LowerAbiCx::decode_aggregate_argument(

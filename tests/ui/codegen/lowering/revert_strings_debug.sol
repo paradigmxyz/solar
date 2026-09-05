@@ -11,7 +11,21 @@
 //@ run-call-fail: slice 0x01020304, 2, 1 => Error("Slice starts after end")
 //@ run-call-fail: slice 0x01020304, 6, 5 => Error("Slice starts after end")
 //@ run-call: echo [1, 2] => [1, 2]
-//@ run-call-fail: 0x751d92270000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Error("ABI decoding: invalid calldata array stride")
+//@ run-call-fail: 0x751d92270000000000000000000000000000000000000000000000000000000000000020ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => Error("ABI decoding: invalid calldata array length")
+//@ run-call-fail: 0xbfceb9770000000000000000000000000000000000000000000000010000000000000000 => Error("ABI decoding: invalid tuple offset")
+//@ run-call-fail: 0xbfceb9770000000000000000000000000000000000000000000000000000000000000040 => Error("ABI decoding: invalid calldata array offset")
+//@ run-call-fail: 0xbfceb97700000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000010000000000000000 => Error("ABI decoding: invalid calldata array length")
+//@ run-call-fail: 0xbfceb97700000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000003 => Error("ABI decoding: invalid calldata array stride")
+//@ run-call-fail: 0xb31061880000000000000000000000000000000000000000000000010000000000000000 => Error("ABI decoding: invalid tuple offset")
+//@ run-call-fail: 0xb31061880000000000000000000000000000000000000000000000000000000000000020 => Error("ABI decoding: struct calldata too short")
+//@ run-call: 0xb3106188000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000010000000000000000 => 0x0000000000000000000000000000000000000000000000000000000000000001
+//@ run-call-fail: 0x982896e4000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000010000000000000000 => Error("ABI decoding: invalid struct offset")
+//@ run-call-fail: 0x982896e400000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001 => Error("ABI decoding: struct data too short")
+//@ run-call: stMem (7, 0x) => 7
+//@ run-call-fail: 0x03cd516700000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000064 => Error("ABI decoding: invalid byte array length")
+//@ run-call-fail: 0x1a00934d000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000020 => Error("ABI decoding: struct data too short")
+//@ run-call: st (1, 0x) => 1
+//@ run-call: blob 0x0102 => 2
 //@ run-call-fail: callNoCode => Error("Target contract does not contain code")
 //@ run-call-fail: callNoCodeReturning => Error("Target contract does not contain code")
 //@ run-call-fail: userRevert => Error("user")
@@ -20,7 +34,9 @@
 // `--revert-strings debug` encodes solc's messages for compiler-generated reverts as
 // `Error(string)` payloads: rejected Ether, unknown selectors, short calldata, invalid
 // calldata slices, and calls to code-less targets. User-supplied reason strings are kept,
-// and ABI word validators still revert with empty data, as in solc.
+// and ABI word validators still revert with empty data, as in solc. A calldata struct's
+// member offsets are validated lazily on access, so an unused malformed member decodes fine,
+// while the same struct decoded to memory reports the struct offset.
 // Without a `receive` function, unmatched calls report the "neither fallback nor receive"
 // message; see `revert_strings_debug_receive.sol` for the other one.
 interface Target {
@@ -40,6 +56,32 @@ contract RevertStringsDebug {
     function slice(bytes calldata data, uint256 start, uint256 end) external pure returns (uint256) {
         bytes calldata sliced = data[start:end];
         return sliced.length;
+    }
+
+    struct S {
+        uint256 a;
+        bytes b;
+    }
+
+    function arr(uint256[] calldata values) external pure returns (uint256) {
+        return values.length;
+    }
+
+    function st(S calldata s) external pure returns (uint256) {
+        return s.a;
+    }
+
+    function stMem(S memory s) external pure returns (uint256) {
+        return s.a;
+    }
+
+    function blob(bytes memory data) external pure returns (uint256) {
+        return data.length;
+    }
+
+    function dec(bytes memory data) external pure returns (uint256) {
+        S memory s = abi.decode(data, (S));
+        return s.a;
     }
 
     function echo(uint256[] calldata values) external pure returns (uint256[] calldata) {

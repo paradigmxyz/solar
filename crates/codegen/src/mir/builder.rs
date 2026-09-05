@@ -99,8 +99,24 @@ pub(crate) enum RevertReason {
     InvalidTupleOffset,
     /// A dynamic array or `bytes` head offset points outside the encoded input.
     InvalidCalldataArrayOffset,
+    /// A dynamic array or `bytes calldata` length exceeds the encodable range.
+    InvalidCalldataArrayLength,
     /// A dynamic array's element data does not fit the encoded input.
     InvalidCalldataArrayStride,
+    /// A `bytes` or `string` decoded to memory does not fit the encoded input.
+    InvalidByteArrayLength,
+    /// A struct member offset exceeds the encodable range.
+    InvalidStructOffset,
+    /// Calldata ends before the static head of a struct.
+    StructCalldataTooShort,
+    /// ABI-encoded memory data ends before the static head of a struct.
+    StructDataTooShort,
+    /// A calldata array element or struct member offset is out of range while re-encoding.
+    InvalidCalldataAccessOffset,
+    /// A calldata array element length exceeds the encodable range while re-encoding.
+    InvalidCalldataAccessLength,
+    /// A calldata array element's data does not fit in calldata while re-encoding.
+    InvalidCalldataAccessStride,
     /// A calldata tail element offset is out of range.
     InvalidCalldataTailOffset,
     /// A calldata tail element length exceeds the encodable range.
@@ -125,7 +141,15 @@ impl RevertReason {
             Self::TupleDataTooShort => "ABI decoding: tuple data too short",
             Self::InvalidTupleOffset => "ABI decoding: invalid tuple offset",
             Self::InvalidCalldataArrayOffset => "ABI decoding: invalid calldata array offset",
+            Self::InvalidCalldataArrayLength => "ABI decoding: invalid calldata array length",
             Self::InvalidCalldataArrayStride => "ABI decoding: invalid calldata array stride",
+            Self::InvalidByteArrayLength => "ABI decoding: invalid byte array length",
+            Self::InvalidStructOffset => "ABI decoding: invalid struct offset",
+            Self::StructCalldataTooShort => "ABI decoding: struct calldata too short",
+            Self::StructDataTooShort => "ABI decoding: struct data too short",
+            Self::InvalidCalldataAccessOffset => "Invalid calldata access offset",
+            Self::InvalidCalldataAccessLength => "Invalid calldata access length",
+            Self::InvalidCalldataAccessStride => "Invalid calldata access stride",
             Self::InvalidCalldataTailOffset => "Invalid calldata tail offset",
             Self::InvalidCalldataTailLength => "Invalid calldata tail length",
             Self::CalldataTailTooShort => "Calldata tail too short",

@@ -281,23 +281,21 @@ No intentional divergences documented yet.
   optimization.
 - Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
 
-### CODEGEN-007: `revertStrings: debug` message granularity
+### CODEGEN-007: `revertStrings: debug` omits two solc messages
 
 - ID: CODEGEN-007
 - Status: parity debt
 - Difference: With `--revert-strings debug` (Standard JSON
   `settings.debug.revertStrings: "debug"`), compiler-generated reverts carry
-  solc's `Error(string)` messages, but the set of checks differs. ABI decoding
-  checks that the compiler fuses into one comparison report the first
-  applicable solc message (for example a `bytes` calldata head and tail check
-  both report "ABI decoding: invalid calldata array offset"), decoded-value
-  validators revert with empty data as in solc, and checks solc does not emit
-  have no message. Calldata slice bounds are the exception: they are checked
-  separately in debug mode so both solc messages are reported. `strip` matches
-  `solc`, and `verboseDebug` is rejected as unimplemented by both compilers.
-- Rationale: the messages are debugging aids, and the fused decoding checks
-  are what keep the default output small; splitting every check only in debug
-  mode would make debug builds diverge further from the code being debugged.
+  solc's `Error(string)` messages under the same conditions as solc, with two
+  omissions. "ABI encoding: array data too long" is never produced because
+  the encoder does not check calldata array lengths against `2**64` when
+  re-encoding them, and "Non-view function of library called without
+  DELEGATECALL" is never produced because library runtime code does not
+  emit that guard. `strip` matches `solc`, and `verboseDebug` is rejected
+  as unimplemented by both compilers.
+- Rationale: both omissions follow from checks the compiler does not emit in
+  any mode, not from the revert-string setting itself.
 - Coverage: `tests/ui/standard-json/debug/`,
   `tests/ui/codegen/lowering/revert_strings_debug.sol`,
   `tests/ui/codegen/lowering/revert_strings_debug_receive.sol`,
