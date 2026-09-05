@@ -6,8 +6,8 @@
 //! fresh continuation are checked one activation at a time, retaining suspended
 //! prefixes on return labels; their global height remains unknown. Entry bounds
 //! permit safe local temporary expansion only where an absolute bound is proved.
-//! Unknown computed destinations end the proof rather than manufacturing entry
-//! stacks for unrelated functions. At most sixteen distinct label states are
+//! Unknown computed destinations invalidate absolute incoming bounds throughout
+//! the module: a known edge cannot exclude an additional dynamic entry prefix. At most sixteen distinct label states are
 //! retained per block and exact height; further states widen to unknown labels.
 //! This bounds call-path combinations while preserving structural height growth
 //! and prevents optimization from using heights behind unproved return edges.
@@ -146,9 +146,25 @@ pub(crate) type StackHeights = IndexVec<BlockId, Option<(usize, usize)>>;
 /// Unknown computed edges end the proof. Callers must conservatively avoid
 /// increasing local stack peaks for blocks with no entry proof.
 pub(crate) fn stack_heights(module: &Module) -> Result<StackHeights, (BlockId, String)> {
+    stack_analysis(module).map(|(mut heights, unknown)| {
+        if unknown {
+            heights.raw.fill(None);
+        }
+        heights
+    })
+}
+
+/// Whether an executed computed transfer has no proved label destination.
+/// Failed proofs also prevent deleting blocks based on incomplete control flow.
+pub(super) fn has_unknown_jump(module: &Module) -> bool {
+    stack_analysis(module).map_or(true, |(_, unknown)| unknown)
+}
+
+fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, String)> {
     let mut bounds =
         IndexVec::<BlockId, Option<(usize, usize)>>::from_vec(vec![None; module.blocks.len()]);
     let mut pending = VecDeque::new();
+    let mut unknown_jump = false;
     let mut states =
         FxHashMap::<(BlockId, usize), Option<FxHashSet<Vec<Option<(BlockId, usize)>>>>>::default();
     let mut prototypes = FxHashMap::<BlockId, Vec<Option<(BlockId, usize)>>>::default();
@@ -241,6 +257,9 @@ pub(crate) fn stack_heights(module: &Module) -> Result<StackHeights, (BlockId, S
                     } else {
                         None
                     };
+                    if inst.kind == InstKind::Op(op::JUMPI) && jump_target.is_none() {
+                        unknown_jump = true;
+                    }
                     stack.truncate(height - inputs as usize);
                     stack.extend(std::iter::repeat_n(None, outputs as usize));
                     if let InstKind::PushLabel(target) = inst.kind {
@@ -272,6 +291,9 @@ pub(crate) fn stack_heights(module: &Module) -> Result<StackHeights, (BlockId, S
         } else {
             None
         };
+        if block.terminator.kind == TerminatorKind::DynamicJump && dynamic.is_none() {
+            unknown_jump = true;
+        }
         stack.truncate(stack.len() - inputs as usize);
         for target in successors(&block.terminator.kind) {
             let mut outgoing = stack.clone();
@@ -309,7 +331,7 @@ pub(crate) fn stack_heights(module: &Module) -> Result<StackHeights, (BlockId, S
     for id in unproved.iter() {
         bounds[id] = None;
     }
-    Ok(bounds)
+    Ok((bounds, unknown_jump))
 }
 
 fn physical_successors(module: &Module, id: BlockId) -> impl Iterator<Item = BlockId> + '_ {
@@ -497,10 +519,27 @@ fn local_profile(insts: &[Instruction]) -> Option<(isize, isize, isize)> {
 }
 
 /// Computes the closure of structural edges and physical label references.
+/// A computed transfer may also enter globally exposed labels. Conservatively
+/// include every globally referenced target and block containing a JUMPDEST.
+/// Unreferenced blocks without a JUMPDEST still cannot be entered. This query
+/// does not repeat the more expensive label-stack analysis.
 pub(crate) fn physical_reachability(module: &Module) -> DenseBitSet<BlockId> {
     let mut reachable = DenseBitSet::new_empty(module.blocks.len());
     if let Some(entry) = module.block_ids().next() {
         mark_reachable(module, entry, &mut reachable);
+    }
+    if reachable.iter().any(|id| {
+        module.blocks[id].terminator.kind == TerminatorKind::DynamicJump
+            || module.blocks[id].insts.iter().any(|inst| inst.kind == InstKind::Op(op::JUMPI))
+    }) {
+        for id in module.block_ids() {
+            for target in physical_successors(module, id) {
+                mark_reachable(module, target, &mut reachable);
+            }
+            if module.blocks[id].insts.iter().any(|inst| inst.kind == InstKind::Op(op::JUMPDEST)) {
+                mark_reachable(module, id, &mut reachable);
+            }
+        }
     }
     reachable
 }
@@ -517,7 +556,9 @@ pub(super) fn validate_encoding(gcx: Gcx<'_>, module: &Module) -> solar_interfac
             .err(format!("EVM IR verification failed: block {}: {message}", module.block_label(id)))
             .emit()
     };
-    let heights = stack_heights(module).map_err(|(id, message)| fail(id, message))?;
+    // A concrete overflowing path remains invalid even when another dynamic
+    // entry prevents treating its observed height as an optimization bound.
+    let (heights, _) = stack_analysis(module).map_err(|(id, message)| fail(id, message))?;
     let order = module.block_ids().collect::<Vec<_>>();
     for (position, &id) in order.iter().enumerate() {
         let block = &module.blocks[id];

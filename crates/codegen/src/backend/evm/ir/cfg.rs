@@ -3,7 +3,8 @@
 //! Simplification forwards empty jumps, removes redundant conditional edges,
 //! joins identical conditional successors, merges uniquely entered blocks, and
 //! retains the closure of all explicit and
-//! address-taken targets. Unknown computed jumps retain every address-taken block.
+//! address-taken targets. Unknown computed jumps preserve the module, including
+//! the instructions whose references require those targets to have JUMPDESTs.
 //! Stable block IDs survive all removals and layout changes. Terminal sharing
 //! redirects identical exiting suffixes only when their encoded body exceeds a
 //! jump; it never merges distinct effects or instruction metadata. Placement
@@ -103,6 +104,13 @@ fn redirect(module: &mut Module, targets: &IndexVec<BlockId, BlockId>) -> bool {
 }
 
 fn simplify(module: &mut Module) -> bool {
+    if module.block_ids().any(|id| {
+        module.blocks[id].terminator.kind == TerminatorKind::DynamicJump
+            || module.blocks[id].insts.iter().any(|inst| inst.kind == InstKind::Op(op::JUMPI))
+    }) && super::verify::has_unknown_jump(module)
+    {
+        return false;
+    }
     if empty_revert_program(module) {
         return true;
     }

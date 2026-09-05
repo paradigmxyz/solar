@@ -1,0 +1,24 @@
+- // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/dynamic_stack.evmir (before compact-pushes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/compact-pushes/dynamic_stack.evmir (after compact-pushes) ===
+  @module DynamicStack
+  bb0:
+    calldatasize
+    jumpi bb1, bb2
+  bb1:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
+    push 0
+    push 0
+    push 0
+    calldataload
+    jump
+  bb2:
+    push 0x100000000000000000000000000000000000000000000000000000000000000
+    stop
+  bb3:
+    push bb2
+    stop
+  

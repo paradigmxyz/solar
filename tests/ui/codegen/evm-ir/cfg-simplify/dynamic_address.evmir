@@ -1,0 +1,27 @@
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify
+//@ filecheck:
+@module DynamicAddress
+
+// Calldata can contain any address exposed in this module, including an address
+// whose only explicit reference occurs in another dynamically entered block.
+// CHECK-LABEL: bb0:
+// CHECK: jump
+bb0:
+  push 0
+  calldataload
+  jump
+// CHECK-LABEL: bb1:
+// CHECK-NEXT: push 42
+bb1:
+  push 42
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// Keep the reference that makes bb1 an encoded JUMPDEST.
+// CHECK-LABEL: bb2:
+// CHECK-NEXT: push bb1
+bb2:
+  push bb1
+  stop

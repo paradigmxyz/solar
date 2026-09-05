@@ -1,0 +1,23 @@
+- // === ROOT/tests/ui/codegen/evm-ir/validation/encoding_unknown_edge.evmir (before none) ===
++ // === ROOT/tests/ui/codegen/evm-ir/validation/encoding_unknown_edge.evmir (after none) ===
+  @module EncodingUnknownEdge
+  bb0:
+    calldatasize
+    jumpi bb1, bb2
+  bb1:
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    callf !meta(stack=0->255)
+    push 0
+    push 0
+    push 0
+    push 0
+    jump bb3
+  bb2:
+    push 0
+    calldataload
+    jump
+  bb3:
+    stop
+  

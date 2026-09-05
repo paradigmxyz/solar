@@ -1,0 +1,31 @@
+//@ compile-flags: -Zevm-ir-pipeline=compact-pushes -Osize
+//@ filecheck:
+@module DynamicStack
+
+// bb2 has a proved empty incoming edge and an additional computed edge carrying
+// 1023 words. Its known entry must not justify an extra temporary in bb2.
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+// Opaque producers keep this stack-boundary fixture compact. The retained
+// execution replay expands them to 1020 concrete PUSH0 instructions.
+bb1:
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  callf !meta(stack=0->255)
+  push 0
+  push 0
+  push 0
+  push 0
+  calldataload
+  jump
+// CHECK-LABEL: bb2:
+// CHECK-NEXT: push 0x100000000000000000000000000000000000000000000000000000000000000
+// CHECK-NEXT: stop
+bb2:
+  push 0x100000000000000000000000000000000000000000000000000000000000000
+  stop
+bb3:
+  push bb2
+  stop
