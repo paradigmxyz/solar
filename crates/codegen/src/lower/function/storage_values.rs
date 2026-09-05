@@ -685,6 +685,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let storage_source =
                     argument_ty.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage));
                 let load_ty = if storage_source {
+                    // Unreachable today: a storage reference always has a memory layout, so
+                    // the source type is always there. Kept as a fail-closed guard, because a
+                    // type that ever loses one must bail rather than load at the destination
+                    // type and append unrelated state.
                     let Some(source_ty) = source_ty else {
                         return self
                             .cx

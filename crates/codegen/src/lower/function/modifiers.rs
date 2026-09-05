@@ -93,6 +93,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // the override renames its parameters.
         let parameter_names = match modifier.args.kind {
             hir::CallArgsKind::Named(_) => {
+                // Unreachable today: a modifier invocation always resolves to a function,
+                // unlike a base constructor call, which is lowered elsewhere. Kept as a
+                // fail-closed guard, because binding named arguments without the declared
+                // parameter names would have to guess an order.
                 let Some(declared_id) = modifier.id.as_function() else {
                     return self.cx.report_unsupported(modifier.span, "modifier target");
                 };

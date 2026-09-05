@@ -9,6 +9,12 @@
 // implementation to run and gets the arguments positionally, so an override
 // that renames same-typed parameters cannot reorder them: the named and the
 // positional form of the same call must agree.
+//
+// `solc` rejects named modifier arguments outright (TYPECK-004), so the
+// expected values here are our own positional-equivalence invariant rather
+// than something `solc` can confirm directly. They were verified against
+// `solc` through the positional form, which it does accept and which must
+// produce the same result as the named one.
 contract Base {
     uint256 public r;
 
