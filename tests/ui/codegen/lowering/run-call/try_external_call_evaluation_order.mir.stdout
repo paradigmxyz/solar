@@ -8,19 +8,19 @@ fn @ping(arg0: u256) -> u256 [selector=0x773acdef, payable, abi_params=[u256], a
 // === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrder ===
 @module TryExternalCallEvaluationOrder
 data:
-  TryExternalCallEvaluationOrderTarget_initcode_0: hex"34600d5760408060115f395ff35b5f5ffd5f3560e01c8063773acdef146012576016565b601a565b5f5ffd5b6024361015603c576038565b60016080526020608001608090036080f35b5f5ffd5b602656"
+  TryExternalCallEvaluationOrderTarget_initcode_0: hex"34600757600b565b5f5ffd5b604f8060155f395ff3603e565b36602490106021576025565b60016080526020608001608090036080f35b5f80fd5b600f565b6003565b5f3560e01c6042565b6029565b5f80fd5b602d565b63773acdef03603a57603656"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 112, v1
+    v2 = and 131, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryExternalCallEvaluationOrderTarget_initcode_0, v3, 81
+    data_copy TryExternalCallEvaluationOrderTarget_initcode_0, v3, 100
     v4 = slice_ptr v0
-    v5 = add v3, 81
+    v5 = add v3, 100
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 81
+    v6 = create 0, v3, 100
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

@@ -31,20 +31,20 @@ fn @f() -> u256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/external_call_returndata_size.sol:ExternalCallReturndataSize ===
 @module ExternalCallReturndataSize
 data:
-  LongReturn_initcode_0: hex"34600d5760d48060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b610360604052604051806103005280610300526102808101604052610280368280610300523760145f101515607b575b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b8061030052602a8152601460011015604e5760208101602b8152505f5b8061032052601481101560c35760208180610320520282015160208202608001526001810190506098565b610280608001915050608090036080f3"
-  ShortReturn_initcode_1: hex"34600d5760308060115f395ff35b5f5ffd34601a575f3560e01c806326121ff014601657601a565b601e565b5f5ffd5b602a6080526020608001608090036080f3"
+  LongReturn_initcode_0: hex"34600757600b565b5f5ffd5b60de8060155f395ff361030060405260b8565b604051610280810160405236610280829091903760145f101560bc576056565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52603260045260245ffd5b602a815260146001101560c15760208101602b905260c6565b60148110607a5760cb565b60208102820151602082026080015260019001606f565b610280608001608090036080f35b6009565b3460b4575f3560e01c60d1565b609f565b5f80fd5b60a3565b506029565b506029565b5f606f565b50506091565b6326121ff00360b45760b056"
+  ShortReturn_initcode_1: hex"34600757600b565b5f5ffd5b603f8060155f395ff3602e565b602a6080526020608001608090036080f35b6003565b34602a575f3560e01c6032565b6015565b5f80fd5b6019565b6326121ff003602a57602656"
 
 fn @directOne() -> (u256, u256) [selector=0x6aec8241, abi_params=[], abi_returns=[word, word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 260, v1
+    v2 = and 274, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 229
+    data_copy LongReturn_initcode_0, v3, 243
     v4 = slice_ptr v0
-    v5 = add v3, 229
+    v5 = add v3, 243
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 229
+    v6 = create 0, v3, 243
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -78,13 +78,13 @@ fn @pointerOne() -> (u256, u256) [selector=0xc114b656, abi_params=[], abi_return
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 260, v1
+    v2 = and 274, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 229
+    data_copy LongReturn_initcode_0, v3, 243
     v4 = slice_ptr v0
-    v5 = add v3, 229
+    v5 = add v3, 243
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 229
+    v6 = create 0, v3, 243
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -123,13 +123,13 @@ fn @directTwo() -> (u256, u256, u256) [selector=0x5ffbc6a1, abi_params=[], abi_r
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 260, v1
+    v2 = and 274, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 229
+    data_copy LongReturn_initcode_0, v3, 243
     v4 = slice_ptr v0
-    v5 = add v3, 229
+    v5 = add v3, 243
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 229
+    v6 = create 0, v3, 243
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -169,13 +169,13 @@ fn @pointerTwo() -> (u256, u256, u256) [selector=0x48c1a795, abi_params=[], abi_
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 260, v1
+    v2 = and 274, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy LongReturn_initcode_0, v3, 229
+    data_copy LongReturn_initcode_0, v3, 243
     v4 = slice_ptr v0
-    v5 = add v3, 229
+    v5 = add v3, 243
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 229
+    v6 = create 0, v3, 243
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -219,13 +219,13 @@ fn @directShort() -> (u256, u256) [selector=0x4a8b977e, abi_params=[], abi_retur
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 96, v1
+    v2 = and 115, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ShortReturn_initcode_1, v3, 65
+    data_copy ShortReturn_initcode_1, v3, 84
     v4 = slice_ptr v0
-    v5 = add v3, 65
+    v5 = add v3, 84
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 65
+    v6 = create 0, v3, 84
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -262,13 +262,13 @@ fn @pointerShort() -> (u256, u256) [selector=0xc6a7045a, abi_params=[], abi_retu
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 96, v1
+    v2 = and 115, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ShortReturn_initcode_1, v3, 65
+    data_copy ShortReturn_initcode_1, v3, 84
     v4 = slice_ptr v0
-    v5 = add v3, 65
+    v5 = add v3, 84
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 65
+    v6 = create 0, v3, 84
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -309,13 +309,13 @@ fn @directInvalidBool() -> bool [selector=0x78cd2593, abi_params=[], abi_returns
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 96, v1
+    v2 = and 115, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ShortReturn_initcode_1, v3, 65
+    data_copy ShortReturn_initcode_1, v3, 84
     v4 = slice_ptr v0
-    v5 = add v3, 65
+    v5 = add v3, 84
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 65
+    v6 = create 0, v3, 84
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
@@ -352,13 +352,13 @@ fn @pointerInvalidBool() -> bool [selector=0xa0f03ea6, abi_params=[], abi_return
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 96, v1
+    v2 = and 115, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy ShortReturn_initcode_1, v3, 65
+    data_copy ShortReturn_initcode_1, v3, 84
     v4 = slice_ptr v0
-    v5 = add v3, 65
+    v5 = add v3, 84
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 65
+    v6 = create 0, v3, 84
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

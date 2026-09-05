@@ -8,7 +8,7 @@ fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_call_memory_v2.sol:AbiEncodeCallMemory ===
 @module AbiEncodeCallMemory
 data:
-  AbiEncodeCallMemoryTarget_initcode_0: hex"34600d57601f8060115f395ff35b5f5ffd34601a575f3560e01c8063a7a0d53714601657601a565b601e565b5f5ffd5b"
+  AbiEncodeCallMemoryTarget_initcode_0: hex"34600757600b565b5f5ffd5b602f8060155f395ff3601e565b005b6003565b34601a575f3560e01c6022565b6005565b5f80fd5b6009565b63a7a0d53703601a57601656"
 
 fn @something() [selector=0xa7a0d537, pure, abi_params=[], abi_returns=[]] {
   bb0:
@@ -30,13 +30,13 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     memory_object_store_element memoryfixedarray<2, 1>, v0, 0, v6
     v7 = abi_encode []
     v8 = not 31
-    v9 = and 79, v8
+    v9 = and 99, v8
     v10 = alloc raw, exact, uninitialized, infallible, v9
-    data_copy AbiEncodeCallMemoryTarget_initcode_0, v10, 48
+    data_copy AbiEncodeCallMemoryTarget_initcode_0, v10, 68
     v11 = slice_ptr v7
-    v12 = add v10, 48
+    v12 = add v10, 68
     mcopy v12, v11, 0 !metadata(memory=heap)
-    v13 = create 0, v10, 48
+    v13 = create 0, v10, 68
     jumpi v13, bb4, bb3
   bb3:
     revert_returndata

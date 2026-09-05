@@ -31,62 +31,72 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     v1 = iszero v0
     v2 = abi_encode [word<bool>], args v1
     v3 = not 31
-    v4 = and 372, v3
+    v4 = and 539, v3
     v5 = alloc raw, exact, uninitialized, infallible, v4
-    mstore v5, 0x61013538038061013560e03960e001601f017fffffffffffffffffffffffffff
+    mstore v5, 0x60c06040525f60a0526101dc3803806101dc60c03960df017fffffffffffffff
     v6 = add v5, 32
-    mstore v6, 0xffffffffffffffffffffffffffffffffffffe016604052607b565b7f08c379a0
+    mstore v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffe01660405261010a
     v7 = add v5, 64
-    mstore v7, 0x5f526020
+    mstore v7, 0x565b3461015a5760c06101dc380360c00160208201116101605760f4565b5f90
     v8 = add v5, 96
-    mstore v8, 0x60045260a0516040015160245260a0516060015160445260645ffd5b34610123
+    mstore v8, 0x14151515606a5760eb565b60a0517f7800000000000000000000000000000000
     v9 = add v5, 128
-    mstore v9, 0x5760e08060c0528060c05260e06101353803016020820111156101115761010d
+    mstore v9, 0x600161016691906040518060c081811190
     v10 = add v5, 160
-    mstore v10, 0x565b5f60e05114151515156101085760405160a0518160200152600181604001
+    mstore v10, 0x829003020160a05180608001901515028181119082900302018060800167ffff
     v11 = add v5, 192
-    mstore v11, 0x527f780000000000000000000000000000000000000000000000000000000000
+    mstore v11, 0xffffffffffff821167ffffffffffffffff82111760a05167ffffffffffffffff
     v12 = add v5, 224
-    mstore v12, 0x81606001528060a05260800160405260f6603a565b60a05160405260a051
+    mstore v12, 0x9011176101935761016b565b6101c5565b5f80fd5b5160029010610102576101
     v13 = add v5, 256
-    mstore v13, 0x6020015160a052fe5b610127565b5f5ffd5b8060c05251600290101561010d57
+    mstore v13, 0xc0565b605d565b5f80fd5b60c0516041565b7f08c379a0000000000000000000
     v14 = add v5, 288
-    mstore v14, 0x60a1565b5f5ffd5b6003806101325f395ff35f5ffd0000000000000000000000
-    v15 = slice_ptr v2
-    v16 = add v5, 309
-    mcopy v16, v15, 32 !metadata(memory=heap)
-    v17 = create 0, v5, 341
-    v18 = eq v17, 0
-    v19 = iszero v18
-    jumpi v19, bb1, bb2
+    mstore v14, 0x5f526020600452602490919052
+    v15 = add v5, 320
+    mstore v15, 0x60445260645ffd5b60a0516040015160a05160600151610111565b5061010656
+    v16 = add v5, 352
+    mstore v16, 0x5b505060f0565b60a052fe5b806040525060a051815281816020015290508060
+    v17 = add v5, 384
+    mstore v17, 0xa05290816040015290816060015250610147565b7f4e487b7100000000000000
+    v18 = add v5, 416
+    mstore v18, 0x5f52604160045260245ffd
+    v19 = add v5, 448
+    mstore v19, 0x5b5060f0565b600b6101d15f39600b5ff36007565b5f80fd5b60035600000000
+    v20 = slice_ptr v2
+    v21 = add v5, 476
+    mcopy v21, v20, 32 !metadata(memory=heap)
+    v22 = create 0, v5, 508
+    v23 = eq v22, 0
+    v24 = iszero v23
+    jumpi v24, bb1, bb2
   bb2:
-    v22 = returndatasize
-    v23 = add v22, 63
-    v24 = lt v23, v22
-    jumpi v24, bb4, bb5
+    v27 = returndatasize
+    v28 = add v27, 63
+    v29 = lt v28, v27
+    jumpi v29, bb4, bb5
   bb5:
-    v25 = not 31
-    v26 = and v23, v25
-    v27 = alloc memorybytes, exact, uninitialized, infallible, v26
-    set_memory_object_len memorybytes, v27, v22
-    v28 = make_returndata_slice 0, v22
-    memory_object_copy_from_slice memorybytes, v27, v28
-    v29 = memory_object_data memorybytes, v27
-    v30 = memory_object_len memorybytes, v27
-    v31 = make_memory_slice v29, v30
-    v32 = memory_slice_load_word memory, v31, 0
-    v33 = lt v30, 4
-    v34 = iszero v33
-    v35 = shr 224, v32
-    v36 = eq v35, 0x8c379a0
-    v37 = and v34, v36
-    v38 = lt v30, 36
+    v30 = not 31
+    v31 = and v28, v30
+    v32 = alloc memorybytes, exact, uninitialized, infallible, v31
+    set_memory_object_len memorybytes, v32, v27
+    v33 = make_returndata_slice 0, v27
+    memory_object_copy_from_slice memorybytes, v32, v33
+    v34 = memory_object_data memorybytes, v32
+    v35 = memory_object_len memorybytes, v32
+    v36 = make_memory_slice v34, v35
+    v37 = memory_slice_load_word memory, v36, 0
+    v38 = lt v35, 4
     v39 = iszero v38
-    v40 = eq v35, 0x4e487b71
-    v41 = and v39, v40
+    v40 = shr 224, v37
+    v41 = eq v40, 0x8c379a0
+    v42 = and v39, v41
+    v43 = lt v35, 36
+    v44 = iszero v43
+    v45 = eq v40, 0x4e487b71
+    v46 = and v44, v45
     jumpi 1, bb6, bb7
   bb7:
-    revert v29, v30
+    revert v34, v35
   bb6:
     ret 0
   bb4:
@@ -94,9 +104,9 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb1:
-    v20 = eq v17, 0
-    v21 = iszero v20
-    ret v21
+    v25 = eq v22, 0
+    v26 = iszero v25
+    ret v26
   bb3:
     ret 0
 }

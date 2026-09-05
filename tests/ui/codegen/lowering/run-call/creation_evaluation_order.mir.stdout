@@ -8,7 +8,7 @@ fn @constructor(arg0: u256) [constructor, payable, abi_params=[u256]] {
 // === ROOT/tests/ui/codegen/lowering/run-call/creation_evaluation_order.sol:CreationEvaluationOrder ===
 @module CreationEvaluationOrder
 data:
-  CreationEvaluationOrderChild_initcode_0: hex"6068380380606860c03960c001601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01660405260c060c0606838030160208201915081119050156057576053565b605b565b5f5ffd5b604f565b60038060655f395ff35f5ffd"
+  CreationEvaluationOrderChild_initcode_0: hex"60713803806071608039609f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0166040526057565b608060713803608001602090910111604f576053565b605b565b5f80fd5b604b565b6035565b600b60665f39600b5ff36007565b5f80fd5b600356"
 
 fn @valueOpt() -> u256 {
   bb0:
@@ -86,13 +86,13 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v2 = internal_call @arg, 1
     v3 = abi_encode [word], args v2
     v4 = not 31
-    v5 = and 167, v4
+    v5 = and 176, v4
     v6 = alloc raw, exact, uninitialized, infallible, v5
-    data_copy CreationEvaluationOrderChild_initcode_0, v6, 104
+    data_copy CreationEvaluationOrderChild_initcode_0, v6, 113
     v7 = slice_ptr v3
-    v8 = add v6, 104
+    v8 = add v6, 113
     mcopy v8, v7, 32 !metadata(memory=heap)
-    v9 = create2 v0, v6, 136, v1
+    v9 = create2 v0, v6, 145, v1
     jumpi v9, bb2, bb1
   bb1:
     revert_returndata
