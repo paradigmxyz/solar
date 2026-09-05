@@ -1,0 +1,71 @@
+version: 1
+servers:
+  - id: solar
+    label: Solar workspace
+    command: ../../target/release/solar
+    args:
+      - lsp
+    version_args:
+      - --version
+    artifact:
+      path: ../../target/release/solar
+      sha256: null
+    required: true
+  - id: asyncswap
+    label: Asyncswap 0.1.35
+    command: ../../target/lsp-bench/servers/asyncswap/solidity-language-server
+    version_args:
+      - --version
+    locked_version: "0.1.35"
+    initialization_options:
+      projectIndex:
+        fullProjectScan: true
+    source:
+      url: https://github.com/asyncswap/solidity-language-server.git
+      revision: 2bc75894aff12ce1a13d02b812e7cc61a777f372
+    install:
+      kind: archive
+      url: https://github.com/asyncswap/solidity-language-server/releases/download/v0.1.35/solidity-language-server-x86_64-unknown-linux-gnu.tar.gz
+    artifact:
+      path: ../../target/lsp-bench/servers/asyncswap/solidity-language-server-x86_64-unknown-linux-gnu.tar.gz
+      sha256: 244299167c764c2b45f4e69cdc2dd8ac7bae130cb733bb27d8c09b358fec2069
+    required: true
+
+  - id: nomic-foundation
+    label: Nomic Foundation 0.8.25
+    command: ../../target/lsp-bench/servers/nomic-foundation/node_modules/.bin/nomicfoundation-solidity-language-server
+    args:
+      - --stdio
+    version_args: []
+    locked_version: "0.8.25"
+    source:
+      url: https://github.com/NomicFoundation/hardhat-vscode.git
+      revision: fa4e11fb007630217c95efb1b7847d77221c6a6d
+    install:
+      kind: npm
+      manifest: install/npm/nomic-foundation
+      manifest_sha256: 40273490cee97fad82d4908f07cf455c30efb442237b7e125604c1437487aac7
+    artifact:
+      path: ../../target/lsp-bench/servers/nomic-foundation/node_modules/@nomicfoundation/solidity-language-server
+      sha256: ac6618fb7360f633cefa6e646b3f47c98a09d12ce1ec2dd601314c9e9ea8673c
+    required: true
+
+  - id: solc
+    label: Official solc 0.8.36
+    command: ../../target/lsp-bench/servers/solc/solc-static-linux
+    args:
+      - --experimental
+      - --lsp
+    version_args:
+      - --version
+    locked_version: "0.8.36"
+    source:
+      url: https://github.com/ethereum/solidity.git
+      revision: 8a079791d9cca7a6c03fd6a8429b93aa3bddefed
+    install:
+      kind: binary
+      url: https://github.com/argotorg/solidity/releases/download/v0.8.36/solc-static-linux
+    artifact:
+      path: ../../target/lsp-bench/servers/solc/solc-static-linux
+      sha256: c8d35afdddc3cd2743ee88b8f25e0fecd16e2bdd5f2120f37e52cd9cc45ae0e6
+    required: true

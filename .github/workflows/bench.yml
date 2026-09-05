@@ -93,15 +93,18 @@ jobs:
       - name: Download exact baseline (${{ env.BASE_BRANCH }} branch)
         id: baseline
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CURRENT_RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench/baseline
 
-          base_sha="$BASE_SHA"
-          if [[ -z "$base_sha" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+            test "$(git rev-parse HEAD^2)" = "$PR_HEAD_SHA"
+            base_sha="$(git rev-parse HEAD^1)"
+          else
             base_sha="$(git rev-parse "origin/$BASE_BRANCH")"
           fi
           echo "sha=$base_sha" >> "$GITHUB_OUTPUT"
