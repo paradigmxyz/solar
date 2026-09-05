@@ -2,15 +2,17 @@
 //!
 //! This planner consumes physical MIR without emitting instructions. Each internal frame has the
 //! retained two-word header, followed by argument words, return words, lowered locals and spills.
-//! Runtime functions outside recursive call-graph components receive distinct static frames;
+//! Runtime functions outside recursive call-graph components receive static frames;
 //! constructor callees and recursive functions receive activation-relative frames. Entry-local
 //! absolute addresses remain rooted at `HEAP_START`, as required by retained MIR lowering.
 //!
-//! Scheduling reserves spill words before final layout. Finalization then places static frames and
-//! deferred allocations above the entry-local region and immutable staging words. Entry spill regions can overlap because entries do not return to one another. Internal spill
-//! regions and allocation sites remain distinct: a later scheduler may reduce its reservation only after
-//! proving disjoint lifetimes, including simultaneous phi transfers. Repeated finalization rebuilds
-//! all absolute addresses from relative sizes, so reservations cannot leave stale relocations.
+//! Scheduling reserves spill words before final layout. Static frames and deferred allocations sit
+//! above entry locals and immutable staging. Entry spill regions overlap because entries do not
+//! return to one another. Private single-result static activations share storage across sibling
+//! call paths; longest-path frame ends keep every ancestor disjoint from its descendants, including
+//! paths through dynamic activations. Address-exposed frames, multi-return frames and deferred
+//! allocations stay distinct. Repeated finalization rebuilds absolute addresses from relative sizes
+//! so reservations cannot leave stale relocations.
 //!
 //! Dynamic frames whose addresses are exposed, whose return types reference memory, or whose sticky
 //! `may_return_memory` attribute is set must remain allocated on return. The call emitter owns frame
@@ -23,6 +25,7 @@ use crate::{
     mir::{AllocationAlignment, Function, FunctionId, InstId, InstKind, Module, Terminator},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use std::collections::VecDeque;
 
 const WORD: u64 = EvmMemoryLayout::WORD_SIZE;
 
@@ -138,6 +141,7 @@ pub(crate) struct ModulePlan {
     /// Start of the copied appended constructor arguments; their dynamic size is a runtime fact.
     pub(crate) constructor_arg_base: u64,
     reserved_end: u64,
+    callees: IndexVec<FunctionId, Box<[FunctionId]>>,
 }
 
 impl ModulePlan {
@@ -216,6 +220,26 @@ impl ModulePlan {
             }
             functions.push(storage);
         }
+        let mut callees = IndexVec::new();
+        for (_, function) in module.iter_functions() {
+            let mut targets = function.instructions().filter_map(|inst| {
+                if let InstKind::InternalCall { function, .. } = function.inst(inst).kind {
+                    Some(function)
+                } else {
+                    None
+                }
+            }).collect::<Vec<_>>();
+            targets.extend(function.blocks.iter().filter_map(|block| {
+                if let Some(Terminator::TailCall { function, .. }) = block.terminator {
+                    Some(function)
+                } else {
+                    None
+                }
+            }));
+            targets.sort_unstable();
+            targets.dedup();
+            callees.push(targets.into_boxed_slice());
+        }
         let mut plan = Self {
             functions,
             immutable_staging_base,
@@ -224,6 +248,7 @@ impl ModulePlan {
             max_dynamic_frame_size: 0,
             constructor_arg_base: reserved_end,
             reserved_end: align(reserved_end)?,
+            callees,
         };
         plan.finalize()?;
         Ok(plan)
@@ -274,9 +299,19 @@ impl ModulePlan {
                 && !function.is_entry
                 && !function.stack_arguments
                 && matches!(function.base, FrameBase::Static(_))
+                && !shareable_frame(function)
             {
                 function.base = FrameBase::Static(end);
                 end = add(end, function.frame_size)?;
+            }
+        }
+        let offsets = self.shared_frame_offsets()?;
+        let shared_base = end;
+        for (id, function) in self.functions.iter_mut_enumerated() {
+            if shareable_frame(function) {
+                let base = add(shared_base, offsets[id])?;
+                function.base = FrameBase::Static(base);
+                end = end.max(add(base, function.frame_size)?);
             }
         }
         for function in &mut self.functions {
@@ -306,6 +341,43 @@ impl ModulePlan {
         self.constructor_arg_base = self.fixed_memory_end;
         Ok(())
     }
+
+    /// Propagates maximum live ancestor ends; recursive components have zero static weight.
+    fn shared_frame_offsets(&self) -> Result<IndexVec<FunctionId, u64>, &'static str> {
+        let mut offsets = IndexVec::from_vec(vec![0; self.functions.len()]);
+        let mut queued = DenseBitSet::new_empty(self.functions.len());
+        let mut pending = VecDeque::new();
+        for (id, function) in self.functions.iter_enumerated() {
+            if function.reachable {
+                queued.insert(id);
+                pending.push_back(id);
+            }
+        }
+        while let Some(id) = pending.pop_front() {
+            queued.remove(id);
+            let frame = &self.functions[id];
+            let end = add(offsets[id], if shareable_frame(frame) { frame.frame_size } else { 0 })?;
+            for &callee in &self.callees[id] {
+                if offsets[callee] < end {
+                    offsets[callee] = end;
+                    if queued.insert(callee) {
+                        pending.push_back(callee);
+                    }
+                }
+            }
+        }
+        Ok(offsets)
+    }
+}
+
+/// Multi-return pointers can expose frame storage beyond the activation's return.
+fn shareable_frame(frame: &FunctionStorage) -> bool {
+    frame.reachable
+        && !frame.is_entry
+        && !frame.stack_arguments
+        && !frame.address_exposed
+        && frame.local_offset - frame.return_offset <= WORD
+        && matches!(frame.base, FrameBase::Static(_))
 }
 
 fn function_storage(function: &Function, entry: bool) -> Result<FunctionStorage, &'static str> {
