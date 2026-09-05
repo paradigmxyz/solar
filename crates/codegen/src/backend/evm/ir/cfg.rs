@@ -14,8 +14,7 @@
 //! operate before assembly, where block references and loop/cold annotations are still explicit.
 
 use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::successors};
-use crate::backend::evm::op;
-use solar_config::EvmVersion;
+use crate::{backend::evm::op, timing::PassTimer};
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 use solar_sema::Gcx;
 
@@ -62,7 +61,7 @@ impl EvmPass for TailMerge {
         "tail-merge"
     }
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
-        tail_merge(module, gcx.sess.opts.optimization.is_size(), gcx.sess.opts.evm_version)
+        tail_merge(gcx, module)
     }
 }
 
@@ -117,9 +116,10 @@ fn simplify(module: &mut Module) -> bool {
                     yes != no
                         && module.blocks[yes].insts == module.blocks[no].insts
                         && module.blocks[yes].terminator == module.blocks[no].terminator
-                    && !module.blocks[yes].insts.iter().any(|inst| {
-                        matches!(inst.kind, InstKind::Op(op::PC | op::GAS))
-                    })
+                        && !module.blocks[yes]
+                            .insts
+                            .iter()
+                            .any(|inst| matches!(inst.kind, InstKind::Op(op::PC | op::GAS)))
                 } else {
                     false
                 };
@@ -349,8 +349,12 @@ fn share_reverts(module: &mut Module) -> bool {
     changed
 }
 
-fn tail_merge(module: &mut Module, size: bool, version: EvmVersion) -> bool {
+fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
     let Ok(heights) = super::verify::stack_heights(module) else { return false };
+    timer.finish("EVM analysis", module.name, "tail-merge-stack", false);
+    let size = gcx.sess.opts.optimization.is_size();
+    let version = gcx.sess.opts.evm_version;
     let ids = module.block_ids().collect::<Vec<_>>();
     let mut changed = false;
     for (index, &id) in ids.iter().enumerate() {
