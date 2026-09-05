@@ -206,6 +206,40 @@ sharing. Broad and storage-only dying-operand trials were also rejected after
 local swap savings caused downstream regressions. The next trial pays the
 complete block schedule and restores its exact original exit stack.
 
+## Reviewed snapshots and static argument checkpoint
+
+Private continuation provenance (`991c504b`) recovers 6,408 UI runtime bytes
+under size optimization while retaining the escaped-label guards. Both hot
+lanes execute correctly; its local address-width increases remain documented
+in `private-control-labels/`, rather than treated as final acceptance.
+
+The metadata fix and independently reviewed Standard JSON updates (`0e139223`)
+now pass all 26 Standard JSON fixtures. Embedded child reconstruction certifies
+49 MIR expectations (`4891eaa9`): 38 data/length changes and 11 inline-store versus
+data-copy changes, with 147 runtime revisions and 30 FileChecks passing. Three
+program-data physical snapshots (`c3272576`) additionally pass exact child-byte
+and six assembly-round-trip checks plus all 15 selected revisions. No runtime
+expectations or existing FileChecks were weakened. These reviews leave 76 of
+the earlier 128 output differences for separate investigation.
+
+Static spilling calls receive bounded arguments directly on the stack
+(`65d46925`), reserve their spill homes in the existing frame ancestry plan,
+and establish canonical entry state once. All 709 matched UI cases per mode
+retain their contracts and success status; runtime and creation size each fall
+by 1,387 bytes under gas and 1,112 under size with no individual increase. All
+15 hot cases, 175 ordered gas labels and 139 observations remain exact. The
+new nested overlapping-writer fixture passes four standard revisions, 72
+independent calls, and a reduced bounded symbolic comparison. The unrestricted
+symbolic timeout is retained as incomplete.
+
+The latest workspace attempt passes 1,341 tests; its one failing UI runner
+reports the same pre-review 128 output differences, with two skipped tests.
+This is not a passing workspace result. The refreshed sealed comparison under
+`static-spill-sealed-ranking/` still has 27/24 regressing hot gas labels and
+22/18 regressing creation/runtime artifacts for gas/size, plus 1,464 UI artifact
+increases. The 15-case runtime lane does not cover the nine heavy compilation
+cases. Smaller isolated improvements do not satisfy these final gates.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
