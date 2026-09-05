@@ -118,6 +118,23 @@ impl EvmPass for LocalPass {
                 _ => unreachable!(),
             }
         }
+        if self.0 == "dce" && let Some(heights) = &heights {
+            for id in module.block_ids().collect::<Vec<_>>() {
+                if let super::TerminatorKind::Jump(target) = module.blocks[id].terminator.kind
+                    && target != id
+                    && !module.blocks[id].insts.is_empty()
+                    && module.blocks[id].insts.iter().all(|inst| canonical(inst) && matches!(inst.kind, InstKind::Op(op::POP)))
+                    && let Some((_, incoming)) = heights[id]
+                    && let Some(peak) = peephole::self_contained_terminal_peak(&module.blocks[target])
+                    && incoming as i64 + peak.max(1) <= 1024
+                {
+                    // pop dead_prefix...; jump <self-contained terminal body>
+                    // -> jump <same terminal body>
+                    module.blocks[id].insts.clear();
+                    changed = true;
+                }
+            }
+        }
         changed
     }
 }
