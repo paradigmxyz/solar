@@ -7,9 +7,20 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
 @module EmptyCodeLibrary
+@library
+immutables:
+  library_deploy_address: address
+
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[]] {
   bb0:
     stop
+}
+
+fn @constructor() [constructor] {
+  bb0:
+    v0 = address
+    storeimmutable library_deploy_address, v0
+    ret
 }
 
 // === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeCalls ===

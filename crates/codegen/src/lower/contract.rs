@@ -5,7 +5,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{ByteSymbol, Ident};
+use solar_interface::{ByteSymbol, Ident, kw, sym};
 use solar_sema::{
     Gcx,
     hir::{self, ContractId, Visit},
@@ -13,7 +13,7 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::mir::{Function, FunctionAttributes, FunctionBuilder, Module};
+use crate::mir::{Function, FunctionAttributes, FunctionBuilder, MirType, Module};
 
 /// Builds a typed MIR module from one HIR contract.
 ///
@@ -145,6 +145,26 @@ pub(super) fn lower(
     let mut seen_ids = FxHashSet::default();
     let function_ids =
         function_ids.into_iter().filter(|(id, _)| seen_ids.insert(*id)).collect::<Vec<_>>();
+    let is_library = contract.kind == hir::ContractKind::Library;
+    module.is_library = is_library;
+    // A library's non-view external functions may only run through `DELEGATECALL`. Like
+    // solc, the dispatch compares `address()` against the library's own deployment address,
+    // which the creation code patches into the runtime code like an immutable.
+    let library_deploy_address = (is_library
+        && function_ids.iter().any(|&(id, expose_selector)| {
+            expose_selector
+                && matches!(
+                    gcx.hir.function(id).state_mutability,
+                    hir::StateMutability::NonPayable | hir::StateMutability::Payable
+                )
+        }))
+    .then(|| {
+        module.add_immutable(
+            Ident::with_dummy_span(sym::library_deploy_address),
+            MirType::Address,
+            None,
+        )
+    });
     let (shared_literals, shared_word_literals) = shared_string_literals(gcx, &function_ids);
     let mut mir_ids = FxHashMap::default();
     let mut visiting_storage_structs = FxHashSet::default();
@@ -247,6 +267,22 @@ pub(super) fn lower(
     })();
     if !synthetic_ok {
         return module;
+    }
+
+    // Libraries have no constructor of their own; stage the deployment address for the
+    // dispatch guard:
+    //   fn @constructor
+    //     v0 = address
+    //     storeimmutable library_deploy_address, v0
+    //     ret
+    if let Some(immutable_id) = library_deploy_address {
+        let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
+        constructor.attributes.is_constructor = true;
+        let mut builder = FunctionBuilder::new(&mut constructor);
+        let address = builder.address();
+        builder.store_immutable(immutable_id, address);
+        builder.ret(std::iter::empty());
+        module.add_function(constructor);
     }
 
     function::generate_internal_function_pointer_dispatchers(gcx, &mut module, &mir_ids, &state);

@@ -256,8 +256,10 @@ impl LowerAbiCx {
         // prologue (falling through into the body) rather than to a guard block
         // in the selector switch, which would pay an extra jump per case.
         // `lower-dispatch` shares the predicate and routes selector cases
-        // unguarded.
-        let hoist_callvalue = callvalue.hoists();
+        // unguarded. Libraries never check value, since a `DELEGATECALL`
+        // sees the caller's; `lower-dispatch` guards their non-view entries
+        // against direct calls instead.
+        let hoist_callvalue = !module.is_library && callvalue.hoists();
 
         for id in constructors {
             let layout = module.function_mut(id).abi_params.take();
@@ -279,7 +281,10 @@ impl LowerAbiCx {
             ) {
                 body_of_wrapper.insert(id, body_id);
             }
-            if !hoist_callvalue && super::utils::rejects_callvalue(module.function(id)) {
+            if !module.is_library
+                && !hoist_callvalue
+                && super::utils::rejects_callvalue(module.function(id))
+            {
                 self.inject_callvalue_check(module.function_mut(id));
             }
         }

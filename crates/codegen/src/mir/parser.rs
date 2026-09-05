@@ -182,6 +182,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_module(&mut self) -> PResult<'sess, Module> {
         let mut phase = super::MirPhase::default();
+        let mut is_library = false;
         self.parser.expect(TokenKind::At)?;
         self.parser.expect_keyword(sym::module)?;
         let module_name = self.parser.parse_ident()?;
@@ -196,6 +197,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                             .error_at(phase_span, format!("unknown MIR phase `{phase_name}`"))
                     })?;
                 }
+                kw::Library => is_library = true,
                 _ => return Err(self.parser.error(format!("unknown module attribute `@{attr}`"))),
             }
         }
@@ -203,6 +205,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let module_ident = Ident::with_dummy_span(module_name);
         let mut module = Module::new(module_ident);
         module.phase = phase;
+        module.is_library = is_library;
         let mut function_refs = Vec::new();
 
         if self.parser.check_keyword(sym::data) {

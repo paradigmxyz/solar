@@ -15,11 +15,24 @@
 //! [`super::lower_abi::LowerAbi`] produces, so it bails on `built`/`optimized` modules
 //! rather than half-dispatching argument-taking functions.
 //!
+//! Library modules differ in two ways, both matching solc. Their entry never
+//! checks `callvalue`: a `DELEGATECALL` sees the caller's value, so a library
+//! must accept it. And every non-view route first compares `address()` against
+//! the library's own deployment address (the synthetic
+//! [`Module::library_deploy_address`] immutable, staged by the creation code
+//! and patched into the runtime code), reverting when they are equal, so
+//! state-changing library functions only run through `DELEGATECALL`. The
+//! comparison is computed once before the selector switch and each guarded case
+//! branches on it; in `--revert-strings debug` mode the revert carries solc's
+//! "Non-view function of library called without DELEGATECALL" message.
+//!
 //! This pass runs after [`super::lower_abi::LowerAbi`] in the codegen pipeline.
 //! The backend only consumes the final `evm-shaped` module.
 
 use crate::{
-    mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, RevertReason, ValueId},
+    mir::{
+        Function, FunctionBuilder, FunctionId, MirPhase, MirType, Module, RevertReason, ValueId,
+    },
     pass::MirPass,
 };
 use alloy_primitives::U256;
@@ -106,8 +119,9 @@ fn lower_dispatch(
     // Hoist the callvalue check when every external entry rejects value.
     // When the hoist does not apply, the selector cases route unguarded:
     // `lower-abi` already injected the check into each rejecting wrapper's
-    // prologue (the two passes share this predicate).
-    let hoist_callvalue = callvalue.hoists();
+    // prologue (the two passes share this predicate). Libraries never check
+    // value, since a `DELEGATECALL` sees the caller's.
+    let hoist_callvalue = !module.is_library && callvalue.hoists();
 
     build_entry(
         module,
@@ -157,8 +171,14 @@ fn build_entry(
         let revert_block = builder.create_block();
         // Rejected Ether and unknown selectors share one empty revert unless revert reasons are
         // encoded, in which case each gets its own message.
-        let callvalue_revert_block =
-            if revert_strings.is_debug() { builder.create_block() } else { revert_block };
+        let checks_callvalue = hoist_callvalue
+            || fallback
+                .is_some_and(|target| super::utils::rejects_callvalue(module.function(target)));
+        let callvalue_revert_block = if revert_strings.is_debug() && checks_callvalue {
+            builder.create_block()
+        } else {
+            revert_block
+        };
         let default_block = fallback_block.as_ref().map_or(revert_block, |&(_, block)| block);
         let dispatch_block = receive_size_block.or(selector_size_block).unwrap_or(select_block);
 
@@ -195,9 +215,24 @@ fn build_entry(
 
         // Selector switch; the default goes to the fallback when present.
         builder.switch_to_block(select_block);
+        let mut direct_call = None;
         if routes.is_empty() {
             builder.jump(default_block);
         } else {
+            // A library computes once whether it was called directly rather than through
+            // `DELEGATECALL`; the guarded cases below branch on it.
+            //   v0 = loadimmutable library_deploy_address
+            //   v1 = address
+            //   v2 = eq v0, v1
+            if let Some(immutable) = module.library_deploy_address()
+                && routes.iter().any(|&(_, target)| {
+                    super::utils::needs_delegatecall_guard(module.function(target))
+                })
+            {
+                let own = builder.load_immutable(immutable, MirType::Address);
+                let this = builder.address();
+                direct_call = Some(builder.eq(own, this));
+            }
             let selector = load_selector(&mut builder, has_bitwise_shifting);
             let cases = routes
                 .iter()
@@ -221,9 +256,16 @@ fn build_entry(
         // Each case tail-calls its argument-free wrapper directly. A
         // rejecting wrapper carries its own callvalue check in its
         // prologue (injected by `lower-abi`) whenever the hoisted check
-        // does not apply, so no per-case guard is needed.
+        // does not apply, so no per-case guard is needed. A non-view
+        // library function first rejects direct calls:
+        //   jumpi v2, revert, continue
         for ((_, target), block) in routes.iter().zip(&case_blocks) {
             builder.switch_to_block(*block);
+            if let Some(direct_call) = direct_call
+                && super::utils::needs_delegatecall_guard(module.function(*target))
+            {
+                builder.revert_if(direct_call, RevertReason::LibraryCalledWithoutDelegatecall);
+            }
             builder.tail_call(*target, Vec::new());
         }
 

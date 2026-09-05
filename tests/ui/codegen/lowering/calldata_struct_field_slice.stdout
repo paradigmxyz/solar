@@ -1,6 +1,7 @@
 // === ROOT/tests/ui/codegen/lowering/calldata_struct_field_slice.sol:ERC4337Utils ===
 @module ERC4337Utils
 @phase evm-shaped
+@library
 fn @entry() [entry] {
   bb0:
     jump bb1

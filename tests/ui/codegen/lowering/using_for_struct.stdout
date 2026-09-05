@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:L ===
 @module L
+@library
 
 // === ROOT/tests/ui/codegen/lowering/using_for_struct.sol:C ===
 @module C

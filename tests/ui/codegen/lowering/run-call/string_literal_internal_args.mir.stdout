@@ -1,8 +1,10 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:Errors ===
 @module Errors
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:L ===
 @module L
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/string_literal_internal_args.sol:StringLiteralInternalArgs ===
 @module StringLiteralInternalArgs

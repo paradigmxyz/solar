@@ -30,6 +30,7 @@ fn @settle() [selector=0x11da60b4, payable, abi_params=[], abi_returns=[]] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:Settler ===
 @module Settler
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/spill_sibling_arm_store.sol:IntNegate ===
 @module IntNegate

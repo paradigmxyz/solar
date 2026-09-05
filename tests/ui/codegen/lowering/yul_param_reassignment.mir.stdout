@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/yul_param_reassignment.sol:LibBytes ===
 @module LibBytes
+@library
 
 // === ROOT/tests/ui/codegen/lowering/yul_param_reassignment.sol:YulParamReassignment ===
 @module YulParamReassignment

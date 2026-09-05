@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
 @module TryLib
+@library
 fn @double(arg0: u256) -> u256 [selector=0xeee97206, pure, abi_params=[u256], abi_returns=[word]] {
   bb0:
     v0 = mul 2, arg0

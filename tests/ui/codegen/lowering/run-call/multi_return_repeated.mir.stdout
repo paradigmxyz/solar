@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeatedLib ===
 @module MultiReturnRepeatedLib
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/multi_return_repeated.sol:MultiReturnRepeated ===
 @module MultiReturnRepeated

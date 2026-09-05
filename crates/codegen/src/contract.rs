@@ -436,18 +436,18 @@ fn generate_contract_bytecode(
             )
             .emit();
     }
+    // A library's deployment-address placeholder is not a source immutable; like solc's
+    // legacy pipeline, it is not reported.
     let immutable_references = artifact
         .immutable_references
         .iter()
-        .map(|reference| {
-            let immutable = module.immutable(reference.id);
-            ImmutableReference {
-                variable_id: immutable
-                    .variable_id
-                    .expect("Solidity immutable must have a variable ID"),
+        .filter_map(|reference| {
+            let variable_id = module.immutable(reference.id).variable_id?;
+            Some(ImmutableReference {
+                variable_id,
                 start: reference.code_offset + 1,
                 type_size: reference.type_size,
-            }
+            })
         })
         .collect();
     // Embedded creation and runtime code carries the dependencies' placeholders verbatim, so

@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:PackedCheckpoints ===
 @module PackedCheckpoints
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:CheckpointTarget ===
 @module CheckpointTarget

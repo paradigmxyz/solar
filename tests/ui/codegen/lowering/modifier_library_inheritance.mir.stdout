@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:L ===
 @module L
+@library
 
 // === ROOT/tests/ui/codegen/lowering/modifier_library_inheritance.sol:Test ===
 @module Test

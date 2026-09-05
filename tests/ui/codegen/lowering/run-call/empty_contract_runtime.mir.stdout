@@ -39,6 +39,7 @@ fn @constructor() [constructor] {
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:InternalLibrary ===
 @module InternalLibrary
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/empty_contract_runtime.sol:EmptyContractRuntime ===
 @module EmptyContractRuntime

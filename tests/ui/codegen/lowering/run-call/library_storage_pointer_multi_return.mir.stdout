@@ -1,5 +1,6 @@
 // === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:Lib ===
 @module Lib
+@library
 
 // === ROOT/tests/ui/codegen/lowering/run-call/library_storage_pointer_multi_return.sol:LibraryStoragePointerMultiReturn ===
 @module LibraryStoragePointerMultiReturn
