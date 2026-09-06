@@ -1,0 +1,27 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=cold-blocks
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=cold-blocks
+//@ filecheck:
+@module RevertDiamond
+
+// Both arms and their shared continuation always revert. Propagate through the
+// whole diamond, retaining edge polarity and block order.
+// CHECK-LABEL: + bb0 [cold]:
+// CHECK: {{^[ +].*}}jumpi bb2, bb1
+bb0:
+  calldatasize
+  jumpi bb2, bb1
+// CHECK-LABEL: + bb1 [cold]:
+// CHECK: {{^[ +].*}}jump bb3
+bb1:
+  jump bb3
+// CHECK-LABEL: + bb2 [cold]:
+// CHECK: {{^[ +].*}}jump bb3
+bb2:
+  jump bb3
+// CHECK-LABEL: + bb3 [cold]:
+// CHECK: {{^[ +].*}}revert
+bb3:
+  push 0
+  push 0
+  revert

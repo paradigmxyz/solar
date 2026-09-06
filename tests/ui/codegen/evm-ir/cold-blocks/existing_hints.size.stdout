@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cold-blocks/existing_hints.evmir (before cold-blocks) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cold-blocks/existing_hints.evmir (after cold-blocks) ===
+  @module ExistingHints
+  bb0:
+    calldatasize
+    jumpi bb1, bb2
+  bb1 [cold]:
+    stop
+- bb2:
++ bb2 [cold]:
+    push 0
+    push 0
+    revert
+  bb3:
+    jump bb4
+  bb4 [cold]:
+    push 0
+    push 0
+    return
+  

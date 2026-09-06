@@ -1,0 +1,41 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=cold-blocks
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=cold-blocks
+//@ filecheck:
+@module IndexedAndDynamic
+
+// Every explicit indexed destination reverts, including a repeated target.
+// CHECK-LABEL: + bb0 [cold]:
+// CHECK: {{^[ +].*}}indexed_jump bb1, bb1, bb2
+bb0:
+  calldatasize
+  indexed_jump bb1, bb1, bb2
+// CHECK-LABEL: + bb1 [cold]:
+bb1:
+  push 0
+  push 0
+  revert
+// CHECK-LABEL: + bb2 [cold]:
+bb2:
+  push 0
+  push 0
+  revert
+// Even a dynamically transferred pushed label is outside this structural proof.
+// CHECK-LABEL: {{^[ +].*}}bb3:{{$}}
+// CHECK: {{^[ +].*}}jump{{$}}
+bb3:
+  push bb1
+  jump
+// CHECK-LABEL: {{^[ +].*}}bb4:{{$}}
+bb4:
+  jump bb3
+// One successful indexed destination prevents backward cold classification.
+// CHECK-LABEL: {{^[ +].*}}bb5:{{$}}
+bb5:
+  calldatasize
+  indexed_jump bb1, bb6
+// CHECK-LABEL: {{^[ +].*}}bb6:{{$}}
+bb6:
+  push 0
+  push 0
+  return

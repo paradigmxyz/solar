@@ -1,0 +1,30 @@
+- // === ROOT/tests/ui/codegen/evm-ir/cold-blocks/indexed_and_dynamic.evmir (before cold-blocks) ===
++ // === ROOT/tests/ui/codegen/evm-ir/cold-blocks/indexed_and_dynamic.evmir (after cold-blocks) ===
+  @module IndexedAndDynamic
+- bb0:
++ bb0 [cold]:
+    calldatasize
+    indexed_jump bb1, bb1, bb2
+- bb1:
++ bb1 [cold]:
+    push 0
+    push 0
+    revert
+- bb2:
++ bb2 [cold]:
+    push 0
+    push 0
+    revert
+  bb3:
+    push bb1
+    jump
+  bb4:
+    jump bb3
+  bb5:
+    calldatasize
+    indexed_jump bb1, bb6
+  bb6:
+    push 0
+    push 0
+    return
+  

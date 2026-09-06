@@ -1,0 +1,33 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=cold-blocks
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=cold-blocks
+//@ filecheck:
+@module RawControl
+
+// The raw conditional can escape to STOP before reaching the textual REVERT.
+// Its containing block and predecessors must remain unproved.
+// CHECK-LABEL: {{^[ +].*}}bb0:{{$}}
+// CHECK: {{^[ +].*}}push bb1
+// CHECK-NEXT: {{^[ +].*}}jumpi
+bb0:
+  calldatasize
+  push bb1
+  jumpi
+  push 0
+  push 0
+  revert
+// CHECK-LABEL: {{^[ +].*}}bb1:{{$}}
+bb1:
+  stop
+// CHECK-LABEL: {{^[ +].*}}bb2:{{$}}
+bb2:
+  jump bb0
+// Independent ordinary revert regions still receive annotations.
+// CHECK-LABEL: + bb3 [cold]:
+bb3:
+  jump bb4
+// CHECK-LABEL: + bb4 [cold]:
+bb4:
+  push 0
+  push 0
+  revert

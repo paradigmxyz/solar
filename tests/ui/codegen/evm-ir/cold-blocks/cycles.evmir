@@ -1,0 +1,35 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=cold-blocks
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=cold-blocks
+//@ filecheck:
+@module Cycles
+
+// A closed cycle and a cycle with a revert escape both remain unproved. The
+// acyclic arm is cold, but does not make a mixed predecessor cold.
+// CHECK-LABEL: {{^[ +].*}}bb0:{{$}}
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+// CHECK-LABEL: {{^[ +].*}}bb1:{{$}}
+// CHECK: {{^[ +].*}}jump bb1
+bb1:
+  jump bb1
+// CHECK-LABEL: + bb2 [cold]:
+bb2:
+  jump bb3
+// CHECK-LABEL: + bb3 [cold]:
+bb3:
+  push 0
+  push 0
+  revert
+// CHECK-LABEL: {{^[ +].*}}bb4:{{$}}
+// CHECK: {{^[ +].*}}jumpi bb4, bb3
+bb4:
+  calldatasize
+  jumpi bb4, bb3
+// A duplicate successor contributes two edges and must consume both exactly once.
+// CHECK-LABEL: + bb5 [cold]:
+// CHECK: {{^[ +].*}}jumpi bb3, bb3
+bb5:
+  calldatasize
+  jumpi bb3, bb3

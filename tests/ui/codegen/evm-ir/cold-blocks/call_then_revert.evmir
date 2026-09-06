@@ -1,0 +1,26 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=cold-blocks
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=cold-blocks
+//@ filecheck:
+@module CallThenRevert
+
+// A returning call still reaches REVERT. Preserve every call operand and opcode;
+// cold classification itself neither moves nor rewrites the call.
+// CHECK-LABEL: + bb0 [cold]:
+// CHECK: {{^[ +].*}}push 0x186a0
+// CHECK-NEXT: {{^[ +].*}}call
+// CHECK-NEXT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}revert
+bb0:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 1
+  push 100000
+  call
+  pop
+  push 0
+  push 0
+  revert

@@ -55,6 +55,7 @@ pub static ALL_PASSES: &[&dyn EvmPass] = &[
     &super::cfg::TerminalDedup,
     &super::cfg::RedirectTerminals,
     &super::cfg::TailMerge,
+    &super::cold::ColdBlocks,
     &super::cfg::BlockLayout,
     &super::local::LiteralOrientation,
     &super::local::EnvironmentCopies,
@@ -187,6 +188,7 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         &super::legalize::LegalizeShifts,
         &super::local::LiteralOrientation,
         &super::local::EnvironmentCopies,
+        &super::cold::ColdBlocks,
     ]);
     run_passes(gcx, module, &passes, None)
 }

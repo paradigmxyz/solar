@@ -1,0 +1,32 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=cold-blocks
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=cold-blocks
+//@ filecheck:
+@module ExistingHints
+
+// A preexisting cold hint survives but is not proof of eventual revert. Neither
+// a stop nor a successful return may seed the reverse proof.
+// CHECK-LABEL: {{^[ +].*}}bb0:{{$}}
+// CHECK: {{^[ +].*}}jumpi bb1, bb2
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+// CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
+// CHECK: {{^[ +].*}}stop
+bb1 [cold]:
+  stop
+// CHECK-LABEL: + bb2 [cold]:
+// CHECK: {{^[ +].*}}revert
+bb2:
+  push 0
+  push 0
+  revert
+// CHECK-LABEL: {{^[ +].*}}bb3:{{$}}
+bb3:
+  jump bb4
+// CHECK-LABEL: {{^[ +].*}}bb4 [cold]:
+// CHECK: {{^[ +].*}}return
+bb4 [cold]:
+  push 0
+  push 0
+  return

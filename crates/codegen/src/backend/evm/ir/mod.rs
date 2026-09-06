@@ -17,6 +17,7 @@ pub use crate::pass_manager::pipeline_label;
 
 mod blocks;
 mod cfg;
+mod cold;
 mod data;
 mod immediate;
 mod legalize;
