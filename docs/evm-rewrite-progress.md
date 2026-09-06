@@ -21,25 +21,25 @@ positions and PUSH widths. There is no Atom stream or assembly-level CFG
 optimization. MIR semantics remain in their retained layers. No legacy backend
 or temporary unsupported rewrite fallback is used.
 
-At `2a63d1fb`, the fresh scope has 11,591 Rust lines across 33 files, versus
-34,638 deleted raw lines: 23,047 fewer. These counts include comments, blanks
+At `ce278bcd`, the fresh scope has 11,684 Rust lines across 33 files, versus
+34,638 deleted raw lines: 22,954 fewer. These counts include comments, blanks
 and local tests. A historical production-only count was not retained and is
 not reconstructed from forbidden source.
 
 ## Verification checkpoints
 
-The latest full workspace run (`borrowed-successors/`) has 1,352 passes, one
-failing UI aggregate and two skips. Its UI lane has 10,875 passes and 62 snapshot
-differences. Five of those expectations have since received isolated execution
-review and updates; later source changes still need a fresh full run. The
-Foundry lane passes. Standard JSON cases passed inside the full UI run.
+The latest full workspace run (`accepted-september6/`) has 1,353 passes, one
+failing UI aggregate and two skips. Its UI lane has 10,920 passes, 53 remaining
+failures and 806 filtered revisions. Foundry and workspace/all-target Clippy
+pass; retained out-of-scope warnings remain. Standard JSON passes inside UI.
 
-Current isolated screens retain 715 successful UI sources per optimization
+Current isolated screens retain 716 successful UI sources per optimization
 mode and the same eight known failures. Both hot reports retain all 15 runtime
-cases, 175 ordered gas labels and 139 observations. The earlier complete
-`cost-call-writer-common/all-corpus/` run compiled all 24 original gas-mode IDs,
-including nine heavy compile-only cases. Current short hot reports intentionally
-omit those nine; their final remeasurement remains required.
+cases, 175 ordered gas labels and 139 observations. The latest complete
+`accepted-september6/all-corpus/` run compiles all 24 original gas-mode IDs,
+including nine heavy compile-only cases. Those reports retain aggregate counts
+and input/output fingerprints for the heavy cases; supplemental captures are
+still needed to compare their individual contract inventories and artifacts.
 
 Writer correctness is covered by 531 compiled stress calls and independent
 stack/memory models. The internal-call stack-return differential reaches bounded
@@ -63,6 +63,7 @@ or a final sealed-baseline comparison.
 | Reuse call-entry costs | 70.38→68.63 s (one pair, provisional) | RSS −4.9% |
 | Borrow successor targets | 68.37→68.61 s (flat; no speedup claim) | RSS +6.0%, one pair |
 | Resize unknown stack outputs | 67.63→66.61; 67.34→67.13 s (−1.5%/−0.3%) | Modest; RSS +5.6%/+0.1% |
+| Memoize recursion reachability | 66.10→60.10; 65.60→55.62 s (−9.1%/−15.2%) | RSS +8.7%/−2.7% |
 
 A direct sealed/current checkpoint pair on the same archived input is
 54.62→67.63 seconds (+23.8%), with peak RSS 822,828→632,296 KiB
@@ -140,6 +141,14 @@ Widths' +1 size byte and +4/+7 read gas remain open. No symbolic agreement is
 claimed for immutable constructors, which that differential runner cannot execute.
 All six focused revisions across these five fixtures pass; 53 prior failures
 remain to investigate. Details are in `immutable-current-review/`.
+
+A four-line per-analysis cache avoids repeating the same physical graph query.
+All 716 UI cases per mode, 15 runtime cases and 175 hot labels preserve exact
+outputs. Independent checks retain 26 exact diagnostic pairs and 46 passing UI
+revisions per leg; 94 helper tests pass. Both Seaport timing pairs improve with
+all 432 contract outputs exact. Cache lifetime and keys depend only on the
+immutable graph; validation/context widening remain unchanged. Evidence is in
+`verifier-recursion-memo/`.
 
 A three-line identical-stack shortcut was rejected: output was exact, but its
 isolated compiler-time pair worsened 65.36→67.13 seconds (+2.7%). The one-line

@@ -171,6 +171,8 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
     let mut states =
         FxHashMap::<(BlockId, usize), Option<FxHashSet<Vec<Option<(BlockId, usize)>>>>>::default();
     let mut prototypes = FxHashMap::<BlockId, Vec<Option<(BlockId, usize)>>>::default();
+    // The physical graph is immutable throughout this analysis.
+    let mut recursive = FxHashMap::default();
     let mut unproved = DenseBitSet::new_empty(module.blocks.len());
     if let Some(entry) = module.block_ids().next() {
         pending.push_back((entry, Vec::new()));
@@ -307,7 +309,9 @@ fn stack_analysis(module: &Module) -> Result<(StackHeights, bool), (BlockId, Str
                     .iter()
                     .flatten()
                     .any(|(label, _)| !prototype.iter().flatten().any(|(old, _)| label == old))
-                && recursive_transfer(module, target, id)
+                && *recursive
+                    .entry((target, id))
+                    .or_insert_with(|| recursive_transfer(module, target, id))
             {
                 // A recursive physical transfer adds a fresh continuation above a
                 // suspended prefix. Prove one activation and remember that prefix
