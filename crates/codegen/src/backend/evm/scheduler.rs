@@ -162,7 +162,8 @@ impl<T: Copy + Eq> Stack<T> {
                 break;
             }
             let required = desired.iter().filter(|&&other| other == value).count();
-            while self.count(value) < required {
+            // Each appended copy increases this identity count by exactly one.
+            for _ in self.count(value)..required {
                 let Some(index) = self.values.iter().rposition(|&other| other == value) else {
                     return Err(StackError::MissingValue);
                 };
