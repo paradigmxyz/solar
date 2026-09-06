@@ -22,22 +22,21 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,489 Rust lines across 35 files, versus 34,638 deleted
-raw lines: 22,149 fewer (64.0%). Counts include comments, blanks and local tests.
+The current scope has 12,494 Rust lines across 35 files, versus 34,638 deleted
+raw lines: 22,144 fewer (64.0%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
-The rebuilt committed state in `equal-review-final-20260906/` has 1,358 workspace
-passes, one failing UI aggregate and two skips. Its UI lane has 10,961 passes,
-63 failures and 806 filtered revisions. Exactly the three reviewed equal-immediate
-revisions resolve since the preceding run; no new failure IDs appear. All 99
-codegen helpers, Foundry and ordinary workspace/all-target Clippy passed the
-preceding output-identical trial. An additional deny-warnings invocation found
+The committed writer state in `writer-word-index-trial-20260906/` has 1,358
+workspace passes, one failing UI aggregate and two skips. Its latest UI lane has
+10,962 passes, 62 failures and 806 filtered revisions. The mapping-storage review
+resolves exactly one failure since the preceding run; no new failure IDs appear.
+All 99 codegen helpers, Foundry and ordinary workspace/all-target Clippy pass. An additional deny-warnings invocation found
 existing warnings outside the changed scheduler; its failure remains retained.
 
-The current quality ledger is `writer-delta-sealed-ledger-20260906/`.
+The current quality ledger is `writer-word-index-sealed-ledger-20260906/`.
 All 694 original successful UI IDs and eight known failures match in each mode;
 30 added successes remain separate. Both hot lanes retain all 15 runtime cases,
 175 ordered gas labels and exact observations. Nine heavy captures match the
@@ -58,6 +57,7 @@ Recent expectations were reviewed with actual execution before updating:
 | Embedded children and dump output (`c062ba84`) | 36 compiles, 90 executions, 32 optimized size and 20 gas comparisons | All oracles agree; no optimized increase |
 | Code-object copies (`ed1b467f`) and Paris memory copy (`ffdc9c7d`) | 27 compiles, 99 executions; exact data/padding and label reconstruction | All oracles agree; no optimized increase |
 | Equal immediates (`ce287764`) | 9 compiles, 135 executions; six FileCheck replays | Optimized output saves two bytes and valid calls save five opcode gas |
+| Mapping storage (`fc1154ff`) | 54 executions; exact hashed-field storage traces | Optimized output saves two bytes and successful calls save 21 gas |
 
 Evidence is retained in `writer-snapshot-runtime-review-20260906/`,
 `code-object-mcopy-review-20260906/` and `equal-immediate-review-20260906/`.
@@ -66,8 +66,10 @@ are byte-exact for each changed source. The code-object solc pairs differ only
 inside independently parsed IPFS metadata digests; the initial failed equality
 assertion and complete CBOR audit remain retained. The latest derived sealed
 source-join report is
-`equal-immediate-review-20260906/root-review/sealed-ui-derived-for-future.json`;
-its 1,404 original rows and totals are unchanged.
+`library-phi-review-20260906/root-review-v2/sealed-ui-derived-for-future.json`;
+its 1,404 original rows and totals are unchanged. The mapping proof initially
+rejected different counts of comment-only blank lines before any mutation; the
+corrected noncomment-line comparison and four exact bytecode pairs are retained.
 
 Replay-confirmed bounded differentials cover internal stack returns, selected
 ABI/termination cases, exact-stride switches and initializer controls. Writer,
@@ -87,8 +89,10 @@ and check all 432 contract outputs. Isolated speedups are not additive.
 | Stop completed stack counts | 54.83→52.07; 55.84→51.59 s | +3.1% / +5.5% |
 | Count missing copies once | 52.98→52.16; 53.09→52.28 s | −2.7% / +0.9% |
 | Bound futile perfect shifts | 52.61→52.20; 52.31→51.87 s | +2.2% / +0.6% |
+| Bitmap writer word offsets | 52.87→52.81; 52.71→52.89 s (flat) | +0.2% / −7.8% |
 
-The latest uncontended sealed/current pair is 54.71→52.59 seconds (−3.9%), with
+At the bounded-search checkpoint, the uncontended sealed/current pair is
+54.71→52.59 seconds (−3.9%), with
 sampled maximum RSS 823,252→601,332 KiB (−27.0%). Another pair is 55.85→52.55
 seconds, but its current leg overlapped a roughly half-second Python model and
 is not treated as isolated. Raw captures and the concurrency limitation remain
@@ -113,15 +117,15 @@ cannot waive individual regressions.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +2,132 | +3,896 | — |
+| UI, gas (694 original successes) | +2,121 | +3,885 | — |
 | UI, size (694 original successes) | −30,193 | −25,648 | — |
-| Hot, gas (15 cases) | +17,883 | +18,320 | −27,313 |
+| Hot, gas (15 cases) | +17,721 | +18,158 | −27,313 |
 | Hot, size (15 cases) | +25,740 | +26,112 | −92,067 |
-| Heavy projects, original settings (9 cases) | +18,085,004 | +14,900,432 | — |
+| Heavy projects, original settings (9 cases) | +17,839,410 | +14,700,018 | — |
 
 There remain 768/555 larger UI artifacts, 20/19 larger hot artifacts and 24/30
 higher hot gas labels in gas/size mode, plus 1,102 larger heavy artifacts.
-SeaportRouter runtime is 24,809 versus sealed 9,822 bytes, down from an earlier
+SeaportRouter runtime is 24,648 versus sealed 9,822 bytes, down from an earlier
 rewrite's 48,812. Heavy captures establish size debt, not arbitrary runtime
 correctness. Required observer and arbitrary-memory correctness guards remain.
 
@@ -135,8 +139,32 @@ Wide indexed encoding, perfect scratch reuse and canonical append shortcuts were
 also rejected for measured size or timing failures. Their artifacts remain;
 none is in production.
 
-Current work investigates packed switch counts, smaller selected-home templates
-and remaining storage-parameter/phi assertions. Finish supported functionality,
+Bitmap writer selection now keeps word offsets until final address conversion
+(`8e3ccbd1`). All 2,616 focused calls match the required oracles and historical
+sealed exclusions. The 130 successful sparse gas labels each save three gas;
+contiguous, none and size output stay exact. All 108 unique raw boundary pairs
+pass, including 22 successful exact-1024 cases and 27 required 1025 failures.
+The first harness lacked LT for its unchanged contiguous control; its failure
+is retained. A fresh sparse symbolic run times out at 60 seconds, with no
+agreement or confirmed mismatch; size mode was not run within that shared cap.
+
+The UI screen saves 13 creation/runtime bytes in gas mode (11 from original
+sources), Nitro saves 162, and nine projects save 245,594 creation and 200,414
+runtime bytes. There are no individual increases. All hot gas labels and 26
+diagnostic pairs remain exact. The independent heavy audit verifies all 540
+library/immutable sites, including 19 relocated tables, and seven projects'
+exact code-size warning changes. Evidence is in `writer-bitmap-words-20260906/`,
+`writer-word-index-{trial,heavy,review}-20260906/` and the current sealed ledger.
+
+The frozen packed-table count screen covers every count2..128, with exact
+count33 calibration and 21,209 candidate label checks. None closes the retained
+selector-gas debt, so it supplies no production policy. Its initial implicit-STOP
+oracle failure is retained in `packed-bucket-count-screen-20260906/`.
+
+Current work measures a constant opcode stack-effect table and studies reuse of
+successor-aware preparation for acyclic checked comparisons. The library wrapper
+remains two gas above sealed; loop short paths and acyclic phi size debts also
+remain withheld in `library-phi-review-20260906/`. Finish supported functionality,
 resolve every expectation, and repeat full workspace/UI, Foundry, differential,
 both size corpora, all project compilations and identical-label hot lanes on the
 final state. Require no per-case size or gas regression under -Ogas or -Osize,
