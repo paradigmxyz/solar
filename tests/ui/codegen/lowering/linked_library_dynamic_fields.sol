@@ -19,11 +19,18 @@ library L {
 
     // CHECK-LABEL: @module L_runtime
     // CHECK: push 0xfa06cb96
-    // CHECK: eq
-    // CHECK-NEXT: push [[APPLY:bb[0-9]+]]
-    // CHECK: [[APPLY]]:
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: jumpi [[L_REJECT:bb[0-9]+]], [[L_GUARD:bb[0-9]+]]
+    // CHECK-NEXT: [[L_GUARD]]:
+    // CHECK-NEXT: push_immutable {{[0-9]+}}, 20
+    // CHECK-NEXT: address
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: jumpi [[L_REJECT]], [[APPLY:bb[0-9]+]]
+    // CHECK-NEXT: [[APPLY]]:
     // CHECK: calldataload
     // CHECK: calldataload
+    // CHECK: calldatacopy
+    // CHECK: calldatacopy
     // CHECK: keccak256
     // CHECK: sstore
     // CHECK: return
@@ -44,27 +51,36 @@ library L {
 contract C {
     // CHECK-LABEL: @module C_runtime
     // CHECK: push 0x2220ae27
-    // CHECK: eq
-    // CHECK-NEXT: push [[GO:bb[0-9]+]]
-    // CHECK: push 0x776f3843
-    // CHECK: eq
-    // CHECK-NEXT: push [[SCORE:bb[0-9]+]]
-    // CHECK: [[SCORE]]:
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: jumpi [[GO:bb[0-9]+]], [[SCORE_CHECK:bb[0-9]+]]
+    // CHECK-NEXT: [[SCORE_CHECK]]:
+    // CHECK-NEXT: push 0x776f3843
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: jumpi {{bb[0-9]+}}, [[SCORE:bb[0-9]+]]
+    // CHECK-NEXT: [[SCORE]]:
     // CHECK: keccak256
     // CHECK-NEXT: sload
     // CHECK: return
-    mapping(address => uint256) public score;
-
-    // CHECK: [[GO]]:
-    // CHECK: calldatacopy
-    // CHECK: calldatacopy
-    // CHECK: push 0xfa06cb96
-    // CHECK: mcopy
+    // CHECK: jump [[COPY_TAG:bb[0-9]+]]
+    // CHECK-NEXT: [[COPY_TAG]]:
     // CHECK: mcopy
     // CHECK: push 0x1000000000000000000000000000000000000001
     // CHECK: delegatecall
+    // CHECK-NEXT: jumpi {{bb[0-9]+}}, [[FAIL:bb[0-9]+]]
+    // CHECK-NEXT: [[FAIL]]:
     // CHECK: returndatacopy
     // CHECK: revert
+    mapping(address => uint256) public score;
+
+    // CHECK: calldatacopy
+    // CHECK: calldatacopy
+    // CHECK: push 0x7d0365cb
+    // CHECK-NEXT: push 225
+    // CHECK-NEXT: shl
+    // CHECK: mcopy
+    // CHECK: jumpi {{bb[0-9]+}}, [[COPY_TAG]]
+    // CHECK-NEXT: [[GO]]:
+    // CHECK: calldatasize
     function go(uint256 base, uint256[] calldata xs, bytes calldata tag, address who)
         external
         returns (uint256)
