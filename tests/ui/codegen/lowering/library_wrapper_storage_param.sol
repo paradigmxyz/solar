@@ -18,23 +18,58 @@ library DataTypes {
 }
 
 library L {
+    // CHECK-LABEL: @module L_runtime
     // CHECK: push 0xdef537e0
-    // CHECK: eq
-    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
-    // CHECK: push 1
-    // CHECK: push 4
-    // CHECK: calldataload
-    // CHECK: sload
-    // CHECK: push 36
-    // CHECK: calldataload
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: jumpi [[REJECT:bb[0-9]+]], [[GUARD:bb[0-9]+]]
+    // CHECK-NEXT: [[GUARD]]:
+    // CHECK-NEXT: push_immutable {{[0-9]+}}, 20
+    // CHECK-NEXT: address
+    // CHECK-NEXT: eq
+    // CHECK-NEXT: jumpi [[REJECT]], [[BODY:bb[0-9]+]]
+    // CHECK-NEXT: [[BODY]]:
+    // CHECK-NEXT: calldatasize
+    // CHECK-NEXT: push 68
+    // CHECK-NEXT: gt
+    // CHECK-NEXT: jumpi [[REJECT]], [[DECODE:bb[0-9]+]]
+    // CHECK-NEXT: [[DECODE]]:
+    // CHECK-NEXT: push 1
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: add
+    // CHECK-NEXT: dup 1
+    // CHECK-NEXT: sload
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: dup 2
+    // CHECK-NEXT: add
+    // CHECK: gt
+    // CHECK-NEXT: jumpi [[PANIC:bb[0-9]+]], [[STORE:bb[0-9]+]]
+    // CHECK-NEXT: [[STORE]]:
     // CHECK: sstore
-    // CHECK: push 4
-    // CHECK: calldataload
-    // CHECK: sload
-    // CHECK: jumpi
-    // CHECK: push 1
+    // CHECK-NEXT: sload
+    // CHECK-NEXT: push 4
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: sload
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: not
+    // CHECK-NEXT: push 128
+    // CHECK-NEXT: shr
+    // CHECK: and
+    // CHECK: add
+    // CHECK: jumpi [[PANIC]], [[HIGH:bb[0-9]+]]
+    // CHECK-NEXT: [[HIGH]]:
+    // CHECK: push 128
+    // CHECK-NEXT: shr
+    // CHECK: and
+    // CHECK: add
+    // CHECK: jumpi [[PANIC]], [[RETURN:bb[0-9]+]]
+    // CHECK-NEXT: [[RETURN]]:
     // CHECK: return
+    // CHECK: [[PANIC]]:
+    // CHECK-NEXT: push 0x4e487b71
+    // CHECK: push 17
+    // CHECK: revert
     function settle(DataTypes.Reserve storage r, uint256 amount) public returns (uint256) {
         r.total += amount;
         return r.total + uint256(r.a) + uint256(r.b);
