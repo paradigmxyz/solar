@@ -40,10 +40,10 @@ bb1:
   push 128
   swap 1
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb11 [cold]:
   push 0
@@ -99,8 +99,8 @@ bb4:
   push 96
   swap 1
   keccak256
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

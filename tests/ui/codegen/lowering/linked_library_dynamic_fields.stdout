@@ -407,10 +407,10 @@ bb46:
   dup 2
   swap 1
   sstore
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb42:
   dup 6
@@ -474,10 +474,10 @@ bb4:
   push 0
   keccak256
   sload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb2 [cold]:
   push 0
@@ -533,10 +533,10 @@ bb16:
   jumpi bb9, bb17
 bb17:
   mload
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb23:
   push 0

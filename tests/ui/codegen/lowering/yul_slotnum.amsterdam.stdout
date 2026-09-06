@@ -18,10 +18,10 @@ bb11:
   jumpi bb9, bb3
 bb3:
   slotnum
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb9 [cold]:
   push 0
@@ -34,8 +34,8 @@ bb12:
   push 192
   shr
   and
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return

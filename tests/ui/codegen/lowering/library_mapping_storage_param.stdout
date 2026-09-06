@@ -62,10 +62,10 @@ bb8:
   swap 1
   jump
 bb15:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb2 [cold]:
   push 0

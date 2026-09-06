@@ -37,10 +37,10 @@ bb11:
   swap 1
   jump bb1
 bb25:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb24:
   push bb25

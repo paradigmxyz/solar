@@ -98,10 +98,10 @@ bb4:
   jumpi bb7, bb65
 bb65:
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb13:
   push 36
@@ -164,10 +164,10 @@ bb20:
   lt
   jumpi bb23, bb73
 bb73:
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb26 [cold]:
   push 0
@@ -222,10 +222,10 @@ bb30:
   jumpi bb79, bb78
 bb78:
   pop
-  push 128
+  push 0
   mstore
   push 32
-  push 128
+  push 0
   return
 bb46:
   push 36
