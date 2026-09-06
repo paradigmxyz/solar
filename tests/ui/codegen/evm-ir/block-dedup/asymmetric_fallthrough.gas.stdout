@@ -1,0 +1,31 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/asymmetric_fallthrough.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/asymmetric_fallthrough.evmir (after block-dedup) ===
+  @module AsymmetricFallthrough
+  bb0:
+    calldatasize
+    jumpi bb4, bb1
+  bb1:
+    push 0
+    calldataload
+    jump bb3
+  bb2:
+    stop
+  bb3:
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb4:
+    push 0
+    calldataload
+    jump bb5
+  bb5:
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

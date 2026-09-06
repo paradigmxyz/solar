@@ -1,0 +1,44 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@ filecheck:
+@module AsymmetricFallthrough
+
+// bb1's jump is encoded; bb4 falls through. Their bodies must stay distinct
+// even though their successor bodies match. The surviving bb4 also keeps bb5.
+// CHECK: {{^[ +].*}}jumpi bb4, bb1
+bb0:
+  calldatasize
+  jumpi bb4, bb1
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}jump bb3
+bb1:
+  push 0
+  calldataload
+  jump bb3
+bb2:
+  stop
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: {{^[ +].*}}return
+bb3:
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK: {{^[ +].*}}jump bb5
+bb4:
+  push 0
+  calldataload
+  jump bb5
+// CHECK-LABEL: {{^[ +].*}}bb5:
+// CHECK: {{^[ +].*}}return
+bb5:
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return

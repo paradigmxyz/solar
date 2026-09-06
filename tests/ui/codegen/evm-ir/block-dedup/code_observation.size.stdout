@@ -1,0 +1,25 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/code_observation.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/code_observation.evmir (after block-dedup) ===
+  @module code_observation
+  bb0:
+    calldatasize
+    jumpi bb2, bb1
+  bb1:
+    pc
+    pop
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    pc
+    pop
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

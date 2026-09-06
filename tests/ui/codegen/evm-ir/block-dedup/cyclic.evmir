@@ -1,0 +1,22 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@ filecheck:
+@module Cyclic
+
+// Equal loop shapes do not seed acyclic successor classes. Neither block may
+// be identified with the other solely because its self edge has the same shape.
+// CHECK: {{^[ +].*}}jumpi bb2, bb1
+bb0:
+  calldatasize
+  jumpi bb2, bb1
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}jumpi bb1, bb1
+bb1:
+  calldatasize
+  jumpi bb1, bb1
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}jumpi bb2, bb2
+bb2:
+  calldatasize
+  jumpi bb2, bb2

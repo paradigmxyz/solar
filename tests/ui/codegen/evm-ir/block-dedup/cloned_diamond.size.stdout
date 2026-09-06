@@ -1,0 +1,44 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/cloned_diamond.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/cloned_diamond.evmir (after block-dedup) ===
+  @module ClonedDiamond
+  bb0:
+    calldatasize
+-   jumpi bb10, bb1
++   jumpi bb1, bb1
+  bb1:
+    push 0
+    calldataload
+    jumpi bb3, bb2
+  bb2:
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb3:
+-   push 22
+-   push 0
+-   mstore
+-   push 32
+-   push 0
+-   return
+- bb10:
+-   push 0
+-   calldataload
+-   jumpi bb12, bb11
+- bb11:
+-   push 11
+-   push 0
+-   mstore
+-   push 32
+-   push 0
+-   return
+- bb12:
+    push 22
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

@@ -1,0 +1,1350 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "2264",
+      "message": "code generation is experimental",
+      "formattedMessage": "warning[2264]: code generation is experimental\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "evm": {
+          "bytecode": {
+            "object": "34600757600b565b5f5ffd5b60a38060155f395ff3605e565b600160805260206080f35b6003565b3660249010601e57602d565b5f80fd5b600260805260206080f35b60043560029010603b57601e565b600435601e576022565b6012565b34601e575f3560e01c6095565b600e565b6045565b6049565b63feb9742903601e57605a565b50605a565b80635ce8bda814606f576062565b506056565b80634df7e3d0146082576074565b80630dbe671f14608257608756",
+            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;"
+          },
+          "deployedBytecode": {
+            "object": "605e565b600160805260206080f35b6003565b3660249010601e57602d565b5f80fd5b600260805260206080f35b60043560029010603b57601e565b600435601e576022565b6012565b34601e575f3560e01c6095565b600e565b6045565b6049565b63feb9742903601e57605a565b50605a565b80635ce8bda814606f576062565b506056565b80634df7e3d0146082576074565b80630dbe671f14608257608756",
+            "sourceMap": ":::-:0;;;;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;;;;:::o;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
+          }
+        }
+      },
+      "B": {
+        "evm": {
+          "bytecode": {
+            "object": "34600757600b565b5f5ffd5b60a38060155f395ff3605e565b600160805260206080f35b6003565b3660249010601e57602d565b5f80fd5b600260805260206080f35b60043560029010603b57601e565b600435601e576022565b6012565b34601e575f3560e01c6095565b600e565b6045565b6049565b63feb9742903601e57605a565b50605a565b80635ce8bda814606f576062565b506056565b80634df7e3d0146082576074565b80630dbe671f14608257608756",
+            "ethdebug": {
+              "compilation": {
+                "id": "solar-COMPILATION_ID"
+              },
+              "contract": {
+                "name": "B",
+                "definition": {
+                  "source": {
+                    "id": 0
+                  },
+                  "range": {
+                    "offset": 309,
+                    "length": 308
+                  }
+                }
+              },
+              "environment": "create",
+              "instructions": [
+                {
+                  "offset": 0,
+                  "operation": {
+                    "mnemonic": "CALLVALUE"
+                  }
+                },
+                {
+                  "offset": 1,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x07"
+                    ]
+                  }
+                },
+                {
+                  "offset": 3,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 4,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x0b"
+                    ]
+                  }
+                },
+                {
+                  "offset": 6,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 7,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 8,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 9,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 10,
+                  "operation": {
+                    "mnemonic": "REVERT"
+                  }
+                },
+                {
+                  "offset": 11,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 12,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0xa3"
+                    ]
+                  }
+                },
+                {
+                  "offset": 14,
+                  "operation": {
+                    "mnemonic": "DUP1"
+                  }
+                },
+                {
+                  "offset": 15,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x15"
+                    ]
+                  }
+                },
+                {
+                  "offset": 17,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 18,
+                  "operation": {
+                    "mnemonic": "CODECOPY"
+                  }
+                },
+                {
+                  "offset": 19,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 20,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  }
+                }
+              ]
+            }
+          },
+          "deployedBytecode": {
+            "object": "605e565b600160805260206080f35b6003565b3660249010601e57602d565b5f80fd5b600260805260206080f35b60043560029010603b57601e565b600435601e576022565b6012565b34601e575f3560e01c6095565b600e565b6045565b6049565b63feb9742903601e57605a565b50605a565b80635ce8bda814606f576062565b506056565b80634df7e3d0146082576074565b80630dbe671f14608257608756",
+            "ethdebug": {
+              "compilation": {
+                "id": "solar-COMPILATION_ID"
+              },
+              "contract": {
+                "name": "B",
+                "definition": {
+                  "source": {
+                    "id": 0
+                  },
+                  "range": {
+                    "offset": 309,
+                    "length": 308
+                  }
+                }
+              },
+              "environment": "call",
+              "instructions": [
+                {
+                  "offset": 0,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x5e"
+                    ]
+                  }
+                },
+                {
+                  "offset": 2,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 3,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 4,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x01"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 369,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 428,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 6,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 369,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 428,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 8,
+                  "operation": {
+                    "mnemonic": "MSTORE"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 369,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 428,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 9,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x20"
+                    ]
+                  }
+                },
+                {
+                  "offset": 11,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  }
+                },
+                {
+                  "offset": 13,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 369,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 428,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ],
+                    "return": {}
+                  }
+                },
+                {
+                  "offset": 14,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 15,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x03"
+                    ]
+                  }
+                },
+                {
+                  "offset": 17,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 18,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 19,
+                  "operation": {
+                    "mnemonic": "CALLDATASIZE"
+                  }
+                },
+                {
+                  "offset": 20,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x24"
+                    ]
+                  }
+                },
+                {
+                  "offset": 22,
+                  "operation": {
+                    "mnemonic": "SWAP1"
+                  }
+                },
+                {
+                  "offset": 23,
+                  "operation": {
+                    "mnemonic": "LT"
+                  }
+                },
+                {
+                  "offset": 24,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x1e"
+                    ]
+                  }
+                },
+                {
+                  "offset": 26,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 27,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x2d"
+                    ]
+                  }
+                },
+                {
+                  "offset": 29,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 30,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 31,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 32,
+                  "operation": {
+                    "mnemonic": "DUP1"
+                  }
+                },
+                {
+                  "offset": 33,
+                  "operation": {
+                    "mnemonic": "REVERT"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 506,
+                            "length": 8
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 594,
+                            "length": 8
+                          }
+                        }
+                      }
+                    ],
+                    "revert": {}
+                  }
+                },
+                {
+                  "offset": 34,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 35,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x02"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 516,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 604,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 37,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 516,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 604,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 39,
+                  "operation": {
+                    "mnemonic": "MSTORE"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 516,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 604,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 40,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x20"
+                    ]
+                  }
+                },
+                {
+                  "offset": 42,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x80"
+                    ]
+                  }
+                },
+                {
+                  "offset": 44,
+                  "operation": {
+                    "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 516,
+                            "length": 9
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 604,
+                            "length": 9
+                          }
+                        }
+                      }
+                    ],
+                    "return": {}
+                  }
+                },
+                {
+                  "offset": 45,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 46,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x04"
+                    ]
+                  }
+                },
+                {
+                  "offset": 48,
+                  "operation": {
+                    "mnemonic": "CALLDATALOAD"
+                  }
+                },
+                {
+                  "offset": 49,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x02"
+                    ]
+                  }
+                },
+                {
+                  "offset": 51,
+                  "operation": {
+                    "mnemonic": "SWAP1"
+                  }
+                },
+                {
+                  "offset": 52,
+                  "operation": {
+                    "mnemonic": "LT"
+                  }
+                },
+                {
+                  "offset": 53,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x3b"
+                    ]
+                  }
+                },
+                {
+                  "offset": 55,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 56,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x1e"
+                    ]
+                  }
+                },
+                {
+                  "offset": 58,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 59,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 60,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x04"
+                    ]
+                  }
+                },
+                {
+                  "offset": 62,
+                  "operation": {
+                    "mnemonic": "CALLDATALOAD"
+                  }
+                },
+                {
+                  "offset": 63,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x1e"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 496,
+                            "length": 19
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 584,
+                            "length": 19
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 65,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 496,
+                            "length": 19
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 584,
+                            "length": 19
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 66,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x22"
+                    ]
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 496,
+                            "length": 19
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 584,
+                            "length": 19
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 68,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 496,
+                            "length": 19
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 584,
+                            "length": 19
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "offset": 69,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 70,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x12"
+                    ]
+                  }
+                },
+                {
+                  "offset": 72,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 73,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 74,
+                  "operation": {
+                    "mnemonic": "CALLVALUE"
+                  }
+                },
+                {
+                  "offset": 75,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x1e"
+                    ]
+                  }
+                },
+                {
+                  "offset": 77,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 78,
+                  "operation": {
+                    "mnemonic": "PUSH0"
+                  }
+                },
+                {
+                  "offset": 79,
+                  "operation": {
+                    "mnemonic": "CALLDATALOAD"
+                  }
+                },
+                {
+                  "offset": 80,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0xe0"
+                    ]
+                  }
+                },
+                {
+                  "offset": 82,
+                  "operation": {
+                    "mnemonic": "SHR"
+                  }
+                },
+                {
+                  "offset": 83,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x95"
+                    ]
+                  }
+                },
+                {
+                  "offset": 85,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 86,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 87,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x0e"
+                    ]
+                  }
+                },
+                {
+                  "offset": 89,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 90,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 91,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x45"
+                    ]
+                  }
+                },
+                {
+                  "offset": 93,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 94,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 95,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x49"
+                    ]
+                  }
+                },
+                {
+                  "offset": 97,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 98,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 99,
+                  "operation": {
+                    "mnemonic": "PUSH4",
+                    "arguments": [
+                      "0xfeb97429"
+                    ]
+                  }
+                },
+                {
+                  "offset": 104,
+                  "operation": {
+                    "mnemonic": "SUB"
+                  }
+                },
+                {
+                  "offset": 105,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x1e"
+                    ]
+                  }
+                },
+                {
+                  "offset": 107,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 108,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x5a"
+                    ]
+                  }
+                },
+                {
+                  "offset": 110,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 111,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 112,
+                  "operation": {
+                    "mnemonic": "POP"
+                  }
+                },
+                {
+                  "offset": 113,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x5a"
+                    ]
+                  }
+                },
+                {
+                  "offset": 115,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 116,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 117,
+                  "operation": {
+                    "mnemonic": "DUP1"
+                  }
+                },
+                {
+                  "offset": 118,
+                  "operation": {
+                    "mnemonic": "PUSH4",
+                    "arguments": [
+                      "0x5ce8bda8"
+                    ]
+                  }
+                },
+                {
+                  "offset": 123,
+                  "operation": {
+                    "mnemonic": "EQ"
+                  }
+                },
+                {
+                  "offset": 124,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x6f"
+                    ]
+                  }
+                },
+                {
+                  "offset": 126,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 127,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x62"
+                    ]
+                  }
+                },
+                {
+                  "offset": 129,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 130,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 131,
+                  "operation": {
+                    "mnemonic": "POP"
+                  }
+                },
+                {
+                  "offset": 132,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x56"
+                    ]
+                  }
+                },
+                {
+                  "offset": 134,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 135,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 136,
+                  "operation": {
+                    "mnemonic": "DUP1"
+                  }
+                },
+                {
+                  "offset": 137,
+                  "operation": {
+                    "mnemonic": "PUSH4",
+                    "arguments": [
+                      "0x4df7e3d0"
+                    ]
+                  }
+                },
+                {
+                  "offset": 142,
+                  "operation": {
+                    "mnemonic": "EQ"
+                  }
+                },
+                {
+                  "offset": 143,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x82"
+                    ]
+                  }
+                },
+                {
+                  "offset": 145,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 146,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x74"
+                    ]
+                  }
+                },
+                {
+                  "offset": 148,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                },
+                {
+                  "offset": 149,
+                  "operation": {
+                    "mnemonic": "JUMPDEST"
+                  }
+                },
+                {
+                  "offset": 150,
+                  "operation": {
+                    "mnemonic": "DUP1"
+                  }
+                },
+                {
+                  "offset": 151,
+                  "operation": {
+                    "mnemonic": "PUSH4",
+                    "arguments": [
+                      "0x0dbe671f"
+                    ]
+                  }
+                },
+                {
+                  "offset": 156,
+                  "operation": {
+                    "mnemonic": "EQ"
+                  }
+                },
+                {
+                  "offset": 157,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x82"
+                    ]
+                  }
+                },
+                {
+                  "offset": 159,
+                  "operation": {
+                    "mnemonic": "JUMPI"
+                  }
+                },
+                {
+                  "offset": 160,
+                  "operation": {
+                    "mnemonic": "PUSH1",
+                    "arguments": [
+                      "0x87"
+                    ]
+                  }
+                },
+                {
+                  "offset": 162,
+                  "operation": {
+                    "mnemonic": "JUMP"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "C": {
+        "evm": {
+          "bytecode": {
+            "object": "34600757600b565b5f5ffd5b60a38060155f395ff3605e565b600160805260206080f35b6003565b3660249010601e57602d565b5f80fd5b600260805260206080f35b60043560029010603b57601e565b600435601e576022565b6012565b34601e575f3560e01c6095565b600e565b6045565b6049565b63feb9742903601e57605a565b50605a565b80635ce8bda814606f576062565b506056565b80634df7e3d0146082576074565b80630dbe671f14608257608756"
+          },
+          "deployedBytecode": {
+            "object": "605e565b600160805260206080f35b6003565b3660249010601e57602d565b5f80fd5b600260805260206080f35b60043560029010603b57601e565b600435601e576022565b6012565b34601e575f3560e01c6095565b600e565b6045565b6049565b63feb9742903601e57605a565b50605a565b80635ce8bda814606f576062565b506056565b80634df7e3d0146082576074565b80630dbe671f14608257608756"
+          }
+        }
+      }
+    }
+  },
+  "ethdebug": {
+    "compilation": {
+      "id": "solar-COMPILATION_ID",
+      "compiler": {
+        "name": "solar",
+        "version": "VERSION"
+      },
+      "sources": [
+        {
+          "id": 0,
+          "path": "A.sol",
+          "contents": "contract A { function a() external pure returns (uint256) { return 1; } function b() external pure returns (uint256) { return 1; } function c(bool fail) external pure returns (uint256) { if (fail) revert(); return 2; } function d(bool fail) external pure returns (uint256) { if (fail) revert(); return 2; } } contract B { function a() external pure returns (uint256) { return 1; } function b() external pure returns (uint256) { return 1; } function c(bool fail) external pure returns (uint256) { if (fail) revert(); return 2; } function d(bool fail) external pure returns (uint256) { if (fail) revert(); return 2; } } contract C { function a() external pure returns (uint256) { return 1; } function b() external pure returns (uint256) { return 1; } function c(bool fail) external pure returns (uint256) { if (fail) revert(); return 2; } function d(bool fail) external pure returns (uint256) { if (fail) revert(); return 2; } }",
+          "language": "Solidity"
+        }
+      ]
+    }
+  }
+}

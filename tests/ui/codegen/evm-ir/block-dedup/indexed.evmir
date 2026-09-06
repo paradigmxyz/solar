@@ -1,0 +1,29 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@ filecheck:
+@module ExcludedControl
+
+// Packed-table address widths lie outside this pass's direct-push size bound.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+bb0:
+  calldatasize
+  indexed_jump bb2, bb1
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}return
+bb1:
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}return
+bb2:
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return

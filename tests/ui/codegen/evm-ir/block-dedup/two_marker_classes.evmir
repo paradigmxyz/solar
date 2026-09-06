@@ -1,0 +1,67 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@[gas] filecheck: --check-prefix=GAS
+//@[size] filecheck: --check-prefix=SIZE
+@module TwoMarkerClasses
+
+// The two return classes independently acquire a destination marker. Gas mode
+// declines this two-class tradeoff; size mode removes both sufficiently large
+// clones. Both original owner fallthroughs remain adjacent.
+// GAS-LABEL: {{^[ +].*}}bb0:
+// SIZE-LABEL: {{^[ +].*}}bb0:
+bb0:
+  calldatasize
+  jumpi bb10, bb1
+// GAS-LABEL: {{^[ +].*}}bb1:
+// GAS: {{^[ +].*}}jumpi bb3, bb2
+// SIZE-LABEL: {{^[ +].*}}bb1:
+// SIZE: + {{.*}}jumpi bb2, bb2
+bb1:
+  calldatasize
+  jumpi bb3, bb2
+// GAS-LABEL: {{^[ +].*}}bb2:
+// SIZE-LABEL: {{^[ +].*}}bb2:
+// SIZE: {{^[ +].*}}push 11
+bb2:
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// GAS-LABEL: {{^[ +].*}}bb3:
+// SIZE-NOT: {{^[ +].*}}bb3:
+bb3:
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// GAS-LABEL: {{^[ +].*}}bb10:
+// GAS: {{^[ +].*}}jumpi bb12, bb11
+// SIZE-LABEL: {{^[ +].*}}bb10:
+// SIZE: + {{.*}}jumpi bb11, bb11
+bb10:
+  calldatasize
+  jumpi bb12, bb11
+// GAS-LABEL: {{^[ +].*}}bb11:
+// SIZE-LABEL: {{^[ +].*}}bb11:
+// SIZE: {{^[ +].*}}push 22
+bb11:
+  push 22
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// GAS-LABEL: {{^[ +].*}}bb12:
+// SIZE-NOT: {{^[ +].*}}bb12:
+bb12:
+  push 22
+  push 0
+  mstore
+  push 32
+  push 0
+  return

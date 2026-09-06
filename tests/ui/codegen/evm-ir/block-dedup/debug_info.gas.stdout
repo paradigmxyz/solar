@@ -1,0 +1,25 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/debug_info.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/debug_info.evmir (after block-dedup) ===
+  @module DebugOrigins
+  bb0:
+    calldatasize
+-   jumpi bb2, bb1
+- bb1 [invoke=first@1..10]:
+-   push 11 !metadata(span=11..15)
++   jumpi bb1, bb1
++ bb1:
++   push 11 !metadata(spans=[11..15, 31..35])
+    push 0
+    mstore
+    push 32
+    push 0
+-   return !metadata(span=20..25)
+- bb2 [invoke=second@11..20]:
+-   push 11 !metadata(span=31..35)
+-   push 0
+-   mstore
+-   push 32
+-   push 0
+-   return !metadata(span=40..45)
++   return !metadata(spans=[20..25, 40..45])
+  

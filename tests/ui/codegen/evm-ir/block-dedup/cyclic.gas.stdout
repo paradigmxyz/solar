@@ -1,0 +1,13 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/cyclic.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/cyclic.evmir (after block-dedup) ===
+  @module Cyclic
+  bb0:
+    calldatasize
+    jumpi bb2, bb1
+  bb1:
+    calldatasize
+    jumpi bb1, bb1
+  bb2:
+    calldatasize
+    jumpi bb2, bb2
+  

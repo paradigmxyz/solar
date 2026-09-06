@@ -1,0 +1,24 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@ filecheck:
+@module MinimumSaving
+
+// Removing two instruction bytes does not pay for a new destination plus the
+// one-byte reserve on the surviving label push. Equality is not profitability.
+// CHECK: {{^[ +].*}}jumpi bb2, bb1
+bb0:
+  calldatasize
+  jumpi bb2, bb1
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}pop
+bb1:
+  push 0
+  pop
+  stop
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}pop
+bb2:
+  push 0
+  pop
+  stop

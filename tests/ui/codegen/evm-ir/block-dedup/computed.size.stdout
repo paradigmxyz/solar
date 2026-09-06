@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/computed.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/computed.evmir (after block-dedup) ===
+  @module ExcludedControl
+  bb0:
+    calldatasize
+    jump
+  bb1:
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

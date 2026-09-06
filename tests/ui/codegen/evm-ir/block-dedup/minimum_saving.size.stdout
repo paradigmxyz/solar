@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/minimum_saving.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/minimum_saving.evmir (after block-dedup) ===
+  @module MinimumSaving
+  bb0:
+    calldatasize
+    jumpi bb2, bb1
+  bb1:
+    push 0
+    pop
+    stop
+  bb2:
+    push 0
+    pop
+    stop
+  

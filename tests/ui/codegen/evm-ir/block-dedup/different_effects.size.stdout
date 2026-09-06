@@ -1,0 +1,21 @@
+- // === ROOT/tests/ui/codegen/evm-ir/block-dedup/different_effects.evmir (before block-dedup) ===
++ // === ROOT/tests/ui/codegen/evm-ir/block-dedup/different_effects.evmir (after block-dedup) ===
+  @module DifferentEffects
+  bb0:
+    calldatasize
+    jumpi bb2, bb1
+  bb1:
+    push 11
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    push 11
+    push 0
+    sstore
+    push 32
+    push 0
+    return
+  

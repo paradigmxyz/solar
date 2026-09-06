@@ -1,0 +1,36 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@ filecheck:
+@module gas_observation
+
+// Adding a destination marker can change a later gas observation.
+// Keep both sufficiently large clones even though the observed value is popped.
+// CHECK: {{^[ +].*}}jumpi bb2, bb1
+bb0:
+  calldatasize
+  jumpi bb2, bb1
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}gas
+// CHECK: {{^[ +].*}}return
+bb1:
+  gas
+  pop
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}gas
+// CHECK: {{^[ +].*}}return
+bb2:
+  gas
+  pop
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return

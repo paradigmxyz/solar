@@ -1,0 +1,36 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@ filecheck:
+@module code_observation
+
+// Moving a cloned region changes an executable code observation.
+// Keep both sufficiently large clones even though the observed value is popped.
+// CHECK: {{^[ +].*}}jumpi bb2, bb1
+bb0:
+  calldatasize
+  jumpi bb2, bb1
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}pc
+// CHECK: {{^[ +].*}}return
+bb1:
+  pc
+  pop
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}pc
+// CHECK: {{^[ +].*}}return
+bb2:
+  pc
+  pop
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return

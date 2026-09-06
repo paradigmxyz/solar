@@ -1,0 +1,31 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=block-dedup
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=block-dedup
+//@ filecheck:
+@module StackMetadata
+
+// Preserve explicit effect declarations even when their numerical effect equals
+// the implicit opcode effect; metadata participates in the existing IR equality.
+// The printer omits that redundant declaration, so assert both blocks survive.
+// CHECK: {{^[ +].*}}jumpi bb2, bb1
+bb0:
+  calldatasize
+  jumpi bb2, bb1
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}push 11{{$}}
+bb1:
+  push 11
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}push 11{{$}}
+bb2:
+  push 11 !meta(stack=0->1)
+  push 0
+  mstore
+  push 32
+  push 0
+  return

@@ -173,7 +173,7 @@ pub(super) fn merge_debug(
 }
 
 /// A shared body represents every original path, not just its surviving owner.
-fn merge_block_debug(module: &mut Module, owner: BlockId, other: BlockId) {
+pub(super) fn merge_block_debug(module: &mut Module, owner: BlockId, other: BlockId) {
     if !module.debug_info_tracked || owner == other {
         return;
     }
@@ -543,7 +543,7 @@ fn layout(module: &mut Module) -> bool {
 }
 
 /// Detects observations that cannot survive relocating shared physical code.
-fn sharing_observes_code(module: &Module) -> bool {
+pub(super) fn sharing_observes_code(module: &Module) -> bool {
     sharing_observes_code_with_control_pairs(module, false)
 }
 
@@ -590,7 +590,7 @@ fn sharing_observes_code_with_control_pairs(module: &Module, allow_control_pairs
 }
 
 /// Whether an instruction reads remaining gas or forwards it to another execution.
-fn observes_gas(inst: &super::Instruction) -> bool {
+pub(super) fn observes_gas(inst: &super::Instruction) -> bool {
     matches!(
         inst.kind,
         InstKind::Op(

@@ -15,6 +15,7 @@ use std::fmt::Display;
 
 pub use crate::pass_manager::pipeline_label;
 
+mod blocks;
 mod cfg;
 mod data;
 mod immediate;
