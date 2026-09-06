@@ -1,21 +1,25 @@
 //@ compile-flags: -O size -Zdump=evm-ir-runtime
 //@ filecheck: --check-prefix=TABLE
 
-// TABLE: push 10
-// TABLE-NEXT: push 4
+// TABLE-LABEL: @module SwitchDenseTable_runtime
+// TABLE: push 4
 // TABLE-NEXT: calldataload
+// TABLE-NEXT: push 10
+// TABLE-NEXT: swap 1
 // TABLE-NEXT: sub
 // TABLE-NEXT: dup 1
 // TABLE-NEXT: push 24
 // TABLE-NEXT: gt
-// TABLE-NEXT: push [[IN_RANGE:bb[0-9]+]]
-// TABLE-NEXT: jumpi
-// TABLE-NEXT: pop
+// TABLE-NEXT: jumpi [[IN_RANGE:bb[0-9]+]], [[DEFAULT:bb[0-9]+]]
+// TABLE-NEXT: [[DEFAULT]]:
 // TABLE-NEXT: push 255
 // TABLE-NEXT: push 0
 // TABLE-NEXT: sstore
-// TABLE-NEXT: jump
-// TABLE: indexed_jump
+// TABLE-NEXT: jump [[DONE:bb[0-9]+]]
+// TABLE: [[DONE]]:
+// TABLE-NEXT: stop
+// TABLE: [[IN_RANGE]]:
+// TABLE-NEXT: indexed_jump
 contract SwitchDenseTable {
     uint256 value;
 

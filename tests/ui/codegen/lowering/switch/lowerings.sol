@@ -13,9 +13,9 @@
 //@[buckets_size] compile-flags: -O size -Zswitch-lowering=buckets -Zdump=evm-ir-runtime,disasm-runtime
 //@[buckets_size] filecheck: --check-prefix=BUCKETSSIZE
 //@[dense_gas] compile-flags: -O gas -Zswitch-lowering=dense -Zdump=evm-ir-runtime,disasm-runtime
-//@[dense_gas] filecheck: --check-prefix=DENSE
+//@[dense_gas] filecheck: --check-prefixes=DENSE,DENSEGAS
 //@[dense_size] compile-flags: -O size -Zswitch-lowering=dense -Zdump=evm-ir-runtime,disasm-runtime
-//@[dense_size] filecheck: --check-prefix=DENSE
+//@[dense_size] filecheck: --check-prefixes=DENSE,DENSESIZE
 //@[perfect_gas] compile-flags: -O gas -Zswitch-lowering=perfect -Zdump=evm-ir-runtime,disasm-runtime
 //@[perfect_gas] filecheck: --check-prefix=PERFECTGAS
 //@[perfect_size] compile-flags: -O size -Zswitch-lowering=perfect -Zdump=evm-ir-runtime,disasm-runtime
@@ -25,16 +25,14 @@ contract SwitchLowerings {
     // LINEAR-LABEL: @module SwitchLowerings_runtime
     // LINEAR: push 8
     // LINEAR-NEXT: sub
-    // LINEAR-NEXT: push {{bb[0-9]+}}
-    // LINEAR-NEXT: jumpi
+    // LINEAR-NEXT: jumpi {{bb[0-9]+}}, {{bb[0-9]+}}
     // LINEAR: push 16
     // LINEAR-NEXT: sub
 
     // BINARY-LABEL: @module SwitchLowerings_runtime
     // BINARY: push 40
     // BINARY-NEXT: gt
-    // BINARY-NEXT: push {{bb[0-9]+}}
-    // BINARY-NEXT: jumpi
+    // BINARY-NEXT: jumpi {{bb[0-9]+}}, {{bb[0-9]+}}
 
     // BUCKETSGAS-LABEL: @module SwitchLowerings_runtime
     // BUCKETSGAS: push 9
@@ -55,12 +53,25 @@ contract SwitchLowerings {
     // BUCKETSSIZE-NEXT: JUMP ; unknown
 
     // DENSE-LABEL: @module SwitchLowerings_runtime
-    // DENSE: push 8
-    // DENSE-NEXT: swap 1
-    // DENSE-NEXT: sub
-    // DENSE: push 57
+    // DENSEGAS: push 8
+    // DENSEGAS-NEXT: push 0
+    // DENSEGAS-NEXT: calldataload
+    // DENSEGAS-NEXT: sub
+    // DENSESIZE: push 0
+    // DENSESIZE-NEXT: calldataload
+    // DENSESIZE-NEXT: push 8
+    // DENSESIZE-NEXT: swap 1
+    // DENSESIZE-NEXT: sub
+    // DENSE-NEXT: dup 1
+    // DENSE-NEXT: push 57
     // DENSE-NEXT: gt
-    // DENSE: indexed_jump
+    // DENSE-NEXT: jumpi [[TABLE:bb[0-9]+]], [[DEFAULT:bb[0-9]+]]
+    // DENSE-NEXT: [[DEFAULT]]:
+    // DENSE-NEXT: push 0
+    // DENSE-NEXT: push 0
+    // DENSE-NEXT: revert
+    // DENSE: [[TABLE]]:
+    // DENSE-NEXT: indexed_jump
 
     // PERFECTGAS-LABEL: @module SwitchLowerings_runtime
     // PERFECTGAS: push 3
@@ -70,8 +81,7 @@ contract SwitchLowerings {
     // PERFECTGAS-NEXT: indexed_jump
     // PERFECTGAS: push 64
     // PERFECTGAS-NEXT: sub
-    // PERFECTGAS-NEXT: push {{bb[0-9]+}}
-    // PERFECTGAS-NEXT: jumpi
+    // PERFECTGAS-NEXT: jumpi {{bb[0-9]+}}, {{bb[0-9]+}}
 
     // PERFECTSIZE-LABEL: @module SwitchLowerings_runtime
     // PERFECTSIZE: push 8

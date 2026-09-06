@@ -2,7 +2,7 @@
 //@ filecheck: --check-prefix=TABLE
 
 // TABLE-LABEL: @module SwitchBucketDispatch_runtime
-// TABLE: push 40
+// TABLE: push 33
 // TABLE-NEXT: dup 2
 // TABLE-NEXT: mod
 // TABLE-NEXT: indexed_jump

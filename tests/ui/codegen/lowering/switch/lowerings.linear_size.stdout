@@ -2,196 +2,172 @@
 @module SwitchLowerings_runtime
 bb0:
   callvalue
-  push bb11
-  jumpi
+  jumpi bb10, bb1
+bb1:
   push 0
   calldataload
   dup 1
-  push 128
-  mstore
-  dup 1
   push 8
   sub
-  push bb4
-  jumpi
-  pop
+  jumpi bb29, bb30
+bb30:
   push 100
-  jump bb12
-bb12:
+  jump bb32
+bb10:
+  push 0
+  push 0
+  revert
+bb17:
+  push 64
+  sub
+  jumpi bb10, bb9
+bb9:
+  push 107
+  jump bb32
+bb32:
   push 0
   mstore
   push 32
   push 0
   return
-bb11:
-  push 0
-  push 0
-  revert
-bb4:
-  dup 1
-  push 16
-  sub
-  push bb5
-  jumpi
-  pop
-  push 101
-  jump bb12
-bb5:
-  dup 1
-  push 24
-  sub
-  push bb6
-  jumpi
-  pop
-  push 102
-  jump bb12
-bb6:
-  dup 1
-  push 32
-  sub
-  push bb7
-  jumpi
-  pop
-  push 103
-  jump bb12
-bb7:
-  dup 1
-  push 40
-  sub
-  push bb8
-  jumpi
-  pop
-  push 104
-  jump bb12
-bb8:
-  dup 1
-  push 48
-  sub
-  push bb9
-  jumpi
-  pop
-  push 105
-  jump bb12
-bb9:
+bb19:
   dup 1
   push 56
   sub
-  push bb10
-  jumpi
-  pop
+  jumpi bb17, bb18
+bb18:
   push 106
-  jump bb12
-bb10:
+  jump bb32
+bb21:
   dup 1
-  push 64
+  push 48
   sub
-  push bb11
-  jumpi
-  pop
-  push 107
-  jump bb12
+  jumpi bb19, bb20
+bb20:
+  push 105
+  jump bb32
+bb23:
+  dup 1
+  push 40
+  sub
+  jumpi bb21, bb22
+bb22:
+  push 104
+  jump bb32
+bb25:
+  dup 1
+  push 32
+  sub
+  jumpi bb23, bb24
+bb24:
+  push 103
+  jump bb32
+bb27:
+  dup 1
+  push 24
+  sub
+  jumpi bb25, bb26
+bb26:
+  push 102
+  jump bb32
+bb29:
+  dup 1
+  push 16
+  sub
+  jumpi bb27, bb28
+bb28:
+  push 101
+  jump bb32
 // === ROOT/tests/ui/codegen/lowering/switch/lowerings.sol:SwitchLowerings (runtime) ===
 CALLVALUE
-PUSH1 0x1b ; bb1
+PUSH1 0x12 ; bb0
 JUMPI
 PUSH0
 CALLDATALOAD
 DUP1
-PUSH1 0x80
-MSTORE
-DUP1
 PUSH1 0x08
 SUB
-PUSH1 0x1f ; bb2
+PUSH1 0x67 ; bb8
 JUMPI
-POP
 PUSH1 0x64
+PUSH1 0x1f ; bb2
+JUMP
 ; bb0
+JUMPDEST
+PUSH0
+PUSH0
+REVERT
+; bb1
+JUMPDEST
+PUSH1 0x40
+SUB
+PUSH1 0x12 ; bb0
+JUMPI
+PUSH1 0x6b
+; bb2
 JUMPDEST
 PUSH0
 MSTORE
 PUSH1 0x20
 PUSH0
 RETURN
-; bb1
-JUMPDEST
-PUSH0
-PUSH0
-REVERT
-; bb2
-JUMPDEST
-DUP1
-PUSH1 0x10
-SUB
-PUSH1 0x2d ; bb3
-JUMPI
-POP
-PUSH1 0x65
-PUSH1 0x14 ; bb0
-JUMP
 ; bb3
 JUMPDEST
 DUP1
-PUSH1 0x18
+PUSH1 0x38
 SUB
-PUSH1 0x3b ; bb4
+PUSH1 0x16 ; bb1
 JUMPI
-POP
-PUSH1 0x66
-PUSH1 0x14 ; bb0
+PUSH1 0x6a
+PUSH1 0x1f ; bb2
 JUMP
 ; bb4
 JUMPDEST
 DUP1
-PUSH1 0x20
+PUSH1 0x30
 SUB
-PUSH1 0x49 ; bb5
+PUSH1 0x26 ; bb3
 JUMPI
-POP
-PUSH1 0x67
-PUSH1 0x14 ; bb0
+PUSH1 0x69
+PUSH1 0x1f ; bb2
 JUMP
 ; bb5
 JUMPDEST
 DUP1
 PUSH1 0x28
 SUB
-PUSH1 0x57 ; bb6
+PUSH1 0x33 ; bb4
 JUMPI
-POP
 PUSH1 0x68
-PUSH1 0x14 ; bb0
+PUSH1 0x1f ; bb2
 JUMP
 ; bb6
 JUMPDEST
 DUP1
-PUSH1 0x30
+PUSH1 0x20
 SUB
-PUSH1 0x65 ; bb7
+PUSH1 0x40 ; bb5
 JUMPI
-POP
-PUSH1 0x69
-PUSH1 0x14 ; bb0
+PUSH1 0x67
+PUSH1 0x1f ; bb2
 JUMP
 ; bb7
 JUMPDEST
 DUP1
-PUSH1 0x38
+PUSH1 0x18
 SUB
-PUSH1 0x73 ; bb8
+PUSH1 0x4d ; bb6
 JUMPI
-POP
-PUSH1 0x6a
-PUSH1 0x14 ; bb0
+PUSH1 0x66
+PUSH1 0x1f ; bb2
 JUMP
 ; bb8
 JUMPDEST
 DUP1
-PUSH1 0x40
+PUSH1 0x10
 SUB
-PUSH1 0x1b ; bb1
+PUSH1 0x5a ; bb7
 JUMPI
-POP
-PUSH1 0x6b
-PUSH1 0x14 ; bb0
+PUSH1 0x65
+PUSH1 0x1f ; bb2
 JUMP

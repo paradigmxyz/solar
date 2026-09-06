@@ -2,307 +2,220 @@
 @module SwitchBucketDispatch_runtime
 bb0:
   callvalue
-  push bb58
-  jumpi
+  jumpi bb99, bb66
+bb66:
   push 0
   calldataload
   push 224
   shr
-  push 40
+  push 33
   dup 2
   mod
-  indexed_jump bb60, bb61, bb62, bb63, bb64, bb65, bb66, bb67, bb68, bb69, bb70, bb71, bb72, bb73, bb74, bb75, bb76, bb77, bb78, bb79, bb80, bb81, bb82, bb83, bb84, bb85, bb86, bb87, bb88, bb89, bb90, bb91, bb92, bb93, bb94, bb95, bb96, bb97, bb98, bb99
-bb59:
-  stop
-bb2:
-  dup 1
-  push 0xcbf99d38
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb58 [cold]:
+  indexed_jump bb99, bb104, bb105, bb112, bb99, bb99, bb99, bb99, bb119, bb99, bb99, bb99, bb123, bb124, bb125, bb126, bb129, bb130, bb99, bb99, bb133, bb99, bb99, bb136, bb141, bb142, bb145, bb146, bb147, bb148, bb149, bb152, bb155
+bb99:
   push 0
   push 0
   revert
-bb3:
-  dup 1
-  push 0x87d912cb
-  eq
-  push bb59
-  jumpi
-  dup 1
-  push 0x920f5c73
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb4:
-  dup 1
-  push 0x41052a0d
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb5:
-  dup 1
-  push 0x7238232f
-  eq
-  push bb59
-  jumpi
-  dup 1
-  push 0x905f7d67
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb6:
-  dup 1
-  push 0x3b88f6c2
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb7:
-  dup 1
-  push 0xaa66aa63
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb8:
-  dup 1
-  push 0x24a75cfd
-  eq
-  push bb59
-  jumpi
-  dup 1
-  push 0x98e9a73d
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb9:
-  dup 1
-  push 0xebd25c8f
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb10:
-  dup 1
-  push 0x8a67ee70
-  eq
-  push bb59
-  jumpi
-  dup 1
-  push 0xc43b1a78
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb11:
-  dup 1
-  push 0xebbd40a9
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb12:
-  dup 1
-  push 0x1eb6457a
-  eq
-  push bb59
-  jumpi
-  dup 1
-  push 0xdca2fb5a
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb13:
+bb103:
+  stop
+bb104:
   dup 1
   push 0x67e648b5
   eq
-  push bb59
-  jumpi
-  jump bb58
-bb14:
-  dup 1
-  push 0xe6e0ae36
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb15:
-  dup 1
-  push 0xcba58af7
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb16:
-  dup 1
-  push 0x6d4975a2
-  eq
-  push bb59
-  jumpi
-  dup 1
-  push 0x8dc714ba
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb17:
-  dup 1
-  push 0x54eaadab
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb18:
-  dup 1
-  push 0x10c772cc
-  eq
-  push bb59
-  jumpi
-  dup 1
-  push 0x4e580bc4
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb19:
-  dup 1
-  push 0x965a68f5
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb20:
-  dup 1
-  push 0xd758c88e
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb21:
-  dup 1
-  push 0x6d738a50
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb22:
-  dup 1
-  push 0xf02a00c9
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb23:
+  jumpi bb103, bb102
+bb102:
+  push 0xaa66aa63
+  sub
+  jumpi bb99, bb89
+bb89:
+  stop
+bb105:
+  push 0x920f5c73
+  sub
+  jumpi bb99, bb86
+bb86:
+  stop
+bb107:
+  stop
+bb109:
+  stop
+bb111:
+  stop
+bb112:
   dup 1
   push 0x40bcff2a
   eq
-  push bb59
-  jumpi
+  jumpi bb111, bb110
+bb110:
+  dup 1
+  push 0x87d912cb
+  eq
+  jumpi bb109, bb108
+bb108:
+  dup 1
+  push 0x8dc714ba
+  eq
+  jumpi bb107, bb106
+bb106:
+  push 0xebbd40a9
+  sub
+  jumpi bb99, bb96
+bb96:
+  stop
+bb118:
+  stop
+bb119:
+  dup 1
+  push 0x10c772cc
+  eq
+  jumpi bb118, bb117
+bb117:
+  push 0xebd25c8f
+  sub
+  jumpi bb99, bb97
+bb97:
+  stop
+bb123:
+  push 0x8a67ee70
+  sub
+  jumpi bb99, bb83
+bb83:
+  stop
+bb124:
+  push 0xe6e0ae36
+  sub
+  jumpi bb99, bb95
+bb95:
+  stop
+bb125:
+  push 0x41052a0d
+  sub
+  jumpi bb99, bb74
+bb74:
+  stop
+bb126:
+  push 0xcba58af7
+  sub
+  jumpi bb99, bb91
+bb91:
+  stop
+bb128:
+  stop
+bb129:
+  dup 1
+  push 0x1eb6457a
+  eq
+  jumpi bb128, bb127
+bb127:
+  push 0x965a68f5
+  sub
+  jumpi bb99, bb87
+bb87:
+  stop
+bb130:
+  push 0x1f49dbe7
+  sub
+  jumpi bb99, bb69
+bb69:
+  stop
+bb133:
+  push 0x3b88f6c2
+  sub
+  jumpi bb99, bb71
+bb71:
+  stop
+bb136:
+  push 0x24a75cfd
+  sub
+  jumpi bb99, bb70
+bb70:
+  stop
+bb138:
+  stop
+bb140:
+  stop
+bb141:
   dup 1
   push 0x5fb43592
   eq
-  push bb59
-  jumpi
-  jump bb58
-bb24:
+  jumpi bb140, bb139
+bb139:
+  dup 1
+  push 0xd758c88e
+  eq
+  jumpi bb138, bb137
+bb137:
+  push 0xdca2fb5a
+  sub
+  jumpi bb99, bb94
+bb94:
+  stop
+bb142:
+  push 0x4e580bc4
+  sub
+  jumpi bb99, bb75
+bb75:
+  stop
+bb144:
+  stop
+bb145:
+  dup 1
+  push 0x54eaadab
+  eq
+  jumpi bb144, bb143
+bb143:
+  push 0xc43b1a78
+  sub
+  jumpi bb99, bb90
+bb90:
+  stop
+bb146:
+  push 0x7238232f
+  sub
+  jumpi bb99, bb81
+bb81:
+  stop
+bb147:
+  push 0x6d738a50
+  sub
+  jumpi bb99, bb80
+bb80:
+  stop
+bb148:
+  push 0x905f7d67
+  sub
+  jumpi bb99, bb85
+bb85:
+  stop
+bb149:
+  push 0xf02a00c9
+  sub
+  jumpi bb99, bb98
+bb98:
+  stop
+bb151:
+  stop
+bb152:
   dup 1
   push 0x3d492ec4
   eq
-  push bb59
-  jumpi
-  jump bb58
-bb25:
-  dup 1
-  push 0x1f49dbe7
-  eq
-  push bb59
-  jumpi
-  jump bb58
-bb60:
-  jump bb2
-bb61:
-  jump bb58
-bb62:
-  jump bb58
-bb63:
-  jump bb3
-bb64:
-  jump bb58
-bb65:
-  jump bb4
-bb66:
-  jump bb58
-bb67:
-  jump bb5
-bb68:
-  jump bb58
-bb69:
-  jump bb58
-bb70:
-  jump bb6
-bb71:
-  jump bb7
-bb72:
-  jump bb58
-bb73:
-  jump bb8
-bb74:
-  jump bb58
-bb75:
-  jump bb9
-bb76:
-  jump bb10
-bb77:
-  jump bb11
-bb78:
-  jump bb12
-bb79:
-  jump bb58
-bb80:
-  jump bb58
-bb81:
-  jump bb13
-bb82:
-  jump bb14
-bb83:
-  jump bb15
-bb84:
-  jump bb58
-bb85:
-  jump bb58
-bb86:
-  jump bb16
-bb87:
-  jump bb17
+  jumpi bb151, bb150
+bb150:
+  push 0x98e9a73d
+  sub
+  jumpi bb99, bb88
 bb88:
-  jump bb18
-bb89:
-  jump bb19
-bb90:
-  jump bb20
-bb91:
-  jump bb58
+  stop
+bb154:
+  stop
+bb155:
+  dup 1
+  push 0x6d4975a2
+  eq
+  jumpi bb154, bb153
+bb153:
+  push 0xcbf99d38
+  sub
+  jumpi bb99, bb92
 bb92:
-  jump bb21
-bb93:
-  jump bb22
-bb94:
-  jump bb23
-bb95:
-  jump bb58
-bb96:
-  jump bb24
-bb97:
-  jump bb58
-bb98:
-  jump bb58
-bb99:
-  jump bb25
+  stop
