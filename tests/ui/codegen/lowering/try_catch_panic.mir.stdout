@@ -7,7 +7,7 @@ fn @ok() [selector=0xd909b403, pure, abi_params=[], abi_returns=[]] {
 
 fn @fail() [selector=0xa9cc4718, pure, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = iszero 0
+    v0 = iszero false
     jumpi v0, bb1, bb2
   bb2:
     stop

@@ -299,7 +299,7 @@ fn @tupleTernary() -> u256 [selector=0x75466b3a, view, abi_params=[], abi_return
     set_memory_object_len memorybytes, v2, 4
     v3 = memory_object_data memorybytes, v2
     mstore v3, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v4 = eq 0, 0
+    v4 = eq false, 0
     v5 = iszero v4
     v6 = abi_encode [memory_bytes, word<bool>], selector 0xf8c7256500000000000000000000000000000000000000000000000000000000, args v2, v5
     v7 = slice_ptr v6

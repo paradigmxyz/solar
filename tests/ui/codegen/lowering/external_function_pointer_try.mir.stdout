@@ -40,7 +40,7 @@ fn @invoke(arg0: function, arg1: memorystruct) {
     v27 = iszero v26
     v28 = eq v23, 0x4e487b71
     v29 = and v27, v28
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v17, v18
   bb8:
@@ -118,7 +118,7 @@ fn @invokePair(arg0: function, arg1: memorystruct) -> (u256, memorybytes) {
     v35 = iszero v34
     v36 = eq v31, 0x4e487b71
     v37 = and v35, v36
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v25, v26
   bb7:

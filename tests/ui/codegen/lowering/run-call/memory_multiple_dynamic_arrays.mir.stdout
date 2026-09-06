@@ -284,7 +284,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v137 = eq v125, v136
     jump bb48
   bb48:
-    v138 = phi [bb56: v137], [bb47: 0]
+    v138 = phi [bb56: v137], [bb47: false]
     jumpi v138, bb57, bb58
   bb58:
     jump bb59
@@ -313,7 +313,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v150 = eq v149, 44
     jump bb59
   bb59:
-    v151 = phi [bb63: v150], [bb58: 0]
+    v151 = phi [bb63: v150], [bb58: false]
     jumpi v151, bb64, bb65
   bb65:
     jump bb66
@@ -342,7 +342,7 @@ fn @allocate() -> u256 [selector=0xabaa9916, pure, abi_params=[], abi_returns=[w
     v163 = eq v162, 88
     jump bb66
   bb66:
-    v164 = phi [bb70: v163], [bb65: 0]
+    v164 = phi [bb70: v163], [bb65: false]
     jumpi v164, bb71, bb72
   bb72:
     jump bb73

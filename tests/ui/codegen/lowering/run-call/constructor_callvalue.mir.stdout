@@ -153,7 +153,7 @@ fn @acceptsPayable() -> bool [selector=0xd6e5da6b, payable, abi_params=[], abi_r
     v8 = eq v6, v7
     jump bb3
   bb3:
-    v9 = phi [bb1: v8], [bb2: 0]
+    v9 = phi [bb1: v8], [bb2: false]
     ret v9
 }
 

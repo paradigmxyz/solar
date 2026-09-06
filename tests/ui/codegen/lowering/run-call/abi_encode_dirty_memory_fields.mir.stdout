@@ -6,7 +6,7 @@ fn @dirty() -> memorystruct [pure] {
     memory_zero v0, 192
     v1 = and 1, 255
     memory_object_store_field memorystruct<6>, v0, 0, v1
-    v2 = eq 1, 0
+    v2 = eq true, 0
     v3 = iszero v2
     memory_object_store_field memorystruct<6>, v0, 1, v3
     v4 = lt 1, 2

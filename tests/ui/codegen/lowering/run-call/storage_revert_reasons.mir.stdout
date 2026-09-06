@@ -64,7 +64,7 @@ fn @structRequire() [selector=0x8bb9ced2, abi_params=[], abi_returns=[]] {
     v0 = icall @literal_bytes_word, 1, 0x7800000000000000000000000000000000000000000000000000000000000000, 1
     icall @store_storage_bytes, 0, 2, v0
     v1 = icall @load_storage_bytes, 1, 2
-    v2 = iszero 0
+    v2 = iszero false
     jumpi v2, bb1, bb2
   bb2:
     stop

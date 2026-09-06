@@ -7,7 +7,7 @@ use solar_data_structures::newtype_index;
 mod types;
 pub(crate) use types::{
     FrameMode, FrameSlotKind, ImmutableEncoding, MemoryObjectKind, MemoryObjectLayout, MirType,
-    SliceLocation, TypeSize,
+    SliceLocation, StructType, TypeSize,
 };
 
 mod abi;
@@ -68,6 +68,9 @@ newtype_index! {
 
     /// A unique identifier for a basic block in the MIR.
     pub(crate) struct BlockId;
+
+    /// A fixed aggregate type declared in a MIR module.
+    pub(crate) struct StructId;
 
     /// A unique identifier for a function in the MIR.
     pub(crate) struct FunctionId;

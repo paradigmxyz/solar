@@ -108,7 +108,7 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v262 = eq v261, 0
     jump bb56
   bb56:
-    v263 = phi [bb58: v262], [bb55: 0]
+    v263 = phi [bb58: v262], [bb55: false]
     ret v195, v263
   bb38:
     v201 = lt 0, 1

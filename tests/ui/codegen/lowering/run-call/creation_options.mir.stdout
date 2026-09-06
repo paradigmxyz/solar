@@ -55,17 +55,17 @@ fn @sameShortLiteralSalt() -> bool [selector=0xae55518d, abi_params=[], abi_retu
     v33 = iszero v32
     v34 = eq v29, 0x4e487b71
     v35 = and v33, v34
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v23, v24
   bb8:
-    ret 1
+    ret true
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    ret 0
+    ret false
   bb5:
     ret 0
 }
@@ -122,17 +122,17 @@ fn @sameEmptyLiteralSalt() -> bool [selector=0x01dd6ed9, abi_params=[], abi_retu
     v33 = iszero v32
     v34 = eq v29, 0x4e487b71
     v35 = and v33, v34
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v23, v24
   bb8:
-    ret 1
+    ret true
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    ret 0
+    ret false
   bb5:
     ret 0
 }
@@ -189,17 +189,17 @@ fn @sameFullLiteralSalt() -> bool [selector=0xaf96a2f0, abi_params=[], abi_retur
     v33 = iszero v32
     v34 = eq v29, 0x4e487b71
     v35 = and v33, v34
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v23, v24
   bb8:
-    ret 1
+    ret true
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    ret 0
+    ret false
   bb5:
     ret 0
 }

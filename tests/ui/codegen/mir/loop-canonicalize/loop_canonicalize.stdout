@@ -15,7 +15,7 @@
     bb3:
 -     v0 = phi [bb1: 10], [bb2: 20], [bb4: 30]
 +     v0 = phi [bb4: 30], [bb6: v1]
-      jumpi 1, bb4, bb5
+      jumpi true, bb4, bb5
     bb5:
       ret v0
     bb4:
@@ -31,7 +31,7 @@
     bb1:
 -     v0 = phi [bb0: 0], [bb2: 1]
 +     v0 = phi [bb2: 1], [bb4: 0]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret 0
     bb2:

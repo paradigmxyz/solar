@@ -279,7 +279,7 @@ fn @_splitSlices(arg0: calldataslice) -> (bool, bytes2, memorybytes, memorybytes
     v39 = alloc memorybytes, exact, uninitialized, infallible, v38
     set_memory_object_len memorybytes, v39, v34
     memory_object_copy_from_slice memorybytes, v39, v27
-    ret 1, 0, v19, v39
+    ret true, 0, v19, v39
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

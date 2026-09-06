@@ -49,7 +49,7 @@ fn @nullArrayElementsEncodeAsEmpty() -> bool [selector=0x71417b4d, pure, abi_par
     v19 = eq v17, v18
     jump bb9
   bb9:
-    v20 = phi [bb7: v19], [bb8: 0]
+    v20 = phi [bb7: v19], [bb8: false]
     ret v20
   bb5:
     memory_object_store_element memoryarray<1>, v7, v8, 96

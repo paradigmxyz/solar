@@ -33,7 +33,7 @@ fn @bare(arg0: address) -> u256 [selector=0x590eaf9b, abi_params=[address], abi_
     v30 = iszero v29
     v31 = eq v26, 0x4e487b71
     v32 = and v30, v31
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v20, v21
   bb7:
@@ -96,7 +96,7 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
     v28 = icall @try_decode_error_message, 1, v20, v21
     jump bb9
   bb9:
-    v29 = phi [bb7: v28], [bb8: 0]
+    v29 = phi [bb7: v28], [bb8: false]
     v30 = lt v21, 36
     v31 = iszero v30
     v32 = eq v26, 0x4e487b71
@@ -105,7 +105,7 @@ fn @typed(arg0: address) -> u256 [selector=0x18d9eb38, abi_params=[address], abi
   bb11:
     jumpi v33, bb13, bb14
   bb14:
-    jumpi 1, bb15, bb16
+    jumpi true, bb15, bb16
   bb16:
     revert v20, v21
   bb15:
@@ -180,5 +180,5 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v14 = iszero v13
     ret v14
   bb3:
-    ret 0
+    ret false
 }

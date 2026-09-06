@@ -32,10 +32,10 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) [selector=0xd1660f99,
   bb7:
     jump bb8
   bb8:
-    v16 = phi [bb6: v15], [bb7: 1]
+    v16 = phi [bb6: v15], [bb7: true]
     jump bb5
   bb5:
-    v17 = phi [bb8: v16], [bb4: 0]
+    v17 = phi [bb8: v16], [bb4: false]
     v18 = iszero v17
     jumpi v18, bb9, bb10
   bb10:

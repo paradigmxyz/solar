@@ -55,7 +55,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb8:
     jump bb9
   bb9:
-    v26 = phi [bb7: v25], [bb8: 1]
+    v26 = phi [bb7: v25], [bb8: true]
     jumpi v26, bb10, bb11
   bb11:
     jump bb12
@@ -76,7 +76,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb14:
     jump bb15
   bb15:
-    v37 = phi [bb13: v36], [bb14: 1]
+    v37 = phi [bb13: v36], [bb14: true]
     jumpi v37, bb17, bb16
   bb16:
     v38 = sload v32 !metadata(storage=symbolic(v32))
@@ -97,7 +97,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb17:
     jump bb18
   bb18:
-    v46 = phi [bb20: v45], [bb17: 1]
+    v46 = phi [bb20: v45], [bb17: true]
     jumpi v46, bb21, bb22
   bb22:
     jump bb23
@@ -112,7 +112,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb25:
     jump bb26
   bb26:
-    v51 = phi [bb24: v50], [bb25: 1]
+    v51 = phi [bb24: v50], [bb25: true]
     jumpi v51, bb27, bb28
   bb28:
     jump bb29
@@ -127,7 +127,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
   bb31:
     jump bb32
   bb32:
-    v56 = phi [bb30: v55], [bb31: 1]
+    v56 = phi [bb30: v55], [bb31: true]
     jumpi v56, bb33, bb34
   bb34:
     jump bb35

@@ -86,7 +86,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v43 = eq v42, 4
     jump bb11
   bb11:
-    v44 = phi [bb9: v43], [bb10: 0]
+    v44 = phi [bb9: v43], [bb10: false]
     jumpi v44, bb12, bb13
   bb13:
     jump bb14
@@ -95,7 +95,7 @@ fn @test() -> bytes4 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byte
     v46 = eq v45, 4
     jump bb14
   bb14:
-    v47 = phi [bb12: v46], [bb13: 0]
+    v47 = phi [bb12: v46], [bb13: false]
     v48 = iszero v47
     jumpi v48, bb15, bb16
   bb16:

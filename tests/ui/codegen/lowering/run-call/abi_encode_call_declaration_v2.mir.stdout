@@ -54,7 +54,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v14 = eq v13, 32
     jump bb5
   bb5:
-    v15 = phi [bb3: v14], [bb4: 0]
+    v15 = phi [bb3: v14], [bb4: false]
     v16 = iszero v15
     jumpi v16, bb6, bb7
   bb7:
@@ -92,7 +92,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v36 = eq v35, 32
     jump bb14
   bb14:
-    v37 = phi [bb12: v36], [bb13: 0]
+    v37 = phi [bb12: v36], [bb13: false]
     v38 = iszero v37
     jumpi v38, bb6, bb15
   bb15:
@@ -130,7 +130,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v58 = eq v57, 32
     jump bb21
   bb21:
-    v59 = phi [bb19: v58], [bb20: 0]
+    v59 = phi [bb19: v58], [bb20: false]
     v60 = iszero v59
     jumpi v60, bb6, bb22
   bb22:
@@ -168,7 +168,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v80 = eq v79, 32
     jump bb28
   bb28:
-    v81 = phi [bb26: v80], [bb27: 0]
+    v81 = phi [bb26: v80], [bb27: false]
     v82 = iszero v81
     jumpi v82, bb6, bb29
   bb29:
@@ -206,7 +206,7 @@ fn @test() -> u256 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word]
     v102 = eq v101, 32
     jump bb35
   bb35:
-    v103 = phi [bb33: v102], [bb34: 0]
+    v103 = phi [bb33: v102], [bb34: false]
     v104 = iszero v103
     jumpi v104, bb6, bb36
   bb36:

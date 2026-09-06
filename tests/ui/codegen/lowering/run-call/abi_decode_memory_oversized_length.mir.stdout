@@ -85,7 +85,7 @@ fn @oversized(arg0: bytes4) -> bool {
     v20 = eq v17, v19
     jump bb5
   bb5:
-    v21 = phi [bb3: v20], [bb4: 0]
+    v21 = phi [bb3: v20], [bb4: false]
     ret v21
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)

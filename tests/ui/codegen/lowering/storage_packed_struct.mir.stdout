@@ -96,7 +96,7 @@ fn @constructor() [constructor] {
     v75 = sload 3 !metadata(storage=slot(3))
     v76 = not v74
     v77 = and v75, v76
-    v78 = and 1, 255
+    v78 = and true, 255
     v79 = shl 160, v78
     v80 = or v77, v79
     sstore 3, v80 !metadata(storage=slot(3))

@@ -61,7 +61,7 @@ fn @not_not(arg0: u256) -> u256 {
 // CHECK-LABEL: @iszero_immediate
 // CHECK: - [[ZERO:v[0-9]+]] = iszero 0
 // CHECK: - ret [[ZERO]]
-// CHECK: ret 1
+// CHECK: ret true
 fn @iszero_immediate() -> bool {
   bb0:
     v0 = iszero 0

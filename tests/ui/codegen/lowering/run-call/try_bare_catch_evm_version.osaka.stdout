@@ -92,7 +92,7 @@ fn @live() -> u256 [selector=0x957aa58c, abi_params=[], abi_returns=[word]] {
     v37 = iszero v36
     v38 = eq v33, 0x4e487b71
     v39 = and v37, v38
-    jumpi 1, bb9, bb10
+    jumpi true, bb9, bb10
   bb10:
     revert v27, v28
   bb9:
@@ -166,7 +166,7 @@ fn @liveTwo() -> u256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word]] {
     v42 = iszero v41
     v43 = eq v38, 0x4e487b71
     v44 = and v42, v43
-    jumpi 1, bb11, bb12
+    jumpi true, bb11, bb12
   bb12:
     revert v32, v33
   bb11:
@@ -251,7 +251,7 @@ fn @liveAggregate() -> u256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v45 = iszero v44
     v46 = eq v41, 0x4e487b71
     v47 = and v45, v46
-    jumpi 1, bb14, bb15
+    jumpi true, bb14, bb15
   bb15:
     revert v35, v36
   bb14:
@@ -351,7 +351,7 @@ fn @liveNoReturn() -> u256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v31 = iszero v30
     v32 = eq v27, 0x4e487b71
     v33 = and v31, v32
-    jumpi 1, bb10, bb11
+    jumpi true, bb10, bb11
   bb11:
     revert v21, v22
   bb10:
@@ -415,7 +415,7 @@ fn @liveCatch() -> u256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word]]
     v37 = iszero v36
     v38 = eq v33, 0x4e487b71
     v39 = and v37, v38
-    jumpi 1, bb9, bb10
+    jumpi true, bb9, bb10
   bb10:
     revert v27, v28
   bb9:
@@ -494,7 +494,7 @@ fn @livePointer() -> u256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v42 = iszero v41
     v43 = eq v38, 0x4e487b71
     v44 = and v42, v43
-    jumpi 1, bb9, bb10
+    jumpi true, bb9, bb10
   bb10:
     revert v32, v33
   bb9:
@@ -561,7 +561,7 @@ fn @liveCreation() -> u256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v26 = iszero v25
     v27 = eq v22, 0x4e487b71
     v28 = and v26, v27
-    jumpi 1, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
     revert v16, v17
   bb6:
@@ -610,7 +610,7 @@ fn @noCode() -> u256 [selector=0x96c56dce, abi_params=[], abi_returns=[word]] {
     v30 = iszero v29
     v31 = eq v26, 0x4e487b71
     v32 = and v30, v31
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v20, v21
   bb7:
@@ -675,7 +675,7 @@ fn @noCodeNoReturn() -> u256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
     v24 = iszero v23
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v14, v15
   bb8:

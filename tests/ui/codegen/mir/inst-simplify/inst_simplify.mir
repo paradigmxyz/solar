@@ -24,10 +24,10 @@ fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @simplify_booleans{{[( ]}}
-// CHECK: {{^[ +].*}}[[IS_TRUE:v[0-9]+]] = eq arg0, 1
+// CHECK: {{^[ +].*}}[[IS_TRUE:v[0-9]+]] = eq arg0, true
 // CHECK: {{^[ +].*}}[[IS_FALSE:v[0-9]+]] = iszero arg0
-// CHECK: {{^[ +].*}}[[SELECT_TRUE:v[0-9]+]] = select arg0, 1, 0
-// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, 0, 1
+// CHECK: {{^[ +].*}}[[SELECT_TRUE:v[0-9]+]] = select arg0, true, false
+// CHECK: {{^[ +].*}}[[SELECT_FALSE:v[0-9]+]] = select arg0, false, true
 // CHECK: {{^[ +].*}}ret [[IS_TRUE]], [[IS_FALSE]], arg1, [[SELECT_TRUE]], [[SELECT_FALSE]]
 fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
   bb0:
@@ -151,7 +151,7 @@ fn @fold_wide_modular_constants() -> (u256, u256) {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @fold_constant_ops{{[( ]}}
-// CHECK: + ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 1, 1, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
+// CHECK: + ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, true, true, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
 fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
   bb0:
     v1 = add 7, 5

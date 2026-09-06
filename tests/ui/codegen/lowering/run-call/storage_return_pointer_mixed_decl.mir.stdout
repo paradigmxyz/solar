@@ -25,7 +25,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb2:
     jump bb3
   bb3:
-    v11 = phi [bb1: v10], [bb2: 1]
+    v11 = phi [bb1: v10], [bb2: true]
     jumpi v11, bb5, bb4
   bb4:
     v12 = eq v5, 2
@@ -34,7 +34,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb5:
     jump bb6
   bb6:
-    v14 = phi [bb4: v13], [bb5: 1]
+    v14 = phi [bb4: v13], [bb5: true]
     jumpi v14, bb7, bb8
   bb8:
     jump bb9
@@ -76,13 +76,13 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
   bb17:
     jump bb18
   bb18:
-    ret 1
+    ret true
   bb16:
-    ret 0
+    ret false
   bb13:
-    ret 0
+    ret false
   bb10:
-    ret 0
+    ret false
   bb7:
-    ret 0
+    ret false
 }

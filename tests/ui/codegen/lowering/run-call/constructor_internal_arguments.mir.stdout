@@ -47,7 +47,7 @@ data:
 fn @constructor() [constructor] {
   bb0:
     v0 = and 0x6162630000000000000000000000000000000000000000000000000000000000, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = eq 1, 0
+    v1 = eq true, 0
     v2 = iszero v1
     v3 = abi_encode [word<bytes3>, word<bool>], args v0, v2
     v4 = not 31

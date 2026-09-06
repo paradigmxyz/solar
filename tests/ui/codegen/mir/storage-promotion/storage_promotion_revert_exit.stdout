@@ -5,7 +5,7 @@
     bb0:
 +     v6 = sload 0
 +     mstore 128, v6
-+     mstore 160, 0
++     mstore 160, false
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb5: v5]
@@ -29,7 +29,7 @@
     bb4:
 -     sstore 0, v3
 +     mstore 128, v3
-+     mstore 160, 1
++     mstore 160, true
       jump bb5
     bb5:
       v5 = add v0, 1
@@ -44,7 +44,7 @@
 +     mstore 128, 1
       jump bb1
     bb1:
-      jumpi 1, bb2, bb5
+      jumpi true, bb2, bb5
     bb5:
 +     v4 = mload 128
 +     sstore 0, v4
@@ -72,7 +72,7 @@
 +     sstore 0, 1 !metadata(storage=slot(0))
       jump bb1
     bb1:
-      jumpi 1, bb2, bb5
+      jumpi true, bb2, bb5
     bb5:
       stop
     bb2:

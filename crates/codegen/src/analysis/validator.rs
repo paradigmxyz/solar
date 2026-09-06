@@ -37,7 +37,7 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, Module, Value, ValueId},
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Value, ValueId},
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -90,9 +90,13 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
+        let errors_before = self.error_count;
         self.validate_function_body(Some(module), func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
+        if self.error_count == errors_before {
+            self.validate_struct_values(module, func);
+        }
         self.validate_function_phase(module, func);
     }
 
@@ -514,6 +518,18 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
+        for (id, ty) in module.struct_types.iter_enumerated() {
+            for field in &ty.fields {
+                if *field == MirType::Void
+                    || matches!(field, MirType::Struct(nested) if *nested >= id)
+                {
+                    self.emit(format_args!(
+                        "invalid field type `{field}` in `struct{}`",
+                        id.index()
+                    ));
+                }
+            }
+        }
         self.validate_module_phase(module);
         self.validate_immutable_declarations(module);
         for (id, func) in module.iter_functions() {
@@ -521,6 +537,205 @@ impl<'a> Validator<'a> {
             self.validate_function(module, func);
         }
         self.function = None;
+    }
+
+    /// Checks aggregate operands, field indices, and result types against the module declarations.
+    fn validate_struct_values(&mut self, module: &Module, func: &Function) {
+        if func.returns.len() > 1 && func.returns.iter().any(|ty| matches!(ty, MirType::Struct(_)))
+        {
+            self.emit("a struct result must be the function's only result");
+        }
+        for ty in func
+            .arg_indices()
+            .map(|index| func.arg_ty(index))
+            .chain(func.returns.iter().copied())
+            .chain(func.live_values().filter_map(|value| func.value_ty(value)))
+        {
+            if let MirType::Struct(id) = ty
+                && module.struct_types.get(id).is_none()
+            {
+                self.emit(format_args!("undefined struct type `struct{}`", id.index()));
+            }
+        }
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in &body.instructions {
+                let inst = func.inst(id);
+                match &inst.kind {
+                    InstKind::Phi(incoming) => {
+                        for &(_, value) in incoming {
+                            self.check_struct_type(func.value_ty(value), inst.result_ty, block, id);
+                        }
+                    }
+                    InstKind::Select(condition, a, b) => {
+                        self.check_struct_type(
+                            func.value_ty(*condition),
+                            Some(MirType::Bool),
+                            block,
+                            id,
+                        );
+                        for value in [*a, *b] {
+                            self.check_struct_type(func.value_ty(value), inst.result_ty, block, id);
+                        }
+                    }
+                    InstKind::ICall { function, args, .. } => {
+                        if let Some(callee) = module.functions.get(*function) {
+                            for (&value, &ty) in args.iter().zip(&callee.params) {
+                                self.check_struct_type(func.value_ty(value), Some(ty), block, id);
+                            }
+                            if inst.result_ty.is_some() {
+                                self.check_struct_type(
+                                    inst.result_ty,
+                                    callee.returns.first().copied(),
+                                    block,
+                                    id,
+                                );
+                            }
+                        }
+                    }
+                    InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => {}
+                    _ => {
+                        if matches!(inst.result_ty, Some(MirType::Struct(_))) {
+                            self.emit_at_inst(
+                                "instruction cannot produce a struct value",
+                                block,
+                                id,
+                            );
+                        }
+                        for value in inst.kind.operands() {
+                            if matches!(func.value_ty(value), Some(MirType::Struct(_))) {
+                                self.emit_at_inst(
+                                    "instruction cannot consume a struct value",
+                                    block,
+                                    id,
+                                );
+                            }
+                        }
+                    }
+                }
+                let (ty, aggregate, index, inserted) = match inst.kind {
+                    InstKind::InsertValue { ty, aggregate, index, value } => {
+                        (ty, aggregate, index, Some(value))
+                    }
+                    InstKind::ExtractValue { ty, aggregate, index } => (ty, aggregate, index, None),
+                    _ => continue,
+                };
+                let Some(fields) = module.struct_types.get(ty) else {
+                    self.emit_at_inst(
+                        format_args!("undefined struct type `struct{}`", ty.index()),
+                        block,
+                        id,
+                    );
+                    continue;
+                };
+                let Some(&field) = fields.fields.get(index as usize) else {
+                    self.emit_at_inst("struct field index is out of bounds", block, id);
+                    continue;
+                };
+                if func.value_ty(aggregate) != Some(MirType::Struct(ty)) {
+                    self.emit_at_inst(
+                        "aggregate operand does not match its declared struct type",
+                        block,
+                        id,
+                    );
+                }
+                let result = if let Some(value) = inserted {
+                    if func.value_ty(value) != Some(field) {
+                        self.emit_at_inst(
+                            format_args!("inserted value must have type `{field}`"),
+                            block,
+                            id,
+                        );
+                    }
+                    MirType::Struct(ty)
+                } else {
+                    field
+                };
+                if inst.result_ty != Some(result) {
+                    self.emit_at_inst(
+                        format_args!("struct instruction result must have type `{result}`"),
+                        block,
+                        id,
+                    );
+                }
+            }
+            match &body.terminator {
+                Some(crate::mir::Terminator::Return { values }) => {
+                    let has_struct = func.returns.iter().any(|ty| matches!(ty, MirType::Struct(_)))
+                        || values
+                            .iter()
+                            .any(|&value| matches!(func.value_ty(value), Some(MirType::Struct(_))));
+                    if has_struct
+                        && (values.len() != func.returns.len()
+                            || values
+                                .iter()
+                                .zip(&func.returns)
+                                .any(|(&value, &ty)| func.value_ty(value) != Some(ty)))
+                    {
+                        self.emit_at_block(
+                            "return values do not match the struct signature",
+                            block,
+                        );
+                    }
+                }
+                Some(crate::mir::Terminator::TailCall { function, args }) => {
+                    if let Some(callee) = module.functions.get(*function) {
+                        if args.iter().zip(&callee.params).any(|(&value, &ty)| {
+                            let actual = func.value_ty(value);
+                            actual != Some(ty)
+                                && (matches!(actual, Some(MirType::Struct(_)))
+                                    || matches!(ty, MirType::Struct(_)))
+                        }) {
+                            self.emit_at_block(
+                                "tail-call arguments do not match the struct signature",
+                                block,
+                            );
+                        }
+                        if func.selector.is_none()
+                            && func.returns != callee.returns
+                            && func
+                                .returns
+                                .iter()
+                                .chain(&callee.returns)
+                                .any(|ty| matches!(ty, MirType::Struct(_)))
+                            && callee.blocks.iter().any(|block| {
+                                matches!(
+                                    block.terminator,
+                                    Some(crate::mir::Terminator::Return { .. })
+                                )
+                            })
+                        {
+                            self.emit_at_block(
+                                "tail-call results do not match the struct signature",
+                                block,
+                            );
+                        }
+                    }
+                }
+                Some(term)
+                    if term
+                        .operands()
+                        .iter()
+                        .any(|&value| matches!(func.value_ty(value), Some(MirType::Struct(_)))) =>
+                {
+                    self.emit_at_block("terminator cannot consume a struct value", block);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn check_struct_type(
+        &mut self,
+        actual: Option<MirType>,
+        expected: Option<MirType>,
+        block: BlockId,
+        inst: InstId,
+    ) {
+        if actual != expected
+            && [actual, expected].iter().any(|ty| matches!(ty, Some(MirType::Struct(_))))
+        {
+            self.emit_at_inst("struct value does not match the required type", block, inst);
+        }
     }
 
     fn validate_data_reference(
@@ -741,10 +956,22 @@ impl<'a> Validator<'a> {
         // backend. High-level memory operations must have been expanded by
         // their named lowering passes before the module enters this phase.
         if module.phase >= crate::mir::MirPhase::EvmShaped {
+            if func
+                .arg_indices()
+                .map(|index| func.arg_ty(index))
+                .chain(func.returns.iter().copied())
+                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
+                .any(|ty| matches!(ty, MirType::Struct(_)))
+            {
+                self.emit("struct type survives the `evm-shaped` phase boundary");
+            }
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {
                     let kind = &func.inst(inst_id).kind;
                     let semantic_op = match kind {
+                        InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => {
+                            Some("struct value")
+                        }
                         InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
                         | InstKind::SliceLen(_) => Some("slice"),

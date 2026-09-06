@@ -97,7 +97,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v24 = icall @try_decode_error_message, 1, v16, v17
     jump bb10
   bb10:
-    v25 = phi [bb8: v24], [bb9: 0]
+    v25 = phi [bb8: v24], [bb9: false]
     v26 = lt v17, 36
     v27 = iszero v26
     v28 = eq v22, 0x4e487b71
@@ -177,7 +177,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v24 = icall @try_decode_error_message, 1, v16, v17
     jump bb10
   bb10:
-    v25 = phi [bb8: v24], [bb9: 0]
+    v25 = phi [bb8: v24], [bb9: false]
     v26 = lt v17, 36
     v27 = iszero v26
     v28 = eq v22, 0x4e487b71
@@ -239,5 +239,5 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v14 = iszero v13
     ret v14
   bb3:
-    ret 0
+    ret false
 }

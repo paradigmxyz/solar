@@ -31,6 +31,7 @@ pub(crate) mod lower_mcopy;
 pub(crate) mod lower_memory_objects;
 pub(crate) mod lower_memory_zero;
 pub(crate) mod lower_slices;
+pub(crate) mod lower_structs;
 pub(crate) mod memory_dse;
 pub(crate) mod outline_reverts;
 pub(crate) mod pre;

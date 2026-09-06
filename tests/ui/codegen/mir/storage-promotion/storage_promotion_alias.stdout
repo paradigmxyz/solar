@@ -9,7 +9,7 @@
 +     sstore arg1, 2 !metadata(storage=symbolic(arg1))
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
       stop
     bb2:
@@ -36,7 +36,7 @@
 +     sstore 7, 2 !metadata(storage=slot(7))
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
       stop
     bb2:
@@ -63,7 +63,7 @@
 +     mstore 160, 2
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
 +     v5 = mload 160
 +     sstore 1, v5
@@ -96,7 +96,7 @@
 +     mstore 160, 2
       jump bb1
     bb1:
-      jumpi 1, bb2, bb4
+      jumpi true, bb2, bb4
     bb4:
 +     v11 = mload 160
 +     sstore v1, v11

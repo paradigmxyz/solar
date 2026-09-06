@@ -23,7 +23,7 @@ fn @nonEmptyCode() -> bool [selector=0x73c60a6b, pure, abi_params=[], abi_return
     v7 = gt v6, 0
     jump bb3
   bb3:
-    v8 = phi [bb1: v7], [bb2: 0]
+    v8 = phi [bb1: v7], [bb2: false]
     ret v8
 }
 
@@ -63,7 +63,7 @@ fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], a
     v7 = gt v6, 0
     jump bb3
   bb3:
-    v8 = phi [bb1: v7], [bb2: 0]
+    v8 = phi [bb1: v7], [bb2: false]
     jumpi v8, bb4, bb5
   bb5:
     jump bb6
@@ -76,7 +76,7 @@ fn @hasNonCallableRuntime() -> bool [selector=0x0fedb051, pure, abi_params=[], a
     v12 = gt v11, 0
     jump bb6
   bb6:
-    v13 = phi [bb4: v12], [bb5: 0]
+    v13 = phi [bb4: v12], [bb5: false]
     ret v13
 }
 
@@ -112,7 +112,7 @@ fn @deploysRevertingRuntime() -> bool [selector=0x7c2d5470, abi_params=[], abi_r
     v15 = iszero v12
     jump bb5
   bb5:
-    v16 = phi [bb3: v15], [bb4: 0]
+    v16 = phi [bb3: v15], [bb4: false]
     ret v16
 }
 

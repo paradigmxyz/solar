@@ -1,5 +1,6 @@
 //! MIR type system.
 
+use super::StructId;
 use std::fmt;
 
 pub(crate) use solar_ast::TypeSize;
@@ -187,6 +188,15 @@ impl fmt::Display for SliceLocation {
     }
 }
 
+/// A fixed aggregate of MIR values, with fields in declaration order.
+///
+/// Structs are SSA values, not references to Solidity memory objects. Nested
+/// structs refer to earlier declarations, keeping their layouts finite.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct StructType {
+    pub(crate) fields: Box<[MirType]>,
+}
+
 /// Types used in MIR.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
@@ -212,6 +222,8 @@ pub(crate) enum MirType {
     Slice(SliceLocation),
     /// Function type.
     Function,
+    /// A fixed aggregate declared in the module type table.
+    Struct(StructId),
     /// Void/unit type (for functions that don't return).
     Void,
 }
@@ -232,7 +244,7 @@ impl MirType {
             | Self::CalldataPtr
             | Self::Slice(_) => Some(TypeSize::new_int_bits(256)),
             Self::Function => Some(TypeSize::new_int_bits(192)),
-            Self::Void => None,
+            Self::Struct(_) | Self::Void => None,
         }
     }
 
@@ -251,6 +263,7 @@ impl MirType {
             | Self::StoragePtr
             | Self::CalldataPtr
             | Self::Slice(_)
+            | Self::Struct(_)
             | Self::Void => return None,
         })
     }
@@ -304,6 +317,7 @@ impl fmt::Display for MirType {
             Self::CalldataPtr => write!(f, "calldataptr"),
             Self::Slice(location) => write!(f, "{location}slice"),
             Self::Function => write!(f, "function"),
+            Self::Struct(id) => write!(f, "struct{}", id.index()),
             Self::Void => write!(f, "void"),
         }
     }

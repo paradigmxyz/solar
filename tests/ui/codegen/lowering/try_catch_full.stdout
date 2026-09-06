@@ -40,7 +40,7 @@ fn @full() [selector=0xd17b272f, view] {
     v32 = icall @try_decode_error_message, 1, v177, v25
     jump bb7
   bb7:
-    v33 = phi [bb6: v32], [bb5: 0]
+    v33 = phi [bb6: v32], [bb5: false]
     v34 = lt v25, 36
     v35 = iszero v34
     v36 = eq v30, 0x4e487b71
@@ -321,7 +321,7 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v14 = iszero v13
     ret v14
   bb3:
-    ret 0
+    ret false
 }
 
 fn @revert_stub() {

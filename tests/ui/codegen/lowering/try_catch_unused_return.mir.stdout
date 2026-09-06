@@ -33,7 +33,7 @@ fn @unusedReturn() -> u256 [selector=0x1df86abb, view, abi_params=[], abi_return
     v30 = iszero v29
     v31 = eq v26, 0x4e487b71
     v32 = and v30, v31
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v20, v21
   bb7:

@@ -6,7 +6,7 @@
 +     v0 = mul arg0, 7
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       stop
     bb2:
@@ -19,7 +19,7 @@
 +     v0 = clz arg0
       jump bb1
     bb1:
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       stop
     bb2:
@@ -33,7 +33,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v1]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -48,7 +48,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v1]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -64,7 +64,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v2]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:

@@ -775,6 +775,7 @@ struct MirCost {
 
 fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCost, usize) {
     let (runtime_gas, code_size) = match kind {
+        InstKind::InsertValue { .. } | InstKind::ExtractValue { .. } => (0, 0),
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {

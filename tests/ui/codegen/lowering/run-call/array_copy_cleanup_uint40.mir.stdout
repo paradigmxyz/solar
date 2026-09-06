@@ -807,7 +807,7 @@ fn @f() -> bool [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>]] {
     v650 = iszero v649
     jumpi v650, bb35, bb74
   bb74:
-    ret 1
+    ret true
   bb35:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 1 !metadata(memory=scratch)

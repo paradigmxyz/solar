@@ -55,6 +55,7 @@ time: <TIME>	MIR TimePasses cfg-simplify changed=false
 time: <TIME>	MIR TimePasses memory-dse changed=false
 time: <TIME>	MIR TimePasses dce changed=false
 time: <TIME>	MIR TimePasses lower-dispatch changed=true
+time: <TIME>	MIR TimePasses lower-structs changed=false
 time: <TIME>	MIR TimePasses lower-frame-slots changed=false
 time: <TIME>	MIR TimePasses lower-mapping-slots changed=false
 time: <TIME>	MIR TimePasses lower-memory-objects changed=true

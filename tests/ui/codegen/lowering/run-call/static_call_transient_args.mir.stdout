@@ -14,7 +14,7 @@ fn @constructor() [constructor] {
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = not 255
     v6 = and v4, v5
-    v7 = and 1, 255
+    v7 = and true, 255
     v8 = or v6, v7
     sstore v3, v8 !metadata(storage=symbolic(v3))
     sstore 2, 1 !metadata(storage=slot(2))
@@ -71,7 +71,7 @@ fn @scheduleBatch(arg0: calldataslice, arg1: calldataslice, arg2: calldataslice,
   bb7:
     jump bb8
   bb8:
-    v20 = phi [bb6: v19], [bb7: 1]
+    v20 = phi [bb6: v19], [bb7: true]
     jumpi v20, bb9, bb10
   bb10:
     jump bb11

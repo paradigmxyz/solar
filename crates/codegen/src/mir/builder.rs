@@ -573,7 +573,8 @@ impl<'a> FunctionBuilder<'a> {
         inst_id
     }
 
-    fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+    /// Emits a typed value-producing instruction with the current source and effect metadata.
+    pub(crate) fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
         let inst = self.make_inst(kind, result_ty);
         self.append_instruction(inst).1.expect("value-producing instruction must have a result")

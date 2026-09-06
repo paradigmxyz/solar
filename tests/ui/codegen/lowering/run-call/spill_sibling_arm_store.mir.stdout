@@ -14,7 +14,7 @@ fn @sync(arg0: address) [selector=0xa5841194, abi_params=[address], abi_returns=
 fn @transfer(arg0: address, arg1: u256) -> bool [selector=0xa9059cbb, abi_params=[address, u256], abi_returns=[word<bool>]] {
   bb0:
     sstore 0, arg1 !metadata(storage=slot(0))
-    ret 1
+    ret true
 }
 
 fn @take(arg0: address, arg1: address, arg2: u256) [selector=0x0b0d9c09, abi_params=[address, address, u256], abi_returns=[]] {
@@ -122,7 +122,7 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     v21 = sload 2 !metadata(storage=slot(2))
     v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffff
     v23 = address
-    icall @settle, 0, arg0, v22, v23, v9, 0
+    icall @settle, 0, arg0, v22, v23, v9, false
     jump bb8
   bb6:
     v12 = sload 2 !metadata(storage=slot(2))
@@ -155,7 +155,7 @@ fn @_settleOrTake(arg0: address, arg1: i128) {
     v4 = address
     v5 = signextend 15, arg1
     v6 = and v5, 0xffffffffffffffffffffffffffffffff
-    icall @take, 0, arg0, v3, v4, v6, 0
+    icall @take, 0, arg0, v3, v4, v6, false
     jump bb3
   bb3:
     stop

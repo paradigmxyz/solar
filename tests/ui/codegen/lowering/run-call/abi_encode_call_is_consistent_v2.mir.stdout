@@ -10,7 +10,7 @@ fn @getExternalFunctionPointer() -> function [selector=0x0d5de1f2, abi_params=[]
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = and 1, 255
+    v3 = and true, 255
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
     v5 = address

@@ -123,7 +123,7 @@ fn @valueWithTwoPlaceholders() -> u256 [selector=0xb6093d3f, abi_params=[], abi_
 
 fn @repeatFalse() -> u256 [selector=0x39a40f90, abi_params=[], abi_returns=[word]] {
   bb0:
-    jumpi 0, bb2, bb3
+    jumpi false, bb2, bb3
   bb3:
     jump bb4
   bb2:
@@ -165,7 +165,7 @@ fn @repeatFalse() -> u256 [selector=0x39a40f90, abi_params=[], abi_returns=[word
 
 fn @repeatTrue() -> u256 [selector=0x7cf22419, abi_params=[], abi_returns=[word]] {
   bb0:
-    jumpi 1, bb2, bb3
+    jumpi true, bb2, bb3
   bb3:
     jump bb4
   bb2:

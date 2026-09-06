@@ -48,7 +48,7 @@ fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
     v9 = delegatecall v8, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v3, v4, v3, 32
     jumpi v9, bb3, bb4
   bb4:
-    jumpi 1, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
     revert 0, 0
   bb6:
@@ -81,7 +81,7 @@ fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi
     v7 = delegatecall v6, 0xc0eda96c2648cd3a6a6e9ddfea8fc5f701ed980d, v1, v2, v1, 0
     jumpi v7, bb3, bb4
   bb4:
-    jumpi 1, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
     revert 0, 0
   bb6:

@@ -8,7 +8,7 @@ fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>]
     jumpi v2, bb1, bb2
   bb2:
     sstore 0, v1 !metadata(storage=slot(0))
-    ret 1
+    ret true
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -17,7 +17,7 @@ fn @bump() -> bool [selector=0x68110b2f, abi_params=[], abi_returns=[word<bool>]
 
 fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
-    jumpi 0, bb1, bb2
+    jumpi false, bb1, bb2
   bb2:
     jump bb3
   bb1:
@@ -47,7 +47,7 @@ fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_retur
     v15 = mload v14
     jump bb3
   bb3:
-    v16 = phi [bb8: v15], [bb2: 0]
+    v16 = phi [bb8: v15], [bb2: false]
     v17 = sload 0 !metadata(storage=slot(0))
     ret v17, v16
   bb6:
@@ -56,7 +56,7 @@ fn @andSkipsRhs() -> (u256, bool) [selector=0x59db58e9, abi_params=[], abi_retur
 
 fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
-    jumpi 1, bb2, bb1
+    jumpi true, bb2, bb1
   bb1:
     v0 = address
     v1 = gas
@@ -88,14 +88,14 @@ fn @orSkipsRhs() -> (u256, bool) [selector=0x136ed8bf, abi_params=[], abi_return
   bb2:
     jump bb3
   bb3:
-    v16 = phi [bb8: v15], [bb2: 1]
+    v16 = phi [bb8: v15], [bb2: true]
     v17 = sload 0 !metadata(storage=slot(0))
     ret v17, v16
 }
 
 fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
-    jumpi 1, bb1, bb2
+    jumpi true, bb1, bb2
   bb2:
     jump bb3
   bb1:
@@ -125,7 +125,7 @@ fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_return
     v15 = mload v14
     jump bb3
   bb3:
-    v16 = phi [bb8: v15], [bb2: 0]
+    v16 = phi [bb8: v15], [bb2: false]
     v17 = sload 0 !metadata(storage=slot(0))
     ret v17, v16
   bb6:
@@ -134,7 +134,7 @@ fn @andRunsRhs() -> (u256, bool) [selector=0x87ab0848, abi_params=[], abi_return
 
 fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns=[word, word<bool>]] {
   bb0:
-    jumpi 0, bb2, bb1
+    jumpi false, bb2, bb1
   bb1:
     v0 = address
     v1 = gas
@@ -166,7 +166,7 @@ fn @orRunsRhs() -> (u256, bool) [selector=0x6baa9b2a, abi_params=[], abi_returns
   bb2:
     jump bb3
   bb3:
-    v16 = phi [bb8: v15], [bb2: 1]
+    v16 = phi [bb8: v15], [bb2: true]
     v17 = sload 0 !metadata(storage=slot(0))
     ret v17, v16
 }

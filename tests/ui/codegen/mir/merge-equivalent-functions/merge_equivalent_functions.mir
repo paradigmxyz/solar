@@ -67,7 +67,7 @@ fn @recursive_a(arg0: bool, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @recursive_b(arg0: bool, arg1: u256) -> u256
-// CHECK: {{^\+.*}}icall @recursive_a, 1, 0, arg1
+// CHECK: {{^\+.*}}icall @recursive_a, 1, false, arg1
 fn @recursive_b(arg0: bool, arg1: u256) -> u256 {
   bb0:
     jumpi arg0, bb1, bb2
@@ -79,8 +79,8 @@ fn @recursive_b(arg0: bool, arg1: u256) -> u256 {
 }
 
 // CHECK-LABEL: fn @recursive_entry()
-// CHECK: icall @recursive_a, 1, 1, 1
-// CHECK: {{^\+.*}}icall @recursive_a, 1, 1, 2
+// CHECK: icall @recursive_a, 1, true, 1
+// CHECK: {{^\+.*}}icall @recursive_a, 1, true, 2
 fn @recursive_entry() [selector=0x01020306] {
   bb0:
     v0 = icall fn6, 1, true, 1

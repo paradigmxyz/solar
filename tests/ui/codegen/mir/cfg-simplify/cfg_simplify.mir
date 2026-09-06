@@ -63,7 +63,7 @@ fn @degenerate_switch_refreshes_successors(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @constant_false_branch{{[( ]}}
-// CHECK: - {{.*}}jumpi 0
+// CHECK: - {{.*}}jumpi false
 // CHECK: {{^[ +].*}}ret 2
 fn @constant_false_branch() -> u256 {
   bb0:

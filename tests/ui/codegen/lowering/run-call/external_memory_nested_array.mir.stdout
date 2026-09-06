@@ -135,7 +135,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     v45 = eq v34, v17
     jump bb17
   bb17:
-    v46 = phi [bb15: v45], [bb16: 0]
+    v46 = phi [bb15: v45], [bb16: false]
     jumpi v46, bb18, bb19
   bb19:
     jump bb20
@@ -161,7 +161,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     v59 = eq v58, 6
     jump bb20
   bb20:
-    v60 = phi [bb23: v59], [bb19: 0]
+    v60 = phi [bb23: v59], [bb19: false]
     ret v60
   bb12:
     v38 = alloc memorystruct<5>, exact, uninitialized, infallible, 160

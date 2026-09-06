@@ -229,7 +229,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v66 = eq v57, v65
     jump bb21
   bb21:
-    v67 = phi [bb27: v66], [bb20: 0]
+    v67 = phi [bb27: v66], [bb20: false]
     v68 = gas
     v69 = abi_encode [], selector 0xdab1fa1200000000000000000000000000000000000000000000000000000000
     v70 = slice_ptr v69
@@ -288,7 +288,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb37:
     jump bb39
   bb39:
-    v98 = phi [bb37: v97], [bb38: 0]
+    v98 = phi [bb37: v97], [bb38: false]
     jumpi v98, bb40, bb41
   bb41:
     jump bb42

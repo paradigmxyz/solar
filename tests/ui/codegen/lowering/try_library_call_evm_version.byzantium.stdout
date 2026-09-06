@@ -64,7 +64,7 @@ fn @libCall(arg0: u256) -> u256 [selector=0x34ea0c3e, abi_params=[u256], abi_ret
     v30 = iszero v29
     v31 = eq v26, 0x4e487b71
     v32 = and v30, v31
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v20, v21
   bb7:
@@ -130,7 +130,7 @@ fn @libNoReturn(arg0: u256) -> u256 [selector=0x364676bf, abi_params=[u256], abi
     v24 = iszero v23
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v14, v15
   bb8:

@@ -43,7 +43,7 @@
     bb0:
 -     v0 = iszero 0
 -     ret v0
-+     ret 1
++     ret true
   }
   
   fn @eq_zero(arg0: u256) -> bool {

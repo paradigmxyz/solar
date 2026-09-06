@@ -23,7 +23,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
   bb23:
     jump bb20
   bb20:
-    ret 1
+    ret true
   bb22:
     v56 = sload 0 !metadata(storage=slot(0))
     v57 = and v56, 1

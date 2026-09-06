@@ -15,7 +15,7 @@ fn @discarded(arg0: u256) -> u256 {
 
 // A returned call result is not effect-free, so the recursive call protocol remains intact.
 // CHECK-LABEL: fn @recursive(arg0: bool, arg1: u256) -> u256
-// CHECK: v0 = icall @recursive, 1, 0, arg1
+// CHECK: v0 = icall @recursive, 1, false, arg1
 // CHECK: ret v0
 fn @recursive(arg0: bool, arg1: u256) -> u256 {
   bb0:
@@ -36,7 +36,7 @@ fn @kept(arg0: u256) -> u256 {
 
 // CHECK-LABEL: fn @entry() -> u256
 // CHECK: icall @discarded, 0, 7
-// CHECK: v0 = icall @recursive, 1, 1, 8
+// CHECK: v0 = icall @recursive, 1, true, 8
 // CHECK: icall @kept, 1, 9
 fn @entry() -> u256 [selector=0x01020304] {
   bb0:

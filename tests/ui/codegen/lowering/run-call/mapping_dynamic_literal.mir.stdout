@@ -45,7 +45,7 @@ fn @readMemoryFmp(arg0: memorybytes) -> bool [selector=0x8028da35, view, abi_par
     v4 = eq v3, 7
     jump bb3
   bb3:
-    v5 = phi [bb1: v4], [bb2: 0]
+    v5 = phi [bb1: v4], [bb2: false]
     ret v5
 }
 

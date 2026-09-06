@@ -209,7 +209,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<
     v73 = iszero v72
     jumpi v73, bb9, bb16
   bb16:
-    ret 1
+    ret true
   bb9:
     revert 0, 0
   bb7:

@@ -6,7 +6,7 @@
 -     v0 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     v1 = eq v0, 0x8000000000000000000000000000000000000000000000000000000000000000
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @sdiv_truncates_toward_zero() -> bool {
@@ -14,7 +14,7 @@
 -     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
 -     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @div_by_known_zero(arg0: u256) -> u256 {
@@ -35,14 +35,14 @@
     bb0:
 -     v0 = sdiv arg0, 0
 -     ret v0
-+     ret 0
++     ret i256 0
   }
   
   fn @smod_by_known_zero(arg0: u256) -> u256 {
     bb0:
 -     v0 = smod arg0, 0
 -     ret v0
-+     ret 0
++     ret i256 0
   }
   
   fn @smod_negative_dividend() -> bool {
@@ -50,7 +50,7 @@
 -     v0 = smod 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 3
 -     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @smod_positive_dividend() -> bool {
@@ -58,21 +58,21 @@
 -     v0 = smod 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
 -     v1 = eq v0, 1
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @slt_negative() -> bool {
     bb0:
 -     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
 -     ret v0
-+     ret 1
++     ret true
   }
   
   fn @sgt_negative() -> bool {
     bb0:
 -     v0 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
 -     ret v0
-+     ret 0
++     ret false
   }
   
   fn @sar_saturates_negative() -> bool {
@@ -80,14 +80,14 @@
 -     v0 = sar 256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
 -     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @sar_saturates_positive() -> u256 {
     bb0:
 -     v0 = sar 300, 7
 -     ret v0
-+     ret 0
++     ret i256 0
   }
   
   fn @sar_fills_sign_bits() -> bool {
@@ -95,7 +95,7 @@
 -     v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
 -     v1 = eq v0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @byte_index_out_of_range() -> u256 {
@@ -117,7 +117,7 @@
 -     v0 = signextend 31, 0x8000000000000000000000000000000000000000000000000000000000000000
 -     v1 = eq v0, 0x8000000000000000000000000000000000000000000000000000000000000000
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @signextend_byte_zero() -> bool {
@@ -125,7 +125,7 @@
 -     v0 = signextend 0, 255
 -     v1 = eq v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v1
-+     ret 1
++     ret true
   }
   
   fn @addmod_zero_modulus() -> u256 {

@@ -3,8 +3,9 @@
 //! Includes DOT format CFG generation for visualization.
 
 use super::{
-    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, InstId,
-    InstKind, Instruction, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
+    BasicBlock, BlockId, EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, Immediate,
+    InstId, InstKind, Instruction, MemoryRegion, MirType, Module, StorageAlias, Terminator, Value,
+    ValueId,
 };
 use crate::analysis::CfgInfo;
 use arrayvec::ArrayVec;
@@ -377,6 +378,19 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
+        InstKind::InsertValue { ty, aggregate, index, value } => write!(
+            f,
+            "insert_value struct{}, {}, {index}, {}",
+            ty.index(),
+            display_val(*aggregate, func),
+            display_val(*value, func)
+        ),
+        InstKind::ExtractValue { ty, aggregate, index } => write!(
+            f,
+            "extract_value struct{}, {}, {index}",
+            ty.index(),
+            display_val(*aggregate, func)
+        ),
         InstKind::StoreImmutable(id, value) => {
             write!(f, "storeimmutable {}", display_immutable_ref(*id, module))?;
             write!(f, ", {}", display_val(*value, func))
@@ -582,6 +596,11 @@ fn display_inst_kind<'a>(
         ),
         InstKind::Phi(args) => {
             write!(f, "phi")?;
+            if let Some(super::MirType::Struct(ty)) =
+                args.first().and_then(|(_, value)| func.value_ty(*value))
+            {
+                write!(f, " struct{},", ty.index())?;
+            }
             if !args.is_empty() {
                 write!(
                     f,
@@ -672,13 +691,16 @@ fn display_function_ref(function: FunctionId, module: Option<&Module>) -> impl f
 
 fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match func.value(vid) {
-        Value::Immediate(imm) if let Some(u256) = imm.as_u256() => {
-            write!(f, "{}", display_u256(u256))
-        }
+        Value::Immediate(imm) if let Some(u256) = imm.as_u256() => match imm {
+            Immediate::Bool(value) => write!(f, "{value}"),
+            _ if imm.ty() != MirType::uint256() => write!(f, "{} {}", imm.ty(), display_u256(u256)),
+            _ => write!(f, "{}", display_u256(u256)),
+        },
         Value::Arg(index) => write!(f, "arg{}", index.index()),
         Value::Inst(inst_id) => write!(f, "v{}", inst_result_index(func, *inst_id)),
         Value::Error(_) => write!(f, "err"),
-        _ => write!(f, "v{}", vid.index()),
+        Value::Undef(ty) => write!(f, "undef {ty}"),
+        Value::Immediate(_) => unreachable!("immediate has an integer payload"),
     })
 }
 

@@ -48,7 +48,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = eq 1, 0
+    v3 = eq true, 0
     v4 = iszero v3
     v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
@@ -80,7 +80,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v34 = iszero v33
     v35 = eq v30, 0x4e487b71
     v36 = and v34, v35
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v24, v25
   bb7:
@@ -113,7 +113,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = eq 0, 0
+    v3 = eq false, 0
     v4 = iszero v3
     v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
@@ -145,7 +145,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v34 = iszero v33
     v35 = eq v30, 0x4e487b71
     v36 = and v34, v35
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v24, v25
   bb7:
@@ -178,7 +178,7 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = gas
-    v3 = eq 1, 0
+    v3 = eq true, 0
     v4 = iszero v3
     v5 = abi_encode [word<bool>], selector 0xc4d47ed100000000000000000000000000000000000000000000000000000000, args v4
     v6 = slice_ptr v5
@@ -210,7 +210,7 @@ fn @ignored() -> u256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v34 = iszero v33
     v35 = eq v30, 0x4e487b71
     v36 = and v34, v35
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v24, v25
   bb7:

@@ -94,7 +94,7 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v202 = eq v201, 0
     jump bb37
   bb37:
-    v203 = phi [bb39: v202], [bb36: 0]
+    v203 = phi [bb39: v202], [bb36: false]
     jump bb40
   bb40:
     v204 = phi [bb37: v3], [bb63: v260]
@@ -206,7 +206,7 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     v272 = and v271, 255
     jump bb60
   bb60:
-    v273 = phi [bb62: v272], [bb59: 0]
+    v273 = phi [bb62: v272], [bb59: false]
     jump bb45
   bb45:
     jump bb42
@@ -394,7 +394,7 @@ fn @test() -> (u256, bool) [selector=0xf8a8fd6d, abi_params=[], abi_returns=[wor
     jumpi v44, bb7, bb15
   bb15:
     v45 = shl 0, v43
-    v46 = eq 1, 0
+    v46 = eq true, 0
     v47 = iszero v46
     memory_object_store_field memorystruct<5>, v8, 0, v15
     memory_object_store_field memorystruct<5>, v8, 1, v26

@@ -14,7 +14,7 @@ fn @constructor() [constructor] {
 fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
     icall @f3, 0
-    jumpi 0, bb2, bb3
+    jumpi false, bb2, bb3
   bb3:
     jump bb4
   bb2:
@@ -70,7 +70,7 @@ fn @f4() [selector=0xc3f90202, abi_params=[], abi_returns=[]] {
 fn @f1() [selector=0xc27fc305, abi_params=[], abi_returns=[]] {
   bb0:
     icall @f3, 0
-    jumpi 0, bb2, bb3
+    jumpi false, bb2, bb3
   bb3:
     jump bb4
   bb2:

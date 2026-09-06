@@ -166,7 +166,7 @@ fn @f() -> u256 [selector=0x26121ff0, abi_params=[], abi_returns=[word]] {
     v35 = iszero v34
     v36 = eq v31, 0x4e487b71
     v37 = and v35, v36
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v25, v26
   bb7:

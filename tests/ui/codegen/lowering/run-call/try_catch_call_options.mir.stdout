@@ -73,17 +73,17 @@ fn @highLevelGas() -> bool [selector=0x480be654, abi_params=[], abi_returns=[wor
     v26 = iszero v25
     v27 = eq v22, 0x4e487b71
     v28 = and v26, v27
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v16, v17
   bb8:
-    ret 1
+    ret true
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb3:
-    ret 0
+    ret false
   bb1:
     revert 0, 0
   bb5:

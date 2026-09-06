@@ -90,14 +90,14 @@ fn @reasonLength() -> u256 [selector=0xa4bc2ef1, view, abi_params=[], abi_return
     v24 = icall @try_decode_error_message, 1, v16, v17
     jump bb10
   bb10:
-    v25 = phi [bb8: v24], [bb9: 0]
+    v25 = phi [bb8: v24], [bb9: false]
     v26 = lt v17, 36
     v27 = iszero v26
     v28 = eq v22, 0x4e487b71
     v29 = and v27, v28
     jumpi v25, bb11, bb12
   bb12:
-    jumpi 1, bb14, bb15
+    jumpi true, bb14, bb15
   bb15:
     revert v16, v17
   bb14:
@@ -156,5 +156,5 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v14 = iszero v13
     ret v14
   bb3:
-    ret 0
+    ret false
 }

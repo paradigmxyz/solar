@@ -147,7 +147,7 @@ fn @liveTry() -> u256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word]] {
     v16 = call v15, v6, 0, v10, v11, v10, 32
     jumpi v16, bb5, bb6
   bb6:
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert 0, 0
   bb8:
@@ -433,7 +433,7 @@ fn @noCodeTry() -> u256 [selector=0x1908ad35, abi_params=[], abi_returns=[word]]
     v9 = call v8, 0, 0, v3, v4, v3, 32
     jumpi v9, bb3, bb4
   bb4:
-    jumpi 1, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
     revert 0, 0
   bb6:

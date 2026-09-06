@@ -11,7 +11,7 @@ fn @fallback() [fallback, payable] {
     v5 = sload 0 !metadata(storage=slot(0))
     v6 = not 255
     v7 = and v5, v6
-    v8 = and 1, 255
+    v8 = and true, 255
     v9 = or v7, v8
     sstore 0, v9 !metadata(storage=slot(0))
     icall @_decompress, 0

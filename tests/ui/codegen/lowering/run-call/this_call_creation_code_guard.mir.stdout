@@ -335,7 +335,7 @@ fn @constructor() [constructor] {
     v25 = iszero v24
     v26 = eq v21, 0x4e487b71
     v27 = and v25, v26
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v15, v16
   bb8:
@@ -601,7 +601,7 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[]] {
 
 fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[]] {
   bb0:
-    v0 = eq 1, 0
+    v0 = eq true, 0
     v1 = iszero v0
     v2 = abi_encode [word<bool>], args v1
     v3 = not 31

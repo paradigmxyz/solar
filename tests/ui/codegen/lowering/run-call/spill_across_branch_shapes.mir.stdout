@@ -417,7 +417,7 @@ fn @whileTrueThenLoop(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0xd5
     v24 = phi [bb3: v13], [bb8: v24]
     v25 = phi [bb3: v4], [bb8: v25]
     v26 = phi [bb3: arg1], [bb8: v26]
-    jumpi 1, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
     jump bb5
   bb6:

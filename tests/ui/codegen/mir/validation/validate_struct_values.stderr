@@ -1,0 +1,16 @@
+error: [fn0] [bb0, inst0] aggregate operand does not match its declared struct type
+
+error: [fn1] [bb0, inst0] inserted value must have type `bool`
+
+error: [fn2] [bb0] return values do not match the struct signature
+
+error: [fn3] [bb0, inst0] struct value does not match the required type
+
+error: [fn4] [bb0] terminator cannot consume a struct value
+
+error: [fn5] [bb0] tail-call arguments do not match the struct signature
+
+error: [fn6] a struct result must be the function's only result
+
+error: aborting due to 7 previous errors
+

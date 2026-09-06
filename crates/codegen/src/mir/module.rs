@@ -2,7 +2,7 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
-    Function, FunctionId, ImmutableId, MangledSymbol, MirType,
+    Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
 };
 use alloy_primitives::Bytes;
 use solar_data_structures::{
@@ -116,6 +116,8 @@ impl MirPhase {
 pub struct Module {
     /// Module/contract name.
     pub(crate) name: Ident,
+    /// Fixed aggregate types, with nested types declared before their users.
+    pub(crate) struct_types: IndexVec<StructId, StructType>,
     /// All functions in this module.
     pub(crate) functions: IndexVec<FunctionId, Function>,
     /// The synthesized runtime dispatch entry, if this module has one.
@@ -163,6 +165,7 @@ impl Module {
         Self {
             name,
             functions: IndexVec::new(),
+            struct_types: IndexVec::new(),
             dispatch_entry: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
@@ -419,6 +422,13 @@ impl Module {
             }
             if self.is_library {
                 writeln!(f, "@library")?;
+            }
+            if !self.struct_types.is_empty() {
+                writeln!(f, "types:")?;
+                for (id, ty) in self.struct_types.iter_enumerated() {
+                    writeln!(f, "  struct{}: {{{}}}", id.index(), ty.fields.iter().format(", "))?;
+                }
+                writeln!(f)?;
             }
             if !self.data.is_empty() {
                 writeln!(f, "data:")?;

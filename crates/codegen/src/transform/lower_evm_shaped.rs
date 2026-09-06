@@ -25,7 +25,7 @@
 use crate::{
     analysis::{CallGraphInfo, CfgInfo, Liveness},
     mir::{
-        Function, InstKind, MirPhase, Module, Terminator,
+        Function, InstKind, MirPhase, MirType, Module, Terminator,
         utils::{repair_reachability_phis, split_edge},
     },
     pass::MirPass,
@@ -44,19 +44,29 @@ impl MirPass for LowerEvmShaped {
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
         module.phase == MirPhase::MemoryLowered
             && module.functions.iter().all(|func| {
-                func.instructions().all(|inst_id| {
-                    let inst = func.inst(inst_id);
-                    match inst.kind {
-                        InstKind::MakeSlice { .. }
-                        | InstKind::SlicePtr(_)
-                        | InstKind::SliceLen(_)
-                        | InstKind::Fmp
-                        | InstKind::SetFmp(_)
-                        | InstKind::StoreImmutable(..) => false,
-                        InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
-                        _ => true,
-                    }
-                })
+                !func
+                    .arg_indices()
+                    .map(|index| func.arg_ty(index))
+                    .chain(func.returns.iter().copied())
+                    .any(|ty| matches!(ty, MirType::Struct(_)))
+                    && !func
+                        .live_values()
+                        .any(|value| matches!(func.value_ty(value), Some(MirType::Struct(_))))
+                    && func.instructions().all(|inst_id| {
+                        let inst = func.inst(inst_id);
+                        match inst.kind {
+                            InstKind::InsertValue { .. }
+                            | InstKind::ExtractValue { .. }
+                            | InstKind::MakeSlice { .. }
+                            | InstKind::SlicePtr(_)
+                            | InstKind::SliceLen(_)
+                            | InstKind::Fmp
+                            | InstKind::SetFmp(_)
+                            | InstKind::StoreImmutable(..) => false,
+                            InstKind::Alloc { .. } => inst.metadata.deferred_alloc(),
+                            _ => true,
+                        }
+                    })
             })
     }
 

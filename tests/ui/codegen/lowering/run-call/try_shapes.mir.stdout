@@ -106,7 +106,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v29 = icall @try_decode_error_message, 1, v21, v22
     jump bb9
   bb9:
-    v30 = phi [bb7: v29], [bb8: 0]
+    v30 = phi [bb7: v29], [bb8: false]
     v31 = lt v22, 36
     v32 = iszero v31
     v33 = eq v27, 0x4e487b71
@@ -182,14 +182,14 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v79 = icall @try_decode_error_message, 1, v71, v72
     jump bb22
   bb22:
-    v80 = phi [bb20: v79], [bb21: 0]
+    v80 = phi [bb20: v79], [bb21: false]
     v81 = lt v72, 36
     v82 = iszero v81
     v83 = eq v77, 0x4e487b71
     v84 = and v82, v83
     jumpi v80, bb23, bb24
   bb24:
-    jumpi 1, bb28, bb29
+    jumpi true, bb28, bb29
   bb29:
     revert v71, v72
   bb28:
@@ -280,7 +280,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v141 = and v139, v140
     jumpi v141, bb37, bb38
   bb38:
-    jumpi 1, bb40, bb41
+    jumpi true, bb40, bb41
   bb41:
     revert v129, v130
   bb40:
@@ -352,7 +352,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v190 = iszero v189
     v191 = eq v186, 0x4e487b71
     v192 = and v190, v191
-    jumpi 1, bb50, bb51
+    jumpi true, bb50, bb51
   bb51:
     revert v180, v181
   bb50:
@@ -421,7 +421,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v230 = iszero v229
     v231 = eq v226, 0x4e487b71
     v232 = and v230, v231
-    jumpi 1, bb59, bb60
+    jumpi true, bb59, bb60
   bb60:
     revert v220, v221
   bb59:
@@ -487,7 +487,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v264 = iszero v263
     v265 = eq v260, 0x4e487b71
     v266 = and v264, v265
-    jumpi 1, bb67, bb68
+    jumpi true, bb67, bb68
   bb68:
     revert v254, v255
   bb67:
@@ -542,7 +542,7 @@ fn @test_try() -> u256 [selector=0x8494fb4a, abi_params=[], abi_returns=[word]] 
     v309 = iszero v308
     v310 = eq v305, 0x4e487b71
     v311 = and v309, v310
-    jumpi 1, bb76, bb77
+    jumpi true, bb76, bb77
   bb77:
     revert v299, v300
   bb76:
@@ -614,5 +614,5 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v14 = iszero v13
     ret v14
   bb3:
-    ret 0
+    ret false
 }

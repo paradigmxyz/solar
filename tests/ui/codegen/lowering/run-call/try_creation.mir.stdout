@@ -84,11 +84,11 @@ fn @f(arg0: bool) -> bool [selector=0x98c3a6c1, abi_params=[bool], abi_returns=[
     v39 = iszero v38
     v40 = eq v35, 0x4e487b71
     v41 = and v39, v40
-    jumpi 1, bb6, bb7
+    jumpi true, bb6, bb7
   bb7:
     revert v29, v30
   bb6:
-    ret 0
+    ret false
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

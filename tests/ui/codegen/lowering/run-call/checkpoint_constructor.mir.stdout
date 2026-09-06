@@ -155,7 +155,7 @@ fn @latest(arg0: storageptr) -> (bool, u96, u160) [view] {
     v8 = sload v5 !metadata(storage=symbolic(v5))
     v9 = shr 96, v8
     v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    ret 1, v7, v10
+    ret true, v7, v10
   bb4:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -372,5 +372,5 @@ fn @constructor() [constructor] {
 
 fn @pair() -> (bool, u8) [pure] {
   bb0:
-    ret 1, 18
+    ret true, 18
 }

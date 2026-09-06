@@ -166,7 +166,7 @@ fn @liveTry() -> u256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word]] {
     v37 = iszero v36
     v38 = eq v33, 0x4e487b71
     v39 = and v37, v38
-    jumpi 1, bb9, bb10
+    jumpi true, bb9, bb10
   bb10:
     revert v27, v28
   bb9:
@@ -491,7 +491,7 @@ fn @noCodeTry() -> u256 [selector=0x1908ad35, abi_params=[], abi_returns=[word]]
     v30 = iszero v29
     v31 = eq v26, 0x4e487b71
     v32 = and v30, v31
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v20, v21
   bb7:

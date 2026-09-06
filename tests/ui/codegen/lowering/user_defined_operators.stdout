@@ -33,7 +33,7 @@ fn @doFlip() [selector=0x7cf9d6d4, pure] {
     v3 = lt v2, 36
     jumpi v3, bb1, bb2
   bb2:
-    mstore 128, 7
+    mstore 128, i256 7
     returndata 128, 32
   bb1:
     revert 0, 0

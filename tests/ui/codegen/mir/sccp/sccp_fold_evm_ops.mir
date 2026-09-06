@@ -7,7 +7,7 @@
 
 // MIN sdiv -1 wraps back to MIN.
 // CHECK-LABEL: {{^[ +].*}}fn @sdiv_min_by_neg_one{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @sdiv_min_by_neg_one() -> bool {
   bb0:
     v0 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -17,7 +17,7 @@ fn @sdiv_min_by_neg_one() -> bool {
 
 // -7 sdiv 2 truncates toward zero: -3.
 // CHECK-LABEL: {{^[ +].*}}fn @sdiv_truncates_toward_zero{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @sdiv_truncates_toward_zero() -> bool {
   bb0:
     v0 = sdiv 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 2
@@ -43,7 +43,7 @@ fn @mod_by_known_zero(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @sdiv_by_known_zero{{[( ]}}
-// CHECK: + ret 0
+// CHECK: + ret i256 0
 fn @sdiv_by_known_zero(arg0: u256) -> u256 {
   bb0:
     v0 = sdiv arg0, 0
@@ -51,7 +51,7 @@ fn @sdiv_by_known_zero(arg0: u256) -> u256 {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @smod_by_known_zero{{[( ]}}
-// CHECK: + ret 0
+// CHECK: + ret i256 0
 fn @smod_by_known_zero(arg0: u256) -> u256 {
   bb0:
     v0 = smod arg0, 0
@@ -60,7 +60,7 @@ fn @smod_by_known_zero(arg0: u256) -> u256 {
 
 // The smod result takes the dividend's sign: -7 smod 3 == -1.
 // CHECK-LABEL: {{^[ +].*}}fn @smod_negative_dividend{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @smod_negative_dividend() -> bool {
   bb0:
     v0 = smod 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9, 3
@@ -70,7 +70,7 @@ fn @smod_negative_dividend() -> bool {
 
 // 7 smod -3 == 1.
 // CHECK-LABEL: {{^[ +].*}}fn @smod_positive_dividend{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @smod_positive_dividend() -> bool {
   bb0:
     v0 = smod 7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
@@ -80,7 +80,7 @@ fn @smod_positive_dividend() -> bool {
 
 // Signed comparisons: -1 < 0 and not -1 > 0.
 // CHECK-LABEL: {{^[ +].*}}fn @slt_negative{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @slt_negative() -> bool {
   bb0:
     v0 = slt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
@@ -88,7 +88,7 @@ fn @slt_negative() -> bool {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @sgt_negative{{[( ]}}
-// CHECK: + ret 0
+// CHECK: + ret false
 fn @sgt_negative() -> bool {
   bb0:
     v0 = sgt 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
@@ -97,7 +97,7 @@ fn @sgt_negative() -> bool {
 
 // sar by 256 or more saturates: all ones for negative values, 0 otherwise.
 // CHECK-LABEL: {{^[ +].*}}fn @sar_saturates_negative{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @sar_saturates_negative() -> bool {
   bb0:
     v0 = sar 256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
@@ -106,7 +106,7 @@ fn @sar_saturates_negative() -> bool {
 }
 
 // CHECK-LABEL: {{^[ +].*}}fn @sar_saturates_positive{{[( ]}}
-// CHECK: + ret 0
+// CHECK: + ret i256 0
 fn @sar_saturates_positive() -> u256 {
   bb0:
     v0 = sar 300, 7
@@ -115,7 +115,7 @@ fn @sar_saturates_positive() -> u256 {
 
 // -7 sar 1 == -4 (sign-filling shift).
 // CHECK-LABEL: {{^[ +].*}}fn @sar_fills_sign_bits{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @sar_fills_sign_bits() -> bool {
   bb0:
     v0 = sar 1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff9
@@ -142,7 +142,7 @@ fn @byte_extracts_big_endian() -> u256 {
 
 // signextend with byte size 31 or more is the identity.
 // CHECK-LABEL: {{^[ +].*}}fn @signextend_identity_at_31{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @signextend_identity_at_31() -> bool {
   bb0:
     v0 = signextend 31, 0x8000000000000000000000000000000000000000000000000000000000000000
@@ -152,7 +152,7 @@ fn @signextend_identity_at_31() -> bool {
 
 // signextend 0 of 0xff is -1.
 // CHECK-LABEL: {{^[ +].*}}fn @signextend_byte_zero{{[( ]}}
-// CHECK: + ret 1
+// CHECK: + ret true
 fn @signextend_byte_zero() -> bool {
   bb0:
     v0 = signextend 0, 0xff

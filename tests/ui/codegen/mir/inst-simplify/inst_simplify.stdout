@@ -26,12 +26,12 @@
   
   fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
     bb0:
-      v0 = eq arg0, 1
--     v1 = eq arg0, 0
--     v2 = select 1, arg1, arg2
+      v0 = eq arg0, true
+-     v1 = eq arg0, false
+-     v2 = select true, arg1, arg2
 +     v1 = iszero arg0
-      v3 = select arg0, 1, 0
-      v4 = select arg0, 0, 1
+      v3 = select arg0, true, false
+      v4 = select arg0, false, true
 -     ret v0, v1, v2, v3, v4
 +     ret v0, v1, arg1, v3, v4
   }
@@ -148,7 +148,7 @@
 -     v21 = addmod 5, 7, 10
 -     v22 = mulmod 5, 7, 10
 -     ret v0, v1, v2, v3, v4, v5, v6, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22
-+     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 1, 1, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
++     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, true, true, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
   }
   
   fn @fold_clz_constants() -> (u256, u256, u256, u256, u256) {

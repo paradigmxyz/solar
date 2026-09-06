@@ -16,7 +16,7 @@ fn @foo() -> u256 [selector=0xc2985578, abi_params=[], abi_returns=[word]] {
     v3 = sload 0 !metadata(storage=slot(0))
     v4 = not 255
     v5 = and v3, v4
-    v6 = and 0, 255
+    v6 = and false, 255
     v7 = or v5, v6
     sstore 0, v7 !metadata(storage=slot(0))
     v8 = sload 0 !metadata(storage=slot(0))
@@ -40,7 +40,7 @@ fn @constructor() [constructor] {
     v0 = sload 0 !metadata(storage=slot(0))
     v1 = not 255
     v2 = and v0, v1
-    v3 = and 1, 255
+    v3 = and true, 255
     v4 = or v2, v3
     sstore 0, v4 !metadata(storage=slot(0))
     stop

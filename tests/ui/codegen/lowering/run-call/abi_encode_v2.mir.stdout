@@ -217,7 +217,7 @@ fn @literalRemainsLive() -> bool [selector=0x8eddb2e8, pure, abi_params=[], abi_
     v6 = iszero v5
     jump bb3
   bb3:
-    v7 = phi [bb1: v6], [bb2: 0]
+    v7 = phi [bb1: v6], [bb2: false]
     ret v7
 }
 

@@ -26,9 +26,9 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v12 = alloc memorybytes, exact, uninitialized, infallible, 32
     set_memory_object_len memorybytes, v12, 0
     v13 = memory_object_data memorybytes, v12
-    v14 = eq 0, 0
+    v14 = eq false, 0
     v15 = iszero v14
-    v16 = eq 0, 0
+    v16 = eq false, 0
     v17 = iszero v16
     memory_object_store_field memorystruct<6>, v0, 0, v1
     memory_object_store_field memorystruct<6>, v0, 1, v2
@@ -137,7 +137,7 @@ fn @roundTrip() -> u256 [selector=0x6643a628, pure, abi_params=[], abi_returns=[
     v92 = iszero v91
     jump bb23
   bb23:
-    v93 = phi [bb21: v92], [bb22: 0]
+    v93 = phi [bb21: v92], [bb22: false]
     v94 = iszero v93
     jumpi v94, bb24, bb25
   bb25:

@@ -84,7 +84,7 @@ fn @success() -> u256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v32 = iszero v31
     v33 = eq v28, 0x4e487b71
     v34 = and v32, v33
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v22, v23
   bb7:
@@ -146,7 +146,7 @@ fn @failure() -> u256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v32 = iszero v31
     v33 = eq v28, 0x4e487b71
     v34 = and v32, v33
-    jumpi 1, bb7, bb8
+    jumpi true, bb7, bb8
   bb8:
     revert v22, v23
   bb7:

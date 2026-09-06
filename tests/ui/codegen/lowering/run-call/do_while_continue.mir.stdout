@@ -17,7 +17,7 @@ fn @falseCondition() -> u256 [selector=0x0c55a706, pure, abi_params=[], abi_retu
   bb8:
     jump bb3
   bb3:
-    jumpi 0, bb9, bb10
+    jumpi false, bb9, bb10
   bb10:
     jump bb2
   bb2:
@@ -294,7 +294,7 @@ fn @once() -> u256 [selector=0x292a3f7e, pure, abi_params=[], abi_returns=[word]
   bb5:
     jump bb3
   bb3:
-    jumpi 0, bb6, bb7
+    jumpi false, bb6, bb7
   bb7:
     jump bb2
   bb2:

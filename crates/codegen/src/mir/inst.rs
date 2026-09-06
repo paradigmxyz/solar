@@ -3,7 +3,7 @@
 use super::{
     AbiLayoutRef, AbiParamLayoutRef, BlockId, DataRef, FrameMode, FrameSlotKind, Function,
     FunctionId, ImmutableId, MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation,
-    StorageLayoutRef, Value, ValueId,
+    StorageLayoutRef, StructId, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::{Array, SmallVec};
@@ -676,6 +676,11 @@ impl Instruction {
 /// operand visitors and rewrites less variant-heavy.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum InstKind {
+    /// Replaces one field of an SSA struct, leaving the other fields unchanged.
+    InsertValue { ty: StructId, aggregate: ValueId, index: u32, value: ValueId },
+    /// Reads one field of an SSA struct without accessing memory.
+    ExtractValue { ty: StructId, aggregate: ValueId, index: u32 },
+
     // Arithmetic operations
     /// Addition: `a + b`
     Add(ValueId, ValueId),
@@ -1198,7 +1203,8 @@ impl InstKind {
     /// their operands.
     pub(crate) const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         match self {
-            Self::DataCopy(_, a, b)
+            Self::InsertValue { aggregate: a, value: b, .. }
+            | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Mul(a, b)
             | Self::And(a, b)
@@ -1218,7 +1224,8 @@ impl InstKind {
     pub(crate) fn collect_operands<A: Array<Item = ValueId>>(&self, out: &mut SmallVec<A>) {
         match self {
             // Binary operations
-            Self::DataCopy(_, a, b)
+            Self::InsertValue { aggregate: a, value: b, .. }
+            | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Sub(a, b)
             | Self::Mul(a, b)
@@ -1333,7 +1340,8 @@ impl InstKind {
             Self::AbiDecode { data, .. } => out.push(*data),
 
             // Unary operations
-            Self::Not(a)
+            Self::ExtractValue { aggregate: a, .. }
+            | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
@@ -1495,7 +1503,8 @@ impl InstKind {
     /// Visits every operand mutably.
     pub(crate) fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         match self {
-            Self::DataCopy(_, a, b)
+            Self::InsertValue { aggregate: a, value: b, .. }
+            | Self::DataCopy(_, a, b)
             | Self::Add(a, b)
             | Self::Sub(a, b)
             | Self::Mul(a, b)
@@ -1614,7 +1623,8 @@ impl InstKind {
 
             Self::AbiDecode { data, .. } => f(data),
 
-            Self::Not(a)
+            Self::ExtractValue { aggregate: a, .. }
+            | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
@@ -1755,6 +1765,8 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn mnemonic(&self) -> &'static str {
         match self {
+            Self::InsertValue { .. } => "insert_value",
+            Self::ExtractValue { .. } => "extract_value",
             Self::Add(_, _) => "add",
             Self::Sub(_, _) => "sub",
             Self::Mul(_, _) => "mul",
@@ -1975,6 +1987,7 @@ impl InstKind {
     #[must_use]
     pub(crate) const fn effect_kind(&self) -> EffectKind {
         match self {
+            Self::InsertValue { .. } | Self::ExtractValue { .. } => EffectKind::Pure,
             Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)
@@ -2147,6 +2160,6 @@ mod tests {
 
         assert_size::<InstKind>(str!["40"]);
         assert_size::<InstructionMetadata>(str!["32"]);
-        assert_size::<Instruction>(str!["80"]);
+        assert_size::<Instruction>(str!["88"]);
     }
 }

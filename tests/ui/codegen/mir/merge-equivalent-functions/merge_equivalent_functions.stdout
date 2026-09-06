@@ -49,7 +49,7 @@
     bb2:
       ret arg1
     bb1:
-      v0 = icall @recursive_a, 1, 0, arg1
+      v0 = icall @recursive_a, 1, false, arg1
       ret v0
   }
   
@@ -59,16 +59,16 @@
     bb2:
       ret arg1
     bb1:
--     v0 = icall @recursive_b, 1, 0, arg1
-+     v0 = icall @recursive_a, 1, 0, arg1
+-     v0 = icall @recursive_b, 1, false, arg1
++     v0 = icall @recursive_a, 1, false, arg1
       ret v0
   }
   
   fn @recursive_entry() [selector=0x01020306] {
     bb0:
-      v0 = icall @recursive_a, 1, 1, 1
--     v1 = icall @recursive_b, 1, 1, 2
-+     v1 = icall @recursive_a, 1, 1, 2
+      v0 = icall @recursive_a, 1, true, 1
+-     v1 = icall @recursive_b, 1, true, 2
++     v1 = icall @recursive_a, 1, true, 2
       stop
   }
   

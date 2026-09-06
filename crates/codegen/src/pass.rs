@@ -72,6 +72,7 @@ pub static ALL_PASSES: &[&dyn MirPass] = &[
     &adce::Adce,
     &lower_abi::LowerAbi,
     &lower_dispatch::LowerDispatch,
+    &lower_structs::LowerStructs,
     &lower_frame_slots::LowerFrameSlots,
     &lower_evm_shaped::LowerEvmShaped,
     &lower_immutables::LowerImmutables,
@@ -235,6 +236,7 @@ pub static DEFAULT_PIPELINE: &[&dyn MirPass] = &[
     &GasOnly::new(cse::Cse),
     &dce::Dce,
     &lower_dispatch::LowerDispatch,
+    &lower_structs::LowerStructs,
     &lower_frame_slots::LowerFrameSlots,
     // Expand semantic mapping locations after ABI, dispatch, and frame
     // lowering, while keeping variable-size hash objects ahead of the memory

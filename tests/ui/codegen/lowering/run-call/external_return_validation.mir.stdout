@@ -268,7 +268,7 @@ fn @dirtyMemoryFixedArray() -> bool [selector=0x627cd2cc, pure, abi_params=[], a
     v7 = eq v4, 1
     jump bb5
   bb5:
-    v8 = phi [bb3: v7], [bb4: 0]
+    v8 = phi [bb3: v7], [bb4: false]
     ret v8
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -298,7 +298,7 @@ fn @dirtyMemoryDynamicArray() -> bool [selector=0x85ecd2fd, pure, abi_params=[],
     v9 = eq v6, 2
     jump bb5
   bb5:
-    v10 = phi [bb3: v9], [bb4: 0]
+    v10 = phi [bb3: v9], [bb4: false]
     ret v10
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
@@ -322,7 +322,7 @@ fn @dirtyMemoryStruct() -> bool [selector=0x5c3a703b, pure, abi_params=[], abi_r
     v5 = eq v2, 1
     jump bb3
   bb3:
-    v6 = phi [bb1: v5], [bb2: 0]
+    v6 = phi [bb1: v5], [bb2: false]
     ret v6
 }
 
@@ -630,7 +630,7 @@ fn @dynamicShort(arg0: u256) -> bool [selector=0x73932459, view, abi_params=[u25
     v12 = make_returndata_slice 0, v6
     memory_object_copy_from_slice memorybytes, v11, v12
     v13 = abi_decode [bytes], v11
-    ret 1
+    ret true
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)

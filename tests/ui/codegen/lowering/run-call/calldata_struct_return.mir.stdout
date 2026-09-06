@@ -93,5 +93,5 @@ fn @decode.3(arg0: calldataslice) -> (bool, calldataslice) [pure] {
   bb0:
     v0 = slice_ptr arg0
     v1 = make_calldata_slice v0, 0
-    ret 1, v1
+    ret true, v1
 }

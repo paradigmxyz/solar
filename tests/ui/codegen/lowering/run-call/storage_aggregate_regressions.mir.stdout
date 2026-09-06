@@ -103,7 +103,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v59 = eq v58, 3
     jump bb22
   bb22:
-    v60 = phi [bb26: v59], [bb21: 0]
+    v60 = phi [bb26: v59], [bb21: false]
     v61 = iszero v60
     jumpi v61, bb27, bb28
   bb28:
@@ -159,7 +159,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v94 = eq v93, 22
     jump bb35
   bb35:
-    v95 = phi [bb36: v94], [bb34: 0]
+    v95 = phi [bb36: v94], [bb34: false]
     v96 = iszero v95
     jumpi v96, bb37, bb38
   bb38:
@@ -225,7 +225,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v137 = eq v136, 32
     jump bb51
   bb51:
-    v138 = phi [bb53: v137], [bb50: 0]
+    v138 = phi [bb53: v137], [bb50: false]
     v139 = iszero v138
     jumpi v139, bb54, bb55
   bb55:
@@ -309,7 +309,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v189 = eq v188, 42
     jump bb71
   bb71:
-    v190 = phi [bb73: v189], [bb70: 0]
+    v190 = phi [bb73: v189], [bb70: false]
     v191 = iszero v190
     jumpi v191, bb74, bb75
   bb75:
@@ -397,7 +397,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v245 = eq v243, v244
     jump bb83
   bb83:
-    v246 = phi [bb89: v245], [bb82: 0]
+    v246 = phi [bb89: v245], [bb82: false]
     v247 = iszero v246
     jumpi v247, bb90, bb91
   bb91:
@@ -570,7 +570,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v390 = eq v389, 0
     jump bb132
   bb132:
-    v391 = phi [bb133: v390], [bb131: 0]
+    v391 = phi [bb133: v390], [bb131: false]
     v392 = iszero v391
     jumpi v392, bb134, bb135
   bb135:
@@ -610,7 +610,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v414 = eq v413, 0
     jump bb140
   bb140:
-    v415 = phi [bb142: v414], [bb139: 0]
+    v415 = phi [bb142: v414], [bb139: false]
     v416 = iszero v415
     jumpi v416, bb143, bb144
   bb144:
@@ -671,7 +671,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v457 = eq v456, 0
     jump bb152
   bb152:
-    v458 = phi [bb153: v457], [bb151: 0]
+    v458 = phi [bb153: v457], [bb151: false]
     v459 = iszero v458
     jumpi v459, bb154, bb155
   bb155:
@@ -699,7 +699,7 @@ fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
     v473 = eq v472, 0
     jump bb159
   bb159:
-    v474 = phi [bb160: v473], [bb158: 0]
+    v474 = phi [bb160: v473], [bb158: false]
     v475 = iszero v474
     jumpi v475, bb161, bb162
   bb162:

@@ -2,7 +2,7 @@
 @module ExternalFunctionPointerMemoryType
 fn @g(arg0: calldataslice) -> bool [selector=0xe6d02096, pure, abi_params=[bytes], abi_returns=[word<bool>]] {
   bb0:
-    ret 1
+    ret true
 }
 
 fn @main() -> bool [selector=0xdffeadd0, abi_params=[], abi_returns=[word<bool>]] {

@@ -88,7 +88,7 @@ fn @g(arg0: u256, arg1: u256, arg2: u256) -> u256 [selector=0x191157d1, abi_para
     v47 = phi [bb0: v3], [bb5: v47]
     v48 = phi [bb0: v19], [bb5: v51]
     v49 = phi [bb0: arg1], [bb5: v49]
-    jumpi 1, bb3, bb4
+    jumpi true, bb3, bb4
   bb4:
     jump bb2
   bb3:

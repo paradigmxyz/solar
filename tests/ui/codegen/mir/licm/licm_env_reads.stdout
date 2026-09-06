@@ -6,7 +6,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v2]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -21,7 +21,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v2]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -38,7 +38,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v2]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -52,7 +52,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v2]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -67,7 +67,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v2]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:
@@ -82,7 +82,7 @@
       jump bb1
     bb1:
       v0 = phi [bb0: 0], [bb2: v2]
-      jumpi 1, bb2, bb3
+      jumpi true, bb2, bb3
     bb3:
       ret v0
     bb2:

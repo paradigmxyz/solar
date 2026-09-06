@@ -116,7 +116,7 @@ fn @direct(arg0: bool) -> u256 [selector=0xa8f96c85, pure, abi_params=[bool], ab
     v30 = icall @try_decode_error_message, 1, v22, v23
     jump bb9
   bb9:
-    v31 = phi [bb7: v30], [bb8: 0]
+    v31 = phi [bb7: v30], [bb8: false]
     v32 = lt v23, 36
     v33 = iszero v32
     v34 = eq v28, 0x4e487b71
@@ -201,7 +201,7 @@ fn @attached(arg0: bool) -> u256 [selector=0x42425916, abi_params=[bool], abi_re
     v30 = icall @try_decode_error_message, 1, v22, v23
     jump bb9
   bb9:
-    v31 = phi [bb7: v30], [bb8: 0]
+    v31 = phi [bb7: v30], [bb8: false]
     v32 = lt v23, 36
     v33 = iszero v32
     v34 = eq v28, 0x4e487b71
@@ -286,7 +286,7 @@ fn @attachedValue(arg0: u256, arg1: bool) -> u256 [selector=0xcece4c7f, pure, ab
     v30 = icall @try_decode_error_message, 1, v22, v23
     jump bb9
   bb9:
-    v31 = phi [bb7: v30], [bb8: 0]
+    v31 = phi [bb7: v30], [bb8: false]
     v32 = lt v23, 36
     v33 = iszero v32
     v34 = eq v28, 0x4e487b71
@@ -371,7 +371,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[]] {
     v24 = iszero v23
     v25 = eq v20, 0x4e487b71
     v26 = and v24, v25
-    jumpi 1, bb8, bb9
+    jumpi true, bb8, bb9
   bb9:
     revert v14, v15
   bb8:
@@ -412,7 +412,7 @@ fn @try_decode_error_message(arg0: memptr, arg1: u256) -> bool {
     v14 = iszero v13
     ret v14
   bb3:
-    ret 0
+    ret false
 }
 
 fn @revert_error(arg0: u256, arg1: u256) {

@@ -567,7 +567,7 @@ fn @bytesTransition() -> u256 [selector=0xe0a151c6, abi_params=[], abi_returns=[
   bb18:
     jump bb19
   bb19:
-    v89 = phi [bb28: v88], [bb18: 1]
+    v89 = phi [bb28: v88], [bb18: true]
     jumpi v89, bb29, bb30
   bb30:
     jump bb31

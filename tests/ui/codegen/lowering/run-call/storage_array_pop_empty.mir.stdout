@@ -11,7 +11,7 @@ fn @test() -> bool [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<bool>]
     v3 = storage_array_data_slot 0
     v4 = add v3, v2
     sstore v4, 0 !metadata(storage=symbolic(v4))
-    ret 1
+    ret true
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 49 !metadata(memory=scratch)
