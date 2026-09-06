@@ -5,11 +5,11 @@ use crop::Rope;
 use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
-    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
-    BenchmarkWorkspaceReports, benchmark_folding_ranges, benchmark_folding_ranges_from_rope,
-    benchmark_selection_ranges,
+    BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkFoldingRangeRequests,
+    BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis, BenchmarkRequest,
+    BenchmarkResponse, BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery,
+    BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports, benchmark_folding_ranges,
+    benchmark_folding_ranges_from_rope, benchmark_selection_ranges,
 };
 use std::{fs, hint::black_box, path::PathBuf};
 
@@ -350,6 +350,15 @@ fn folding_range(c: &mut Criterion) {
         );
     });
     group.finish();
+
+    let requests = BenchmarkFoldingRangeRequests::new(OPTIMISM_SOURCE.to_owned());
+    assert_eq!(requests.run(), clean_ranges);
+    let mut cached = c.benchmark_group("lsp/open-document-folding-range");
+    cached.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
+    cached.bench_function("optimism-unchanged", |b| {
+        b.iter(|| black_box(requests.run()));
+    });
+    cached.finish();
 }
 
 fn open_document_selection_range(c: &mut Criterion) {

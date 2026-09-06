@@ -351,9 +351,10 @@ mod workspace;
 #[doc(hidden)]
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
-    BenchmarkError, BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis,
-    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
+    BenchmarkError, BenchmarkFoldingRangeRequests, BenchmarkOpenDocuments, BenchmarkProject,
+    BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
+    BenchmarkWorkspaceReports,
 };
 
 /// Runs the folding-range kernel for Criterion benchmarks.

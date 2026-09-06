@@ -591,6 +591,40 @@ pub struct BenchmarkSelectionRangeRequests {
     positions: Vec<Position>,
 }
 
+/// A prepared open-document folding-range request workload.
+#[doc(hidden)]
+pub struct BenchmarkFoldingRangeRequests {
+    state: super::GlobalState,
+    path: VfsPath,
+}
+
+impl BenchmarkFoldingRangeRequests {
+    /// Prepare one immutable open document for repeated folding-range requests.
+    pub fn new(source: String) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let path = VfsPath::from(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/open-folding-range.sol"),
+        );
+        state.vfs.write().set_file_contents_with_version(
+            path.clone(),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        Self { state, path }
+    }
+
+    /// Run one folding-range request through the open-document source path.
+    #[inline(never)]
+    pub fn run(&self) -> Vec<lsp_types::FoldingRange> {
+        self.state
+            .vfs
+            .read()
+            .get_file_folding_range_source(&self.path)
+            .expect("the benchmark document should be open")
+            .folding_ranges()
+    }
+}
+
 impl BenchmarkSelectionRangeRequests {
     /// Prepare one immutable open document and the positions queried on every request.
     pub fn new(source: String, positions: impl IntoIterator<Item = Position>) -> Self {
