@@ -1,0 +1,31 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/guard_gas_after.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/guard_gas_after.evmir (after tail-merge) ===
+  @module guard_gas_after
+  bb0:
+    push 0
+    calldataload
+    jumpi bb1, bb2
+  bb1:
+    push 11
+    pop
+    push 22
+    pop
+    push 33
+    pop
+    jump bb3
+  bb2:
+    push 11
+    pop
+    push 22
+    pop
+    push 33
+    pop
+    jump bb3
+  bb3:
+    gas
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

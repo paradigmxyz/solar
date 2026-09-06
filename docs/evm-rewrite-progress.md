@@ -567,6 +567,19 @@ Nitro creation/runtime shrink 121 bytes in each mode and measured call gas is
 unchanged. No predicted static-opcode saving is counted as a hot-gas win.
 Evidence: `restore-result-study/` and `writer-resident-tests/restore-result-after/`.
 
+Tail merging now declines observed code addresses, unknown computed entry and
+gas observations, including gas forwarded to calls or creation and observations
+in a successor block. The fix adds 33 production lines; the extracted sibling
+code-observation predicate preserves its previous policy. All 60 concrete
+counterexample calls now retain all 30 paired observations, and all 24 focused
+UI revisions pass. Canonicalized positive fixtures preserve exact no-pass bytes.
+Gas-mode UI/hot output is unchanged. Size mode exposes correctness debt: UI
+runtime/creation grow 2,846/3,486 bytes across 341 increasing artifacts; hot
+runtime/creation grow 2,034/2,063 bytes across 19 increasing artifacts, while
+matched call gas falls 292. These regressions remain acceptance blockers; unsafe
+sharing is not retained to hide them. Evidence: `tail-merge-observers/`. A
+separate terminal-body forwarded-gas counterexample remains under repair.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

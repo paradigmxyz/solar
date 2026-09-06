@@ -11,7 +11,10 @@
 //! sharing rejects code observations and unknown computed entries, excludes GAS
 //! within the shared body, and proves room for the added jump address. Pushed
 //! labels also block sharing unless machine lowering proves they remain private
-//! control state; parsed IR can expose their numeric addresses as ordinary data. A final
+//! control state; parsed IR can expose their numeric addresses as ordinary data.
+//! Tail merging uses the same relocation exclusions and additionally declines
+//! modules that read GAS or forward gas to external calls or creations: its new
+//! transfer can affect observations after the shared suffix, not only within it. A final
 //! taken-edge-only cleanup redirects duplicate exits to surviving identical
 //! bodies without adding a transfer or changing the surviving layout. The
 //! earliest identical body remains the owner and may gain a JUMPDEST. Only
@@ -319,9 +322,9 @@ fn layout(module: &mut Module) -> bool {
     changed
 }
 
-fn terminal_dedup(module: &mut Module) -> bool {
-    let ids = module.block_ids().collect::<Vec<_>>();
-    if ids.iter().any(|&id| {
+/// Detects observations that cannot survive relocating shared physical code.
+fn sharing_observes_code(module: &Module) -> bool {
+    module.block_ids().any(|id| {
         module.blocks[id].insts.iter().any(|inst| {
             matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
                 || (matches!(inst.kind, InstKind::PushLabel(_)) && !module.private_control_labels)
@@ -341,11 +344,15 @@ fn terminal_dedup(module: &mut Module) -> bool {
                     )
                 )
         })
-    }) || (ids
-        .iter()
-        .any(|&id| module.blocks[id].terminator.kind == TerminatorKind::DynamicJump)
+    }) || (module
+        .block_ids()
+        .any(|id| module.blocks[id].terminator.kind == TerminatorKind::DynamicJump)
         && super::verify::has_unknown_jump(module))
-    {
+}
+
+fn terminal_dedup(module: &mut Module) -> bool {
+    let ids = module.block_ids().collect::<Vec<_>>();
+    if sharing_observes_code(module) {
         return false;
     }
     let mut safety = None;
@@ -512,6 +519,32 @@ fn share_reverts(module: &mut Module) -> bool {
 }
 
 fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
+    // A new transfer can affect any later gas observation, including forwarded
+    // gas in a callee or initializer. No continuation-level exclusion is proved.
+    if sharing_observes_code(module)
+        || module.block_ids().any(|id| {
+            module.blocks[id].insts.iter().any(|inst| {
+                matches!(
+                    inst.kind,
+                    InstKind::Op(
+                        op::GAS
+                            | op::CALL
+                            | op::CALLCODE
+                            | op::DELEGATECALL
+                            | op::STATICCALL
+                            | op::EXTCALL
+                            | op::EXTDELEGATECALL
+                            | op::EXTSTATICCALL
+                            | op::CREATE
+                            | op::CREATE2
+                            | op::EOFCREATE
+                    )
+                )
+            })
+        })
+    {
+        return false;
+    }
     let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
     let Ok(heights) = super::verify::stack_heights(module) else { return false };
     timer.finish("EVM analysis", module.name, "tail-merge-stack", false);

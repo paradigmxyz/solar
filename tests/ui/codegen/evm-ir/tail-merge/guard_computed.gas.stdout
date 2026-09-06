@@ -1,0 +1,19 @@
+- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/guard_computed.evmir (before tail-merge) ===
++ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/guard_computed.evmir (after tail-merge) ===
+  @module guard_computed
+  bb0:
+    calldatasize
+    jump
+  bb1:
+    push 11
+    push 22
+    push 33
+    push 44
+    stop
+  bb2:
+    push 11
+    push 22
+    push 33
+    push 44
+    stop
+  

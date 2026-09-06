@@ -6,9 +6,7 @@
     jump bb1
   bb1:
     dup 1
-    push bb2
-    jumpi
-    jump bb3
+    jumpi bb2, bb3
   bb2 [loop]:
     push 11
     pop

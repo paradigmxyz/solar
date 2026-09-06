@@ -1,0 +1,21 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=tail-merge
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=tail-merge
+
+// Numeric computed entries do not supply an address-preserving relocation proof.
+@module guard_computed
+bb0:
+  calldatasize
+  jump
+bb1:
+  push 11
+  push 22
+  push 33
+  push 44
+  stop
+bb2:
+  push 11
+  push 22
+  push 33
+  push 44
+  stop

@@ -3,12 +3,10 @@
 @module module
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: {{^[ +].*}}jump bb1
+// CHECK: {{^[ +].*}}jumpi bb1, bb1
 bb0:
   push 1
-  push bb1
-  jumpi
-  jump bb1
+  jumpi bb1, bb1
 
 // CHECK-LABEL: {{^[ +].*}}bb1 [cold]:
 // CHECK: {{^[ +].*}}push 11

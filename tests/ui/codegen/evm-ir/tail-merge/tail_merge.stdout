@@ -3,9 +3,7 @@
   @module module
   bb0:
     push 1
-    push bb1
-    jumpi
-    jump bb1
+    jumpi bb1, bb1
   bb1 [cold]:
     push 11
 -   push 22

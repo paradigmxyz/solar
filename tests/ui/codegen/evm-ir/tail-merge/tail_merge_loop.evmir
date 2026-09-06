@@ -13,9 +13,7 @@ bb0:
 
 bb1:
   dup 1
-  push bb2
-  jumpi
-  jump bb3
+  jumpi bb2, bb3
 
 // GAS-LABEL: {{^[ +].*}}bb2 [loop]:
 // GAS: {{^[ +].*}}push 11
