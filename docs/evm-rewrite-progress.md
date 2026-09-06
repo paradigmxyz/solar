@@ -22,34 +22,27 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,641 Rust lines across 36 files, versus 34,638 deleted
-raw lines: 21,997 fewer (63.6%). Counts include comments, blanks and local tests.
+The current scope has 12,650 Rust lines across 36 files, versus 34,638 deleted
+raw lines: 21,988 fewer (63.5%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
-The late-orientation workspace run has 1,358 passes, one failing UI aggregate
-and two skips. Its UI lane has 10,961 passes, 64 failures and 806 filtered
-revisions. The only two new failures were timing snapshots missing the new pass
-name; after reviewing their four added lines, all 20 focused UI checks pass,
-including the newly added revisioned fixtures. The original 62 failures remain.
-All 99 codegen helpers, Foundry and ordinary workspace/all-target Clippy pass. An additional deny-warnings invocation found
-existing warnings outside the changed scheduler; its failure remains retained.
+The current workspace run has 1,358 passes, one failing UI aggregate and two
+skips. Expanded UI has 10,997 passes, the same 62 failures and 806 filtered
+revisions. All 99 codegen helpers, Foundry and ordinary workspace/all-target
+Clippy pass. Fourteen new mask-rule UI revisions pass without changing existing
+expectations.
 
-The current quality ledger is `late-literal-orientation-sealed-ledger-20260906/`.
+The current quality ledger is `disjoint-mask-sealed-ledger-20260906/`.
 All 694 original successful UI IDs and eight known failures match in each mode;
-30 added successes remain separate. Both hot lanes retain all 15 runtime cases,
+31 added successes remain separate. Both hot lanes retain all 15 runtime cases,
 175 ordered gas labels and exact observations. Nine heavy captures match the
 original inputs/settings, 1,672 contract IDs and 3,344 artifacts, including
-1,002 empty outputs and 14 linked-placeholder artifacts.
-
-The latest output-identical compiler changes count missing scheduler copies
-once (`b99b7c37`) and stop futile perfect-table shifts at the largest key's bit
-length (`f3d9a8dc`). Full UI/hot/heavy output and 26 retained diagnostic pairs
-are exact. Forced 256-target tables and successful shift255 remain covered.
-Evidence is in `scheduler-copy-count-20260906/` and
-`perfect-shift-bound-{trial,focused}-20260906/`.
+1,002 empty outputs and 14 linked-placeholder artifacts. The latest compiler-time
+change shares raw bounds during immutable assembly (`a904c535`); its complete
+UI/hot/heavy output and 63 focused diagnostic/encoding pairs are exact.
 
 Recent expectations were reviewed with actual execution before updating:
 
@@ -118,13 +111,13 @@ cannot waive individual regressions.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +1,561 | +3,325 | — |
-| UI, size (694 original successes) | −30,889 | −26,344 | — |
+| UI, gas (694 original successes) | +1,522 | +3,287 | — |
+| UI, size (694 original successes) | −30,913 | −26,368 | — |
 | Hot, gas (15 cases) | +17,717 | +18,154 | −27,793 |
 | Hot, size (15 cases) | +25,734 | +26,106 | −92,547 |
 | Heavy projects, original settings (9 cases) | +17,838,508 | +14,699,368 | — |
 
-There remain 760/550 larger UI artifacts, 20/19 larger hot artifacts and 24/30
+There remain 758/548 larger UI artifacts, 20/19 larger hot artifacts and 24/30
 higher hot gas labels in gas/size mode, plus 1,101 larger heavy artifacts.
 SeaportRouter runtime is 24,648 versus sealed 9,822 bytes, down from an earlier
 rewrite's 48,812. Heavy captures establish size debt, not arbitrary runtime
@@ -319,6 +312,23 @@ skips; expanded UI has 10,983 passes and the same 62 failures. Quiet times impro
 633,540→597,128 and 598,176→581,824 KiB (−5.7% / −2.7%). These small compiler
 improvements remove no sealed output debt. Evidence is in
 `assembly-raw-facts-{trial,focused,heavy-review}-20260906/`.
+
+Disjoint OR-mask absorption is accepted in `2c93d841` (+9 production lines).
+Existing metadata, unknown-control and whole-module observer guards protect
+`(x | A) & B -> x & B` when `A & B == 0`. Only FunctionPointerDirtyBits changes
+in the UI size corpus: gas creation/runtime shrink 39/38 bytes, size shrinks
+24/24. Its two functions each save 18 gas in gas mode and 21 in size mode.
+All 162 focused executions agree, including full-stack, overlap and observer
+controls; four original pinned-solc calls agree. Two separate pure-mask symbolic
+runs reach bounded agreement, but their before/after bytecode is identical, so
+they support the algebra rather than demonstrate backend activation. The exact
+function-pointer source observes its own address and is outside that symbolic
+lane's supported scope. All hot and heavy output remains exact. Quiet times are
+mixed: 52.86→53.36 and 53.18→52.97 seconds (+0.9% / −0.4%); sampled RSS falls
+634,988→582,336 and 633,580→617,676 KiB (−8.3% / −2.5%). No compiler-speed win
+is claimed. Evidence lives in `disjoint-mask-{trial,focused,differential,heavy-review}-20260906/`.
+Four sealed UI artifact debts are removed; 758 gas-mode and 548 size-mode
+artifact debts remain, along with all 1,101 heavy debts and hot gas gaps.
 
 ## Evidence provenance
 
