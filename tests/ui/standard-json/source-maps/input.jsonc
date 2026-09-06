@@ -3,8 +3,8 @@
 // CHECK-NEXT: "sourceMap": ":::-:0
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK-NEXT: "sourceMap": ":::-:0
-// CHECK: :::i
-// CHECK: :::o
+// CHECK-SAME: 63:13:0:o
+// CHECK-SAME: :::i
 {
   "language": "Solidity",
   "sources": {

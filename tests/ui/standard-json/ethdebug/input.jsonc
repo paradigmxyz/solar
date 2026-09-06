@@ -6,10 +6,14 @@
 // CHECK-LABEL: "deployedBytecode": {
 // CHECK-NEXT: "ethdebug": {
 // CHECK: "environment": "call"
-// CHECK: "offset": 18
+// CHECK: "mnemonic": "SUB"
 // CHECK: "mnemonic": "JUMPI"
-// CHECK: "offset": 19
-// CHECK: "mnemonic": "PUSH1"
+// CHECK-NEXT: }
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "offset": [[ENTRY:[0-9]+]],
+// CHECK-NEXT: "operation": {
+// CHECK-NEXT: "mnemonic": "CALLDATASIZE"
 // CHECK-COUNT-1: "invoke": {
 // CHECK-NEXT: "identifier": "f"
 // CHECK-NOT: "target":
