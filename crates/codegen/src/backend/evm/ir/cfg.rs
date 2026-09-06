@@ -350,6 +350,26 @@ fn sharing_observes_code(module: &Module) -> bool {
         && super::verify::has_unknown_jump(module))
 }
 
+/// Whether an instruction reads remaining gas or forwards it to another execution.
+fn observes_gas(inst: &super::Instruction) -> bool {
+    matches!(
+        inst.kind,
+        InstKind::Op(
+            op::GAS
+                | op::CALL
+                | op::CALLCODE
+                | op::DELEGATECALL
+                | op::STATICCALL
+                | op::EXTCALL
+                | op::EXTDELEGATECALL
+                | op::EXTSTATICCALL
+                | op::CREATE
+                | op::CREATE2
+                | op::EOFCREATE
+        )
+    )
+}
+
 fn terminal_dedup(module: &mut Module) -> bool {
     let ids = module.block_ids().collect::<Vec<_>>();
     if sharing_observes_code(module) {
@@ -362,7 +382,7 @@ fn terminal_dedup(module: &mut Module) -> bool {
             module.blocks[id].terminator.kind,
             TerminatorKind::Return | TerminatorKind::Revert | TerminatorKind::SelfDestruct
         ) || module.blocks[id].insts.len() < 3
-            || module.blocks[id].insts.iter().any(|inst| inst.kind == InstKind::Op(op::GAS))
+            || module.blocks[id].insts.iter().any(observes_gas)
         {
             continue;
         }
@@ -522,26 +542,7 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
     // A new transfer can affect any later gas observation, including forwarded
     // gas in a callee or initializer. No continuation-level exclusion is proved.
     if sharing_observes_code(module)
-        || module.block_ids().any(|id| {
-            module.blocks[id].insts.iter().any(|inst| {
-                matches!(
-                    inst.kind,
-                    InstKind::Op(
-                        op::GAS
-                            | op::CALL
-                            | op::CALLCODE
-                            | op::DELEGATECALL
-                            | op::STATICCALL
-                            | op::EXTCALL
-                            | op::EXTDELEGATECALL
-                            | op::EXTSTATICCALL
-                            | op::CREATE
-                            | op::CREATE2
-                            | op::EOFCREATE
-                    )
-                )
-            })
-        })
+        || module.block_ids().any(|id| module.blocks[id].insts.iter().any(observes_gas))
     {
         return false;
     }

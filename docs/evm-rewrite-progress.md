@@ -592,6 +592,14 @@ a gas win. Enum output remains unchanged because branch-target forwarding
 happens later; the original enum hypothesis was incomplete. Evidence:
 `conditional-tail-cost/`.
 
+Terminal-body sharing now excludes forwarded gas as well as direct GAS reads.
+One shared predicate keeps the tail-global and terminal-body checks consistent
+while preserving their different scopes (+1 production line). The independent
+CALL/CREATE counterexamples retain all 16 paired execution results after the
+fix; all 13 terminal-dedup UI revisions pass. All 715 UI successes per mode and
+both 15-case/175-label hot reports remain bytecode, observation and gas exact.
+Evidence: `terminal-forwarded-guard/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
