@@ -247,6 +247,22 @@ save 11–42 opcode gas, all four contracts shrink versus sealed, existing
 FileChecks are unchanged, and the focused UI test passes. This resolves one
 of the 78 failures at the preceding full checkpoint.
 
+Exclusive literal branch arms now fold to arithmetic selection (`33f58353`).
+Existing CFG counts and observer guards establish safe removal and equal stack
+peaks. The 721-source screen saves 117 creation/runtime bytes in gas mode and
+179 in size, with no increases; both hot lanes and all 1,672 heavy contracts
+are byte-exact. Twelve new UI revisions, 280 raw executions, 192 Solidity
+comparisons and 99 helpers pass. Spill-store size runtime falls 110→105 versus
+sealed 109; its gas-mode 14-byte debt stays open. A bounded arithmetic
+symbolic run is incomplete, with no replayed counterexample. Evidence is in
+`literal-diamond-draft-20260906/` and `literal-diamond-heavy-20260906/`.
+
+An initial three-member short-tail sharing trial was rejected after an
+adversarial wide-label program grew 337→339 bytes. Its 760 execution checks
+retain correct results, but correctness does not waive the size failure.
+`multiway-tail-draft-20260906/verification/width-retry/` preserves the
+counterexample. A stronger transfer reserve is being tested separately.
+
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
 all 24 project compilations and both identical-label hot-gas lanes on the final
