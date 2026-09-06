@@ -7,7 +7,13 @@
 //! permutation already has a minimum-cost cycle schedule, so the bounded search
 //! is unnecessary. Extended forks retain the search for EXCHANGE. It accepts
 //! only a smaller equivalent sequence with no increased input access and a peak
-//! within proved stack capacity.
+//! within proved stack capacity. A canonical leading literal can move after a
+//! SWAP/EXCHANGE-only run when its distinct symbolic identity finishes on top.
+//! The same cycle solver then permutes only the original words; complete input,
+//! net height, peak and cost checks must also improve the existing incumbent.
+//! No observed value, effect or control instruction is crossed. Literal sinking
+//! additionally requires the caller's module-wide permission for new code/gas
+//! changes; context-free schedule costing leaves this extension disabled.
 //! Reordering moves a literal across only
 //! a self-contained pure expression to remove its final swap. Unknown effects
 //! and noncanonical metadata bound each local analysis; no CFG edge is crossed.
@@ -50,6 +56,7 @@ pub(super) fn normalize(
     insts: &mut Vec<Instruction>,
     version: EvmVersion,
     entry_max: Option<usize>,
+    allow_sink_literal: bool,
 ) -> bool {
     let mut changed = false;
     let mut start = 0;
@@ -98,16 +105,63 @@ pub(super) fn normalize(
             if search {
                 consider(short_plan(original, version, room));
             }
-            if best != original {
+            let mut rewrite_start = start;
+            if allow_sink_literal
+                && start > 0
+                && let Some(candidate) =
+                    sink_literal(&insts[start - 1], original, &best, &values, version)
+            {
+                best = candidate;
+                rewrite_start -= 1;
+            }
+            if rewrite_start != start || best != original {
                 let len = best.len();
-                // <stack-only run> -> <cheaper equivalent physical stack schedule>
-                changed |= rewrite(insts, start, end - start, best);
-                end = start + len;
+                // <optional literal>; <stack run> -> <cheaper equivalent schedule>
+                changed |= rewrite(insts, rewrite_start, end - rewrite_start, best);
+                end = rewrite_start + len;
             }
         }
         start = end.max(start + 1);
     }
     changed
+}
+
+/// Sinks a leading literal that a pure permutation leaves on top.
+fn sink_literal(
+    literal: &Instruction,
+    original: &[Instruction],
+    incumbent: &[Instruction],
+    desired: &[usize],
+    version: EvmVersion,
+) -> Option<Vec<Instruction>> {
+    let literal_id = desired.len().checked_sub(1)?;
+    if !canonical(literal)
+        || !matches!(literal.kind, InstKind::Push(_))
+        || desired.last() != Some(&literal_id)
+        || original.iter().any(|inst| {
+            !canonical(inst) || !matches!(inst.kind, InstKind::Swap(_) | InstKind::Exchange(..))
+        })
+    {
+        return None;
+    }
+    // push <literal>; <permutation> -> <original-word permutation>; push <literal>
+    let mut candidate = cycle_permutation(literal_id, &desired[..literal_id], version)?;
+    candidate.push(literal.clone());
+    let new_usage = stack_usage(&candidate)?;
+    for previous in [original, incumbent] {
+        let (required, net, peak) = stack_usage(previous)?;
+        // A canonical PUSH supplies one input and raises every later height by one.
+        let old_usage = ((required - 1).max(0), net + 1, peak + 1);
+        if new_usage.0 > old_usage.0 || new_usage.1 != old_usage.1 || new_usage.2 > old_usage.2 {
+            return None;
+        }
+    }
+    let new_cost = immediate::cost(version, &candidate);
+    let (bytes, gas) = immediate::cost(version, incumbent);
+    let (push_bytes, push_gas) = immediate::cost(version, std::slice::from_ref(literal));
+    let old_cost = (bytes + push_bytes, gas + push_gas);
+    (new_cost.0 <= old_cost.0 && new_cost.1 <= old_cost.1 && new_cost != old_cost)
+        .then_some(candidate)
 }
 
 pub(super) fn dedup_stack(insts: &mut Vec<Instruction>, version: EvmVersion) -> bool {

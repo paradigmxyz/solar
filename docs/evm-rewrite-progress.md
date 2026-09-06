@@ -489,6 +489,19 @@ creation and runtime totals fall by 216/73 bytes. Both 15-case hot reports remai
 exact. The earlier Nitro opportunity estimate did not account for its observer
 barrier; it is not a measured saving. Evidence: `memory-roundtrip/guarded/`.
 
+Stack normalization can now sink a leading literal past a pure permutation
+when its distinct symbolic identity finishes on top. The existing cycle solver
+handles the original words, and full usage/cost gates preserve its incumbent.
+This adds 57 lines in production files. Review caught an uncommitted PC
+observation regression (12 -> 10); the final rule uses the module-wide observer
+permission, and context-free schedule costing disables it. PC/GAS/public-label
+replays now remain exact. Ten UI revisions, 11,250 stack/memory models and 52
+encoded executions pass, including exact 1,024-word peaks. Matching 715 UI
+successes per mode retain all outcomes with no artifact increases: runtime bytes
+fall by 2,033/1,578 in gas/size. Both hot modes save 48 gas and 24 creation/runtime
+bytes with no individual increases. Evidence: `leading-literal-permutation/guarded/`;
+the superseded unguarded candidate and its failing replay remain preserved.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

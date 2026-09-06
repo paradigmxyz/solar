@@ -1,0 +1,20 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/leading_literal_gas.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/leading_literal_gas.evmir (after stack-normalize) ===
+  @module LeadingLiteralGas
+  bb0:
+    push 11
+    push 22
+    push 33
+    push 0
+    swap 2
+    swap 3
+    swap 1
+    swap 2
+    mstore
+    gas
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

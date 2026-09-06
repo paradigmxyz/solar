@@ -1,0 +1,70 @@
+//@ revisions: osaka berlin amsterdam
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=stack-normalize
+//@[osaka] compile-flags: --evm-version osaka
+//@[berlin] compile-flags: --evm-version berlin
+//@[amsterdam] compile-flags: --evm-version amsterdam
+@module LeadingLiteral
+
+// The zero address returns to the top after a permutation of three inputs.
+bb0:
+  calldatasize
+  caller
+  callvalue
+  push 0
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  mstore
+  stop
+
+// The rule does not depend on the literal value or a following memory write.
+bb1:
+  calldatasize
+  caller
+  callvalue
+  push 42
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  stop
+
+// Actual equal words do not alias the distinct symbolic literal identity.
+bb2:
+  push 0
+  push 23
+  push 0
+  push 0
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  stop
+
+// An exchange below the literal becomes an ordinary top swap before it.
+bb3:
+  calldatasize
+  caller
+  push 7
+  exchange 1, 2
+  stop
+
+// A literal that finishes below the top cannot be sunk.
+bb4:
+  calldatasize
+  caller
+  push 7
+  swap 1
+  stop
+
+// Copying or dropping words is outside the pure permutation rule.
+bb5:
+  calldatasize
+  caller
+  push 7
+  dup 1
+  swap 2
+  swap 1
+  stop
+

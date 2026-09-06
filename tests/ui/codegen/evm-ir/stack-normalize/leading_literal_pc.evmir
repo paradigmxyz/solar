@@ -1,0 +1,20 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=stack-normalize
+@module LeadingLiteralPc
+
+// New shortening must not change a later observed code address or gas value.
+bb0:
+  push 11
+  push 22
+  push 33
+  push 0
+  swap 2
+  swap 3
+  swap 1
+  swap 2
+  mstore
+  pc
+  push 0
+  mstore
+  push 32
+  push 0
+  return

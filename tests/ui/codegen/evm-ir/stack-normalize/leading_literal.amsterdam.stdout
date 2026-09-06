@@ -1,0 +1,60 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/leading_literal.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/leading_literal.evmir (after stack-normalize) ===
+  @module LeadingLiteral
+  bb0:
+    calldatasize
+    caller
+    callvalue
+-   push 0
+-   swap 2
+-   swap 3
+    swap 1
+    swap 2
++   push 0
+    mstore
+    stop
+  bb1:
+    calldatasize
+    caller
+    callvalue
+-   push 42
+-   swap 2
+-   swap 3
+    swap 1
+    swap 2
++   push 42
+    stop
+  bb2:
+    push 0
+    push 23
+    push 0
+-   push 0
+-   swap 2
+-   swap 3
+    swap 1
+    swap 2
++   push 0
+    stop
+  bb3:
+    calldatasize
+    caller
++   swap 1
+    push 7
+-   exchange 1, 2
+    stop
+  bb4:
+    calldatasize
+    caller
+    push 7
+    swap 1
+    stop
+  bb5:
+    calldatasize
+    caller
+    push 7
+-   dup 1
+-   swap 2
+    swap 1
++   dup 2
+    stop
+  

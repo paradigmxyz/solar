@@ -45,14 +45,15 @@ impl EvmPass for LocalPass {
         // The literal/copy rules shorten code. Private labels are control-only,
         // but parsed labels, numeric jumps and code/gas observations can expose it.
         // Conservatively include gas forwarded to external calls and creations.
-        // This permission concerns only this new rule, not gas invariance of the pipeline.
-        let literal_copy_order = matches!(self.0, "dce" | "peephole" | "compact-pushes")
-            && module.block_ids().all(|id| {
-                module.blocks[id].insts.iter().all(|inst| {
-                    !matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
-                        && (!matches!(inst.kind, InstKind::PushLabel(_))
-                            || module.private_control_labels)
-                        && !matches!(inst.kind, InstKind::Op(code)
+        // This permission concerns these literal rules, not gas invariance of the pipeline.
+        let literal_copy_order =
+            matches!(self.0, "dce" | "peephole" | "compact-pushes" | "stack-normalize")
+                && module.block_ids().all(|id| {
+                    module.blocks[id].insts.iter().all(|inst| {
+                        !matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
+                            && (!matches!(inst.kind, InstKind::PushLabel(_))
+                                || module.private_control_labels)
+                            && !matches!(inst.kind, InstKind::Op(code)
                             if op::stack_io(code).is_none()
                                 || matches!(code, op::PC | op::GAS | op::CODESIZE | op::CODECOPY
                                     | op::EXTCODECOPY | op::EXTCODESIZE | op::EXTCODEHASH
@@ -60,9 +61,9 @@ impl EvmPass for LocalPass {
                                     | op::CALL | op::CALLCODE | op::DELEGATECALL | op::STATICCALL
                                     | op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL
                                     | op::CREATE | op::CREATE2 | op::EOFCREATE))
+                    })
                 })
-            })
-            && !verify::has_unknown_jump(module);
+                && !verify::has_unknown_jump(module);
         let heights = (matches!(
             self.0,
             "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
@@ -164,7 +165,9 @@ impl EvmPass for LocalPass {
                     changed |=
                         terminal_pops(&mut block.insts, &block.terminator.kind, entry_max, version);
                 }
-                "stack-normalize" => changed |= normalize(&mut block.insts, version, entry_max),
+                "stack-normalize" => {
+                    changed |= normalize(&mut block.insts, version, entry_max, literal_copy_order)
+                }
                 "stack-dedup" => changed |= dedup_stack(&mut block.insts, version),
                 "reorder-pushes" => {
                     changed |=
@@ -294,6 +297,6 @@ pub(super) fn simplify_schedule(
     dead_copies::eliminate(&mut trial, version);
     dedup_stack(&mut trial, version);
     peephole(&mut trial, version, None, false);
-    normalize(&mut trial, version, None);
+    normalize(&mut trial, version, None, false);
     trial
 }

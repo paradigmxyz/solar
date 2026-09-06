@@ -1,0 +1,22 @@
+- // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/leading_literal_label.evmir (before stack-normalize) ===
++ // === ROOT/tests/ui/codegen/evm-ir/stack-normalize/leading_literal_label.evmir (after stack-normalize) ===
+  @module LeadingLiteralLabel
+  bb0:
+    push 11
+    push 22
+    push 33
+    push 0
+    swap 2
+    swap 3
+    swap 1
+    swap 2
+    mstore
+    push bb1
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb1:
+    stop
+  
