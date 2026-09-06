@@ -1,10 +1,254 @@
-# MIR: CFG updates and SSA aggregates
+# MIR architecture
 
 MIR keeps typed values and function calls through optimization. The backend
 receives scalar values after progressive lowering, then schedules them onto the
 EVM stack. These boundaries serve different purposes: maintaining SSA is a
 correctness requirement for every transform; choosing a physical representation
 is a late lowering decision.
+
+## Proposed phase model
+
+This section proposes the next architecture change. The implementation still
+uses `built`, `optimized`, `abi`, `dispatch`, `memory-lowered`, and `evm-shaped`.
+The CFG and aggregate contracts below describe implemented behavior.
+
+Use two stable MIR representations, `semantic` and `lowered`, followed by the
+existing EVM IR. Keep one set of MIR data structures. Optimization history is
+pipeline state, not an IR phase: running SCCP does not change which instructions
+or types a module may contain.
+
+| Representation | Contract | Main work |
+| --- | --- | --- |
+| Semantic MIR | Typed SSA, structs, slices, object references, semantic builtins, ordinary function calls; ABI and storage layouts remain explicit data. | Inline and specialize small functions, propagate constants, promote frame slots, simplify aggregates, remove redundant checks and memory/storage work. |
+| Lowered MIR | Word-valued SSA, explicit routing and ABI code, physical memory accesses, lowered call signatures, backend-supported operations. No semantic builtin or unresolved layout remains. | Simplify exposed scalar code, remove redundant loads/stores, optimize generated loops where profitable, prepare scheduling. |
+| EVM IR | Scheduled blocks with physical stack operations and explicit control transfers. | Target peepholes, sharing, outlining, layout, then assembly. |
+
+`lowered` does not mean scheduled: SSA values, phis, functions, and calls survive
+until the scheduler. Label addresses, immutable references, and proven static
+allocation addresses may remain as a small, explicitly verified set of backend
+placeholders. A remaining allocation must not hide an unlowered runtime check,
+initialization, or free-memory-pointer update.
+
+The pipeline should have named groups with visible entry and exit contracts:
+
+```text
+HIR -> semantic MIR
+    -> semantic optimization
+    -> expand builtins, ABI, and dispatch
+    -> bounded cleanup of the exposed code
+    -> lower aggregates, frame slots, storage addresses, and memory layouts
+    -> place/coalesce allocations, then expand allocation and copy operations
+    -> verify and enter lowered MIR
+    -> scalar and memory optimization
+    -> scheduler -> EVM IR optimization -> assembly
+```
+
+These are responsibilities and dependency constraints, not a benchmarked new
+pass ordering. The conversion may contain several named passes and local
+cleanup steps without introducing another stable phase. In particular, ABI
+expansion can create object operations and aggregate results; flatten structs
+before erasing object types, and keep allocation identity until placement has
+finished. Any newly introduced helper must pass through the remaining required
+lowerings too. Expansion must not leave a high-level operation behind merely
+because it was created after that operation's lowering pass ran.
+
+During conversion, mixed operations remain subject to the general SSA and type
+verifier. The phase stays `semantic` until full conversion succeeds; this phase
+permits primitive operations as well, including those from inline assembly.
+Passes inside the conversion use explicit local preconditions. Add a third
+stable MIR phase only if an independent consumer needs a verified intermediate
+representation. A pass name or useful dump point alone does not justify one.
+
+### Preserve builtin semantics through frontend lowering
+
+HIR lowering should evaluate operands, resolve types and layouts, and emit a
+semantic operation for each runtime builtin. Builtins can stay opaque to
+passes that do not understand their internals while still exposing signatures,
+effects, and constant-folding rules. Use typed intrinsic identities or existing
+`InstKind` variants; do not encode them as unknown `ICall` targets or strings.
+Keep source functions and compiler intrinsics distinct, and retain callee-derived
+return signatures for ordinary calls.
+
+Several operations already follow this approach: ABI encoding/decoding,
+aggregate copies, memory-object accesses, and abstract allocations. Extend that
+model to checked arithmetic, checks, concatenation, precompiles, array push/pop,
+and the Solidity-level call preparation currently expanded by the frontend.
+Yul word operations already express their complete semantics and need no extra
+opaque wrapper. Type-only builtins can disappear, and genuine constant results
+can fold without constructing a runtime implementation.
+
+For example, keep the following operations visible together until a MIR combine
+can choose whether to allocate or use scratch memory:
+
+```text
+bytes = abi_encode(layout, values)
+hash = keccak_bytes(bytes)
+```
+
+The frontend currently recognizes some ABI/hash combinations from HIR syntax.
+Moving that combine to MIR lets it see through calls and value substitutions.
+Eliminating the allocation still requires proof that its identity, contents,
+free-memory-pointer movement, and memory expansion are not observed elsewhere.
+
+Preserve evaluation order and failure semantics explicitly. `require(condition,
+message())` evaluates `message()` even on success; only failure-path encoding
+may be deferred. Checked arithmetic and ABI validation can revert even when
+their result is unused. Keep those checks as semantic effects until proved
+redundant. Low-level calls and precompiles retain their gas, returndata, and
+failure behavior. Solidity's checked division and Yul's division by zero must
+not share a folding rule that changes their distinct semantics.
+
+Aim for one typed body per source function, with external entries represented
+by interface declarations. ABI lowering owns decoding, validation, encoding,
+and dispatch wrappers. It may fuse or specialize a wrapper/body pair when that
+saves runtime work; the representation must not require an extra runtime call.
+Move existing frontend exceptions for external arguments into explicit decode
+or validation operations, preserving validation required even for unused
+arguments. Constructor, fallback, receive, and internal entry behavior need
+separate regression coverage during that migration.
+
+A phase verifier cannot infer whether raw arithmetic came from Yul or an eagerly
+expanded Solidity builtin. Enforce the frontend policy through its construction
+APIs and HIR-to-MIR fixtures as well as the phase checks.
+
+### Make phase transitions checked boundaries
+
+The current phase restrictions are spread across the verifier, lowering guards,
+and backend checks. `MirPass::run_pass` returns a change flag, so callers cannot
+use that result to distinguish an unsupported lowering from a harmless no-op.
+`is_enabled` also mixes optional optimization with representation readiness.
+
+Define one legality implementation for instructions, types, function signatures,
+terminators, and module entries. Use it both when completing conversion and when
+accepting lowered input for codegen. Match instruction variants exhaustively so
+adding an operation requires a legality decision. Check semantic attributes and
+backend placeholders as well as opcodes; inspect all retained definitions, not
+only the ones that happen to have consumers.
+
+Make the phase field private to parsing and checked transitions. Advance it
+only after verifying the destination contract, with monotonicity enforced in
+all builds. Parsing an `@phase` header declares a contract to verify; it does
+not prove that contract. Required conversion returns a diagnostic result,
+separate from its changed flag, and stops the pipeline on failure. Preflight
+unsupported cases before editing where practical. Otherwise discard the failed
+compilation's module; do not publish a partially lowered module as successful
+or clone every module just to provide rollback.
+
+Run a cheap representation check at each stable boundary in all builds. Keep
+full SSA, dominance, and type verification after each changed pass in debug
+builds and with `-Zvalidate-ir`; validate untrusted textual MIR fully at ingress.
+The backend should receive a verified immutable view after the last MIR pass,
+so a phase label cannot bypass checking and later mutation cannot silently
+invalidate the checked view. Keep full validation costs out of every release
+pass invocation.
+
+Optimization passes preserve the current representation. Required lowering
+passes declare their input requirements and fail clearly when a custom pipeline
+violates them. Optional optimization being disabled must never suppress a
+required conversion. Individual lowering passes remain available for UI tests
+and dumps; only the complete checked conversion promises `lowered` output.
+
+### Separate effects from permission to transform
+
+`EffectKind` is a coarse single category. The codebase also has precise ModRef
+queries, bounded interprocedural footprints, allocation/capture facts, and
+pass-specific rules for memory expansion and execution guarantees. Retain that
+precision and expose a shared semantic interface; a larger single effect enum
+would still fail to describe operations that both read and write several resources.
+
+| Query | Required facts |
+| --- | --- |
+| What can this operation access? | Read/write footprints for memory, persistent/transient storage, immutables, and mutable environment or returndata state; widen unknown accesses conservatively. |
+| Can it disappear if unused? | Observable writes, failure/termination, allocation observations, and other required behavior. An unused result is insufficient. |
+| Can an earlier result replace it? | Equal operands, stable read dependencies, and compatible identity and observable behavior. |
+| Can it execute earlier or on another path? | Dependency ordering, guaranteed execution or a proof of safe speculation, failure behavior, and gas profitability. |
+| Can it be duplicated or rematerialized? | The preceding facts plus allocation identity and repeated execution cost. |
+
+Use small derived properties for context-free behavior, backed by the existing
+alias and call-summary analyses for footprints. Before layout lowering, use
+object identity and field/element accesses where proven; raw pointer or assembly
+accesses must conservatively alias unless a disjointness proof exists. Do not
+attach heap-allocated effect records to every instruction. Unknown calls remain
+conservative; known intrinsics expose their summaries without expanding their
+implementation.
+Extend internal-call summaries with control effects before using memory purity
+to remove or speculate calls. A recursive function with no writes need not
+terminate; a check with no writes can still revert.
+
+Track changing observations such as `gasleft`, returndata, balances, `msize`,
+and the free-memory pointer separately from stable inputs such as calldata.
+An EVM memory read can expand memory. A mathematical operation can be too costly
+to hoist onto a path that never executed it. Keep semantic safety and gas/size
+profitability as separate decisions, including the existing guards against
+speculating expensive loads out of zero-trip loops. Do not import LLVM's
+undefined-behavior assumptions into Solidity checks or raw EVM operations.
+
+Correctness properties belong in operation semantics or verified analysis
+results. They must not depend on retaining optional source/debug metadata.
+In particular, replace keep-alive ABI-validation markers with explicit semantic
+validation as that lowering migrates. Keep genuine layout proofs and allocation
+semantics explicit; do not discard them as mere optimization hints.
+
+### LLVM and MLIR lessons
+
+LLVM recommends intrinsics for call-like extensions and gives them memory
+properties and folding rules. This supports keeping a builtin compact without
+making every pass understand its expansion. See
+[Extending LLVM](https://llvm.org/docs/ExtendingLLVM.html).
+
+MLIR's full dialect conversion succeeds only when every operation satisfies the
+conversion target, including dynamic legality constraints. Use that rule for
+our stable boundary without adopting a dialect registry, generic rewrite
+engine, or rollback framework. Its effects model also separates resource
+accesses from speculation; byte ranges and alias proofs remain separate
+analysis concerns. See [dialect conversion](https://mlir.llvm.org/docs/DialectConversion/)
+and [effects and speculation](https://mlir.llvm.org/docs/Rationale/SideEffectsAndSpeculation/).
+
+LLVM's SelectionDAG pipeline combines operations before legalization and again
+after type and operation legalization. Follow that placement principle: lowering
+exposes new optimization work. It does not imply rerunning the entire expensive
+MIR pipeline after every expansion. Reuse analysis caches across pipeline
+groups when their dependencies survive, and invalidate them when expansion
+changes calls, memory effects, or control flow. See the
+[code generator](https://llvm.org/docs/CodeGenerator.html#selectiondag-instruction-selection-process).
+
+### Migration and acceptance
+
+Implement the changes in independently reviewable steps:
+
+1. Share legality checks and separate conversion failure from pass changes.
+   Group the existing pipeline without reordering it; keep bytecode identical.
+2. Consolidate effect queries and migrate DCE, CSE, and LICM consumers before
+   introducing additional opaque operations. Preserve existing conservative rules.
+3. Move builtin families from frontend expansion to semantic MIR one at a time,
+   with folding, effects, expansion, and runtime tests in the same change.
+4. Consolidate external interface/ABI ownership, then replace the historical
+   phase labels with the two representation contracts and migrate MIR fixtures.
+5. Tune the optimization groups on both forms, including checks and loops newly
+   exposed by expansion. Change one pass group at a time.
+
+Keep the existing indexed IR, aggregate representation, local CFG mutation
+helpers, and scheduler/EVM IR/assembler split. A generic dialect system,
+`Module<Phase>` types throughout all passes, effect-token SSA, full MemorySSA,
+a general SSA repair service, and a pass dependency solver are not prerequisites.
+Revisit them only when a concrete transform or profile demonstrates the need.
+
+The expected gains are smaller input to expensive early passes, semantic
+combines that survive inlining, fewer frontend/backend special cases, and
+codegen rejection at the boundary that failed. Runtime gains need measurements:
+hiding operations without teaching analyses their effects can make code worse.
+Preserve the current bounded call footprints and late aggregate flattening.
+Unused return-field elimination can then build on those contracts rather than
+return-buffer conventions.
+
+For each migration compare the same successful UI and runtime corpus IDs,
+serialized bytecode, hot-call gas, and gas/size-mode sizes. Record instructions,
+blocks, generated helpers, and per-pass time before and after expansion; measure
+compiler time and peak memory on the same inputs. Retain checks for malformed
+ABI inputs, revert payloads, side-effecting arguments, reentrancy, recursive
+calls, memory observations, and debug-bytecode neutrality. Structural migrations
+should preserve output; optimization changes must explain per-case regressions
+and earn their place on runtime gas and output size before compile time.
 
 ## CFG edits own phi maintenance
 
