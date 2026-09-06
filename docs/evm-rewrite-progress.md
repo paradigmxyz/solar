@@ -426,6 +426,21 @@ interfere with unannotated assembly. Unchanged frame reservation does not prove
 source-memory, MSIZE or FMP invariance. That defect, the remaining 44 UI assertions
 and individual sealed gas/size debts continue to block completion.
 
+Two embedded-child MIR snapshots were subsequently reviewed with 69 successful
+runtime calls, including complete 228-byte producer/wrapper revert payloads
+matched to solc and reconstructed immutable targets. The LongReturn object
+remains 243 bytes; RevertingProducer grows 76→81 bytes to initialize FMP128,
+fixing the old payload's zero at byte 95. All seven embedded children match their
+standalone objects; only the reviewed literals and derived lengths are refreshed.
+Eight matrix revisions pass. The last full-workspace count above predates this
+narrow refresh. Evidence: `embedded-child-{mir-review,root-refresh}-20260906/`.
+
+`computed-writer-readback-witness-20260906/` confirms the remaining interference
+with an exact reduced18 variant using `xor(value,256)`: current gas output at
+address 192 is `(257,4779)` instead of solc's `(0xdeadbeef,4779)`. The 4096 control
+passes both. Traces show the source MSTORE followed by a compiler restore of 257
+and a source MLOAD of 257; this result is not promoted to an expected value.
+
 ## Evidence provenance
 
 The sealed archive SHA-256 remains
