@@ -169,10 +169,26 @@ SELFDESTRUCT with INVALID; the corrected exhaustive check and original failure
 are retained in `opcode-stack-table-trial-20260906/`. Broader suites were not run
 after the timing rejection.
 
-Current work studies reuse of successor-aware preparation for acyclic checked
-comparisons. The library wrapper
-remains two gas above sealed; loop short paths and acyclic phi size debts also
-remain withheld in `library-phi-review-20260906/`. Finish supported functionality,
+Successor-aware preparation for acyclic comparisons was rejected and reverted:
+LValueEvaluationOrder grows from 530 to 531 runtime bytes, already above sealed
+428. Four removed SWAP2 bytes are outweighed by five net label-immediate bytes
+when empty-edge removal changes layout. Its three calls remain correct and save
+6/6/0 gas; aggregate gains do not waive the size failure. The targeted wrapper
+never activates the new rule because its canonical edge order is unchanged.
+All helpers, Clippy and Foundry pass, and the workspace retains the same 62 UI
+failures. Heavy and timing lanes were not run after the decisive size rejection.
+Evidence is in `comparison-branch-order-trial-20260906/`,
+`comparison-branch-order-runtime-review-20260906/` and
+`branch-order-lvalue-attribution-20260906/`.
+
+An FMP-provenance screen found no eligible runtime root under the retained
+no-reset analysis, so no broader memory-disjointness assumption was introduced.
+Current work examines live MSTORE operands within the existing complete stack
+window, and private-control-aware duplicate exit removal. The acyclic phi's
+five-byte debt includes a removable four-byte duplicate revert; its FMP
+initializer already saves one byte. The library wrapper remains two gas above
+sealed; loop short paths and acyclic phi size debts remain withheld in
+`library-phi-review-20260906/`. Finish supported functionality,
 resolve every expectation, and repeat full workspace/UI, Foundry, differential,
 both size corpora, all project compilations and identical-label hot lanes on the
 final state. Require no per-case size or gas regression under -Ogas or -Osize,
