@@ -6,9 +6,9 @@ pragma solidity ^0.8.0;
 contract StackTooDeepLocals {
     // CHECK-LABEL: @module StackTooDeepLocals_runtime
     // CHECK: push 0x188b85b4
-    // CHECK: eq
-    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: jumpi [[DISPATCH_REVERT:bb[0-9]+]], [[BODY:bb[0-9]+]]
+    // CHECK-NEXT: [[BODY]]:
     // CHECK: push 1
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
@@ -20,6 +20,10 @@ contract StackTooDeepLocals {
     // CHECK: mload
     // CHECK: add
     // CHECK: return
+    // CHECK: [[DISPATCH_REVERT]]:
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: revert
     function sum(uint256 x) external pure returns (uint256) {
         uint256 a0 = x + 0;
         uint256 a1 = x + 1;

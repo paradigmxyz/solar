@@ -7,8 +7,8 @@ contract StackTooDeepCall {
     // CHECK-LABEL: @module StackTooDeepCall_runtime
     // CHECK: push 0x2b096926
     // CHECK-NEXT: sub
-    // CHECK-NEXT: push [[DISPATCH_REVERT:bb[0-9]+]]
-    // CHECK-NEXT: jumpi
+    // CHECK-NEXT: jumpi [[DISPATCH_REVERT:bb[0-9]+]], [[BODY:bb[0-9]+]]
+    // CHECK-NEXT: [[BODY]]:
     // CHECK: push 1{{$}}
     // CHECK-NEXT: push 4
     // CHECK-NEXT: calldataload
@@ -20,6 +20,10 @@ contract StackTooDeepCall {
     // CHECK: mload
     // CHECK: add
     // CHECK: return
+    // CHECK: [[DISPATCH_REVERT]]:
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: revert
     function call(uint256 x) external pure returns (uint256) {
         return sum(
             x + 0,

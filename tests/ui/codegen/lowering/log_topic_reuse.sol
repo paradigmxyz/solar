@@ -16,14 +16,19 @@ contract LogTopicReuse {
     mapping(uint256 => uint256) store;
 
     // CHECK: push 0xb3de648b
-    // CHECK: eq
-    // CHECK-NEXT: push [[BODY:bb[0-9]+]]
-    // CHECK: [[BODY]]:
+    // CHECK-NEXT: sub
+    // CHECK-NEXT: jumpi [[DISPATCH_REVERT:bb[0-9]+]], [[BODY:bb[0-9]+]]
+    // CHECK-NEXT: [[BODY]]:
     // CHECK: keccak256
     // CHECK-NEXT: sload
     // CHECK: push 0x48257dc961b6f792c2b78a080dacfed693b660960a702de21cee364e20270e2f
     // CHECK: log2
     // CHECK: sstore
+    // CHECK-NEXT: stop
+    // CHECK: [[DISPATCH_REVERT]]:
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: push 0
+    // CHECK-NEXT: revert
     function f(uint256 k) external {
         uint256 value = store[k];
         emit Ping(value);

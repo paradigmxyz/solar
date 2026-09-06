@@ -33,7 +33,9 @@ library Inner {
 library Outer {
     // CHECK-LABEL: @module Outer_runtime
     // CHECK: push 0x5e0b1cef
-    // CHECK: push 0xfaf4836c
+    // CHECK: push 0x3ebd20db
+    // CHECK-NEXT: push 226
+    // CHECK-NEXT: shl
     // CHECK: push 0x1000000000000000000000000000000000000001
     // CHECK: delegatecall
     // CHECK: returndatacopy
