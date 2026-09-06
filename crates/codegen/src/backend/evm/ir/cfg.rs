@@ -544,7 +544,7 @@ fn redirect_terminals(module: &mut Module) -> bool {
     let ids = module.block_ids().collect::<Vec<_>>();
     let mut protected = DenseBitSet::new_empty(module.blocks.len());
     let mut taken = DenseBitSet::new_empty(module.blocks.len());
-    let mut forwards_gas = false;
+    let mut forwards_gas = None;
     if let Some(&entry) = ids.first() {
         protected.insert(entry);
     }
@@ -553,7 +553,6 @@ fn redirect_terminals(module: &mut Module) -> bool {
         let block = &module.blocks[id];
         if block.terminator.kind == TerminatorKind::DynamicJump
             || block.insts.iter().any(|inst| {
-                forwards_gas |= observes_gas(inst);
                 matches!(
                     inst.kind,
                     InstKind::PushLabel(_) | InstKind::PushData { .. } | InstKind::PushDeferred(_)
@@ -612,8 +611,7 @@ fn redirect_terminals(module: &mut Module) -> bool {
     let mut targets = module.blocks.indices().collect::<IndexVec<BlockId, _>>();
     let mut changed = false;
     for (index, &id) in candidates.iter().enumerate() {
-        // A new JUMPDEST can change gas observed by an external callee.
-        if targets[id] != id || (forwards_gas && !taken.contains(id)) {
+        if targets[id] != id {
             continue;
         }
         for &other in &candidates[index + 1..] {
@@ -623,6 +621,15 @@ fn redirect_terminals(module: &mut Module) -> bool {
                 && module.blocks[id].insts == module.blocks[other].insts
                 && module.blocks[id].terminator == module.blocks[other].terminator
             {
+                // A new JUMPDEST can change gas observed by an external callee.
+                // Check only real matches; the module stays immutable until redirection.
+                if !taken.contains(id)
+                    && *forwards_gas.get_or_insert_with(|| {
+                        ids.iter().any(|&id| module.blocks[id].insts.iter().any(observes_gas))
+                    })
+                {
+                    break;
+                }
                 targets[other] = id;
                 changed = true;
             }
