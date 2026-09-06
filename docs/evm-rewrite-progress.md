@@ -105,8 +105,13 @@ enlarged 64 and created two. Rematerialization also worsened five Maple gas
 labels in both modes and created four ENS gas debts in size mode. All runtime
 observations and identities matched. Sources were restored from fresh trial
 snapshots; `nullary-tail-sealed-review/` retains every individual comparison.
-The Maple trace identifies extra stack permutations and entry transfer cost;
-call argument ordering is the next bounded investigation.
+A standalone additional argument order retains all previous winning schedules
+and skips identical load orders. It saves 54 creation/runtime UI bytes per mode,
+36/37 hot creation/runtime bytes in gas/size, and 99 hot-call gas in each mode,
+with no individual increases. The new nested-call regression passes all four
+matrix revisions; 576 broader differential calls also match. The first matched
+Seaport pair is flat (66.35→66.61 seconds); no compile-time win is claimed.
+`call-materialization-order/` and `resize-call-order-review/` retain proof.
 
 A fresh frozen-runner checkpoint reports 61 failed and 3,031 passed revisions.
 Two failures were executable-name differences in CLI help and pass with a

@@ -1,0 +1,67 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/call_materialization_order.sol:CallMaterializationOrder ===
+@module CallMaterializationOrder
+fn @run(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [selector=0x15509d2b, pure, abi_params=[u256, u256, u256, u256], abi_returns=[word]] {
+  bb0:
+    v0 = internal_call @outer, 1, arg0, arg1, arg2, arg3
+    ret v0
+}
+
+fn @outer(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: arg2], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v10]
+    v3 = phi [bb0: arg1], [bb3: v3]
+    v4 = phi [bb0: arg3], [bb3: v4]
+    v5 = phi [bb0: 0], [bb3: v11]
+    v6 = eq v5, 2
+    v7 = iszero v6
+    jumpi v7, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v2
+  bb4:
+    v8 = internal_call @fold, 1, v0, v3, v1
+    v9 = add v8, v4
+    v10 = add v2, v9
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v11 = add v5, 1
+    jump bb1
+}
+
+fn @fold(arg0: u256, arg1: u256, arg2: u256) -> u256 [pure] {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb3: v12]
+    v1 = phi [bb0: arg2], [bb3: v1]
+    v2 = phi [bb0: arg0], [bb3: v2]
+    v3 = phi [bb0: 0], [bb3: v13]
+    v4 = phi [bb0: arg1], [bb3: v4]
+    v5 = eq v3, 3
+    v6 = iszero v5
+    jumpi v6, bb4, bb5
+  bb5:
+    jump bb2
+  bb2:
+    ret v0
+  bb4:
+    v7 = xor v2, v3
+    v8 = xor v4, v3
+    v9 = add v7, v8
+    v10 = xor v1, v3
+    v11 = add v9, v10
+    v12 = add v0, v11
+    jump bb6
+  bb6:
+    jump bb3
+  bb3:
+    v13 = add v3, 1
+    jump bb1
+}
