@@ -478,6 +478,17 @@ Two sequential 432-contract Seaport pairs also retain identical bytecode:
 Peak RSS changes +0.2% and -0.3%, effectively flat in these two pairs. Evidence:
 `immediate-cost-plan/`, including initial build failures and their corrections.
 
+A bounded physical peephole now keeps incoming words while restoring distinct
+fixed homes, replacing the immediately reversed reload run. Stores retain exact
+order, addresses and values; the extra transient word requires a capacity proof,
+and module observations block the rule. This adds 106 lines in production files.
+All nine new UI cases, eight affected contract revisions and 408 paired runtime
+calls across three forks pass, including 24 boundary calls. Guarded isolated
+comparisons retain all 715 UI successes per mode with no increases: gas/size
+creation and runtime totals fall by 216/73 bytes. Both 15-case hot reports remain
+exact. The earlier Nitro opportunity estimate did not account for its observer
+barrier; it is not a measured saving. Evidence: `memory-roundtrip/guarded/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

@@ -29,9 +29,11 @@ pub(super) fn peephole(
     let mut changed = false;
     let mut index = 0;
     while index < insts.len() {
-        let mut replacement = None;
+        let mut replacement = literal_copy_order
+            .then(|| super::memory_roundtrip::replacement(insts, index, version, entry_max))
+            .flatten();
         let tail = &insts[index..];
-        if tail.len() >= 4 && tail[..4].iter().all(canonical) {
+        if replacement.is_none() && tail.len() >= 4 && tail[..4].iter().all(canonical) {
             match (&tail[0].kind, &tail[1].kind, &tail[2].kind, &tail[3].kind) {
                 // dup2; binary; swap1; pop -> [swap1]; binary
                 (

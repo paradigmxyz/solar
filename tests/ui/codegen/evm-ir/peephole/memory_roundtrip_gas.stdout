@@ -1,0 +1,22 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/memory_roundtrip_gas.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/memory_roundtrip_gas.evmir (after peephole) ===
+  @module MemoryRoundtripObserved
+  bb0:
+    push 11
+    push 22
+    push 160
+    mstore
++   dup 1
+    push 128
+    mstore
+-   push 128
+-   mload
+    push 160
+    mload
+    gas
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

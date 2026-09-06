@@ -1,0 +1,17 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//~? ERROR: EVM IR verification failed: block 0: `mstore` has stack effect 1->0, expected 2->0
+
+// A stack metadata mismatch is diagnosed instead of treating the store as ordinary.
+@module MemoryRoundtripMetadata
+bb0:
+  push 11
+  push 22
+  push 160
+  mstore !meta(stack=1->0)
+  push 128
+  mstore
+  push 128
+  mload
+  push 160
+  mload
+  stop

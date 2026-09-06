@@ -1,0 +1,25 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//@ filecheck:
+
+@module MemoryRoundtripObserved
+// PC can observe shortened code; keep the multiword round trip.
+// CHECK-LABEL: bb0:
+// CHECK: push 160
+// CHECK-NEXT: mstore
+bb0:
+  push 11
+  push 22
+  push 160
+  mstore
+  push 128
+  mstore
+  push 128
+  mload
+  push 160
+  mload
+  pc
+  push 0
+  mstore
+  push 32
+  push 0
+  return

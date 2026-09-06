@@ -19,6 +19,7 @@ use solar_sema::Gcx;
 
 mod cse;
 mod dead_copies;
+mod memory_roundtrip;
 mod peephole;
 mod stack;
 mod terminal;
