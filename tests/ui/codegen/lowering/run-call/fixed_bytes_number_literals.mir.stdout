@@ -18,7 +18,7 @@ fn @constructor() [constructor] {
 // === ROOT/tests/ui/codegen/lowering/run-call/fixed_bytes_number_literals.sol:FixedBytesLiterals ===
 @module FixedBytesLiterals
 data:
-  Probe_initcode_0: hex"600f565b34600b576013565b5f80fd5b6003565b6087601e5f3960875ff36076565b3660249010604757604b565b7fffffffff000000000000000000000000000000000000000000000000000000006004351660e01c6080526020608001608090036080f35b5f80fd5b60043560201b156059576047565b600f565b6003565b346072575f3560e01c607a565b605d565b5f80fd5b6061565b6314beb1ca03607257606e56"
+  Probe_initcode_0: hex"600f565b34600b576013565b5f80fd5b6003565b6086601e5f3960865ff36075565b60243610604657604a565b7fffffffff000000000000000000000000000000000000000000000000000000006004351660e01c6080526020608001608090036080f35b5f80fd5b60043560201b156058576046565b600e565b6003565b346071575f3560e01c6079565b605c565b5f80fd5b6060565b6314beb1ca03607157606d56"
 
 immutables:
   immutableLiteral: bytes4
@@ -27,13 +27,13 @@ fn @viaExternal() -> u256 [selector=0x09338c08, abi_params=[], abi_returns=[word
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 196, v1
+    v2 = and 195, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Probe_initcode_0, v3, 165
+    data_copy Probe_initcode_0, v3, 164
     v4 = slice_ptr v0
-    v5 = add v3, 165
+    v5 = add v3, 164
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 165
+    v6 = create 0, v3, 164
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

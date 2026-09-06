@@ -18,19 +18,19 @@ fn @approve(arg0: address, arg1: u256) [selector=0x095ea7b3, payable, abi_params
 // === ROOT/tests/ui/codegen/lowering/run-call/payable_void_call.sol:Caller ===
 @module Caller
 data:
-  Callee_initcode_0: hex"34600757600b565b5f5ffd5b60cb8060155f395ff360a7565b346019575f546080526020608001608090036080f35b5f80fd5b6003565b3660449010607857607c565b3373ffffffffffffffffffffffffffffffffffffffff600435166024357f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f80929492a46024355f55005b5f80fd5b60043560a01c15608a576078565b602d565b6021565b5f3560e01c60bd565b608e565b601d565b5f80fd5b6092565b63e582dd310360a357609f565b50609b565b8063095ea7b31460b85760ab56"
+  Callee_initcode_0: hex"34600757600b565b5f5ffd5b60ca8060155f395ff360a6565b346019575f546080526020608001608090036080f35b5f80fd5b6003565b60443610607757607b565b73ffffffffffffffffffffffffffffffffffffffff60043516602435337f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b9255f80939493a46024355f55005b5f80fd5b60043560a01c156089576077565b602c565b6021565b5f3560e01c60bc565b608d565b601d565b5f80fd5b6091565b63e582dd310360a257609e565b50609a565b8063095ea7b31460b75760aa56"
 
 fn @run() -> u256 [selector=0xc0406226, abi_params=[], abi_returns=[word]] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 255, v1
+    v2 = and 254, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Callee_initcode_0, v3, 224
+    data_copy Callee_initcode_0, v3, 223
     v4 = slice_ptr v0
-    v5 = add v3, 224
+    v5 = add v3, 223
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 224
+    v6 = create 0, v3, 223
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

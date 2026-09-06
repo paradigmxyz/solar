@@ -8,7 +8,7 @@ fn @echo(arg0: u256) -> u256 [selector=0x6279e43c, pure, abi_params=[u256], abi_
 // === ROOT/tests/ui/codegen/lowering/run-call/proxy_clobbered_local.sol:C ===
 @module C
 data:
-  Impl_initcode_0: hex"34600757600b565b5f5ffd5b60548060155f395ff36043565b36602490106022576026565b6004356080526020608001608090036080f35b5f80fd5b600f565b6003565b34603f575f3560e01c6047565b602a565b5f80fd5b602e565b636279e43c03603f57603b56"
+  Impl_initcode_0: hex"34600757600b565b5f5ffd5b60538060155f395ff36042565b602436106021576025565b6004356080526020608001608090036080f35b5f80fd5b600e565b6003565b34603e575f3560e01c6046565b6029565b5f80fd5b602d565b636279e43c03603e57603a56"
 
 fn @keepsLocal(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) -> u256 [selector=0x0ea6bb92, pure, abi_params=[u256, u256, u256, u256, u256], abi_returns=[word]] {
   bb0:
@@ -65,13 +65,13 @@ fn @forwards() -> u256 [selector=0xa38e2a32, abi_params=[], abi_returns=[word]] 
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 136, v1
+    v2 = and 135, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy Impl_initcode_0, v3, 105
+    data_copy Impl_initcode_0, v3, 104
     v4 = slice_ptr v0
-    v5 = add v3, 105
+    v5 = add v3, 104
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 105
+    v6 = create 0, v3, 104
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata

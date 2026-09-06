@@ -17,19 +17,19 @@ fn @value(arg0: bool) -> u256 [selector=0xc4d47ed1, pure, abi_params=[bool], abi
 // === ROOT/tests/ui/codegen/lowering/try_catch_return.sol:TryCatchReturn ===
 @module TryCatchReturn
 data:
-  TryCatchReturnTarget_initcode_0: hex"34600757600b565b5f5ffd5b60738060155f395ff36062565b36602490106033576037565b5f600435141515601d576021565b5f80fd5b600d6080526020608001608090036080f35b5f80fd5b600435600290106045576033565b600f565b6003565b34605e575f3560e01c6066565b6049565b5f80fd5b604d565b63c4d47ed103605e57605a56"
+  TryCatchReturnTarget_initcode_0: hex"34600757600b565b5f5ffd5b60728060155f395ff36061565b602436106032576036565b5f600435141515601c576020565b5f80fd5b600d6080526020608001608090036080f35b5f80fd5b600435600290106044576032565b600e565b6003565b34605d575f3560e01c6065565b6048565b5f80fd5b604c565b63c4d47ed103605d57605956"
 
 fn @constructor() [constructor] {
   bb0:
     v0 = abi_encode []
     v1 = not 31
-    v2 = and 167, v1
+    v2 = and 166, v1
     v3 = alloc raw, exact, uninitialized, infallible, v2
-    data_copy TryCatchReturnTarget_initcode_0, v3, 136
+    data_copy TryCatchReturnTarget_initcode_0, v3, 135
     v4 = slice_ptr v0
-    v5 = add v3, 136
+    v5 = add v3, 135
     mcopy v5, v4, 0 !metadata(memory=heap)
-    v6 = create 0, v3, 136
+    v6 = create 0, v3, 135
     jumpi v6, bb2, bb1
   bb1:
     revert_returndata
