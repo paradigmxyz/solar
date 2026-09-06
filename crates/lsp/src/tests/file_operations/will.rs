@@ -33,7 +33,7 @@ fn state_with_config(project: &TestProject, config: Config) -> GlobalState {
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
     *state.vfs.write() = project.vfs();
-    state.symbol_tables.store(output.result.symbol_tables);
+    state.symbol_tables.store(Arc::new(output.result.symbol_tables));
     state.analysis_commit.lock().analysis_paths = output.analysis_paths;
     state
 }

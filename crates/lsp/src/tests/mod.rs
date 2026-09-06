@@ -683,7 +683,7 @@ async fn clearing_analysis_cache_publishes_an_empty_current_snapshot() {
     assert!(!old_tables.workspace_symbols("").is_empty());
 
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(old_tables);
+    state.symbol_tables.store(Arc::new(old_tables));
     let uri = Url::from_file_path(project.path("/Cached.sol")).unwrap();
     let owner = flycheck_owner(project.root());
     let compiler_diagnostic = diagnostic("compiler");
@@ -1121,7 +1121,7 @@ async fn failed_current_analysis_recovers_after_save() {
     let uri = Url::from_file_path(project.path("/Old.sol")).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(project.config());
-    state.symbol_tables.store(old_tables);
+    state.symbol_tables.store(Arc::new(old_tables));
     state.snapshot().publish_diagnostics(
         DiagnosticOwner::Compiler,
         DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("old compiler")])]),
@@ -1248,7 +1248,7 @@ async fn reindex_rediscovers_disk_files_without_preclearing_the_old_index() {
 
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    state.symbol_tables.store(old_tables);
+    state.symbol_tables.store(Arc::new(old_tables));
     let tables = state.symbol_tables.clone();
     {
         state.reindex();
@@ -1580,7 +1580,7 @@ fn did_change_tracks_the_request_source_until_analysis_publishes() {
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(project.config());
         state.vfs = Arc::new(RwLock::new(project.vfs()));
-        state.symbol_tables.store(old_result.symbol_tables);
+        state.symbol_tables.store(Arc::new(old_result.symbol_tables));
         let (release_worker, worker) = pause_blocking_pool();
 
         let result = crate::handlers::did_change_text_document(

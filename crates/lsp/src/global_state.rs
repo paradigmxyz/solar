@@ -266,7 +266,7 @@ struct AnalysisCommitState {
 struct CachedAnalysisOutput {
     vfs_content_revision: u64,
     config: Arc<Config>,
-    output: AnalysisOutput,
+    output: AnalysisOutput<Arc<SymbolTables>>,
 }
 
 impl AnalysisCommitState {
@@ -1651,7 +1651,7 @@ fn run_analysis(
         }
     }
 
-    let output = results.finish();
+    let output = results.finish().into_shared();
     if !has_disk_paths {
         snapshot.analysis_commit.lock().cached_output =
             Some(CachedAnalysisOutput { vfs_content_revision, config, output: output.clone() });
@@ -1744,17 +1744,32 @@ fn handle_analysis_failure(
 }
 
 #[derive(Clone)]
-struct AnalysisResult {
+struct AnalysisResult<T = SymbolTables> {
     analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
-    // Cached and published snapshots share these immutable, potentially large indexes.
-    symbol_tables: Arc<SymbolTables>,
+    symbol_tables: T,
 }
 
 #[derive(Clone)]
-struct AnalysisOutput {
-    result: AnalysisResult,
+struct AnalysisOutput<T = SymbolTables> {
+    result: AnalysisResult<T>,
     analysis_paths: AnalysisPathIndex,
+}
+
+impl AnalysisOutput {
+    /// Share the completed index between the cache and published snapshot.
+    fn into_shared(self) -> AnalysisOutput<Arc<SymbolTables>> {
+        let Self { result, analysis_paths } = self;
+        let AnalysisResult { analyzed_documents, diagnostics, symbol_tables } = result;
+        AnalysisOutput {
+            result: AnalysisResult {
+                analyzed_documents,
+                diagnostics,
+                symbol_tables: Arc::new(symbol_tables),
+            },
+            analysis_paths,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -1800,14 +1815,14 @@ impl AnalysisResultAccumulator {
         for (uri, mut batch_diagnostics) in diagnostics {
             self.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
         }
-        self.symbol_tables.push(Arc::unwrap_or_clone(symbol_tables));
+        self.symbol_tables.push(symbol_tables);
     }
 
     fn finish(self) -> AnalysisResult {
         AnalysisResult {
             analyzed_documents: self.analyzed_documents,
             diagnostics: self.diagnostics,
-            symbol_tables: Arc::new(self.symbol_tables.finish()),
+            symbol_tables: self.symbol_tables.finish(),
         }
     }
 }
@@ -2275,11 +2290,15 @@ impl GlobalStateSnapshot {
     fn publish_analysis(&mut self, version: usize, result: AnalysisResult) -> bool {
         self.publish_analysis_output(
             version,
-            AnalysisOutput { result, analysis_paths: AnalysisPathIndex::default() },
+            AnalysisOutput { result, analysis_paths: AnalysisPathIndex::default() }.into_shared(),
         )
     }
 
-    fn publish_analysis_output(&mut self, version: usize, output: AnalysisOutput) -> bool {
+    fn publish_analysis_output(
+        &mut self,
+        version: usize,
+        output: AnalysisOutput<Arc<SymbolTables>>,
+    ) -> bool {
         let refresh_code_lenses =
             self.config.supports_code_lens_refresh() && self.config.code_lens_options().is_active();
         let AnalysisOutput { result, analysis_paths } = output;
@@ -2397,12 +2416,15 @@ impl GlobalStateSnapshot {
 
     #[cfg(test)]
     fn publish_symbol_tables(&mut self, version: usize, symbol_tables: Arc<SymbolTables>) -> bool {
-        self.publish_analysis(
+        self.publish_analysis_output(
             version,
-            AnalysisResult {
-                analyzed_documents: AnalyzedDocuments::default(),
-                diagnostics: DiagnosticMap::default(),
-                symbol_tables,
+            AnalysisOutput {
+                result: AnalysisResult {
+                    analyzed_documents: AnalyzedDocuments::default(),
+                    diagnostics: DiagnosticMap::default(),
+                    symbol_tables,
+                },
+                analysis_paths: AnalysisPathIndex::default(),
             },
         )
     }
@@ -2904,11 +2926,7 @@ fn analyze_cancellable_with_source_map(
             .collect();
 
         Some(AnalysisOutput {
-            result: AnalysisResult {
-                analyzed_documents,
-                diagnostics,
-                symbol_tables: Arc::new(symbol_tables),
-            },
+            result: AnalysisResult { analyzed_documents, diagnostics, symbol_tables },
             analysis_paths,
         })
     })

@@ -5,7 +5,6 @@ use crate::{
 };
 use lsp_types::{Position, Range, Url};
 use solar_config::CompileOpts;
-use std::sync::Arc;
 
 #[test]
 fn basic_direct_call_hierarchy() {
@@ -624,7 +623,7 @@ fn merges_identical_analysis_contexts_without_duplicate_edges() {
     let caller =
         tables.prepare_call_hierarchy(&uri, marked.marker("$2").position()).unwrap().pop().unwrap();
     assert!(tables.call_hierarchy_is_initialized());
-    let cloned_tables = tables.as_ref().clone();
+    let cloned_tables = tables.clone();
     assert!(!cloned_tables.call_hierarchy_is_initialized());
     let duplicate = analyze(AnalysisBatch::from_files(CompileOpts::default(), [(path, contents)]))
         .symbol_tables;
@@ -944,11 +943,11 @@ fn rejects_partial_outgoing_results_for_conflicting_callees() {
     assert_eq!(tables.call_hierarchy_outgoing(&caller), None);
 }
 
-fn merge_symbol_tables(first: Arc<SymbolTables>, second: Arc<SymbolTables>) -> Arc<SymbolTables> {
+fn merge_symbol_tables(first: SymbolTables, second: SymbolTables) -> SymbolTables {
     let mut aggregator = SymbolTablesAggregator::default();
-    aggregator.push(Arc::unwrap_or_clone(first));
-    aggregator.push(Arc::unwrap_or_clone(second));
-    Arc::new(aggregator.finish())
+    aggregator.push(first);
+    aggregator.push(second);
+    aggregator.finish()
 }
 
 fn marker_range(marked: &MarkedProject, marker: &str, utf16_len: u32) -> Range {

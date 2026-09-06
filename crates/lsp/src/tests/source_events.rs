@@ -576,7 +576,7 @@ async fn watched_excluded_dependency_change_and_delete_schedule_analysis() {
             analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(config);
-        state.snapshot().publish_analysis_output(0, output);
+        state.snapshot().publish_analysis_output(0, output.into_shared());
         let path = project.path("/generated/Dependency.sol");
         let uri = Url::from_file_path(path).unwrap();
 
@@ -791,7 +791,7 @@ fn did_create_defers_a_candidate_first_learned_by_pending_analysis() {
         state.analysis_commit.lock().deferred_source_file_events.get(&path),
         Some(&FileChangeType::CREATED)
     );
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
 }
 
 #[test]
@@ -832,7 +832,7 @@ fn did_delete_defers_a_dependency_first_learned_by_pending_analysis() {
         state.analysis_commit.lock().deferred_source_file_events.get(&path),
         Some(&FileChangeType::DELETED)
     );
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1006,7 +1006,7 @@ async fn watched_existing_unresolved_candidate_change_and_delete_schedule_analys
         let uri = Url::from_file_path(path).unwrap();
         let mut state = GlobalState::new(ClientSocket::new_closed());
         state.config = Arc::new(config);
-        state.snapshot().publish_analysis_output(0, output);
+        state.snapshot().publish_analysis_output(0, output.into_shared());
 
         let result = crate::handlers::did_change_watched_files(
             &mut state,
@@ -1036,7 +1036,7 @@ async fn watched_missing_excluded_dependency_recovers_only_on_create() {
         analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    state.snapshot().publish_analysis_output(0, output);
+    state.snapshot().publish_analysis_output(0, output.into_shared());
     let path = project.path("/generated/Missing.sol");
     let uri = Url::from_file_path(&path).unwrap();
 
@@ -1084,7 +1084,7 @@ async fn watched_missing_candidate_change_supersedes_pending_create_analysis() {
         analyze_cancellable(batches.pop().unwrap(), &IndexingCancellation::default()).unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
     state.config = Arc::new(config);
-    state.snapshot().publish_analysis_output(0, output);
+    state.snapshot().publish_analysis_output(0, output.into_shared());
     let path = project.path("/generated/Missing.sol");
     let uri = Url::from_file_path(&path).unwrap();
 

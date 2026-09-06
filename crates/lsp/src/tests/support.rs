@@ -671,7 +671,7 @@ impl RequestFixture {
             crate::vfs::VfsPath::from(path),
             Some(crop::Rope::from(changed_contents)),
         );
-        state.symbol_tables.store(result.symbol_tables);
+        state.symbol_tables.store(Arc::new(result.symbol_tables));
         let position = self.marked.marker(marker).position();
         self.check_signature_help_in_state(&mut state, uri, position, expected);
     }
@@ -730,7 +730,7 @@ impl RequestFixture {
         }
         let output = outputs.finish();
         let state = self.state_with_label_offsets(true);
-        state.symbol_tables.store(output.result.symbol_tables);
+        state.symbol_tables.store(Arc::new(output.result.symbol_tables));
         state.analysis_commit.lock().analysis_paths = output.analysis_paths;
         state
     }
@@ -751,7 +751,7 @@ impl RequestFixture {
         }
         state.config = Arc::new(config);
         *state.vfs.write() = self.marked.project().vfs();
-        state.symbol_tables.store(self.result.symbol_tables.clone());
+        state.symbol_tables.store(Arc::new(self.result.symbol_tables.clone()));
         state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
         state
     }

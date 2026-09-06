@@ -188,7 +188,7 @@ fn deferred_dependency_change_prevents_stale_analysis_publish() {
         },
     };
 
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
     assert_eq!(*state.published_analysis_version.borrow(), 0);
     assert!(state.analysis_commit.lock().deferred_source_file_events.is_empty());
 }
@@ -249,7 +249,7 @@ fn deferred_existing_missing_candidate_change_prevents_stale_analysis_publish() 
         },
     };
 
-    assert!(!state.snapshot().publish_analysis_output(version, output));
+    assert!(!state.snapshot().publish_analysis_output(version, output.into_shared()));
     assert_eq!(*state.published_analysis_version.borrow(), 0);
 }
 
@@ -271,7 +271,7 @@ fn deferred_unrelated_change_does_not_block_analysis_publish() {
         analysis_paths: AnalysisPathIndex::default(),
     };
 
-    assert!(state.snapshot().publish_analysis_output(version, output));
+    assert!(state.snapshot().publish_analysis_output(version, output.into_shared()));
     assert_eq!(*state.published_analysis_version.borrow(), version);
     assert!(state.analysis_commit.lock().deferred_source_file_events.is_empty());
 }
@@ -600,7 +600,11 @@ async fn deferred_dependency_change_router_publishes_replacement_analysis() {
 
         let mut router = crate::new_router_with_state(state);
         router.event::<PublishAnalysis>(|state, event| {
-            assert!(!state.snapshot().publish_analysis_output(event.version, event.output));
+            assert!(
+                !state
+                    .snapshot()
+                    .publish_analysis_output(event.version, event.output.into_shared())
+            );
             ControlFlow::Continue(())
         });
         router

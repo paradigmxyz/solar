@@ -115,7 +115,7 @@ async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
     std::thread::scope(|scope| {
         let publisher = scope.spawn(move || {
             let _runtime = runtime.enter();
-            snapshot.publish_analysis_output(version, output)
+            snapshot.publish_analysis_output(version, output.into_shared())
         });
 
         let deadline = Instant::now() + ASYNC_TEST_TIMEOUT;
@@ -1514,7 +1514,7 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
             ..Default::default()
         },
     };
-    assert!(state.snapshot().publish_analysis_output(version, output));
+    assert!(state.snapshot().publish_analysis_output(version, output.into_shared()));
     let published_specs = state.watched_file_registration.desired_specs.lock().clone().unwrap();
     assert!(
         published_specs

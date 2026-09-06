@@ -692,7 +692,7 @@ fn requests_read_the_latest_published_analysis() {
     let sub_base =
         old_tables.prepare_type_hierarchy(&uri, Position::new(3, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(old_tables);
+    state.symbol_tables.store(Arc::new(old_tables));
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
@@ -715,7 +715,7 @@ fn requests_read_the_latest_published_analysis() {
 
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, new_tables));
+    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
     assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
     assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["New"]);
@@ -738,7 +738,7 @@ fn requests_capture_the_analysis_epoch_when_created() {
     let base = tables.prepare_type_hierarchy(&uri, Position::new(0, 10)).unwrap().pop().unwrap();
     let child = tables.prepare_type_hierarchy(&uri, Position::new(1, 10)).unwrap().pop().unwrap();
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(tables);
+    state.symbol_tables.store(Arc::new(tables));
 
     let mut prepare = std::pin::pin!(crate::handlers::prepare_type_hierarchy(
         &mut state,
@@ -828,7 +828,7 @@ fn assert_item(item: &TypeHierarchyItem, name: &str, kind: SymbolKind) {
     assert!(item.selection_range.end <= item.range.end);
 }
 
-fn analyze_tables(path: &std::path::Path, source: &str) -> Arc<SymbolTables> {
+fn analyze_tables(path: &std::path::Path, source: &str) -> SymbolTables {
     analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
         [(path.to_path_buf(), source.to_owned())],

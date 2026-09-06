@@ -9,7 +9,7 @@ use snapbox::str;
 use solar_config::CompileOpts;
 use std::{
     future::Future,
-    sync::atomic::Ordering,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Waker},
 };
 
@@ -393,7 +393,7 @@ fn waits_for_current_analysis_before_returning_type_definitions() {
         partial_result_params: PartialResultParams::default(),
     };
     let mut state = GlobalState::new(ClientSocket::new_closed());
-    state.symbol_tables.store(old_tables);
+    state.symbol_tables.store(Arc::new(old_tables));
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
 
     let mut request = std::pin::pin!(crate::handlers::goto_type_definition(&mut state, params));
@@ -404,7 +404,7 @@ fn waits_for_current_analysis_before_returning_type_definitions() {
 
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
-    assert!(snapshot.publish_symbol_tables(2, new_tables));
+    assert!(snapshot.publish_symbol_tables(2, Arc::new(new_tables)));
     assert!(!snapshot.publish_symbol_tables(1, Default::default()));
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("type-definition request should complete after analysis is published");
