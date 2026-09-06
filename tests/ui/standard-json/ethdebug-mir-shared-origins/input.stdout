@@ -383,10 +383,7 @@
                 {
                   "offset": 45,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   },
                   "context": {
                     "pick": [
@@ -416,7 +413,7 @@
                   }
                 },
                 {
-                  "offset": 47,
+                  "offset": 46,
                   "operation": {
                     "mnemonic": "MSTORE"
                   },
@@ -448,7 +445,7 @@
                   }
                 },
                 {
-                  "offset": 48,
+                  "offset": 47,
                   "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
@@ -483,16 +480,13 @@
                   }
                 },
                 {
-                  "offset": 50,
+                  "offset": 49,
                   "operation": {
-                    "mnemonic": "PUSH1",
-                    "arguments": [
-                      "0x80"
-                    ]
+                    "mnemonic": "PUSH0"
                   }
                 },
                 {
-                  "offset": 52,
+                  "offset": 50,
                   "operation": {
                     "mnemonic": "RETURN"
                   },
