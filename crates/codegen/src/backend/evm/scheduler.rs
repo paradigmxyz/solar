@@ -157,6 +157,10 @@ impl<T: Copy + Eq> Stack<T> {
         // dup depth
         // Each missing occurrence is copied from the nearest surviving occurrence.
         for &value in &desired[fixed_prefix..] {
+            // No excess remains, so equal lengths imply equal identity counts.
+            if self.values.len() == desired.len() {
+                break;
+            }
             let required = desired.iter().filter(|&&other| other == value).count();
             while self.count(value) < required {
                 let Some(index) = self.values.iter().rposition(|&other| other == value) else {
