@@ -1,5 +1,5 @@
-- // === tests/ui/codegen/evm-ir/outline/debug_info_push.evmir (before outline) ===
-+ // === tests/ui/codegen/evm-ir/outline/debug_info_push.evmir (after outline) ===
+- // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info_push.evmir (before outline) ===
++ // === ROOT/tests/ui/codegen/evm-ir/outline/debug_info_push.evmir (after outline) ===
   @module DebugInfoPush
   bb0:
 -   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(span=1..5, invoke=first@1..10)
