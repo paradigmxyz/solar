@@ -2,7 +2,9 @@
 //!
 //! Every strategy consumes one selector above an opaque stack prefix. Linear
 //! chains test in source order; binary trees split sorted unsigned keys. Dense
-//! tables subtract their minimum and range-check the normalized index. Modulo
+//! tables subtract their minimum and range-check the normalized index. For size, exact
+//! power-of-two progressions can rotate the normalized key into an index: rotation keeps
+//! invalid low bits, so one range check replaces all equality-checked leaves. Modulo
 //! buckets and collision-free bit slices retain the original selector and check
 //! equality at leaves, so every non-case value reaches the default even when its
 //! hash collides. Tables contain only physical block identities.
@@ -73,6 +75,13 @@ impl Planner {
             && self.reserve(count.saturating_sub(cases.len()) * 3 + 12, false, forced)
         {
             return dense(module, &sorted, default, count);
+        }
+        if self.optimization.is_size()
+            && self.version.has_bitwise_shifting()
+            && (self.mode == SwitchLowering::Perfect || (!forced && cases.len() >= 5))
+            && let Some(shift) = exact_stride(&sorted)
+        {
+            return strided(module, &sorted, default, shift);
         }
         if self.mode == SwitchLowering::Buckets {
             let count = if self.optimization.is_size() {
@@ -274,6 +283,58 @@ fn dense(
             I::Op(op::SUB),
             I::Dup(1),
             I::Push(U256::from(count)),
+            I::Op(op::GT),
+        ],
+        T::JumpI(table, fallback),
+    )
+}
+
+/// Recognizes a nonwrapping sorted progression whose stride is a nontrivial power of two.
+fn exact_stride(cases: &[(U256, BlockId)]) -> Option<usize> {
+    if !(2..=256).contains(&cases.len()) {
+        return None;
+    }
+    let step = cases[1].0.checked_sub(cases[0].0)?;
+    let shift = step.trailing_zeros();
+    if shift == 0
+        || shift >= 256
+        || step != U256::ONE << shift
+        || cases.windows(2).any(|pair| pair[1].0.checked_sub(pair[0].0) != Some(step))
+    {
+        return None;
+    }
+    Some(shift)
+}
+
+fn strided(
+    module: &mut ir::Module,
+    cases: &[(U256, BlockId)],
+    default: BlockId,
+    shift: usize,
+) -> BlockId {
+    // indexed_jump <sorted exact-stride case destinations>
+    let table = block(module, vec![], T::IndexedJump(cases.iter().map(|case| case.1).collect()));
+    // pop <out-of-range rotated index>; jump <default>
+    let fallback = block(module, vec![I::Op(op::POP)], T::Jump(default));
+    // normalized = selector - minimum
+    // index = (normalized >> shift) | (normalized << (256 - shift))
+    // dup1; push <count>; gt
+    // jumpi <direct table>, <default>
+    block(
+        module,
+        vec![
+            I::Push(cases[0].0),
+            I::Swap(1),
+            I::Op(op::SUB),
+            I::Dup(1),
+            I::Push(U256::from(shift)),
+            I::Op(op::SHR),
+            I::Swap(1),
+            I::Push(U256::from(256 - shift)),
+            I::Op(op::SHL),
+            I::Op(op::OR),
+            I::Dup(1),
+            I::Push(U256::from(cases.len())),
             I::Op(op::GT),
         ],
         T::JumpI(table, fallback),
