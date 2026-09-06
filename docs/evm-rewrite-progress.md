@@ -22,18 +22,19 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The accepted scope has 12,901 Rust lines across 37 files, versus 34,638 deleted
-raw lines: 21,737 fewer (62.8%). Counts include comments, blanks and local tests.
+The accepted scope has 12,965 Rust lines across 37 files, versus 34,638 deleted
+raw lines: 21,673 fewer (62.6%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
 The current workspace run has 1,358 passes, one failing UI aggregate and two
-skips. Expanded UI has 11,031 passes, 44 remaining failures and 806 filtered
+skips. Expanded UI has 11,034 passes, 41 remaining failures and 806 filtered
 revisions. All 99 codegen helpers, Foundry and ordinary workspace/all-target
-Clippy pass. The twelve new source-memory readback revisions pass, including
-unoptimized execution. Existing UI failure IDs are unchanged.
+Clippy pass. The twelve source-memory readback revisions pass, including
+unoptimized execution. The nullary-read assertion is now restored; no new
+failure ID remains after the narrowly reviewed expectation updates.
 
 The current original-artifact ledger remains
 `disjoint-mask-sealed-ledger-20260906/`; the calldata-home milestone below
@@ -440,6 +441,32 @@ with an exact reduced18 variant using `xor(value,256)`: current gas output at
 address 192 is `(257,4779)` instead of solc's `(0xdeadbeef,4779)`. The 4096 control
 passes both. Traces show the source MSTORE followed by a compiler restore of 257
 and a source MLOAD of 257; this result is not promoted to an expected value.
+
+Stable nullary reads are restored in None mode by `cdac80a0` (+64 raw Rust
+lines). Planning, residency and emission share one classifier; NUMBER, mutable
+reads, noncanonical effects and unavailable opcodes retain ordinary evaluation.
+Optimized modes keep their previous scheduling. The original all-mode variant
+was rejected for individual gas/size regressions. Two None-only drafts cost
+4.3–4.9% and 1.5–1.6% compiler time; a single value classification reduces that
+cost to 1.013% and 0.948% (52.363→52.893 and 52.319→52.815 seconds). This is an
+explicit functionality tradeoff, not a compiler-speed win. Sampled RSS is
+592,864→597,304 and 586,348→636,404 KiB. None-corpus successful-case time improves
+1.653% and 0.354%; its 22 growing objects remain recorded alongside aggregate
+creation/runtime reductions of 5,927/5,842 bytes.
+
+All optimized UI and heavy objects and both 175-label hot lanes remain exact.
+The focused suite passes 48 calls; a fresh activated caller-reuse symbolic case
+reports bounded agreement, with its limits retained. Snapshot commits
+`756a00a8`, `250dfa28` and `b222c9dd` follow 26 embedded-child reviews, 54 observer
+calls and six real deployments with 42 boundary calls. The single source oracle
+changes 276→277 because runtime grows 116→117 bytes while FMP stays 160. Six
+compiler/mode pairs prove that comment edit leaves complete artifacts unchanged.
+All 35 reviewed IDs and 147 selected/sibling revisions pass without blessing;
+the subsequent full workspace leaves exactly 41 old failures. Evidence is in
+`nullary-single-match-{trial,acceptance,timing,refresh-plan}-20260906/` and the
+independent `nullary-single-match-*-review-20260906/` directories. The authoritative
+timing audit is `nullary-single-match-timing-review-20260906/corrected-v3/`;
+initial harness and audit failures remain preserved.
 
 ## Evidence provenance
 
