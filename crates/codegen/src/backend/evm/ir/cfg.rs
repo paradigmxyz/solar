@@ -17,9 +17,14 @@
 //! within the shared body, and proves room for the added jump address. Pushed
 //! labels also block sharing unless machine lowering proves they remain private
 //! control state; parsed IR can expose their numeric addresses as ordinary data.
-//! Tail merging uses the same relocation exclusions and additionally declines
-//! modules that read GAS or forward gas to external calls or creations: its new
-//! transfer can affect observations after the shared suffix, not only within it.
+//! Tail merging retains those relocation exclusions, but also proves adjacent
+//! pushed-label/JUMPI pairs are private control uses. Its new transfer must not
+//! precede GAS or forwarded-gas observations in a reachable suffix or continuation.
+//! Earlier prefix observations are allowed only when the suffix cannot revisit
+//! them. Unreachable suffixes may contain gas observers; glued reserves still
+//! move intact. Computed return continuations remain conservative when gas is
+//! observed anywhere in the module. Size mode keeps the module-wide gas guard:
+//! merging after calls can disrupt later outlining and grow the final object.
 //! In size mode, an exact six-byte Return/Revert suffix may instead be shared
 //! by an atomic group of at least eight blocks. All members independently pass
 //! the transfer-peak proof before any rewrite. Group costing reserves five bytes
@@ -539,8 +544,27 @@ fn layout(module: &mut Module) -> bool {
 
 /// Detects observations that cannot survive relocating shared physical code.
 fn sharing_observes_code(module: &Module) -> bool {
+    sharing_observes_code_with_control_pairs(module, false)
+}
+
+/// Only tail merging admits an immediately consumed physical branch address.
+fn sharing_observes_code_with_control_pairs(module: &Module, allow_control_pairs: bool) -> bool {
     module.block_ids().any(|id| {
-        module.blocks[id].insts.iter().any(|inst| {
+        let insts = &module.blocks[id].insts;
+        insts.iter().enumerate().any(|(index, inst)| {
+            let immediate_control = allow_control_pairs
+                && match inst.kind {
+                    InstKind::PushLabel(_) => insts
+                        .get(index + 1)
+                        .is_some_and(|next| next.kind == InstKind::Op(op::JUMPI)),
+                    InstKind::Op(op::JUMPI) => index.checked_sub(1).is_some_and(|previous| {
+                        matches!(insts[previous].kind, InstKind::PushLabel(_))
+                    }),
+                    _ => false,
+                };
+            if immediate_control {
+                return false;
+            }
             matches!(inst.kind, InstKind::PushData { .. } | InstKind::PushDeferred(_))
                 || (matches!(inst.kind, InstKind::PushLabel(_)) && !module.private_control_labels)
                 || matches!(inst.kind, InstKind::Op(code) if op::stack_io(code).is_none())
@@ -852,12 +876,54 @@ fn forwarded_conditional(
     (yes == forward(*by) && no == forward(*bn)).then_some(TerminatorKind::JumpI(yes, no))
 }
 
+/// Checks all paths executed after entering a proposed shared suffix.
+///
+/// Label references conservatively contribute continuation edges, including raw
+/// JUMPI destinations and private call continuations. Revisiting the original
+/// block checks its entire prefix too: a gas observation before this iteration's
+/// new jump may follow the preceding iteration's jump. A computed return ends
+/// the proof, since its destination may live on an incoming stack rather than in
+/// a local label reference. Callers skip this query when the module has no gas
+/// observers, or when the source is proved unreachable.
+fn tail_observes_gas(module: &Module, source: BlockId, start: usize) -> bool {
+    let block = &module.blocks[source];
+    let suffix = &block.insts[start..];
+    if suffix.iter().any(observes_gas) || block.terminator.kind == TerminatorKind::DynamicJump {
+        return true;
+    }
+    let mut pending = successors(&block.terminator.kind)
+        .chain(suffix.iter().filter_map(|inst| {
+            if let InstKind::PushLabel(target) = inst.kind { Some(target) } else { None }
+        }))
+        .collect::<Vec<_>>();
+    if pending.is_empty() {
+        return false;
+    }
+    let mut seen = DenseBitSet::new_empty(module.blocks.len());
+    while let Some(id) = pending.pop() {
+        if seen.insert(id) {
+            let block = &module.blocks[id];
+            if block.insts.iter().any(observes_gas)
+                || block.terminator.kind == TerminatorKind::DynamicJump
+            {
+                return true;
+            }
+            pending.extend(successors(&block.terminator.kind));
+            pending.extend(block.insts.iter().filter_map(|inst| {
+                if let InstKind::PushLabel(target) = inst.kind { Some(target) } else { None }
+            }));
+        }
+    }
+    false
+}
+
 fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
-    // A new transfer can affect any later gas observation, including forwarded
-    // gas in a callee or initializer. No continuation-level exclusion is proved.
-    if sharing_observes_code(module)
-        || module.block_ids().any(|id| module.blocks[id].insts.iter().any(observes_gas))
-    {
+    if sharing_observes_code_with_control_pairs(module, true) {
+        return false;
+    }
+    let has_gas_observers =
+        module.block_ids().any(|id| module.blocks[id].insts.iter().any(observes_gas));
+    if has_gas_observers && !gcx.sess.opts.optimization.is_gas() {
         return false;
     }
     let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
@@ -928,6 +994,14 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             {
                 continue;
             }
+            if has_gas_observers
+                && ((reachable.contains(id)
+                    && tail_observes_gas(module, id, a.insts.len() - common))
+                    || (reachable.contains(other)
+                        && tail_observes_gas(module, other, b.insts.len() - common)))
+            {
+                continue;
+            }
             let transfer = [InstKind::Push(alloy_primitives::U256::ZERO).into()];
             if !super::verify::rewrite_fits(
                 module,
@@ -960,6 +1034,9 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
                         && (size || !block.loop_header)
                         && block.terminator == a.terminator
                         && block.insts.ends_with(suffix)
+                        && (!has_gas_observers
+                            || !reachable.contains(source)
+                            || !tail_observes_gas(module, source, block.insts.len() - common))
                         && super::verify::rewrite_fits(
                             module,
                             &heights,
