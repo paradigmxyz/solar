@@ -148,7 +148,7 @@ fn redirect(module: &mut Module, targets: &IndexVec<BlockId, BlockId>) -> bool {
 }
 
 /// Merges alternative origins, explicitly dropping provenance if either side is unknown.
-fn merge_debug(
+pub(super) fn merge_debug(
     target: &mut Option<Box<super::DebugMetadata>>,
     source: Option<&super::DebugMetadata>,
 ) {
@@ -1020,8 +1020,25 @@ fn tail_merge(gcx: Gcx<'_>, module: &mut Module) -> bool {
             let shared = module.append_block(tail);
             for source in [id, other].into_iter().chain(additional) {
                 let block = &mut module.blocks[source];
-                let debug =
-                    block.insts.get(block.insts.len() - common).and_then(|inst| inst.debug.clone());
+                let first = block.insts[block.insts.len() - common].debug.as_deref();
+                // NOTE: A shared suffix's multiple origins cannot identify this
+                // incoming edge. Prefer a unique source terminator in that case.
+                let mut debug = first
+                    .filter(|debug| !debug.dropped && debug.source_spans.len() == 1)
+                    .or_else(|| {
+                        block
+                            .terminator
+                            .debug
+                            .as_deref()
+                            .filter(|debug| !debug.dropped && debug.source_spans.len() == 1)
+                    })
+                    .cloned()
+                    .map(Box::new);
+                if let Some(invoke) = first.and_then(|debug| debug.function_invoke) {
+                    debug.get_or_insert_with(Default::default).function_invoke = Some(invoke);
+                } else if let Some(debug) = &mut debug {
+                    debug.function_invoke = None;
+                }
                 block.insts.truncate(block.insts.len() - common);
                 block.terminator = TerminatorKind::Jump(shared).into();
                 block.terminator.debug = debug;

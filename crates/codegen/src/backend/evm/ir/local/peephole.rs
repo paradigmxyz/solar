@@ -379,7 +379,7 @@ pub(super) fn dead_tail(
         let mut candidate = insts.clone();
         candidate.drain(index..insts.len() - preserve);
         let Some((_, _, new_peak)) = stack_usage(&candidate) else { return false };
-        if new_peak > old_peak && !entry_max.is_some_and(|entry| entry as i64 + new_peak <= 1024) {
+        if new_peak > old_peak && entry_max.is_none_or(|entry| entry as i64 + new_peak > 1024) {
             return false;
         }
         // <dead stack suffix>; <explicit terminal operands> -> <explicit terminal operands>

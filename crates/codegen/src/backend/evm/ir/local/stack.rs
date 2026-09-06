@@ -180,7 +180,7 @@ pub(super) fn dedup_stack(insts: &mut Vec<Instruction>, version: EvmVersion) -> 
             && zeros.contains(&values[values.len() - usize::from(depth)])
         {
             // dup <known zero> -> push0
-            insts[index] = InstKind::Push(U256::ZERO).into();
+            insts[index].kind = InstKind::Push(U256::ZERO);
             changed = true;
         }
         let inst = &insts[index];

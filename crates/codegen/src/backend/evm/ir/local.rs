@@ -136,6 +136,7 @@ impl EvmPass for LocalPass {
                                 }
                             }
                             previous_literal = Some((value, block.insts.len()));
+                            inherit_debug(std::slice::from_ref(&inst), &mut replacement);
                             changed |= replacement.as_slice() != [inst];
                             block.insts.extend(replacement);
                         } else {
@@ -252,7 +253,7 @@ fn rewrite(
     insts: &mut Vec<Instruction>,
     start: usize,
     len: usize,
-    replacement: Vec<Instruction>,
+    mut replacement: Vec<Instruction>,
 ) -> bool {
     if !super::split_allowed(insts, start)
         || !super::split_allowed(insts, start + len)
@@ -260,9 +261,39 @@ fn rewrite(
     {
         return false;
     }
+    inherit_debug(&insts[start..start + len], &mut replacement);
     // <matched physical instructions> -> <equivalent replacement>
     insts.splice(start..start + len, replacement);
     true
+}
+
+/// Carries the bounded union of a rewritten sequence's known source origins.
+fn inherit_debug(original: &[Instruction], replacement: &mut [Instruction]) {
+    if replacement.is_empty() {
+        return;
+    }
+    let mut sources = original.iter().filter_map(|inst| inst.debug.as_deref());
+    let Some(first) = sources.next() else { return };
+    let mut debug = first.clone();
+    for source in sources {
+        debug.merge(source);
+    }
+    // NOTE: Generated operand helpers without an origin add no source span.
+    // Intermediate function events have no reliable checkpoint after a rewrite;
+    // retain only events at the original sequence boundaries, without extra code.
+    debug.function_invoke = None;
+    debug.function_exit = None;
+    for inst in replacement.iter_mut() {
+        inst.debug = Some(Box::new(debug.clone()));
+    }
+    replacement[0].debug.as_mut().unwrap().function_invoke = original
+        .first()
+        .and_then(|inst| inst.debug.as_deref())
+        .and_then(|debug| debug.function_invoke);
+    replacement.last_mut().unwrap().debug.as_mut().unwrap().function_exit = original
+        .last()
+        .and_then(|inst| inst.debug.as_deref())
+        .and_then(|debug| debug.function_exit);
 }
 
 /// Returns required incoming words, net height change and relative peak.

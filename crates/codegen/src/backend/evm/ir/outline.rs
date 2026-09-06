@@ -21,9 +21,10 @@
 //! best candidate. Size mode retains at most 512 candidates and selects at most
 //! sixteen whose original instruction ranges are disjoint. All sites are then
 //! split from right to left, so earlier coordinates remain valid without
-//! rescanning or nesting newly outlined bodies. Metadata and relocatable
-//! observations are excluded. Stack-height prefixes are computed once per block;
-//! checking each candidate never rescans instructions preceding its window.
+//! rescanning or nesting newly outlined bodies. Explicit stack metadata and relocatable
+//! observations are excluded. Exact shared-body positions union their source origins;
+//! invocation events stay on each source transfer. Stack-height prefixes are computed once per
+//! block; checking each candidate never rescans instructions preceding its window.
 
 use super::{Block, BlockId, EvmPass, InstKind, Module, TerminatorKind, verify::effect};
 use crate::backend::evm::op;
@@ -166,11 +167,39 @@ impl EvmPass for Outline {
         let mut stubs = Vec::new();
         let mut calls = Vec::new();
         for (_, body, sites, inputs) in selected {
-            let stub = Block {
+            let mut stub = Block {
                 insts: body.into_iter().map(Into::into).collect(),
                 terminator: TerminatorKind::DynamicJump.into(),
                 ..Block::default()
             };
+            if module.debug_info_tracked {
+                let first = &sites[0];
+                let source = &module.blocks[first.id].insts[first.start..first.start + first.len];
+                // NOTE: Return scheduling and parameter extraction can erase the
+                // positional correspondence. Leave those body origins unknown,
+                // rather than changing the selected code or matching arbitrary opcodes.
+                if first.parameters.is_empty()
+                    && stub.insts.len() >= source.len()
+                    && stub.insts.iter().zip(source).all(|(a, b)| a.kind == b.kind)
+                {
+                    for (target, source) in stub.insts.iter_mut().zip(source) {
+                        target.debug.clone_from(&source.debug);
+                    }
+                    for site in &sites[1..] {
+                        for (target, source) in stub
+                            .insts
+                            .iter_mut()
+                            .zip(&module.blocks[site.id].insts[site.start..site.start + site.len])
+                        {
+                            super::cfg::merge_debug(&mut target.debug, source.debug.as_deref());
+                        }
+                    }
+                    if let Some(debug) = stub.insts.first_mut().and_then(|inst| inst.debug.as_mut())
+                    {
+                        debug.function_invoke = None;
+                    }
+                }
+            }
             let stub_id = module.append_block(stub);
             stubs.push(stub_id);
             calls.extend(sites.into_iter().map(|site| (site, stub_id, inputs)));
@@ -190,16 +219,42 @@ impl EvmPass for Outline {
             let continuation_id = module.append_block(continuation);
             continuations.push(continuation_id);
             let block = &mut module.blocks[site.id];
+            let invoke =
+                block.insts[site.start].debug.as_deref().and_then(|debug| debug.function_invoke);
+            let mut parameters = if module.debug_info_tracked && !site.parameters.is_empty() {
+                block.insts[site.start..]
+                    .iter()
+                    .filter_map(|inst| {
+                        matches!(inst.kind, InstKind::Push(_)).then_some(inst.debug.clone())
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
             // prefix; body; suffix -> prefix; continuation; rotate_below_inputs; jump stub
             block.insts.truncate(site.start);
             for value in site.parameters.into_iter().rev() {
-                block.insts.push(InstKind::Push(value).into());
+                let mut literal = super::Instruction::from(InstKind::Push(value));
+                literal.debug = parameters.pop().flatten();
+                // NOTE: Reordered argument materialization is not a function
+                // checkpoint. The source invocation stays on the transfer below.
+                if let Some(debug) = &mut literal.debug {
+                    debug.function_invoke = None;
+                    debug.function_exit = None;
+                }
+                block.insts.push(literal);
             }
             block.insts.push(InstKind::PushLabel(continuation_id).into());
             for depth in (1..=inputs).rev() {
                 block.insts.push(InstKind::Swap(depth as u16).into());
             }
             block.terminator = TerminatorKind::Jump(stub_id).into();
+            if let Some(invoke) = invoke {
+                block.terminator.debug = Some(Box::new(super::DebugMetadata {
+                    function_invoke: Some(invoke),
+                    ..Default::default()
+                }));
+            }
         }
         // original blocks; shared bodies; continuations in stable source order
         let mut layout = ids;

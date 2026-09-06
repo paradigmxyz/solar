@@ -73,6 +73,7 @@ struct DebugOrigin {
     start: usize,
     end: usize,
     metadata: ir::DebugMetadata,
+    terminator: bool,
 }
 
 /// The assembler stores ordinary bytes once and only revisits placement records.
@@ -86,7 +87,12 @@ struct Assembly {
 }
 
 impl Assembly {
-    fn record_origin(&mut self, start: usize, metadata: Option<&ir::DebugMetadata>) {
+    fn record_origin(
+        &mut self,
+        start: usize,
+        metadata: Option<&ir::DebugMetadata>,
+        terminator: bool,
+    ) {
         if let Some(debug) = &mut self.debug
             && let Some(metadata) = metadata
             && !metadata.dropped
@@ -96,6 +102,7 @@ impl Assembly {
                 start,
                 end: self.bytes.len(),
                 metadata: metadata.clone(),
+                terminator,
             });
         }
     }
@@ -279,7 +286,7 @@ fn lower(
                     }
                 }
             }
-            assembly.record_origin(start, inst.debug.as_deref());
+            assembly.record_origin(start, inst.debug.as_deref(), false);
         }
         let next = order.get(position + 1).copied();
         let term_start = assembly.bytes.len();
@@ -315,7 +322,7 @@ fn lower(
                         version,
                     );
                     assembly.bytes.extend_from_slice(&[op::SWAP1, op::BYTE, op::JUMP]);
-                    assembly.record_origin(term_start, block.terminator.debug.as_deref());
+                    assembly.record_origin(term_start, block.terminator.debug.as_deref(), true);
                     assembly.record_invoke(block_start, block.function_invoke);
                     continue;
                 }
@@ -374,7 +381,7 @@ fn lower(
                 _ => unreachable!(),
             }]),
         }
-        assembly.record_origin(term_start, block.terminator.debug.as_deref());
+        assembly.record_origin(term_start, block.terminator.debug.as_deref(), true);
         assembly.record_invoke(block_start, block.function_invoke);
     }
     for (id, data) in module.data.iter_enumerated() {
@@ -565,10 +572,13 @@ impl DebugOrigins {
             {
                 instruction.source_spans.clone_from(&origin.metadata.source_spans);
                 instruction.modifier_depth = origin.metadata.modifier_depth;
-                // NOTE: Expanded preparation instructions inherit the source, but
-                // only their final physical transfer carries a function event.
+                // Instruction entries belong to their first concrete opcode;
+                // terminator invocations belong to the final physical transfer.
+                if !origin.terminator && instruction.offset == origin.start {
+                    instruction.function_invoke = origin.metadata.function_invoke;
+                }
                 if instruction.offset + usize::from(instruction.length) == origin.end {
-                    if matches!(instruction.opcode, op::JUMP | op::JUMPI) {
+                    if origin.terminator && matches!(instruction.opcode, op::JUMP | op::JUMPI) {
                         instruction.function_invoke = origin.metadata.function_invoke;
                     }
                     if matches!(
@@ -867,7 +877,7 @@ PUSH2 0x0102
             // target: jumpdest; swap1; swap2; swap1; <data ADD>; <appendix MUL>
             push(&mut assembly, Value::Address(Label::Block(target), 0), EvmVersion::Osaka);
             push(&mut assembly, Value::ProgramEnd, EvmVersion::Osaka);
-            assembly.record_origin(0, Some(&metadata));
+            assembly.record_origin(0, Some(&metadata), false);
             assembly.bytes.extend_from_slice(&[op::STOP; 260]);
             assembly.label(Label::Block(target));
             let entry = assembly.bytes.len();
@@ -875,7 +885,7 @@ PUSH2 0x0102
             assembly.record_invoke(entry, Some(function));
             let exchange = assembly.bytes.len();
             assembly.bytes.extend_from_slice(&[op::SWAP1, op::SWAP1 + 1, op::SWAP1]);
-            assembly.record_origin(exchange, Some(&metadata));
+            assembly.record_origin(exchange, Some(&metadata), false);
             assembly.bytes.extend_from_slice(&[op::ADD, op::MUL]);
             assembly
         };
@@ -907,6 +917,46 @@ PUSH2 0x0102
 267: SWAP1
 268: SWAP2
 269: SWAP1
+"#]]
+        );
+    }
+    #[test]
+    fn instruction_and_terminator_invocations_use_distinct_boundaries() {
+        let span = Span::new(BytePos(10), BytePos(20));
+        let function = DebugFunction { identifier: sym::_anonymous, declaration: span };
+        let metadata = ir::DebugMetadata {
+            source_spans: vec![span],
+            function_invoke: Some(function),
+            ..Default::default()
+        };
+        let mut assembly = Assembly { debug: Some(DebugOrigins::default()), ..Default::default() };
+        // push 0; not; push 0; jump
+        push(&mut assembly, Value::Literal(U256::ZERO), EvmVersion::Osaka);
+        assembly.bytes.push(op::NOT);
+        assembly.record_origin(0, Some(&metadata), false);
+        let transfer = assembly.bytes.len();
+        push(&mut assembly, Value::Literal(U256::ZERO), EvmVersion::Osaka);
+        assembly.bytes.push(op::JUMP);
+        assembly.record_origin(transfer, Some(&metadata), true);
+        let instructions = assembly.debug.unwrap().finish(&assembly.bytes, EvmVersion::Osaka);
+        let text = instructions
+            .iter()
+            .map(|inst| {
+                format!(
+                    "{}: invoke={}",
+                    op::name(inst.opcode).unwrap(),
+                    inst.function_invoke.is_some(),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        snapbox::assert_data_eq!(
+            text,
+            snapbox::str![[r#"
+PUSH0: invoke=true
+NOT: invoke=false
+PUSH0: invoke=false
+JUMP: invoke=true
 "#]]
         );
     }

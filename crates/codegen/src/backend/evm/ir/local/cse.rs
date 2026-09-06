@@ -117,7 +117,9 @@ pub(super) fn common_expressions(insts: &mut Vec<Instruction>, version: EvmVersi
         {
             // <operand copies>; <repeated expression> -> dup existing_value
             insts.truncate(insts.len() - usize::from(inputs));
-            insts.push(InstKind::Dup((stack.len() - index) as u16).into());
+            let mut copy = Instruction::from(InstKind::Dup((stack.len() - index) as u16));
+            copy.debug = inst.debug.clone();
+            insts.push(copy);
             stack.push(value);
             true
         } else {
