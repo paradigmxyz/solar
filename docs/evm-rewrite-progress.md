@@ -22,17 +22,17 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,494 Rust lines across 35 files, versus 34,638 deleted
-raw lines: 22,144 fewer (64.0%). Counts include comments, blanks and local tests.
+The current scope has 12,505 Rust lines across 35 files, versus 34,638 deleted
+raw lines: 22,133 fewer (64.0%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
-The committed writer state in `writer-word-index-trial-20260906/` has 1,358
-workspace passes, one failing UI aggregate and two skips. Its latest UI lane has
-10,962 passes, 62 failures and 806 filtered revisions. The mapping-storage review
-resolves exactly one failure since the preceding run; no new failure IDs appear.
+The committed call-gas fix (`ee916cdb`) has 1,358 workspace passes, one failing
+UI aggregate and two skips. Its UI lane has 10,963 passes, 62 failures and 806
+filtered revisions. The added regression passes; remaining failure IDs are
+exactly unchanged from the writer checkpoint.
 All 99 codegen helpers, Foundry and ordinary workspace/all-target Clippy pass. An additional deny-warnings invocation found
 existing warnings outside the changed scheduler; its failure remains retained.
 
@@ -207,17 +207,24 @@ exactly 62 UI failures. Evidence is in `live-mstore-residents-trial-20260906/`,
 `live-mstore-residents-heavy-review-20260906/`,
 `live-mstore-residents-study-20260906/` and `live-mstore-nested-replay-20260906/`.
 
-The terminal followup now has concrete forwarded-CALL evidence: on the false
-path, adding JUMPDEST changes a child's returned GAS from 75,170 to 75,169 at a
-100,000-gas limit. Eighteen raw calls and a meaningful proposed UI fixture are
-retained in `terminal-owner-forwarded-call-20260906/`. Current work tests a
-narrow owner restriction for gas-forwarding modules while preserving prior
-observer-free decisions.
+The committed terminal fix (`ee916cdb`) requires an existing owner label when
+the module forwards gas. On the false path, the old added JUMPDEST changed a
+child's returned GAS from 75,170 to 75,169 at a 100,000-gas limit. The actual fix
+restores the expected result in all 18 CALL replays; 40 observer-free controls
+remain byte/gas/outcome exact. The regression fixture fails the old pass and
+passes the fix. All UI output, both 15-case/175-label hot lanes, 26 diagnostic
+pairs and nine complete project JSON outputs remain exact. Evidence is in
+`terminal-forwarded-owner-fix-20260906/` and
+`terminal-forwarded-owner-final-replay-20260906/`. Quiet times increase
+53.07→57.30 and 53.20→54.88 seconds (+8.0% / +3.2%); sampled maximum RSS
+falls 614,808→585,260 and 633,120→600,100 KiB. Full 432-contract output stays
+exact. Current work defers the observer scan until an actual duplicate needs it;
+the measured slowdown is not waived by the correctness fix.
 
 An FMP-provenance screen found no eligible runtime root under the retained
 no-reset analysis, so no broader memory-disjointness assumption was introduced.
-Current work examines live MSTORE operands within the existing complete stack
-window, and private-control-aware duplicate exit removal. The acyclic phi's
+Current work examines private-control-aware duplicate exit removal. Further
+residency changes require evidence that their added shuffles pay for themselves. The acyclic phi's
 five-byte debt includes a removable four-byte duplicate revert; its FMP
 initializer already saves one byte. The library wrapper remains two gas above
 sealed; loop short paths and acyclic phi size debts remain withheld in
