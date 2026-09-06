@@ -1,10 +1,12 @@
 //! Primitive physical-IR encoding and fixed-point relocation.
 //!
-//! Block control transfers are lowered once into a compact stream. The stream
-//! contains only opcodes, labels, literal or relocatable pushes, and immutable
-//! placeholders. It performs no control-flow or instruction optimization. PUSH
-//! widths start at their minimum and grow monotonically until all addresses fit;
-//! every iteration recomputes all offsets, including embedded data addresses.
+//! Block control transfers are lowered once into a byte buffer with separate
+//! labels and deferred PUSH records. Ordinary instructions and literal pushes
+//! are encoded immediately; only deferred pushes participate in relocation. It performs no
+//! control-flow or instruction optimization. PUSH widths start at their minimum and grow
+//! monotonically until all addresses fit; every iteration recomputes label offsets, including
+//! embedded data addresses. Labels and relocations are ordered by buffer position, so each
+//! iteration is linear in their count and never scans ordinary instructions or data bytes.
 //! Immutable widths are fixed by their declarations and references identify the
 //! PUSH opcode. Each assembly owns its offsets and output, so failures cannot
 //! expose partial bytes or leak relocation state into another module.
@@ -43,12 +45,38 @@ enum Value {
     PackedTargets(Vec<BlockId>, usize),
 }
 
-/// The compact stream contains no block or MIR semantics.
-enum Atom {
-    Bytes(Vec<u8>),
-    Label(Label),
-    Push { value: Value, width: usize },
-    Immutable { id: ImmutableId, width: u8 },
+/// Unresolved pushes refer to positions in the byte buffer, each occupying one
+/// placeholder byte until emission. Literal instructions are already encoded.
+struct Relocation {
+    offset: usize,
+    value: Value,
+    width: usize,
+}
+
+/// The assembler stores ordinary bytes once and only revisits placement records.
+#[derive(Default)]
+struct Assembly {
+    bytes: Vec<u8>,
+    labels: Vec<(Label, usize)>,
+    relocations: Vec<Relocation>,
+    immutable_references: Vec<ImmutableReference>,
+}
+
+impl Assembly {
+    fn label(&mut self, label: Label) {
+        self.labels.push((label, self.bytes.len()));
+    }
+
+    fn immutable(&mut self, id: ImmutableId, width: u8) {
+        self.immutable_references.push(ImmutableReference {
+            id,
+            code_offset: self.bytes.len(),
+            type_size: TypeSize::new_int_bits(u16::from(width) * 8),
+        });
+        // push<width> <zero placeholder>
+        self.bytes.push(0x5f + width);
+        self.bytes.resize(self.bytes.len() + usize::from(width), 0);
+    }
 }
 
 pub(crate) fn encode(gcx: Gcx<'_>, module: &ir::Module) -> Result<Vec<u8>> {
@@ -63,9 +91,9 @@ pub(crate) fn assemble(gcx: Gcx<'_>, module: &ir::Module) -> Result<Encoded> {
         let lowered = super::indexed::lower(module, width);
         let module = lowered.as_ref();
         ir::validate_encoding(gcx, module)?;
-        let atoms =
+        let assembly =
             lower(module, version, width).map_err(|message| gcx.dcx().err(message).emit())?;
-        match resolve(atoms, module, version) {
+        match resolve(assembly, module, version) {
             Ok(encoded) => return Ok(encoded),
             Err(message) if message == "indexed target exceeds selected address width" => continue,
             Err(message) => return Err(gcx.dcx().err(message).emit()),
@@ -74,27 +102,35 @@ pub(crate) fn assemble(gcx: Gcx<'_>, module: &ir::Module) -> Result<Encoded> {
     Err(gcx.dcx().err("indexed EVM target address exceeds four bytes").emit())
 }
 
-fn push(atoms: &mut Vec<Atom>, value: Value, version: EvmVersion) {
-    let width = match &value {
-        Value::Literal(value) => op::push_len(version, *value) - 1,
-        _ => usize::from(!version.has_push0()),
-    };
-    // push <unresolved value>
-    atoms.push(Atom::Push { value, width });
+fn push(assembly: &mut Assembly, value: Value, version: EvmVersion) {
+    if let Value::Literal(value) = value {
+        let width = op::push_len(version, value) - 1;
+        // push <literal>
+        assembly.bytes.push(0x5f + width as u8);
+        assembly.bytes.extend_from_slice(&value.to_be_bytes::<32>()[32 - width..]);
+    } else {
+        assembly.relocations.push(Relocation {
+            offset: assembly.bytes.len(),
+            value,
+            width: usize::from(!version.has_push0()),
+        });
+        // push <unresolved value>
+        assembly.bytes.push(0x5f);
+    }
 }
 
-fn jump(atoms: &mut Vec<Atom>, target: BlockId, opcode: u8, version: EvmVersion) {
+fn jump(assembly: &mut Assembly, target: BlockId, opcode: u8, version: EvmVersion) {
     // push <target>
     // jump / jumpi
-    push(atoms, Value::Address(Label::Block(target), 0), version);
-    atoms.push(Atom::Bytes(vec![opcode]));
+    push(assembly, Value::Address(Label::Block(target), 0), version);
+    assembly.bytes.extend_from_slice(&[opcode]);
 }
 
 fn lower(
     module: &ir::Module,
     version: EvmVersion,
     table_width: usize,
-) -> std::result::Result<Vec<Atom>, String> {
+) -> std::result::Result<Assembly, String> {
     let mut targets = DenseBitSet::new_empty(module.blocks.len());
     let order: Vec<_> = module.block_ids().collect();
     for (position, &id) in order.iter().enumerate() {
@@ -125,28 +161,28 @@ fn lower(
             _ => {}
         }
     }
-    let mut atoms = Vec::new();
+    let mut assembly = Assembly::default();
     for (position, &id) in order.iter().enumerate() {
         let block = &module.blocks[id];
         // <block label>:
         // jumpdest (only for addressable targets)
-        atoms.push(Atom::Label(Label::Block(id)));
+        assembly.label(Label::Block(id));
         if targets.contains(id) {
-            atoms.push(Atom::Bytes(vec![0x5b]));
+            assembly.bytes.extend_from_slice(&[0x5b]);
         }
         for inst in &block.insts {
             match &inst.kind {
                 // opcode
-                InstKind::Op(opcode) => atoms.push(Atom::Bytes(vec![*opcode])),
+                InstKind::Op(opcode) => assembly.bytes.extend_from_slice(&[*opcode]),
                 // push <literal>
-                InstKind::Push(value) => push(&mut atoms, Value::Literal(*value), version),
+                InstKind::Push(value) => push(&mut assembly, Value::Literal(*value), version),
                 // push <block address>
                 InstKind::PushLabel(target) => {
-                    push(&mut atoms, Value::Address(Label::Block(*target), 0), version)
+                    push(&mut assembly, Value::Address(Label::Block(*target), 0), version)
                 }
                 // push <data address + offset>
                 InstKind::PushData { id, offset } => {
-                    push(&mut atoms, Value::Address(Label::Data(*id), *offset), version)
+                    push(&mut assembly, Value::Address(Label::Data(*id), *offset), version)
                 }
                 // push <resolved deferred value>
                 InstKind::PushDeferred(id) => {
@@ -159,30 +195,30 @@ fn lower(
                             "cannot assemble unresolved `push_deferred` instruction".to_string()
                         })?)
                     };
-                    push(&mut atoms, value, version);
+                    push(&mut assembly, value, version);
                 }
                 // push<width> <immutable placeholder>
                 InstKind::PushImmutable { id, width } => {
                     if !(1..=32).contains(width) {
                         return Err("invalid immutable PUSH width".into());
                     }
-                    atoms.push(Atom::Immutable { id: *id, width: *width });
+                    assembly.immutable(*id, *width);
                 }
                 // dup <depth>
-                InstKind::Dup(depth) => atoms.push(Atom::Bytes(stack_op(version, *depth, false)?)),
+                InstKind::Dup(depth) => stack_op(&mut assembly.bytes, version, *depth, false)?,
                 // swap <depth>
-                InstKind::Swap(depth) => atoms.push(Atom::Bytes(stack_op(version, *depth, true)?)),
+                InstKind::Swap(depth) => stack_op(&mut assembly.bytes, version, *depth, true)?,
                 InstKind::Exchange(a, b) => {
                     if version.has_extended_stack_ops() {
                         let immediate = op::encode_exchange(*a, *b)
                             .ok_or_else(|| "invalid EVM exchange indices".to_string())?;
                         // exchange a, b
-                        atoms.push(Atom::Bytes(vec![op::EXCHANGE, immediate]));
+                        assembly.bytes.extend_from_slice(&[op::EXCHANGE, immediate]);
                     } else {
                         // swap a; swap b; swap a
-                        atoms.push(Atom::Bytes(stack_op(version, *a, true)?));
-                        atoms.push(Atom::Bytes(stack_op(version, *b, true)?));
-                        atoms.push(Atom::Bytes(stack_op(version, *a, true)?));
+                        stack_op(&mut assembly.bytes, version, *a, true)?;
+                        stack_op(&mut assembly.bytes, version, *b, true)?;
+                        stack_op(&mut assembly.bytes, version, *a, true)?;
                     }
                 }
             }
@@ -192,19 +228,19 @@ fn lower(
             // jump <target> (omit an immediate fallthrough)
             TerminatorKind::Jump(target) => {
                 if Some(*target) != next {
-                    jump(&mut atoms, *target, 0x56, version);
+                    jump(&mut assembly, *target, 0x56, version);
                 }
             }
             // push <true>; jumpi
             // push <false>; jump (unless fallthrough)
             TerminatorKind::JumpI(a, b) => {
-                jump(&mut atoms, *a, 0x57, version);
+                jump(&mut assembly, *a, 0x57, version);
                 if Some(*b) != next {
-                    jump(&mut atoms, *b, 0x56, version);
+                    jump(&mut assembly, *b, 0x56, version);
                 }
             }
             // jump <stack address>
-            TerminatorKind::DynamicJump => atoms.push(Atom::Bytes(vec![0x56])),
+            TerminatorKind::DynamicJump => assembly.bytes.extend_from_slice(&[0x56]),
             TerminatorKind::IndexedJump(targets) => {
                 if targets.is_empty() {
                     return Err("indexed EVM jump has no targets".into());
@@ -212,10 +248,14 @@ fn lower(
                 if table_width == 1 {
                     // <index>; push <32 - target count>; add
                     // push <packed byte addresses>; swap1; byte; jump
-                    push(&mut atoms, Value::Literal(U256::from(32 - targets.len())), version);
-                    atoms.push(Atom::Bytes(vec![op::ADD]));
-                    push(&mut atoms, Value::PackedTargets(targets.clone(), table_width), version);
-                    atoms.push(Atom::Bytes(vec![op::SWAP1, op::BYTE, op::JUMP]));
+                    push(&mut assembly, Value::Literal(U256::from(32 - targets.len())), version);
+                    assembly.bytes.extend_from_slice(&[op::ADD]);
+                    push(
+                        &mut assembly,
+                        Value::PackedTargets(targets.clone(), table_width),
+                        version,
+                    );
+                    assembly.bytes.extend_from_slice(&[op::SWAP1, op::BYTE, op::JUMP]);
                     continue;
                 }
                 let bits = table_width * 8;
@@ -226,75 +266,88 @@ fn lower(
                 };
                 // <index>; push <log2(entry bits)>; shl
                 // or: <index>; push <entry bits>; mul
-                push(&mut atoms, Value::Literal(U256::from(scale)), version);
-                atoms.push(Atom::Bytes(vec![opcode]));
+                push(&mut assembly, Value::Literal(U256::from(scale)), version);
+                assembly.bytes.extend_from_slice(&[opcode]);
                 if version.has_bitwise_shifting() {
                     // push <addresses with first target in low bits>; swap1; shr
                     push(
-                        &mut atoms,
+                        &mut assembly,
                         Value::PackedTargets(targets.iter().rev().copied().collect(), table_width),
                         version,
                     );
-                    atoms.push(Atom::Bytes(vec![op::SWAP1, op::SHR]));
+                    assembly.bytes.extend_from_slice(&[op::SWAP1, op::SHR]);
                 } else {
                     // Keep the original exponent at each index: EXP charges
                     // differently for zero, so reversal could increase gas.
                     // push <highest entry shift>; sub
                     // push 2; exp; push <addresses with first target in high bits>; div
                     push(
-                        &mut atoms,
+                        &mut assembly,
                         Value::Literal(U256::from((targets.len() - 1) * bits)),
                         version,
                     );
-                    atoms.push(Atom::Bytes(vec![op::SUB]));
-                    push(&mut atoms, Value::Literal(U256::from(2)), version);
-                    atoms.push(Atom::Bytes(vec![op::EXP]));
-                    push(&mut atoms, Value::PackedTargets(targets.clone(), table_width), version);
-                    atoms.push(Atom::Bytes(vec![op::DIV]));
+                    assembly.bytes.extend_from_slice(&[op::SUB]);
+                    push(&mut assembly, Value::Literal(U256::from(2)), version);
+                    assembly.bytes.extend_from_slice(&[op::EXP]);
+                    push(
+                        &mut assembly,
+                        Value::PackedTargets(targets.clone(), table_width),
+                        version,
+                    );
+                    assembly.bytes.extend_from_slice(&[op::DIV]);
                 }
                 // push <address mask>; and; jump
-                push(&mut atoms, Value::Literal((U256::ONE << bits) - U256::ONE), version);
-                atoms.push(Atom::Bytes(vec![op::AND, op::JUMP]));
+                push(&mut assembly, Value::Literal((U256::ONE << bits) - U256::ONE), version);
+                assembly.bytes.extend_from_slice(&[op::AND, op::JUMP]);
             }
             // Execution past the physical program ends with an implicit STOP.
             TerminatorKind::Stop
                 if next.is_none() && module.data.is_empty() && module.appendix.is_empty() => {}
             // stop / return / revert / invalid / selfdestruct
-            kind => atoms.push(Atom::Bytes(vec![match kind {
+            kind => assembly.bytes.extend_from_slice(&[match kind {
                 TerminatorKind::Stop => 0x00,
                 TerminatorKind::Return => 0xf3,
                 TerminatorKind::Revert => 0xfd,
                 TerminatorKind::SelfDestruct => 0xff,
                 TerminatorKind::Invalid | TerminatorKind::Unreachable => 0xfe,
                 _ => unreachable!(),
-            }])),
+            }]),
         }
     }
     for (id, data) in module.data.iter_enumerated() {
         // <data label>:
         // <opaque bytes>
-        atoms.push(Atom::Label(Label::Data(id)));
-        atoms.push(Atom::Bytes(data.bytes.clone()));
+        assembly.label(Label::Data(id));
+        assembly.bytes.extend_from_slice(&data.bytes);
     }
     // <opaque appended runtime bytes>
-    atoms.push(Atom::Bytes(module.appendix.clone()));
-    Ok(atoms)
+    assembly.bytes.extend_from_slice(&module.appendix);
+    Ok(assembly)
 }
 
-fn stack_op(version: EvmVersion, depth: u16, swap: bool) -> std::result::Result<Vec<u8>, String> {
+fn stack_op(
+    bytes: &mut Vec<u8>,
+    version: EvmVersion,
+    depth: u16,
+    swap: bool,
+) -> std::result::Result<(), String> {
     if (1..=16).contains(&depth) {
-        return Ok(vec![(if swap { 0x8f } else { 0x7f }) + depth as u8]);
+        // dup<depth> / swap<depth>
+        bytes.push((if swap { 0x8f } else { 0x7f }) + depth as u8);
+        return Ok(());
     }
     if version.has_extended_stack_ops()
         && let Some(immediate) = op::encode_depth(depth)
     {
-        return Ok(vec![if swap { op::SWAPN } else { op::DUPN }, immediate]);
+        // dupn / swapn <depth immediate>
+        bytes.extend_from_slice(&[if swap { op::SWAPN } else { op::DUPN }, immediate]);
+        return Ok(());
     }
     Err("EVM stack access exceeds the target's supported depth".into())
 }
 
 fn resolve(
-    mut atoms: Vec<Atom>,
+    mut assembly: Assembly,
     module: &ir::Module,
     version: EvmVersion,
 ) -> std::result::Result<Encoded, String> {
@@ -337,61 +390,74 @@ fn resolve(
     };
     let mut program_size;
     loop {
-        let mut offset = 0usize;
-        for atom in &atoms {
-            let size = match atom {
-                Atom::Label(label) => {
-                    match label {
-                        Label::Block(id) => blocks[*id] = offset,
-                        Label::Data(id) => data[*id] = offset,
-                    }
-                    0
-                }
-                Atom::Bytes(bytes) => bytes.len(),
-                Atom::Push { width, .. } => 1 + width,
-                Atom::Immutable { width, .. } => 1 + usize::from(*width),
-            };
-            offset =
-                offset.checked_add(size).ok_or_else(|| "EVM bytecode size overflow".to_string())?;
+        let mut relocations = assembly.relocations.iter().peekable();
+        let mut growth = 0usize;
+        for &(label, offset) in &assembly.labels {
+            // A placeholder at this position follows the label; only earlier
+            // pushes contribute immediate bytes to the label's final offset.
+            while let Some(relocation) = relocations.next_if(|r| r.offset < offset) {
+                growth = growth
+                    .checked_add(relocation.width)
+                    .ok_or_else(|| "EVM bytecode size overflow".to_string())?;
+            }
+            let address = offset
+                .checked_add(growth)
+                .ok_or_else(|| "EVM bytecode size overflow".to_string())?;
+            match label {
+                Label::Block(id) => blocks[id] = address,
+                Label::Data(id) => data[id] = address,
+            }
         }
-        program_size = offset;
+        for relocation in relocations {
+            growth = growth
+                .checked_add(relocation.width)
+                .ok_or_else(|| "EVM bytecode size overflow".to_string())?;
+        }
+        program_size = assembly
+            .bytes
+            .len()
+            .checked_add(growth)
+            .ok_or_else(|| "EVM bytecode size overflow".to_string())?;
         let mut changed = false;
-        for atom in &mut atoms {
-            if let Atom::Push { value, width } = atom {
-                let required =
-                    op::push_len(version, value_of(value, &blocks, &data, program_size)?) - 1;
-                if required > *width {
-                    *width = required;
-                    changed = true;
-                }
+        for relocation in &mut assembly.relocations {
+            let required =
+                op::push_len(version, value_of(&relocation.value, &blocks, &data, program_size)?)
+                    - 1;
+            if required > relocation.width {
+                relocation.width = required;
+                changed = true;
             }
         }
         if !changed {
             break;
         }
     }
-    let mut output = Encoded { bytes: Vec::new(), immutable_references: Vec::new() };
-    for atom in atoms {
-        match atom {
-            Atom::Label(_) => {}
-            Atom::Bytes(bytes) => output.bytes.extend(bytes),
-            Atom::Push { value, width } => {
-                let bytes = value_of(&value, &blocks, &data, program_size)?.to_be_bytes::<32>();
-                output.bytes.push(0x5f + width as u8);
-                output.bytes.extend_from_slice(&bytes[32 - width..]);
-            }
-            Atom::Immutable { id, width } => {
-                output.immutable_references.push(ImmutableReference {
-                    id,
-                    code_offset: output.bytes.len(),
-                    type_size: TypeSize::new_int_bits(u16::from(width) * 8),
-                });
-                output.bytes.push(0x5f + width);
-                output.bytes.resize(output.bytes.len() + usize::from(width), 0);
-            }
+    let mut relocations = assembly.relocations.iter().peekable();
+    let mut growth = 0;
+    for reference in &mut assembly.immutable_references {
+        while let Some(relocation) = relocations.next_if(|r| r.offset < reference.code_offset) {
+            growth += relocation.width;
         }
+        reference.code_offset += growth;
     }
-    Ok(output)
+    if assembly.relocations.is_empty() {
+        return Ok(Encoded {
+            bytes: assembly.bytes,
+            immutable_references: assembly.immutable_references,
+        });
+    }
+    let mut bytes = Vec::with_capacity(program_size);
+    let mut copied = 0;
+    for relocation in assembly.relocations {
+        // <fixed bytes>; push<resolved width> <resolved value>
+        bytes.extend_from_slice(&assembly.bytes[copied..relocation.offset]);
+        bytes.push(0x5f + relocation.width as u8);
+        let value = value_of(&relocation.value, &blocks, &data, program_size)?.to_be_bytes::<32>();
+        bytes.extend_from_slice(&value[32 - relocation.width..]);
+        copied = relocation.offset + 1;
+    }
+    bytes.extend_from_slice(&assembly.bytes[copied..]);
+    Ok(Encoded { bytes, immutable_references: assembly.immutable_references })
 }
 
 #[cfg(test)]
@@ -404,19 +470,14 @@ mod tests {
         let mut module = ir::Module::default();
         let a = module.blocks.push(ir::Block::default());
         let b = module.blocks.push(ir::Block::default());
-        let output = resolve(
-            vec![
-                Atom::Push { value: Value::Address(Label::Block(a), 0), width: 0 },
-                Atom::Push { value: Value::Address(Label::Block(b), 0), width: 0 },
-                Atom::Bytes(vec![op::STOP; 251]),
-                Atom::Label(Label::Block(a)),
-                Atom::Bytes(vec![op::STOP; 256]),
-                Atom::Label(Label::Block(b)),
-            ],
-            &module,
-            EvmVersion::Osaka,
-        )
-        .unwrap();
+        let mut assembly = Assembly::default();
+        push(&mut assembly, Value::Address(Label::Block(a), 0), EvmVersion::Osaka);
+        push(&mut assembly, Value::Address(Label::Block(b), 0), EvmVersion::Osaka);
+        assembly.bytes.extend_from_slice(&[op::STOP; 251]);
+        assembly.label(Label::Block(a));
+        assembly.bytes.extend_from_slice(&[op::STOP; 256]);
+        assembly.label(Label::Block(b));
+        let output = resolve(assembly, &module, EvmVersion::Osaka).unwrap();
         let text = disassemble(&output.bytes, EvmVersion::Osaka)
             .lines()
             .take(2)
@@ -477,18 +538,13 @@ MUL
         let mut module = ir::Module::default();
         let a = module.blocks.push(ir::Block::default());
         let b = module.blocks.push(ir::Block::default());
-        let output = resolve(
-            vec![
-                Atom::Push { value: Value::PackedTargets(vec![b, a], 2), width: 0 },
-                Atom::Bytes(vec![op::STOP; 256]),
-                Atom::Label(Label::Block(a)),
-                Atom::Bytes(vec![op::STOP]),
-                Atom::Label(Label::Block(b)),
-            ],
-            &module,
-            EvmVersion::Osaka,
-        )
-        .unwrap();
+        let mut assembly = Assembly::default();
+        push(&mut assembly, Value::PackedTargets(vec![b, a], 2), EvmVersion::Osaka);
+        assembly.bytes.extend_from_slice(&[op::STOP; 256]);
+        assembly.label(Label::Block(a));
+        assembly.bytes.push(op::STOP);
+        assembly.label(Label::Block(b));
+        let output = resolve(assembly, &module, EvmVersion::Osaka).unwrap();
         let text = disassemble(&output.bytes, EvmVersion::Osaka).lines().next().unwrap().to_owned();
         snapbox::assert_data_eq!(text, snapbox::str![["PUSH4 0x01060105"]]);
     }
@@ -496,21 +552,160 @@ MUL
     #[test]
     fn program_end_and_fixed_width_placeholders() {
         let module = ir::Module::default();
-        let output = resolve(
-            vec![
-                Atom::Push { value: Value::ProgramEnd, width: 0 },
-                Atom::Immutable { id: ImmutableId::new(0), width: 2 },
-            ],
-            &module,
-            EvmVersion::Osaka,
-        )
-        .unwrap();
+        let mut assembly = Assembly::default();
+        push(&mut assembly, Value::ProgramEnd, EvmVersion::Osaka);
+        assembly.immutable(ImmutableId::new(0), 2);
+        let output = resolve(assembly, &module, EvmVersion::Osaka).unwrap();
+        assert_eq!(output.immutable_references[0].code_offset, 2);
         snapbox::assert_data_eq!(
             disassemble(&output.bytes, EvmVersion::Osaka),
             snapbox::str![[r#"
 PUSH1 0x05
 PUSH2 0x0000
 
+"#]]
+        );
+    }
+
+    #[test]
+    fn labels_at_placeholder_positions_do_not_include_its_growth() {
+        let mut module = ir::Module::default();
+        let a = module.blocks.push(ir::Block::default());
+        let b = module.blocks.push(ir::Block::default());
+        let c = module.blocks.push(ir::Block::default());
+        let mut text = String::new();
+        for version in [EvmVersion::Osaka, EvmVersion::Byzantium] {
+            let mut assembly = Assembly::default();
+            // a: b: push a; push b; c: push c
+            assembly.label(Label::Block(a));
+            assembly.label(Label::Block(b));
+            push(&mut assembly, Value::Address(Label::Block(a), 0), version);
+            push(&mut assembly, Value::Address(Label::Block(b), 0), version);
+            assembly.label(Label::Block(c));
+            push(&mut assembly, Value::Address(Label::Block(c), 0), version);
+            let output = resolve(assembly, &module, version).unwrap();
+            text.push_str(&disassemble(&output.bytes, version));
+        }
+        snapbox::assert_data_eq!(
+            text,
+            snapbox::str![[r#"
+PUSH0
+PUSH0
+PUSH1 0x02
+PUSH1 0x00
+PUSH1 0x00
+PUSH1 0x04
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn immutable_sites_follow_only_preceding_push_growth() {
+        let mut module = ir::Module::default();
+        let target = module.blocks.push(ir::Block::default());
+        let version = EvmVersion::Osaka;
+        let mut assembly = Assembly::default();
+        // immutable0; push target; immutable1; push program_end
+        // <248 STOPs>; target: immutable2
+        assembly.immutable(ImmutableId::new(0), 1);
+        push(&mut assembly, Value::Address(Label::Block(target), 0), version);
+        assembly.immutable(ImmutableId::new(1), 2);
+        push(&mut assembly, Value::ProgramEnd, version);
+        assembly.bytes.extend_from_slice(&[op::STOP; 248]);
+        assembly.label(Label::Block(target));
+        assembly.immutable(ImmutableId::new(2), 1);
+        let output = resolve(assembly, &module, version).unwrap();
+        let mut text =
+            disassemble(&output.bytes, version).lines().take(4).collect::<Vec<_>>().join("\n");
+        for reference in &output.immutable_references {
+            text.push_str(&format!(
+                "\npatch at {}: {}",
+                reference.code_offset,
+                disassemble(&output.bytes[reference.code_offset..], version)
+                    .lines()
+                    .next()
+                    .unwrap(),
+            ));
+        }
+        snapbox::assert_data_eq!(
+            text,
+            snapbox::str![[r#"
+PUSH1 0x00
+PUSH2 0x0103
+PUSH2 0x0000
+PUSH2 0x0105
+patch at 0: PUSH1 0x00
+patch at 5: PUSH2 0x0000
+patch at 259: PUSH1 0x00
+"#]]
+        );
+    }
+
+    #[test]
+    fn fixed_byte_fast_path_preserves_data_and_immutable_sites() {
+        let mut module = ir::Module::default();
+        // push 0; push 0x1234; immutable0; stop; <data ADD>; <appendix MUL>
+        module.blocks.push(ir::Block {
+            insts: vec![
+                InstKind::Push(U256::ZERO).into(),
+                InstKind::Push(U256::from(0x1234)).into(),
+                InstKind::PushImmutable { id: ImmutableId::new(0), width: 2 }.into(),
+            ],
+            terminator: TerminatorKind::Stop.into(),
+            ..Default::default()
+        });
+        module.data.push(ir::Data { bytes: vec![op::ADD], ..Default::default() });
+        module.appendix.push(op::MUL);
+        let version = EvmVersion::Osaka;
+        let assembly = lower(&module, version, 1).unwrap();
+        assert!(assembly.relocations.is_empty());
+        let output = resolve(assembly, &module, version).unwrap();
+        assert_eq!(output.immutable_references[0].code_offset, 4);
+        snapbox::assert_data_eq!(
+            disassemble(&output.bytes, version),
+            snapbox::str![[r#"
+PUSH0
+PUSH2 0x1234
+PUSH2 0x0000
+STOP
+ADD
+MUL
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn indexed_retry_restarts_after_ordinary_push_growth() {
+        let mut module = ir::Module::default();
+        let target = module.blocks.push(ir::Block::default());
+        let version = EvmVersion::Osaka;
+        let make_assembly = |width| {
+            let mut assembly = Assembly::default();
+            // push packed(target); push target; <252 STOPs>; target: immutable0
+            push(&mut assembly, Value::PackedTargets(vec![target], width), version);
+            push(&mut assembly, Value::Address(Label::Block(target), 0), version);
+            assembly.bytes.extend_from_slice(&[op::STOP; 252]);
+            assembly.label(Label::Block(target));
+            assembly.immutable(ImmutableId::new(0), 1);
+            assembly
+        };
+        let error = resolve(make_assembly(1), &module, version).err().unwrap();
+        snapbox::assert_data_eq!(
+            error,
+            snapbox::str![["indexed target exceeds selected address width"]]
+        );
+        let output = resolve(make_assembly(2), &module, version).unwrap();
+        assert_eq!(output.immutable_references.len(), 1);
+        assert_eq!(output.immutable_references[0].code_offset, 258);
+        let text =
+            disassemble(&output.bytes, version).lines().take(2).collect::<Vec<_>>().join("\n");
+        snapbox::assert_data_eq!(
+            text,
+            snapbox::str![[r#"
+PUSH2 0x0102
+PUSH2 0x0102
 "#]]
         );
     }

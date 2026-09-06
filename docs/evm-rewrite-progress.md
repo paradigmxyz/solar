@@ -374,6 +374,25 @@ comes with eight UI artifact increases, including two existing nested-struct
 fixtures already above the sealed baseline. Only that traversal hunk was
 reversed; the evidence remains in `spill-interval-rpo/assessment/`.
 
+## Assembler byte buffer
+
+Ordinary opcodes, literal pushes, data and fixed immutable placeholders are now
+encoded directly into one buffer. Separate ordered label/deferred-PUSH records
+replace the per-instruction `Atom` stream. Fixed-point placement scans only
+those records; emission reserves the resolved output size. This removes tiny
+per-opcode allocations and avoids copying the buffer when no relocation exists.
+It adds 66 production-section lines and 129 test-section lines relative to the
+fresh previous assembler, with four new pure boundary regressions.
+
+All 714 successful UI cases per mode, 15 hot cases/175 ordered labels per mode,
+and 160 paired EVM-IR fixture lanes retain exact output. All 90 helper tests
+pass. The sequential Seaport pair preserves all 432 contracts and their exact
+creation/runtime bytecode. Time is 164.22 -> 164.69 seconds; this single pair
+shows no speedup. Peak RSS is 757,356 -> 739,584 KiB, a 2.35% reduction. Evidence,
+source/executable hashes, original outputs and review are in `assembly-buffer/`.
+These measurements compare this representation change only; they do not clear
+the rewrite's outstanding sealed-baseline performance debt.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate
