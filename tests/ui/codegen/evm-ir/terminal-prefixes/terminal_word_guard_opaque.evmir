@@ -1,0 +1,37 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_word_guard_opaque
+
+// A code or opaque observer anywhere in the module prevents changing its bytes.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 128{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 128{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb0:
+  push 7
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}callf !metadata(stack=0->0){{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}stop{{$}}
+bb1:
+  callf !meta(stack=0->0)
+  stop

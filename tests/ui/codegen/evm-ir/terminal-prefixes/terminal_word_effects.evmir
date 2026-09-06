@@ -1,0 +1,28 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_word_effects
+
+// Redundant verified stack declarations do not block a stack-neutral rewrite.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb0:
+  push 7
+  push 128 !meta(stack=0->1)
+  mstore !meta(stack=2->0)
+  push 32 !meta(stack=0->1)
+  push 128 !meta(stack=0->1)
+  return !meta(stack=2->0)

@@ -1,4 +1,4 @@
-//! Removal of unused incoming stack prefixes from acyclic terminal regions.
+//! Unused stack-prefix removal and bounded full-word return compaction.
 //!
 //! A leading POP can be omitted when the entire remaining region executes using
 //! only words produced within that region. Abstract stack-height execution proves
@@ -10,12 +10,24 @@
 //! before final block placement. This preserves patterns used by earlier packing and sharing. Each
 //! accepted region removes at least one POP. Recompute physical entry bounds before trying
 //! another region, so cumulative retained words cannot invalidate the stack-capacity proof.
+//!
+//! An exact final `push A; mstore; push 32; push A; return` can use offset zero
+//! instead: the return reads the entire word just written, with no intervening
+//! observation. This preserves the stack and reduces or preserves memory expansion.
+//! The initial scope is the compiler's low return/scratch range, 1 through 128;
+//! larger or wrapping addresses retain their original expansion behavior. Canonical
+//! effects and glue boundaries are required, and module-wide code observations or
+//! unknown computed transfers prevent the rewrite. Earlier GAS and memory reads
+//! remain unchanged because the rewritten tail exits immediately. Literal metadata
+//! is retained. This runs before placement and can expose identical terminal tails;
+//! downstream sharing and layout profitability still need whole-pipeline checks.
 
 use super::{
-    super::{BlockId, EvmPass, InstKind, Module, TerminatorKind, verify},
+    super::{BlockId, EvmPass, InstKind, Module, TerminatorKind, cfg, split_allowed, verify},
     canonical, stack_usage,
 };
 use crate::backend::evm::op;
+use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_sema::Gcx;
 
@@ -34,8 +46,47 @@ impl EvmPass for TerminalPrefixes {
             }
             changed = true;
         }
+        changed |= compact_return_words(module);
         changed
     }
+}
+
+fn compact_return_words(module: &mut Module) -> bool {
+    let candidates = module
+        .block_ids()
+        .filter(|&id| {
+            let block = &module.blocks[id];
+            if let [.., address, store, size, offset] = block.insts.as_slice()
+                && block.terminator.kind == TerminatorKind::Return
+                && !block.terminator.keep_with_next
+                && block.terminator.stack_effect.is_none_or(|effect| effect == (2, 0))
+                && let InstKind::Push(value) = address.kind
+                && value > U256::ZERO
+                && value <= U256::from(128)
+                && store.kind == InstKind::Op(op::MSTORE)
+                && size.kind == InstKind::Push(U256::from(32))
+                && offset.kind == address.kind
+                && [address, store, size, offset].into_iter().all(canonical)
+                && split_allowed(&block.insts, block.insts.len() - 4)
+            {
+                true
+            } else {
+                false
+            }
+        })
+        .collect::<Vec<_>>();
+    if candidates.is_empty() || cfg::sharing_observes_code(module) {
+        return false;
+    }
+    for id in candidates {
+        let insts = &mut module.blocks[id].insts;
+        let len = insts.len();
+        // push A; mstore; push 32; push A; return
+        // -> push 0; mstore; push 32; push 0; return
+        insts[len - 4].kind = InstKind::Push(U256::ZERO);
+        insts[len - 1].kind = InstKind::Push(U256::ZERO);
+    }
+    true
 }
 
 fn eliminate(module: &mut Module, heights: &verify::StackHeights, native_shifts: bool) -> bool {

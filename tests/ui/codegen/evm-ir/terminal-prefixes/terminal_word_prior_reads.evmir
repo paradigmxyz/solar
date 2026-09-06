@@ -1,0 +1,82 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_word_prior_reads
+
+// Earlier GAS, MSIZE and scratch reads retain their value before the final store.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}gas{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb0:
+  gas
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}msize{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb1:
+  msize
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mload{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb2:
+  push 7
+  push 0
+  mstore
+  push 0
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  return

@@ -1,0 +1,77 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_offsets.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_offsets.evmir (after terminal-prefixes) ===
+  @module terminal_word_offsets
+  bb0:
+    push 7
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  bb1:
+    push 7
+-   push 1
++   push 0
+    mstore
+    push 32
+-   push 1
++   push 0
+    return
+  bb2:
+    push 7
+-   push 31
++   push 0
+    mstore
+    push 32
+-   push 31
++   push 0
+    return
+  bb3:
+    push 7
+-   push 32
++   push 0
+    mstore
+    push 32
+-   push 32
++   push 0
+    return
+  bb4:
+    push 7
+-   push 128
++   push 0
+    mstore
+    push 32
+-   push 128
++   push 0
+    return
+  bb5:
+    push 7
+    push 129
+    mstore
+    push 32
+    push 129
+    return
+  bb6:
+    push 7
+    push 0x100000000
+    mstore
+    push 32
+    push 0x100000000
+    return
+  bb7:
+    push 7
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    mstore
+    push 32
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    return
+  bb8:
+    push 0
+-   push 128
++   push 0
+    mstore
+    push 32
+-   push 128
++   push 0
+    return
+  

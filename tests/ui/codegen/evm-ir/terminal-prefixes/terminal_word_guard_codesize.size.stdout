@@ -1,0 +1,15 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_guard_codesize.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_guard_codesize.evmir (after terminal-prefixes) ===
+  @module terminal_word_guard_codesize
+  bb0:
+    push 7
+    push 128
+    mstore
+    push 32
+    push 128
+    return
+  bb1:
+    codesize
+    pop
+    stop
+  

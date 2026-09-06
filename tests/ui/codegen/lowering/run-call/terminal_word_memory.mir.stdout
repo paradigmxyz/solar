@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_word_memory.sol:TerminalWordMemory ===
+@module TerminalWordMemory
+fn @word32(arg0: u256) [selector=0x9674eec9, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    mstore 32, arg0 !metadata(memory=scratch)
+    returndata 32, 32
+}
+
+fn @word128(arg0: u256) [selector=0x6f6050a9, pure, abi_params=[u256], abi_returns=[word]] {
+  bb0:
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @aliasRead() [selector=0x3b277f10, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 0, 7 !metadata(memory=scratch)
+    v0 = mload 0 !metadata(memory=scratch)
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @memoryObserved() [selector=0x425e572f, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 128, 7
+    v0 = msize
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @mismatchedRange() [selector=0xd896f96b, pure, abi_params=[], abi_returns=[word]] {
+  bb0:
+    mstore 128, 7
+    returndata 0, 32
+}
+
+fn @gasPrefix() [selector=0x6e462498, view, abi_params=[], abi_returns=[word<bool>]] {
+  bb0:
+    v0 = gas
+    v1 = gt v0, 0
+    mstore 128, v1
+    returndata 128, 32
+}
+
+fn @gasBetween() [selector=0xd254ff74, view, abi_params=[], abi_returns=[word, word<bool>]] {
+  bb0:
+    mstore 128, 7
+    v0 = gas
+    v1 = gt v0, 0
+    mstore 160, v1
+    returndata 128, 64
+}
+
+fn @revertWord() [selector=0x16bbe85b, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 128, 7
+    revert 128, 32
+}
+
+fn @hugeAddress() [selector=0xb76fec30, pure, abi_params=[], abi_returns=[]] {
+  bb0:
+    mstore 0x100000000, 7
+    returndata 0x100000000, 32
+}

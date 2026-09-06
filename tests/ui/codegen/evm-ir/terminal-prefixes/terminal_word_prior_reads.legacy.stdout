@@ -1,0 +1,35 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_prior_reads.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_prior_reads.evmir (after terminal-prefixes) ===
+  @module terminal_word_prior_reads
+  bb0:
+    gas
+-   push 128
++   push 0
+    mstore
+    push 32
+-   push 128
++   push 0
+    return
+  bb1:
+    msize
+-   push 128
++   push 0
+    mstore
+    push 32
+-   push 128
++   push 0
+    return
+  bb2:
+    push 7
+    push 0
+    mstore
+    push 0
+    mload
+-   push 128
++   push 0
+    mstore
+    push 32
+-   push 128
++   push 0
+    return
+  

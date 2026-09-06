@@ -1,0 +1,209 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/terminal_word_memory.sol:TerminalWordMemory (runtime) ===
+@module TerminalWordMemory_runtime
+bb0:
+  push 192
+  push 64
+  mstore
+  jump bb35
+bb1:
+  calldatasize
+  push 36
+  swap 1
+  lt
+  jumpi bb2, bb3
+bb2:
+  push 0
+  dup 1
+  revert
+bb3:
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb4:
+  jump bb1
+bb5:
+  calldatasize
+  push 36
+  swap 1
+  lt
+  jumpi bb6, bb7
+bb6:
+  push 0
+  dup 1
+  revert
+bb7:
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb8:
+  jump bb5
+bb9:
+  push 7
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb10:
+  jump bb9
+bb11:
+  push 7
+  push 128
+  mstore
+  msize
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb12:
+  jump bb11
+bb13:
+  push 32
+  push 0
+  return
+bb14:
+  jump bb13
+bb15:
+  gas
+  push 0
+  swap 1
+  gt
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb16:
+  jump bb15
+bb17:
+  push 7
+  push 128
+  mstore
+  gas
+  push 0
+  swap 1
+  gt
+  push 160
+  mstore
+  push 64
+  push 128
+  return
+bb18:
+  jump bb17
+bb19:
+  push 7
+  push 128
+  mstore
+  push 32
+  push 128
+  revert
+bb20:
+  jump bb19
+bb21:
+  push 7
+  push 0x100000000
+  mstore
+  push 32
+  push 0x100000000
+  return
+bb22:
+  jump bb21
+bb23:
+  callvalue
+  jumpi bb34, bb24
+bb24:
+  push 0
+  calldataload
+  push 224
+  shr
+  jump bb52
+bb25:
+  jump bb20
+bb26:
+  jump bb10
+bb27:
+  jump bb12
+bb28:
+  jump bb16
+bb29:
+  jump bb8
+bb30:
+  jump bb4
+bb31:
+  jump bb22
+bb32:
+  jump bb18
+bb33:
+  jump bb14
+bb34:
+  push 0
+  dup 1
+  revert
+bb35:
+  jump bb23
+bb36:
+  jump bb34
+bb37:
+  push 0x3b277f10
+  sub
+  jumpi bb34, bb26
+bb38:
+  push 0x425e572f
+  sub
+  jumpi bb34, bb27
+bb39:
+  push 0xb76fec30
+  sub
+  jumpi bb34, bb31
+bb40:
+  jump bb34
+bb41:
+  push 0x16bbe85b
+  sub
+  jumpi bb34, bb25
+bb42:
+  push 0xd896f96b
+  sub
+  jumpi bb34, bb33
+bb43:
+  push 0xd254ff74
+  sub
+  jumpi bb34, bb32
+bb44:
+  jump bb34
+bb45:
+  push 0x6e462498
+  sub
+  jumpi bb34, bb28
+bb46:
+  push 0x6f6050a9
+  sub
+  jumpi bb34, bb29
+bb47:
+  jump bb34
+bb48:
+  push 0x9674eec9
+  sub
+  jumpi bb34, bb30
+bb49:
+  jump bb34
+bb50:
+  jump bb34
+bb51:
+  jump bb34
+bb52:
+  dup 1
+  push 4
+  shr
+  push 15
+  and
+  indexed_jump bb36, bb37, bb38, bb39, bb40, bb41, bb42, bb43, bb44, bb45, bb46, bb47, bb48, bb49, bb50, bb51

@@ -1,0 +1,13 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_effects.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_effects.evmir (after terminal-prefixes) ===
+  @module terminal_word_effects
+  bb0:
+    push 7
+-   push 128
++   push 0
+    mstore
+    push 32
+-   push 128
++   push 0
+    return
+  

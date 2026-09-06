@@ -1,0 +1,42 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_intervening.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_intervening.evmir (after terminal-prefixes) ===
+  @module terminal_word_intervening
+  bb0:
+    push 7
+    push 128
+    mstore
+    gas
+    pop
+    push 32
+    push 128
+    return
+  bb1:
+    push 7
+    push 128
+    mstore
+    msize
+    pop
+    push 32
+    push 128
+    return
+  bb2:
+    push 7
+    push 128
+    mstore
+    push 128
+    mload
+    pop
+    push 32
+    push 128
+    return
+  bb3:
+    push 7
+    push 128
+    mstore
+    push 99
+    push 128
+    mstore8
+    push 32
+    push 128
+    return
+  

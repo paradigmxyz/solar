@@ -1,0 +1,67 @@
+- // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_ranges.evmir (before terminal-prefixes) ===
++ // === ROOT/tests/ui/codegen/evm-ir/terminal-prefixes/terminal_word_ranges.evmir (after terminal-prefixes) ===
+  @module terminal_word_ranges
+  bb0:
+    push 7
+    push 32
+    mstore
+    push 32
+    push 128
+    return
+  bb1:
+    push 7
+    push 128
+    mstore
+    push 32
+    push 0
+    return
+  bb2:
+    push 7
+    push 128
+    mstore
+    push 0
+    push 128
+    return
+  bb3:
+    push 7
+    push 128
+    mstore
+    push 31
+    push 128
+    return
+  bb4:
+    push 7
+    push 128
+    mstore
+    push 33
+    push 128
+    return
+  bb5:
+    push 7
+    push 128
+    mstore
+    push 64
+    push 128
+    return
+  bb6:
+    push 7
+    push 128
+    mstore
+    push 32
+    push 128
+    revert
+  bb7:
+    push 7
+    push 128
+    mstore8
+    push 32
+    push 128
+    return
+  bb8:
+    push 7
+    calldatasize
+    mstore
+    push 32
+    calldatasize
+    return
+  

@@ -1,0 +1,196 @@
+//@ revisions: gas size legacy
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=terminal-prefixes
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=terminal-prefixes
+//@[legacy] compile-flags: -Ogas --evm-version homestead -Zevm-ir-pipeline=terminal-prefixes
+//@ filecheck:
+@module terminal_word_offsets
+
+// Only positive offsets through 128 are compacted, including unaligned offsets.
+// CHECK-LABEL: {{^[ +] *}}bb0:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb0:
+  push 7
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb1:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb1:
+  push 7
+  push 1
+  mstore
+  push 32
+  push 1
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb2:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb2:
+  push 7
+  push 31
+  mstore
+  push 32
+  push 31
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb3:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb3:
+  push 7
+  push 32
+  mstore
+  push 32
+  push 32
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb4:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb4:
+  push 7
+  push 128
+  mstore
+  push 32
+  push 128
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb5:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 129{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 129{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb5:
+  push 7
+  push 129
+  mstore
+  push 32
+  push 129
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb6:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0x100000000{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0x100000000{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb6:
+  push 7
+  push 0x100000000
+  mstore
+  push 32
+  push 0x100000000
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb7:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 7{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb7:
+  push 7
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  mstore
+  push 32
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  return
+
+// CHECK-LABEL: {{^[ +] *}}bb8:
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}mstore{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 32{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}push 0{{$}}
+// CHECK-NOT: {{^[ +]}}
+// CHECK: {{^[ +] *}}return{{$}}
+bb8:
+  push 0
+  push 128
+  mstore
+  push 32
+  push 128
+  return
