@@ -250,8 +250,20 @@ and 53.71→52.71 seconds (−0.4% / −1.9%); sampled maximum RSS rises
 582,352→634,640 and 581,912→634,880 KiB (+9.0% / +9.1%). This memory
 tradeoff remains explicit in `local-stack-facts-trial-20260906/`.
 
+Reordering tail-merge observer guards was rejected and reverted. Its complete
+432-contract timed outputs are exact, but paired compile times rise
+52.71→54.02 and 53.70→54.12 seconds (+2.5% / +0.8%). No broader test lane
+followed this compile-time rejection. Evidence is retained in
+`tail-guard-order-trial-20260906/`.
+
 An FMP-provenance screen found no eligible runtime root under the retained
 no-reset analysis, so no broader memory-disjointness assumption was introduced.
+A followup checked Router's 42 FMP stores: none restores an exact saved SSA
+value, and only five allocation ends have complete carry/upper-bound guards.
+Those guards do not prove a lower bound after an arbitrary source FMP reset.
+Covering repeated writers needs loop ranges and successful-return effects beyond
+the retained facts; no speculative backend analysis was added. Static evidence
+is in `fmp-checked-restoration-study-20260906/`.
 Current work examines private-control-aware duplicate exit removal. Further
 residency changes require evidence that their added shuffles pay for themselves. The acyclic phi's
 five-byte debt includes a removable four-byte duplicate revert; its FMP
