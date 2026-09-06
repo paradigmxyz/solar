@@ -92,7 +92,8 @@ pub(crate) fn lower(
     let mut reachable = CallGraphInfo::new(module).reachable_callees_from([root]);
     reachable.insert(root);
     let mut returnable = DenseBitSet::new_empty(module.functions.len());
-    for (id, function) in module.iter_functions() {
+    for id in reachable.iter() {
+        let function = module.function(id);
         let cfg = CfgInfo::new(function);
         if function.blocks.iter_enumerated().any(|(block_id, block)| {
             cfg.is_reachable(block_id)
@@ -127,30 +128,28 @@ pub(crate) fn lower(
     // mstore(0x40, fixed_memory_end)
     // mstore(0xa0, 0) when dynamic activations are reachable
     let prologue = output.blocks.push(ir::Block::default());
-    let mut layouts = IndexVec::<mir::FunctionId, FunctionLayout>::new();
-    for (id, function) in module.iter_functions() {
+    // Deployment often reaches only a constructor; omit unused heavyweight layouts.
+    let mut layouts = FxHashMap::default();
+    for id in reachable.iter() {
+        let function = module.function(id);
         let live = Liveness::compute(function);
         let cfg = CfgInfo::new(function);
         let alias = AliasAnalysis::new(function);
-        let spills = if reachable.contains(id) {
-            SpillPlan::new(
-                function,
-                &live,
-                &cfg,
-                &alias,
-                returning.contains(id),
-                version,
-                |value| stored(function, value),
-            )
-        } else {
-            SpillPlan::default()
-        };
+        let spills = SpillPlan::new(
+            function,
+            &live,
+            &cfg,
+            &alias,
+            returning.contains(id),
+            version,
+            |value| stored(function, value),
+        );
         plan.reserve_spills(id, spills.words).map_err(str::to_owned)?;
         let mut blocks = IndexVec::new();
         let mut entries = IndexVec::<mir::BlockId, Vec<mir::ValueId>>::new();
         let mut home_definitions = FxHashMap::default();
         for (block_id, block) in function.blocks.iter_enumerated() {
-            blocks.push(if reachable.contains(id) && cfg.is_reachable(block_id) {
+            blocks.push(if cfg.is_reachable(block_id) {
                 output.blocks.push(ir::Block::default())
             } else {
                 prologue
@@ -192,22 +191,21 @@ pub(crate) fn lower(
                 entry
             })
             .collect();
-        let entry = if reachable.contains(id) {
-            output.blocks.push(ir::Block::default())
-        } else {
-            prologue
-        };
-        layouts.push(FunctionLayout {
-            blocks,
-            entries,
-            entry,
-            returning: returning.contains(id),
-            live,
-            cfg,
-            alias,
-            spills,
-            home_definitions,
-        });
+        let entry = output.blocks.push(ir::Block::default());
+        layouts.insert(
+            id,
+            FunctionLayout {
+                blocks,
+                entries,
+                entry,
+                returning: returning.contains(id),
+                live,
+                cfg,
+                alias,
+                spills,
+                home_definitions,
+            },
+        );
     }
     plan.finalize().map_err(str::to_owned)?;
     let reads_fmp = plan.max_dynamic_frame_size != 0
@@ -217,7 +215,7 @@ pub(crate) fn lower(
                 if matches!(function.inst(inst).kind, mir::InstKind::InternalCall { .. }) {
                     return false;
                 }
-                let effects = layouts[id].alias.instruction_mod_ref(function, inst);
+                let effects = layouts[&id].alias.instruction_mod_ref(function, inst);
                 effects.observes_memory_size()
                     || super::spills::accesses_overlap(
                         &plan.functions[id],
@@ -242,7 +240,7 @@ pub(crate) fn lower(
             ir::InstKind::Op(op::MSTORE).into(),
         ]);
     }
-    output.blocks[prologue].terminator = ir::TerminatorKind::Jump(layouts[root].entry).into();
+    output.blocks[prologue].terminator = ir::TerminatorKind::Jump(layouts[&root].entry).into();
     let mut used_data = DenseBitSet::new_empty(module.data_count());
     for function in reachable.iter().map(|id| module.function(id)) {
         for inst in function.instructions() {
@@ -270,7 +268,7 @@ pub(crate) fn lower(
             function,
             storage: &plan.functions[id],
             plan: &plan,
-            layout: &layouts[id],
+            layout: &layouts[&id],
             version,
             optimization,
             deployment,
@@ -341,7 +339,7 @@ pub(crate) fn lower(
 
 fn lower_function(
     context: &Context<'_>,
-    layouts: &IndexVec<mir::FunctionId, FunctionLayout>,
+    layouts: &FxHashMap<mir::FunctionId, FunctionLayout>,
     output: &mut ir::Module,
     switches: &mut super::switches::Planner,
 ) -> Result<(), String> {
@@ -373,7 +371,7 @@ fn lower_function(
                     || true,
                 )?;
                 let continuation = output.blocks.push(ir::Block::default());
-                let mut target = layouts[*callee].entry;
+                let mut target = layouts[callee].entry;
                 let caller;
                 if !layout.spills.homes.is_empty() {
                     let base = stack.values()[..prefix(context)].to_vec();
@@ -407,7 +405,7 @@ fn lower_function(
                     if let Some((prepared, direct)) = call_entry::choose(
                         context,
                         *callee,
-                        &layouts[*callee],
+                        &layouts[callee],
                         args,
                         &incoming,
                         caller.len(),
@@ -637,7 +635,7 @@ fn lower_function(
                 // install the non-returning callee frame and jump without a return label
                 insts
                     .extend(stack.reconcile(&desired, 0, context.version).map_err(schedule_error)?);
-                if layouts[*callee].returning {
+                if layouts[callee].returning {
                     return Err(format!(
                         "tail-call target `{}` from `{}` requires a returning activation",
                         context.module.function(*callee).name,
@@ -650,7 +648,7 @@ fn lower_function(
                     args.len(),
                     current,
                     &mut insts,
-                    layouts[*callee].entry,
+                    layouts[callee].entry,
                     output,
                 )?;
                 continue;

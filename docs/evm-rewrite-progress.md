@@ -416,6 +416,15 @@ or changed hot labels. All 531 writer calls and 32 sealed/solc reference calls
 agree. A new standard matrix plus raw-IR revision passes all five cases; the
 before compiler fails the raw-IR regression. Evidence: `writer-home-availability/`.
 
+Function layouts are now constructed only for the artifact's reachable call
+graph, in the same ascending function order. Constructor sparsity justifies a
+private sparse map; dense block IDs and storage planning remain unchanged. Across
+25 corpus lowerings this omits about 49% of layouts and half the block-entry
+scans. Exact UI/hot and 432-contract Seaport output is unchanged. Sequential
+Seaport time is flat (140.174 -> 140.171 seconds), with peak RSS 737,000 -> 734,080
+KiB; this is a work/allocation reduction, not a demonstrated compiler speedup.
+Evidence is in `function-layout-occupancy/` and `reachable-layouts/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

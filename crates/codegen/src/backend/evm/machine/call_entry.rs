@@ -20,7 +20,7 @@ use crate::{
     mir,
 };
 use solar_config::OptimizationMode;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Builds the shared stack-argument entry contract before emitting any stores.
 pub(super) fn entry(
@@ -98,7 +98,7 @@ pub(super) fn choose(
 /// This construction-time fact does not weaken generic computed-jump analysis.
 pub(super) fn prune_unused(
     module: &mut ir::Module,
-    layouts: &IndexVec<mir::FunctionId, FunctionLayout>,
+    layouts: &FxHashMap<mir::FunctionId, FunctionLayout>,
 ) {
     if !module.private_control_labels {
         return;
@@ -131,7 +131,7 @@ pub(super) fn prune_unused(
         }
     }
     let mut unused = DenseBitSet::new_empty(module.blocks.len());
-    for layout in layouts {
+    for layout in layouts.values() {
         if !referenced.contains(layout.entry) {
             unused.insert(layout.entry);
         }
