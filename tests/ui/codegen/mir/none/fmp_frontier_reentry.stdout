@@ -1,0 +1,39 @@
+- // === ROOT/tests/ui/codegen/mir/none/fmp_frontier_reentry.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/fmp_frontier_reentry.mir (after none) ===
+  @module ReenteredFrontier
+  @phase evm-shaped
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      jumpi v0, bb1, bb2
+    bb2:
+      tail_call @getter
+    bb1:
+      tail_call @frontier
+  }
+  
+  fn @frontier() [selector=0x11111111] {
+    bb0:
+      v0 = mload 64
+      mstore 128, v0
+      v1 = sload 0
+      jumpi v1, bb2, bb1
+    bb1:
+      tail_call @helper
+    bb2:
+      returndata 128, 32
+  }
+  
+  fn @helper() {
+    bb0:
+      mstore 64, 0x1000
+      sstore 0, 1
+      tail_call @frontier
+  }
+  
+  fn @getter() {
+    bb0:
+      mstore 128, 0
+      returndata 128, 32
+  }
+  

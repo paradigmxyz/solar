@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/mir/none/fmp_frontier_root_alias.mir (before none) ===
++ // === ROOT/tests/ui/codegen/mir/none/fmp_frontier_root_alias.mir (after none) ===
+  @module RootAliasWrite
+  @phase evm-shaped
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      mstore v0, 0x1000
+      tail_call @frontier
+  }
+  
+  fn @frontier() {
+    bb0:
+      returndata 64, 32
+  }
+  

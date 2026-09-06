@@ -1,0 +1,46 @@
+//@ compile-flags: -Zmir-pipeline=none
+//@ filecheck:
+
+// Preserve the exact EVM-shaped entry edges and memory operations when parsing MIR.
+// These graphs also exercise backend initialization through a public-API replay harness.
+// CHECK-LABEL: @module ReenteredFrontier
+// CHECK: @phase evm-shaped
+// CHECK: fn @frontier() [selector=0x11111111]
+// CHECK: tail_call @helper
+// CHECK: fn @helper()
+// CHECK: mstore 64, 0x1000
+// CHECK: tail_call @frontier
+
+@module ReenteredFrontier
+@phase evm-shaped
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    jumpi v0, bb1, bb2
+  bb1:
+    tail_call @frontier
+  bb2:
+    tail_call @getter
+}
+fn @frontier() [selector=0x11111111] {
+  bb0:
+    v0 = mload 64
+    mstore 128, v0
+    v1 = sload 0
+    jumpi v1, bb2, bb1
+  bb1:
+    tail_call @helper
+  bb2:
+    returndata 128, 32
+}
+fn @helper() {
+  bb0:
+    mstore 64, 4096
+    sstore 0, 1
+    tail_call @frontier
+}
+fn @getter() {
+  bb0:
+    mstore 128, 0
+    returndata 128, 32
+}

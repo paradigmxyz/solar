@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=none
+//@ filecheck:
+
+// Preserve the exact EVM-shaped entry edges and memory operations when parsing MIR.
+// These graphs also exercise backend initialization through a public-API replay harness.
+// CHECK-LABEL: @module RootAliasWrite
+// CHECK: @phase evm-shaped
+// CHECK: [[ADDRESS:v[0-9]+]] = calldataload 0
+// CHECK-NEXT: mstore [[ADDRESS]], 0x1000
+// CHECK-NEXT: tail_call @frontier
+// CHECK: returndata 64, 32
+
+@module RootAliasWrite
+@phase evm-shaped
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    mstore v0, 4096
+    tail_call @frontier
+}
+fn @frontier() {
+  bb0:
+    returndata 64, 32
+}
