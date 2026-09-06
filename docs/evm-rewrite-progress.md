@@ -22,8 +22,8 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The accepted scope has 12,965 Rust lines across 37 files, versus 34,638 deleted
-raw lines: 21,673 fewer (62.6%). Counts include comments, blanks and local tests.
+The accepted scope has 12,983 Rust lines across 37 files, versus 34,638 deleted
+raw lines: 21,655 fewer (62.5%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
@@ -36,15 +36,16 @@ Clippy pass. The twelve source-memory readback revisions pass, including
 unoptimized execution. The nullary-read assertion is now restored; no new
 failure ID remains after the narrowly reviewed expectation updates.
 
-The current original-artifact ledger remains
-`disjoint-mask-sealed-ledger-20260906/`; the calldata-home milestone below
-preserves original UI, gas-hot and heavy bytes exactly. Size-hot Nitro creation
-and runtime each shrink 24 bytes, with unchanged gas and observations. All 694
+The current original-artifact ledger is
+`private-terminal-acceptance-review-20260906/`, backed by the separate UI,
+heavy and hot audits. The latest terminal-sharing milestone reduces bytecode
+without any individual increase; both hot modes preserve gas and observations. All 694
 original successful UI IDs and eight known failures match in each mode; 35 added
 successes remain separate. Both hot lanes retain 15 runtime cases and 175 ordered
 gas labels. Nine heavy captures match the original inputs/settings, 1,672 contract
 IDs and 3,344 artifacts, including 1,002 empty outputs and 14 linked-placeholder
-artifacts; all 540 reference sites remain exact.
+artifacts; all 540 reference sites preserve identity, width and content. Five
+metadata dictionaries have reviewed, valid offset changes.
 
 Recent expectations were reviewed with actual execution before updating:
 
@@ -113,14 +114,14 @@ cannot waive individual regressions.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +1,522 | +3,287 | — |
-| UI, size (694 original successes) | −30,913 | −26,368 | — |
-| Hot, gas (15 cases) | +17,717 | +18,154 | −27,793 |
-| Hot, size (15 cases) | +25,734 | +26,106 | −92,547 |
-| Heavy projects, original settings (9 cases) | +17,838,508 | +14,699,368 | — |
+| UI, gas (694 original successes) | −7,630 | −5,864 | — |
+| UI, size (694 original successes) | −33,537 | −28,989 | — |
+| Hot, gas (15 cases) | +17,572 | +18,009 | −27,793 |
+| Hot, size (15 cases) | +25,654 | +26,026 | −92,547 |
+| Heavy projects, original settings (9 cases) | +17,823,285 | +14,689,773 | — |
 
-There remain 758/548 larger UI artifacts, 20/19 larger hot artifacts and 24/30
-higher hot gas labels in gas/size mode, plus 1,101 larger heavy artifacts.
+There remain 704/507 larger UI artifacts, 19/19 larger hot artifacts and 24/30
+higher hot gas labels in gas/size mode, plus 1,079 larger heavy artifacts.
 SeaportRouter runtime is 24,648 versus sealed 9,822 bytes, down from an earlier
 rewrite's 48,812. Heavy captures establish size debt, not arbitrary runtime
 correctness. Required observer and arbitrary-memory correctness guards remain.
@@ -467,6 +468,37 @@ the subsequent full workspace leaves exactly 41 old failures. Evidence is in
 independent `nullary-single-match-*-review-20260906/` directories. The authoritative
 timing audit is `nullary-single-match-timing-review-20260906/corrected-v3/`;
 initial harness and audit failures remain preserved.
+
+Private terminal redirection is accepted in `0ae64fbe` (+18 raw Rust lines).
+Private return-label targets stay protected; shared owners must already be
+addressable, with gas-observer and unknown-control checks before mutation.
+Across all 729 UI successes, runtime shrinks 9,203 gas bytes and 2,681 size bytes.
+Heavy runtime shrinks 9,595 bytes; hot creation/runtime shrink 145 gas bytes and
+56 size bytes. No individual artifact or gas label increases. Remaining sealed
+artifact debts fall to 704/507 UI, 19/19 hot and 1,079 heavy. All 540 relocation
+sites retain valid identity, width and contents, including five offset changes.
+
+The independent focused suite passes 216 calls over 54 public-driver captures;
+return targets and forwarded-child gas remain intact. Nine real deployments and
+117 mapping/storage boundary calls justify the sole snapshot update `18e3944e`.
+Four fresh bounded symbolic agreements use two internal-call signatures in both
+modes; exact same-input captures prove the candidate symbolic bytes and actual
+20-byte runtime reductions. An initial cross-input UI identity assumption and
+pretty-versus-canonical JSON hash preflight failure remain preserved separately.
+Quiet pairs are 52.469→52.598 and 59.400→52.410 seconds: the first is essentially
+flat (+0.246%); the unusually slow second baseline does not establish a large
+speedup. Sampled RSS is 599,932→582,184 and 634,540→585,108 KiB. All timed outputs
+match their 432-contract reviewed captures. The full workspace returns to the
+same 41 old failures. Evidence is in `private-terminal-{trial,focused,
+mapping-oracle,root-acceptance,timing,timing-review}-20260906/` and the independent
+`private-terminal-acceptance-review-20260906/` ledger.
+
+A proposed FMP-interval certificate was rejected before implementation. The
+current Router census identifies 33 potentially interesting protected stores,
+but unchecked allocation bumps and 89 unresolved writer destinations leave zero
+proved removals. No annotation or blanket heap-disjointness assumption was added.
+The general assembly-memory interference defect remains open. See
+`router-reservation-census-20260906/` and `fmp-interval-adversarial-review-20260906/`.
 
 ## Evidence provenance
 
