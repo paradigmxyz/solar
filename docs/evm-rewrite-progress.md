@@ -22,7 +22,7 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,792 Rust lines across 36 files, versus 34,638 deleted
+The accepted scope has 12,792 Rust lines across 36 files, versus 34,638 deleted
 raw lines: 21,846 fewer (63.1%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
@@ -382,6 +382,19 @@ and ordinary Clippy passing. Evidence is in `protocol-pressure-focused-20260906/
 one-line understatement in the prior progress total. The next isolated trial
 rematerializes immutable calldata reads to avoid their source-visible spill homes;
 that is a targeted repair, not a general unsafe-assembly memory solution.
+
+The broad calldata-rematerialization trial is rejected. It repairs all fourteen
+original Solidity readback calls, with actual source-write/later-MLOAD traces;
+all 68 candidate calls and 14 pinned-solc calls meet their oracles. Seven previous
+candidate rows and nine sealed rows retain their known wrong results. However,
+it creates or worsens 330 sealed UI artifact debts (195 gas / 135 size), including
+632 immediate size increases. The gas hot lane preserves all 175 call results and
+gas values but grows ten artifacts across five contracts. Heavy, size-hot and
+quiet timing were not run after that rejection. Repeated ABI-head reads replace
+stack reuse, growing a representative sequence 18→19 bytes at equal static gas.
+Evidence is in `calldata-rematerialization-{trial,sealed-ui-review}-20260906/`
+and `calldata-remat-small-growth-review-20260906/`. The next scope considers only
+values the ordinary planner already homes, preserving its layout and protocol.
 
 ## Evidence provenance
 
