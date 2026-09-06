@@ -3,7 +3,8 @@
 //! Region names do not prove disjointness: arbitrary pointer arithmetic can move a heap or frame
 //! pointer into another region, and source code can reset the free-memory pointer. Only canonical
 //! absolute addresses, exact current-frame offsets and reserved allocation identities are resolved
-//! here. Unknown symbolic bases and unknown ranges remain possible aliases, regardless of metadata.
+//! here. Unknown symbolic bases remain possible aliases, regardless of metadata. An absolute access
+//! starting after a protected word is disjoint even when its length is unknown.
 //!
 //! Final frame layout resolves static offsets and deferred allocations. Dynamic activations begin
 //! above the fixed-memory floor, permitting separation from fixed ranges below that floor. Before
@@ -92,7 +93,10 @@ fn ranges_overlap(
     match (address, home) {
         (FrameAddress::Absolute(start), FrameAddress::Absolute(home))
         | (FrameAddress::Relative(start), FrameAddress::Relative(home)) => {
-            let Some(size) = size else { return true };
+            let Some(size) = size else {
+                return !matches!(address, FrameAddress::Absolute(_))
+                    || home.checked_add(EvmMemoryLayout::WORD_SIZE).is_none_or(|end| end > start);
+            };
             start.checked_add(size).is_none_or(|end| end > home)
                 && home.checked_add(EvmMemoryLayout::WORD_SIZE).is_none_or(|end| end > start)
         }
@@ -133,6 +137,12 @@ mod tests {
         assert!(ranges_overlap(Absolute(0), None, Relative(0), 2048));
         assert!(!ranges_overlap(Relative(0), None, Absolute(2016), 2048));
         assert!(ranges_overlap(Relative(0), None, Absolute(2017), 2048));
+        assert!(ranges_overlap(Absolute(95), None, Absolute(64), 2048));
+        assert!(!ranges_overlap(Absolute(96), None, Absolute(64), 2048));
+        assert!(!ranges_overlap(Absolute(128), None, Absolute(64), 2048));
+        assert!(ranges_overlap(Relative(95), None, Relative(64), 2048));
+        assert!(ranges_overlap(Relative(96), None, Relative(64), 2048));
+        assert!(ranges_overlap(Absolute(u64::MAX), None, Absolute(u64::MAX - 31), 2048));
         assert!(ranges_overlap(Absolute(0), None, Absolute(0), 2048));
         assert!(ranges_overlap(Relative(0), None, Relative(0), 2048));
         assert!(!ranges_overlap(Absolute(u64::MAX), Some(0), Relative(0), 2048));
