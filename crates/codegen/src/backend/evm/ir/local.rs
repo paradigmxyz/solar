@@ -62,14 +62,16 @@ impl EvmPass for LocalPass {
                                     | op::EXTCALL | op::EXTDELEGATECALL | op::EXTSTATICCALL
                                     | op::CREATE | op::CREATE2 | op::EOFCREATE))
                     })
-                })
-                && !verify::has_unknown_jump(module);
-        let heights = (matches!(
+                });
+        let facts = (matches!(
             self.0,
             "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"
         ))
-        .then(|| verify::stack_heights(module).ok())
+        .then(|| verify::stack_facts(module).ok())
         .flatten();
+        let literal_copy_order =
+            literal_copy_order && facts.as_ref().is_some_and(|(_, unknown)| !*unknown);
+        let heights = facts.map(|(heights, _)| heights);
         let reachable = matches!(
             self.0,
             "compact-pushes" | "reorder-pushes" | "dce" | "peephole" | "stack-normalize"

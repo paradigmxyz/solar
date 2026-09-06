@@ -149,11 +149,17 @@ pub(crate) type StackHeights = IndexVec<BlockId, Option<(usize, usize)>>;
 /// Unknown computed edges end the proof. Callers must conservatively avoid
 /// increasing local stack peaks for blocks with no entry proof.
 pub(crate) fn stack_heights(module: &Module) -> Result<StackHeights, (BlockId, String)> {
+    stack_facts(module).map(|(heights, _)| heights)
+}
+
+/// Computes optimization bounds and unknown-transfer status in one analysis.
+/// Encoding validation separately retains the raw bounds of concrete paths.
+pub(super) fn stack_facts(module: &Module) -> Result<(StackHeights, bool), (BlockId, String)> {
     stack_analysis(module).map(|(mut heights, unknown)| {
         if unknown {
             heights.raw.fill(None);
         }
-        heights
+        (heights, unknown)
     })
 }
 
