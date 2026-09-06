@@ -12,7 +12,8 @@
 //! the full contiguous incumbent including its remaining ordinary backups. Other backups retain
 //! their ordinary protocol, and relative homes are excluded. The straight-line template consumes
 //! exactly the original value and destination, touches no uninitialized memory, and needs five
-//! temporary words.
+//! temporary words. The second selection reuses the first modular address delta,
+//! adding one word width after rotating the first saved pair below it.
 //! Its exact literal bytes and static gas must improve the ordinary run protection. The
 //! caller retains the original stack-capacity check; at least twelve removed backups pay
 //! for the template's five temporaries. Final scheduling and outlining remain measured
@@ -162,20 +163,31 @@ fn backup_cost(version: EvmVersion, addresses: &[FrameAddress]) -> (usize, usize
 
 fn template(start: u64, selection: Selection) -> Vec<ir::Instruction> {
     let mut output =
-        Vec::with_capacity(if matches!(selection, Selection::Bitmap(_)) { 53 } else { 45 });
+        Vec::with_capacity(if matches!(selection, Selection::Bitmap(_)) { 47 } else { 39 });
+    // value; destination
+    // value; destination; delta; delta
+    // delta = (destination & !31) - start
+    output.extend(
+        [
+            Dup(1),
+            Push(U256::from(31)),
+            Op(op::NOT),
+            Op(op::AND),
+            Push(U256::from(start)),
+            Swap(1),
+            Op(op::SUB),
+            Dup(1),
+        ]
+        .map(Into::into),
+    );
     for second in [false, true] {
-        // value; destination; <first selected address and value, if present>
-        // aligned = destination & !31
-        // candidate = aligned + <0 or 32>
-        output.extend(
-            [Dup(if second { 3 } else { 1 }), Push(U256::from(31)), Op(op::NOT), Op(op::AND)]
-                .map(Into::into),
-        );
         if second {
-            output.extend([Push(U256::from(32)), Op(op::ADD)].map(Into::into));
+            // value; destination; delta; address0; old0
+            // value; destination; old0; address0; delta + 32
+            output.extend([Swap(2), Push(U256::from(32)), Op(op::ADD)].map(Into::into));
         }
-        // delta = candidate - start
-        output.extend([Push(U256::from(start)), Swap(1), Op(op::SUB), Dup(1)].map(Into::into));
+        // delta; delta
+        output.push(Dup(1).into());
         match selection {
             Selection::Contiguous(bytes) => {
                 // delta; delta < bytes
@@ -205,8 +217,8 @@ fn template(start: u64, selection: Selection) -> Vec<ir::Instruction> {
                 .map(Into::into),
         );
     }
-    // value; destination; address0; old0; address1; old1
-    // address0; old0; address1; old1; value; destination
+    // value; destination; old0; address0; address1; old1
+    // old0; address0; address1; old1; value; destination
     // mstore(destination, value)
     // mstore(address1, old1)
     // mstore(address0, old0)
@@ -221,7 +233,6 @@ fn template(start: u64, selection: Selection) -> Vec<ir::Instruction> {
             Op(op::MSTORE),
             Swap(1),
             Op(op::MSTORE),
-            Swap(1),
             Op(op::MSTORE),
         ]
         .map(Into::into),
@@ -258,7 +269,7 @@ mod tests {
         for version in [EvmVersion::Byzantium, EvmVersion::London, EvmVersion::Osaka] {
             let instructions = template(480, Selection::Contiguous(28 * 32));
             assert_eq!(ir::scheduling_usage(&instructions), Some((2, -2, 5)));
-            assert_eq!(cost(version, &instructions), (60, 139));
+            assert_eq!(cost(version, &instructions), (51, 121));
         }
     }
 
@@ -284,7 +295,7 @@ mod tests {
         let (start, mask) = membership(&homes, homes.len()).unwrap();
         let instructions = template(start, Selection::Bitmap(mask));
         assert_eq!(ir::scheduling_usage(&instructions), Some((2, -2, 5)));
-        assert_eq!(cost(EvmVersion::London, &instructions), (82, 163));
+        assert_eq!(cost(EvmVersion::London, &instructions), (73, 145));
         assert_eq!(choose(&homes, homes.len(), EvmVersion::London).unwrap().range, 0..28);
         assert!(choose(&homes, homes.len(), EvmVersion::Byzantium).is_none());
 
