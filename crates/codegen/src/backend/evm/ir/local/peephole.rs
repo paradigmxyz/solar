@@ -35,6 +35,15 @@ pub(super) fn peephole(
         let tail = &insts[index..];
         if replacement.is_none() && tail.len() >= 4 && tail[..4].iter().all(canonical) {
             match (&tail[0].kind, &tail[1].kind, &tail[2].kind, &tail[3].kind) {
+                // push a; or; push b; and -> push b; and when a & b == 0
+                (
+                    InstKind::Push(a),
+                    InstKind::Op(op::OR),
+                    InstKind::Push(b),
+                    InstKind::Op(op::AND),
+                ) if literal_copy_order && (*a & *b).is_zero() => {
+                    replacement = Some((4, vec![tail[2].clone(), tail[3].clone()]));
+                }
                 // dup2; binary; swap1; pop -> [swap1]; binary
                 (
                     InstKind::Dup(2),

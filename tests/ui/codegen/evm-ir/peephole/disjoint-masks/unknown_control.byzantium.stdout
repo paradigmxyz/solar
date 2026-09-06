@@ -1,0 +1,16 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/disjoint-masks/unknown_control.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/disjoint-masks/unknown_control.evmir (after peephole) ===
+  @module DisjointMasksUnknownControl
+  bb0:
+    push 0
+    calldataload
+    push 0x1010101
+    or
+    push 0x80808080
+    and
+    push 0
+    mstore
+    push 32
+    calldataload
+    jump
+  

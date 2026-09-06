@@ -1,0 +1,19 @@
+- // === ROOT/tests/ui/codegen/evm-ir/peephole/disjoint-masks/pc.evmir (before peephole) ===
++ // === ROOT/tests/ui/codegen/evm-ir/peephole/disjoint-masks/pc.evmir (after peephole) ===
+  @module DisjointMasksPC
+  bb0:
+    push 0
+    calldataload
+    push 0x1010101
+    or
+    push 0x80808080
+    and
+    push 0
+    mstore
+    pc
+    push 32
+    mstore
+    push 64
+    push 0
+    return
+  

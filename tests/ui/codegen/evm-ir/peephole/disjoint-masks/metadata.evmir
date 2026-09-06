@@ -1,0 +1,20 @@
+//@ revisions: byzantium osaka
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//~? ERROR: EVM IR verification failed: block 0: `or` has stack effect 1->1, expected 2->1
+@module DisjointMasksMetadata
+
+// Invalid OR metadata must not disappear through absorption before validation.
+bb0:
+  push 0
+  calldataload
+  push 0x01010101
+  or !meta(stack=1->1)
+  push 0x80808080
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return

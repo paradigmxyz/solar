@@ -1,0 +1,4 @@
+error: EVM IR verification failed: block 0: `or` has stack effect 1->1, expected 2->1
+
+error: aborting due to 1 previous error
+

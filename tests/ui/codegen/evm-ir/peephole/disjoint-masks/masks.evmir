@@ -1,0 +1,65 @@
+//@ revisions: byzantium osaka
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//@ filecheck:
+@module DisjointMasks
+
+// Unknown x prevents literal-only folding from satisfying this absorption test.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}calldataload
+// CHECK-NOT: {{^[ +].*}}or
+// CHECK: {{^[ +].*}}push 0xffffffff
+// CHECK-NEXT: {{^[ +].*}}and
+// CHECK: {{^[ +].*}}return
+bb0:
+  push 0
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+  or
+  push 0xffffffff
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// Sparse masks are disjoint without being contiguous complementary ranges.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: {{^[ +].*}}calldataload
+// CHECK-NOT: {{^[ +].*}}or
+// CHECK: {{^[ +].*}}push 0x80808080
+// CHECK-NEXT: {{^[ +].*}}and
+// CHECK: {{^[ +].*}}return
+bb1:
+  push 0
+  calldataload
+  push 0x01010101 !meta(stack=0->1)
+  or !meta(stack=2->1)
+  push 0x80808080 !meta(stack=0->1)
+  and !meta(stack=2->1)
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+
+// A single shared bit prevents absorption; OR remains observable for x=0.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: {{^[ +].*}}push 0x1010101
+// CHECK-NEXT: {{^[ +].*}}or
+// CHECK-NEXT: {{^[ +].*}}push 0x80808081
+// CHECK-NEXT: {{^[ +].*}}and
+bb2:
+  push 0
+  calldataload
+  push 0x01010101
+  or
+  push 0x80808081
+  and
+  push 0
+  mstore
+  push 32
+  push 0
+  return

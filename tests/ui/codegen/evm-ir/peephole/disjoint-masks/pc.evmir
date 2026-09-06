@@ -1,0 +1,29 @@
+//@ revisions: byzantium osaka
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=peephole
+//@[byzantium] compile-flags: --evm-version byzantium
+//@[osaka] compile-flags: --evm-version osaka
+//@ filecheck:
+@module DisjointMasksPC
+
+// Return both the masked unknown input and its later observed code position.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: {{^[ +].*}}push 0x1010101
+// CHECK-NEXT: {{^[ +].*}}or
+// CHECK-NEXT: {{^[ +].*}}push 0x80808080
+// CHECK-NEXT: {{^[ +].*}}and
+// CHECK: {{^[ +].*}}pc
+bb0:
+  push 0
+  calldataload
+  push 0x01010101
+  or
+  push 0x80808080
+  and
+  push 0
+  mstore
+  pc
+  push 32
+  mstore
+  push 64
+  push 0
+  return
