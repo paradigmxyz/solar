@@ -168,7 +168,7 @@ pub(crate) fn lower(
             &alias,
             (returning.contains(id), protocol_words(&plan.functions[id], dynamic_frames)),
             version,
-            |value| stored(function, value),
+            |value| stored(function, value, version, optimization),
         );
         plan.reserve_spills(id, spills.words).map_err(str::to_owned)?;
         let mut blocks = IndexVec::new();
@@ -182,7 +182,7 @@ pub(crate) fn lower(
             let mut values = live
                 .live_in(block_id)
                 .iter()
-                .filter(|&value| stored(function, value))
+                .filter(|&value| stored(function, value, version, optimization))
                 .collect::<Vec<_>>();
             for &inst in &block.instructions {
                 if let Some(result) = function.inst_result_value(inst)
@@ -240,7 +240,7 @@ pub(crate) fn lower(
                     &layout.alias,
                     (layout.returning, protocol_words(&plan.functions[id], true)),
                     version,
-                    |value| stored(function, value),
+                    |value| stored(function, value, version, optimization),
                 );
                 plan.reserve_spills(id, layout.spills.words).map_err(str::to_owned)?;
                 for entry in &mut layout.entries {
@@ -1063,12 +1063,14 @@ fn lower_opcode(
     let function = context.function;
     let instruction = function.inst(inst_id);
     let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
-    if opcode == op::CALLDATALOAD
+    if (opcode == op::CALLDATALOAD || matches!(context.optimization, OptimizationMode::None))
         && let Some(value) = function.inst_result_value(inst_id)
-        && context.layout.rematerialized.contains_key(&value)
+        && ((opcode == op::CALLDATALOAD && context.layout.rematerialized.contains_key(&value))
+            || rematerialize::nullary(function, value, context.version, context.optimization)
+                .is_some())
     {
-        // <retained live values>; discard the unused original offset
-        // Materialize the immutable read only at its consumers.
+        // <retained live values>; discard any unused original offset
+        // Re-emit the immutable read only at its consumers.
         prepare(context, stack, insts, &[], live)?;
         return Ok(());
     }
@@ -1197,13 +1199,24 @@ fn external_argument(function: &mir::Function) -> bool {
             || function.attributes.is_fallback)
 }
 
-fn stored(function: &mir::Function, value: mir::ValueId) -> bool {
-    matches!(function.value(value), mir::Value::Inst(_))
-        || (matches!(function.value(value), mir::Value::Arg(_)) && !external_argument(function))
+fn stored(
+    function: &mir::Function,
+    value: mir::ValueId,
+    version: EvmVersion,
+    optimization: OptimizationMode,
+) -> bool {
+    match function.value(value) {
+        mir::Value::Inst(_) => {
+            !matches!(optimization, OptimizationMode::None)
+                || rematerialize::nullary(function, value, version, optimization).is_none()
+        }
+        mir::Value::Arg(_) => !external_argument(function),
+        _ => false,
+    }
 }
 
 fn resident(context: &Context<'_>, value: mir::ValueId) -> bool {
-    stored(context.function, value)
+    stored(context.function, value, context.version, context.optimization)
         && !context.layout.spills.homes.contains_key(&value)
         && !context.layout.rematerialized.contains_key(&value)
 }
@@ -1286,6 +1299,14 @@ fn load_value(
         // calldataload
         output.push(ir::InstKind::Push(offset).into());
         output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
+        return Ok(());
+    }
+    if matches!(context.optimization, OptimizationMode::None)
+        && let Some(opcode) =
+            rematerialize::nullary(context.function, value, context.version, context.optimization)
+    {
+        // <stable nullary read>
+        output.push(ir::InstKind::Op(opcode).into());
         return Ok(());
     }
     if let Some(&home) = context.layout.spills.homes.get(&value) {

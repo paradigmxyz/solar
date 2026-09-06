@@ -1,6 +1,7 @@
-//! Immutable calldata recipes selected from ordinary spill homes.
+//! Immutable recipes at the physical stack boundary.
 //!
-//! Ordinary stack-pressure planning runs first, including any protocol recheck. Only its actual
+//! For calldata recipes, ordinary stack-pressure planning runs first, including any protocol
+//! recheck. Only its actual
 //! memory-home candidates are considered here. Gas optimization requires exclusively eligible homes, so
 //! selection cannot fragment a mixed bank and disable its compact writer protection. Other modes
 //! do not use that protection and select individual homes. Stack-resident calldata reads keep their existing
@@ -14,6 +15,12 @@
 //! immutable within the EVM activation, including across returning calls. Constructor argument
 //! memory/code reads are not recipes. Other values and activation protocol storage still require
 //! their existing protection; this is not a general source-memory interference solution.
+//!
+//! In unoptimized mode, fourteen stable two-gas nullary reads need neither a resident value nor
+//! a spill home. Optimized modes retain ordinary residency and scheduling. The
+//! constant-time classifier is shared by ordinary planning, definition suppression and consumer
+//! emission. Only canonical environment reads available on the target qualify. NUMBER retains
+//! its evaluated value for instrumented EVMs; mutable or more expensive reads also remain stored.
 
 use crate::{
     backend::evm::op,
@@ -21,6 +28,7 @@ use crate::{
     utils::eval,
 };
 use alloy_primitives::U256;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
 
 /// Replaces eligible home identities while leaving their reserved offsets and counts untouched.
@@ -42,6 +50,41 @@ pub(super) fn select(
         homes.remove(value);
     }
     recipes
+}
+
+/// Returns an available, stable two-gas read for unoptimized instruction selection.
+pub(super) fn nullary(
+    function: &mir::Function,
+    value: mir::ValueId,
+    version: EvmVersion,
+    optimization: OptimizationMode,
+) -> Option<u8> {
+    if !matches!(optimization, OptimizationMode::None) {
+        return None;
+    }
+    let mir::Value::Inst(id) = function.value(value) else { return None };
+    let instruction = function.inst(*id);
+    let opcode = instruction.kind.evm_opcode()?;
+    (matches!(
+        opcode,
+        op::CALLDATASIZE
+            | op::CODESIZE
+            | op::CALLER
+            | op::CALLVALUE
+            | op::ADDRESS
+            | op::ORIGIN
+            | op::GASPRICE
+            | op::COINBASE
+            | op::TIMESTAMP
+            | op::PREVRANDAO
+            | op::GASLIMIT
+            | op::CHAINID
+            | op::BASEFEE
+            | op::BLOBBASEFEE
+    ) && function.inst_result_value(*id) == Some(value)
+        && instruction.metadata.effect().is_none_or(|effect| effect == EffectKind::EnvironmentRead)
+        && op::available(opcode, version))
+    .then_some(opcode)
 }
 
 /// Returns the exact offset of an eligible immutable calldata result.
