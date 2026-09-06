@@ -25,3 +25,29 @@ fn @entry() [entry] {
   bb2:
     revert 0, 0
 }
+
+// A nonreturning tail-call chain need not match its caller's return arity.
+fn @revertCaller() -> u256 {
+  bb0:
+    tail_call @revertForward
+}
+fn @revertForward() {
+  bb0:
+    tail_call @revertEnd
+}
+fn @revertEnd() {
+  bb0:
+    revert 0, 0
+}
+fn @cycleCaller() -> u256 {
+  bb0:
+    tail_call @cycleA
+}
+fn @cycleA() {
+  bb0:
+    tail_call @cycleB
+}
+fn @cycleB() {
+  bb0:
+    tail_call @cycleA
+}

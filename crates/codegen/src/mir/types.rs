@@ -229,6 +229,12 @@ pub(crate) enum MirType {
 }
 
 impl MirType {
+    /// Returns whether a value occupies one word rather than an SSA aggregate or no value.
+    #[must_use]
+    pub(crate) const fn is_word(self) -> bool {
+        !matches!(self, Self::Struct(_) | Self::Slice(_) | Self::Void)
+    }
+
     /// Returns this value type's semantic size, or `None` for `void`.
     #[must_use]
     pub(crate) const fn type_size(self) -> Option<TypeSize> {
@@ -301,9 +307,7 @@ impl MirType {
 
     /// Checks whether a struct field can carry this value without changing its bits.
     pub(crate) fn accepts_field_value(self, actual: Self) -> bool {
-        self == actual
-            || (self == Self::uint256()
-                && !matches!(actual, Self::Struct(_) | Self::Slice(_) | Self::Void))
+        self == actual || (self == Self::uint256() && actual.is_word())
     }
 
     /// Returns the uint256 type.

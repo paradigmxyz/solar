@@ -59,3 +59,25 @@ fn @invalid_object_pointer(arg0: struct0) -> memorybytes {
     v0 = memory_object_from_ptr memorybytes, arg0
     ret v0
 }
+
+//~? ERROR: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
+fn @wrong_object_kind(arg0: memorystruct) -> u256 {
+  bb0:
+    v0 = memory_object_len memorybytes, arg0
+    ret v0
+}
+
+//~? ERROR: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
+fn @wrong_element_layout(arg0: memorybytes) -> u256 {
+  bb0:
+    v0 = memory_object_element_addr memoryfixedarray<4, 1>, arg0, 0
+    v1 = mload v0
+    ret v1
+}
+
+//~? ERROR: [fn10] [bb0, inst0] word cast requires a one-word operand and u256 result
+fn @invalid_word_cast(arg0: calldataslice) -> u256 {
+  bb0:
+    v0 = word_cast arg0
+    ret v0
+}

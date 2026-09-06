@@ -1231,6 +1231,7 @@ symbols! {
         value,
         void,
         word,
+        word_cast,
         wrap,
         x,
         zeroed,

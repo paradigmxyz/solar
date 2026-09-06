@@ -153,3 +153,13 @@
 -     ret v1
   }
   
+  fn @raw_word_carrier(arg0: memorystruct) -> u256 {
+    bb0:
+-     v0 = insert_value struct0, undef struct0, 0, arg0
+-     v1 = extract_value struct0, v0, 0
+-     v2 = memory_object_len memorybytes, v1
++     v3 = word_cast arg0
++     v2 = memory_object_len memorybytes, v3
+      ret v2
+  }
+  

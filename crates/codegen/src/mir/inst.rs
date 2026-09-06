@@ -747,6 +747,8 @@ pub(crate) enum InstKind {
 
     /// Treats unchanged word bits as an object pointer without asserting validity or ownership.
     MemoryObjectFromPtr { ptr: ValueId, kind: MemoryObjectKind },
+    /// Forgets a one-word value's nominal type while preserving all 256 bits.
+    WordCast(ValueId),
 
     // Arithmetic operations
     /// Addition: `a + b`
@@ -980,8 +982,8 @@ pub(crate) enum InstKind {
     },
     /// Decode a memory-backed ABI tuple into semantic MIR values.
     ///
-    /// The instruction result is the first tuple value. Additional values are
-    /// published through the multi-return buffer, matching ordinary MIR calls.
+    /// A single decoded value is the result directly. Multiple decoded values form one SSA
+    /// struct; aggregate lowering later selects their backend calling convention.
     AbiDecode {
         /// ABI-encoded bytes object.
         data: ValueId,
@@ -1409,6 +1411,7 @@ impl InstKind {
             // Unary operations
             Self::ExtractValue { aggregate: a, .. }
             | Self::MemoryObjectFromPtr { ptr: a, .. }
+            | Self::WordCast(a)
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1693,6 +1696,7 @@ impl InstKind {
 
             Self::ExtractValue { aggregate: a, .. }
             | Self::MemoryObjectFromPtr { ptr: a, .. }
+            | Self::WordCast(a)
             | Self::Not(a)
             | Self::Clz(a)
             | Self::IsZero(a)
@@ -1837,6 +1841,7 @@ impl InstKind {
             Self::InsertValue { .. } => "insert_value",
             Self::ExtractValue { .. } => "extract_value",
             Self::MemoryObjectFromPtr { .. } => "memory_object_from_ptr",
+            Self::WordCast(_) => "word_cast",
             Self::Add(_, _) => "add",
             Self::Sub(_, _) => "sub",
             Self::Mul(_, _) => "mul",
@@ -2033,6 +2038,7 @@ impl InstKind {
             self,
             Self::Alloc { kind: AllocationKind::Object(_), .. }
                 | Self::MemoryObjectFromPtr { .. }
+                | Self::WordCast(_)
                 | Self::MemoryObjectLen(_, _)
                 | Self::SetMemoryObjectLen(_, _, _)
                 | Self::MemoryObjectData(_, _)
@@ -2060,7 +2066,8 @@ impl InstKind {
         match self {
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
-            | Self::MemoryObjectFromPtr { .. } => EffectKind::Pure,
+            | Self::MemoryObjectFromPtr { .. }
+            | Self::WordCast(_) => EffectKind::Pure,
             Self::MStore(_, _)
             | Self::MStore8(_, _)
             | Self::MemoryZero(_, _)

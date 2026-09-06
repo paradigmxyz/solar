@@ -256,8 +256,7 @@ fn lower_function(
     fold_slice_projections(func, &mut replacements);
     func.replace_uses_canonicalized(&replacements);
     remove_literal_objects(func, &literal_objects.into_iter().collect::<Vec<_>>());
-    let repaired = crate::mir::utils::repair_reachability_phis(func);
-    !replacements.is_empty() || repaired
+    !replacements.is_empty()
 }
 
 fn fold_slice_projections(func: &Function, replacements: &mut FxHashMap<ValueId, ValueId>) {

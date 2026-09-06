@@ -26,7 +26,7 @@ use crate::{
     analysis::{CallGraphInfo, CfgInfo, Liveness},
     mir::{
         Function, InstKind, MirPhase, Module, Terminator,
-        utils::{repair_reachability_phis, split_edge},
+        utils::{replace_terminator, split_edge},
     },
     pass::MirPass,
     transform::cfg_simplify::remove_unreachable_blocks,
@@ -43,13 +43,14 @@ impl MirPass for LowerEvmShaped {
 
     fn is_enabled(&self, _gcx: solar_sema::Gcx<'_>, module: &Module) -> bool {
         module.phase == MirPhase::MemoryLowered
-            && !module.has_struct_values()
+            && !module.has_aggregate_values()
             && module.functions.iter().all(|func| {
                 func.instructions().all(|inst_id| {
                     let inst = func.inst(inst_id);
                     match inst.kind {
                         InstKind::InsertValue { .. }
                         | InstKind::ExtractValue { .. }
+                        | InstKind::WordCast(_)
                         | InstKind::MakeSlice { .. }
                         | InstKind::SlicePtr(_)
                         | InstKind::SliceLen(_)
@@ -146,12 +147,11 @@ fn lower_evm_shaped(module: &mut Module) -> bool {
                 // icall callee, args !metadata(call) -> tail_call callee, args !metadata(call)
                 // Everything after the non-returning call is dead.
                 func.blocks[block_id].instructions.truncate(position);
-                func.blocks[block_id]
-                    .set_terminator(Terminator::TailCall { function, args }, metadata);
+                replace_terminator(func, block_id, Terminator::TailCall { function, args });
+                func.blocks[block_id].terminator_metadata = metadata;
                 function_changed = true;
             }
             if function_changed {
-                let _ = repair_reachability_phis(func);
                 let _ = remove_unreachable_blocks(func);
             }
         }

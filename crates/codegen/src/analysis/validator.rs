@@ -28,6 +28,10 @@
 //! 12. **Immutable consistency**: immutable declarations and stores use supported representations,
 //!     and loads use the declared type.
 //! 13. **Program data consistency**: data references name allocated entries at valid offsets.
+//! 14. **Return contracts**: return counts match signatures, including through tail-call chains;
+//!     signatures cannot contain void values.
+//! 15. **Representation boundaries**: SSA aggregates and semantic memory types/operations cannot
+//!     survive their lowering boundaries. Object operations agree with nominal reference kinds.
 //!
 //! # Usage
 //!
@@ -55,12 +59,13 @@ struct Validator<'a> {
     dcx: &'a DiagCtxt,
     function: Option<FunctionId>,
     error_count: usize,
+    returning_functions: DenseBitSet<FunctionId>,
 }
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
-    const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, function: None, error_count: 0 }
+    fn new(dcx: &'a DiagCtxt) -> Self {
+        Self { dcx, function: None, error_count: 0, returning_functions: DenseBitSet::new_empty(0) }
     }
 
     #[track_caller]
@@ -94,11 +99,20 @@ impl<'a> Validator<'a> {
 
     fn validate_function(&mut self, module: &Module, func: &Function) {
         let errors_before = self.error_count;
+        for (index, ty) in func.params.iter().enumerate() {
+            if *ty == MirType::Void {
+                self.emit(format_args!("parameter {index} cannot have type `void`"));
+            }
+        }
+        if func.returns.contains(&MirType::Void) {
+            self.emit("return signature cannot contain `void`; use an empty return list");
+        }
         self.validate_function_body(Some(module), func);
         self.validate_immutables(module, func);
         self.validate_calls(module, func);
         if self.error_count == errors_before {
             self.validate_struct_values(module, func);
+            self.validate_memory_object_types(func);
         }
         self.validate_function_phase(module, func);
     }
@@ -521,6 +535,7 @@ impl<'a> Validator<'a> {
 
     /// Validates every function in a module.
     fn validate_module(mut self, module: &Module) {
+        self.returning_functions = module.returning_functions();
         for (id, ty) in module.struct_types.iter_enumerated() {
             for field in &ty.fields {
                 if *field == MirType::Void
@@ -624,14 +639,20 @@ impl<'a> Validator<'a> {
                             );
                         }
                     }
+                    InstKind::WordCast(value) => {
+                        if inst.result_ty != Some(MirType::uint256())
+                            || !func.value_ty(*value).is_some_and(MirType::is_word)
+                        {
+                            self.emit_at_inst(
+                                "word cast requires a one-word operand and u256 result",
+                                block,
+                                id,
+                            );
+                        }
+                    }
                     InstKind::MemoryObjectFromPtr { ptr, kind } => {
                         if inst.result_ty != Some(MirType::MemoryObject(*kind))
-                            || !func.value_ty(*ptr).is_some_and(|ty| {
-                                !matches!(
-                                    ty,
-                                    MirType::Struct(_) | MirType::Slice(_) | MirType::Void
-                                )
-                            })
+                            || !func.value_ty(*ptr).is_some_and(MirType::is_word)
                         {
                             self.emit_at_inst("memory object pointer conversion requires a word and matching object result", block, id);
                         }
@@ -709,12 +730,20 @@ impl<'a> Validator<'a> {
                         || values
                             .iter()
                             .any(|&value| matches!(func.value_ty(value), Some(MirType::Struct(_))));
-                    if has_struct
-                        && (values.len() != func.returns.len()
-                            || values
-                                .iter()
-                                .zip(&func.returns)
-                                .any(|(&value, &ty)| func.value_ty(value) != Some(ty)))
+                    if values.len() != func.returns.len() {
+                        self.emit_at_block(
+                            format_args!(
+                                "return has {} value(s), signature expects {}",
+                                values.len(),
+                                func.returns.len()
+                            ),
+                            block,
+                        );
+                    } else if has_struct
+                        && values
+                            .iter()
+                            .zip(&func.returns)
+                            .any(|(&value, &ty)| func.value_ty(value) != Some(ty))
                     {
                         self.emit_at_block(
                             "return values do not match the struct signature",
@@ -742,12 +771,7 @@ impl<'a> Validator<'a> {
                                 .iter()
                                 .chain(&callee.returns)
                                 .any(|ty| matches!(ty, MirType::Struct(_)))
-                            && callee.blocks.iter().any(|block| {
-                                matches!(
-                                    block.terminator,
-                                    Some(crate::mir::Terminator::Return { .. })
-                                )
-                            })
+                            && self.returning_functions.contains(*function)
                         {
                             self.emit_at_block(
                                 "tail-call results do not match the struct signature",
@@ -765,6 +789,60 @@ impl<'a> Validator<'a> {
                     self.emit_at_block("terminator cannot consume a struct value", block);
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// Checks nominal object kinds without rejecting the raw pointer carriers used during lowering.
+    fn validate_memory_object_types(&mut self, func: &Function) {
+        for (block, body) in func.blocks.iter_enumerated() {
+            for &id in &body.instructions {
+                let mut check = |object, expected| {
+                    if let Some(MirType::MemoryObject(actual)) = func.value_ty(object)
+                        && actual != expected
+                    {
+                        self.emit_at_inst(
+                            format_args!(
+                                "memory object has type `{actual}`, expected `{expected}`"
+                            ),
+                            block,
+                            id,
+                        );
+                    }
+                };
+                match func.inst(id).kind {
+                    InstKind::MemoryObjectLen(object, kind)
+                    | InstKind::SetMemoryObjectLen(object, _, kind)
+                    | InstKind::MemoryObjectData(object, kind)
+                    | InstKind::MemoryObjectCopyFromSlice { object, kind, .. }
+                    | InstKind::MemoryObjectCopyFromSliceAt { object, kind, .. } => {
+                        check(object, kind)
+                    }
+                    InstKind::MemoryObjectFieldAddr { object, layout, .. }
+                    | InstKind::MemoryObjectElementAddr { object, layout, .. }
+                    | InstKind::MemoryObjectLoadField { object, layout, .. }
+                    | InstKind::MemoryObjectStoreField { object, layout, .. }
+                    | InstKind::MemoryObjectLoadElement { object, layout, .. }
+                    | InstKind::MemoryObjectStoreElement { object, layout, .. } => {
+                        check(object, layout.kind())
+                    }
+                    InstKind::MemoryObjectLoadByte { object, .. }
+                    | InstKind::MemoryObjectStoreByte { object, .. }
+                    | InstKind::MemoryObjectStoreWord { object, .. } => {
+                        check(object, MemoryObjectKind::Bytes)
+                    }
+                    InstKind::MemoryObjectCopy {
+                        destination,
+                        destination_kind,
+                        source,
+                        source_kind,
+                        ..
+                    } => {
+                        check(destination, destination_kind);
+                        check(source, source_kind);
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -881,9 +959,7 @@ impl<'a> Validator<'a> {
             // its ABI returns, so both are exempt.
             if func.selector.is_none()
                 && func.returns.len() != callee.returns.len()
-                && callee.blocks.iter().any(|block| {
-                    matches!(block.terminator, Some(crate::mir::Terminator::Return { .. }))
-                })
+                && self.returning_functions.contains(*function)
             {
                 self.emit(format_args!(
                     "tail_call to `{}` returns {} value(s), caller signature expects {}",
@@ -997,14 +1073,16 @@ impl<'a> Validator<'a> {
         // backend. High-level memory operations must have been expanded by
         // their named lowering passes before the module enters this phase.
         if module.phase >= crate::mir::MirPhase::EvmShaped {
-            if func
+            if let Some(ty) = func
                 .arg_indices()
                 .map(|index| func.arg_ty(index))
                 .chain(func.returns.iter().copied())
                 .chain(func.live_values().filter_map(|value| func.value_ty(value)))
-                .any(|ty| matches!(ty, MirType::Struct(_)))
+                .find(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
             {
-                self.emit("struct type survives the `evm-shaped` phase boundary");
+                self.emit(format_args!(
+                    "aggregate type `{ty}` survives the `evm-shaped` phase boundary"
+                ));
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for &inst_id in &block.instructions {

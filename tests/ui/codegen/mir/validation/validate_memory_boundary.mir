@@ -14,6 +14,11 @@
 //~? ERROR: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `evm-shaped` phase boundary
 // EVM-shaped MIR is the word-backend boundary. Semantic memory operations
 // must be rejected here if their named lowering pass did not consume them.
+//~? ERROR: [fn0] aggregate type `memoryslice` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn1] aggregate type `memoryslice` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn4] aggregate type `memoryslice` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn5] aggregate type `calldataslice` survives the `evm-shaped` phase boundary
+//~? ERROR: [fn6] aggregate type `returndataslice` survives the `evm-shaped` phase boundary
 @module ValidateMemoryBoundary
 @phase evm-shaped
 fn @slice(arg0: memptr, arg1: u256) -> u256 {
@@ -43,4 +48,24 @@ fn @allocation() {
     v5 = storage_array_data_slot v0
     v6 = storage_array_element_slot v0, v1, 1
     stop
+}
+
+fn @memorySignature(arg0: memoryslice) -> memoryslice {
+  bb0:
+    ret arg0
+}
+fn @calldataSignature(arg0: calldataslice) -> calldataslice {
+  bb0:
+    ret arg0
+}
+fn @returndataSignature(arg0: returndataslice) -> returndataslice {
+  bb0:
+    ret arg0
+}
+
+//~? ERROR: [fn7] [bb0, inst0] memory-object instruction `word_cast` survives the `evm-shaped` phase boundary
+fn @unloweredWordCast(arg0: u256) -> u256 {
+  bb0:
+    v0 = word_cast arg0
+    ret v0
 }

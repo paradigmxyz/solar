@@ -3,7 +3,8 @@
 //! This pass removes algebraic no-ops and rewrites a few equivalent EVM
 //! instruction patterns before stack scheduling. It is intentionally local and
 //! conservative: it only applies identities that are exact for EVM word
-//! semantics.
+//! semantics. Fixed aggregate projections also forward through bounded insertion chains, exposing
+//! scalar facts before aggregate lowering without allocating memory or expanding aggregate phis.
 //!
 //! Safety contract:
 //! - do not remove or reorder side effects
@@ -13,7 +14,7 @@
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        Function, Immediate, InstId, InstKind, Module, Terminator, ToUint, Value, ValueId,
+        Function, Immediate, InstId, InstKind, MirType, Module, Terminator, ToUint, Value, ValueId,
         utils as mir_utils,
     },
     pass::{MirPass, run_function_pass},
@@ -118,6 +119,14 @@ impl InstSimplifier {
                     };
                     let replacement =
                         mir_utils::resolve_replacement(replacement, &state.replacements);
+                    if matches!(kind, InstKind::ExtractValue { .. })
+                        && func.value_ty(result) != func.value_ty(replacement)
+                        && [func.value_ty(result), func.value_ty(replacement)]
+                            .iter()
+                            .any(|ty| matches!(ty, Some(MirType::MemoryObject(_))))
+                    {
+                        break;
+                    }
                     if replacement != result {
                         tracing::trace!(
                             target: "solar::codegen::mir::inst_simplify",
@@ -329,6 +338,32 @@ impl InstSimplifier {
         }
 
         match kind {
+            // extract_value(insert_value aggregate, index, value), index -> value
+            InstKind::ExtractValue { ty, aggregate, index } => {
+                let mut aggregate = resolve(*aggregate);
+                // Bound work for long tuples and malformed cycles in unreachable blocks.
+                for _ in 0..16 {
+                    let Value::Inst(id) = func.value(aggregate) else { break };
+                    let InstKind::InsertValue {
+                        ty: inserted_ty,
+                        aggregate: base,
+                        index: field,
+                        value,
+                    } = &func.inst(*id).kind
+                    else {
+                        break;
+                    };
+                    if inserted_ty != ty {
+                        break;
+                    }
+                    if field == index {
+                        return Some(resolve(*value));
+                    }
+                    aggregate = resolve(*base);
+                }
+                None
+            }
+
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, b) {

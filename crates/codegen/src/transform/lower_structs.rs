@@ -136,6 +136,7 @@ fn lower_structs(module: &mut Module) -> bool {
 
 /// Checks the slice representation contract before exposing a field's two words.
 fn slice_values_are_pairs(module: &Module) -> bool {
+    let returning = module.returning_functions();
     module.functions.iter().all(|func| {
         let args_match = |function: FunctionId, args: &[ValueId]| {
             module.functions.get(function).is_some_and(|callee| {
@@ -159,12 +160,11 @@ fn slice_values_are_pairs(module: &Module) -> bool {
             Some(Terminator::TailCall { function, args }) => {
                 args_match(*function, args)
                     && module.functions.get(*function).is_some_and(|callee| {
-                        !callee.blocks.iter().any(|block| {
-                            matches!(block.terminator, Some(Terminator::Return { .. }))
-                        }) || func.returns.iter().enumerate().all(|(index, &ty)| {
-                            !matches!(ty, MirType::Slice(_))
-                                || callee.returns.get(index) == Some(&ty)
-                        })
+                        !returning.contains(*function)
+                            || func.returns.iter().enumerate().all(|(index, &ty)| {
+                                !matches!(ty, MirType::Slice(_))
+                                    || callee.returns.get(index) == Some(&ty)
+                            })
                     })
             }
             _ => true,
@@ -261,6 +261,14 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                         if matches!(layouts.types[ty].fields[index as usize], MirType::Slice(_)) {
                             // slice -> slice_ptr(slice), slice_len(slice)
                             vec![builder.slice_ptr(value), builder.slice_len(value)]
+                        } else if layouts.types[ty].fields[index as usize] == MirType::uint256()
+                            && matches!(
+                                builder.func().value_ty(value),
+                                Some(MirType::MemoryObject(_))
+                            )
+                        {
+                            // raw field = word_cast object
+                            vec![builder.word_cast(value)]
                         } else {
                             components(value, &aggregates)
                         };

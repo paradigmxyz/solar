@@ -15,7 +15,7 @@ use crate::{
     analysis::LoopAnalyzer,
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, Module, Terminator, Value, ValueId,
-        utils::repair_reachability_phis,
+        utils::replace_terminator,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -50,18 +50,13 @@ struct LoopCanonicalizeStats {
     header_phis_rewritten: usize,
     /// Number of new preheader phi nodes inserted.
     preheader_phis_inserted: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
 }
 
 impl LoopCanonicalizeStats {
     /// Returns total canonicalization changes performed.
     #[must_use]
     const fn total(&self) -> usize {
-        self.preheaders_inserted
-            + self.header_phis_rewritten
-            + self.preheader_phis_inserted
-            + self.reachability_repaired as usize
+        self.preheaders_inserted + self.header_phis_rewritten + self.preheader_phis_inserted
     }
 }
 
@@ -159,14 +154,14 @@ impl LoopCanonicalizer {
         outside_preds: &[BlockId],
     ) {
         let preheader = func.alloc_block();
-        func.blocks[preheader].terminator = Some(Terminator::Jump(header));
-
+        // preheader: phi [outside_pred: value], ...; jump header
+        // header: phi [..., preheader: merged_value]
+        self.rewrite_header_phis(func, header, preheader, outside_preds);
+        replace_terminator(func, preheader, Terminator::Jump(header));
         for &pred in outside_preds {
             self.redirect_terminator(func, pred, header, preheader);
         }
 
-        self.rewrite_header_phis(func, header, preheader, outside_preds);
-        self.stats.reachability_repaired |= repair_reachability_phis(func);
         self.stats.preheaders_inserted += 1;
     }
 
@@ -261,10 +256,10 @@ impl LoopCanonicalizer {
         old_target: BlockId,
         new_target: BlockId,
     ) {
-        let Some(term) = &mut func.blocks[block_id].terminator else {
+        let Some(mut term) = func.blocks[block_id].terminator.clone() else {
             return;
         };
-        match term {
+        match &mut term {
             Terminator::Jump(target) => {
                 if *target == old_target {
                     *target = new_target;
@@ -297,5 +292,7 @@ impl LoopCanonicalizer {
             | Terminator::SelfDestruct { .. }
             | Terminator::Invalid => {}
         }
+        // block -> header => block -> preheader
+        replace_terminator(func, block_id, term);
     }
 }

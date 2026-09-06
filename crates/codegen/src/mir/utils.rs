@@ -1,8 +1,8 @@
 //! Shared MIR utility helpers.
 //!
 //! CFG rewrites must maintain terminators, predecessor lists, and phi inputs together. Prefer the
-//! local edge helpers below; the bulk repair helper is for transforms that construct these in
-//! batches. Neither kind of helper updates cached analyses or supplies values for new phi edges.
+//! local edge helpers below. New edges need explicit phi inputs; none of these helpers updates
+//! cached analyses or reconstructs SSA after moving definitions.
 
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
@@ -185,32 +185,60 @@ fn remove_predecessor(func: &mut Function, block: BlockId, predecessor: BlockId)
     }
 }
 
+/// Replaces a terminator while maintaining the affected predecessor lists and phi inputs.
+///
+/// Before adding an edge to a block with phis, the caller must supply that predecessor's phi
+/// inputs. Removed edges lose their inputs; retained edges keep theirs, including duplicate
+/// branch arms and switch cases. Debug metadata is unchanged; cached CFG analyses are not updated.
+pub(crate) fn replace_terminator(func: &mut Function, block: BlockId, terminator: Terminator) {
+    let mut old =
+        func.blocks[block].terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+    let mut new = terminator.successors();
+    old.sort_unstable();
+    old.dedup();
+    new.sort_unstable();
+    new.dedup();
+    for &successor in &new {
+        if !old.contains(&successor) {
+            for &id in &func.blocks[successor].instructions {
+                if let InstKind::Phi(incoming) = &func.inst(id).kind {
+                    assert!(
+                        incoming.iter().any(|&(pred, _)| pred == block),
+                        "new CFG edges require explicit phi inputs"
+                    );
+                }
+            }
+        }
+    }
+    // block: old_terminator -> terminator !metadata(old terminator)
+    func.blocks[block].terminator = Some(terminator);
+    for successor in old {
+        if !new.contains(&successor) {
+            remove_predecessor(func, successor, block);
+        }
+    }
+    for successor in new {
+        let predecessors = &mut func.blocks[successor].predecessors;
+        let mut seen = false;
+        predecessors.retain(|pred| *pred != block || !std::mem::replace(&mut seen, true));
+        if !seen {
+            predecessors.push(block);
+        }
+    }
+}
+
 /// Folds a terminator to one of its existing successors and updates affected CFG links and phis.
 ///
 /// The kept edge retains its phi values even when several branch arms or switch cases target it.
 /// This cannot introduce an edge: callers that redirect control must supply the new phi values.
 /// Terminator debug metadata is preserved. Cached CFG analyses must still be invalidated.
 pub(crate) fn fold_terminator_to_jump(func: &mut Function, block: BlockId, target: BlockId) {
-    let mut successors = func.blocks[block].terminator.as_ref().unwrap().successors();
-    assert!(successors.contains(&target), "folded target must be an existing successor");
-    successors.sort_unstable();
-    successors.dedup();
-    // branch/switch ..., target, ... -> jump target !metadata(old terminator)
-    func.blocks[block].terminator = Some(Terminator::Jump(target));
-    for successor in successors {
-        if successor != target {
-            remove_predecessor(func, successor, block);
-        }
-    }
-    // Multiple physical edges collapse to one; the logical phi input is unchanged.
-    let predecessors = &mut func.blocks[target].predecessors;
-    let first = predecessors.iter().position(|&pred| pred == block).unwrap();
-    let mut index = 0;
-    predecessors.retain(|pred| {
-        let keep = *pred != block || index == first;
-        index += 1;
-        keep
-    });
+    assert!(
+        func.blocks[block].terminator.as_ref().is_some_and(|term| term.has_successor(target)),
+        "folded target must be an existing successor"
+    );
+    // branch/switch ..., target, ... -> jump target
+    replace_terminator(func, block, Terminator::Jump(target));
 }
 
 /// Clears a block proven unreachable and removes its outgoing CFG links and phi inputs.
@@ -236,39 +264,6 @@ pub(crate) fn invalidate_unreachable_block(func: &mut Function, block: BlockId) 
         remove_predecessor(func, successor, block);
     }
     true
-}
-
-/// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
-/// that are no longer predecessors. Returns true if either changed.
-///
-/// This does not add missing phi inputs or repair SSA dominance. Use local edge helpers for
-/// incremental rewrites; reserve this scan for transforms that build CFG links in batches.
-#[must_use]
-pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
-    let mut predecessors = index_vec![smallvec![]; func.blocks.len()];
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            for succ in term.successors() {
-                predecessors[succ].push(block);
-            }
-        }
-    }
-
-    let mut changed = false;
-    for (block_id, block_predecessors) in predecessors.into_iter_enumerated() {
-        changed |= func.blocks[block_id].predecessors != block_predecessors;
-        let instruction_count = func.blocks[block_id].instructions.len();
-        for index in 0..instruction_count {
-            let inst_id = func.blocks[block_id].instructions[index];
-            if let InstKind::Phi(incoming) = &mut func.inst_mut(inst_id).kind {
-                let len_before = incoming.len();
-                incoming.retain(|(pred, _)| block_predecessors.contains(pred));
-                changed |= incoming.len() != len_before;
-            }
-        }
-        func.blocks[block_id].predecessors = block_predecessors;
-    }
-    changed
 }
 
 /// Resolves a value through a replacement map until it reaches its canonical value.

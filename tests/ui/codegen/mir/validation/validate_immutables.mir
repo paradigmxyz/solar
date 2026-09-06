@@ -5,6 +5,7 @@ immutables:
   invalid: void //~? ERROR: immutable `invalid` cannot use type `void`
   narrow: u8
 
+//~? ERROR: [fn0] aggregate type `memoryslice` survives the `evm-shaped` phase boundary
 fn @invalid_store(arg0: memoryslice) {
   bb0:
     storeimmutable narrow, arg0

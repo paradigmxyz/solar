@@ -614,7 +614,6 @@ impl LowerAbiCx {
                 );
             }
             builder.func_mut().replace_uses_canonicalized(&replacements);
-            let _ = crate::mir::utils::repair_reachability_phis(builder.func_mut());
         }
         !decode_functions.is_empty()
     }
@@ -1001,7 +1000,9 @@ impl LowerAbiCx {
         else {
             return;
         };
+        // original body -> icall body_id; ret results
         func.blocks[block].instructions.clear();
+        crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
         func.blocks[block].terminator = None;
         let mut builder = FunctionBuilder::new(func);
         builder.switch_to_block(block);
@@ -1037,7 +1038,6 @@ impl LowerAbiCx {
             }
             builder.ret(values);
         }
-        let _ = crate::mir::utils::repair_reachability_phis(builder.func_mut());
     }
 
     /// Rewrites `fallback(bytes calldata) returns (bytes memory)` into an
@@ -1429,8 +1429,8 @@ impl LowerAbiCx {
             return;
         }
         func.blocks[start].instructions.clear();
-        func.blocks[start].terminator = Some(Terminator::Jump(encode_block));
-        let _ = crate::mir::utils::repair_reachability_phis(func);
+        // canonicalization region -> jump encode_block
+        crate::mir::utils::replace_terminator(func, start, Terminator::Jump(encode_block));
     }
 
     fn calldata_canonicalization_source(func: &Function, object: ValueId) -> Option<ValueId> {

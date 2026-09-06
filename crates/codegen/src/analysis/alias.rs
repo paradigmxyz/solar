@@ -787,6 +787,7 @@ impl AliasAnalysis {
                 }
                 InstKind::SlicePtr(predecessor)
                 | InstKind::MemoryObjectFromPtr { ptr: predecessor, .. }
+                | InstKind::WordCast(predecessor)
                 | InstKind::MemoryObjectData(predecessor, _)
                 | InstKind::MemoryObjectFieldAddr { object: predecessor, .. } => {
                     propagate(*predecessor);
@@ -827,6 +828,7 @@ impl AliasAnalysis {
             | InstKind::MakeSlice { .. }
             | InstKind::SlicePtr(_)
             | InstKind::MemoryObjectFromPtr { .. }
+            | InstKind::WordCast(_)
             | InstKind::MemoryObjectData(_, _)
             | InstKind::MemoryObjectFieldAddr { .. }
             | InstKind::MemoryObjectElementAddr { .. }
@@ -1551,7 +1553,7 @@ impl AliasAnalysis {
                         Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)))
                     })
                 }
-                InstKind::MemoryObjectFromPtr { ptr, .. } => {
+                InstKind::MemoryObjectFromPtr { ptr, .. } | InstKind::WordCast(ptr) => {
                     self.memory_address_with_depth(func, ptr, depth + 1)
                 }
                 InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
@@ -1701,6 +1703,7 @@ impl AliasAnalysis {
             }
             InstKind::Sub(base, _)
             | InstKind::MemoryObjectFromPtr { ptr: base, .. }
+            | InstKind::WordCast(base)
             | InstKind::MemoryObjectData(base, _)
             | InstKind::MemoryObjectFieldAddr { object: base, .. }
             | InstKind::MemoryObjectElementAddr { object: base, .. } => {

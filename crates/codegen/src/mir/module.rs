@@ -2,12 +2,13 @@
 
 use super::{
     AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, DataId, DataRef, Disambiguator,
-    Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType,
+    Function, FunctionId, ImmutableId, MangledSymbol, MirType, StructId, StructType, Terminator,
 };
 use alloy_primitives::Bytes;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     fmt::{self, FmtIteratorExt},
-    index::IndexVec,
+    index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_interface::{Ident, Symbol, sym};
@@ -241,13 +242,60 @@ impl Module {
 
     /// Returns whether a live value or function signature still uses an SSA struct.
     pub(crate) fn has_struct_values(&self) -> bool {
+        self.has_value_type(|ty| matches!(ty, MirType::Struct(_)))
+    }
+
+    /// Returns whether a live value or function signature needs aggregate lowering.
+    pub(crate) fn has_aggregate_values(&self) -> bool {
+        self.has_value_type(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
+    }
+
+    fn has_value_type(&self, predicate: impl Fn(MirType) -> bool) -> bool {
         self.functions.iter().any(|func| {
             func.arg_indices()
                 .map(|index| func.arg_ty(index))
                 .chain(func.returns.iter().copied())
                 .chain(func.live_values().filter_map(|value| func.value_ty(value)))
-                .any(|ty| matches!(ty, MirType::Struct(_)))
+                .any(&predicate)
         })
+    }
+
+    /// Finds functions that may return to their caller, directly or through tail calls.
+    ///
+    /// Propagate direct returns backwards over tail-call edges. Cycles without a return stay
+    /// nonreturning. Unreachable returns and invalid tail targets count conservatively; this
+    /// query does not prove reachability or replace validation of call targets.
+    pub(crate) fn returning_functions(&self) -> DenseBitSet<FunctionId> {
+        let mut callers = index_vec![Vec::new(); self.functions.len()];
+        let mut returning = DenseBitSet::new_empty(self.functions.len());
+        let mut worklist = Vec::new();
+        for (id, func) in self.iter_functions() {
+            for block in &func.blocks {
+                let may_return = match &block.terminator {
+                    Some(Terminator::Return { .. }) => true,
+                    Some(Terminator::TailCall { function, .. }) => {
+                        if let Some(callers) = callers.get_mut(*function) {
+                            callers.push(id);
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    _ => false,
+                };
+                if may_return && returning.insert(id) {
+                    worklist.push(id);
+                }
+            }
+        }
+        while let Some(callee) = worklist.pop() {
+            for &caller in &callers[callee] {
+                if returning.insert(caller) {
+                    worklist.push(caller);
+                }
+            }
+        }
+        returning
     }
 
     /// Adds a function to the module.

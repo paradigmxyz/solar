@@ -1189,6 +1189,12 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::ExtractValue { ty, aggregate, index }, Some(field))
     }
 
+    /// Preserves all bits while forgetting a value's nominal one-word type.
+    pub(crate) fn word_cast(&mut self, value: ValueId) -> ValueId {
+        // word = word_cast value
+        self.emit_inst(InstKind::WordCast(value), Some(MirType::uint256()))
+    }
+
     /// Gives raw pointer bits an object type without checking the object.
     pub(crate) fn memory_object_from_ptr(
         &mut self,

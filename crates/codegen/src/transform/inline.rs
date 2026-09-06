@@ -781,7 +781,8 @@ fn estimate_inst_cost(gcx: Gcx<'_>, module: &Module, kind: &InstKind) -> (MirCos
     let (runtime_gas, code_size) = match kind {
         InstKind::InsertValue { .. }
         | InstKind::ExtractValue { .. }
-        | InstKind::MemoryObjectFromPtr { .. } => (0, 0),
+        | InstKind::MemoryObjectFromPtr { .. }
+        | InstKind::WordCast(_) => (0, 0),
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::MemoryObjectData(_, kind) => {
             if EvmMemoryLayout::object_data_offset(*kind) == 0 {

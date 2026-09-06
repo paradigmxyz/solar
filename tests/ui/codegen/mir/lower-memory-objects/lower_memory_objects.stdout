@@ -69,3 +69,21 @@
 +     ret arg0
   }
   
+- fn @word_carrier(arg0: memorystruct) -> u256 {
++ fn @word_carrier(arg0: memptr) -> u256 {
+    bb0:
+-     v0 = word_cast arg0
+-     v1 = memory_object_len memorybytes, v0
++     v1 = mload arg0
+      ret v1
+  }
+  
+  fn @unreachable_cast_cycle() -> u256 {
+    bb0:
+      ret 0
+-   bb1:
+-     v0 = word_cast v1
+-     v1 = word_cast v0
+-     ret v0
+  }
+  

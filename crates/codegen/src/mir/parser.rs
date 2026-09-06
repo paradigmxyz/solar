@@ -2164,6 +2164,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .unwrap_or(MirType::uint256());
                 (InstKind::Select(condition, then_value, else_value), Some(ty))
             }
+            sym::word_cast => {
+                let value = self.parse_value(builder)?;
+                (InstKind::WordCast(value), Some(MirType::uint256()))
+            }
             sym::memory_object_from_ptr => {
                 let MirType::MemoryObject(kind) = self.parse_type()? else {
                     return Err(self.parser.error("expected a memory object type"));

@@ -1,6 +1,10 @@
+error: [fn0] aggregate type `memoryslice` survives the `evm-shaped` phase boundary
+
 error: [fn0] [bb0, inst0] slice instruction `make_memory_slice` survives the `evm-shaped` phase boundary
 
 error: [fn0] [bb0, inst1] slice instruction `slice_len` survives the `evm-shaped` phase boundary
+
+error: [fn1] aggregate type `memoryslice` survives the `evm-shaped` phase boundary
 
 error: [fn1] [bb0, inst0] ABI encoding instruction `abi_encode` survives the `evm-shaped` phase boundary
 
@@ -24,5 +28,13 @@ error: [fn3] [bb0, inst6] storage slot instruction `storage_array_data_slot` sur
 
 error: [fn3] [bb0, inst7] storage slot instruction `storage_array_element_slot` survives the `evm-shaped` phase boundary
 
-error: aborting due to 13 previous errors
+error: [fn4] aggregate type `memoryslice` survives the `evm-shaped` phase boundary
+
+error: [fn5] aggregate type `calldataslice` survives the `evm-shaped` phase boundary
+
+error: [fn6] aggregate type `returndataslice` survives the `evm-shaped` phase boundary
+
+error: [fn7] [bb0, inst0] memory-object instruction `word_cast` survives the `evm-shaped` phase boundary
+
+error: aborting due to 19 previous errors
 

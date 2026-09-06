@@ -22,7 +22,7 @@ use crate::{
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
         Terminator, Value, ValueId,
-        utils::{repair_reachability_phis, retain_blocks},
+        utils::{replace_terminator, retain_blocks},
     },
     pass::{MirPass, run_function_pass},
 };
@@ -124,8 +124,6 @@ struct CfgSimplifyStats {
     unreachable_blocks_removed: usize,
     /// Number of dead functions eliminated.
     dead_functions_eliminated: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
     /// Estimated gas saved (8 gas per eliminated jump).
     gas_saved: usize,
 }
@@ -141,7 +139,6 @@ impl CfgSimplifyStats {
             + self.terminal_blocks_deduplicated
             + self.unreachable_blocks_removed
             + self.dead_functions_eliminated
-            + self.reachability_repaired as usize
     }
 
     /// Combines stats from another run.
@@ -153,7 +150,6 @@ impl CfgSimplifyStats {
         self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
         self.unreachable_blocks_removed += other.unreachable_blocks_removed;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
-        self.reachability_repaired |= other.reachability_repaired;
         self.gas_saved += other.gas_saved;
     }
 }
@@ -409,11 +405,11 @@ impl CfgSimplifier {
     }
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
-        let mut changed = false;
         for block_id in func.blocks.indices() {
+            let mut terminator = func.blocks[block_id].terminator.clone();
             let mut replacement = Self::immediate_branch_target(func, block_id);
             if replacement.is_none() {
-                replacement = match func.blocks[block_id].terminator.as_mut() {
+                replacement = match terminator.as_mut() {
                     Some(Terminator::Branch { then_block, else_block, .. })
                         if then_block == else_block =>
                     {
@@ -426,7 +422,6 @@ impl CfgSimplifier {
                         }
                         if cases.len() != old_len {
                             self.stats.terminators_simplified += old_len - cases.len();
-                            changed = true;
                         }
                         cases.is_empty().then_some(*default)
                     }
@@ -434,15 +429,14 @@ impl CfgSimplifier {
                 };
             }
             if let Some(target) = replacement {
-                func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+                terminator = Some(Terminator::Jump(target));
                 self.stats.terminators_simplified += 1;
                 self.stats.gas_saved += 10;
-                changed = true;
             }
-        }
-
-        if changed {
-            self.stats.reachability_repaired |= repair_reachability_phis(func);
+            if let Some(terminator) = terminator {
+                // branch/switch -> simplified terminator
+                replace_terminator(func, block_id, terminator);
+            }
         }
     }
 

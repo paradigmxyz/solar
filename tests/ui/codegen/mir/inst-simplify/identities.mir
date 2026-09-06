@@ -1,6 +1,9 @@
 //@compile-flags: -Zmir-pipeline=inst-simplify
 //@filecheck: --enable-var-scope
 @module InstSimplifyIdentities
+types:
+  struct0: {u256, u256}
+  struct1: {struct0, u256}
 
 // CHECK-LABEL: @add_zero
 // CHECK: - [[SUM:v[0-9]+]] = add arg0, 0
@@ -137,5 +140,70 @@ fn @masked_own_balance() -> u256 {
     v0 = address
     v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
     v2 = balance v1
+    ret v2
+}
+
+// CHECK-LABEL: @aggregate_projection
+// CHECK: - {{v[0-9]+}} = extract_value
+// CHECK: ret arg0
+fn @aggregate_projection(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, arg0
+    v1 = insert_value struct0, v0, 1, arg1
+    v2 = extract_value struct0, v1, 0
+    ret v2
+}
+
+// CHECK-LABEL: @overwritten_field
+// CHECK: - {{v[0-9]+}} = extract_value
+// CHECK: ret arg1
+fn @overwritten_field(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, arg0
+    v1 = insert_value struct0, v0, 0, arg1
+    v2 = extract_value struct0, v1, 0
+    ret v2
+}
+
+// CHECK-LABEL: @nested_projection
+// CHECK: ret arg0
+fn @nested_projection(arg0: u256) -> u256 {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 1, arg0
+    v1 = insert_value struct1, undef struct1, 0, v0
+    v2 = extract_value struct1, v1, 0
+    v3 = extract_value struct0, v2, 1
+    ret v3
+}
+
+// CHECK-LABEL: @unknown_field
+// CHECK: {{v[0-9]+}} = extract_value struct0, {{v[0-9]+}}, 1
+fn @unknown_field(arg0: struct0, arg1: u256) -> u256 {
+  bb0:
+    v0 = insert_value struct0, arg0, 0, arg1
+    v1 = extract_value struct0, v0, 1
+    ret v1
+}
+
+// CHECK-LABEL: @raw_word_carrier
+// CHECK: {{v[0-9]+}} = extract_value struct0, {{v[0-9]+}}, 0
+// CHECK: {{v[0-9]+}} = memory_object_len memorybytes, {{v[0-9]+}}
+fn @raw_word_carrier(arg0: memorystruct) -> u256 {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = memory_object_len memorybytes, v1
+    ret v2
+}
+
+// CHECK-LABEL: @unreachable_insertion_cycle
+// CHECK: extract_value struct0
+fn @unreachable_insertion_cycle(arg0: u256) -> u256 {
+  bb0:
+    ret arg0
+  bb1:
+    v0 = insert_value struct0, v1, 1, arg0
+    v1 = insert_value struct0, v0, 1, arg0
+    v2 = extract_value struct0, v1, 0
     ret v2
 }

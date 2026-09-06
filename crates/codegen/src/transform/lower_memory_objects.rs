@@ -3,7 +3,8 @@
 //! The selected memory-layout policy supplies object headers, field offsets, and element strides.
 //! Semantic accesses and allocations become raw pointer arithmetic, loads, stores, and allocation
 //! operations, then object types are erased. Mixed slice/object merges are materialized before
-//! that erasure so later operations still use the correct representation.
+//! that erasure so later operations still use the correct representation. Unreachable blocks are
+//! removed before substitution: their definitions need not obey SSA and can contain cast cycles.
 //!
 //! This runs after SSA structs and mutable frame slots have been lowered. It leaves modules with
 //! live SSA structs untouched: erasing an object's type while a struct still declares that field
@@ -66,6 +67,8 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
         return false;
     }
 
+    // unreachable definitions -> removed blocks and phi inputs
+    let _ = super::cfg_simplify::remove_unreachable_blocks(func);
     materialize_mixed_byte_phis(func);
     let mut replacements = FxHashMap::default();
     let blocks = func.blocks.indices();
@@ -83,7 +86,7 @@ fn lower_function<P: MemoryLayoutPolicy>(func: &mut Function) -> bool {
                         instruction.kind =
                             InstKind::Alloc { size, kind: AllocationKind::Raw, semantics };
                     }
-                    InstKind::MemoryObjectFromPtr { ptr, .. } => {
+                    InstKind::MemoryObjectFromPtr { ptr, .. } | InstKind::WordCast(ptr) => {
                         // object -> ptr
                         if let Some(result) = builder.func().inst_result_value(inst) {
                             replacements.insert(result, ptr);

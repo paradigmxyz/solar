@@ -14,5 +14,11 @@ error: [fn6] a struct result must be the function's only result
 
 error: [fn7] [bb0, inst0] memory object pointer conversion requires a word and matching object result
 
-error: aborting due to 8 previous errors
+error: [fn8] [bb0, inst0] memory object has type `memorystruct`, expected `memorybytes`
+
+error: [fn9] [bb0, inst0] memory object has type `memorybytes`, expected `memoryfixedarray`
+
+error: [fn10] [bb0, inst0] word cast requires a one-word operand and u256 result
+
+error: aborting due to 11 previous errors
 

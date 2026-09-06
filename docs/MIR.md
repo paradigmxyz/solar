@@ -13,15 +13,17 @@ stored predecessor list, and each phi's incoming list. Phis use one value per
 predecessor block, even when a switch has several cases targeting that block.
 Changing only a terminator leaves those other representations stale.
 
-`mir::utils::repair_reachability_phis` reconstructs all predecessor lists and
-removes phi inputs whose source no longer branches to the target. It cannot
-supply a value for a newly added edge or fix a dominance violation. Calling it
-after every pass would both scan unaffected code and hide incomplete rewrites.
+Each transform maintains these structures at its edit sites. There is no
+whole-function phi repair pass. A repair scan could remove stale inputs but
+could not supply values for newly added edges or fix dominance violations.
 The parser's deferred inference of aggregate call and phi types is separate:
 it resolves forward references once, without changing control-flow edges.
 
 Use operations with narrow, explicit contracts:
 
+- `replace_terminator` updates only affected successors. It requires phi inputs
+  for a new edge before changing the terminator, retains inputs on kept edges,
+  and removes them from dropped edges. It preserves debug metadata.
 - `fold_terminator_to_jump` keeps an existing successor, removes the other
   successors' phi inputs, and collapses duplicate kept edges without losing
   their value. It preserves the terminator's debug context.
@@ -34,12 +36,12 @@ Use operations with narrow, explicit contracts:
 - A redirect that introduces a predecessor must explicitly supply or construct
   each new phi value. Neither a generic setter nor a repair scan can infer it.
 
-SCCP, check elimination, and DCE use the first two operations. Frame promotion
-preserves control flow, so it needs no repair scan. Pure evaluation replaces the
-whole body and constructs its links directly. More complex rewrites, including
-loop preheader creation, jump threading, and some ABI lowering, still use the
-bulk repair helper. Migrating them requires preserving their phi construction
-rules, not simply deleting the calls.
+SCCP, check elimination, DCE, ADCE, CFG simplification, and jump threading use
+these operations. Loop preheader creation prepares its phis before redirecting
+edges. PRE uses `split_edge`; ABI continuation splitting transfers successor
+links and phi inputs with the terminator. Replacing a body with a helper call
+also removes the original body's outgoing edges. Frame promotion preserves
+control flow, and pure evaluation reconstructs the whole body directly.
 
 The stored CFG and cached analyses are distinct. Updating phis and predecessor
 lists does not update dominance, reachability, alias analysis, or loop facts.
@@ -72,6 +74,21 @@ transforms justify their cost.
 They do not allocate storage, copy bytes, or imply an address. A slice field
 carries its pointer and length; a memory-object field carries a typed reference,
 not a copy of the referenced object.
+
+A raw `u256` field can carry all bits of a nominal object reference. Keep that
+loss of type information explicit: `word_cast` preserves the bits and yields a
+raw word; `memory_object_from_ptr` gives a word an object type without proving
+validity or ownership. Neither operation allocates or copies memory. Aggregate
+lowering inserts `word_cast` when a raw field contains a nominal reference;
+memory-object lowering erases both conversions. Alias analysis follows their
+unchanged addresses.
+
+The verifier checks nominal object kinds against semantic accesses, while
+retaining compatibility with raw pointer carriers during lowering. It also
+checks ordinary return counts and void signatures. A shared returnability
+analysis follows tail-call chains, including cycles, so forwarding a call
+cannot hide an incompatible return signature. Proven nonreturning chains stay
+exempt. Slices as well as structs must be gone at the EVM-shaped boundary.
 
 LLVM calls the matching aggregate operations `insertvalue` and `extractvalue`.
 Its `insertelement` and `extractelement` operate on vectors, can take dynamic
@@ -113,10 +130,16 @@ analysis without exposing the shared return buffer too early. Keep physical
 stack moves in the MIR-to-EVM scheduler and byte offsets in the assembler.
 Adding another insert/extract lowering pass would duplicate `lower-structs`.
 
-There is room to improve aggregate-aware simplification before lowering:
-forward fields through insert/extract chains, remove unused fields and return
-components where all callers allow it, and simplify scalar phis exposed by
-lowering. These are distinct optimizations, not prerequisites for valid SSA.
+Instruction simplification forwards projections through insertion chains before
+lowering. Its bounded walk handles overwritten fields and nested aggregates
+without hanging on malformed unreachable cycles. It preserves nominal type
+changes for the explicit conversion at the lowering boundary. Both struct and
+memory-object lowering prune unreachable definitions before resolving value
+substitutions.
+
+Further output optimizations can remove unused fields and return components
+where all callers allow it, or simplify scalar phis exposed by lowering. Those
+are separate transforms with their own profitability constraints.
 Early flattening can expose scalar optimizations but also enlarge IR and extend
 live ranges; materializing aggregates in memory adds aliasing and memory costs.
 Neither should be chosen without checking generated code.

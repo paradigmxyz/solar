@@ -34,7 +34,7 @@ use crate::{
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
         MemoryObjectKind, MemoryObjectLayout, MirType, Module, Terminator, Value, ValueId,
-        utils::{repair_reachability_phis, split_edge},
+        utils::split_edge,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -73,16 +73,12 @@ struct PreStats {
     expressions_eliminated: usize,
     /// Number of predecessor computations inserted.
     expressions_inserted: usize,
-    /// Whether CFG backlinks or phi inputs were repaired.
-    reachability_repaired: bool,
 }
 
 impl PreStats {
     /// Returns the total number of MIR edits made by this pass.
     const fn total(self) -> usize {
-        self.expressions_eliminated
-            + self.expressions_inserted
-            + self.reachability_repaired as usize
+        self.expressions_eliminated + self.expressions_inserted
     }
 }
 
@@ -184,7 +180,6 @@ impl PartialRedundancyEliminator {
                     &mut inserted_insts,
                 );
             }
-            self.stats.reachability_repaired |= repair_reachability_phis(func);
         }
 
         self.stats

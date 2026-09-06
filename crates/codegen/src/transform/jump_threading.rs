@@ -16,8 +16,7 @@
 
 use crate::{
     mir::{
-        BlockId, Function, InstKind, Module, Terminator, Value, ValueId,
-        utils::repair_reachability_phis,
+        BlockId, Function, InstKind, Module, Terminator, Value, ValueId, utils::replace_terminator,
     },
     pass::{MirPass, run_function_pass},
 };
@@ -101,10 +100,6 @@ impl JumpThreader {
         if changed == 0 {
             return 0;
         }
-
-        // Update predecessor/successor information
-        self.update_cfg_edges(func);
-        changed += usize::from(repair_reachability_phis(func));
 
         changed
     }
@@ -198,7 +193,8 @@ impl JumpThreader {
                 continue;
             };
             self.thread_terminator(func, &mut term, final_targets);
-            func.blocks[block_id].terminator = Some(term);
+            // jump/branch/switch through forwarders -> their final targets
+            replace_terminator(func, block_id, term);
         }
     }
 
@@ -420,10 +416,10 @@ impl JumpThreader {
         old_target: BlockId,
         new_target: BlockId,
     ) -> bool {
-        let Some(term) = &mut func.blocks[pred].terminator else {
+        let Some(mut term) = func.blocks[pred].terminator.clone() else {
             return false;
         };
-        match term {
+        let changed = match &mut term {
             Terminator::Jump(target) => {
                 if *target == old_target {
                     *target = new_target;
@@ -466,25 +462,11 @@ impl JumpThreader {
             | Terminator::SelfDestruct { .. }
             | Terminator::TailCall { .. }
             | Terminator::Invalid => false,
+        };
+        if changed {
+            // pred -> old_target -> new_target => pred -> new_target
+            replace_terminator(func, pred, term);
         }
-    }
-
-    /// Updates CFG edges after threading.
-    fn update_cfg_edges(&self, func: &mut Function) {
-        for block_id in func.blocks.indices() {
-            func.blocks[block_id].predecessors.clear();
-        }
-
-        for block_id in func.blocks.indices() {
-            let successors = func.blocks[block_id]
-                .terminator
-                .as_ref()
-                .map(|t| t.successors())
-                .unwrap_or_default();
-
-            for succ in successors {
-                func.blocks[succ].predecessors.push(block_id);
-            }
-        }
+        changed
     }
 }

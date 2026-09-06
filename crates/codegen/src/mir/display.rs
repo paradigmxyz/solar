@@ -401,6 +401,7 @@ fn display_inst_kind<'a>(
             ty.index(),
             display_val(*aggregate, func)
         ),
+        InstKind::WordCast(value) => write!(f, "word_cast {}", display_val(*value, func)),
         InstKind::MemoryObjectFromPtr { ptr, kind } => {
             write!(
                 f,
