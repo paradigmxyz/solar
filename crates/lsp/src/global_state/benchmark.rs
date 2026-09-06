@@ -1,8 +1,8 @@
 //! Benchmark-only, in-memory LSP analysis support.
 
 use super::{
-    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, DiagnosticMap, SymbolTables, analyze,
-    analyze_with_source_map,
+    AnalysisBatch, AnalysisResult, AnalysisResultAccumulator, AnalysisTaskOutcome, DiagnosticMap,
+    SymbolTables, analyze, analyze_with_source_map, run_analysis,
 };
 use crate::{
     config::negotiate_capabilities,
@@ -503,6 +503,47 @@ impl BenchmarkDocumentChange {
 pub struct BenchmarkDocumentUpdate {
     state: super::GlobalState,
     params: DidChangeTextDocumentParams,
+}
+
+/// A production analysis state used to compare a cold run with an unchanged-snapshot reuse.
+#[doc(hidden)]
+pub struct BenchmarkRepeatedAnalysis {
+    state: super::GlobalState,
+    version: usize,
+}
+
+impl BenchmarkRepeatedAnalysis {
+    /// Prepare one open document and reserve a stable analysis epoch.
+    pub fn new(source: String) -> Self {
+        let state = super::GlobalState::new(ClientSocket::new_closed());
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/repeated-analysis.sol");
+        state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from(source.as_str())),
+            Some(1),
+        );
+        let version = 1;
+        state.analysis_version.store(version, std::sync::atomic::Ordering::Release);
+        state.analysis_commit.lock().vfs_content_revision = state.vfs.read().content_revision();
+        Self { state, version }
+    }
+
+    /// Run one production analysis epoch, returning whether it published successfully.
+    #[inline(never)]
+    pub fn run(&mut self) -> bool {
+        let mut snapshot = self.state.snapshot();
+        let progress = self.state.analysis_progress.reserve(self.version);
+        matches!(
+            run_analysis(
+                &mut snapshot,
+                self.version,
+                Vec::new(),
+                &progress,
+                &IndexingCancellation::default(),
+            ),
+            AnalysisTaskOutcome::Published
+        )
+    }
 }
 
 impl BenchmarkDocumentUpdate {
@@ -1277,5 +1318,37 @@ mod tests {
         ] {
             assert!(BenchmarkProject::from_fixture("malformed", fixture).is_err());
         }
+    }
+
+    #[test]
+    fn repeated_analysis_reuses_and_invalidates_snapshot() {
+        let mut analysis = BenchmarkRepeatedAnalysis::new("contract Cached {}".into());
+        assert!(analysis.run());
+        let first_revision = analysis
+            .state
+            .analysis_commit
+            .lock()
+            .cached_output
+            .as_ref()
+            .unwrap()
+            .vfs_content_revision;
+
+        assert!(analysis.run());
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("benches/repeated-analysis.sol");
+        analysis.state.vfs.write().set_file_contents_with_version(
+            VfsPath::from(path),
+            Some(Rope::from("contract Cached { uint value; }")),
+            Some(2),
+        );
+        assert!(analysis.run());
+        let second_revision = analysis
+            .state
+            .analysis_commit
+            .lock()
+            .cached_output
+            .as_ref()
+            .unwrap()
+            .vfs_content_revision;
+        assert_ne!(first_revision, second_revision);
     }
 }

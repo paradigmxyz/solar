@@ -5,9 +5,9 @@ use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkOpenDocuments, BenchmarkProject,
-    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
-    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-    benchmark_selection_ranges,
+    BenchmarkRepeatedAnalysis, BenchmarkRequest, BenchmarkResponse,
+    BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
+    BenchmarkWorkspaceReports, benchmark_selection_ranges,
 };
 use std::{fs, hint::black_box, path::PathBuf};
 
@@ -335,6 +335,26 @@ fn open_document_analysis_batches(c: &mut Criterion) {
     group.finish();
 }
 
+fn repeated_analysis(c: &mut Criterion) {
+    let fixture = benchmark_source(256);
+
+    let mut cold = c.benchmark_group("lsp/incremental-analysis");
+    cold.bench_function("cold", |b| {
+        b.iter_batched(
+            || BenchmarkRepeatedAnalysis::new(fixture.source.clone()),
+            |mut analysis| black_box(analysis.run()),
+            BatchSize::PerIteration,
+        );
+    });
+    cold.finish();
+
+    let mut analysis = BenchmarkRepeatedAnalysis::new(fixture.source);
+    assert!(analysis.run());
+    let mut cached = c.benchmark_group("lsp/incremental-analysis");
+    cached.bench_function("unchanged", |b| b.iter(|| black_box(analysis.run())));
+    cached.finish();
+}
+
 fn workspace_path_queries(c: &mut Criterion) {
     let queries =
         BenchmarkWorkspacePathQueries::new(PATH_INDEX_WORKSPACE_COUNT, PATH_INDEX_QUERY_COUNT);
@@ -542,6 +562,7 @@ criterion_group!(
     open_document_selection_range,
     workspace_diagnostic_hot_paths,
     open_document_analysis_batches,
+    repeated_analysis,
     workspace_path_queries,
     unifap_benches
 );

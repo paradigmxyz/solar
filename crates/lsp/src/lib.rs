@@ -351,9 +351,9 @@ mod workspace;
 #[doc(hidden)]
 pub use global_state::benchmark::{
     BenchmarkAnalysis, BenchmarkDocumentChange, BenchmarkDocumentUpdate, BenchmarkEdit,
-    BenchmarkError, BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRequest, BenchmarkResponse,
-    BenchmarkSelectionRangeRequests, BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries,
-    BenchmarkWorkspaceReports,
+    BenchmarkError, BenchmarkOpenDocuments, BenchmarkProject, BenchmarkRepeatedAnalysis,
+    BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
+    BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
 };
 
 /// Runs the selection-range kernel for Criterion benchmarks.
