@@ -86,7 +86,7 @@ pub(super) fn unique_frontier(
             .live_values()
             .any(|value| matches!(dispatcher.value(value), mir::Value::Arg(_)))
         || layouts[&root].returning
-        || !layouts[&root].spills.homes.is_empty()
+        || layouts[&root].uses_spill_protocol()
         || !matches!(plan.functions[root].base, FrameBase::Static(_))
         || dispatcher.instructions().any(|inst| {
             !matches!(

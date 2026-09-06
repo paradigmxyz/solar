@@ -147,7 +147,7 @@ fn stack_prefix(insts: &[ir::Instruction]) -> &[ir::Instruction] {
 
 fn eligible(context: &Context<'_>, block: mir::BlockId, allowed: impl Fn(u8) -> bool) -> bool {
     !matches!(context.optimization, OptimizationMode::None)
-        && context.layout.spills.homes.is_empty()
+        && !context.layout.uses_spill_protocol()
         && context.function.blocks[block].instructions.len() <= 32
         && context.function.blocks[block].instructions.iter().all(|&id| {
             let kind = &context.function.inst(id).kind;

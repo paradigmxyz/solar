@@ -60,8 +60,8 @@ pub(super) fn choose(
 ) -> Option<(Vec<ir::Instruction>, ir::BlockId)> {
     if matches!(context.optimization, OptimizationMode::None)
         || !context.plan.functions[callee].stack_arguments
-        || !layout.spills.homes.is_empty()
-        || !context.layout.spills.homes.is_empty()
+        || layout.uses_spill_protocol()
+        || context.layout.uses_spill_protocol()
     {
         return None;
     }

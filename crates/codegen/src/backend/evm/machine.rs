@@ -31,6 +31,7 @@ use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMa
 mod call_entry;
 mod entry_order;
 mod initialization;
+mod rematerialize;
 mod writer;
 
 /// The constructor program-end relocation is resolved by primitive assembly.
@@ -60,8 +61,16 @@ struct FunctionLayout {
     cfg: CfgInfo,
     alias: AliasAnalysis,
     spills: SpillPlan,
+    rematerialized: FxHashMap<mir::ValueId, U256>,
     // Definition boundaries: Phi values are available at entry, other results after their opcode.
     home_definitions: FxHashMap<mir::ValueId, (mir::BlockId, usize)>,
+}
+
+impl FunctionLayout {
+    /// Preserves the ordinary plan's spill protocol even when recipes replace every home.
+    fn uses_spill_protocol(&self) -> bool {
+        !self.spills.homes.is_empty() || !self.rematerialized.is_empty()
+    }
 }
 
 struct Context<'a> {
@@ -211,6 +220,7 @@ pub(crate) fn lower(
                 cfg,
                 alias,
                 spills,
+                rematerialized: FxHashMap::default(),
                 home_definitions,
             },
         );
@@ -240,6 +250,19 @@ pub(crate) fn lower(
             }
         }
         plan.finalize().map_err(str::to_owned)?;
+    }
+    // <selected calldata homes> -> <cached immutable recipes at their consumers>
+    // Keep the ordinary reserved words, Phi scratch and protocol fixed point unchanged.
+    for id in reachable.iter() {
+        let layout = layouts.get_mut(&id).unwrap();
+        layout.rematerialized = rematerialize::select(
+            module.function(id),
+            &mut layout.spills.homes,
+            optimization.is_gas(),
+        );
+        for value in layout.rematerialized.keys() {
+            layout.home_definitions.remove(value);
+        }
     }
     let reads_fmp = plan.max_dynamic_frame_size != 0
         || reachable.iter().any(|id| {
@@ -435,7 +458,7 @@ fn lower_function(
                 let continuation = output.blocks.push(ir::Block::default());
                 let mut target = layouts[callee].entry;
                 let caller;
-                if !layout.spills.homes.is_empty() {
+                if layout.uses_spill_protocol() {
                     let base = stack.values()[..prefix(context)].to_vec();
                     insts.extend(
                         stack
@@ -687,7 +710,7 @@ fn lower_function(
                 ir::TerminatorKind::SelfDestruct
             }
             mir::Terminator::TailCall { function: callee, args } => {
-                if !layout.spills.homes.is_empty() {
+                if layout.uses_spill_protocol() {
                     insts.extend(stack.reconcile(&[], 0, context.version).map_err(schedule_error)?);
                     for &value in args.iter().rev() {
                         load_value(context, value, &mut insts)?;
@@ -926,9 +949,9 @@ fn save_writer_homes(
     {
         addresses.push(frame_pointer);
     }
-    let mixed = !context.layout.spills.homes.is_empty()
+    let mixed = context.layout.uses_spill_protocol()
         && super::spills::direct_writer(&context.function.inst(inst).kind);
-    let tracked = if context.layout.spills.homes.is_empty() || mixed { addresses.len() } else { 0 };
+    let tracked = if !context.layout.uses_spill_protocol() || mixed { addresses.len() } else { 0 };
     let mut saved = SavedHomes { protection: None, addresses, tracked, protected_prefix: None };
     if saved.addresses.is_empty() {
         return Ok(saved);
@@ -951,12 +974,13 @@ fn save_writer_homes(
         |value| writer_operands.as_ref().is_some_and(|operands| operands.contains(&value));
     // <activation return label>; <live residents and dying writer operands>
     // <saved homes>; <saved frame pointer>
-    if !context.layout.spills.homes.is_empty() {
+    if context.layout.uses_spill_protocol() {
         let mut base = stack.values()[..prefix(context)].to_vec();
         if mixed {
             base.extend(stack.values()[prefix(context)..].iter().copied().filter(|slot| {
                 matches!(slot, Slot::Value(value)
                     if !context.layout.spills.homes.contains_key(value)
+                        && !context.layout.rematerialized.contains_key(value)
                         && (live(*value) || resident_operand(*value)))
             }));
         }
@@ -1039,6 +1063,15 @@ fn lower_opcode(
     let function = context.function;
     let instruction = function.inst(inst_id);
     let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
+    if opcode == op::CALLDATALOAD
+        && let Some(value) = function.inst_result_value(inst_id)
+        && context.layout.rematerialized.contains_key(&value)
+    {
+        // <retained live values>; discard the unused original offset
+        // Materialize the immutable read only at its consumers.
+        prepare(context, stack, insts, &[], live)?;
+        return Ok(());
+    }
     let operands = instruction.kind.operands();
     let saved = save_writer_homes(
         context,
@@ -1080,7 +1113,7 @@ fn lower_opcode(
                 context.version,
                 opcode,
                 |slot| match slot {
-                    Slot::Value(value) => stored(function, value) && live(value),
+                    Slot::Value(value) => resident(context, value) && live(value),
                     Slot::ReturnAddress | Slot::Protected(_) => true,
                     Slot::CallLabel(_) | Slot::Argument(_) => false,
                 },
@@ -1094,11 +1127,7 @@ fn lower_opcode(
             prefix(context),
             context.version,
             |slot| match slot {
-                Slot::Value(value) => {
-                    stored(function, value)
-                        && !context.layout.spills.homes.contains_key(&value)
-                        && live(value)
-                }
+                Slot::Value(value) => resident(context, value) && live(value),
                 _ => false,
             },
         )
@@ -1173,6 +1202,12 @@ fn stored(function: &mir::Function, value: mir::ValueId) -> bool {
         || (matches!(function.value(value), mir::Value::Arg(_)) && !external_argument(function))
 }
 
+fn resident(context: &Context<'_>, value: mir::ValueId) -> bool {
+    stored(context.function, value)
+        && !context.layout.spills.homes.contains_key(&value)
+        && !context.layout.rematerialized.contains_key(&value)
+}
+
 fn prefix(context: &Context<'_>) -> usize {
     usize::from(context.layout.returning)
 }
@@ -1245,6 +1280,14 @@ fn load_value(
     value: mir::ValueId,
     output: &mut Vec<ir::Instruction>,
 ) -> Result<(), String> {
+    if let Some(&offset) = context.layout.rematerialized.get(&value) {
+        debug_assert!(!context.layout.spills.homes.contains_key(&value));
+        // push <constant calldata offset>
+        // calldataload
+        output.push(ir::InstKind::Push(offset).into());
+        output.push(ir::InstKind::Op(op::CALLDATALOAD).into());
+        return Ok(());
+    }
     if let Some(&home) = context.layout.spills.homes.get(&value) {
         // mload(value_home)
         output.extend(calls::address(context.storage.spill_address(home).map_err(str::to_owned)?));
@@ -1294,11 +1337,7 @@ fn prepare(
     output.extend(
         stack
             .prepare(&values, prefix(context), context.version, |slot| match slot {
-                Slot::Value(value) => {
-                    stored(context.function, value)
-                        && !context.layout.spills.homes.contains_key(&value)
-                        && live(value)
-                }
+                Slot::Value(value) => resident(context, value) && live(value),
                 Slot::ReturnAddress | Slot::Protected(_) => true,
                 Slot::CallLabel(_) | Slot::Argument(_) => false,
             })
@@ -1314,7 +1353,7 @@ fn edge(
     stack: &Stack<Slot>,
     output: &mut ir::Module,
 ) -> Result<ir::BlockId, String> {
-    if !context.layout.spills.homes.is_empty() {
+    if context.layout.uses_spill_protocol() {
         let mut insts = Vec::new();
         let desired = edge_values(context, from, to)?;
         // <canonical resident successor values>; <memory-only simultaneous Phi copies>
@@ -1449,7 +1488,7 @@ fn preferred_branch_values(
     result: Option<mir::ValueId>,
 ) -> Option<Vec<Slot>> {
     let source = &context.function.blocks[block];
-    if position + 1 != source.instructions.len() || !context.layout.spills.homes.is_empty() {
+    if position + 1 != source.instructions.len() || context.layout.uses_spill_protocol() {
         return None;
     }
     let mir::Terminator::Branch { condition, then_block, else_block } =
