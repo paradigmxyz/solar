@@ -601,3 +601,38 @@ The explicit destination approval remains pending. CI is not green yet, and
 the original sealed gas/size debt and computed-memory interference bug remain
 open. The current cheap-environment-copy and clone-sharing trials are not
 accepted performance results.
+
+
+### Main CI repair: late environment reads and remaining sharing
+
+The accepted `environment-copies` pass runs after literal orientation. It
+replaces legacy DUPs of known, stable two-gas environment values with fresh
+reads, retaining ordinary CSE identities until stack normalization finishes.
+It adds 117 raw production lines. All 4,776 UI objects and 3,344 heavy-project
+objects retain their lengths; only 990 UI DUP/read opcode positions change.
+Both hot modes retain all fifteen cases and 175 ordered call labels exactly.
+Sixty-four focused calls pass, with thirty-two paired traces retaining every
+PC, stack and memory record; operation costs fall by one or two gas per call.
+Four bounded symbolic comparisons agree. Two reversed-order Seaport timing
+pairs are 0.78% slower; sampled RSS is mixed, so this is not a compile-time win.
+The rejected early-CSE trial and its one-byte regression remain preserved.
+Evidence: `late-environment-{independent,heavy-review-v2,timing}-20260906/`
+and `main-ci-late-read-trial-20260906/`.
+
+The subsequent full workspace run passes 1,389 tests, with only the UI
+aggregate failing: 11,420 UI cases pass, fourteen fail, and 851 are filtered.
+This run includes an uncommitted whole-block coalescing trial. Its UI screen
+shrinks 81 objects without increases, and both hot modes retain all bytes and
+ordered gas labels. Eighty focused calls pass. Three gas-mode calls acquire
+one JUMPDEST and cost one more gas than the preceding rewrite; they remain
+seventeen, five and six gas below the sealed original respectively. The
+trial's fixture is still three bytes larger than the original. Heavy-object
+review and quiet compiler timing remain pending, so the pass is not accepted.
+
+The remaining CI failures retain assertions for shared return/arithmetic
+suffixes, short-message helpers and cold continuations. Those requirements
+are being implemented; their absence is not being blessed. Reviewed phi,
+ternary, library and data snapshots retain executable sources and runtime
+oracles, including thirty additional current/solc storage panic checks.
+Publication remains blocked by automatic approval review. The original
+performance debt and computed-memory interference bug remain open.
