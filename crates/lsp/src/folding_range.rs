@@ -4,7 +4,11 @@ use crate::proto;
 use crop::Rope;
 use lsp_types::{FoldingRange, FoldingRangeKind};
 use solar_config::CompileOpts;
-use solar_interface::{Session, SourceMap, Span, data_structures::Never, source_map::FileName};
+use solar_interface::{
+    Session, SourceMap, Span,
+    data_structures::{Never, map::FxHashMap},
+    source_map::FileName,
+};
 use solar_parse::{
     Cursor, Parser,
     ast::{self, token::Delimiter, visit::Visit},
@@ -17,24 +21,28 @@ use std::{
 
 pub(crate) fn folding_ranges(source: String) -> Vec<FoldingRange> {
     let rope = Rope::from(source.as_str());
-    let index = proto::LspPositionIndex::new(&rope);
-    let LexicalInfo { mut ranges, fallback_ranges, unclosed_braces } =
-        collect_lexical_info(&source);
-    match collect_ast_ranges(source, &rope, &unclosed_braces) {
-        Some(info) => {
-            if info.has_errors {
-                ranges.extend(fallback_ranges.into_iter().filter(|candidate| {
-                    !info.ranges.iter().any(|ast| {
-                        ast.kind == candidate.kind
-                            && ast.range.start == candidate.range.start
-                            && candidate.range.end <= ast.range.end
-                    })
-                }));
-            }
-            ranges.extend(info.ranges);
-        }
-        None => ranges.extend(fallback_ranges),
+    folding_ranges_with_rope(source, &rope)
+}
+
+pub(crate) fn folding_ranges_from_rope(rope: Rope) -> Vec<FoldingRange> {
+    if is_single_line(&rope) {
+        return Vec::new();
     }
+    let source = rope_to_string(&rope);
+    folding_ranges_with_rope(source, &rope)
+}
+
+fn folding_ranges_with_rope(source: String, rope: &Rope) -> Vec<FoldingRange> {
+    if is_single_line(rope) {
+        return Vec::new();
+    }
+    let index = proto::LspPositionIndex::new(rope);
+    let ranges = collect_ranges(source, rope).unwrap_or_else(|| {
+        let source = rope_to_string(rope);
+        let LexicalInfo { mut ranges, fallback_ranges, .. } = collect_lexical_info(&source, true);
+        ranges.extend(fallback_ranges);
+        ranges
+    });
     let mut ranges = ranges
         .into_iter()
         .filter_map(|candidate| folding_range(&index, candidate))
@@ -44,7 +52,20 @@ pub(crate) fn folding_ranges(source: String) -> Vec<FoldingRange> {
     ranges
 }
 
-fn collect_lexical_info(source: &str) -> LexicalInfo {
+fn is_single_line(rope: &Rope) -> bool {
+    // LSP counts lone CRs and a trailing empty line, unlike Rope's line metric.
+    rope.line_len() <= 1 && rope.chunks().all(|chunk| !chunk.contains(['\r', '\n']))
+}
+
+fn rope_to_string(rope: &Rope) -> String {
+    let mut source = String::with_capacity(rope.byte_len());
+    for chunk in rope.chunks() {
+        source.push_str(chunk);
+    }
+    source
+}
+
+fn collect_lexical_info(source: &str, include_fallback: bool) -> LexicalInfo {
     let mut ranges = Vec::new();
     let mut fallback_ranges = Vec::new();
     let mut line_group = None::<ByteRange<usize>>;
@@ -53,6 +74,9 @@ fn collect_lexical_info(source: &str) -> LexicalInfo {
 
     for (start, token) in Cursor::new(source).with_position() {
         let end = start + token.len as usize;
+        if !matches!(token.kind, RawTokenKind::LineComment { .. } | RawTokenKind::Whitespace) {
+            flush_line_comment_group(&mut ranges, &mut line_group);
+        }
         match token.kind {
             RawTokenKind::LineComment { .. } => {
                 if let Some(group) = &mut line_group
@@ -60,35 +84,24 @@ fn collect_lexical_info(source: &str) -> LexicalInfo {
                 {
                     group.end = end;
                 } else {
-                    if let Some(range) = line_group.take() {
-                        ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Comment) });
-                    }
+                    flush_line_comment_group(&mut ranges, &mut line_group);
                     line_group = Some(start..end);
                 }
             }
             RawTokenKind::Whitespace => {}
             RawTokenKind::BlockComment { .. } => {
-                if let Some(range) = line_group.take() {
-                    ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Comment) });
-                }
                 ranges.push(Candidate { range: start..end, kind: Some(FoldingRangeKind::Comment) });
             }
-            RawTokenKind::OpenDelim(Delimiter::Brace) => {
-                if let Some(range) = line_group.take() {
-                    ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Comment) });
-                }
+            RawTokenKind::OpenDelim(Delimiter::Brace) if include_fallback => {
                 let class = classify_fallback_block(source, &syntax_tokens, &brace_stack);
                 brace_stack.push(OpenBrace { start, class });
                 syntax_tokens.push(SyntaxToken {
                     kind: token.kind,
                     range: start..end,
-                    closed_block: None,
+                    closes_yul_for_init: false,
                 });
             }
-            RawTokenKind::CloseDelim(Delimiter::Brace) => {
-                if let Some(range) = line_group.take() {
-                    ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Comment) });
-                }
+            RawTokenKind::CloseDelim(Delimiter::Brace) if include_fallback => {
                 let closed_block = brace_stack.pop().and_then(|open| {
                     if let Some(class) = open.class {
                         fallback_ranges.push(class.candidate(open.start, end));
@@ -98,39 +111,52 @@ fn collect_lexical_info(source: &str) -> LexicalInfo {
                 syntax_tokens.push(SyntaxToken {
                     kind: token.kind,
                     range: start..end,
-                    closed_block,
+                    closes_yul_for_init: closed_block
+                        .is_some_and(|block| matches!(block.kind, FallbackBlockKind::YulForInit)),
                 });
             }
-            _ => {
-                if let Some(range) = line_group.take() {
-                    ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Comment) });
-                }
+            _ if include_fallback => {
                 syntax_tokens.push(SyntaxToken {
                     kind: token.kind,
                     range: start..end,
-                    closed_block: None,
+                    closes_yul_for_init: false,
                 });
             }
+            _ => {}
         }
     }
-    if let Some(range) = line_group {
-        ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Comment) });
-    }
-    fallback_ranges.extend(collect_fallback_import_ranges(source, &syntax_tokens));
-    let unclosed_braces = brace_stack.iter().map(|brace| brace.start).collect();
-    for open in brace_stack {
-        if let Some(class) = open.class {
-            fallback_ranges.push(class.candidate(open.start, source.len()));
+    flush_line_comment_group(&mut ranges, &mut line_group);
+    let unclosed_braces = if include_fallback {
+        fallback_ranges.extend(collect_fallback_import_ranges(source, &syntax_tokens));
+        let unclosed_braces = brace_stack.iter().map(|brace| brace.start).collect();
+        for open in brace_stack {
+            if let Some(class) = open.class {
+                fallback_ranges.push(class.candidate(open.start, source.len()));
+            }
         }
-    }
-    fallback_ranges
-        .sort_unstable_by_key(|candidate| (candidate.range.start, Reverse(candidate.range.end)));
-    fallback_ranges.dedup_by_key(|candidate| candidate.range.start);
+        fallback_ranges.sort_unstable_by_key(|candidate| {
+            (candidate.range.start, Reverse(candidate.range.end))
+        });
+        fallback_ranges.dedup_by_key(|candidate| candidate.range.start);
+        unclosed_braces
+    } else {
+        Vec::new()
+    };
     LexicalInfo { ranges, fallback_ranges, unclosed_braces }
 }
 
+fn flush_line_comment_group(
+    ranges: &mut Vec<Candidate>,
+    line_group: &mut Option<ByteRange<usize>>,
+) {
+    if let Some(range) = line_group.take() {
+        ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Comment) });
+    }
+}
+
 fn collect_fallback_import_ranges(source: &str, tokens: &[SyntaxToken]) -> Vec<Candidate> {
-    let mut imports = Vec::new();
+    let mut ranges = Vec::new();
+    let mut current = None::<ByteRange<usize>>;
     let mut start = None;
     let mut brace_depth = 0usize;
 
@@ -151,30 +177,26 @@ fn collect_fallback_import_ranges(source: &str, tokens: &[SyntaxToken]) -> Vec<C
             }
             RawTokenKind::Semi if brace_depth == 0 => {
                 if let Some(start) = start.take() {
-                    imports.push(start..token.range.end);
+                    let import = start..token.range.end;
+                    let split = current.as_ref().is_some_and(|group| {
+                        let between = &source[group.end..import.start];
+                        has_blank_line_between(between.bytes())
+                            || Cursor::new(between).any(|token| !token.kind.is_trivial())
+                    });
+                    if split && let Some(range) = current.take() {
+                        ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
+                    }
+                    if let Some(group) = &mut current {
+                        group.end = import.end;
+                    } else {
+                        current = Some(import);
+                    }
                 }
             }
             _ => {}
         }
     }
 
-    let mut ranges = Vec::new();
-    let mut current = None::<ByteRange<usize>>;
-    for import in imports {
-        let split = current.as_ref().is_some_and(|group| {
-            let between = &source[group.end..import.start];
-            has_blank_line_between(between.bytes())
-                || Cursor::new(between).any(|token| !token.kind.is_trivial())
-        });
-        if split && let Some(range) = current.take() {
-            ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
-        }
-        if let Some(group) = &mut current {
-            group.end = import.end;
-        } else {
-            current = Some(import);
-        }
-    }
     if let Some(range) = current {
         ranges.push(Candidate { range, kind: Some(FoldingRangeKind::Imports) });
     }
@@ -344,12 +366,7 @@ fn classify_yul_for_continuation(tokens: &[SyntaxToken]) -> Option<FallbackBlock
         match token.kind {
             RawTokenKind::Semi | RawTokenKind::OpenDelim(Delimiter::Brace) => return None,
             RawTokenKind::CloseDelim(Delimiter::Brace) => {
-                return match token.closed_block.map(|block| block.kind) {
-                    Some(FallbackBlockKind::YulForInit) => {
-                        Some(FallbackBlock::body(BlockLanguage::Yul))
-                    }
-                    _ => None,
-                };
+                return token.closes_yul_for_init.then(|| FallbackBlock::body(BlockLanguage::Yul));
             }
             _ => {}
         }
@@ -394,8 +411,16 @@ fn has_one_line_break(text: &str) -> bool {
                     bytes.next();
                 }
                 line_breaks += 1;
+                if line_breaks > 1 {
+                    return false;
+                }
             }
-            b'\n' => line_breaks += 1,
+            b'\n' => {
+                line_breaks += 1;
+                if line_breaks > 1 {
+                    return false;
+                }
+            }
             b' ' | b'\t' | 0x0b | 0x0c => {}
             _ => return false,
         }
@@ -403,35 +428,57 @@ fn has_one_line_break(text: &str) -> bool {
     line_breaks == 1
 }
 
-fn collect_ast_ranges(source: String, rope: &Rope, unclosed_braces: &[usize]) -> Option<AstInfo> {
+fn collect_ranges(source: String, rope: &Rope) -> Option<Vec<Candidate>> {
     let mut opts = CompileOpts::default();
     opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).with_silent_emitter(None).single_threaded().build();
 
     sess.enter_sequential(|| {
         let arena = ast::Arena::new();
-        let Ok(mut parser) = Parser::from_source_code(
-            &sess,
-            &arena,
-            FileName::Custom("lsp-folding-range.sol".into()),
-            source,
-        ) else {
-            return None;
-        };
+        let file = sess
+            .source_map()
+            .new_source_file(FileName::Custom("lsp-folding-range.sol".into()), source)
+            .ok()?;
+        let mut parser = Parser::from_source_file(&sess, &arena, &file);
         let source_unit = match parser.parse_file() {
-            Ok(source_unit) => source_unit,
+            Ok(source_unit) => Some(source_unit),
             Err(error) => {
                 error.emit();
-                return None;
+                None
             }
         };
         drop(parser);
 
-        let mut collector = AstRangeCollector::new(sess.source_map(), rope, unclosed_braces);
+        let has_errors = sess.dcx.has_errors().is_err();
+        let include_fallback = has_errors || source_unit.is_none();
+        let LexicalInfo { mut ranges, fallback_ranges, unclosed_braces } =
+            collect_lexical_info(&file.src, include_fallback);
+        let Some(source_unit) = source_unit else {
+            ranges.extend(fallback_ranges);
+            return Some(ranges);
+        };
+
+        let mut collector = AstRangeCollector::new(sess.source_map(), rope, &unclosed_braces);
         let _ = collector.visit_source_unit(&source_unit);
-        let mut ranges = collect_import_ranges(&source_unit, sess.source_map(), rope);
-        ranges.extend(collector.ranges);
-        Some(AstInfo { ranges, has_errors: sess.dcx.has_errors().is_err() })
+        let mut ast_ranges = collect_import_ranges(&source_unit, sess.source_map(), rope);
+        ast_ranges.extend(collector.ranges);
+
+        if has_errors {
+            let mut ast_ends = FxHashMap::<(u8, usize), usize>::default();
+            for ast in &ast_ranges {
+                ast_ends
+                    .entry((folding_range_kind_rank(ast.kind.as_ref()), ast.range.start))
+                    .and_modify(|end| *end = (*end).max(ast.range.end))
+                    .or_insert(ast.range.end);
+            }
+            ranges.extend(fallback_ranges.into_iter().filter(|candidate| {
+                ast_ends
+                    .get(&(folding_range_kind_rank(candidate.kind.as_ref()), candidate.range.start))
+                    .is_none_or(|&end| candidate.range.end > end)
+            }));
+        }
+        ranges.extend(ast_ranges);
+        Some(ranges)
     })
 }
 
@@ -509,11 +556,11 @@ fn folding_range(
     index: &proto::LspPositionIndex<&Rope>,
     candidate: Candidate,
 ) -> Option<FoldingRange> {
-    let start = index.position_at_byte(candidate.range.start)?;
-    let end = index.position_at_byte(candidate.range.end)?;
-    if start.line >= end.line {
+    if index.line_at_byte(candidate.range.start)? >= index.line_at_byte(candidate.range.end)? {
         return None;
     }
+    let start = index.position_at_byte(candidate.range.start)?;
+    let end = index.position_at_byte(candidate.range.end)?;
     Some(FoldingRange {
         start_line: start.line,
         start_character: Some(start.character),
@@ -530,13 +577,17 @@ fn folding_range_sort_key(range: &FoldingRange) -> (u32, u32, u32, u32, u8) {
         range.start_character.unwrap_or_default(),
         range.end_line,
         range.end_character.unwrap_or_default(),
-        match range.kind {
-            None => 0,
-            Some(FoldingRangeKind::Comment) => 1,
-            Some(FoldingRangeKind::Imports) => 2,
-            Some(FoldingRangeKind::Region) => 3,
-        },
+        folding_range_kind_rank(range.kind.as_ref()),
     )
+}
+
+fn folding_range_kind_rank(kind: Option<&FoldingRangeKind>) -> u8 {
+    match kind {
+        None => 0,
+        Some(FoldingRangeKind::Comment) => 1,
+        Some(FoldingRangeKind::Imports) => 2,
+        Some(FoldingRangeKind::Region) => 3,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -551,11 +602,6 @@ struct LexicalInfo {
     unclosed_braces: Vec<usize>,
 }
 
-struct AstInfo {
-    ranges: Vec<Candidate>,
-    has_errors: bool,
-}
-
 #[derive(Clone, Copy)]
 struct OpenBrace {
     start: usize,
@@ -566,7 +612,7 @@ struct OpenBrace {
 struct SyntaxToken {
     kind: RawTokenKind,
     range: ByteRange<usize>,
-    closed_block: Option<FallbackBlock>,
+    closes_yul_for_init: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -614,19 +660,13 @@ struct AstRangeCollector<'a> {
     source_map: &'a SourceMap,
     rope: &'a Rope,
     ranges: Vec<Candidate>,
-    suppressed_blocks: Vec<Span>,
+    suppressed_block: Option<Span>,
     unclosed_braces: &'a [usize],
 }
 
 impl<'a> AstRangeCollector<'a> {
     fn new(source_map: &'a SourceMap, rope: &'a Rope, unclosed_braces: &'a [usize]) -> Self {
-        Self {
-            source_map,
-            rope,
-            ranges: Vec::new(),
-            suppressed_blocks: Vec::new(),
-            unclosed_braces,
-        }
+        Self { source_map, rope, ranges: Vec::new(), suppressed_block: None, unclosed_braces }
     }
 
     fn push(&mut self, span: Span) {
@@ -661,13 +701,13 @@ impl<'a> AstRangeCollector<'a> {
     }
 
     fn suppress_block(&mut self, span: Span, f: impl FnOnce(&mut Self)) {
-        self.suppressed_blocks.push(span);
+        let previous = self.suppressed_block.replace(span);
         f(self);
-        self.suppressed_blocks.pop();
+        self.suppressed_block = previous;
     }
 
     fn block_is_suppressed(&self, span: Span) -> bool {
-        self.suppressed_blocks.last() == Some(&span)
+        self.suppressed_block == Some(span)
     }
 }
 

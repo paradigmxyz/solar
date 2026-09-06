@@ -110,17 +110,22 @@ pub(crate) fn folding_range(
 
     async move {
         let Some((vfs_path, path)) = request else { return Ok(None) };
-        let source = match document_contents(&vfs, &vfs_path, &path).await {
-            Ok(source) => source,
-            Err(error) => {
-                warn!(%error, "failed to read document");
-                return Ok(None);
-            }
-        };
-        let ranges =
+        let contents = { vfs.read().get_file_contents(&vfs_path).cloned() };
+        let task = if let Some(rope) = contents {
+            tokio::task::spawn_blocking(move || {
+                crate::folding_range::folding_ranges_from_rope(rope)
+            })
+        } else {
+            let source = match tokio::fs::read_to_string(path).await {
+                Ok(source) => source,
+                Err(error) => {
+                    warn!(%error, "failed to read document");
+                    return Ok(None);
+                }
+            };
             tokio::task::spawn_blocking(move || crate::folding_range::folding_ranges(source))
-                .await
-                .map_err(folding_range_task_failed)?;
+        };
+        let ranges = task.await.map_err(folding_range_task_failed)?;
         Ok(Some(ranges))
     }
 }

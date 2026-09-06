@@ -1,17 +1,20 @@
 #![allow(unused_crate_dependencies)]
 
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use crop::Rope;
 use lsp_types::{GotoDefinitionResponse, HoverContents, OneOf, Position, Url};
 use solar_config::CompileOpts;
 use solar_lsp::{
     BenchmarkAnalysis, BenchmarkDocumentUpdate, BenchmarkOpenDocuments, BenchmarkProject,
     BenchmarkRequest, BenchmarkResponse, BenchmarkSelectionRangeRequests,
     BenchmarkWorkspaceDiscovery, BenchmarkWorkspacePathQueries, BenchmarkWorkspaceReports,
-    benchmark_selection_ranges,
+    benchmark_folding_ranges, benchmark_folding_ranges_from_rope, benchmark_selection_ranges,
 };
 use std::{fs, hint::black_box, path::PathBuf};
 
 const ANALYSIS_FUNCTION_COUNTS: [usize; 2] = [64, 256];
+const INCOMPLETE_FOLDING_CONTRACT_COUNT: usize = 256;
+const MINIFIED_FOLDING_FUNCTION_COUNT: usize = 1_024;
 const HOVER_FUNCTION_COUNT: usize = 256;
 const AGGREGATION_BATCH_COUNT: usize = 4;
 const AGGREGATION_FUNCTION_COUNT: usize = 64;
@@ -261,6 +264,87 @@ fn selection_range(c: &mut Criterion) {
             |source| {
                 black_box(benchmark_selection_ranges(black_box(source), black_box(&positions)))
             },
+            BatchSize::PerIteration,
+        );
+    });
+    group.finish();
+}
+
+fn incomplete_folding_source(contract_count: usize) -> String {
+    let mut source = String::new();
+    for prefix in ["before", "after"] {
+        if prefix == "after" {
+            source.push_str("@ incomplete edit\n");
+        }
+        for index in 0..contract_count {
+            source.push_str(&format!(
+                "contract {prefix}_{index:04} {{\n    function f() external {{\n        if (true) {{\n        }}\n    }}\n}}\n"
+            ));
+            if prefix == "after" && index % 16 == 15 {
+                source.push_str("@ incomplete edit\n");
+            }
+        }
+    }
+    source
+}
+
+fn minified_folding_source(function_count: usize) -> String {
+    let mut source = String::from("contract Minified{");
+    for index in 0..function_count {
+        source.push_str(&format!("function f{index}() external{{if(true){{}}}}"));
+    }
+    source.push('}');
+    source
+}
+
+fn rope_to_string(rope: &Rope) -> String {
+    let mut source = String::with_capacity(rope.byte_len());
+    for chunk in rope.chunks() {
+        source.push_str(chunk);
+    }
+    source
+}
+
+fn folding_range(c: &mut Criterion) {
+    let clean = OPTIMISM_SOURCE.to_owned();
+    let incomplete = incomplete_folding_source(INCOMPLETE_FOLDING_CONTRACT_COUNT);
+    let minified = minified_folding_source(MINIFIED_FOLDING_FUNCTION_COUNT);
+    let open_rope = Rope::from(clean.as_str());
+
+    let clean_ranges = benchmark_folding_ranges(clean.clone());
+    let incomplete_ranges = benchmark_folding_ranges(incomplete.clone());
+    let minified_ranges = benchmark_folding_ranges(minified.clone());
+    assert!(!clean_ranges.is_empty());
+    assert_eq!(incomplete_ranges.len(), INCOMPLETE_FOLDING_CONTRACT_COUNT * 2 * 3);
+    assert!(minified_ranges.is_empty());
+    assert_eq!(benchmark_folding_ranges_from_rope(open_rope.clone()), clean_ranges);
+
+    let mut group = c.benchmark_group("lsp/folding-range");
+    for (name, source) in [("clean", clean), ("incomplete", incomplete), ("minified", minified)] {
+        group.throughput(Throughput::Bytes(source.len() as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(name), &source, |b, source| {
+            b.iter_batched(
+                || source.clone(),
+                |source| black_box(benchmark_folding_ranges(black_box(source))),
+                BatchSize::PerIteration,
+            );
+        });
+    }
+    group.throughput(Throughput::Bytes(OPTIMISM_SOURCE.len() as u64));
+    group.bench_function("open-clean-legacy", |b| {
+        b.iter_batched(
+            || open_rope.clone(),
+            |rope| {
+                let source = rope_to_string(&rope);
+                black_box(benchmark_folding_ranges(black_box(source)))
+            },
+            BatchSize::PerIteration,
+        );
+    });
+    group.bench_function("open-clean-snapshot", |b| {
+        b.iter_batched(
+            || open_rope.clone(),
+            |rope| black_box(benchmark_folding_ranges_from_rope(black_box(rope))),
             BatchSize::PerIteration,
         );
     });
@@ -538,6 +622,7 @@ criterion_group!(
     bounded_workspace_discovery,
     symbol_table_aggregation,
     burst_hover,
+    folding_range,
     selection_range,
     open_document_selection_range,
     workspace_diagnostic_hot_paths,

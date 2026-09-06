@@ -187,17 +187,20 @@ impl<R: Borrow<Rope>> LspPositionIndex<R> {
 
     pub(crate) fn position_at_byte(&self, byte: usize) -> Option<lsp_types::Position> {
         let rope = self.rope();
+        let line = self.line_at_byte(byte)?;
+        let start = self.line_starts[line];
+        let character =
+            rope.byte_slice(start..byte).chars().map(|ch| ch.len_utf16()).sum::<usize>();
+        Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
+    }
+
+    pub(crate) fn line_at_byte(&self, byte: usize) -> Option<usize> {
+        let rope = self.rope();
         if byte > rope.byte_len() || !rope.is_char_boundary(byte) {
             return None;
         }
         let line = self.line_starts.partition_point(|&start| start <= byte).checked_sub(1)?;
-        let start = self.line_starts[line];
-        if byte > self.line_end(line) {
-            return None;
-        }
-        let character =
-            rope.byte_slice(start..byte).chars().map(|ch| ch.len_utf16()).sum::<usize>();
-        Some(lsp_types::Position::new(u32::try_from(line).ok()?, u32::try_from(character).ok()?))
+        (byte <= self.line_end(line)).then_some(line)
     }
 
     pub(crate) fn byte_len(&self) -> usize {
