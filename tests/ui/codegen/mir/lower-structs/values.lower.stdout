@@ -115,7 +115,8 @@
 +     ret v1, v2
   }
   
-  fn @tail(arg0: u256, arg1: bool) {
+- fn @tail(arg0: u256, arg1: bool) -> struct0 {
++ fn @tail(arg0: u256, arg1: bool) -> (u256, bool) {
     bb0:
       tail_call @pair, arg0, arg1
   }

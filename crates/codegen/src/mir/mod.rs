@@ -359,6 +359,10 @@ mod round_trip {
                     return;
                 }
             };
+            if let Err(error) = check_signatures(&parsed1, &parsed2) {
+                result = Err(error);
+                return;
+            }
             let print2 = parsed2.to_text().to_string();
             let parsed3 = match parse_module(&sess, &print2) {
                 Ok(m) => m,
@@ -379,6 +383,21 @@ mod round_trip {
         result
     }
 
+    fn check_signatures(original: &Module, parsed: &Module) -> Result<(), String> {
+        if original.struct_types != parsed.struct_types {
+            return Err("struct declarations changed during round-trip".into());
+        }
+        if original.functions.len() != parsed.functions.len() {
+            return Err("function count changed during round-trip".into());
+        }
+        for (before, after) in original.functions.iter().zip(&parsed.functions) {
+            if before.selector.is_none() && before.returns != after.returns {
+                return Err(format!("return types of `{}` changed during round-trip", before.name));
+            }
+        }
+        Ok(())
+    }
+
     /// Common idempotency check: print → parse → print → parse → print, last two
     /// must match. Caller must already be inside an active `Session::enter`.
     fn check_round_trip_module(sess: &Session, module: &Module) -> Result<(), String> {
@@ -389,6 +408,7 @@ mod round_trip {
                 sess.emitted_diagnostics().unwrap()
             )
         })?;
+        check_signatures(module, &parsed1)?;
         let print2 = parsed1.to_text().to_string();
         let parsed2 = parse_module(sess, &print2).map_err(|_| {
             format!(

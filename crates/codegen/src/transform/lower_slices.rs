@@ -3,7 +3,8 @@
 //! Slices are deliberately a higher-level MIR abstraction. The EVM backend
 //! remains word-based, so this pass expands slice parameters and call
 //! arguments, resolves `slice_ptr`/`slice_len` projections, and erases the
-//! corresponding constructors before machine lowering.
+//! corresponding constructors before machine lowering. SSA structs must have been lowered first;
+//! otherwise expanding a slice would invalidate the struct field's declared type.
 
 use crate::{
     memory::EvmMemoryLayout,
@@ -51,7 +52,7 @@ enum ParamRepr {
 /// The pointer type for a slice parameter's leading word. Returndata has no
 /// dedicated pointer type: like the result of `returndatasize`, its offset is
 /// an ordinary EVM word whose address space remains encoded by the slice type.
-fn slice_param_ptr_type(location: SliceLocation) -> MirType {
+pub(super) fn slice_param_ptr_type(location: SliceLocation) -> MirType {
     match location {
         SliceLocation::Memory => MirType::MemPtr,
         SliceLocation::Calldata => MirType::CalldataPtr,
@@ -208,29 +209,9 @@ impl LowerSlices {
     /// mutating the function so an offset near the address-space limit makes this transform bail
     /// atomically instead of panicking in debug builds or wrapping in release builds.
     fn shifted_frame_offsets(func: &Function, added_slots: usize) -> Option<Vec<(InstId, u64)>> {
-        if added_slots == 0 {
-            return Some(Vec::new());
-        }
-        let signature_slots = func.params.len().checked_add(func.returns.len())?;
-        let signature_size =
-            u64::try_from(signature_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-        let old_local_start =
-            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)?;
-        let shift = u64::try_from(added_slots).ok()?.checked_mul(EvmMemoryLayout::WORD_SIZE)?;
-
-        let mut shifted = Vec::new();
-        for inst_id in func.instructions() {
-            let InstKind::InternalFrameAddr(offset) = func.inst(inst_id).kind else { continue };
-            // Lowering emits this instruction only for frame locals. Parsed MIR can address the
-            // header or signature directly, but a raw signature offset does not identify which
-            // parameter or result it belongs to after a slice expands. Bail instead of silently
-            // retargeting it to a different slot.
-            if offset < old_local_start {
-                return None;
-            }
-            shifted.push((inst_id, offset.checked_add(shift)?));
-        }
-        Some(shifted)
+        let signature_slots =
+            func.params.len().checked_add(func.returns.len())?.checked_add(added_slots)?;
+        super::utils::rebase_frame_offsets(func, signature_slots)
     }
 
     /// Rewrites slice-typed `select` and `phi` into paired pointer/length
@@ -752,6 +733,16 @@ impl LowerSlices {
         // physical object representation.
         for &(slice, inst, is_ptr) in projections.values() {
             let Some(ty) = func.value_ty(slice) else { continue };
+            if let Value::Undef(MirType::Slice(location)) = *func.value(slice) {
+                // slice_ptr(undef slice) -> undef pointer
+                // slice_len(undef slice) -> undef u256
+                let ty = if is_ptr { slice_param_ptr_type(location) } else { MirType::uint256() };
+                let value = func.alloc_value(Value::Undef(ty));
+                let result = func.inst_result_value(inst).expect("slice projection has a result");
+                replacements.insert(result, value);
+                removed.insert(inst);
+                continue;
+            }
             let physical_object = matches!(ty, MirType::MemPtr);
             let physical_pointer = matches!(ty, MirType::MemPtr | MirType::CalldataPtr);
             let physical_word = matches!(ty, MirType::UInt(_))
@@ -793,6 +784,9 @@ impl LowerSlices {
         true
     }
     fn run(module: &mut Module) -> bool {
+        if module.has_struct_values() {
+            return false;
+        }
         let compact = Self::infer_compact_params(module);
         let return_signatures: FxHashMap<_, _> = module
             .functions

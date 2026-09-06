@@ -404,17 +404,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             // select cond, aggregate, aggregate -> a result with the aggregate's type
             // Resolve after calls, including forward and numeric function references. Each select
-            // acquires a struct type at most once, so cyclic value references cannot oscillate.
+            // acquires an aggregate type at most once, so cyclic value references cannot oscillate.
             loop {
                 let mut changed = false;
                 for &id in &instructions {
                     let instruction = function.inst(id);
                     if let InstKind::Select(_, a, b) = instruction.kind
-                        && !matches!(instruction.result_ty, Some(MirType::Struct(_)))
+                        && !matches!(
+                            instruction.result_ty,
+                            Some(MirType::Struct(_) | MirType::Slice(_))
+                        )
                         && let Some(ty) = [a, b]
                             .into_iter()
                             .filter_map(|value| function.value_ty(value))
-                            .find(|ty| matches!(ty, MirType::Struct(_)))
+                            .find(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
                     {
                         function.inst_mut(id).result_ty = Some(ty);
                         changed = true;
@@ -2083,7 +2086,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let ty = builder
                     .func()
                     .value_ty(then_value)
-                    .filter(|ty| matches!(ty, MirType::Struct(_)))
+                    .filter(|ty| matches!(ty, MirType::Struct(_) | MirType::Slice(_)))
                     .unwrap_or(MirType::uint256());
                 (InstKind::Select(condition, then_value, else_value), Some(ty))
             }

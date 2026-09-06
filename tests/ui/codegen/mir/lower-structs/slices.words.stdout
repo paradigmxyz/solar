@@ -1,0 +1,396 @@
+- // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-structs) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-structs) ===
+  @module StructSlices
+  @phase dispatch
+  types:
+    struct0: {}
+    struct1: {calldataslice, u256}
+    struct2: {memoryslice, struct0, struct1, returndataslice}
+  
+- fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> struct2 {
++ fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+-     v0 = insert_value struct1, undef struct1, 0, arg1
+-     v1 = insert_value struct1, v0, 1, 42
+-     v2 = insert_value struct2, undef struct2, 0, arg0
+-     v3 = insert_value struct2, v2, 1, undef struct0
+-     v4 = insert_value struct2, v3, 2, v1
+-     v5 = insert_value struct2, v4, 3, arg2
+-     ret v5
++     v6 = slice_ptr arg1
++     v7 = slice_len arg1
++     v8 = slice_ptr arg0
++     v9 = slice_len arg0
++     v10 = slice_ptr arg2
++     v11 = slice_len arg2
++     ret v8, v9, v6, v7, 42, v10, v11
+  }
+  
+  fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
+    bb0:
+-     v0 = icall @pack, 1, arg0, arg1, arg2
+-     v1 = extract_value struct2, v0, 0
+-     v2 = extract_value struct2, v0, 2
+-     v3 = extract_value struct1, v2, 0
+-     v4 = extract_value struct1, v2, 1
+-     v5 = extract_value struct2, v0, 3
+-     v6 = slice_len v1
+-     v7 = slice_len v3
+-     v8 = slice_len v5
++     v12 = icall @pack, 7, arg0, arg1, arg2
++     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
++     v14 = add v13, 32
++     v15 = mload v14
++     v16 = add v13, 64
++     v17 = mload v16
++     v18 = add v13, 96
++     v19 = mload v18
++     v20 = add v13, 128
++     v21 = mload v20
++     v22 = add v13, 160
++     v23 = mload v22
++     v24 = add v13, 192
++     v25 = mload v24
++     v26 = make_memory_slice v12, v15
++     v27 = make_calldata_slice v17, v19
++     v28 = make_returndata_slice v23, v25
++     v6 = slice_len v26
++     v7 = slice_len v27
++     v8 = slice_len v28
+      v9 = add v6, v7
+-     v10 = add v8, v4
++     v10 = add v8, v21
+      v11 = add v9, v10
+      ret v11
+  }
+  
+- fn @loop(arg0: struct2, arg1: bool) -> struct2 {
++ fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      jump bb1
+    bb1:
+-     v0 = phi struct2, [bb0: arg0], [bb2: v4]
+-     jumpi arg1, bb2, bb3
++     v5 = phi [bb0: arg0], [bb2: v13]
++     v6 = phi [bb0: arg1], [bb2: v14]
++     v7 = phi [bb0: arg2], [bb2: v7]
++     v8 = phi [bb0: arg3], [bb2: v8]
++     v9 = phi [bb0: arg4], [bb2: v9]
++     v10 = phi [bb0: arg5], [bb2: v10]
++     v11 = phi [bb0: arg6], [bb2: v11]
++     jumpi arg7, bb2, bb3
+    bb3:
+-     ret v0
++     ret v5, v6, v7, v8, v9, v10, v11
+    bb2:
+-     v1 = extract_value struct2, v0, 0
+-     v2 = slice_ptr v1
++     v12 = make_memory_slice v5, v6
++     v2 = slice_ptr v12
+      v3 = make_memory_slice v2, 16
+-     v4 = insert_value struct2, v0, 0, v3
++     v13 = slice_ptr v3
++     v14 = slice_len v3
+      jump bb1
+  }
+  
+- fn @forward(arg0: struct2) -> struct2 {
++ fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+-     ret arg0
++     ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
+  }
+  
+- fn @tail(arg0: struct2) -> struct2 {
++ fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+-     tail_call @forward, arg0
++     tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
+  }
+  
+- fn @from_undef() -> struct1 {
++ fn @from_undef() -> (calldataptr, u256, u256) {
+    bb0:
+-     v0 = insert_value struct1, undef struct1, 0, undef calldataslice
+-     v1 = insert_value struct1, v0, 1, 42
+-     ret v1
++     v2 = slice_ptr undef calldataslice
++     v3 = slice_len undef calldataslice
++     ret v2, v3, 42
+  }
+  
+- fn @phi_undef(arg0: calldataslice, arg1: bool) -> struct1 {
++ fn @phi_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: arg0], [bb2: undef calldataslice]
+-     v1 = insert_value struct1, undef struct1, 0, v0
+-     v2 = insert_value struct1, v1, 1, 42
+-     ret v2
++     v3 = slice_ptr v0
++     v4 = slice_len v0
++     ret v3, v4, 42
+  }
+  
+- fn @select_undef(arg0: calldataslice, arg1: bool) -> struct1 {
++ fn @select_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
+    bb0:
+      v0 = select arg1, arg0, undef calldataslice
+-     v1 = insert_value struct1, undef struct1, 0, v0
+-     v2 = insert_value struct1, v1, 1, 42
+-     ret v2
++     v3 = slice_ptr v0
++     v4 = slice_len v0
++     ret v3, v4, 42
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-frame-slots) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-frame-slots) ===
+  @module StructSlices
+  @phase dispatch
+  types:
+    struct0: {}
+    struct1: {calldataslice, u256}
+    struct2: {memoryslice, struct0, struct1, returndataslice}
+  
+  fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      v6 = slice_ptr arg1
+      v7 = slice_len arg1
+      v8 = slice_ptr arg0
+      v9 = slice_len arg0
+      v10 = slice_ptr arg2
+      v11 = slice_len arg2
+      ret v8, v9, v6, v7, 42, v10, v11
+  }
+  
+  fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
+    bb0:
+      v12 = icall @pack, 7, arg0, arg1, arg2
+-     v13 = frame_load multi_return, word, 0 !metadata(memory=scratch)
+-     v14 = add v13, 32
++     v29 = mload 32 !metadata(memory=scratch)
++     v14 = add v29, 32
+      v15 = mload v14
+-     v16 = add v13, 64
++     v16 = add v29, 64
+      v17 = mload v16
+-     v18 = add v13, 96
++     v18 = add v29, 96
+      v19 = mload v18
+-     v20 = add v13, 128
++     v20 = add v29, 128
+      v21 = mload v20
+-     v22 = add v13, 160
++     v22 = add v29, 160
+      v23 = mload v22
+-     v24 = add v13, 192
++     v24 = add v29, 192
+      v25 = mload v24
+      v26 = make_memory_slice v12, v15
+      v27 = make_calldata_slice v17, v19
+      v28 = make_returndata_slice v23, v25
+      v6 = slice_len v26
+      v7 = slice_len v27
+      v8 = slice_len v28
+      v9 = add v6, v7
+      v10 = add v8, v21
+      v11 = add v9, v10
+      ret v11
+  }
+  
+  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      jump bb1
+    bb1:
+      v5 = phi [bb0: arg0], [bb2: v13]
+      v6 = phi [bb0: arg1], [bb2: v14]
+      v7 = phi [bb0: arg2], [bb2: v7]
+      v8 = phi [bb0: arg3], [bb2: v8]
+      v9 = phi [bb0: arg4], [bb2: v9]
+      v10 = phi [bb0: arg5], [bb2: v10]
+      v11 = phi [bb0: arg6], [bb2: v11]
+      jumpi arg7, bb2, bb3
+    bb3:
+      ret v5, v6, v7, v8, v9, v10, v11
+    bb2:
+      v12 = make_memory_slice v5, v6
+      v2 = slice_ptr v12
+      v3 = make_memory_slice v2, 16
+      v13 = slice_ptr v3
+      v14 = slice_len v3
+      jump bb1
+  }
+  
+  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
+  }
+  
+  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
+  }
+  
+  fn @from_undef() -> (calldataptr, u256, u256) {
+    bb0:
+      v2 = slice_ptr undef calldataslice
+      v3 = slice_len undef calldataslice
+      ret v2, v3, 42
+  }
+  
+  fn @phi_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
+    bb0:
+      jumpi arg1, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+      v0 = phi [bb1: arg0], [bb2: undef calldataslice]
+      v3 = slice_ptr v0
+      v4 = slice_len v0
+      ret v3, v4, 42
+  }
+  
+  fn @select_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
+    bb0:
+      v0 = select arg1, arg0, undef calldataslice
+      v3 = slice_ptr v0
+      v4 = slice_len v0
+      ret v3, v4, 42
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/slices.mir (after lower-slices) ===
+  @module StructSlices
+  @phase dispatch
+  types:
+    struct0: {}
+    struct1: {calldataslice, u256}
+    struct2: {memoryslice, struct0, struct1, returndataslice}
+  
+- fn @pack(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
++ fn @pack(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+-     v6 = slice_ptr arg1
+-     v7 = slice_len arg1
+-     v8 = slice_ptr arg0
+-     v9 = slice_len arg0
+-     v10 = slice_ptr arg2
+-     v11 = slice_len arg2
+-     ret v8, v9, v6, v7, 42, v10, v11
++     ret arg0, arg1, arg2, arg3, 42, arg4, arg5
+  }
+  
+- fn @consume(arg0: memoryslice, arg1: calldataslice, arg2: returndataslice) -> u256 {
++ fn @consume(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256) -> u256 {
+    bb0:
+-     v12 = icall @pack, 7, arg0, arg1, arg2
++     v12 = icall @pack, 7, arg0, arg1, arg2, arg3, arg4, arg5
+      v29 = mload 32 !metadata(memory=scratch)
+      v14 = add v29, 32
+      v15 = mload v14
+      v16 = add v29, 64
+      v17 = mload v16
+      v18 = add v29, 96
+      v19 = mload v18
+      v20 = add v29, 128
+      v21 = mload v20
+      v22 = add v29, 160
+      v23 = mload v22
+      v24 = add v29, 192
+      v25 = mload v24
+-     v26 = make_memory_slice v12, v15
+-     v27 = make_calldata_slice v17, v19
+-     v28 = make_returndata_slice v23, v25
+-     v6 = slice_len v26
+-     v7 = slice_len v27
+-     v8 = slice_len v28
+-     v9 = add v6, v7
+-     v10 = add v8, v21
++     v9 = add v15, v19
++     v10 = add v25, v21
+      v11 = add v9, v10
+      ret v11
+  }
+  
+  fn @loop(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256, arg7: bool) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      jump bb1
+    bb1:
+-     v5 = phi [bb0: arg0], [bb2: v13]
+-     v6 = phi [bb0: arg1], [bb2: v14]
++     v5 = phi [bb0: arg0], [bb2: v5]
++     v6 = phi [bb0: arg1], [bb2: 16]
+      v7 = phi [bb0: arg2], [bb2: v7]
+      v8 = phi [bb0: arg3], [bb2: v8]
+      v9 = phi [bb0: arg4], [bb2: v9]
+      v10 = phi [bb0: arg5], [bb2: v10]
+      v11 = phi [bb0: arg6], [bb2: v11]
+      jumpi arg7, bb2, bb3
+    bb3:
+      ret v5, v6, v7, v8, v9, v10, v11
+    bb2:
+-     v12 = make_memory_slice v5, v6
+-     v2 = slice_ptr v12
+-     v3 = make_memory_slice v2, 16
+-     v13 = slice_ptr v3
+-     v14 = slice_len v3
+      jump bb1
+  }
+  
+  fn @forward(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      ret arg0, arg1, arg2, arg3, arg4, arg5, arg6
+  }
+  
+  fn @tail(arg0: memptr, arg1: u256, arg2: calldataptr, arg3: u256, arg4: u256, arg5: u256, arg6: u256) -> (memptr, u256, calldataptr, u256, u256, u256, u256) {
+    bb0:
+      tail_call @forward, arg0, arg1, arg2, arg3, arg4, arg5, arg6
+  }
+  
+  fn @from_undef() -> (calldataptr, u256, u256) {
+    bb0:
+-     v2 = slice_ptr undef calldataslice
+-     v3 = slice_len undef calldataslice
+-     ret v2, v3, 42
++     ret undef calldataptr, undef u256, 42
+  }
+  
+- fn @phi_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
++ fn @phi_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> (calldataptr, u256, u256) {
+    bb0:
+-     jumpi arg1, bb1, bb2
++     jumpi arg2, bb1, bb2
+    bb2:
+      jump bb3
+    bb1:
+      jump bb3
+    bb3:
+-     v0 = phi [bb1: arg0], [bb2: undef calldataslice]
+-     v3 = slice_ptr v0
+-     v4 = slice_len v0
+-     ret v3, v4, 42
++     v9 = phi [bb1: arg0], [bb2: undef calldataptr]
++     v10 = phi [bb1: arg1], [bb2: undef u256]
++     ret v9, v10, 42
+  }
+  
+- fn @select_undef(arg0: calldataslice, arg1: bool) -> (calldataptr, u256, u256) {
++ fn @select_undef(arg0: calldataptr, arg1: u256, arg2: bool) -> (calldataptr, u256, u256) {
+    bb0:
+-     v0 = select arg1, arg0, undef calldataslice
+-     v3 = slice_ptr v0
+-     v4 = slice_len v0
+-     ret v3, v4, 42
++     v9 = select arg2, arg0, undef calldataptr
++     v10 = select arg2, arg1, undef u256
++     ret v9, v10, 42
+  }
+  

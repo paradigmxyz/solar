@@ -9,8 +9,10 @@
 //! All tail results are read immediately after their call, before another call can overwrite them.
 //!
 //! This pass belongs before frame and memory-object lowering. Frame rebasing is checked for the
-//! whole module before changing signatures. Slice fields require a shared physical return plan
-//! with slice lowering and are conservatively left untouched until that plan is available.
+//! whole module before changing signatures. Slice fields expand directly to pointer/length words;
+//! standalone slice signatures remain for slice lowering. Before expanding a slice field, check
+//! that slice producers and returns agree with their types. Legacy pointer-only pseudo-slices
+//! cannot supply a pair and make this pass bail without changing the module.
 
 use crate::{
     memory::EvmMemoryLayout,
@@ -55,7 +57,11 @@ impl Layouts {
                     MirType::Struct(nested) if nested < id => {
                         leaves.extend_from_slice(&layouts.leaves[nested])
                     }
-                    MirType::Struct(_) | MirType::Slice(_) | MirType::Void => return None,
+                    MirType::Slice(location) => {
+                        leaves.push(super::lower_slices::slice_param_ptr_type(location));
+                        leaves.push(MirType::uint256());
+                    }
+                    MirType::Struct(_) | MirType::Void => return None,
                     _ => leaves.push(field),
                 }
             }
@@ -73,23 +79,38 @@ impl Layouts {
 
     fn field_range(&self, ty: StructId, index: u32) -> std::ops::Range<usize> {
         let fields = &self.types[ty].fields;
-        let start = fields[..index as usize].iter().map(|&ty| self.flatten(ty).len()).sum();
-        start..start + self.flatten(fields[index as usize]).len()
+        let width = |ty| match ty {
+            MirType::Struct(id) => self.leaves[id].len(),
+            MirType::Slice(_) => 2,
+            _ => 1,
+        };
+        let start = fields[..index as usize].iter().map(|&ty| width(ty)).sum::<usize>();
+        start..start + width(fields[index as usize])
     }
 }
 
 fn lower_structs(module: &mut Module) -> bool {
-    if !module.functions.iter().any(|func| {
-        func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::Struct(_)))
-            || func
-                .live_values()
-                .any(|value| matches!(func.value_ty(value), Some(MirType::Struct(_))))
+    if !module.has_struct_values() {
+        return false;
+    }
+    if module.functions.iter().any(|func| {
+        func.arg_indices().any(|index| {
+            index.index() >= func.params.len() && matches!(func.arg_ty(index), MirType::Struct(_))
+        })
     }) {
         return false;
     }
     if module.functions.iter().any(|func| {
         func.returns.len() > 1 && func.returns.iter().any(|ty| matches!(ty, MirType::Struct(_)))
     }) {
+        return false;
+    }
+    if module
+        .struct_types
+        .iter()
+        .any(|ty| ty.fields.iter().any(|ty| matches!(ty, MirType::Slice(_))))
+        && !slice_values_are_pairs(module)
+    {
         return false;
     }
     let Some(layouts) = Layouts::new(module) else { return false };
@@ -115,6 +136,67 @@ fn lower_structs(module: &mut Module) -> bool {
         }
     }
     true
+}
+
+/// Checks the slice representation contract before exposing a field's two words.
+fn slice_values_are_pairs(module: &Module) -> bool {
+    module.functions.iter().all(|func| {
+        let args_match = |function: FunctionId, args: &[ValueId]| {
+            module.functions.get(function).is_some_and(|callee| {
+                callee.params.iter().enumerate().all(|(index, &ty)| {
+                    !matches!(ty, MirType::Slice(_))
+                        || args.get(index).is_some_and(|&value| func.value_ty(value) == Some(ty))
+                })
+            })
+        };
+        let calls_match = func.instructions().all(|id| match &func.inst(id).kind {
+            InstKind::ICall { function, args, .. } => args_match(*function, args),
+            _ => true,
+        });
+        let returns_match = func.blocks.iter().all(|block| match &block.terminator {
+            Some(Terminator::Return { values }) => {
+                func.returns.iter().enumerate().all(|(index, &ty)| {
+                    !matches!(ty, MirType::Slice(_))
+                        || values.get(index).is_some_and(|&value| func.value_ty(value) == Some(ty))
+                })
+            }
+            Some(Terminator::TailCall { function, args }) => {
+                args_match(*function, args)
+                    && module.functions.get(*function).is_some_and(|callee| {
+                        func.returns.iter().enumerate().all(|(index, &ty)| {
+                            !matches!(ty, MirType::Slice(_))
+                                || callee.returns.get(index) == Some(&ty)
+                        })
+                    })
+            }
+            _ => true,
+        });
+        calls_match
+            && returns_match
+            && func.live_values().all(|value| {
+                let Some(ty @ MirType::Slice(location)) = func.value_ty(value) else { return true };
+                let Value::Inst(id) = *func.value(value) else { return true };
+                match &func.inst(id).kind {
+                    InstKind::MakeSlice { location: actual, .. } => *actual == location,
+                    InstKind::FrameLoad { kind, .. } => kind.result_type() == ty,
+                    InstKind::AbiEncode { mode, .. } => mode.result_type() == ty,
+                    InstKind::ExtractValue { ty: aggregate, index, .. } => {
+                        module.struct_types[*aggregate].fields[*index as usize] == ty
+                    }
+                    InstKind::Phi(incoming) => {
+                        incoming.iter().all(|&(_, value)| func.value_ty(value) == Some(ty))
+                    }
+                    InstKind::Select(_, a, b) => {
+                        [*a, *b].iter().all(|&value| func.value_ty(value) == Some(ty))
+                    }
+                    InstKind::ICall { function, .. } => module
+                        .functions
+                        .get(*function)
+                        .is_some_and(|callee| callee.returns.first() == Some(&ty)),
+                    _ => false,
+                }
+            })
+    })
 }
 
 fn components(value: ValueId, aggregates: &FxHashMap<ValueId, Box<[ValueId]>>) -> Vec<ValueId> {
@@ -180,12 +262,26 @@ fn lower_function(
                 // insert_value aggregate, index, value -> replace the selected leaf range
                 InstKind::InsertValue { ty, aggregate, index, value } => {
                     let mut leaves = components(aggregate, &aggregates);
-                    leaves.splice(layouts.field_range(ty, index), components(value, &aggregates));
+                    let inserted =
+                        if matches!(layouts.types[ty].fields[index as usize], MirType::Slice(_)) {
+                            // slice -> slice_ptr(slice), slice_len(slice)
+                            vec![builder.slice_ptr(value), builder.slice_len(value)]
+                        } else {
+                            components(value, &aggregates)
+                        };
+                    leaves.splice(layouts.field_range(ty, index), inserted);
                     leaves
                 }
                 // extract_value aggregate, index -> selected leaf range
                 InstKind::ExtractValue { ty, aggregate, index } => {
-                    components(aggregate, &aggregates)[layouts.field_range(ty, index)].to_vec()
+                    let leaves =
+                        components(aggregate, &aggregates)[layouts.field_range(ty, index)].to_vec();
+                    if let MirType::Slice(location) = layouts.types[ty].fields[index as usize] {
+                        // slice = make_slice(field.pointer, field.length)
+                        vec![builder.make_slice(leaves[0], leaves[1], location)]
+                    } else {
+                        leaves
+                    }
                 }
                 // phi struct [pred: value] -> phi field0 [pred: value.field0], ...
                 InstKind::Phi(incoming) if fields.is_some() => {

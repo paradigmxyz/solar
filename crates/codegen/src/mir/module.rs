@@ -206,6 +206,17 @@ impl Module {
         self.phase = phase;
     }
 
+    /// Returns whether a live value or function signature still uses an SSA struct.
+    pub(crate) fn has_struct_values(&self) -> bool {
+        self.functions.iter().any(|func| {
+            func.arg_indices()
+                .map(|index| func.arg_ty(index))
+                .chain(func.returns.iter().copied())
+                .chain(func.live_values().filter_map(|value| func.value_ty(value)))
+                .any(|ty| matches!(ty, MirType::Struct(_)))
+        })
+    }
+
     /// Adds a function to the module.
     pub(crate) fn add_function(&mut self, function: Function) -> FunctionId {
         let symbol = function.name.symbol;

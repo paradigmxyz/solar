@@ -1,0 +1,135 @@
+- // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (before lower-structs) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (after lower-structs) ===
+  @module LegacySlice
+  @phase dispatch
+  types:
+    struct0: {memoryslice, u256}
+    struct1: {memorybytes}
+  
+  fn @legacy(arg0: memorybytes) -> memoryslice {
+    bb0:
+      ret arg0
+  }
+  
+  fn @wrap(arg0: memorybytes) -> struct0 {
+    bb0:
+      v0 = icall @legacy, 1, arg0
+      v1 = insert_value struct0, undef struct0, 0, v0
+      v2 = insert_value struct0, v1, 1, 42
+      ret v2
+  }
+  
+  fn @object(arg0: memorybytes) -> struct1 {
+    bb0:
+      v0 = insert_value struct1, undef struct1, 0, arg0
+      ret v0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (before lower-frame-slots) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (after lower-frame-slots) ===
+  @module LegacySlice
+  @phase dispatch
+  types:
+    struct0: {memoryslice, u256}
+    struct1: {memorybytes}
+  
+  fn @legacy(arg0: memorybytes) -> memoryslice {
+    bb0:
+      ret arg0
+  }
+  
+  fn @wrap(arg0: memorybytes) -> struct0 {
+    bb0:
+      v0 = icall @legacy, 1, arg0
+      v1 = insert_value struct0, undef struct0, 0, v0
+      v2 = insert_value struct0, v1, 1, 42
+      ret v2
+  }
+  
+  fn @object(arg0: memorybytes) -> struct1 {
+    bb0:
+      v0 = insert_value struct1, undef struct1, 0, arg0
+      ret v0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (before lower-memory-objects) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (after lower-memory-objects) ===
+  @module LegacySlice
+  @phase dispatch
+  types:
+    struct0: {memoryslice, u256}
+    struct1: {memorybytes}
+  
+  fn @legacy(arg0: memorybytes) -> memoryslice {
+    bb0:
+      ret arg0
+  }
+  
+  fn @wrap(arg0: memorybytes) -> struct0 {
+    bb0:
+      v0 = icall @legacy, 1, arg0
+      v1 = insert_value struct0, undef struct0, 0, v0
+      v2 = insert_value struct0, v1, 1, 42
+      ret v2
+  }
+  
+  fn @object(arg0: memorybytes) -> struct1 {
+    bb0:
+      v0 = insert_value struct1, undef struct1, 0, arg0
+      ret v0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (before lower-slices) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (after lower-slices) ===
+  @module LegacySlice
+  @phase dispatch
+  types:
+    struct0: {memoryslice, u256}
+    struct1: {memorybytes}
+  
+  fn @legacy(arg0: memorybytes) -> memoryslice {
+    bb0:
+      ret arg0
+  }
+  
+  fn @wrap(arg0: memorybytes) -> struct0 {
+    bb0:
+      v0 = icall @legacy, 1, arg0
+      v1 = insert_value struct0, undef struct0, 0, v0
+      v2 = insert_value struct0, v1, 1, 42
+      ret v2
+  }
+  
+  fn @object(arg0: memorybytes) -> struct1 {
+    bb0:
+      v0 = insert_value struct1, undef struct1, 0, arg0
+      ret v0
+  }
+  
+- // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (before lower-evm-shaped) ===
++ // === ROOT/tests/ui/codegen/mir/lower-structs/legacy_slice.mir (after lower-evm-shaped) ===
+  @module LegacySlice
+  @phase dispatch
+  types:
+    struct0: {memoryslice, u256}
+    struct1: {memorybytes}
+  
+  fn @legacy(arg0: memorybytes) -> memoryslice {
+    bb0:
+      ret arg0
+  }
+  
+  fn @wrap(arg0: memorybytes) -> struct0 {
+    bb0:
+      v0 = icall @legacy, 1, arg0
+      v1 = insert_value struct0, undef struct0, 0, v0
+      v2 = insert_value struct0, v1, 1, 42
+      ret v2
+  }
+  
+  fn @object(arg0: memorybytes) -> struct1 {
+    bb0:
+      v0 = insert_value struct1, undef struct1, 0, arg0
+      ret v0
+  }
+  

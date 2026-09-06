@@ -110,7 +110,7 @@ fn @reason() -> memorybytes {
     revert 0, 36
 }
 
-fn @returnSeven() [pure] {
+fn @returnSeven() -> u256 [pure] {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
     returndata 0, 32

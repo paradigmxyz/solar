@@ -346,7 +346,11 @@ fn write_function_attribute(
 }
 
 fn function_prints_return_values(func: &Function) -> bool {
-    func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+    func.selector.is_none()
+        || func
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {

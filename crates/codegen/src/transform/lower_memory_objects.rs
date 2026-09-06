@@ -1,4 +1,14 @@
 //! Lower semantic memory-object operations to physical word operations.
+//!
+//! The selected memory-layout policy supplies object headers, field offsets, and element strides.
+//! Semantic accesses and allocations become raw pointer arithmetic, loads, stores, and allocation
+//! operations, then object types are erased. Mixed slice/object merges are materialized before
+//! that erasure so later operations still use the correct representation.
+//!
+//! This runs after SSA structs and mutable frame slots have been lowered. It leaves modules with
+//! live SSA structs untouched: erasing an object's type while a struct still declares that field
+//! would break the aggregate type contract. A dispatch-phase module advances to memory-lowered
+//! only after these representation changes complete.
 
 use crate::{
     memory::{EvmMemoryLayout, MemoryLayoutPolicy},
@@ -31,7 +41,7 @@ impl MirPass for LowerMemoryObjects {
         module: &mut Module,
         _analyses: &mut crate::pass::ModuleAnalyses,
     ) -> bool {
-        if module.phase >= MirPhase::MemoryLowered {
+        if module.phase >= MirPhase::MemoryLowered || module.has_struct_values() {
             return false;
         }
         let mut changed = false;
