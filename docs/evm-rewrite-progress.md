@@ -21,30 +21,28 @@ positions and PUSH widths. There is no Atom stream or assembly-level CFG
 optimization. MIR semantics remain in their retained layers. No legacy backend
 or temporary unsupported rewrite fallback is used.
 
-At the gas-only writer milestone, the fresh scope has 12,114 Rust lines across
-35 files, versus 34,638 deleted raw lines: 22,524 fewer (65.0%). These counts
+At the entry-initialization milestone, the fresh scope has 12,476 Rust lines across
+35 files, versus 34,638 deleted raw lines: 22,162 fewer (64.0%). These counts
 include comments, blanks and local tests. A historical production-only count was not retained and is
 not reconstructed from forbidden source.
 
 ## Verification checkpoints
 
-The latest full workspace run (`gas-writer-protection/`) has 1,358 passes,
-one failing UI aggregate and two skips. Its UI lane has 10,911 passes,
-78 failures and 806 filtered revisions. All 78 failures reproduce with the
-pre-writer executable, including three Standard JSON expectations. Foundry and
-workspace/all-target Clippy finish successfully; existing warnings remain.
-The two new writer warnings were fixed in an output-equivalent cleanup.
-The focused helper lane passes 99 tests.
+The latest full workspace run (`canonical-block-append-20260906/`) has 1,358
+passes, one failing UI aggregate and two skips. Its UI lane has 10,950 passes,
+74 failures and 806 filtered revisions. The four-line append trial is still
+awaiting timing acceptance; its complete UI/hot/heavy output is byte-exact with
+the committed initializer checkpoint. Workspace/all-target Clippy passes.
+Foundry last passed at `gas-writer-protection/`; a final rerun remains required.
 
-The audited writer screens retain 719 successful UI sources per optimization
-mode and the same eight known failures. The cleanup screen adds the bitmap
-fixture (720 successes); it separately passes all four UI revisions before
-and after. Both hot reports retain all 15
-runtime cases and 175 ordered gas labels. Nine heavy compile captures complete
-the original 24-case corpus, matching 1,672 contracts and 3,344 artifact fields.
-The independent ledger is `gas-writer-protection/heavy-audit/`. The sealed
-quality gate still fails: 776/563 UI artifacts, 20/19 hot artifacts, 24/30 hot
-gas labels (gas/size), and 1,102 heavy artifacts remain larger or more costly.
+The independent current ledger is `fmp-frontier-sealed-ledger-20260906/`.
+All 694 original successful UI IDs and eight known failures match in each mode;
+27 added successes remain separate. Both hot lanes retain all 15 runtime cases,
+175 ordered gas labels and exact observations. Nine heavy captures match the
+original inputs/settings, 1,672 contract IDs and 3,344 artifacts, including
+1,002 empty outputs and 14 linked-placeholder artifacts. The sealed gate still
+fails: 768/555 UI artifacts, 20/19 hot artifacts, 24/30 hot gas labels
+(gas/size), and 1,102 heavy artifacts remain larger or more costly.
 
 An earlier writer/call/recursion checkpoint covers 531 compiled stress calls.
 The new contiguous fixture adds 1,032 replays and the gas-only sparse fixture
@@ -72,12 +70,16 @@ or a final sealed-baseline comparison.
 | Memoize recursion reachability | 66.10→60.10; 65.60→55.62 s (−9.1%/−15.2%) | RSS +8.7%/−2.7% |
 | Stop completed stack counts | 54.83→52.07; 55.84→51.59 s (−5.0%/−7.6%) | RSS +3.1%/+5.5% |
 
-A direct sealed/current checkpoint pair on the same archived input is
-54.62→67.63 seconds (+23.8%), with peak RSS 822,828→632,296 KiB
-(804→617 MiB). All 432 contract IDs and 348 nonempty creation artifacts match,
-with no compile errors. This historical pair established debt at that checkpoint; final matched
-sealed timing remains required.
-`sealed-time-checkpoint/` retains it separately from the isolated wins above.
+Fresh reversed sealed/current pairs on the same archived Seaport input are
+54.58→54.71 and 54.37→52.98 seconds, with peak RSS 867,224→603,696 and
+852,504→605,260 KiB. All 432 contract inventories match. These supersede the
+older 54.62→67.63 checkpoint debt without claiming a large time improvement.
+The isolated initializer measurements are noisy: one pair is 51.81→57.27,
+another 52.01→51.68, and the earlier attempt 51.87→51.82 seconds.
+No initializer speedup is claimed. The first repeat check rejected reordered
+warnings; all contract/source outputs and the complete 90-warning multiset are
+exact. Original failure and reviewed rerun remain in
+`fmp-entry-frontier-final-20260906/quiet-timing{,-reviewed}/`.
 
 Validation remains enabled. Routine comparisons use the debug compiler in this
 checkout. Exact commands, source/executable hashes, profiles and measurements
@@ -85,142 +87,50 @@ are retained under `target/codegen-bench/evm-rewrite-candidate/`.
 
 ## Output quality still owed
 
-The strict ledger at `gas-writer-protection/heavy-audit/` joins original
+The strict ledger at `fmp-frontier-sealed-ledger-20260906/` joins original
 IDs and ordered call labels. Comment-only source amendments have exact bytecode
 proofs and derived reports; sealed reports and the archive remain untouched.
 
 | Matched corpus | Creation-byte delta | Runtime-byte delta | Call-gas delta |
 | --- | ---: | ---: | ---: |
-| UI, gas (694 original successes) | +2,435 | +4,199 | — |
-| UI, size (694 original successes) | −29,791 | −25,273 | — |
+| UI, gas (694 original successes) | +2,251 | +4,015 | — |
+| UI, size (694 original successes) | −30,193 | −25,648 | — |
 | Hot, gas (15 cases) | +18,803 | +19,240 | −27,313 |
-| Hot, size (15 cases) | +25,741 | +26,113 | −92,067 |
-| Heavy projects, original settings (9 cases) | +19,125,818 | +15,783,586 | — |
+| Hot, size (15 cases) | +25,740 | +26,112 | −92,067 |
+| Heavy projects, original settings (9 cases) | +19,125,808 | +15,783,578 | — |
 
-Aggregates do not pass acceptance: 1,339 individual UI artifacts remain larger;
+Aggregates do not pass acceptance: 1,323 individual UI artifacts remain larger;
 24 gas-mode and 30 size-mode hot labels remain higher. Current hot size checks
 also have 20/19 larger creation-or-runtime artifacts in gas/size. The required
 tail observer fix exposes additional size debt rather than retaining unsafe
 sharing. New UI sources are reported separately from the baseline. The heavy
 corpus has 1,102 larger artifacts: total runtime output grows
-23,499,815→39,283,401 bytes. Router runtime is now 25,978 versus sealed 9,822
+23,499,815→39,283,393 bytes. Router runtime is now 25,978 versus sealed 9,822
 bytes, down from the preceding rewrite's 48,812. These compile-only captures
 establish size debt, not runtime correctness for arbitrary heavy contracts.
 
 ## Active work and remaining gates
 
-Work is committed in small chunks. Recent changes remove allocation costs,
-retain safe writer operands, rotate protected results in bounded chunks, and
-repair code/gas-observation guards. Reviewed corrections save 121 Nitro bytes
-per mode and 15 more UI size bytes; all individual comparisons are retained.
-The five-byte enum debt remains unresolved in gas mode. Immutable-read rematerialization
-and moving size-only tail merging later were rejected after strict comparison:
-the former enlarged 89 existing UI artifact debts and created 18; the latter
-enlarged 64 and created two. Rematerialization also worsened five Maple gas
-labels in both modes and created four ENS gas debts in size mode. All runtime
-observations and identities matched. Sources were restored from fresh trial
-snapshots; `nullary-tail-sealed-review/` retains every individual comparison.
-A standalone additional argument order retains all previous winning schedules
-and skips identical load orders. It saves 54 creation/runtime UI bytes per mode,
-36/37 hot creation/runtime bytes in gas/size, and 99 hot-call gas in each mode,
-with no individual increases. The new nested-call regression passes all four
-matrix revisions; 576 broader differential calls also match. The first matched
-Seaport pair is flat (66.35→66.61 seconds); no compile-time win is claimed.
-`call-materialization-order/` and `resize-call-order-review/` retain proof.
+Work is committed in small chunks. Earlier recursion/call scheduling, writer
+protection, terminal observer corrections and reviewed constructor/immutable
+snapshots remain documented in the preceding commits and checkpoint history.
+Their evidence directories are retained under `target/codegen-bench/`.
 
-Tail merging now matches equivalent conditional targets through one empty,
-unannotated forwarding hop, preserving pass order and existing observer guards.
-It saves 813 creation/runtime UI bytes in size mode with no individual increases;
-gas-mode output and both hot lanes are exact. Enum size runtime falls 101→94
-bytes (sealed 96); its few local opcode-gas increases remain below sealed gas.
-All 32 tail-merge UI revisions, 102 enum checks and 480 raw execution checks
-pass. `enum-local-tail/` retains every pair, including PC/GAS and cycle cases.
+The gas-only selected writer milestone removes 5,878,394 heavy creation bytes
+and 4,669,881 runtime bytes with no individual increase. It protects only the
+initialized homes overlapping a primitive store, using a contiguous range or
+bounded bitmap. Size mode retains ordinary backups: all-mode trials grew an
+existing fixture and were rejected. Arbitrary/wrapping pointers, duplicate
+selections and exact stack limits are checked independently; sealed sparse
+writer miscompilations are recorded rather than adopted as an oracle.
+`gas-writer-protection/`, `bitmap-writer-protection/` and
+`targeted-writer-protection/` retain the variants and complete comparisons.
 
-A fresh frozen-runner checkpoint reports 61 failed and 3,031 passed revisions.
-Two failures were executable-name differences in CLI help and pass with a
-`solar` symlink; one size timing snapshot now omits the analysis skipped by the
-new tail observation guard. All six focused help/timing revisions pass, leaving
-58 other failures to investigate at that checkpoint. A subsequent review repairs
-three constructor/memory-offset snapshots after 216 deployment observations,
-126 calls and two bounded symbolic agreements; all optimized per-fixture gas
-and sizes are nonincreasing versus sealed. Evidence is in `snapshot-three-review/`.
-`snapshot-five-review/` retains exact comment-only bytecode proofs and derived
-source-fingerprint reports. The subsequent `snapshot-dealloc-review/` report
-extends that proof chain and is the sealed derived report for future joins.
-Two immutable snapshots are also reviewed: 276 executions verify exact values,
-constructor failures, placeholder ranges and complete runtime patch templates.
-Only the relative order of immutable IDs 4/5 is unconstrained. Current output
-improves over the previously reviewed snapshots, but sealed creation debt and
-Widths' +1 size byte and +4/+7 read gas remain open. No symbolic agreement is
-claimed for immutable constructors, which that differential runner cannot execute.
-All six focused revisions across these five fixtures pass. The deallocation
-fixture is also repaired after verified stack-only recursive calls; it retains
-continuation, addition and return assertions and excludes memory loads. Its
-optimized output improves over sealed. This leaves 52 prior failures to investigate. Details are in `immutable-current-review/`.
-
-A four-line per-analysis cache avoids repeating the same physical graph query.
-All 716 UI cases per mode, 15 runtime cases and 175 hot labels preserve exact
-outputs. Independent checks retain 26 exact diagnostic pairs and 46 passing UI
-revisions per leg; 94 helper tests pass. Both Seaport timing pairs improve with
-all 432 contract outputs exact. Cache lifetime and keys depend only on the
-immutable graph; validation/context widening remain unchanged. Evidence is in
-`verifier-recursion-memo/`.
-
-Terminal memory reads now participate in the global free-memory-pointer
-initialization check. Assembly return/revert previously returned zero when they
-read slot 64 directly; the fix matches the preserved compiler and pinned solc.
-The frozen replay retains 288 calls plus 180 isolated calls, and all four new
-UI revisions and 94 helper tests pass. Both hot reports remain byte/gas exact.
-The 717-success UI screen adds 127 creation and 109 runtime bytes per mode:
-82 larger artifacts, including 51 enlarged sealed debts and one new sealed debt
-(`TryErrorCatch` size creation 612 versus sealed 608). These correctness costs
-remain explicit and were recovered in part by the definite-write change below.
-`fmp-terminal-reads/` retains failures, corrected test directives, isolated
-return/revert and disjoint cases, source hashes and independent comparisons.
-
-A separate same-block definite-write query now removes redundant initialization
-when constant MSTORE/MSTORE8 operations define every FMP byte before a terminal
-read. It retains the instruction/MSIZE scan and stops coverage at internal calls.
-The isolated screen saves 88 creation and 70 runtime bytes per mode with no
-individual increases; both hot reports are exact. All four new UI revisions,
-300 isolated and 72 fixture calls match their oracles; the combined helper lane
-passes 97 tests. The partial-write and call-barrier controls remain byte-exact.
-`fmp-definite-writes/` retains the independent proof, final-source amendments
-and corrected comparisons. This recovers most of the preceding correctness cost.
-
-A three-line identical-stack shortcut was rejected: output was exact, but its
-isolated compiler-time pair worsened 65.36→67.13 seconds (+2.7%). The one-line
-verifier resize replacement retains exact diagnostics, all UI bytecode and hot
-gas across both modes. `scheduler-identical/` and `stack-effect-resize/` retain
-all source snapshots and comparisons; the second resize timing pair is under
-`scheduler-identical-common/`.
-
-Gas-mode writer protection now saves only the two initialized aligned homes
-that an arbitrary MSTORE can overlap. A contiguous range or a bounded bitmap
-selects those homes; holes and protocol words retain ordinary protection.
-Size mode keeps ordinary backups: the ungated candidates increased one fixture
-by 24 and then 14 bytes, so those variants were rejected. The gas-only change
-has no individual increase against its immediate predecessor across UI, hot
-and all nine heavy projects. Heavy creation shrinks 5,878,394 bytes and runtime
-4,669,881 bytes across 302 artifacts; Nitro shrinks 3,557 bytes with hot gas
-unchanged. This is progress toward, not passage of, the sealed baseline gate.
-
-A quiet Seaport pair takes 53.34→55.09 seconds (+3.3%) and 630,724→605,956 KiB
-RSS (−3.9%); no compiler-time win is claimed. A fresh CPU profile identifies
-scheduler count scans as a candidate for a separate output-neutral trial.
-During profiling, three older candidate files (command, compiler output and
-recorder log) were accidentally overwritten. Their original bytes are lost;
-the older profile/analysis and sealed baseline archive remain intact. The
-fresh run and explicit provenance limitation are retained separately in
-`current-cpu-profile/gas-writer-20260906/`. New capture directories must be
-created exclusively before opening outputs.
-
-`targeted-writer-protection/`, `bitmap-writer-protection/` and
-`gas-writer-protection/` retain all rejected variants, exact mode-boundary
-comparisons and independent memory/stack execution. The sparse regression
-exposes wrong checksums in the sealed compiler; pinned solc and before/after
-rewrite executions agree. Those sealed discrepancies are retained explicitly,
-with valid gas-comparison denominators kept separate.
+An earlier profile capture accidentally overwrote three candidate files
+(command metadata, standard-JSON output and recorder log). Their original bytes
+are lost; the old profile/analysis and sealed archive remain intact.
+`current-cpu-profile/gas-writer-20260906/artifact-provenance-note.md` records
+this limitation. Every new artifact directory is created exclusively.
 
 The four-line scheduler count shortcut is accepted at `9f4c880e`. Excess-value
 removal makes equal total lengths sufficient to stop duplication counting.
@@ -274,6 +184,26 @@ An observer-loop early-exit cleanup was also rejected: two quiet reversed
 Seaport pairs measured 51.59→52.84 and 51.84→52.09 seconds, despite exact
 outputs. The small source cleanup was reverted; measurements remain in
 `literal-diamond-cleanup-20260906/`.
+
+The existing FMP initializer now moves only past a memory-free dispatcher into
+one static demanding entry (`7bf717ca`). Reentry, argument setup, multiple
+demands and code/gas observation retain global initialization. UI saves 69/69
+gas-mode creation/runtime bytes and 177/150 size-mode bytes; heavy saves 10/8,
+with no individual increase. Both hot lanes keep all gas labels exact. The SF
+getter saves nine gas and is four below sealed. Fifteen actual public-API MIR
+compiles and 39 executions preserve explicit FMP4096 across reentry and pin
+constructor, nonempty-argument and dynamic-frame behavior. Two positive symbolic
+runs reach bounded agreement; SF depth512 runs remain incomplete alongside
+324 exact return checks and 252 state transitions.
+
+Five relocation-only snapshots are reviewed at `f35751b1`: sources/FileChecks
+stay unchanged, focused before/after revisions pass, and 126 fallback echo
+calls have no gas increase. SF's checks now pin stack recursion and fixed
+multi-result storage (`6e7bfadf`), with six comment-only bytecode identity
+proofs. Recursive 20-argument UI tests separately exercise dynamic allocation.
+The two retained MIR graphs (`db5fd896`) check parsing in CI; their backend
+execution evidence is explicitly separate. Evidence lives in
+`fmp-entry-frontier-20260906/` and `fmp-relocation-snapshots-20260906/`.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
