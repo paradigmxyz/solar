@@ -566,3 +566,38 @@ checks, so this is not complete runtime admission. Evidence is retained under
 `main-ci-reserve-20260906/`; compiler sources stayed fixed through the build
 and workspace run. CI-style Clippy exposed additional MSRV lint findings;
 those remain a separate repair. Full rewrite performance acceptance is open.
+
+### Main CI repair: provenance and test admission
+
+Source/debug origins now survive copy packing, physical rewrites, constructor
+exits and lowered invocation boundaries. Exiting stack cycles terminate
+validation without weakening strict optimization facts. All 4,776 UI objects
+remain identical across those fixes. The full workspace now passes 1,389 tests
+with only the UI aggregate failing: 11,346 UI cases pass and 35 fail, with
+849 filtered. Clippy with warnings denied and nightly formatting pass locally.
+
+Reviewed snapshot/check changes retain executable sources and their runtime
+oracles. Admission includes 224 child calls, 28 debug-setting checks, eight
+library calls, and 261 switch deployments/calls; these counts describe separate
+suites, not unique programs. Eleven debug and thirteen lowering mutations
+confirm retained assertions reject incorrect output. Switch flags still force
+all five algorithms, and the shared constructor/runtime growth budget remains
+checked. The switch commit follows the full run and resolves twelve of its
+failing IDs in focused checks; a new full run is pending.
+
+Tail sharing now accepts private physical branch pairs and proves no gas
+observer can follow an added transfer. Size mode retains its conservative
+guard after the unrestricted trial grew PrecompileBuiltins by ten bytes and
+increased seventeen Aave call labels. The restricted candidate preserves all
+4,776 UI objects and thirty hot compiler outputs exactly, transferring the
+existing fifteen-case/175-label-per-mode runtime certificate by full object and
+input identity. No new execution is claimed for that transfer. Evidence is in
+`main-ci-{provenance-neutrality,standard-json-review,standard-json-check-migration,
+switch-review,tail-gas-independent}-20260906/`.
+
+Main is merged and draft PR #1388 exists. Automatic approval review still blocks
+publishing the subsequent local commits despite the prior push authorization.
+The explicit destination approval remains pending. CI is not green yet, and
+the original sealed gas/size debt and computed-memory interference bug remain
+open. The current cheap-environment-copy and clone-sharing trials are not
+accepted performance results.
