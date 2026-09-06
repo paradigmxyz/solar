@@ -100,7 +100,7 @@ pub(crate) fn lower(
         let block = &mut output.blocks[id];
         if matches!(block.terminator.kind, ir::TerminatorKind::Stop) {
             // jump <deployment postlude>
-            block.terminator = ir::TerminatorKind::Jump(end).into();
+            block.terminator.kind = ir::TerminatorKind::Jump(end);
         }
     }
     if constructor.is_none() {
