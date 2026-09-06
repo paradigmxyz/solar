@@ -190,6 +190,15 @@ gas across both modes. `scheduler-identical/` and `stack-effect-resize/` retain
 all source snapshots and comparisons; the second resize timing pair is under
 `scheduler-identical-common/`.
 
+The selected-home writer trial is not accepted yet. It saves 11,929 Router
+runtime bytes and 2.65 MB of full Seaport runtime output, with no individual
+Seaport size increases. A quiet three-leg run takes 54.36 seconds sealed,
+53.37 before and 54.37 after; after RSS is 616,500 versus sealed 843,516 KiB.
+Hot gas remains exact and Nitro shrinks 1,983/2,270 bytes in gas/size. However,
+size-mode `StorageNestedStructMemory` grows 24 bytes in both artifacts, so the
+trial remains uncommitted while its outlining interaction is investigated.
+`targeted-writer-protection/` retains source snapshots and every comparison.
+
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
 all 24 project compilations and both identical-label hot-gas lanes on the final
