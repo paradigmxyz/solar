@@ -407,6 +407,15 @@ updating two FileCheck lines. All eight focused cases pass; all 714 UI cases
 per mode and both 15-case hot reports remain byte/gas identical for this isolated
 change. Evidence and original expectations remain in `compact-adjacent-literal/`.
 
+Spill preservation now checks definition availability before querying future
+uses. Existing live-in facts plus a sparse map built during entry construction
+exclude not-yet-defined SSA results, including the current call result, while
+preserving Phi/loop values and shared live homes. The isolated change removes
+579/610 UI bytes and 2,213/2,222 hot runtime bytes in gas/size, with no increases
+or changed hot labels. All 531 writer calls and 32 sealed/solc reference calls
+agree. A new standard matrix plus raw-IR revision passes all five cases; the
+before compiler fails the raw-IR regression. Evidence: `writer-home-availability/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

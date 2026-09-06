@@ -58,6 +58,8 @@ struct FunctionLayout {
     cfg: CfgInfo,
     alias: AliasAnalysis,
     spills: SpillPlan,
+    // Definition boundaries: Phi values are available at entry, other results after their opcode.
+    home_definitions: FxHashMap<mir::ValueId, (mir::BlockId, usize)>,
 }
 
 struct Context<'a> {
@@ -146,6 +148,7 @@ pub(crate) fn lower(
         plan.reserve_spills(id, spills.words).map_err(str::to_owned)?;
         let mut blocks = IndexVec::new();
         let mut entries = IndexVec::<mir::BlockId, Vec<mir::ValueId>>::new();
+        let mut home_definitions = FxHashMap::default();
         for (block_id, block) in function.blocks.iter_enumerated() {
             blocks.push(if reachable.contains(id) && cfg.is_reachable(block_id) {
                 output.blocks.push(ir::Block::default())
@@ -157,11 +160,20 @@ pub(crate) fn lower(
                 .iter()
                 .filter(|&value| stored(function, value))
                 .collect::<Vec<_>>();
-            for &inst in &block.instructions {
-                if matches!(function.inst(inst).kind, mir::InstKind::Phi(_))
-                    && let Some(result) = function.inst_result_value(inst)
-                {
-                    values.push(result);
+            for (position, &inst) in block.instructions.iter().enumerate() {
+                if let Some(result) = function.inst_result_value(inst) {
+                    if spills.homes.contains_key(&result) {
+                        let available_at =
+                            if matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) {
+                                0
+                            } else {
+                                position + 1
+                            };
+                        home_definitions.insert(result, (block_id, available_at));
+                    }
+                    if matches!(function.inst(inst).kind, mir::InstKind::Phi(_)) {
+                        values.push(result);
+                    }
                 }
             }
             values.sort_unstable();
@@ -194,6 +206,7 @@ pub(crate) fn lower(
             cfg,
             alias,
             spills,
+            home_definitions,
         });
     }
     plan.finalize().map_err(str::to_owned)?;
@@ -352,7 +365,7 @@ fn lower_function(
             {
                 let saved = save_writer_homes(
                     context,
-                    inst_id,
+                    (block_id, position),
                     &mut stack,
                     &mut insts,
                     live,
@@ -769,13 +782,14 @@ fn control_live_after(context: &Context<'_>, block: mir::BlockId, position: usiz
 
 fn save_writer_homes(
     context: &Context<'_>,
-    inst: mir::InstId,
+    (block, position): (mir::BlockId, usize),
     stack: &mut Stack<Slot>,
     output: &mut Vec<ir::Instruction>,
     live: impl Fn(mir::ValueId) -> bool,
     operands: usize,
     control_live: impl FnOnce() -> bool,
 ) -> Result<SavedHomes, String> {
+    let inst = context.function.blocks[block].instructions[position];
     let effects = context.layout.alias.instruction_mod_ref(context.function, inst);
     if !effects.writes_space(crate::analysis::AddressSpace::Memory) {
         return Ok(SavedHomes { addresses: Vec::new(), tracked: 0, protected_prefix: None });
@@ -786,7 +800,17 @@ fn save_writer_homes(
         .spills
         .homes
         .iter()
-        .filter_map(|(&value, &home)| live(value).then_some(home))
+        .filter_map(|(&value, &home)| {
+            // The future-use query requires an already-defined value. A future definition may
+            // reuse this word, but its old contents need no preservation across this writer.
+            let available = context.layout.live.live_in(block).contains(value)
+                || context.layout.home_definitions.get(&value).is_none_or(
+                    |&(defined_block, available_at)| {
+                        defined_block == block && available_at <= position
+                    },
+                );
+            (available && live(value)).then_some(home)
+        })
         .collect::<Vec<_>>();
     homes.sort_unstable();
     homes.dedup();
@@ -900,9 +924,15 @@ fn lower_opcode(
     let instruction = function.inst(inst_id);
     let live = |value| context.layout.live.is_used_at_or_after(value, block_id, position + 1);
     let operands = instruction.kind.operands();
-    let saved = save_writer_homes(context, inst_id, stack, insts, live, operands.len(), || {
-        control_live_after(context, block_id, position)
-    })?;
+    let saved = save_writer_homes(
+        context,
+        (block_id, position),
+        stack,
+        insts,
+        live,
+        operands.len(),
+        || control_live_after(context, block_id, position),
+    )?;
     if let Some(fixed_prefix) = saved.protected_prefix {
         let operands = operands.iter().copied().map(Slot::Value).collect::<Vec<_>>();
         materialize(context, stack, insts, &operands)?;

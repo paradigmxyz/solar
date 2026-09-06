@@ -1,0 +1,75 @@
+// === ROOT/tests/ui/codegen/lowering/run-call/future_home_writer.sol:FutureHomeWriter ===
+@module FutureHomeWriter
+fn @run(arg0: calldataslice, arg1: u256) -> u256 [selector=0x943d2a88, pure, abi_params=[array<20, u256>, u256], abi_returns=[word]] {
+  bb0:
+    v0 = slice_ptr arg0
+    v1 = internal_call @write, 1, v0, arg1
+    ret v1
+}
+
+fn @write(arg0: u256, arg1: u256) -> u256 {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = sub v0, arg1
+    mstore v1, 0xdeadbeef
+    v2 = add arg0, 0
+    v3 = calldataload v2
+    v4 = add arg0, 32
+    v5 = calldataload v4
+    v6 = add arg0, 64
+    v7 = calldataload v6
+    v8 = add arg0, 96
+    v9 = calldataload v8
+    v10 = add arg0, 128
+    v11 = calldataload v10
+    v12 = add arg0, 160
+    v13 = calldataload v12
+    v14 = add arg0, 192
+    v15 = calldataload v14
+    v16 = add arg0, 224
+    v17 = calldataload v16
+    v18 = add arg0, 256
+    v19 = calldataload v18
+    v20 = add arg0, 288
+    v21 = calldataload v20
+    v22 = add arg0, 320
+    v23 = calldataload v22
+    v24 = add arg0, 352
+    v25 = calldataload v24
+    v26 = add arg0, 384
+    v27 = calldataload v26
+    v28 = add arg0, 416
+    v29 = calldataload v28
+    v30 = add arg0, 448
+    v31 = calldataload v30
+    v32 = add arg0, 480
+    v33 = calldataload v32
+    v34 = add arg0, 512
+    v35 = calldataload v34
+    v36 = add arg0, 544
+    v37 = calldataload v36
+    v38 = add arg0, 576
+    v39 = calldataload v38
+    v40 = add arg0, 608
+    v41 = calldataload v40
+    v42 = add v3, v5
+    v43 = add v42, v7
+    v44 = add v43, v9
+    v45 = add v44, v11
+    v46 = add v45, v13
+    v47 = add v46, v15
+    v48 = add v47, v17
+    v49 = add v48, v19
+    v50 = add v49, v21
+    v51 = add v50, v23
+    v52 = add v51, v25
+    v53 = add v52, v27
+    v54 = add v53, v29
+    v55 = add v54, v31
+    v56 = add v55, v33
+    v57 = add v56, v35
+    v58 = add v57, v37
+    v59 = add v58, v39
+    v60 = add v59, v41
+    ret v60
+}
