@@ -8,7 +8,7 @@ bb0:
 @module C_runtime
 bb0:
   callvalue
-  jumpi bb13, bb11
+  jumpi bb2, bb11
 bb11:
   push 0
   calldataload
@@ -16,7 +16,7 @@ bb11:
   shr
   push 0xd2514e84
   sub
-  jumpi bb13, bb1
+  jumpi bb2, bb1
 bb1:
   calldatasize
   push 36
@@ -68,10 +68,6 @@ bb15:
   push 128
   return
 bb2:
-  push 0
-  push 0
-  revert
-bb13:
   push 0
   push 0
   revert
