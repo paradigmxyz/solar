@@ -3,9 +3,8 @@
 bb0:
   jump bb12
 bb1:
-  calldatasize
   push 36
-  swap 1
+  calldatasize
   lt
   jumpi bb5, bb6
 bb2:

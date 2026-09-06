@@ -4,7 +4,7 @@
 //@ run-call: GasFrontierObserver::s => 0
 //@ run-call: CodeFrontierObserver::s => 0
 //@ run-call: ForwardedGasFrontierObserver::s => 0
-//@[none] run-call: CodeFrontierObserver::observed; gas=100000 => 276
+//@[none] run-call: CodeFrontierObserver::observed; gas=100000 => 277
 //@[none] run-call: ForwardedGasFrontierObserver::observed 0x0000000000000000000000000000000000001111; gas=100000 => 160
 //@[none] run-call: GasFrontierObserver::observed; gas=100000 => 78925
 //@[gas] run-call: CodeFrontierObserver::observed; gas=100000 => 221
