@@ -22,20 +22,21 @@ PUSH widths. There is no Atom stream or assembly-level CFG optimization. MIR
 semantics remain in their retained layers. No legacy backend or temporary
 unsupported rewrite fallback is used.
 
-The current scope has 12,650 Rust lines across 36 files, versus 34,638 deleted
-raw lines: 21,988 fewer (63.5%). Counts include comments, blanks and local tests.
+The current scope has 12,660 Rust lines across 36 files, versus 34,638 deleted
+raw lines: 21,978 fewer (63.5%). Counts include comments, blanks and local tests.
 A historical production-only count was not retained and is not reconstructed
 from forbidden source.
 
 ## Current verification
 
 The current workspace run has 1,358 passes, one failing UI aggregate and two
-skips. Expanded UI has 10,997 passes, the same 62 failures and 806 filtered
+skips. Expanded UI has 11,015 passes, 44 remaining failures and 806 filtered
 revisions. All 99 codegen helpers, Foundry and ordinary workspace/all-target
-Clippy pass. Fourteen new mask-rule UI revisions pass without changing existing
-expectations.
+Clippy pass. Thirty targeted revisions pass after reviewing ten changed
+snapshots and one comment-only FileCheck update; there are no new failures.
 
-The current quality ledger is `disjoint-mask-sealed-ledger-20260906/`.
+The current quality ledger is `disjoint-mask-sealed-ledger-20260906/`;
+`absolute-unknown-range-trial-20260906/` preserves its optimized outputs exactly.
 All 694 original successful UI IDs and eight known failures match in each mode;
 31 added successes remain separate. Both hot lanes retain all 15 runtime cases,
 175 ordered gas labels and exact observations. Nine heavy captures match the
@@ -60,7 +61,7 @@ are byte-exact for each changed source. The code-object solc pairs differ only
 inside independently parsed IPFS metadata digests; the initial failed equality
 assertion and complete CBOR audit remain retained. The latest derived sealed
 source-join report is
-`library-phi-review-20260906/root-review-v2/sealed-ui-derived-for-future.json`;
+`absolute-range-root-expectations-20260906/sealed-ui-derived-for-future.json`;
 its 1,404 original rows and totals are unchanged. The mapping proof initially
 rejected different counts of comment-only blank lines before any mutation; the
 corrected noncomment-line comparison and four exact bytecode pairs are retained.
@@ -329,6 +330,32 @@ mixed: 52.86→53.36 and 53.18→52.97 seconds (+0.9% / −0.4%); sampled RSS fa
 is claimed. Evidence lives in `disjoint-mask-{trial,focused,differential,heavy-review}-20260906/`.
 Four sealed UI artifact debts are removed; 758 gas-mode and 548 size-mode
 artifact debts remain, along with all 1,101 heavy debts and hot gas gaps.
+
+Absolute unknown-length ranges are narrowed in `dea1a0df` (+10 raw Rust lines,
+including six helper assertions). Only an absolute start at or beyond a checked
+protected-word end proves disjointness; relative and unresolved starts remain
+conservative. All optimized UI/hot/heavy outputs are exact. The 1,694 focused
+executions include boundary, overflow, memory-size and dynamic-frame controls;
+a pressure-copy case saves 93 optimized runtime bytes and 141 opcode gas.
+Symbolic RETURN-size probes remain incomplete. Quiet times are mixed:
+53.01→53.18 and 53.01→52.81 seconds (+0.3% / −0.4%), with sampled RSS
+585,840→604,316 and 597,448→581,584 KiB (+3.2% / −2.7%). No compiler-speed
+win is claimed. Reviewed expectations in `18c8437f` reconstruct all 14 embedded
+objects and exact padding. Full workspace UI failures fall from 62 to 44,
+including two Standard JSON fixtures restored without blessing. Evidence lives
+in `absolute-unknown-range-{trial,focused,heavy-review,json-focused}-20260906/`
+and `absolute-range-{new-ui-review,root-expectations}-20260906/`.
+
+Two additional supported-functionality gaps now have concrete witnesses.
+`writer-readback-probe-20260906/reduced18/` shows compiler spill restoration
+replacing an unannotated assembly write before a later source read: current and
+sealed return 1 and 2 instead of pinned solc's `0xdeadbeef`. This is not adopted
+as an expectation. `recursive-copy-depth-review-20260906/` isolates a
+15-argument recursive copy rejected with `InaccessibleDepth`; sealed and solc
+execute 24 reference calls successfully. Pressure planning omitted saved
+protocol words. Both defects predate the absolute-range change and remain
+completion blockers alongside the measured gas/size debts. The next scheduler
+trial accounts for those words; broader memory visibility requires separate work.
 
 ## Evidence provenance
 
