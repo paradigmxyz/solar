@@ -108,6 +108,12 @@ snapshots; `nullary-tail-sealed-review/` retains every individual comparison.
 The Maple trace identifies extra stack permutations and entry transfer cost;
 call argument ordering is the next bounded investigation.
 
+A fresh frozen-runner checkpoint reports 61 failed and 3,031 passed revisions.
+Two failures were executable-name differences in CLI help and pass with a
+`solar` symlink; one size timing snapshot now omits the analysis skipped by the
+new tail observation guard. All six focused help/timing revisions pass, leaving
+58 other failures to investigate. Evidence is in `accepted-ui-current/`.
+
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
 all 24 project compilations and both identical-label hot-gas lanes on the final

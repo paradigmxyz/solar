@@ -103,7 +103,6 @@ time: <TIME>	EVM IR TimePasses_deployment pack-data changed=false
 time: <TIME>	EVM IR TimePasses_deployment coalesce-copies changed=false
 time: <TIME>	EVM IR TimePasses_deployment terminal-dedup changed=false
 time: <TIME>	EVM IR TimePasses_deployment share-reverts changed=false
-time: <TIME>	EVM analysis TimePasses_deployment tail-merge-stack changed=false
 time: <TIME>	EVM IR TimePasses_deployment tail-merge changed=false
 time: <TIME>	EVM IR TimePasses_deployment outline changed=false
 time: <TIME>	EVM IR TimePasses_deployment cfg-simplify changed=false
