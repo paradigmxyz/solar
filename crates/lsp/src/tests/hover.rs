@@ -1,4 +1,4 @@
-use super::{AnalysisBatch, GlobalState, SymbolTables, analyze, support::RequestFixture};
+use super::{AnalysisBatch, GlobalState, analyze, support::RequestFixture};
 use crate::test_support::TestProject;
 use async_lsp::ClientSocket;
 use lsp_types::{
@@ -1232,7 +1232,7 @@ fn waits_for_latest_analysis_before_returning_hover() {
     state.mark_analysis_pending_for_test();
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
     let Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("hover request should complete after analysis is published");

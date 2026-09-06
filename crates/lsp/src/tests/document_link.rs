@@ -1,6 +1,6 @@
 use super::{
-    AnalysisBatch, AnalysisResultAccumulator, GlobalState, SymbolTables, analyze,
-    snapshot_with_config, support::RequestFixture,
+    AnalysisBatch, AnalysisResultAccumulator, GlobalState, analyze, snapshot_with_config,
+    support::RequestFixture,
 };
 use crate::test_support::TestProject;
 use async_lsp::ClientSocket;
@@ -217,7 +217,7 @@ fn waits_for_current_analysis_before_returning_document_links() {
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("document-link request should complete after analysis is published");
     };

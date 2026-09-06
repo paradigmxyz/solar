@@ -776,7 +776,7 @@ pub enum BenchmarkResponse {
 pub struct BenchmarkAnalysis {
     root: PathBuf,
     diagnostics: DiagnosticMap,
-    symbol_tables: SymbolTables,
+    symbol_tables: Arc<SymbolTables>,
     default_uri: Option<Url>,
 }
 

@@ -292,7 +292,7 @@ fn request_failed(message: &'static str) -> ResponseError {
 fn latest_analysis_for_uri(
     state: &GlobalState,
     uri: &Url,
-) -> Option<impl Future<Output = Result<Arc<RwLock<SymbolTables>>, ResponseError>> + use<>> {
+) -> Option<impl Future<Output = Result<Arc<RwLock<Arc<SymbolTables>>>, ResponseError>> + use<>> {
     crate::proto::vfs_path(uri)?;
     Some(state.latest_analysis())
 }

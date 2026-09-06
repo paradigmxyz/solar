@@ -23,7 +23,7 @@ fn analyze_project_output(project: &TestProject) -> AnalysisOutput {
     outputs.finish()
 }
 
-fn analyze_project(project: &TestProject) -> SymbolTables {
+fn analyze_project(project: &TestProject) -> Arc<SymbolTables> {
     analyze_project_output(project).result.symbol_tables
 }
 

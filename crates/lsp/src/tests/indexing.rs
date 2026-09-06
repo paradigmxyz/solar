@@ -2,6 +2,37 @@ use super::*;
 use async_lsp::LanguageServer;
 use std::sync::atomic::AtomicBool;
 
+#[tokio::test(flavor = "current_thread")]
+async fn cached_and_published_symbol_tables_share_storage() {
+    let project = TestProject::from_fixture(
+        r#"
+        //- /Main.sol
+        contract Main {}
+        "#,
+    );
+    let mut state = GlobalState::new(ClientSocket::new_closed());
+    state.config = Arc::new(project.config());
+    *state.vfs.write() = project.vfs();
+    state.recompute_after_opening_source(vec![project.path("/Main.sol")]);
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+
+    let published = state.symbol_tables.read().clone();
+    {
+        let commit = state.analysis_commit.lock();
+        let cached = commit.cached_output.as_ref().unwrap();
+        assert!(Arc::ptr_eq(&published, &cached.output.result.symbol_tables));
+    }
+
+    state.recompute_after_opening_source(Vec::new());
+    tokio::time::timeout(ASYNC_TEST_TIMEOUT, state.latest_analysis()).await.unwrap().unwrap();
+    assert!(Arc::ptr_eq(&published, &state.symbol_tables.read()));
+
+    let old = Arc::downgrade(&published);
+    drop(published);
+    state.clear_analysis_cache();
+    assert!(old.upgrade().is_none());
+}
+
 #[test]
 fn analysis_tracks_excluded_transitive_dependencies_and_normalized_missing_candidates() {
     let project = TestProject::from_fixture(
@@ -54,7 +85,7 @@ fn analysis_output_accumulator_resolved_path_wins_across_batches() {
     let result = || AnalysisResult {
         analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::default(),
-        symbol_tables: SymbolTables::default(),
+        symbol_tables: Default::default(),
     };
     let mut accumulator = AnalysisOutputAccumulator::default();
     accumulator.push(AnalysisOutput {
@@ -87,7 +118,7 @@ fn stale_analysis_does_not_replace_published_path_index() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([path]),
@@ -120,7 +151,7 @@ fn deferred_dependency_change_prevents_stale_analysis_publish() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([path]),
@@ -181,7 +212,7 @@ fn deferred_existing_missing_candidate_change_prevents_stale_analysis_publish() 
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             missing_candidates: FxHashSet::from_iter([path]),
@@ -206,7 +237,7 @@ fn deferred_unrelated_change_does_not_block_analysis_publish() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex::default(),
     };

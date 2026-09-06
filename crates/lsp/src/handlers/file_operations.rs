@@ -88,7 +88,7 @@ pub(crate) fn will_rename_files(
 fn watched_paths_under(
     config: &Config,
     vfs: &RwLock<Vfs>,
-    symbol_tables: &RwLock<SymbolTables>,
+    symbol_tables: &RwLock<Arc<SymbolTables>>,
     roots: &[PathBuf],
 ) -> Vec<PathBuf> {
     let mut paths = config.file_operation_paths_under(roots);

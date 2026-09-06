@@ -394,7 +394,7 @@ pub(crate) struct GlobalState {
     protocol_trace: ProtocolTrace,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
-    pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
+    pub(crate) symbol_tables: Arc<RwLock<Arc<SymbolTables>>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
@@ -1285,7 +1285,7 @@ impl GlobalState {
     /// Waits for analysis results at least as new as the latest version requested before this call.
     pub(crate) fn latest_analysis(
         &self,
-    ) -> impl Future<Output = Result<Arc<RwLock<SymbolTables>>, ResponseError>> + use<> {
+    ) -> impl Future<Output = Result<Arc<RwLock<Arc<SymbolTables>>>, ResponseError>> + use<> {
         let mut published = self.published_analysis_version.subscribe();
         let version = self.analysis_version.load(Ordering::Acquire);
         let symbol_tables = self.symbol_tables.clone();
@@ -1300,7 +1300,7 @@ impl GlobalState {
     /// Waits for the latest analysis and returns the config snapshot that produced it.
     pub(crate) fn latest_analysis_with_config(
         &self,
-    ) -> impl Future<Output = Result<(Arc<RwLock<SymbolTables>>, Arc<Config>), ResponseError>> + use<>
+    ) -> impl Future<Output = Result<(Arc<RwLock<Arc<SymbolTables>>>, Arc<Config>), ResponseError>> + use<>
     {
         let latest_analysis = self.latest_analysis();
         let analysis_commit = self.analysis_commit.clone();
@@ -1748,7 +1748,8 @@ fn handle_analysis_failure(
 struct AnalysisResult {
     analyzed_documents: AnalyzedDocuments,
     diagnostics: DiagnosticMap,
-    symbol_tables: SymbolTables,
+    // Cached and published snapshots share these immutable, potentially large indexes.
+    symbol_tables: Arc<SymbolTables>,
 }
 
 #[derive(Clone)]
@@ -1800,14 +1801,14 @@ impl AnalysisResultAccumulator {
         for (uri, mut batch_diagnostics) in diagnostics {
             self.diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
         }
-        self.symbol_tables.push(symbol_tables);
+        self.symbol_tables.push(Arc::unwrap_or_clone(symbol_tables));
     }
 
     fn finish(self) -> AnalysisResult {
         AnalysisResult {
             analyzed_documents: self.analyzed_documents,
             diagnostics: self.diagnostics,
-            symbol_tables: self.symbol_tables.finish(),
+            symbol_tables: Arc::new(self.symbol_tables.finish()),
         }
     }
 }
@@ -2112,7 +2113,7 @@ pub(crate) struct GlobalStateSnapshot {
     analysis_commit: Arc<Mutex<AnalysisCommitState>>,
     watched_file_registration: Arc<WatchedFileRegistrationCoordinator>,
     flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
-    symbol_tables: Arc<RwLock<SymbolTables>>,
+    symbol_tables: Arc<RwLock<Arc<SymbolTables>>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
@@ -2398,7 +2399,7 @@ impl GlobalStateSnapshot {
     }
 
     #[cfg(test)]
-    fn publish_symbol_tables(&mut self, version: usize, symbol_tables: SymbolTables) -> bool {
+    fn publish_symbol_tables(&mut self, version: usize, symbol_tables: Arc<SymbolTables>) -> bool {
         self.publish_analysis(
             version,
             AnalysisResult {
@@ -2906,7 +2907,11 @@ fn analyze_cancellable_with_source_map(
             .collect();
 
         Some(AnalysisOutput {
-            result: AnalysisResult { analyzed_documents, diagnostics, symbol_tables },
+            result: AnalysisResult {
+                analyzed_documents,
+                diagnostics,
+                symbol_tables: Arc::new(symbol_tables),
+            },
             analysis_paths,
         })
     })

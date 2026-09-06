@@ -341,7 +341,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     tokio::time::timeout(ASYNC_TEST_TIMEOUT, refresh_rx.recv())
@@ -371,7 +371,7 @@ async fn analysis_updates_refresh_code_lenses_only_when_active() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
     state.clear_analysis_cache();
@@ -452,7 +452,7 @@ fn document_diagnostic_waits_for_committed_analysis_diagnostics() {
         AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::from_iter([(uri, vec![diagnostic("current")])]),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
     ));
 
@@ -967,7 +967,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let stale_result = AnalysisResult {
         analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("stale")])]),
-        symbol_tables: SymbolTables::default(),
+        symbol_tables: Default::default(),
     };
     assert!(!stale_snapshot.publish_analysis(stale_version, stale_result));
     assert!(matches!(harness.events.try_recv(), Err(mpsc::error::TryRecvError::Empty)));
@@ -975,7 +975,7 @@ async fn superseded_analysis_cannot_publish_or_end_latest_progress() {
     let latest_result = AnalysisResult {
         analyzed_documents: AnalyzedDocuments::default(),
         diagnostics: DiagnosticMap::from_iter([(uri.clone(), vec![diagnostic("current")])]),
-        symbol_tables: SymbolTables::default(),
+        symbol_tables: Default::default(),
     };
     assert!(latest_snapshot.publish_analysis(latest_version, latest_result));
     match harness.next_event().await {
@@ -1880,7 +1880,7 @@ fn publishing_current_epoch_clears_pending_source_changes() {
         .natspec_pending_source_changes
         .extend([first_path, second_path]);
 
-    assert!(snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(snapshot.publish_symbol_tables(1, Default::default()));
 
     let commit = snapshot.analysis_commit.lock();
     assert_eq!(commit.symbol_tables_version, 1);

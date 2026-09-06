@@ -1,4 +1,4 @@
-use super::{AnalysisBatch, GlobalState, SymbolTables, analyze, support::RequestFixture};
+use super::{AnalysisBatch, GlobalState, analyze, support::RequestFixture};
 use crate::test_support::TestProject;
 use async_lsp::ClientSocket;
 use lsp_types::{
@@ -287,7 +287,7 @@ fn waits_for_current_analysis_before_returning_highlights() {
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
     let std::task::Poll::Ready(response) = request.as_mut().poll(&mut context) else {
         panic!("document-highlight request should complete after analysis is published");
     };

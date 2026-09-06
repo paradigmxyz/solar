@@ -12,7 +12,7 @@ use serde_json::json;
 use solar_config::{CompileOpts, ImportRemapping};
 use std::{
     future::Future,
-    sync::atomic::Ordering,
+    sync::{Arc, atomic::Ordering},
     task::{Context, Poll, Waker},
 };
 
@@ -716,7 +716,7 @@ fn requests_read_the_latest_published_analysis() {
     state.analysis_version.fetch_add(1, Ordering::AcqRel);
     let mut snapshot = state.snapshot();
     assert!(snapshot.publish_symbol_tables(2, new_tables));
-    assert!(!snapshot.publish_symbol_tables(1, SymbolTables::default()));
+    assert!(!snapshot.publish_symbol_tables(1, Default::default()));
 
     assert_eq!(ready_names(prepare.as_mut().poll(&mut context)), ["New"]);
     assert_eq!(ready_names(supertypes.as_mut().poll(&mut context)), ["SuperNew"]);
@@ -828,7 +828,7 @@ fn assert_item(item: &TypeHierarchyItem, name: &str, kind: SymbolKind) {
     assert!(item.selection_range.end <= item.range.end);
 }
 
-fn analyze_tables(path: &std::path::Path, source: &str) -> SymbolTables {
+fn analyze_tables(path: &std::path::Path, source: &str) -> Arc<SymbolTables> {
     analyze(AnalysisBatch::from_files(
         CompileOpts::default(),
         [(path.to_path_buf(), source.to_owned())],

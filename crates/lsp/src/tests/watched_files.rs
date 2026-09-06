@@ -100,7 +100,7 @@ async fn watched_file_specs_are_prepared_after_the_analysis_commit_unlocks() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([
@@ -1503,7 +1503,7 @@ async fn discovery_and_analysis_refresh_bounded_watched_file_specs() {
         result: AnalysisResult {
             analyzed_documents: AnalyzedDocuments::default(),
             diagnostics: DiagnosticMap::default(),
-            symbol_tables: SymbolTables::default(),
+            symbol_tables: Default::default(),
         },
         analysis_paths: AnalysisPathIndex {
             resolved_dependencies: FxHashSet::from_iter([
