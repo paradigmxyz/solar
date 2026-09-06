@@ -70,6 +70,7 @@ or a final sealed-baseline comparison.
 | Borrow successor targets | 68.37→68.61 s (flat; no speedup claim) | RSS +6.0%, one pair |
 | Resize unknown stack outputs | 67.63→66.61; 67.34→67.13 s (−1.5%/−0.3%) | Modest; RSS +5.6%/+0.1% |
 | Memoize recursion reachability | 66.10→60.10; 65.60→55.62 s (−9.1%/−15.2%) | RSS +8.7%/−2.7% |
+| Stop completed stack counts | 54.83→52.07; 55.84→51.59 s (−5.0%/−7.6%) | RSS +3.1%/+5.5% |
 
 A direct sealed/current checkpoint pair on the same archived input is
 54.62→67.63 seconds (+23.8%), with peak RSS 822,828→632,296 KiB
@@ -220,6 +221,31 @@ comparisons and independent memory/stack execution. The sparse regression
 exposes wrong checksums in the sealed compiler; pinned solc and before/after
 rewrite executions agree. Those sealed discrepancies are retained explicitly,
 with valid gas-comparison denominators kept separate.
+
+The four-line scheduler count shortcut is accepted at `9f4c880e`. Excess-value
+removal makes equal total lengths sufficient to stop duplication counting.
+All nine project outputs, UI bytecode, both hot lanes, 26 retained diagnostic
+pairs and 99 helper tests remain exact. One strict UI stderr comparison found
+warning reordering: an independent replay observes five orders from the same
+before executable, identical complete diagnostic multisets, and byte-identical
+single-thread output. The original failure remains preserved beside this
+supplemental proof in `scheduler-count-completion-20260906/`.
+
+Size-mode exact-stride switches now subtract the minimum and rotate rather
+than hash and equality-check every leaf (`c22f10da`). All 510 concrete calls,
+three bounded symbolic agreements, three UI revisions and 99 helpers pass.
+The 721-source size screen saves 120 creation/runtime bytes (36 from an
+existing source), with no increases; gas-mode output and both hot lanes are
+exact. Seventeen local opcode-gas increases remain below sealed gas, while
+unchanged fallback debts remain explicit. Forced perfect-size output improves
+152→118 bytes but still exceeds sealed 105, so its snapshot remains untouched.
+`stride-switch-20260906-1/` retains first incomplete symbolic attempts,
+subsequent bounded agreements and the exact per-case comparisons.
+
+The common switch snapshot alone is reviewed at `b2587a3a`: 39 measured cases
+save 11–42 opcode gas, all four contracts shrink versus sealed, existing
+FileChecks are unchanged, and the focused UI test passes. This resolves one
+of the 78 failures at the preceding full checkpoint.
 
 Finish all supported behavior and investigate every remaining assertion before
 updating it. Repeat full workspace/UI, Foundry, differential, both size corpora,
