@@ -510,6 +510,15 @@ Two sequential Seaport pairs retain all 432 contracts byte-for-byte: 74.85 ->
 +4.8% and -1.5%; no consistent memory improvement is established. Evidence:
 `lazy-verifier-diagnostics/`. No validation was disabled or weakened.
 
+Call-entry selection now builds the original-plus-entry sequence once and
+reuses its caller cost when there is no entry tail. Candidate ordering, exact
+usage/cost gates and tie behavior remain unchanged. This adds three production
+lines. All UI and hot bytecode, observations and gas are exact; independent
+models cover 10,098 sequences and 6,732 equal-tail costs. One sequential
+432-contract Seaport pair is 70.38 -> 68.63 seconds (-2.5%), with peak RSS
+666,608 -> 634,124 KiB. This single pair is provisional timing evidence.
+Evidence: `call-entry-cost-reuse/guarded/`.
+
 ## Remaining acceptance
 
 Complete targeted fixes, remove every new baseline failure, and investigate

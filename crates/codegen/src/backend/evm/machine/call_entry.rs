@@ -64,7 +64,8 @@ pub(super) fn choose(
     let continuation_slot = Slot::CallLabel(continuation);
     let (mut entry_stack, entry_values) = entry(context.module.function(callee), layout)?;
     // <reverse argument order> -> <canonical callee entry>
-    let entry_insts = entry_stack.reconcile(&entry_values, 1, context.version).ok()?;
+    let mut combined = original.to_vec();
+    combined.extend(entry_stack.reconcile(&entry_values, 1, context.version).ok()?);
     let mut desired = caller.to_vec();
     for slot in entry_values {
         desired.push(match slot {
@@ -75,16 +76,19 @@ pub(super) fn choose(
     }
     let improves = |candidate: &[ir::Instruction],
                     previous: &[ir::Instruction],
-                    entry: &[ir::Instruction]| {
-        let mut combined = previous.to_vec();
-        combined.extend_from_slice(entry);
-        let Some(old_usage) = ir::scheduling_usage(&combined) else { return false };
+                    combined: &[ir::Instruction]| {
+        let Some(old_usage) = ir::scheduling_usage(combined) else { return false };
         let Some(new_usage) = ir::scheduling_usage(candidate) else { return false };
         if new_usage.0 > old_usage.0 || new_usage.1 != old_usage.1 || new_usage.2 > old_usage.2 {
             return false;
         }
         let old_caller = ir::scheduling_cost(context.version, previous);
-        let old = ir::scheduling_cost(context.version, &combined);
+        // Combined is exactly the caller followed by its optional entry rotation.
+        let old = if previous.len() == combined.len() {
+            old_caller
+        } else {
+            ir::scheduling_cost(context.version, combined)
+        };
         let new = ir::scheduling_cost(context.version, candidate);
         // Entry swaps can cancel with the first body shuffle. Require a caller-byte
         // saving instead of relying only on the estimated cost of that shared entry.
@@ -98,11 +102,11 @@ pub(super) fn choose(
     let mut incumbent = Stack::new(prepared)
         .reconcile(&desired, caller.len(), context.version)
         .ok()
-        .filter(|candidate| improves(candidate, &original[rotation_start..], &entry_insts))
+        .filter(|candidate| {
+            improves(candidate, &original[rotation_start..], &combined[rotation_start..])
+        })
         .map(|candidate| {
-            let mut complete = original[..rotation_start].to_vec();
-            complete.extend(candidate);
-            complete
+            original[..rotation_start].iter().cloned().chain(candidate).collect::<Vec<_>>()
         });
     let complete = (|| {
         let mut stack = incoming.clone();
@@ -116,11 +120,10 @@ pub(super) fn choose(
         candidate.extend(stack.reconcile(&desired, prefix(context), context.version).ok()?);
         Some(candidate)
     })();
-    let (previous, tail) = incumbent
-        .as_ref()
-        .map_or((original, entry_insts.as_slice()), |previous| (previous.as_slice(), &[][..]));
+    let previous = incumbent.as_deref().unwrap_or(original);
+    let combined = incumbent.as_deref().unwrap_or(&combined);
     if let Some(candidate) = complete
-        && improves(&candidate, previous, tail)
+        && improves(&candidate, previous, combined)
     {
         incumbent = Some(candidate);
     }
